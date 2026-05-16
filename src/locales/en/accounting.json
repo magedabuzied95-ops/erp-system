@@ -1,0 +1,47 @@
+{
+  "moduleEyebrow": "Accounting",
+  "title": "Accounting Dashboard",
+  "subtitle": "Core financial metrics built from journaled inventory, sales, purchases, and returns movements.",
+  "liveData": "Live accounting data",
+  "awaitingData": "Awaiting accounting data",
+  "journalEntries": "Journal Entries",
+  "tabs": {
+    "dashboard": "Dashboard",
+    "journal": "Journal",
+    "accounts": "Accounts",
+    "reports": "Reports",
+    "profitLoss": "P&L",
+    "compliance": "Compliance"
+  },
+  "kpis": {
+    "revenue": "Revenue",
+    "expenses": "Expenses",
+    "inventoryValue": "Inventory value",
+    "cogs": "COGS",
+    "grossProfit": "Gross profit"
+  },
+  "hints": {
+    "revenue": "Sales revenue posted to the ledger",
+    "expenses": "Operating and journaled expense impact",
+    "inventoryValue": "Inventory asset balance",
+    "cogs": "Cost of goods sold from sales",
+    "grossProfit": "Revenue less COGS"
+  },
+  "snapshotTitle": "Accounting snapshot",
+  "snapshotSubtitle": "Journaled inventory movements, sales, purchases, and returns are reflected here.",
+  "tiles": {
+    "salesTotal": "Sales total",
+    "purchasesTotal": "Purchases total",
+    "journalEntries": "Journal entries",
+    "margin": "Margin"
+  },
+  "quickLinks": "Quick links",
+  "links": {
+    "journal": "Review journal ledger",
+    "inventory": "Inspect inventory movements",
+    "products": "Review products and variants"
+  },
+  "toasts": {
+    "loadFailed": "Unable to load accounting dashboard"
+  }
+}

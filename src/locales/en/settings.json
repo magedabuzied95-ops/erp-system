@@ -1,0 +1,40 @@
+{
+  "appearance": {
+    "title": "Theme selector",
+    "subtitle": "Choose a theme, accent color, and density mode for the whole ERP. Changes apply instantly without refresh.",
+    "activeTheme": "Active theme",
+    "reset": "Reset appearance",
+    "themePresets": "Theme presets",
+    "themePresetsHint": "Preview cards show sidebar, card, button, text, and border colors.",
+    "themesCount": "themes",
+    "themeLabel": "Theme",
+    "selected": "Selected",
+    "clickToApply": "Click to apply",
+    "lightMode": "Light mode",
+    "darkMode": "Dark mode",
+    "accentTitle": "Accent color",
+    "accentSubtitle": "Overrides only the primary action color and its soft variant.",
+    "accentDefault": "Default",
+    "accentUsesTheme": "Uses theme color",
+    "accentOverrides": "Overrides primary only",
+    "densityTitle": "Density",
+    "densitySubtitle": "Compact mode reduces spacing across cards, forms, tables, and POS.",
+    "normal": "Normal",
+    "compact": "Compact",
+    "densityNormalDescription": "Standard enterprise spacing",
+    "densityCompactDescription": "Denser layout for power users and POS",
+    "currentAppearance": "Current appearance",
+    "previewSidebar": "Sidebar",
+    "previewCard": "Card",
+    "previewButton": "Button",
+    "previewText": "Text",
+    "previewBorder": "Border",
+    "theme": "Theme",
+    "accent": "Accent",
+    "density": "Density",
+    "mode": "Mode"
+  },
+  "settings": {
+    "title": "Settings"
+  }
+}

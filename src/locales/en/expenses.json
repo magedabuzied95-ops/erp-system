@@ -1,0 +1,70 @@
+{
+  "title": "Expenses Module",
+  "subtitle": "Create expenses, manage categories and payment methods, keep attachments as placeholders, track approval status, and review expense analytics.",
+  "reports": "Expense reports",
+  "tabs": {
+    "dashboard": "Dashboard",
+    "cashbox": "Cashbox",
+    "expenses": "Expenses",
+    "income": "Income",
+    "ledgers": "Ledgers",
+    "reports": "Reports"
+  },
+  "kpis": {
+    "total": "Expense total",
+    "pending": "Pending",
+    "approved": "Approved",
+    "categories": "Categories"
+  },
+  "createExpense": "Create expense",
+  "fields": {
+    "title": "Title",
+    "amount": "Amount",
+    "category": "Category",
+    "method": "Payment method",
+    "status": "Approval status",
+    "attachment": "Attachment placeholder",
+    "notes": "Notes"
+  },
+  "placeholders": {
+    "title": "Courier invoice, rent, utilities...",
+    "attachment": "File name or reference",
+    "notes": "Purpose, department, approval note..."
+  },
+  "buttons": {
+    "create": "Create expense",
+    "saving": "Saving..."
+  },
+  "analytics": {
+    "title": "Expense analytics",
+    "empty": "No expense analytics yet."
+  },
+  "history": {
+    "title": "Expense history",
+    "empty": "No expenses recorded.",
+    "noNotes": "No notes",
+    "attachment": "Attachment placeholder"
+  },
+  "toasts": {
+    "required": "Title and amount are required",
+    "saved": "Expense saved",
+    "fallback": "Backend expense endpoint unavailable. Saved locally."
+  },
+  "options": {
+    "rent": "Rent",
+    "payroll": "Payroll",
+    "logistics": "Logistics",
+    "marketing": "Marketing",
+    "software": "Software",
+    "office": "Office",
+    "utilities": "Utilities",
+    "general": "General",
+    "cash": "Cash",
+    "card": "Card",
+    "bankTransfer": "Bank transfer",
+    "wallet": "Wallet",
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected"
+  }
+}

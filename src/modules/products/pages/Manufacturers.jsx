@@ -1,0 +1,363 @@
+import { useEffect, useMemo, useState } from "react";
+
+import { Factory, Pencil, Search, Save, Trash2, X } from "lucide-react";
+
+import toast from "react-hot-toast";
+
+import ProductsShell from "../components/ProductsShell";
+import {
+  createManufacturer,
+  deleteManufacturer,
+  getManufacturers,
+  updateManufacturer,
+} from "../services/productsApi";
+
+const emptyForm = {
+  name: "",
+  contactPerson: "",
+  phone: "",
+  email: "",
+  address: "",
+  country: "",
+  notes: "",
+  isActive: true,
+};
+
+const getErrorMessage = (error, fallback) =>
+  error?.responseBody?.message ||
+  error?.response?.data?.message ||
+  error?.data?.message ||
+  error?.message ||
+  fallback;
+
+function Manufacturers() {
+  const [items, setItems] = useState([]);
+  const [form, setForm] = useState(emptyForm);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const rows = await getManufacturers();
+        if (!active) return;
+        setItems(Array.isArray(rows) ? rows : []);
+      } catch (error) {
+        console.log(error);
+        toast.error(getErrorMessage(error, "Failed to load manufacturers"));
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const loadItems = async () => {
+    try {
+      const rows = await getManufacturers();
+      setItems(Array.isArray(rows) ? rows : []);
+    } catch (error) {
+      console.log(error);
+      toast.error(getErrorMessage(error, "Failed to load manufacturers"));
+    }
+  };
+
+  const filteredItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return items;
+    return items.filter((item) =>
+      [item.name, item.contact_person, item.contactPerson, item.phone, item.email, item.address, item.country, item.notes]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [items, search]);
+
+  const resetForm = () => {
+    setForm(emptyForm);
+    setEditingId(null);
+  };
+
+  const handleChange = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!form.name.trim()) {
+      toast.error("Manufacturer name is required");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const payload = {
+        name: form.name.trim(),
+        contact_person: form.contactPerson.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        address: form.address.trim(),
+        country: form.country.trim(),
+        notes: form.notes.trim(),
+        is_active: form.isActive,
+      };
+
+      console.log("[manufacturers] payload:", payload);
+
+      if (editingId) {
+        await updateManufacturer(editingId, payload);
+        toast.success("Manufacturer updated");
+      } else {
+        await createManufacturer(payload);
+        toast.success("Manufacturer created");
+      }
+
+      await loadItems();
+      resetForm();
+    } catch (error) {
+      console.log(error);
+      toast.error(getErrorMessage(error, "Failed to save manufacturer"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = (item) => {
+    setEditingId(item.id);
+    setForm({
+      name: item.name || "",
+      contactPerson: item.contact_person || item.contactPerson || "",
+      phone: item.phone || "",
+      email: item.email || "",
+      address: item.address || "",
+      country: item.country || "",
+      notes: item.notes || "",
+      isActive: item.is_active ?? item.isActive ?? true,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDelete = async (item) => {
+    if (!window.confirm(`Delete manufacturer "${item.name}"?`)) return;
+
+    try {
+      await deleteManufacturer(item.id);
+      toast.success("Manufacturer deleted");
+      if (String(editingId) === String(item.id)) {
+        resetForm();
+      }
+      await loadItems();
+    } catch (error) {
+      console.log(error);
+      toast.error(getErrorMessage(error, "Failed to delete manufacturer"));
+    }
+  };
+
+  return (
+    <ProductsShell
+      title="Manufacturers"
+      description="Manage manufacturer records used by product color variants and POS filtering."
+    >
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)] xl:col-span-4">
+          <div className="flex items-center gap-3">
+            <Factory className="text-emerald-400" />
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">
+                Manufacturer editor
+              </p>
+              <h2 className="mt-1 text-2xl font-black text-white">
+                {editingId ? "Edit manufacturer" : "Add manufacturer"}
+              </h2>
+            </div>
+          </div>
+
+          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+            <Field label="Name" value={form.name} onChange={(value) => handleChange("name", value)} placeholder="Manufacturer name" />
+            <Field label="Contact person" value={form.contactPerson} onChange={(value) => handleChange("contactPerson", value)} placeholder="Operations manager" />
+            <Field label="Phone" value={form.phone} onChange={(value) => handleChange("phone", value)} placeholder="+20 100 000 0000" />
+            <Field label="Email" value={form.email} onChange={(value) => handleChange("email", value)} placeholder="factory@example.com" />
+            <Field label="Address" value={form.address} onChange={(value) => handleChange("address", value)} placeholder="Industrial zone, Cairo" />
+            <Field label="Country" value={form.country} onChange={(value) => handleChange("country", value)} placeholder="Egypt" />
+            <label className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm font-semibold text-zinc-300">
+              Active
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) => handleChange("isActive", e.target.checked)}
+                className="h-4 w-4 accent-emerald-500"
+              />
+            </label>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Notes</label>
+              <textarea
+                value={form.notes}
+                onChange={(e) => handleChange("notes", e.target.value)}
+                rows={4}
+                placeholder="Optional notes"
+                className="mt-2 w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-semibold text-black transition hover:bg-emerald-400 disabled:opacity-60"
+              >
+                <Save size={18} />
+                {saving ? "Saving..." : editingId ? "Update manufacturer" : "Save manufacturer"}
+              </button>
+              {editingId ? (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white transition hover:bg-white/10"
+                >
+                  <X size={18} />
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </form>
+        </section>
+
+        <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)] xl:col-span-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Manufacturer registry</p>
+              <h2 className="mt-1 text-2xl font-black text-white">Live manufacturers</h2>
+              <p className="mt-2 text-sm text-zinc-400">
+                These records are used by product color variants and POS product filtering.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-300">
+                {items.length} manufacturers
+              </div>
+              <div className="relative w-full min-w-[18rem] lg:w-[22rem]">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search manufacturers..."
+                  className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 overflow-hidden rounded-[28px] border border-white/8">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-white/8">
+                <thead className="bg-white/5">
+                  <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
+                    <Th>Name</Th>
+                    <Th>Contact</Th>
+                    <Th>Phone</Th>
+                    <Th>Email</Th>
+                    <Th>Country</Th>
+                    <Th>Address</Th>
+                    <Th>Status</Th>
+                    <Th>Created</Th>
+                    <Th className="text-right">Actions</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/8 bg-zinc-950/60">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={9} className="px-5 py-12 text-center text-sm text-zinc-400">
+                        Loading manufacturers...
+                      </td>
+                    </tr>
+                  ) : filteredItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-5 py-12 text-center text-sm text-zinc-400">
+                        {search ? "No matching manufacturers found." : "No manufacturers yet."}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredItems.map((item) => (
+                      <tr key={item.id} className="transition hover:bg-white/[0.03]">
+                        <Td>
+                          <div className="font-semibold text-white">{item.name}</div>
+                        </Td>
+                        <Td>
+                          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300">
+                            {item.contact_person || item.contactPerson || "N/A"}
+                          </span>
+                        </Td>
+                        <Td>{item.phone || "N/A"}</Td>
+                        <Td>{item.email || "N/A"}</Td>
+                        <Td>{item.country || "N/A"}</Td>
+                        <Td className="max-w-[18rem] truncate">{item.address || "N/A"}</Td>
+                        <Td>
+                          <span className={item.is_active === false ? "text-zinc-500" : "text-emerald-300"}>
+                            {item.is_active === false ? "Inactive" : "Active"}
+                          </span>
+                        </Td>
+                        <Td>{item.created_at ? new Date(item.created_at).toLocaleDateString() : "N/A"}</Td>
+                        <Td>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(item)}
+                              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                            >
+                              <Pencil size={16} />
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(item)}
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-red-300 transition hover:bg-red-500/10"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </Td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </ProductsShell>
+  );
+}
+
+function Field({ label, value, onChange, placeholder = "" }) {
+  return (
+    <div>
+      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-2 w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
+      />
+    </div>
+  );
+}
+
+function Th({ children, className = "" }) {
+  return <th className={`px-5 py-4 font-semibold ${className}`}>{children}</th>;
+}
+
+function Td({ children, className = "" }) {
+  return <td className={`px-5 py-4 text-sm text-zinc-300 ${className}`}>{children}</td>;
+}
+
+export default Manufacturers;

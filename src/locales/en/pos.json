@@ -1,0 +1,83 @@
+{
+  "moduleEyebrow": "POS PRO",
+  "title": "Enterprise checkout console",
+  "subtitle": "Fast product lookup, barcode-driven selling, split payments, and printable receipts in one screen.",
+  "stats": {
+    "subtotal": "Subtotal",
+    "discounts": "Discounts",
+    "serviceFee": "Service fee",
+    "total": "Total"
+  },
+  "searchPlaceholder": "Search products, SKU, barcode, color, size, category, brand...",
+  "filters": {
+    "title": "Filters"
+  },
+  "customer": {
+    "placeholder": "Select customer",
+    "change": "Change customer",
+    "add": "Add customer",
+    "newCustomer": "+ New customer",
+    "walkIn": "Walk-in",
+    "noMatch": "No matching customer found."
+  },
+  "statsCard": {
+    "wallet": "Wallet",
+    "loyalty": "Loyalty",
+    "invoices": "Invoices",
+    "pts": "pts"
+  },
+  "labels": {
+    "all": "All",
+    "default": "Default",
+    "color": "Color",
+    "size": "Size",
+    "oneSize": "One size",
+    "variant": "Variant",
+    "sku": "SKU",
+    "barcode": "Barcode",
+    "stock": "Stock",
+    "action": "Action",
+    "price": "Price",
+    "selectedVariant": "Selected variant",
+    "noImage": "No image",
+    "add": "Add",
+    "addSelectedVariant": "Add selected variant",
+    "variantSelection": "Variant selection",
+    "chooseVariantPrompt": "Choose color and size before adding the item to cart.",
+    "stockNote": "Stock note",
+    "stockNoteBody": "This screen sells against the live product variant stock. The backend order endpoint already decrements stock in its transaction.",
+    "syncingCatalog": "Syncing catalog...",
+    "tip": "Tip:",
+    "tipBody": "scan a barcode or press F2 to focus search.",
+    "whatsappInvoice": "WhatsApp invoice"
+  },
+  "shift": {
+    "gate": "Shift Gate",
+    "openShift": "Open POS shift",
+    "instruction": "Select the employee opening the shift. Branch is loaded from the employee profile.",
+    "employee": "Employee",
+    "selectEmployee": "Select employee",
+    "assignedBranch": "Assigned branch",
+    "noBranchAssigned": "No branch assigned",
+    "readOnly": "Read-only from employee.branch_id",
+    "status": "Shift status",
+    "loading": "Loading...",
+    "closed": "Closed",
+    "notOpen": "Not open",
+    "noTemplate": "No attendance shift template",
+    "noBranchMessage": "This employee has no branch assigned. Assign a branch before opening POS.",
+    "open": "Open Shift",
+    "report": "Shift report",
+    "closeSummary": "Close shift summary",
+    "close": "Close",
+    "sales": "Sales",
+    "invoices": "Invoices",
+    "items": "Items",
+    "cash": "Cash",
+    "card": "Card",
+    "wallet": "Wallet",
+    "expectedDrawer": "Expected drawer",
+    "actualDrawer": "Actual drawer",
+    "difference": "Difference"
+  }
+}

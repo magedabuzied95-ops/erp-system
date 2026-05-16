@@ -1,0 +1,49 @@
+{
+  "title": "Suppliers",
+  "subtitle": "Supplier directory, ledger summaries, balances, purchase history, and contact details.",
+  "newPurchaseOrder": "New purchase order",
+  "tabs": {
+    "purchases": "Purchases",
+    "createPO": "Create PO",
+    "suppliers": "Suppliers",
+    "inventory": "Inventory",
+    "warehouses": "Warehouses"
+  },
+  "kpis": {
+    "suppliers": "Suppliers",
+    "active": "Active",
+    "debtBalance": "Debt balance",
+    "purchaseHistory": "Purchase history"
+  },
+  "searchPlaceholder": "Search suppliers, phones, emails, addresses...",
+  "tableHeaders": {
+    "supplier": "Supplier",
+    "phone": "Phone",
+    "email": "Email",
+    "status": "Status",
+    "balance": "Balance",
+    "purchases": "Purchases",
+    "lastPurchase": "Last purchase"
+  },
+  "empty": {
+    "title": "No suppliers found",
+    "subtitle": "Try a different search or create a supplier in the backend."
+  },
+  "actions": {
+    "openLedger": "Open ledger",
+    "copyPhone": "Copy phone",
+    "prev": "Prev",
+    "next": "Next"
+  },
+  "labels": {
+    "showing": "Showing",
+    "of": "of",
+    "page": "Page"
+  },
+  "row": {
+    "noAddress": "No address",
+    "na": "n/a"
+  },
+  "fallbackError": "Using local supplier data because the live supplier endpoint was not available.",
+  "fallbackToast": "Using fallback supplier data"
+}

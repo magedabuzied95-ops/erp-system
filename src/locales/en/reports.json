@@ -1,0 +1,47 @@
+{
+  "title": "Reports & Analytics",
+  "subtitle": "Business Intelligence Dashboard",
+  "loading": "Loading Reports...",
+  "walkIn": "Walk In",
+  "payment": {
+    "cash": "Cash"
+  },
+  "buttons": {
+    "excel": "Excel",
+    "csv": "CSV",
+    "pdf": "PDF"
+  },
+  "kpis": {
+    "revenue": "Revenue",
+    "orders": "Orders",
+    "averageOrder": "Average Order",
+    "paidOrders": "Paid Orders"
+  },
+  "sections": {
+    "revenueAnalytics": "Revenue Analytics",
+    "orderStatus": "Orders Status",
+    "table": "Reports Table"
+  },
+  "table": {
+    "id": "ID",
+    "customer": "Customer",
+    "payment": "Payment",
+    "status": "Status",
+    "total": "Total"
+  },
+  "charts": {
+    "revenue": "Revenue",
+    "averageOrder": "Avg Order",
+    "paid": "Paid",
+    "pending": "Pending"
+  },
+  "export": {
+    "sheetName": "Reports"
+  },
+  "toasts": {
+    "loadFailed": "Failed to load reports",
+    "excelExported": "Excel exported",
+    "csvExported": "CSV exported",
+    "pdfExported": "PDF exported"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "moduleEyebrow": "المشتريات والمخزون",
+  "title": "لوحة المشتريات",
+  "subtitle": "إدارة أوامر الشراء واستلام المخزون وإنفاق الموردين وتدفق الاستلام من لوحة واحدة.",
+  "actions": {
+    "newPurchaseOrder": "أمر شراء جديد"
+  },
+  "tabs": {
+    "purchases": "المشتريات",
+    "createPo": "إنشاء أمر شراء",
+    "suppliers": "الموردون",
+    "inventory": "المخزون",
+    "warehouses": "المخازن"
+  },
+  "kpis": {
+    "totalPurchases": "إجمالي المشتريات",
+    "received": "تم الاستلام",
+    "ordered": "تم الطلب",
+    "draft": "مسودة",
+    "totalSpent": "إجمالي الصرف"
+  },
+  "searchPlaceholder": "ابحث في المشتريات أو الفاتورة أو المورد أو المنتج أو SKU...",
+  "filters": {
+    "supplier": "المورد",
+    "status": "الحالة",
+    "warehouse": "المخزن",
+    "payment": "الدفع",
+    "all": "الكل"
+  },
+  "table": {
+    "invoice": "الفاتورة",
+    "supplier": "المورد",
+    "warehouse": "المخزن",
+    "status": "الحالة",
+    "payment": "الدفع",
+    "items": "الأصناف",
+    "total": "الإجمالي",
+    "date": "التاريخ"
+  },
+  "empty": {
+    "title": "لا توجد مشتريات",
+    "description": "عدّل الفلاتر أو أنشئ أمر شراء جديد."
+  },
+  "paging": {
+    "showing": "عرض",
+    "of": "من",
+    "page": "صفحة",
+    "records": "المشتريات"
+  },
+  "actionsMenu": {
+    "openOrder": "فتح الأمر",
+    "receiveStock": "استلام المخزون",
+    "copyInvoice": "نسخ الفاتورة",
+    "invoiceCopied": "تم نسخ الفاتورة"
+  }
+}

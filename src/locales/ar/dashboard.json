@@ -1,0 +1,39 @@
+{
+  "eyebrow": "نظرة عامة على المؤسسة",
+  "title": "لوحة تحكم ERP",
+  "description": "ملخص تشغيلي للمبيعات والمخزون وأداء الأعمال خلال الفترة الحالية.",
+  "status": "الحالة",
+  "live": "مباشر",
+  "warehouse": "المخزن",
+  "orders": "الطلبات",
+  "margin": "الهامش",
+  "revenueAnalytics": "تحليلات الإيرادات",
+  "monthlyPerformanceTrend": "اتجاه الأداء الشهري",
+  "salesChannels": "قنوات البيع",
+  "distributionMix": "توزيع المبيعات",
+  "activityFlow": "تدفق النشاط",
+  "salesInventoryOperationsTrend": "اتجاه المبيعات والمخزون والعمليات",
+  "operations": "العمليات",
+  "lowStockItems": "أصناف منخفضة المخزون",
+  "pendingApprovals": "الموافقات المعلقة",
+  "overdueInvoices": "الفواتير المتأخرة",
+  "channels": {
+    "online": "أونلاين",
+    "retail": "تجزئة",
+    "wholesale": "جملة"
+  },
+  "months": {
+    "jan": "يناير",
+    "feb": "فبراير",
+    "mar": "مارس",
+    "apr": "أبريل",
+    "may": "مايو",
+    "jun": "يونيو"
+  },
+  "kpis": {
+    "totalRevenue": "إجمالي الإيرادات",
+    "orders": "الطلبات",
+    "products": "المنتجات",
+    "activeUsers": "المستخدمون النشطون"
+  }
+}

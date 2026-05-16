@@ -1,0 +1,27 @@
+{
+  "title": "Stock Transfers",
+  "subtitle": "Move stock between warehouses and branches while keeping the transfer log easy to scan.",
+  "tabs": {
+    "inventory": "Inventory",
+    "movements": "Movements",
+    "adjustments": "Adjustments",
+    "transfers": "Transfers",
+    "warehouses": "Warehouses"
+  },
+  "form": {
+    "from": "From warehouse",
+    "to": "To warehouse",
+    "product": "Product",
+    "variant": "Variant",
+    "quantity": "Quantity",
+    "notes": "Notes"
+  },
+  "buttons": {
+    "transfer": "Transfer stock",
+    "saving": "Transferring..."
+  },
+  "empty": {
+    "title": "No transfers yet",
+    "subtitle": "Create the first stock transfer to see movement history here."
+  }
+}

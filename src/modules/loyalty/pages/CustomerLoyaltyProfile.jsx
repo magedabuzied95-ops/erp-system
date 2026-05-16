@@ -1,0 +1,192 @@
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+
+import { Gift, ReceiptText, ShieldCheck, UserCircle2 } from "lucide-react";
+import toast from "react-hot-toast";
+
+import { getLoyaltyCustomerById, redeemLoyaltyPoints } from "../loyaltyApi";
+import { loyaltyMockData } from "../lib/loyaltyMockData";
+
+const tierStyles = {
+  Bronze: "border-amber-500/20 bg-amber-500/10 text-amber-200",
+  Silver: "border-slate-300/20 bg-slate-300/10 text-slate-100",
+  Gold: "border-yellow-500/20 bg-yellow-500/10 text-yellow-200",
+  Platinum: "border-cyan-500/20 bg-cyan-500/10 text-cyan-200",
+};
+
+function CustomerLoyaltyProfile() {
+  const { customerId } = useParams();
+  const [customer, setCustomer] = useState(null);
+  const [loyalty, setLoyalty] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [redeeming, setRedeeming] = useState(false);
+  const [points, setPoints] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        const response = await getLoyaltyCustomerById(customerId);
+        if (!active) return;
+
+        setCustomer(response?.customer || loyaltyMockData.customerDetail.customer);
+        setLoyalty(response?.loyalty || loyaltyMockData.customerDetail.loyalty);
+        setTransactions(
+          Array.isArray(response?.transactions) && response.transactions.length
+            ? response.transactions
+            : loyaltyMockData.customerDetail.transactions
+        );
+      } catch (error) {
+        if (!active) return;
+        console.log(error);
+        toast.error("Using loyalty customer fallback");
+        setCustomer(loyaltyMockData.customerDetail.customer);
+        setLoyalty(loyaltyMockData.customerDetail.loyalty);
+        setTransactions(loyaltyMockData.customerDetail.transactions);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, [customerId]);
+
+  const handleRedeem = async () => {
+    const redeemPoints = Number(points);
+    if (!Number.isFinite(redeemPoints) || redeemPoints <= 0) {
+      toast.error("Enter valid points");
+      return;
+    }
+
+    try {
+      setRedeeming(true);
+      const response = await redeemLoyaltyPoints({ customerId, points: redeemPoints });
+      setLoyalty((current) => ({
+        ...(current || {}),
+        available_points: response?.loyalty?.available_points ?? Math.max(0, Number(current?.available_points || 0) - redeemPoints),
+        total_points_redeemed: response?.loyalty?.total_points_redeemed ?? Number(current?.total_points_redeemed || 0) + redeemPoints,
+        tier: response?.loyalty?.tier || current?.tier || "Bronze",
+      }));
+      setTransactions((current) => [response?.transaction, ...current].filter(Boolean));
+      setPoints("");
+      toast.success("Points redeemed");
+    } catch (error) {
+      console.log(error);
+      toast.error(error.message || "Redeem failed");
+    } finally {
+      setRedeeming(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 text-white">
+      <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-[#0b1220] p-6 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex items-start gap-4">
+          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-cyan-300">
+            <UserCircle2 className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">Customer loyalty profile</p>
+            <h1 className="mt-2 text-3xl font-black">{loading ? "Loading..." : customer?.name}</h1>
+            <p className="mt-2 text-sm text-zinc-400">
+              {customer?.phone || "No phone"} {customer?.email ? `| ${customer.email}` : ""}
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <Link to="/loyalty" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold hover:bg-white/10">
+            Back to dashboard
+          </Link>
+          <Link to="/loyalty/rules" className="rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950">
+            Rules
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          ["Tier", loyalty?.tier || "Bronze", ShieldCheck],
+          ["Available points", Number(loyalty?.available_points || 0).toLocaleString(), Gift],
+          ["Points earned", Number(loyalty?.total_points_earned || 0).toLocaleString(), ReceiptText],
+          ["Lifetime spent", Number(loyalty?.lifetime_spent || 0).toLocaleString(), ReceiptText],
+        ].map(([label, value, Icon]) => (
+          <div key={label} className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{label}</p>
+                <p className="mt-3 text-2xl font-black text-white">{value}</p>
+              </div>
+              <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-cyan-300">
+                <Icon className="h-5 w-5" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+        <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">Transaction history</h2>
+            <span className={`rounded-full border px-3 py-1 text-xs font-bold ${tierStyles[loyalty?.tier] || tierStyles.Bronze}`}>{loyalty?.tier || "Bronze"}</span>
+          </div>
+          <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-white/5 text-xs uppercase tracking-[0.2em] text-zinc-500">
+                <tr>
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3">Points</th>
+                  <th className="px-4 py-3">Value</th>
+                  <th className="px-4 py-3">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(transactions || []).map((tx) => (
+                  <tr key={tx.id} className="border-t border-white/10">
+                    <td className="px-4 py-3 text-cyan-200">{tx.transaction_type}</td>
+                    <td className="px-4 py-3 text-zinc-300">{Number(tx.points || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-zinc-300">{Number(tx.amount_value || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-zinc-400">{tx.created_at ? new Date(tx.created_at).toLocaleDateString() : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
+          <h2 className="text-lg font-bold">Redeem points</h2>
+          <p className="mt-2 text-sm text-zinc-500">Convert points to value when the customer checks out.</p>
+
+          <label className="mt-5 block space-y-2 text-sm text-zinc-300">
+            <span className="block text-xs uppercase tracking-[0.2em] text-zinc-500">Points to redeem</span>
+            <input
+              type="number"
+              value={points}
+              onChange={(e) => setPoints(e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white outline-none ring-0 focus:border-cyan-500/40"
+            />
+          </label>
+
+          <button
+            type="button"
+            onClick={handleRedeem}
+            disabled={redeeming}
+            className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
+          >
+            <Gift className="h-4 w-4" />
+            {redeeming ? "Redeeming..." : "Redeem points"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default CustomerLoyaltyProfile;

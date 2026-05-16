@@ -1,0 +1,56 @@
+{
+  "moduleEyebrow": "Purchases & inventory",
+  "title": "Purchases Dashboard",
+  "subtitle": "Manage purchase orders, stock intake, supplier spend, and receiving flow from a single enterprise dashboard.",
+  "actions": {
+    "newPurchaseOrder": "New purchase order"
+  },
+  "tabs": {
+    "purchases": "Purchases",
+    "createPo": "Create PO",
+    "suppliers": "Suppliers",
+    "inventory": "Inventory",
+    "warehouses": "Warehouses"
+  },
+  "kpis": {
+    "totalPurchases": "Total purchases",
+    "received": "Received",
+    "ordered": "Ordered",
+    "draft": "Draft",
+    "totalSpent": "Total spent"
+  },
+  "searchPlaceholder": "Search purchases, invoice, supplier, product, SKU...",
+  "filters": {
+    "supplier": "Supplier",
+    "status": "Status",
+    "warehouse": "Warehouse",
+    "payment": "Payment",
+    "all": "All"
+  },
+  "table": {
+    "invoice": "Invoice",
+    "supplier": "Supplier",
+    "warehouse": "Warehouse",
+    "status": "Status",
+    "payment": "Payment",
+    "items": "Items",
+    "total": "Total",
+    "date": "Date"
+  },
+  "empty": {
+    "title": "No purchases found",
+    "description": "Adjust filters or create a new purchase order."
+  },
+  "paging": {
+    "showing": "Showing",
+    "of": "of",
+    "page": "Page",
+    "records": "purchases"
+  },
+  "actionsMenu": {
+    "openOrder": "Open order",
+    "receiveStock": "Receive stock",
+    "copyInvoice": "Copy invoice",
+    "invoiceCopied": "Invoice copied"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "moduleEyebrow": "وحدة الطلبات",
+  "title": "لوحة الطلبات",
+  "subtitle": "تابع الطلبات وحالة الدفع وحالات الشحن والإيرادات من شاشة واحدة.",
+  "actions": {
+    "createReturn": "إنشاء مرتجع"
+  },
+  "kpis": {
+    "totalOrders": "إجمالي الطلبات",
+    "paid": "مدفوعة",
+    "pending": "معلقة",
+    "returned": "مرتجعة",
+    "revenue": "الإيرادات"
+  },
+  "searchPlaceholder": "ابحث عن الفاتورة أو العميل أو الهاتف أو SKU...",
+  "filters": {
+    "status": "الحالة",
+    "payment": "الدفع",
+    "channel": "القناة",
+    "branch": "الفرع",
+    "all": "الكل"
+  },
+  "bulk": {
+    "markConfirmed": "تعيين مؤكد",
+    "markShipped": "تعيين مشحون",
+    "cancelSelected": "إلغاء المحدد",
+    "selected": "محدد"
+  },
+  "table": {
+    "invoice": "الفاتورة",
+    "customer": "العميل",
+    "status": "الحالة",
+    "payment": "الدفع",
+    "channel": "القناة",
+    "branch": "الفرع",
+    "total": "الإجمالي",
+    "date": "التاريخ"
+  },
+  "empty": {
+    "title": "لا توجد طلبات",
+    "description": "عدّل الفلاتر أو امسح البحث."
+  },
+  "paging": {
+    "showing": "عرض",
+    "of": "من",
+    "page": "صفحة",
+    "records": "الطلبات"
+  },
+  "summary": {
+    "quick": "ملخص سريع",
+    "recentSignals": "الإشارات الأخيرة"
+  },
+  "actionsMenu": {
+    "viewDetails": "عرض التفاصيل",
+    "createReturn": "إنشاء مرتجع",
+    "copyInvoice": "نسخ الفاتورة",
+    "invoiceCopied": "تم نسخ الفاتورة"
+  }
+}

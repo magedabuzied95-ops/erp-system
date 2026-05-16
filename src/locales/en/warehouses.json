@@ -1,0 +1,34 @@
+{
+  "title": "Warehouses Dashboard",
+  "subtitle": "Warehouse inventory overview, branch stock snapshots, and transfer placeholders.",
+  "history": "Inventory history",
+  "transferStock": "Transfer stock",
+  "tabs": {
+    "inventory": "Inventory",
+    "movements": "Movements",
+    "adjustments": "Adjustments",
+    "transfers": "Transfers",
+    "warehouses": "Warehouses"
+  },
+  "kpis": {
+    "warehouses": "Warehouses",
+    "active": "Active",
+    "branches": "Branches",
+    "valuation": "Valuation"
+  },
+  "searchPlaceholder": "Search warehouses...",
+  "empty": {
+    "title": "No warehouses found",
+    "subtitle": "Create a warehouse in the backend or adjust the search term."
+  },
+  "row": {
+    "branch": "Branch",
+    "inventoryOverview": "Inventory overview: Full / mixed / transfer-ready",
+    "id": "Warehouse ID"
+  },
+  "buttons": {
+    "transfer": "Transfer"
+  },
+  "fallbackError": "Warehouse endpoint unavailable. Showing fallback warehouse overview.",
+  "fallbackToast": "Using fallback warehouse data"
+}

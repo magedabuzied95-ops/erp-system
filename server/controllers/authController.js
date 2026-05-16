@@ -1,0 +1,285 @@
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import db from "../database/db.js";
+import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
+
+const generateToken = (user) =>
+  jwt.sign(
+    {
+      id: user.id,
+      role: user.role,
+      tenant_id: user.tenant_id ?? null,
+      is_super_admin: Boolean(user.is_super_admin),
+    },
+    process.env.JWT_SECRET || "SECRET_KEY",
+    { expiresIn: "7d" }
+  );
+
+const getUserPermissions = async (userId) => {
+  const permissions = await db.query(
+    `
+    SELECT DISTINCT p.module, p.action
+    FROM users u
+    LEFT JOIN roles r ON u.role_id = r.id
+    LEFT JOIN role_permissions rp ON rp.role_id = r.id
+    LEFT JOIN permissions p ON p.id = rp.permission_id
+    WHERE u.id = $1
+    `,
+    [userId]
+  );
+
+  return permissions.rows
+    .filter(({ module, action }) => module && action)
+    .map(({ module, action }) => `${module}.${action}`);
+};
+
+const getRoleName = (user = {}, fallback = "user") =>
+  user.role || user.role_name || (user.is_super_admin ? "super_admin" : fallback);
+
+export const register = async (req, res) => {
+  try {
+    const { name, email, password, role_id, role } = req.body;
+    const defaultTenantId = await ensureDefaultTenantAndBackfillUsers();
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "All Fields Required",
+      });
+    }
+
+    const exists = await db.query(
+      `
+      SELECT id
+      FROM users
+      WHERE LOWER(email) = LOWER($1)
+      `,
+      [email]
+    );
+
+    if (exists.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Email Already Exists",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const roleResult = await db.query(
+      `
+      SELECT id, name
+      FROM roles
+      WHERE id = $1
+      `,
+      [role_id || null]
+    );
+
+    const normalizedRole = roleResult.rows[0]?.name || role || "user";
+
+    const createdUser = await db.query(
+      `
+      INSERT INTO users (
+        tenant_id,
+        name,
+        email,
+        password,
+        role_id,
+        role
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, tenant_id, name, email, role_id, role
+      `,
+      [defaultTenantId, name, email, hashedPassword, role_id || null, normalizedRole]
+    );
+
+    const user = createdUser.rows[0];
+    const permissions = await getUserPermissions(user.id);
+
+    const token = generateToken({
+      id: user.id,
+      role: getRoleName(user, normalizedRole || "user"),
+      tenant_id: user.tenant_id,
+      is_super_admin: Boolean(user.is_super_admin),
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "User Registered Successfully",
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: getRoleName(user, normalizedRole || "user"),
+        role_name: getRoleName(user, normalizedRole || "user"),
+        tenant_id: user.tenant_id,
+        is_super_admin: Boolean(user.is_super_admin),
+        permissions,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed To Register",
+      error: error.message,
+    });
+  }
+};
+
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    await ensureDefaultTenantAndBackfillUsers();
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email And Password Required",
+      });
+    }
+
+    const result = await db.query(
+      `
+      SELECT
+        u.*,
+        r.name AS role_name
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE LOWER(u.email) = LOWER($1)
+      ORDER BY
+        CASE WHEN u.tenant_id IS NULL THEN 1 ELSE 0 END,
+        u.id ASC
+      `,
+      [email.trim()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Email Or Password",
+      });
+    }
+
+    let user = null;
+    for (const candidate of result.rows) {
+      const isCandidateMatch = await bcrypt.compare(password, candidate.password);
+      if (isCandidateMatch) {
+        user = candidate;
+        break;
+      }
+    }
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Email Or Password",
+      });
+    }
+
+    if (user.is_active === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Account Disabled",
+      });
+    }
+
+    const permissions = await getUserPermissions(user.id, user.tenant_id);
+
+    try {
+      await db.query(
+        `
+        UPDATE users
+        SET last_login_at = NOW()
+        WHERE id = $1
+        `,
+        [user.id]
+      );
+    } catch (loginUpdateError) {
+      if (loginUpdateError.code !== "42703") {
+        throw loginUpdateError;
+      }
+    }
+
+    const token = generateToken({
+      id: user.id,
+      role: getRoleName(user),
+      tenant_id: user.tenant_id,
+      is_super_admin: Boolean(user.is_super_admin),
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Login Successful",
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: getRoleName(user),
+        role_name: user.role_name || getRoleName(user),
+        tenant_id: user.tenant_id,
+        is_super_admin: Boolean(user.is_super_admin),
+        permissions,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed To Login",
+      error: error.message,
+    });
+  }
+};
+
+export const me = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const current = await db.query(
+      `
+      SELECT
+        u.*,
+        r.name AS role_name,
+        u.is_super_admin
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.id = $1
+      LIMIT 1
+      `,
+      [userId]
+    );
+
+    if (current.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User Not Found",
+      });
+    }
+
+    const permissions = await getUserPermissions(userId);
+
+    return res.json({
+      success: true,
+      user: {
+        ...current.rows[0],
+        permissions,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed To Fetch Profile",
+      error: error.message,
+    });
+  }
+};

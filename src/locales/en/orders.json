@@ -1,0 +1,59 @@
+{
+  "moduleEyebrow": "Orders module",
+  "title": "Orders Dashboard",
+  "subtitle": "Track orders, payment status, shipping states, and revenue from a single enterprise view.",
+  "actions": {
+    "createReturn": "Create return"
+  },
+  "kpis": {
+    "totalOrders": "Total orders",
+    "paid": "Paid",
+    "pending": "Pending",
+    "returned": "Returned",
+    "revenue": "Revenue"
+  },
+  "searchPlaceholder": "Search invoice, customer, phone, SKU...",
+  "filters": {
+    "status": "Status",
+    "payment": "Payment",
+    "channel": "Channel",
+    "branch": "Branch",
+    "all": "All"
+  },
+  "bulk": {
+    "markConfirmed": "Mark confirmed",
+    "markShipped": "Mark shipped",
+    "cancelSelected": "Cancel selected",
+    "selected": "selected"
+  },
+  "table": {
+    "invoice": "Invoice",
+    "customer": "Customer",
+    "status": "Status",
+    "payment": "Payment",
+    "channel": "Channel",
+    "branch": "Branch",
+    "total": "Total",
+    "date": "Date"
+  },
+  "empty": {
+    "title": "No orders found",
+    "description": "Adjust filters or clear the search input."
+  },
+  "paging": {
+    "showing": "Showing",
+    "of": "of",
+    "page": "Page",
+    "records": "orders"
+  },
+  "summary": {
+    "quick": "Quick summary",
+    "recentSignals": "Recent signals"
+  },
+  "actionsMenu": {
+    "viewDetails": "View details",
+    "createReturn": "Create return",
+    "copyInvoice": "Copy invoice",
+    "invoiceCopied": "Invoice copied"
+  }
+}

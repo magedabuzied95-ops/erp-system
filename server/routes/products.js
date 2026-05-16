@@ -1,79 +1,37 @@
 import express from "express";
-import pkg from "pg";
-
-const { Pool } = pkg;
+import { protect } from "../middleware/authMiddleware.js";
+import {
+  createProduct,
+  createVariant,
+  deleteProduct,
+  deleteVariant,
+  getProductByQrToken,
+  getProducts,
+  getProductsWithVariants,
+  updateProduct,
+  updateVariant,
+} from "../controllers/productsController.js";
+import { generateAiProductDataController } from "../controllers/aiProductDataController.js";
+import { suggestMirrorEditionName } from "../controllers/editionSuggestionsController.js";
 
 const router = express.Router();
 
-/* DATABASE CONNECTION */
-
-const pool = new Pool({
-  user: "postgres",
-  host: "localhost",
-  database: "erp_db",
-  password: "065342",
-  port: 5432,
+router.use((req, res, next) => {
+  console.log("[products] route hit:", req.method, req.originalUrl);
+  next();
 });
 
-/* GET PRODUCTS */
-
-router.get("/", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT * FROM products ORDER BY id ASC"
-    );
-
-    res.json(result.rows);
-  } catch (error) {
-    console.log(error);
-  }
-});
-
-/* ADD PRODUCT */
-
-router.post("/", async (req, res) => {
-  const { name, description } =
-    req.body;
-
-  try {
-    const result = await pool.query(
-      `
-      INSERT INTO products
-      (name, description)
-
-      VALUES ($1, $2)
-
-      RETURNING *
-      `,
-      [name, description]
-    );
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.log(error);
-  }
-});
-
-/* DELETE PRODUCT */
-
-router.delete("/:id", async (req, res) => {
-  const id = req.params.id;
-
-  try {
-    await pool.query(
-      `
-      DELETE FROM products
-      WHERE id = $1
-      `,
-      [id]
-    );
-
-    res.json({
-      message: "Product Deleted",
-    });
-  } catch (error) {
-    console.log(error);
-  }
-});
+router.get("/", protect, getProducts);
+router.get("/with-variants", protect, getProductsWithVariants);
+router.get("/qr/:token", protect, getProductByQrToken);
+router.post("/generate-ai-data", protect, generateAiProductDataController);
+router.post("/suggest-edition", protect, suggestMirrorEditionName);
+router.post("/edition-suggestions", protect, suggestMirrorEditionName);
+router.post("/", protect, createProduct);
+router.post("/:id/variants", protect, createVariant);
+router.put("/variants/:id", protect, updateVariant);
+router.delete("/variants/:id", protect, deleteVariant);
+router.put("/:id", protect, updateProduct);
+router.delete("/:id", protect, deleteProduct);
 
 export default router;

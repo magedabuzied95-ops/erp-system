@@ -1,0 +1,74 @@
+{
+  "title": "Branches",
+  "eyebrow": "Branch network",
+  "subtitle": "Manage branch identities backed by PostgreSQL. Default warehouses are stored only as explicit branch mappings.",
+  "create": "+ Add Branch",
+  "edit": "Edit branch",
+  "new": "New operating branch",
+  "view": "Branch details",
+  "createHint": "Create a branch profile for sales, employees, and warehouse operations.",
+  "updateHint": "Update branch identity, contact details, notes, and status.",
+  "stats": {
+    "total": "Total branches",
+    "active": "Active branches",
+    "mapped": "Warehouse mapped"
+  },
+  "searchPlaceholder": "Search branch, code, phone, manager, address, notes...",
+  "status": {
+    "all": "All",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "tableHeaders": {
+    "branch": "Branch",
+    "code": "Code",
+    "manager": "Manager",
+    "address": "Address",
+    "warehouse": "Warehouse",
+    "actions": "Actions"
+  },
+  "empty": {
+    "loading": "Loading branches...",
+    "title": "No branches yet"
+  },
+  "form": {
+    "name": "Branch Name",
+    "code": "Branch Code optional / auto",
+    "phone": "Phone",
+    "manager": "Manager Name",
+    "address": "Address",
+    "notes": "Notes",
+    "defaultWarehouseId": "Default warehouse ID",
+    "activeStatus": "Status"
+  },
+  "toasts": {
+    "loadFailed": "Failed to load branches",
+    "updated": "Branch updated",
+    "created": "Branch created",
+    "archived": "Branch deleted",
+    "savingFailed": "Failed to save branch",
+    "archivingFailed": "Failed to delete branch"
+  },
+  "buttons": {
+    "cancel": "Cancel",
+    "save": "Save branch",
+    "update": "Update branch",
+    "saving": "Saving...",
+    "archive": "Delete branch",
+    "archiving": "Deleting...",
+    "view": "View",
+    "edit": "Edit",
+    "archiveShort": "Delete"
+  },
+  "confirm": {
+    "title": "Delete branch",
+    "subtitle": "This will mark the branch inactive instead of permanently removing it. Linked employees remain preserved."
+  },
+  "row": {
+    "noPhone": "No phone",
+    "unassigned": "Unassigned",
+    "noAddress": "No address",
+    "noNotes": "No notes",
+    "notSet": "Not set"
+  }
+}

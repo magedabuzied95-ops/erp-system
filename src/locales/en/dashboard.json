@@ -1,0 +1,39 @@
+{
+  "eyebrow": "Enterprise Overview",
+  "title": "ERP Dashboard",
+  "description": "Operational snapshot for sales, inventory, and business performance across the current reporting period.",
+  "status": "Status",
+  "live": "Live",
+  "warehouse": "Warehouse",
+  "orders": "Orders",
+  "margin": "Margin",
+  "revenueAnalytics": "Revenue Analytics",
+  "monthlyPerformanceTrend": "Monthly performance trend",
+  "salesChannels": "Sales Channels",
+  "distributionMix": "Distribution mix",
+  "activityFlow": "Activity Flow",
+  "salesInventoryOperationsTrend": "Sales, inventory, and operations trend",
+  "operations": "Operations",
+  "lowStockItems": "Low stock items",
+  "pendingApprovals": "Pending approvals",
+  "overdueInvoices": "Overdue invoices",
+  "channels": {
+    "online": "Online",
+    "retail": "Retail",
+    "wholesale": "Wholesale"
+  },
+  "months": {
+    "jan": "Jan",
+    "feb": "Feb",
+    "mar": "Mar",
+    "apr": "Apr",
+    "may": "May",
+    "jun": "Jun"
+  },
+  "kpis": {
+    "totalRevenue": "Total Revenue",
+    "orders": "Orders",
+    "products": "Products",
+    "activeUsers": "Active Users"
+  }
+}

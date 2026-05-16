@@ -1,0 +1,44 @@
+{
+  "eyebrow": "Customers CRM",
+  "title": "Customer Directory",
+  "subtitle": "Manage customer profiles, contact details, and account records from one dark enterprise workspace.",
+  "count": "Customers",
+  "search": "Search",
+  "searchPlaceholder": "Search by name, phone, or email...",
+  "form": {
+    "titleAdd": "Add customer",
+    "titleUpdate": "Update customer",
+    "subtitle": "Keep contact fields clear and ready for POS lookup.",
+    "namePlaceholder": "Customer name",
+    "phonePlaceholder": "Phone",
+    "emailPlaceholder": "Email",
+    "addressPlaceholder": "Address",
+    "submitAdd": "Add Customer",
+    "submitUpdate": "Update Customer",
+    "cancel": "Cancel"
+  },
+  "table": {
+    "title": "Customer Records",
+    "visibleRecords": "{{count}} visible records",
+    "customer": "Customer",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "actions": "Actions"
+  },
+  "loading": "Loading customers...",
+  "empty": {
+    "title": "No customers yet",
+    "description": "Add the first customer above to populate this CRM table."
+  },
+  "records": {
+    "id": "ID",
+    "notSet": "Not set",
+    "unnamed": "Unnamed customer"
+  },
+  "actions": {
+    "edit": "Edit",
+    "delete": "Delete",
+    "confirmDelete": "Delete customer?"
+  }
+}

@@ -1,0 +1,662 @@
+import db from "../database/db.js";
+
+const daySql = "date_trunc('day', NOW())";
+const yesterdaySql = "date_trunc('day', NOW()) - INTERVAL '1 day'";
+
+const toNumber = (value) => Number(value || 0);
+
+const resolveDateRange = ({ range = "today", dateFrom = "", dateTo = "" } = {}) => {
+  if (range === "yesterday") return { sql: "CURRENT_DATE - INTERVAL '1 day'", endSql: "CURRENT_DATE" };
+  if (range === "7d") return { sql: "CURRENT_DATE - INTERVAL '6 days'", endSql: "CURRENT_DATE + INTERVAL '1 day'" };
+  if (range === "month") return { sql: "date_trunc('month', NOW())", endSql: "NOW()" };
+  if (range === "custom" && dateFrom && dateTo) return { custom: true, dateFrom, dateTo };
+  return { sql: "CURRENT_DATE", endSql: "CURRENT_DATE + INTERVAL '1 day'" };
+};
+
+const dateClause = (alias, filters, params) => {
+  const range = resolveDateRange(filters);
+  if (range.custom) {
+    params.push(range.dateFrom);
+    const from = `$${params.length}`;
+    params.push(range.dateTo);
+    const to = `$${params.length}`;
+    return ` AND ${alias}.created_at >= ${from}::timestamp AND ${alias}.created_at < (${to}::date + INTERVAL '1 day')`;
+  }
+  return ` AND ${alias}.created_at >= ${range.sql} AND ${alias}.created_at < ${range.endSql}`;
+};
+
+const branchClause = (alias, filters, params) => {
+  const branchId = String(filters?.branchId || "").trim();
+  if (!branchId || branchId === "all") return "";
+  params.push(branchId);
+  return ` AND ${alias}.branch_id = $${params.length}::bigint`;
+};
+
+const tableExists = async (tableName) => {
+  const result = await db.query("SELECT to_regclass($1) AS regclass", [`public.${tableName}`]);
+  return Boolean(result.rows[0]?.regclass);
+};
+
+const columnExists = async (tableName, columnName) => {
+  const result = await db.query(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = $1
+      AND column_name = $2
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+  return result.rows.length > 0;
+};
+
+const tenantClause = (alias, tenantId, params) => {
+  if (tenantId === null || tenantId === undefined) return "";
+  params.push(tenantId);
+  return ` AND ${alias}.tenant_id = $${params.length}`;
+};
+
+const emptyRows = [];
+
+const safeQuery = async (sql, params = [], fallback = emptyRows) => {
+  try {
+    const result = await db.query(sql, params);
+    return result.rows;
+  } catch (error) {
+    console.error("[dashboard] query failed", error.message);
+    return fallback;
+  }
+};
+
+export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {}) => {
+  const params = [];
+  const ordersTenant = tenantClause("o", tenantId, params);
+  const ordersDate = dateClause("o", filters, params);
+  const ordersBranch = branchClause("o", filters, params);
+  const yesterdayParams = [];
+  const yesterdayTenant = tenantClause("o", tenantId, yesterdayParams);
+  const productParams = [];
+  const productTenant = tenantClause("p", tenantId, productParams);
+  const variantParams = [];
+  const variantTenant = tenantClause("pv", tenantId, variantParams);
+  const purchaseParams = [];
+  const purchaseTenant = tenantClause("p", tenantId, purchaseParams);
+  const customerParams = [];
+  const customerTenant = tenantClause("c", tenantId, customerParams);
+  const cashboxParams = [];
+  const cashboxTenant = tenantClause("c", tenantId, cashboxParams);
+
+  const [
+    today,
+    yesterday,
+    productLow,
+    variantLow,
+    pendingPurchases,
+    customersToday,
+    activePos,
+    recentInvoices,
+  ] = await Promise.all([
+    tableExists("orders")
+      ? safeQuery(
+          `
+          SELECT
+            COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS sales,
+            COALESCE(SUM(COALESCE(o.total_amount, o.total, 0) - COALESCE(o.discount_amount, 0)), 0) AS gross,
+            COUNT(*)::int AS orders,
+            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)), 0) AS aov
+          FROM orders o
+          WHERE 1=1
+            ${ordersDate}
+            ${ordersBranch}
+            AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            ${ordersTenant}
+          `,
+          params,
+          [{}]
+        )
+      : [{}],
+    tableExists("orders")
+      ? safeQuery(
+          `
+          SELECT
+            COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS sales,
+            COUNT(*)::int AS orders,
+            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)), 0) AS aov
+          FROM orders o
+          WHERE o.created_at >= ${yesterdaySql}
+            AND o.created_at < ${daySql}
+            AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            ${yesterdayTenant}
+          `,
+          yesterdayParams,
+          [{}]
+        )
+      : [{}],
+    tableExists("products")
+      ? safeQuery(
+          `
+          SELECT COUNT(*)::int AS count
+          FROM products p
+          WHERE COALESCE(p.stock, 0) <= GREATEST(COALESCE(p.low_stock_alert, 0), 1)
+            AND LOWER(COALESCE(p.status, 'active')) = 'active'
+            ${productTenant}
+          `,
+          productParams,
+          [{}]
+        )
+      : [{}],
+    tableExists("product_variants")
+      ? safeQuery(
+          `
+          SELECT COUNT(*)::int AS count
+          FROM product_variants pv
+          WHERE COALESCE(pv.stock, 0) <= GREATEST(COALESCE(pv.low_stock_alert, 0), 1)
+            ${variantTenant}
+          `,
+          variantParams,
+          [{}]
+        )
+      : [{}],
+    tableExists("purchases")
+      ? safeQuery(
+          `
+          SELECT COUNT(*)::int AS count
+          FROM purchases p
+          WHERE LOWER(COALESCE(p.status, '')) IN ('draft', 'pending', 'ordered', 'approved')
+            ${purchaseTenant}
+          `,
+          purchaseParams,
+          [{}]
+        )
+      : [{}],
+    tableExists("customers")
+      ? safeQuery(
+          `
+          SELECT COUNT(*)::int AS count
+          FROM customers c
+          WHERE c.created_at >= ${daySql}
+            ${customerTenant}
+          `,
+          customerParams,
+          [{}]
+        )
+      : [{}],
+    tableExists("cashbox")
+      ? safeQuery(
+          `
+          SELECT COUNT(*)::int AS count
+          FROM cashbox c
+          WHERE LOWER(COALESCE(c.status, '')) = 'open'
+            ${cashboxTenant}
+          `,
+          cashboxParams,
+          [{}]
+        )
+      : [{}],
+    getRecentInvoices({ tenantId, limit: 6 }),
+  ]);
+
+  const t = today[0] || {};
+  const y = yesterday[0] || {};
+  const sales = toNumber(t.sales);
+  const yesterdaySales = toNumber(y.sales);
+  const growth = yesterdaySales > 0 ? ((sales - yesterdaySales) / yesterdaySales) * 100 : sales > 0 ? 100 : 0;
+  const profit = await calculateTodayProfit({ tenantId, filters });
+
+  return {
+    systemStatus: "live",
+    generatedAt: new Date().toISOString(),
+    today: {
+      sales,
+      profit,
+      orders: toNumber(t.orders),
+      averageOrderValue: toNumber(t.aov),
+      customers: toNumber(customersToday[0]?.count),
+    },
+    kpis: {
+      todaySales: { value: sales, growth },
+      todayProfit: { value: profit, growth },
+      todayOrders: { value: toNumber(t.orders), growth: toNumber(y.orders) ? ((toNumber(t.orders) - toNumber(y.orders)) / toNumber(y.orders)) * 100 : toNumber(t.orders) ? 100 : 0 },
+      averageOrderValue: { value: toNumber(t.aov), growth: toNumber(y.aov) ? ((toNumber(t.aov) - toNumber(y.aov)) / toNumber(y.aov)) * 100 : toNumber(t.aov) ? 100 : 0 },
+      activePosSessions: { value: toNumber(activePos[0]?.count), growth: 0 },
+      lowStockProducts: { value: toNumber(productLow[0]?.count) + toNumber(variantLow[0]?.count), growth: 0 },
+      pendingPurchaseOrders: { value: toNumber(pendingPurchases[0]?.count), growth: 0 },
+      totalCustomersToday: { value: toNumber(customersToday[0]?.count), growth: 0 },
+    },
+    recentInvoices,
+  };
+};
+
+export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {}) => {
+  if (!(await tableExists("orders"))) return 0;
+  const hasItems = await tableExists("order_items");
+  const hasProducts = await tableExists("products");
+  const hasVariants = await tableExists("product_variants");
+  const expenseParams = [];
+  const orderParams = [];
+  const orderTenant = tenantClause("o", tenantId, orderParams);
+  const orderDate = dateClause("o", filters, orderParams);
+  const orderBranch = branchClause("o", filters, orderParams);
+  const expenseTenant = tenantClause("e", tenantId, expenseParams);
+
+  const salesRows = hasItems && (hasProducts || hasVariants)
+    ? await safeQuery(
+        `
+        SELECT COALESCE(SUM(
+          COALESCE(oi.total_amount, oi.sale_price * oi.quantity, 0) -
+          (COALESCE(pv.cost_price, p.cost_price, 0) * COALESCE(oi.quantity, 0))
+        ), 0) AS profit
+        FROM orders o
+        JOIN order_items oi ON oi.order_id = o.id
+        LEFT JOIN products p ON p.id = oi.product_id
+        LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+        WHERE 1=1
+          ${orderDate}
+          ${orderBranch}
+          AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+          ${orderTenant}
+        `,
+        orderParams,
+        [{}]
+      )
+    : await safeQuery(
+        `
+        SELECT COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS profit
+        FROM orders o
+        WHERE 1=1
+          ${orderDate}
+          ${orderBranch}
+          AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+          ${orderTenant}
+        `,
+        orderParams,
+        [{}]
+      );
+
+  const expenses = await tableExists("expenses")
+    ? await safeQuery(
+        `
+        SELECT COALESCE(SUM(amount), 0) AS amount
+        FROM expenses e
+        WHERE e.created_at >= ${daySql}
+          AND LOWER(COALESCE(e.status, 'posted')) NOT IN ('rejected', 'cancelled')
+          ${expenseTenant}
+        `,
+        expenseParams,
+        [{}]
+      )
+    : [{}];
+
+  return toNumber(salesRows[0]?.profit) - toNumber(expenses[0]?.amount);
+};
+
+export const getSalesTrend = async ({ tenantId = null, days = 14, filters = {} } = {}) => {
+  if (!(await tableExists("orders"))) return [];
+  const params = [filters.range === "7d" ? 7 : filters.range === "month" ? 31 : Number(days) || 14];
+  const ordersTenant = tenantClause("o", tenantId, params);
+  const ordersBranch = branchClause("o", filters, params);
+  return safeQuery(
+    `
+    WITH buckets AS (
+      SELECT generate_series((CURRENT_DATE - ($1::int - 1) * INTERVAL '1 day')::date, CURRENT_DATE, INTERVAL '1 day')::date AS day
+    )
+    SELECT
+      b.day,
+      COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS revenue,
+      COUNT(o.id)::int AS orders
+    FROM buckets b
+    LEFT JOIN orders o ON o.created_at::date = b.day
+      AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+      ${ordersTenant.replace("AND o.", "AND o.")}
+      ${ordersBranch}
+    GROUP BY b.day
+    ORDER BY b.day
+    `,
+    params
+  );
+};
+
+export const getHourlySales = async ({ tenantId = null, filters = {} } = {}) => {
+  if (!(await tableExists("orders"))) return [];
+  const params = [];
+  const ordersTenant = tenantClause("o", tenantId, params);
+  const ordersDate = dateClause("o", filters, params);
+  const ordersBranch = branchClause("o", filters, params);
+  return safeQuery(
+    `
+    SELECT
+      EXTRACT(HOUR FROM o.created_at)::int AS hour,
+      COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS sales,
+      COUNT(*)::int AS orders
+    FROM orders o
+    WHERE 1=1
+      ${ordersDate}
+      ${ordersBranch}
+      AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+      ${ordersTenant}
+    GROUP BY hour
+    ORDER BY hour
+    `,
+    params
+  );
+};
+
+export const getTopProducts = async ({ tenantId = null, limit = 8, filters = {} } = {}) => {
+  if (!(await tableExists("orders")) || !(await tableExists("order_items"))) return [];
+  const params = [Number(limit) || 8];
+  const ordersTenant = tenantClause("o", tenantId, params);
+  const ordersDate = dateClause("o", filters, params);
+  const ordersBranch = branchClause("o", filters, params);
+  return safeQuery(
+    `
+    SELECT
+      COALESCE(NULLIF(oi.product_name, ''), p.name, 'Unknown product') AS name,
+      COALESCE(SUM(oi.quantity), 0)::int AS quantity,
+      COALESCE(SUM(oi.total_amount), 0) AS revenue,
+      COALESCE(MAX(p.product_type), '') AS category
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    LEFT JOIN products p ON p.id = oi.product_id
+    WHERE 1=1
+      ${ordersDate}
+      ${ordersBranch}
+      AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+      ${ordersTenant}
+    GROUP BY COALESCE(NULLIF(oi.product_name, ''), p.name, 'Unknown product')
+    ORDER BY quantity DESC, revenue DESC
+    LIMIT $1
+    `,
+    params
+  );
+};
+
+export const getLowStock = async ({ tenantId = null, limit = 12 } = {}) => {
+  const rows = [];
+  if (await tableExists("product_variants")) {
+    const params = [Number(limit) || 12];
+    const productTenant = tenantClause("p", tenantId, params);
+    rows.push(
+      ...(await safeQuery(
+        `
+        WITH product_stock AS (
+          SELECT
+            p.id,
+            p.name,
+            COALESCE((ARRAY_AGG(pv.sku ORDER BY pv.id) FILTER (WHERE pv.sku IS NOT NULL AND pv.sku <> ''))[1], p.sku, '') AS sku,
+            COALESCE((ARRAY_AGG(pv.size ORDER BY pv.id) FILTER (WHERE pv.size IS NOT NULL AND pv.size <> ''))[1], '') AS size,
+            COALESCE((ARRAY_AGG(pv.color ORDER BY pv.id) FILTER (WHERE pv.color IS NOT NULL AND pv.color <> ''))[1], '') AS color,
+            CASE
+              WHEN COUNT(pv.id) > 0 THEN COALESCE(SUM(GREATEST(COALESCE(pv.stock, 0), 0)), 0)
+              ELSE GREATEST(COALESCE(p.stock, 0), 0)
+            END::int AS stock
+          FROM products p
+          LEFT JOIN product_variants pv ON pv.product_id = p.id
+          WHERE 1=1
+            ${productTenant}
+          GROUP BY p.id, p.name, p.sku, p.stock
+        )
+        SELECT id, name, sku, size, color, stock, 2 AS threshold
+        FROM product_stock
+        WHERE stock BETWEEN 1 AND 2
+        ORDER BY stock ASC, name ASC
+        LIMIT $1
+        `,
+        params
+      ))
+    );
+  }
+  if (rows.length === 0 && (await tableExists("products"))) {
+    const params = [Number(limit) || 12];
+    const productTenant = tenantClause("p", tenantId, params);
+    rows.push(
+      ...(await safeQuery(
+        `
+        SELECT p.id, p.name, p.sku, '' AS size, '' AS color, GREATEST(COALESCE(p.stock, 0), 0) AS stock, 2 AS threshold
+        FROM products p
+        WHERE GREATEST(COALESCE(p.stock, 0), 0) BETWEEN 1 AND 2
+          ${productTenant}
+        ORDER BY COALESCE(p.stock, 0) ASC
+        LIMIT $1
+        `,
+        params
+      ))
+    );
+  }
+  return rows.slice(0, Number(limit) || 12);
+};
+
+export const getLiveActivity = async ({ tenantId = null, limit = 30 } = {}) => {
+  const parts = [];
+  const params = [];
+  const max = Number(limit) || 30;
+  if (await tableExists("orders")) {
+    const clause = tenantId === null ? "" : `AND tenant_id = $${params.push(tenantId)}`;
+    parts.push(`
+      SELECT 'order' AS type, invoice_number AS title, COALESCE(total_amount, total, 0) AS amount, status, created_at
+      FROM orders
+      WHERE created_at >= NOW() - INTERVAL '7 days' ${clause}
+    `);
+  }
+  if (await tableExists("returns")) {
+    const clause = tenantId === null ? "" : `AND tenant_id = $${params.push(tenantId)}`;
+    parts.push(`
+      SELECT 'refund' AS type, return_number AS title, refund_amount AS amount, status, created_at
+      FROM returns
+      WHERE created_at >= NOW() - INTERVAL '7 days' ${clause}
+    `);
+  }
+  if (await tableExists("inventory_movements")) {
+    const clause = tenantId === null ? "" : `AND tenant_id = $${params.push(tenantId)}`;
+    parts.push(`
+      SELECT 'inventory' AS type, movement_type AS title, quantity_change AS amount, reference_type AS status, created_at
+      FROM inventory_movements
+      WHERE created_at >= NOW() - INTERVAL '7 days' ${clause}
+    `);
+  }
+  if (await tableExists("customers")) {
+    const clause = tenantId === null ? "" : `AND tenant_id = $${params.push(tenantId)}`;
+    parts.push(`
+      SELECT 'customer' AS type, name AS title, 0 AS amount, status, created_at
+      FROM customers
+      WHERE created_at >= NOW() - INTERVAL '7 days' ${clause}
+    `);
+  }
+  if (!parts.length) return [];
+  return safeQuery(`SELECT * FROM (${parts.join(" UNION ALL ")}) activity ORDER BY created_at DESC LIMIT ${max}`, params);
+};
+
+export const getBranchPerformance = async ({ tenantId = null, filters = {} } = {}) => {
+  if (!(await tableExists("orders"))) return [];
+  const params = [];
+  const ordersTenant = tenantClause("o", tenantId, params);
+  const ordersDate = dateClause("o", filters, params);
+  return safeQuery(
+    `
+    SELECT
+      COALESCE(b.name, 'Default branch') AS branch,
+      COUNT(o.id)::int AS orders,
+      COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS sales
+    FROM orders o
+    LEFT JOIN branches b ON b.id = o.branch_id
+    WHERE 1=1
+      ${ordersDate}
+      AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+      ${ordersTenant}
+    GROUP BY COALESCE(b.name, 'Default branch')
+    ORDER BY sales DESC
+    `,
+    params
+  );
+};
+
+export const getPaymentAnalytics = async ({ tenantId = null, filters = {} } = {}) => {
+  if (!(await tableExists("orders"))) return [];
+  const hasPayment = await columnExists("orders", "payment_method");
+  const params = [];
+  const ordersTenant = tenantClause("o", tenantId, params);
+  const ordersDate = dateClause("o", filters, params);
+  const ordersBranch = branchClause("o", filters, params);
+  return safeQuery(
+    `
+    SELECT
+      ${hasPayment ? "COALESCE(o.payment_method, 'unknown')" : "'unknown'"} AS method,
+      COUNT(*)::int AS orders,
+      COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS amount
+    FROM orders o
+    WHERE 1=1
+      ${ordersDate}
+      ${ordersBranch}
+      AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+      ${ordersTenant}
+    GROUP BY method
+    ORDER BY amount DESC
+    `,
+    params
+  );
+};
+
+export const getMarketingAnalytics = async ({ tenantId = null, filters = {} } = {}) => {
+  if (!(await tableExists("orders"))) return { channels: [], attributedSales: 0 };
+  const hasSource = await columnExists("orders", "marketing_source");
+  if (!hasSource) return { channels: [], attributedSales: 0 };
+  const params = [];
+  const ordersTenant = tenantClause("o", tenantId, params);
+  const ordersDate = dateClause("o", filters, params);
+  const ordersBranch = branchClause("o", filters, params);
+  const rows = await safeQuery(
+    `
+    SELECT
+      COALESCE(NULLIF(o.marketing_source, ''), 'direct') AS source,
+      COUNT(*)::int AS orders,
+      COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS sales
+    FROM orders o
+    WHERE 1=1
+      ${ordersDate}
+      ${ordersBranch}
+      ${ordersTenant}
+    GROUP BY source
+    ORDER BY sales DESC
+    `,
+    params
+  );
+  return { channels: rows, attributedSales: rows.filter((row) => row.source !== "direct").reduce((sum, row) => sum + toNumber(row.sales), 0) };
+};
+
+export const getPosLive = async ({ tenantId = null } = {}) => {
+  const cashboxParams = [];
+  const cashboxTenant = tenantClause("c", tenantId, cashboxParams);
+  const orderParams = [];
+  const orderTenant = tenantClause("o", tenantId, orderParams);
+  const [sessions, lastInvoice, hourly, payment] = await Promise.all([
+    tableExists("cashbox")
+      ? safeQuery(
+          `
+          SELECT c.id, c.name, c.status, c.opened_at, u.name AS cashier
+          FROM cashbox c
+          LEFT JOIN users u ON u.id = c.opened_by
+          WHERE LOWER(COALESCE(c.status, '')) = 'open'
+            ${cashboxTenant}
+          ORDER BY c.opened_at DESC NULLS LAST
+          `,
+          cashboxParams
+        )
+      : [],
+    tableExists("orders")
+      ? safeQuery(
+          `
+          SELECT o.id, o.invoice_number, o.created_at, COALESCE(o.total_amount, o.total, 0) AS total, o.payment_status
+          FROM orders o
+          WHERE 1=1 ${orderTenant}
+          ORDER BY o.created_at DESC
+          LIMIT 1
+          `,
+          orderParams,
+          [{}]
+        )
+      : [{}],
+    getHourlySales({ tenantId }),
+    getPaymentAnalytics({ tenantId }),
+  ]);
+  return {
+    activeCashiers: sessions.length,
+    openShifts: sessions,
+    currentCartCounts: 0,
+    lastInvoice: lastInvoice[0] || null,
+    averageCheckoutTimeSeconds: 0,
+    paymentDistribution: payment,
+    liveSalesStream: hourly.slice(-6),
+  };
+};
+
+export const getInventoryIntelligence = async ({ tenantId = null } = {}) => {
+  const [lowStock, topProducts] = await Promise.all([getLowStock({ tenantId }), getTopProducts({ tenantId })]);
+  const params = [];
+  const ordersTenant = tenantClause("o", tenantId, params);
+  const sizeColorRows = (await tableExists("order_items"))
+    ? await safeQuery(
+        `
+        SELECT
+          COALESCE(pv.size, split_part(oi.variant_name, ' / ', 2), '') AS size,
+          COALESCE(pv.color, split_part(oi.variant_name, ' / ', 1), '') AS color,
+          COALESCE(SUM(oi.quantity), 0)::int AS quantity
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+        WHERE o.created_at >= CURRENT_DATE - INTERVAL '30 days'
+          ${ordersTenant}
+        GROUP BY size, color
+        ORDER BY quantity DESC
+        LIMIT 10
+        `,
+        params
+      )
+    : [];
+  const pendingTransfers = await tableExists("stock_transfers")
+    ? await safeQuery("SELECT COUNT(*)::int AS count FROM stock_transfers WHERE LOWER(COALESCE(status, '')) IN ('pending', 'draft', 'in_transit')", [], [{ count: 0 }])
+    : [{ count: 0 }];
+  return {
+    lowStock,
+    fastMovingProducts: topProducts,
+    deadStock: [],
+    topSizes: sizeColorRows.filter((row) => row.size).slice(0, 5),
+    topColors: sizeColorRows.filter((row) => row.color).slice(0, 5),
+    warehouseAlerts: lowStock.slice(0, 5),
+    pendingTransfers: toNumber(pendingTransfers[0]?.count),
+  };
+};
+
+export const getAiInsights = async ({ tenantId = null } = {}) => {
+  const [topProducts, inventory, branches, hourly] = await Promise.all([
+    getTopProducts({ tenantId, limit: 3 }),
+    getInventoryIntelligence({ tenantId }),
+    getBranchPerformance({ tenantId }),
+    getHourlySales({ tenantId }),
+  ]);
+  const insights = [];
+  if (topProducts[0]) insights.push({ type: "sales", title: "Best seller", body: `${topProducts[0].name} leads with ${topProducts[0].quantity} units sold in the last 30 days.` });
+  if (inventory.lowStock[0]) insights.push({ type: "inventory", title: "Reorder needed", body: `${inventory.lowStock[0].name} is at ${inventory.lowStock[0].stock} units.` });
+  if (branches[0]) insights.push({ type: "branch", title: "Top branch", body: `${branches[0].branch} is the highest performing branch by sales.` });
+  if (hourly[0]) {
+    const peak = [...hourly].sort((a, b) => toNumber(b.sales) - toNumber(a.sales))[0];
+    if (peak) insights.push({ type: "timing", title: "Busiest hour", body: `${String(peak.hour).padStart(2, "0")}:00 is currently the busiest sales hour.` });
+  }
+  return insights;
+};
+
+export const getRecentInvoices = async ({ tenantId = null, limit = 8 } = {}) => {
+  if (!(await tableExists("orders"))) return [];
+  const params = [Number(limit) || 8];
+  const ordersTenant = tenantClause("o", tenantId, params);
+  return safeQuery(
+    `
+    SELECT o.id, o.invoice_number, o.customer_name, COALESCE(o.total_amount, o.total, 0) AS total, o.payment_status, o.created_at
+    FROM orders o
+    WHERE 1=1 ${ordersTenant}
+    ORDER BY o.created_at DESC
+    LIMIT $1
+    `,
+    params
+  );
+};
