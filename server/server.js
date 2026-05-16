@@ -190,7 +190,8 @@ const { ensureProductClassificationSchema } = await import("./services/productCl
 const { ensureStorefrontSchema } = await import("./controllers/storefrontController.js");
 const { ensureNotificationsSchema } = await import("./services/notificationsService.js");
 const { ensureWebsiteSettingsSchema } = await import("./services/liveActivityService.js");
-const { runDueStoryPublishes } = await import("./controllers/marketingController.js");
+const { runDueStoryPublishes, registerMarketingJobHandlers } = await import("./controllers/marketingController.js");
+const { registerBackgroundJobHandlers } = await import("./services/backgroundJobs.js");
 const { ensureMarketingSchema } = await import("./utils/marketingSchema.js");
 const { ensureCouponsSchema } = await import("./services/couponsService.js");
 const { ensureLoyaltySchema } = await import("./services/loyaltyService.js");
@@ -556,6 +557,8 @@ server.listen(PORT, HOST, () => {
       await ensureSalesCommissionSchema(db);
       console.log("[server] sales commission schema ensured");
       console.log("[server] coupons schema ensured");
+      registerBackgroundJobHandlers();
+      registerMarketingJobHandlers();
       startMetaTokenRefreshScheduler();
       startMarketingAnalyticsSyncScheduler();
       startMarketingAttributionSyncScheduler();

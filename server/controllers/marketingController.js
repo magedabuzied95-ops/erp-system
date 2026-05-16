@@ -2,6 +2,7 @@ import db from "../database/db.js";
 import crypto from "crypto";
 import { getTenantId } from "../utils/requestScope.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
+import { enqueueJob, registerJobHandler } from "../services/jobQueueService.js";
 import { publishFacebookText, publishPost as publishPostService } from "../services/socialPublisherService.js";
 import { publishStoryEverywhere as publishStoryEverywhereService } from "../services/storyPublisherService.js";
 import {
@@ -704,6 +705,59 @@ const publishStoryForRow = async (post, tenantId) => {
   const settings = await getSettingsRow(tenantId);
   const result = await publishStoryEverywhereService({ story, settings });
   return persistStoryResult(story.id, tenantId, result);
+};
+
+const publishStoryJob = async ({ postId, tenantId }) => {
+  const scopedTenantId = Number(tenantId || 0);
+  const postResult = await db.query(
+    `
+    SELECT *
+    FROM marketing_posts
+    WHERE id = $1::bigint
+      AND tenant_id = $2::bigint
+    LIMIT 1
+    `,
+    [postId, scopedTenantId]
+  );
+  const post = postResult.rows[0];
+  if (!post) {
+    const error = new Error("Scheduled story post not found");
+    error.status = 404;
+    throw error;
+  }
+
+  try {
+    return await publishStoryForRow(post, scopedTenantId);
+  } catch (error) {
+    await db.query(
+      `
+      UPDATE marketing_posts
+      SET story_status = 'failed', story_error_message = $1::text, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2::bigint
+        AND tenant_id = $3::bigint
+      `,
+      [error?.message || "Scheduled story publish failed", post.id, scopedTenantId]
+    );
+    throw error;
+  }
+};
+
+let marketingJobsRegistered = false;
+
+export const registerMarketingJobHandlers = () => {
+  if (marketingJobsRegistered) return;
+  marketingJobsRegistered = true;
+
+  registerJobHandler("social.publish", async (payload = {}) => {
+    return publishAndPersist(payload.postId || payload.post_id, payload.tenantId || payload.tenant_id);
+  });
+
+  registerJobHandler("story.publish", async (payload = {}) => {
+    return publishStoryJob({
+      postId: payload.postId || payload.post_id,
+      tenantId: payload.tenantId || payload.tenant_id,
+    });
+  });
 };
 
 const logFastStoryGeneration = async ({ productId, postId, collectedImages, safeImageUrl, source }) => {
@@ -1697,15 +1751,36 @@ export const runDueStoryPublishes = async () => {
     );
     for (const post of due.rows) {
       try {
-        await db.query(
+        const claimed = await db.query(
           `
           UPDATE marketing_posts
           SET story_status = 'publishing', updated_at = CURRENT_TIMESTAMP
           WHERE id = $1::bigint AND story_status = 'scheduled'
+          RETURNING *
           `,
           [post.id]
         );
-        await publishStoryForRow(post, post.tenant_id);
+        const claimedPost = claimed.rows[0];
+        if (!claimedPost) continue;
+
+        let enqueueResult = null;
+        try {
+          enqueueResult = await enqueueJob(
+            "story.publish",
+            { postId: claimedPost.id, tenantId: claimedPost.tenant_id },
+            { context: { postId: claimedPost.id, tenantId: claimedPost.tenant_id, source: "story-scheduler" } }
+          );
+        } catch (enqueueError) {
+          console.warn("[story-scheduler] enqueue failed, publishing inline", { post_id: claimedPost.id, error: enqueueError?.message });
+        }
+
+        if (!enqueueResult?.accepted) {
+          console.warn("[story-scheduler] queue unavailable, publishing inline", {
+            post_id: claimedPost.id,
+            fallback: enqueueResult?.fallback || "enqueue_failed",
+          });
+          await publishStoryJob({ postId: claimedPost.id, tenantId: claimedPost.tenant_id });
+        }
       } catch (error) {
         console.error("[story-scheduler] publish error", { post_id: post.id, error: error?.message });
         await db.query(
