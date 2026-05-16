@@ -15,6 +15,7 @@ import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils
 import { fetchProductClassificationGroupByKey, getClassificationFilterAliases } from "../services/productClassificationsService.js";
 import { generateProductOgImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, buildAbsolutePublicUrl } from "../services/productOgImageService.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
+import { buildCacheKey, getOrSetCache, invalidateCachePattern } from "../services/cacheService.js";
 
 const DEFAULT_TENANT_ID = 1;
 const LOW_STOCK_LIMIT = 2;
@@ -28,6 +29,24 @@ const toNumber = (value, fallback = 0) => {
 const toText = (value = "") => String(value || "").trim();
 const publicToken = () => crypto.randomBytes(18).toString("hex");
 const orderNumber = () => `WEB-${Date.now()}-${Math.floor(Math.random() * 900 + 100)}`;
+const sortedQueryString = (query = {}) => {
+  const params = new URLSearchParams();
+  Object.keys(query || {}).sort().forEach((key) => {
+    const value = query[key];
+    if (Array.isArray(value)) {
+      value.forEach((item) => params.append(key, item));
+    } else if (value !== undefined && value !== null) {
+      params.set(key, String(value));
+    }
+  });
+  return params.toString();
+};
+const storefrontCacheKey = (tenantId, scope, query = {}) =>
+  buildCacheKey("storefront", `tenant:${tenantId || "public"}`, scope, sortedQueryString(query));
+const invalidateStorefrontTenantCache = (tenantId) =>
+  invalidateCachePattern(buildCacheKey("storefront", `tenant:${tenantId || "public"}`, "*")).catch((error) => {
+    console.warn("[cache] storefront invalidation skipped", error?.message || error);
+  });
 
 const getProductLowStockSnapshot = async (clientOrPool, { productId, tenantId }) => {
   if (!productId) return null;
@@ -574,40 +593,44 @@ export const listProducts = async (req, res) => {
     await ensureStorefrontSchema();
     await ensureProductVariantImagesSchema();
     const tenantId = tenantFromRequest(req);
-    const q = toText(req.query.q).toLowerCase();
-    const category = toText(req.query.category).toLowerCase();
-    const [gender, productType, style, grade] = await Promise.all([
-      getClassificationFilterAliases("gender", req.query.gender),
-      getClassificationFilterAliases("product_type", req.query.product_type || req.query.productType),
-      getClassificationFilterAliases("style", req.query.style),
-      getClassificationFilterAliases("grade", req.query.grade),
-    ]);
-    const saleOnly = String(req.query.sale || "") === "1";
-    const limit = Math.min(Math.max(Number(req.query.limit || 24), 1), 80);
-    const offset = Math.max(Number(req.query.offset || 0), 0);
-    let result = await queryProducts(tenantId, q, category, { gender, productType, style, grade }, saleOnly, limit, offset);
-    let usedTenantFallback = false;
-    if (!result.rows.length && tenantId !== null) {
-      const fallback = await queryProducts(null, q, category, { gender, productType, style, grade }, saleOnly, limit, offset);
-      if (fallback.rows.length) {
-        result = fallback;
-        usedTenantFallback = true;
+    const cacheKey = storefrontCacheKey(tenantId, "products", req.query);
+    const payload = await getOrSetCache(cacheKey, 45, async () => {
+      const q = toText(req.query.q).toLowerCase();
+      const category = toText(req.query.category).toLowerCase();
+      const [gender, productType, style, grade] = await Promise.all([
+        getClassificationFilterAliases("gender", req.query.gender),
+        getClassificationFilterAliases("product_type", req.query.product_type || req.query.productType),
+        getClassificationFilterAliases("style", req.query.style),
+        getClassificationFilterAliases("grade", req.query.grade),
+      ]);
+      const saleOnly = String(req.query.sale || "") === "1";
+      const limit = Math.min(Math.max(Number(req.query.limit || 24), 1), 80);
+      const offset = Math.max(Number(req.query.offset || 0), 0);
+      let result = await queryProducts(tenantId, q, category, { gender, productType, style, grade }, saleOnly, limit, offset);
+      let usedTenantFallback = false;
+      if (!result.rows.length && tenantId !== null) {
+        const fallback = await queryProducts(null, q, category, { gender, productType, style, grade }, saleOnly, limit, offset);
+        if (fallback.rows.length) {
+          result = fallback;
+          usedTenantFallback = true;
+        }
       }
-    }
-    let products = result.rows.map(normalizeProduct);
-    if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
-      const fallback = await queryProducts(null, q, category, { gender, productType, style, grade }, saleOnly, limit, offset);
-      const fallbackProducts = fallback.rows.map(normalizeProduct);
-      if (fallbackProducts.some((product) => product.total_stock > 0)) {
-        products = fallbackProducts;
-        usedTenantFallback = true;
+      let products = result.rows.map(normalizeProduct);
+      if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
+        const fallback = await queryProducts(null, q, category, { gender, productType, style, grade }, saleOnly, limit, offset);
+        const fallbackProducts = fallback.rows.map(normalizeProduct);
+        if (fallbackProducts.some((product) => product.total_stock > 0)) {
+          products = fallbackProducts;
+          usedTenantFallback = true;
+        }
       }
-    }
-    products = (await hydrateProductsWithImages(products, { compact: true })).map(slimProductForList);
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[storefront] products", { tenantId, usedTenantFallback, q, category, saleOnly, filters: { gender, productType, style, grade }, count: products.length });
-    }
-    res.json({ success: true, products });
+      products = (await hydrateProductsWithImages(products, { compact: true })).map(slimProductForList);
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[storefront] products", { tenantId, usedTenantFallback, q, category, saleOnly, filters: { gender, productType, style, grade }, count: products.length });
+      }
+      return { success: true, products };
+    });
+    res.json(payload);
   } catch (error) {
     console.error("[storefront] list products", error);
     res.status(500).json({ success: false, message: "Failed to load products" });
@@ -638,32 +661,35 @@ const countActiveProductsByGender = async (tenantId, aliases = []) => {
 export const listGenderClassifications = async (req, res) => {
   try {
     const tenantId = tenantFromRequest(req);
-    const group = await fetchProductClassificationGroupByKey("gender", { includeInactive: false });
-    const options = [];
+    const payload = await getOrSetCache(storefrontCacheKey(tenantId, "classifications:gender", req.query), 300, async () => {
+      const group = await fetchProductClassificationGroupByKey("gender", { includeInactive: false });
+      const options = [];
 
-    for (const option of group?.options || []) {
-      const aliases = await getClassificationFilterAliases("gender", option.value);
-      let product_count = await countActiveProductsByGender(tenantId, aliases);
-      if (product_count === 0 && tenantId !== null) {
-        product_count = await countActiveProductsByGender(null, aliases);
+      for (const option of group?.options || []) {
+        const aliases = await getClassificationFilterAliases("gender", option.value);
+        let product_count = await countActiveProductsByGender(tenantId, aliases);
+        if (product_count === 0 && tenantId !== null) {
+          product_count = await countActiveProductsByGender(null, aliases);
+        }
+        options.push({
+          id: option.id,
+          value: option.value,
+          name_ar: option.name_ar || option.label_ar || "",
+          name_en: option.name_en || option.label_en || "",
+          label_ar: option.label_ar,
+          label_en: option.label_en,
+          english_name: option.english_name || option.label_en || "",
+          icon: option.icon,
+          color: option.color,
+          sort_order: option.sort_order,
+          is_active: option.is_active,
+          product_count,
+        });
       }
-      options.push({
-        id: option.id,
-        value: option.value,
-        name_ar: option.name_ar || option.label_ar || "",
-        name_en: option.name_en || option.label_en || "",
-        label_ar: option.label_ar,
-        label_en: option.label_en,
-        english_name: option.english_name || option.label_en || "",
-        icon: option.icon,
-        color: option.color,
-        sort_order: option.sort_order,
-        is_active: option.is_active,
-        product_count,
-      });
-    }
 
-    res.json({ success: true, group: "gender", options });
+      return { success: true, group: "gender", options };
+    });
+    res.json(payload);
   } catch (error) {
     console.error("[storefront] gender classifications", error);
     res.status(500).json({ success: false, message: "Failed to load gender classifications" });
@@ -743,64 +769,67 @@ export const listLastPieceProducts = async (req, res) => {
     await ensureStorefrontSchema();
     await ensureProductVariantImagesSchema();
     const tenantId = tenantFromRequest(req);
-    const category = toText(req.query.category);
-    const size = toText(req.query.size);
-    const limit = Math.min(Math.max(Number(req.query.limit || 80), 1), 120);
-    let result = await queryLastPieceProducts(tenantId, category, size, limit);
-    let usedTenantFallback = false;
-    if (!result.rows.length && tenantId !== null) {
-      const fallback = await queryLastPieceProducts(null, category, size, limit);
-      if (fallback.rows.length) {
-        result = fallback;
-        usedTenantFallback = true;
+    const payload = await getOrSetCache(storefrontCacheKey(tenantId, "last-piece", req.query), 30, async () => {
+      const category = toText(req.query.category);
+      const size = toText(req.query.size);
+      const limit = Math.min(Math.max(Number(req.query.limit || 80), 1), 120);
+      let result = await queryLastPieceProducts(tenantId, category, size, limit);
+      let usedTenantFallback = false;
+      if (!result.rows.length && tenantId !== null) {
+        const fallback = await queryLastPieceProducts(null, category, size, limit);
+        if (fallback.rows.length) {
+          result = fallback;
+          usedTenantFallback = true;
+        }
       }
-    }
 
-    const products = await hydrateProductsWithImages(result.rows.map(normalizeProduct), { compact: true }).then((rows) => rows.map((product) => {
-      const lowVariants = (product.variants || []).filter((variant) => {
-        const stock = toNumber(variant.stock);
-        return stock > 0 && stock <= 2;
-      });
-      const categoryLabel = firstText(lowVariants[0]?.last_piece_category, product.category);
+      const products = await hydrateProductsWithImages(result.rows.map(normalizeProduct), { compact: true }).then((rows) => rows.map((product) => {
+        const lowVariants = (product.variants || []).filter((variant) => {
+          const stock = toNumber(variant.stock);
+          return stock > 0 && stock <= 2;
+        });
+        const categoryLabel = firstText(lowVariants[0]?.last_piece_category, product.category);
+        return {
+          ...product,
+          category: categoryLabel,
+          total_stock: lowVariants.reduce((sum, variant) => sum + toNumber(variant.stock), 0),
+          variants: lowVariants,
+          sizes: [...new Set(lowVariants.map((variant) => variant.size).filter(Boolean))],
+          colors: [...new Set(lowVariants.map((variant) => variant.color).filter(Boolean))],
+          low_stock: true,
+        };
+      }).filter((product) => product.variants.length).map(slimProductForList));
+
+      const categories = ["رجالي", "حريمي", "أطفال"]
+        .map((label) => ({
+          label,
+          count: products.filter((product) => product.category === label).reduce((sum, product) => sum + product.variants.length, 0),
+        }))
+        .filter((item) => item.count > 0);
+      const sizes = [...new Set(
+        products
+          .filter((product) => !category || product.category === category)
+          .flatMap((product) => product.variants.map((variant) => variant.size).filter(Boolean))
+      )].sort((a, b) => Number(a) - Number(b) || String(a).localeCompare(String(b), "ar"));
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[storefront] last-piece", { tenantId, usedTenantFallback, category, size, products: products.length });
+      }
       return {
-        ...product,
-        category: categoryLabel,
-        total_stock: lowVariants.reduce((sum, variant) => sum + toNumber(variant.stock), 0),
-        variants: lowVariants,
-        sizes: [...new Set(lowVariants.map((variant) => variant.size).filter(Boolean))],
-        colors: [...new Set(lowVariants.map((variant) => variant.color).filter(Boolean))],
-        low_stock: true,
+        success: true,
+        categories,
+        sizes,
+        products,
+        hooks: {
+          story_export: "reserved",
+          telegram_posting: "reserved",
+          whatsapp_status_export: "reserved",
+          countdown_timers: "reserved",
+          size_view_counts: "reserved",
+        },
       };
-    }).filter((product) => product.variants.length).map(slimProductForList));
-
-    const categories = ["رجالي", "حريمي", "أطفال"]
-      .map((label) => ({
-        label,
-        count: products.filter((product) => product.category === label).reduce((sum, product) => sum + product.variants.length, 0),
-      }))
-      .filter((item) => item.count > 0);
-    const sizes = [...new Set(
-      products
-        .filter((product) => !category || product.category === category)
-        .flatMap((product) => product.variants.map((variant) => variant.size).filter(Boolean))
-    )].sort((a, b) => Number(a) - Number(b) || String(a).localeCompare(String(b), "ar"));
-
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[storefront] last-piece", { tenantId, usedTenantFallback, category, size, products: products.length });
-    }
-    res.json({
-      success: true,
-      categories,
-      sizes,
-      products,
-      hooks: {
-        story_export: "reserved",
-        telegram_posting: "reserved",
-        whatsapp_status_export: "reserved",
-        countdown_timers: "reserved",
-        size_view_counts: "reserved",
-      },
     });
+    res.json(payload);
   } catch (error) {
     console.error("[storefront] last-piece", error);
     res.status(500).json({ success: false, message: "Failed to load last piece products" });
@@ -1066,6 +1095,7 @@ export const createWebsiteOrder = async (req, res) => {
       markCheckoutStep("create payment/shipping records if used:done", { table: "website_notifications", orderId: order.id });
     }
     await client.query("COMMIT");
+    invalidateStorefrontTenantCache(tenantId);
     createSystemNotification("website_order_created", {
       tenant_id: tenantId,
       message: `طلب جديد ${order.invoice_number || order.id} من ${checkout.full_name}`,
@@ -1317,11 +1347,14 @@ export const listNotifications = async (req, res) => {
     await ensureStorefrontSchema(db);
     const tenantId = tenantFromRequest(req);
     const phone = toText(req.query.phone);
-    const result = await db.query(
-      `SELECT * FROM website_notifications WHERE tenant_id = $1 AND ($2 = '' OR phone = $2) ORDER BY created_at DESC LIMIT 30`,
-      [tenantId, phone]
-    );
-    res.json({ success: true, notifications: result.rows });
+    const payload = await getOrSetCache(storefrontCacheKey(tenantId, "notifications", { phone }), 15, async () => {
+      const result = await db.query(
+        `SELECT * FROM website_notifications WHERE tenant_id = $1 AND ($2 = '' OR phone = $2) ORDER BY created_at DESC LIMIT 30`,
+        [tenantId, phone]
+      );
+      return { success: true, notifications: result.rows };
+    });
+    res.json(payload);
   } catch {
     res.status(500).json({ success: false, message: "Failed to load notifications" });
   }
