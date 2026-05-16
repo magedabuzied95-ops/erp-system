@@ -7,8 +7,11 @@ import {
 } from "../services/aiSupportContextService.js";
 import {
   clearAiSupportTestHistory,
+  getAiSupportInsights,
   listAiSupportHistory,
   logAiSupportMessage,
+  trackAiSupportCartOutcome,
+  trackAiSupportProductClick,
 } from "../services/aiSupportLogService.js";
 import { getWebsiteSettings, updateWebsiteSettings } from "../services/liveActivityService.js";
 import { generateSupportAnswer } from "../services/openaiSupportService.js";
@@ -163,7 +166,7 @@ const logSupportExchange = async ({ req, tenantId, metadata, message, context, r
       userId: req.user?.id || req.optionalUser?.id || req.optionalUser?.user_id || null,
       sessionId: metadata.session_id || req.id,
       customerMessage: message,
-      response,
+      response: { ...response, unknown_product_terms: context.unknown_product_terms || response.unknown_product_terms || [] },
       detectedIntent: context.intent?.type || "",
       fallbackReason: context.fallbackReason || "",
       source: req.user || req.optionalUser ? "admin_console" : "api",
@@ -385,6 +388,7 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
         context_source_count: context.trustedContext?.sources?.length || 0,
         source_previews: context.source_previews || [],
         fallback_reason: context.fallbackReason || "",
+        unknown_product_terms: context.unknown_product_terms || [],
         },
       });
       await logSupportExchange({ req, tenantId, metadata, message, context, response: responsePayload });
@@ -408,6 +412,7 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
         context_source_count: 0,
         source_previews: context.source_previews || [],
         fallback_reason: context.fallbackReason || "no_trusted_context",
+        unknown_product_terms: context.unknown_product_terms || [],
         },
       });
       await logSupportExchange({ req, tenantId, metadata, message, context, response: responsePayload });
@@ -433,6 +438,7 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       context_source_count: context.trustedContext?.sources?.length || 0,
       source_previews: context.source_previews || [],
       fallback_reason: context.fallbackReason || "",
+      unknown_product_terms: context.unknown_product_terms || [],
       },
     });
     await logSupportExchange({ req, tenantId, metadata, message, context, response: responsePayload });
@@ -512,6 +518,88 @@ router.get("/history", protect, requireAiSupportAdmin, async (req, res) => {
       success: false,
       message: "Failed to load AI support history",
     });
+  }
+});
+
+router.get("/insights", protect, requireAiSupportAdmin, async (req, res) => {
+  try {
+    const tenantId = resolveAuthenticatedTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({
+        success: false,
+        message: "Tenant context is required",
+      });
+    }
+
+    const insights = await getAiSupportInsights({
+      tenantId,
+      limit: req.query?.limit,
+    });
+
+    return res.json({
+      success: true,
+      insights,
+    });
+  } catch (error) {
+    console.error("[ai-support] insights error", {
+      requestId: req.id,
+      message: error?.message,
+    });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load AI support insights",
+    });
+  }
+});
+
+router.post("/click", attachOptionalUser, async (req, res) => {
+  try {
+    const tenantId = resolveTenantId(req);
+    const productId = req.body?.clicked_product_id ?? req.body?.product_id ?? req.body?.productId;
+    const sessionId = req.body?.session_id || req.body?.metadata?.session_id || req.headers?.["x-session-id"];
+    if (!tenantId || !sessionId || !Number(productId)) {
+      return res.status(400).json({
+        success: false,
+        message: "tenant_id, session_id, and product_id are required",
+      });
+    }
+
+    const click = await trackAiSupportProductClick({ tenantId, sessionId, productId });
+    return res.json({ success: true, click });
+  } catch (error) {
+    console.error("[ai-support] click tracking error", {
+      requestId: req.id,
+      message: error?.message,
+    });
+    return res.status(500).json({ success: false, message: "Failed to track AI support product click" });
+  }
+});
+
+router.post("/cart-outcome", attachOptionalUser, async (req, res) => {
+  try {
+    const tenantId = resolveTenantId(req);
+    const productId = req.body?.product_id ?? req.body?.productId;
+    const sessionId = req.body?.session_id || req.body?.metadata?.session_id || req.headers?.["x-session-id"];
+    if (!tenantId || !sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: "tenant_id and session_id are required",
+      });
+    }
+
+    const outcome = await trackAiSupportCartOutcome({
+      tenantId,
+      sessionId,
+      productId,
+      addedToCart: req.body?.added_to_cart_after_chat !== false,
+    });
+    return res.json({ success: true, outcome });
+  } catch (error) {
+    console.error("[ai-support] cart outcome tracking error", {
+      requestId: req.id,
+      message: error?.message,
+    });
+    return res.status(500).json({ success: false, message: "Failed to track AI support cart outcome" });
   }
 });
 

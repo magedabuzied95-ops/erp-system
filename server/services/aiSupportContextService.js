@@ -1547,6 +1547,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
       trustedContext: { tenant_id: tenantId, sources: [] },
       suggested_products: [],
       suggested_actions: ["contact_support"],
+      unknown_product_terms: [],
       fallbackReason: "",
       directResponse: await buildDirectConversationalResponse({ tenantId, intent, message }),
     };
@@ -1558,6 +1559,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
       trustedContext: { tenant_id: tenantId, sources: [] },
       suggested_products: [],
       suggested_actions: ["contact_support"],
+      unknown_product_terms: [],
       fallbackReason: "missing_tenant",
     };
   }
@@ -1571,6 +1573,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
       trustedContext: { tenant_id: tenantId, sources: [] },
       suggested_products: [],
       suggested_actions: ["contact_support"],
+      unknown_product_terms: [],
       fallbackReason: "internal_data_request",
       directResponse: {
         answer: internalAnswer,
@@ -1589,6 +1592,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
       trustedContext: { tenant_id: tenantId, sources: [] },
       suggested_products: [],
       suggested_actions: ["contact_support"],
+      unknown_product_terms: [],
       fallbackReason: "human_support_requested",
       directResponse: {
         answer: isArabicText(message)
@@ -1606,6 +1610,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
   const sources = [];
   let products = [];
   let fallbackReason = "";
+  let unknownProductTerms = [];
 
   if (intent.type === "product" || intent.type === "product_discovery" || intent.type === "general") {
     products = await searchProducts({ tenantId, message, intent, req });
@@ -1626,6 +1631,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
         })),
         suggested_products: suggestedProducts(products, req),
         suggested_actions: directProductResponse.suggested_actions,
+        unknown_product_terms: [],
         fallbackReason: "",
         directResponse: directProductResponse,
       };
@@ -1645,12 +1651,14 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
         })),
         suggested_products: suggestedProducts(products, req),
         suggested_actions: products.length ? ["view_product", "show_similar_products", "choose_size", "contact_support"] : ["show_similar_products", "choose_size"],
+        unknown_product_terms: products.length ? [] : normalizeSearchTerms(message, intent),
         fallbackReason: products.length ? "" : "product_discovery_needs_clarification",
         directResponse: buildProductDiscoveryResponse({ intent, products, req }),
       };
     }
     if ((intent.type === "product" || intent.product.asksSimilar) && products.length === 0) {
       fallbackReason = "no_matching_products";
+      unknownProductTerms = normalizeSearchTerms(message, intent);
     }
   }
 
@@ -1684,6 +1692,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
     source_previews: sourcePreviews,
     suggested_products: suggestedProducts(products, req),
     suggested_actions: suggestedActions,
+    unknown_product_terms: unknownProductTerms,
     fallbackReason: sources.length ? "" : fallbackReason || "no_trusted_context",
     directResponse: directStoreResponse || undefined,
   };

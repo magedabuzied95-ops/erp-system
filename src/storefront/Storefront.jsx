@@ -152,6 +152,7 @@ const SEARCH_FALLBACK_SECTIONS = {
 };
 const AI_SUPPORT_SESSION_KEY = "storefront.ai_support.session_id";
 const AI_SUPPORT_TENANT_KEY = "storefront.tenant_id";
+const AI_SUPPORT_LAST_CLICK_KEY = "storefront.ai_support.last_clicked_product";
 const AI_QUICK_QUESTIONS = [
   "سعر Jordan 4 كام؟",
   "متوفر مقاس 42؟",
@@ -357,6 +358,45 @@ const getAiSupportSessionId = () => {
   } catch {
     return generateAiSessionId();
   }
+};
+const rememberAiSuggestedProductClick = ({ tenantId, sessionId, productId }) => {
+  if (typeof window === "undefined" || !tenantId || !sessionId || !productId) return;
+  try {
+    localStorage.setItem(AI_SUPPORT_LAST_CLICK_KEY, JSON.stringify({
+      tenant_id: tenantId,
+      session_id: sessionId,
+      product_id: productId,
+      clicked_at: Date.now(),
+    }));
+  } catch {}
+};
+const readRecentAiSuggestedProductClick = (productId) => {
+  if (typeof window === "undefined" || !productId) return null;
+  try {
+    const payload = JSON.parse(localStorage.getItem(AI_SUPPORT_LAST_CLICK_KEY) || "null");
+    if (!payload || String(payload.product_id) !== String(productId)) return null;
+    if (Date.now() - Number(payload.clicked_at || 0) > 24 * 60 * 60 * 1000) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+};
+const trackAiSupportClick = ({ tenantId, sessionId, productId }) => {
+  if (!tenantId || !sessionId || !productId) return;
+  rememberAiSuggestedProductClick({ tenantId, sessionId, productId });
+  api.post(
+    "/ai-support/click",
+    { tenant_id: tenantId, session_id: sessionId, product_id: productId, clicked_product_id: productId },
+    { headers: { "x-tenant-id": tenantId }, suppressErrorStatuses: [400, 404, 500] }
+  ).catch(() => {});
+};
+const trackAiSupportCartOutcome = ({ tenantId, sessionId, productId }) => {
+  if (!tenantId || !sessionId) return;
+  api.post(
+    "/ai-support/cart-outcome",
+    { tenant_id: tenantId, session_id: sessionId, product_id: productId, added_to_cart_after_chat: true },
+    { headers: { "x-tenant-id": tenantId }, suppressErrorStatuses: [400, 404, 500] }
+  ).catch(() => {});
 };
 const resolveStorefrontTenantId = () => {
   const fallback = import.meta.env.VITE_STOREFRONT_TENANT_ID || import.meta.env.VITE_TENANT_ID || "1";
@@ -800,9 +840,10 @@ function AiSupportChatWidget() {
   }, [navigate, submitQuestion, supportHref]);
 
   const openProduct = useCallback((product) => {
+    trackAiSupportClick({ tenantId, sessionId, productId: product?.id || product?.product_id });
     navigate(aiSuggestedProductUrl(product));
     setOpen(false);
-  }, [navigate]);
+  }, [navigate, sessionId, tenantId]);
 
   return (
     <section
@@ -1027,6 +1068,14 @@ function Storefront() {
     toast.success("اختيار ممتاز، ضيفناها للسلة");
     setCartOpen(true);
     playSoftClick();
+    const aiClick = readRecentAiSuggestedProductClick(product.id);
+    if (aiClick) {
+      trackAiSupportCartOutcome({
+        tenantId: aiClick.tenant_id,
+        sessionId: aiClick.session_id,
+        productId: product.id,
+      });
+    }
   }, []);
 
   const updateCart = useCallback((lineId, quantity) => {
@@ -1885,16 +1934,16 @@ function VisualSearchSkeleton() {
 function VisualSearchEmpty({ message, keywords, onPickTerm }) {
   return (
     <div className="sf-visual-empty">
-      <div className="grid h-14 w-14 place-items-center rounded-2xl bg-stone-950 text-white shadow-lg dark:bg-white dark:text-stone-950">
+      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-[#8b5cf6]/20 bg-[#7c3aed]/14 text-[#c4b5fd] shadow-[0_14px_34px_rgba(124,58,237,0.16)]">
         <PackageSearch className="h-6 w-6" />
       </div>
       <div className="min-w-0">
-        <div className="text-sm font-black text-stone-950 dark:text-white">لم نجد منتج مشابه</div>
-        <div className="mt-1 text-xs font-bold text-stone-500 dark:text-stone-400">{message || "جرّب صورة أوضح أو استخدم الكلمات المقترحة."}</div>
+        <div className="text-sm font-black text-stone-50">لم نجد منتج مشابه</div>
+        <div className="mt-1 text-xs font-bold leading-5 text-stone-400">{message || "جرّب صورة أوضح أو استخدم الكلمات المقترحة."}</div>
         {keywords.length ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {keywords.map((keyword) => (
-              <button key={keyword} type="button" onClick={() => onPickTerm(keyword)} className="rounded-full bg-stone-100 px-3 py-1.5 text-xs font-black text-stone-700 transition hover:bg-stone-950 hover:text-white active:scale-95 dark:bg-white/8 dark:text-stone-200 dark:hover:bg-white dark:hover:text-stone-950">
+              <button key={keyword} type="button" onClick={() => onPickTerm(keyword)} className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1.5 text-xs font-black text-stone-200 transition hover:border-[#a78bfa]/40 hover:bg-[#7c3aed]/18 hover:text-white active:scale-95">
                 {keyword}
               </button>
             ))}
@@ -2748,10 +2797,12 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
 
 function MiniRailEmpty() {
   return (
-    <div className="rounded-[1.5rem] border border-dashed border-[#7c3aed]/20 bg-white p-6 text-center shadow-[0_12px_30px_rgba(39,20,75,0.05)]">
-      <Sparkles className="mx-auto h-7 w-7 text-[#7c3aed]" />
-      <h3 className="mt-3 text-lg font-black">لسه بنجهز منتجات جامدة هنا</h3>
-      <p className="mt-1 text-sm font-bold text-stone-500">وصل قريبًا</p>
+    <div className="rounded-[1.5rem] border border-[#8b5cf6]/18 bg-[linear-gradient(180deg,rgba(18,18,28,0.96),rgba(7,10,20,0.94))] p-6 text-center text-stone-50 shadow-[0_18px_45px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl">
+      <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-[#8b5cf6]/20 bg-[#7c3aed]/14 text-[#c4b5fd]">
+        <Sparkles className="h-6 w-6" />
+      </span>
+      <h3 className="mt-3 text-lg font-black text-stone-50">لسه بنجهز منتجات جامدة هنا</h3>
+      <p className="mt-1 text-sm font-bold text-stone-400">وصل قريبًا</p>
     </div>
   );
 }
@@ -5311,13 +5362,13 @@ function ProductSkeleton({ count }) {
 
 function EmptyState({ title, text }) {
   return (
-    <div className="mx-auto my-6 max-w-xl rounded-[1.75rem] border border-dashed border-[#7c3aed]/25 bg-white p-7 text-center shadow-[0_18px_45px_rgba(39,20,75,0.06)]">
-      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#f5f3ff] text-[#6d28d9]">
+    <div className="sf-empty-state mx-auto mt-6 mb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] max-w-xl rounded-[1.75rem] border border-[#8b5cf6]/18 bg-[linear-gradient(180deg,rgba(18,18,28,0.96),rgba(7,10,20,0.94))] p-6 text-center text-stone-50 shadow-[0_18px_45px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl md:mb-6 md:p-7">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[#8b5cf6]/20 bg-[#7c3aed]/14 text-[#c4b5fd] shadow-[0_14px_34px_rgba(124,58,237,0.16)]">
         <PackageSearch className="h-7 w-7" />
       </div>
-      <h2 className="mt-4 text-2xl font-black">{title}</h2>
-      <p className="mt-2 font-bold text-stone-500">{text}</p>
-      <Link to="/shop/products" className="mt-5 inline-flex rounded-full bg-stone-950 px-5 py-3 text-sm font-black text-white transition hover:bg-[#6d28d9]">
+      <h2 className="mt-4 text-2xl font-black text-stone-50">{title}</h2>
+      <p className="mx-auto mt-2 max-w-md font-bold leading-7 text-stone-400">{text}</p>
+      <Link to="/shop/products" className="mt-5 inline-flex min-h-12 items-center justify-center rounded-full border border-[#a78bfa]/24 bg-[linear-gradient(135deg,rgba(124,58,237,0.95),rgba(17,24,39,0.92))] px-5 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.25)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/45 hover:shadow-[0_18px_42px_rgba(124,58,237,0.34)] active:scale-[0.98]">
         تسوق الآن
       </Link>
     </div>
