@@ -1,11 +1,17 @@
 import db from "../database/db.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
+import {
+  attachVariantImages,
+  loadProductVariantImages,
+} from "./productVariantImagesService.js";
 
 const PRODUCT_LIMIT = 6;
 const VARIANT_LIMIT = 12;
 const SOURCE_TEXT_LIMIT = 4_000;
 const DEBUG_PRODUCT_CONTEXT =
-  process.env.AI_SUPPORT_DEBUG === "1" || process.env.NODE_ENV !== "production";
+  process.env.AI_SUPPORT_DEBUG === "1";
+const PRODUCT_IMAGE_PLACEHOLDER =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='18' fill='%23f5f5f4'/%3E%3Cpath d='M25 63l13-15 10 10 8-9 15 14H25z' fill='%23d6d3d1'/%3E%3Ccircle cx='37' cy='35' r='7' fill='%23d6d3d1'/%3E%3C/svg%3E";
 
 const PRODUCT_INTENT_TERMS = [
   "product",
@@ -29,6 +35,125 @@ const PRODUCT_INTENT_TERMS = [
   "سعر",
   "خصم",
   "منتج",
+];
+
+const PRODUCT_DISCOVERY_TERMS = [
+  "shoe",
+  "shoes",
+  "sneaker",
+  "sneakers",
+  "trainer",
+  "trainers",
+  "footwear",
+  "model",
+  "models",
+  "jordan",
+  "\u0643\u0648\u062a\u0634\u064a",
+  "\u0643\u0648\u062a\u0634\u064a\u0627\u062a",
+  "\u062c\u0632\u0645\u0629",
+  "\u062c\u0632\u0645\u0647",
+  "\u0633\u0646\u064a\u0643\u0631\u0632",
+  "\u0634\u0648\u0632",
+  "\u0645\u0648\u062f\u064a\u0644",
+  "\u0645\u0648\u062f\u064a\u0644\u0627\u062a",
+  "\u062c\u0648\u0631\u062f\u0646",
+  "\u0631\u062c\u0627\u0644\u064a",
+  "\u062d\u0631\u064a\u0645\u064a",
+  "\u0648\u0644\u0627\u062f\u064a",
+  "\u0628\u0646\u0627\u062a\u064a",
+];
+
+const BROAD_PRODUCT_DISCOVERY_TERMS = [
+  "shoe",
+  "shoes",
+  "sneaker",
+  "sneakers",
+  "trainer",
+  "trainers",
+  "footwear",
+  "model",
+  "models",
+  "\u0643\u0648\u062a\u0634\u064a",
+  "\u0643\u0648\u062a\u0634\u064a\u0627\u062a",
+  "\u062c\u0632\u0645\u0629",
+  "\u062c\u0632\u0645\u0647",
+  "\u0633\u0646\u064a\u0643\u0631\u0632",
+  "\u0634\u0648\u0632",
+  "\u0645\u0648\u062f\u064a\u0644",
+  "\u0645\u0648\u062f\u064a\u0644\u0627\u062a",
+];
+
+const SHOPPING_REQUEST_TERMS = [
+  "want",
+  "show me",
+  "looking for",
+  "need",
+  "\u0639\u0627\u064a\u0632",
+  "\u0639\u0627\u064a\u0632\u0629",
+  "\u0639\u0627\u0648\u0632",
+  "\u0639\u0627\u0648\u0632\u0629",
+  "\u0645\u062d\u062a\u0627\u062c",
+  "\u0645\u062d\u062a\u0627\u062c\u0629",
+  "\u0648\u0631\u064a\u0646\u064a",
+  "\u0648\u0631\u0648\u0646\u064a",
+  "\u0639\u0646\u062f\u0643\u0645",
+  "\u062d\u0627\u062c\u0629",
+  "\u0634\u0628\u0647",
+  "\u0632\u064a",
+];
+
+const IMAGE_MODEL_TERMS = [
+  "image",
+  "photo",
+  "picture",
+  "\u0635\u0648\u0631\u0629",
+  "\u0635\u0648\u0631\u0647",
+  "\u0645\u0639\u0627\u064a\u0627 \u0635\u0648\u0631\u0629",
+  "\u0645\u0639\u0627\u064a\u0627 \u0635\u0648\u0631\u0647",
+  "\u0639\u0646\u062f\u064a \u0635\u0648\u0631\u0629",
+  "\u0639\u0646\u062f\u064a \u0635\u0648\u0631\u0647",
+];
+
+const PRODUCT_QUERY_STOP_TERMS = [
+  "price",
+  "cost",
+  "how",
+  "much",
+  "available",
+  "availability",
+  "stock",
+  "size",
+  "\u0633\u0639\u0631",
+  "\u0628\u0643\u0627\u0645",
+  "\u0643\u0627\u0645",
+  "\u0643\u0645",
+  "\u0647\u0644",
+  "\u0645\u062a\u0627\u062d",
+  "\u0645\u0648\u062c\u0648\u062f",
+  "\u0645\u062a\u0648\u0641\u0631",
+  "\u0645\u0642\u0627\u0633",
+  "\u0627\u0644\u0633\u0639\u0631",
+  "\u0639\u0627\u064a\u0632",
+  "\u0639\u0627\u0648\u0632",
+];
+
+const HUMAN_SUPPORT_TERMS = [
+  "human",
+  "agent",
+  "person",
+  "representative",
+  "complaint",
+  "\u0643\u0644\u0645\u0648\u0646\u064a",
+  "\u0643\u0644\u0645\u0646\u064a",
+  "\u062d\u062f \u064a\u0643\u0644\u0645\u0646\u064a",
+  "\u0645\u0639 \u062d\u062f",
+  "\u0645\u0648\u0638\u0641",
+  "\u0627\u062f\u0645\u0646",
+  "\u0634\u0643\u0648\u0649",
+  "\u0634\u0643\u0648\u0647",
+  "\u0627\u0646\u0633\u0627\u0646",
+  "\u0628\u0646\u064a \u0627\u062f\u0645",
+  "\u0628\u0646\u064a \u0622\u062f\u0645",
 ];
 
 const STORE_INTENT_TERMS = [
@@ -88,6 +213,15 @@ const INTERNAL_INTENT_TERMS = [
   "secret",
   "api key",
   "customer data",
+  "\u0633\u0639\u0631 \u0627\u0644\u062a\u0643\u0644\u0641\u0629",
+  "\u062a\u0643\u0644\u0641\u0629",
+  "\u0633\u0639\u0631 \u0627\u0644\u062c\u0645\u0644\u0629",
+  "\u062c\u0645\u0644\u0629",
+  "\u0645\u0648\u0631\u062f",
+  "\u0645\u0648\u0631\u062f\u064a\u0646",
+  "\u0647\u0627\u0645\u0634",
+  "\u0631\u0628\u062d",
+  "\u062f\u0627\u062e\u0644\u064a",
   "بيانات عميل",
   "مورد",
   "تكلفة",
@@ -196,6 +330,12 @@ const COLOR_TERMS = [
   "grey",
   "orange",
   "navy",
+  "\u0627\u0633\u0648\u062f",
+  "\u0623\u0633\u0648\u062f",
+  "\u0633\u0648\u062f\u0627",
+  "\u0633\u0648\u062f\u0627\u0621",
+  "\u0627\u0628\u064a\u0636",
+  "\u0623\u0628\u064a\u0636",
   "ذهبي",
   "فضي",
   "اسود",
@@ -280,6 +420,15 @@ const safeJsonParse = (value) => {
   }
 };
 
+const normalizeJsonArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (isObject(value)) return Object.values(value);
+  const parsed = safeJsonParse(value);
+  if (Array.isArray(parsed)) return parsed;
+  if (isObject(parsed)) return Object.values(parsed);
+  return [];
+};
+
 const numeric = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -291,6 +440,87 @@ const money = (value) => {
 };
 
 const unique = (items = []) => [...new Set(items.map((item) => toText(item)).filter(Boolean))];
+
+const trimSlashes = (value = "") => String(value || "").replace(/^\/+|\/+$/g, "");
+
+const firstImageValue = (...values) => {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      const nested = firstImageValue(...value);
+      if (nested) return nested;
+      continue;
+    }
+    if (isObject(value)) {
+      const nested = firstImageValue(value.image_url, value.url, value.path, value.src, value.preview, value.secure_url);
+      if (nested) return nested;
+      continue;
+    }
+    const text = toText(value);
+    if (text) return text;
+  }
+  return "";
+};
+
+const resolveStorefrontProductImageUrl = (value, req = null) => {
+  const imageUrl = toText(value);
+  if (!imageUrl) return "";
+  if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) return imageUrl;
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+
+  if (imageUrl.startsWith("/uploads/") || imageUrl.startsWith("uploads/")) return `/${trimSlashes(imageUrl)}`;
+  if (imageUrl.startsWith("products/")) return `/uploads/${trimSlashes(imageUrl)}`;
+  if (imageUrl.startsWith("/products/")) return `/uploads${imageUrl}`;
+  if (imageUrl.startsWith("/")) return imageUrl;
+  return `/uploads/products/${trimSlashes(imageUrl)}`;
+};
+
+const isPlaceholderImageUrl = (value = "") => toText(value) === PRODUCT_IMAGE_PLACEHOLDER || toText(value).includes("/favicon.svg");
+
+const resolveSuggestedProductImageUrl = (product = {}, req = null) => {
+  const productImages = normalizeJsonArray(product.product_images);
+  const variantImages = Array.isArray(product.variants)
+    ? product.variants.flatMap((variant) => [
+        variant?.image_url,
+        variant?.image,
+        variant?.main_image,
+        variant?.thumbnail,
+        ...normalizeJsonArray(variant?.product_images),
+      ])
+    : [];
+  const source = firstImageValue(
+    product.image_url,
+    product.main_image,
+    product.image,
+    product.thumbnail,
+    productImages,
+    variantImages
+  );
+  return resolveStorefrontProductImageUrl(source, req) || PRODUCT_IMAGE_PLACEHOLDER;
+};
+
+const compactImageDebugValue = (value = "") => {
+  const text = toText(value);
+  if (text.length <= 220) return text;
+  return `${text.slice(0, 120)}...${text.slice(-40)}`;
+};
+
+const imageDebugFields = (product = {}) => ({
+  image: compactImageDebugValue(product.image),
+  image_url: compactImageDebugValue(product.image_url),
+  raw_image_url: compactImageDebugValue(product.raw_image_url),
+  main_image: compactImageDebugValue(product.main_image),
+  thumbnail: compactImageDebugValue(product.thumbnail),
+  product_images_count: normalizeJsonArray(product.product_images).length,
+  gallery_images_count: normalizeJsonArray(product.gallery_images).length,
+  variant_images: (Array.isArray(product.variants) ? product.variants : []).slice(0, 6).map((variant) => ({
+    id: variant?.id,
+    image_url: compactImageDebugValue(variant?.image_url),
+    primary_image_url: compactImageDebugValue(variant?.primary_image_url),
+    variant_image_url: compactImageDebugValue(variant?.variant_image_url),
+    color_image_url: compactImageDebugValue(variant?.color_image_url),
+    images_count: Array.isArray(variant?.images) ? variant.images.length : 0,
+  })),
+});
 
 const q = (identifier) => `"${String(identifier).replaceAll('"', '""')}"`;
 
@@ -378,20 +608,44 @@ export const detectAiSupportIntent = (message = "") => {
   const text = toText(message);
   const lower = text.toLowerCase();
   const codes = unique(text.match(CODE_PATTERN) || []).slice(0, 5);
-  const colors = COLOR_TERMS.filter((color) => lower.includes(color.toLowerCase())).slice(0, 4);
+  const colors = unique(COLOR_TERMS.filter((color) => lower.includes(color.toLowerCase()))).slice(0, 4);
   const sizeMatch = text.match(SIZE_PATTERN);
-  const asksSimilar = /similar|alternative|like this|بديل|مشابه/i.test(text);
-  const asksAvailability = /stock|available|availability|متاح|موجود|كمية/i.test(text);
-  const asksPrice = /price|cost|سعر|بكام|كم/i.test(text);
+  const asksSimilar = /similar|alternative|like this|بديل|مشابه|شبه|زي|زى/i.test(text);
+  const asksAvailability = /stock|available|availability|متاح|موجود|متوفر|كمية|عندكم/i.test(text);
+  const asksPrice = /price|cost|سعر|بكام|كم|كام/i.test(text);
   const isInternal = hasAnyTerm(text, INTERNAL_INTENT_TERMS);
+  const hasRefundProblem = /(refund|return|exchange|استرجاع|استبدال).*(problem|issue|complaint|مشكلة|شكوى)|(problem|issue|complaint|مشكلة|شكوى).*(refund|return|exchange|استرجاع|استبدال)/i.test(text);
   const conversationalSubtype = isInternal ? "" : detectConversationalSubtype(text);
   const isStore = hasAnyTerm(text, STORE_INTENT_TERMS);
+  const wantsHuman = !isInternal && (hasAnyTerm(text, HUMAN_SUPPORT_TERMS) || hasRefundProblem);
+  const mentionsProductDiscovery = !isInternal && hasAnyTerm(text, PRODUCT_DISCOVERY_TERMS);
+  const hasShoppingRequest = !isInternal && hasAnyTerm(text, SHOPPING_REQUEST_TERMS);
+  const mentionsImageModel = !isInternal && hasAnyTerm(text, IMAGE_MODEL_TERMS) && (mentionsProductDiscovery || hasShoppingRequest);
+  const isProductDiscovery =
+    !wantsHuman &&
+    !isStore &&
+    (mentionsImageModel ||
+      mentionsProductDiscovery ||
+      (hasShoppingRequest && (colors.length > 0 || Boolean(sizeMatch) || asksSimilar || asksAvailability)) ||
+      (hasShoppingRequest && text.length <= 80));
   const isProduct = isInternal
     ? false
     : hasAnyTerm(text, PRODUCT_INTENT_TERMS) || codes.length > 0 || colors.length > 0 || Boolean(sizeMatch);
 
   return {
-    type: isInternal ? "internal_data" : conversationalSubtype ? "conversational" : isProduct ? "product" : isStore ? "store_policy" : "general",
+    type: isInternal
+      ? "internal_data"
+      : wantsHuman
+        ? "human_support"
+        : conversationalSubtype
+          ? "conversational"
+          : isProductDiscovery
+            ? "product_discovery"
+            : isProduct
+              ? "product"
+              : isStore
+                ? "store_policy"
+                : "general",
     conversational: {
       subtype: conversationalSubtype,
     },
@@ -402,6 +656,8 @@ export const detectAiSupportIntent = (message = "") => {
       asksSimilar,
       asksAvailability,
       asksPrice,
+      discovery: isProductDiscovery,
+      mentionsImageModel,
     },
   };
 };
@@ -504,11 +760,80 @@ const normalizeSearchTerms = (message, intent) => {
     .replace(/[^\p{L}\p{N}\s._-]/gu, " ")
     .split(/\s+/)
     .map((word) => word.trim())
-    .filter((word) => word.length >= 2)
+    .filter((word) => word.length >= 2 || /^\d+$/.test(word))
     .filter((word) => !PRODUCT_INTENT_TERMS.includes(word.toLowerCase()))
+    .filter((word) => !PRODUCT_QUERY_STOP_TERMS.includes(word.toLowerCase()))
+    .filter((word) => !BROAD_PRODUCT_DISCOVERY_TERMS.includes(word.toLowerCase()))
+    .filter((word) => !SHOPPING_REQUEST_TERMS.includes(word.toLowerCase()))
+    .filter((word) => !IMAGE_MODEL_TERMS.includes(word.toLowerCase()))
     .filter((word) => !STORE_INTENT_TERMS.includes(word.toLowerCase()))
     .filter((word) => !INTERNAL_INTENT_TERMS.includes(word.toLowerCase()));
   return unique([...intent.product.codes, ...intent.product.colors, intent.product.size, ...words]).slice(0, 10);
+};
+
+const normalizeProductMatchText = (value = "") =>
+  toText(value)
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const productQueryText = (message = "", intent = {}) => {
+  const terms = normalizeSearchTerms(message, intent)
+    .filter((term) => !intent.product?.colors?.includes(term))
+    .filter((term) => term !== intent.product?.size);
+  return normalizeProductMatchText(terms.join(" "));
+};
+
+const productBestPrice = (product = {}) => {
+  const directSale = money(product.sale_price);
+  const directPrice = money(product.price);
+  if (directSale > 0) return directSale;
+  if (directPrice > 0) return directPrice;
+  const variantPrices = (Array.isArray(product.variants) ? product.variants : [])
+    .flatMap((variant) => [money(variant?.sale_price), money(variant?.price)])
+    .filter((value) => value > 0);
+  return variantPrices.length ? Math.min(...variantPrices) : null;
+};
+
+const productRankScore = ({ product, queryText, intent }) => {
+  const name = normalizeProductMatchText(product.name);
+  const sku = normalizeProductMatchText(product.sku);
+  const hasCopyName = /\bcopy\b|كوبي|كوبى/i.test(toText(product.name));
+  const finalPrice = productBestPrice(product);
+  let score = 0;
+
+  if (queryText) {
+    if (name === queryText) score += 1000;
+    else if (name.endsWith(` ${queryText}`)) score += 780;
+    else if (name.includes(queryText)) score += 650;
+    else {
+      const queryWords = queryText.split(/\s+/).filter(Boolean);
+      const matchedWords = queryWords.filter((word) => name.includes(word) || sku.includes(word)).length;
+      score += matchedWords * 120;
+      if (queryWords.length && matchedWords === queryWords.length) score += 180;
+    }
+    if (sku === queryText) score += 700;
+  }
+
+  if (hasCopyName) score -= 260;
+  if (Number(product.total_stock || 0) > 0) score += 130;
+  if (finalPrice > 0) score += 110;
+  if (intent.product?.size && (product.variants || []).some((variant) => toText(variant.size).toLowerCase() === intent.product.size.toLowerCase())) score += 90;
+  if (intent.product?.colors?.length && (product.variants || []).some((variant) => intent.product.colors.some((color) => toText(variant.color).toLowerCase().includes(color.toLowerCase())))) score += 70;
+  return score;
+};
+
+const rankProductsForIntent = ({ products = [], message = "", intent = {} }) => {
+  const queryText = productQueryText(message, intent);
+  return [...products].sort((left, right) => {
+    const scoreDiff =
+      productRankScore({ product: right, queryText, intent }) -
+      productRankScore({ product: left, queryText, intent });
+    if (scoreDiff !== 0) return scoreDiff;
+    return Number(right.total_stock || 0) - Number(left.total_stock || 0);
+  });
 };
 
 const normalizeProductRow = (row, intent) => {
@@ -534,12 +859,21 @@ const normalizeProductRow = (row, intent) => {
   const maxPrice = prices.length ? Math.max(...prices) : null;
   const hasDiscount = money(row.sale_price) > 0 && money(row.price) > 0 && money(row.sale_price) < money(row.price);
 
+  const productImages = normalizeJsonArray(row.product_images);
+
   return {
     id: row.id,
     name: row.name,
     sku: row.sku || "",
     barcode: row.barcode || "",
+    image: row.image || "",
     image_url: row.image_url || "",
+    raw_image_url: row.image_url || "",
+    product_image_url: row.product_image_url || row.image_url || row.image || row.main_image || row.thumbnail || "",
+    main_image: row.main_image || "",
+    thumbnail: row.thumbnail || "",
+    product_images: productImages,
+    gallery_images: productImages,
     price: money(row.price),
     sale_price: money(row.sale_price),
     price_range: minPrice === null ? null : minPrice === maxPrice ? `${minPrice}` : `${minPrice}-${maxPrice}`,
@@ -555,6 +889,8 @@ const normalizeProductRow = (row, intent) => {
       sku: variant.sku || "",
       barcode: variant.barcode || "",
       image_url: variant.image_url || "",
+      variant_image_url: variant.image_url || "",
+      color_image_url: variant.image_url || "",
       price: money(variant.price),
       sale_price: money(variant.sale_price),
       stock: Math.max(0, numeric(variant.stock, 0)),
@@ -563,14 +899,107 @@ const normalizeProductRow = (row, intent) => {
   };
 };
 
-const searchProducts = async ({ tenantId, message, intent }) => {
+const hydrateProductsWithStorefrontImages = async (products = [], req = null) => {
+  const rows = Array.isArray(products) ? products : [];
+  const productIds = rows.map((product) => Number(product.id)).filter((value) => Number.isFinite(value) && value > 0);
+  const imageBundleMap = await loadProductVariantImages(db, productIds).catch((error) => {
+    debugProductSearch("image hydration skipped", { message: error?.message });
+    return new Map();
+  });
+
+  return rows.map((product) => {
+    const imageBundle = imageBundleMap.get(String(product.id)) || null;
+    const variants = attachVariantImages(Array.isArray(product.variants) ? product.variants : [], imageBundle);
+    const compactVariants = variants.map((variant) => {
+      const selectedVariantImage =
+        variant.primary_image_url ||
+        variant.image_url ||
+        variant.variant_image_url ||
+        variant.color_image_url ||
+        firstImageValue(variant.images) ||
+        product.image_url ||
+        product.product_image_url ||
+        product.image ||
+        product.main_image ||
+        product.thumbnail ||
+        firstImageValue(product.product_images) ||
+        "";
+      return {
+        ...variant,
+        image_url: selectedVariantImage,
+        selected_image_field:
+          variant.primary_image_url
+            ? "variant.primary_image_url"
+            : variant.image_url
+              ? "variant.image_url"
+              : variant.variant_image_url
+                ? "variant.variant_image_url"
+                : variant.color_image_url
+                  ? "variant.color_image_url"
+                  : firstImageValue(variant.images)
+                    ? "variant.images"
+                    : "",
+      };
+    });
+    const primaryVariant = compactVariants.find((variant) => variant.image_url) || null;
+    const fallbackProductImage = firstImageValue(
+      product.image_url,
+      product.product_image_url,
+      product.image,
+      product.main_image,
+      product.thumbnail,
+      product.product_images,
+      product.gallery_images
+    );
+    const selectedImage = primaryVariant?.image_url || fallbackProductImage;
+    const selectedImageField = primaryVariant?.selected_image_field || (
+      product.image_url
+        ? "products.image_url"
+        : product.product_image_url
+          ? "products.product_image_url"
+          : product.image
+            ? "products.image"
+            : product.main_image
+              ? "products.main_image"
+              : product.thumbnail
+                ? "products.thumbnail"
+                : firstImageValue(product.product_images)
+                  ? "products.product_images"
+                  : ""
+    );
+    const finalImageUrl = selectedImage ? resolveStorefrontProductImageUrl(selectedImage, req) : "";
+    const normalized = {
+      ...product,
+      variants: compactVariants,
+      selected_image_field: selectedImageField,
+      selected_image_source: selectedImage,
+      image_url: finalImageUrl || "",
+      product_image_url: finalImageUrl || "",
+    };
+
+    debugProductSearch("suggested product image", {
+      id: product.id,
+      name: product.name,
+      raw_image_fields: imageDebugFields({ ...product, variants }),
+      selected_image_field: selectedImageField || "(none)",
+      selected_image_value: compactImageDebugValue(selectedImage),
+      final_image_url: compactImageDebugValue(finalImageUrl),
+      used_placeholder: !finalImageUrl,
+      product_variant_images_count: imageBundle?.rows?.length || 0,
+    });
+
+    return normalized;
+  });
+};
+
+const searchProducts = async ({ tenantId, message, intent, req = null }) => {
   const [productColumns, variantColumns] = await Promise.all([getColumns("products"), getColumns("product_variants")]);
   const productNameExpr = columnExpr("p", productColumns, ["name", "title", "name_en", "name_ar", "title_en", "title_ar"], "''");
   const productNameColumns = columnList("p", productColumns, ["name", "title", "name_ar", "name_en", "title_ar", "title_en"]);
   if (!productColumns.has("tenant_id") || !productNameColumns.length) return [];
 
   const terms = normalizeSearchTerms(message, intent);
-  if (!terms.length && !intent.product.asksSimilar) return [];
+  if (!terms.length && !intent.product.asksSimilar && intent.type !== "product_discovery") return [];
 
   const normalizedQuery = compactText(message, 500).toLowerCase();
   const productSchemaDebug = {
@@ -620,19 +1049,27 @@ const searchProducts = async ({ tenantId, message, intent }) => {
   const productSelect = {
     sku: columnExpr("p", productColumns, ["sku"], "''"),
     barcode: columnExpr("p", productColumns, ["barcode"], "''"),
-    image_url: columnExpr("p", productColumns, ["image_url", "image", "photo_url", "thumbnail_url"], "''"),
+    image: columnExpr("p", productColumns, ["image"], "''"),
+    image_url: columnExpr("p", productColumns, ["image_url"], "''"),
+    main_image: columnExpr("p", productColumns, ["main_image", "main_image_url", "public_image_url", "product_image_url"], "''"),
+    thumbnail: columnExpr("p", productColumns, ["thumbnail", "thumbnail_url", "photo_url"], "''"),
+    product_images: columnExpr("p", productColumns, ["product_images", "gallery_images", "images"], "'[]'::jsonb"),
     stock: columnExpr("p", productColumns, ["stock"], "0"),
     price: columnExpr("p", productColumns, ["price"], "0"),
     sale_price: columnExpr("p", productColumns, ["sale_price", "discount_price"], "0"),
   };
-  const productOrder = productColumns.has("updated_at") ? "p.updated_at DESC NULLS LAST, p.id DESC" : "p.id DESC";
+  const variantStockOrder = variantColumns.has("stock") ? "COALESCE(SUM(GREATEST(COALESCE(pv.stock, 0), 0)), 0)" : "0";
+  const productStockOrder = productColumns.has("stock") ? "GREATEST(COALESCE(p.stock, 0), 0)" : "0";
+  const stockOrder = `${variantStockOrder} + ${productStockOrder} DESC, `;
+  const productOrder = productColumns.has("updated_at") ? `${stockOrder}p.updated_at DESC NULLS LAST, p.id DESC` : `${stockOrder}p.id DESC`;
   const variantSelect = {
     id: columnExpr("pv", variantColumns, ["id"], "NULL"),
     color: columnExpr("pv", variantColumns, ["color"], "''"),
     size: columnExpr("pv", variantColumns, ["size"], "''"),
     sku: columnExpr("pv", variantColumns, ["sku"], "''"),
     barcode: columnExpr("pv", variantColumns, ["barcode"], "''"),
-    image_url: columnExpr("pv", variantColumns, ["image_url"], "''"),
+    image_url: columnExpr("pv", variantColumns, ["image_url", "image", "photo_url", "thumbnail_url"], "''"),
+    product_images: columnExpr("pv", variantColumns, ["product_images", "images"], "'[]'::jsonb"),
     price: columnExpr("pv", variantColumns, ["price"], "0"),
     sale_price: columnExpr("pv", variantColumns, ["sale_price", "discount_price"], "0"),
     stock: columnExpr("pv", variantColumns, ["stock"], "0"),
@@ -645,7 +1082,11 @@ const searchProducts = async ({ tenantId, message, intent }) => {
       ${productNameExpr} AS name,
       ${productSelect.sku} AS sku,
       ${productSelect.barcode} AS barcode,
+      ${productSelect.image} AS image,
       ${productSelect.image_url} AS image_url,
+      ${productSelect.main_image} AS main_image,
+      ${productSelect.thumbnail} AS thumbnail,
+      ${productSelect.product_images} AS product_images,
       ${productSelect.stock} AS stock,
       ${productSelect.price} AS price,
       ${productSelect.sale_price} AS sale_price,
@@ -658,6 +1099,7 @@ const searchProducts = async ({ tenantId, message, intent }) => {
             'sku', ${variantSelect.sku},
             'barcode', ${variantSelect.barcode},
             'image_url', ${variantSelect.image_url},
+            'product_images', ${variantSelect.product_images},
             'price', ${variantSelect.price},
             'sale_price', ${variantSelect.sale_price},
             'stock', ${variantSelect.stock}
@@ -685,9 +1127,18 @@ const searchProducts = async ({ tenantId, message, intent }) => {
     return Number(countResult.rows[0]?.count || 0);
   };
   const [broadMatchedCount, activeMatchedCount] = await Promise.all([countMatches(baseConditions), countMatches(activeOnlyConditions)]);
-  const products = result.rows.map((row) => normalizeProductRow(row, intent));
+  const products = rankProductsForIntent({
+    products: await hydrateProductsWithStorefrontImages(
+    result.rows.map((row) => normalizeProductRow(row, intent)),
+    req
+    ),
+    message,
+    intent,
+  });
 
   debugProductSearch("result", {
+    query_text: message,
+    detected_intent: intent.type,
     tenant_id: tenantId,
     matched_product_count: products.length,
     broad_matched_product_count_before_active_storefront_filters: broadMatchedCount,
@@ -695,8 +1146,14 @@ const searchProducts = async ({ tenantId, message, intent }) => {
     active_filters_excluded_products: activeFilterApplied && broadMatchedCount > activeMatchedCount,
     storefront_filters_excluded_products: storefrontFilterApplied && activeMatchedCount > products.length,
     sample_matched_products: products.slice(0, 5).map((product) => ({
+      id: product.id,
       name: product.name,
       sku: product.sku,
+      price: product.price,
+      sale_price: product.sale_price,
+      final_price: productBestPrice(product),
+      stock: product.total_stock,
+      image_url: compactImageDebugValue(product.image_url),
       variant_skus: product.variants.map((variant) => variant.sku).filter(Boolean).slice(0, 3),
     })),
   });
@@ -712,9 +1169,14 @@ const sourceFromProduct = (product) => ({
       name: product.name,
       sku: product.sku || undefined,
       barcode: product.barcode || undefined,
+      image: product.image || undefined,
       image_url: product.image_url || undefined,
+      main_image: product.main_image || undefined,
+      thumbnail: product.thumbnail || undefined,
+      product_images: product.product_images?.length ? product.product_images : undefined,
       public_price: product.price || undefined,
       sale_price: product.sale_price || undefined,
+      final_price: productBestPrice(product) || undefined,
       price_range: product.price_range || undefined,
       active_discount: product.active_discount || undefined,
       stock_summary: {
@@ -912,7 +1374,11 @@ const buildDirectStoreResponse = ({ message, sources = [], suggestedActions = []
   return null;
 };
 
-const pickConversationalAnswer = ({ subtype = "greeting", tenantId = null, brandTone = "" } = {}) => {
+const pickConversationalAnswer = ({ subtype = "greeting", tenantId = null, brandTone = "", message = "" } = {}) => {
+  const normalizedMessage = normalizeConversationalText(message);
+  if (subtype === "greeting" && normalizedMessage.includes("السلام عليكم")) {
+    return "وعليكم السلام ❤️ إزاي أقدر أساعدك؟";
+  }
   const responses = CONVERSATIONAL_RESPONSE_SETS[subtype] || CONVERSATIONAL_RESPONSE_SETS.greeting;
   const normalizedTone = normalizeConversationalText(brandTone);
   const prefersShort = /short|brief|concise/i.test(brandTone) || normalizedTone.includes("\u0645\u062e\u062a\u0635\u0631");
@@ -923,7 +1389,7 @@ const pickConversationalAnswer = ({ subtype = "greeting", tenantId = null, brand
   return responses[seed % responses.length] || responses[0];
 };
 
-const buildDirectConversationalResponse = async ({ tenantId, intent }) => {
+const buildDirectConversationalResponse = async ({ tenantId, intent, message }) => {
   let brandTone = "";
   if (tenantId) {
     try {
@@ -942,6 +1408,7 @@ const buildDirectConversationalResponse = async ({ tenantId, intent }) => {
       subtype: intent.conversational?.subtype || "greeting",
       tenantId,
       brandTone,
+      message,
     }),
     confidence: 1,
     needs_human_support: false,
@@ -951,18 +1418,127 @@ const buildDirectConversationalResponse = async ({ tenantId, intent }) => {
   };
 };
 
-const suggestedProducts = (products = []) =>
-  products.slice(0, 4).map((product) => ({
+const suggestedProducts = (products = [], req = null) =>
+  products.slice(0, 6).map((product) => ({
     id: product.id,
     name: product.name,
     sku: product.sku || "",
-    image_url: product.image_url || "",
-    price: product.sale_price > 0 ? product.sale_price : product.price,
+    image: product.image || "",
+    image_url: resolveSuggestedProductImageUrl(product, req),
+    main_image: product.main_image || "",
+    thumbnail: product.thumbnail || "",
+    product_images: Array.isArray(product.product_images) ? product.product_images : [],
+    price: productBestPrice(product),
+    sale_price: money(product.sale_price) > 0 ? money(product.sale_price) : null,
+    final_price: productBestPrice(product),
+    price_range: product.price_range || "",
     availability: product.availability,
+    stock_status: Number(product.total_stock || 0) > 0 ? "in_stock" : "out_of_stock",
+    product_url: `/shop/product/${product.id}`,
     total_stock: product.total_stock,
+    stock: product.total_stock,
   }));
 
-export const buildAiSupportTrustedContext = async ({ tenantId, message } = {}) => {
+const formatProductPriceAr = (product = {}) => {
+  const finalPrice = productBestPrice(product);
+  return finalPrice > 0
+    ? `${Number(finalPrice).toLocaleString("ar-EG-u-nu-latn")} ج.م`
+    : "\u0627\u0644\u0633\u0639\u0631 \u063a\u064a\u0631 \u0645\u062d\u062f\u062f \u062d\u0627\u0644\u064a\u0627\u064b";
+};
+
+const stockTextAr = (stock) => (Number(stock || 0) > 0 ? "\u0645\u062a\u0627\u062d" : "\u063a\u064a\u0631 \u0645\u062a\u0627\u062d \u062d\u0627\u0644\u064a\u0627\u064b");
+
+const matchingSizeVariants = (product = {}, size = "") => {
+  if (!size) return [];
+  const normalizedSize = toText(size).toLowerCase();
+  return (Array.isArray(product.variants) ? product.variants : []).filter(
+    (variant) => toText(variant?.size).toLowerCase() === normalizedSize
+  );
+};
+
+const buildDirectProductResponse = ({ message = "", intent, products = [], req = null } = {}) => {
+  const items = suggestedProducts(products, req);
+  if (!items.length || (!intent.product?.asksPrice && !intent.product?.asksAvailability)) return null;
+
+  const topProducts = products.slice(0, 3);
+  const sourceIds = items.map((product) => `product_${product.id}`);
+  const top = topProducts[0];
+  const queryText = productQueryText(message, intent);
+  const topScore = productRankScore({ product: top, queryText, intent });
+  const secondScore = topProducts[1] ? productRankScore({ product: topProducts[1], queryText, intent }) : 0;
+  const hasSingleStrongMatch =
+    topProducts.length === 1 ||
+    (topScore >= 900 && topScore - secondScore >= 180);
+
+  let answer = "";
+  if (intent.product?.asksAvailability) {
+    const requestedSize = intent.product?.size || "";
+    if (requestedSize && topProducts.length) {
+      const lines = topProducts.map((product) => {
+        const variants = matchingSizeVariants(product, requestedSize);
+        const sizeStock = variants.length
+          ? variants.reduce((sum, variant) => sum + Math.max(0, numeric(variant.stock, 0)), 0)
+          : 0;
+        const status = variants.length ? stockTextAr(sizeStock) : "\u0627\u0644\u0645\u0642\u0627\u0633 \u0645\u0634 \u0645\u0633\u062c\u0644 \u0639\u0644\u0649 \u0627\u0644\u0645\u0648\u062f\u064a\u0644";
+        return `${product.name}: \u0645\u0642\u0627\u0633 ${requestedSize} - ${status}`;
+      });
+      answer = `\u0628\u0627\u0644\u0646\u0633\u0628\u0629 \u0644\u0645\u0642\u0627\u0633 ${requestedSize}:\n${lines.join("\n")}`;
+    } else {
+      const lines = topProducts.map((product) => `${product.name}: ${stockTextAr(product.total_stock)}${Number(product.total_stock || 0) > 0 ? ` (${Number(product.total_stock).toLocaleString("ar-EG-u-nu-latn")} \u0642\u0637\u0639\u0629)` : ""}`);
+      answer = lines.length === 1 ? `${top.name} ${stockTextAr(top.total_stock)}.` : `\u0623\u0647\u0645 \u0627\u0644\u0646\u062a\u0627\u064a\u062c:\n${lines.join("\n")}`;
+    }
+  } else if (intent.product?.asksPrice) {
+    if (hasSingleStrongMatch) {
+      answer = `${top.name}: ${formatProductPriceAr(top)}.`;
+    } else {
+      const lines = topProducts.map((product) => `${product.name}: ${formatProductPriceAr(product)} - ${stockTextAr(product.total_stock)}`);
+      answer = `\u062f\u064a \u0623\u0642\u0631\u0628 \u0646\u062a\u0627\u064a\u062c \u0644\u0644\u0633\u0639\u0631:\n${lines.join("\n")}`;
+    }
+  }
+
+  return {
+    answer,
+    confidence: 0.95,
+    needs_human_support: false,
+    sources_used: sourceIds,
+    suggested_products: items,
+    suggested_actions: ["view_product", "choose_size", "show_similar_products", "contact_support"],
+  };
+};
+
+const buildProductDiscoveryResponse = ({ intent, products = [], req = null }) => {
+  const items = suggestedProducts(products, req);
+  if (intent.product?.mentionsImageModel) {
+    return {
+      answer: "\u0623\u0643\u064a\u062f \u2764\ufe0f \u0627\u0628\u0639\u062a\u0644\u064a \u0635\u0648\u0631\u0629 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0648\u0623\u0646\u0627 \u0623\u0637\u0644\u0639\u0644\u0643 \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0639\u0646\u062f\u0646\u0627.",
+      confidence: 1,
+      needs_human_support: false,
+      sources_used: [],
+      suggested_products: items,
+      suggested_actions: ["show_similar_products"],
+    };
+  }
+  if (items.length) {
+    return {
+      answer: "\u0623\u0643\u064a\u062f\u060c \u062f\u064a \u0634\u0648\u064a\u0629 \u0645\u0648\u062f\u064a\u0644\u0627\u062a \u0645\u0645\u0643\u0646 \u062a\u0639\u062c\u0628\u0643. \u0648\u0644\u0648 \u0645\u0639\u0627\u0643 \u0635\u0648\u0631\u0629 \u0645\u0648\u062f\u064a\u0644 \u0627\u0628\u0639\u062a\u0647\u0627\u0644\u064a \u0648\u0623\u0646\u0627 \u0623\u0637\u0644\u0639\u0644\u0643 \u0627\u0644\u0623\u0642\u0631\u0628 \u0644\u064a\u0647.",
+      confidence: 0.9,
+      needs_human_support: false,
+      sources_used: items.map((product) => `product_${product.id}`),
+      suggested_products: items,
+      suggested_actions: ["view_product", "show_similar_products", "choose_size", "contact_support"],
+    };
+  }
+  return {
+    answer: "\u0623\u0643\u064a\u062f \u2764\ufe0f \u062a\u062d\u0628 \u0643\u0648\u062a\u0634\u064a \u0631\u062c\u0627\u0644\u064a \u0648\u0644\u0627 \u062d\u0631\u064a\u0645\u064a\u061f \u0648\u0645\u0642\u0627\u0633\u0643 \u0643\u0627\u0645\u061f \u0648\u0644\u0648 \u0645\u0639\u0627\u0643 \u0635\u0648\u0631\u0629 \u0645\u0648\u062f\u064a\u0644 \u0627\u0628\u0639\u062a\u0647\u0627\u0644\u064a \u0648\u0623\u0637\u0644\u0639\u0644\u0643 \u0627\u0644\u0623\u0642\u0631\u0628.",
+    confidence: 0.8,
+    needs_human_support: false,
+    sources_used: [],
+    suggested_products: [],
+    suggested_actions: ["show_similar_products", "choose_size"],
+  };
+};
+
+export const buildAiSupportTrustedContext = async ({ tenantId, message, req = null } = {}) => {
   const intent = detectAiSupportIntent(message);
 
   if (intent.type === "conversational") {
@@ -972,7 +1548,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message } = {}) =
       suggested_products: [],
       suggested_actions: ["contact_support"],
       fallbackReason: "",
-      directResponse: await buildDirectConversationalResponse({ tenantId, intent }),
+      directResponse: await buildDirectConversationalResponse({ tenantId, intent, message }),
     };
   }
 
@@ -987,6 +1563,9 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message } = {}) =
   }
 
   if (intent.type === "internal_data") {
+    const internalAnswer = isArabicText(message)
+      ? "\u0645\u0634 \u0647\u0642\u062f\u0631 \u0623\u0634\u0627\u0631\u0643 \u0628\u064a\u0627\u0646\u0627\u062a \u062f\u0627\u062e\u0644\u064a\u0629 \u0632\u064a \u0633\u0639\u0631 \u0627\u0644\u062a\u0643\u0644\u0641\u0629 \u0623\u0648 \u0627\u0644\u0645\u0648\u0631\u062f\u064a\u0646. \u0623\u0642\u062f\u0631 \u0623\u0633\u0627\u0639\u062f\u0643 \u0641\u064a \u0627\u0644\u0633\u0639\u0631 \u0627\u0644\u0645\u0639\u0631\u0648\u0636\u060c \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a\u060c \u0623\u0648 \u0627\u0644\u062a\u0648\u0641\u0631."
+      : "I cannot share internal ERP, admin, supplier, cost, margin, credential, or private data. I can help with public prices, sizes, availability, and store policies.";
     return {
       intent,
       trustedContext: { tenant_id: tenantId, sources: [] },
@@ -994,7 +1573,27 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message } = {}) =
       suggested_actions: ["contact_support"],
       fallbackReason: "internal_data_request",
       directResponse: {
-        answer: "I cannot share internal ERP, admin, supplier, cost, margin, credential, or other private data. Please contact support if you need help with a public store question.",
+        answer: internalAnswer,
+        confidence: 1,
+        needs_human_support: false,
+        sources_used: [],
+        suggested_products: [],
+        suggested_actions: ["contact_support"],
+      },
+    };
+  }
+
+  if (intent.type === "human_support") {
+    return {
+      intent,
+      trustedContext: { tenant_id: tenantId, sources: [] },
+      suggested_products: [],
+      suggested_actions: ["contact_support"],
+      fallbackReason: "human_support_requested",
+      directResponse: {
+        answer: isArabicText(message)
+          ? "\u062d\u0627\u0636\u0631 \u2764\ufe0f \u0647\u0648\u0635\u0644\u0643 \u0628\u0627\u0644\u062f\u0639\u0645. \u0627\u0628\u0639\u062a\u0644\u0646\u0627 \u0631\u0642\u0645\u0643 \u0623\u0648 \u0643\u0644\u0645\u0646\u0627 \u0639\u0644\u0649 \u0648\u0627\u062a\u0633\u0627\u0628."
+          : "Sure, I can connect you with support. Please send your phone number or contact us on WhatsApp.",
         confidence: 1,
         needs_human_support: true,
         sources_used: [],
@@ -1008,9 +1607,48 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message } = {}) =
   let products = [];
   let fallbackReason = "";
 
-  if (intent.type === "product" || intent.type === "general") {
-    products = await searchProducts({ tenantId, message, intent });
+  if (intent.type === "product" || intent.type === "product_discovery" || intent.type === "general") {
+    products = await searchProducts({ tenantId, message, intent, req });
     sources.push(...products.map(sourceFromProduct));
+    const directProductResponse = buildDirectProductResponse({ message, intent, products, req });
+    if (directProductResponse) {
+      return {
+        intent,
+        trustedContext: {
+          tenant_id: tenantId,
+          context_version: "phase_2_real_storefront_product_context",
+          sources,
+        },
+        source_previews: sources.map((source) => ({
+          id: source.id,
+          title: source.title,
+          preview: source.preview || safeJsonParse(source.content) || source.content,
+        })),
+        suggested_products: suggestedProducts(products, req),
+        suggested_actions: directProductResponse.suggested_actions,
+        fallbackReason: "",
+        directResponse: directProductResponse,
+      };
+    }
+    if (intent.type === "product_discovery") {
+      return {
+        intent,
+        trustedContext: {
+          tenant_id: tenantId,
+          context_version: "phase_2_real_storefront_product_context",
+          sources,
+        },
+        source_previews: sources.map((source) => ({
+          id: source.id,
+          title: source.title,
+          preview: source.preview || safeJsonParse(source.content) || source.content,
+        })),
+        suggested_products: suggestedProducts(products, req),
+        suggested_actions: products.length ? ["view_product", "show_similar_products", "choose_size", "contact_support"] : ["show_similar_products", "choose_size"],
+        fallbackReason: products.length ? "" : "product_discovery_needs_clarification",
+        directResponse: buildProductDiscoveryResponse({ intent, products, req }),
+      };
+    }
     if ((intent.type === "product" || intent.product.asksSimilar) && products.length === 0) {
       fallbackReason = "no_matching_products";
     }
@@ -1044,9 +1682,48 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message } = {}) =
       sources,
     },
     source_previews: sourcePreviews,
-    suggested_products: suggestedProducts(products),
+    suggested_products: suggestedProducts(products, req),
     suggested_actions: suggestedActions,
     fallbackReason: sources.length ? "" : fallbackReason || "no_trusted_context",
     directResponse: directStoreResponse || undefined,
+  };
+};
+
+export const buildAiSupportProductSearchDebug = async ({ tenantId, query, req = null } = {}) => {
+  const message = toText(query);
+  const intent = detectAiSupportIntent(message);
+  const products = tenantId ? await searchProducts({ tenantId, message, intent, req }) : [];
+  const directProductResponse = buildDirectProductResponse({ message, intent, products, req });
+  const directDiscoveryResponse =
+    intent.type === "product_discovery" ? buildProductDiscoveryResponse({ intent, products, req }) : null;
+  const exactAnswer = directProductResponse?.answer || directDiscoveryResponse?.answer || "";
+
+  return {
+    tenant_id: tenantId,
+    query: message,
+    detected_intent: intent,
+    matched_products: products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      sku: product.sku || "",
+      raw_image_fields: imageDebugFields(product),
+      variant_images_count: (Array.isArray(product.variants) ? product.variants : []).filter((variant) =>
+        Boolean(variant?.image_url || variant?.primary_image_url || variant?.variant_image_url || variant?.color_image_url)
+      ).length,
+      selected_image_field: product.selected_image_field || "",
+      selected_image_source: compactImageDebugValue(product.selected_image_source || ""),
+      image_url: resolveSuggestedProductImageUrl(product, req),
+      raw_price: product.price,
+      raw_sale_price: product.sale_price,
+      final_price: productBestPrice(product),
+      stock: product.total_stock,
+      stock_status: Number(product.total_stock || 0) > 0 ? "in_stock" : "out_of_stock",
+      availability: product.availability,
+      product_url: `/shop/product/${product.id}`,
+    })),
+    suggested_products: suggestedProducts(products, req),
+    exact_answer: exactAnswer,
+    would_use_direct_response: Boolean(directProductResponse || directDiscoveryResponse),
+    fallback_reason: products.length ? "" : "no_matching_products",
   };
 };

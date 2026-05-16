@@ -1,6 +1,7 @@
 ﻿import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { memo, useCallback } from "react";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import Select from "react-select";
@@ -148,6 +149,22 @@ const SEARCH_FALLBACK_SECTIONS = {
   categories: ["رجالي", "حريمي", "أطفال", "عروض", "آخر قطعة"],
   brands: ["Nike", "Adidas", "New Balance", "Air Jordan"],
   styles: ["Sneakers", "Running", "Lifestyle", "Mirror Original"],
+};
+const AI_SUPPORT_SESSION_KEY = "storefront.ai_support.session_id";
+const AI_SUPPORT_TENANT_KEY = "storefront.tenant_id";
+const AI_QUICK_QUESTIONS = [
+  "سعر Jordan 4 كام؟",
+  "متوفر مقاس 42؟",
+  "عندكم ألوان تانية؟",
+  "سياسة الاستبدال؟",
+];
+const AI_ACTION_LABELS = {
+  contact_support: "كلم الدعم",
+  view_product: "افتح المنتج",
+  show_similar_products: "منتجات مشابهة",
+  choose_size: "اختار المقاس",
+  choose_color: "اختار اللون",
+  ask_human: "مساعدة من الفريق",
 };
 
 const STORAGE_ARRAY_LIMITS = {
@@ -298,6 +315,15 @@ const writeJson = (key, value) => {
   }
 };
 const imageUrlCache = new Map();
+const isAiSupportDebugEnabled = () => {
+  if (import.meta.env.VITE_AI_SUPPORT_DEBUG === "1") return true;
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem("AI_SUPPORT_DEBUG") === "1";
+  } catch {
+    return false;
+  }
+};
 const imageFor = (value) => {
   const key = String(value || "");
   if (imageUrlCache.has(key)) return imageUrlCache.get(key);
@@ -316,12 +342,103 @@ const cleanDisplayText = (value = "") =>
     .replace(/\s+/g, " ")
     .trim();
 const productUrl = (product) => `/shop/product/${product.slug || product.id}`;
-const productStock = (product = {}) => {
-  const variantStock = Array.isArray(product.variants)
-    ? product.variants.reduce((sum, variant) => sum + Number(variant.stock || 0), 0)
-    : 0;
-  return Number(product.total_stock || variantStock || 0);
+const generateAiSessionId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `ai_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 };
+const getAiSupportSessionId = () => {
+  if (typeof window === "undefined") return generateAiSessionId();
+  try {
+    const current = localStorage.getItem(AI_SUPPORT_SESSION_KEY);
+    if (current) return current;
+    const next = generateAiSessionId();
+    localStorage.setItem(AI_SUPPORT_SESSION_KEY, next);
+    return next;
+  } catch {
+    return generateAiSessionId();
+  }
+};
+const resolveStorefrontTenantId = () => {
+  const fallback = import.meta.env.VITE_STOREFRONT_TENANT_ID || import.meta.env.VITE_TENANT_ID || "1";
+  if (typeof window === "undefined") return fallback;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("tenant_id") || params.get("tenantId");
+    const fromStorage = localStorage.getItem(AI_SUPPORT_TENANT_KEY) || localStorage.getItem("tenant_id") || localStorage.getItem("tenantId");
+    const resolved = fromUrl || fromStorage || fallback;
+    if (resolved) localStorage.setItem(AI_SUPPORT_TENANT_KEY, resolved);
+    return resolved;
+  } catch {
+    return fallback;
+  }
+};
+const aiSuggestedProductUrl = (product = {}) => product?.product_url || (product?.id || product?.slug ? productUrl(product) : "/shop/products");
+const aiSuggestedProductImage = (product = {}) => {
+  const galleryImage = Array.isArray(product?.product_images)
+    ? product.product_images.map((image) => image?.image_url || image?.url || image?.path || image).find(Boolean)
+    : "";
+  const raw = product?.image_url || product?.image || product?.main_image || product?.thumbnail || galleryImage;
+  const resolved = imageFor(raw);
+  if (isAiSupportDebugEnabled()) {
+    console.debug("[storefront-ai] suggested product image src", {
+      id: product?.id,
+      name: product?.name,
+      raw,
+      resolved,
+      page_host: typeof window !== "undefined" ? window.location.host : "",
+    });
+  }
+  return resolved;
+};
+const fallbackProductImage = (event) => {
+  if (event.currentTarget.dataset.fallbackApplied === "true") return;
+  event.currentTarget.dataset.fallbackApplied = "true";
+  if (isAiSupportDebugEnabled()) {
+    console.warn("[storefront-ai] suggested product image failed", {
+      src: event.currentTarget.currentSrc || event.currentTarget.src,
+      alt: event.currentTarget.alt,
+    });
+  }
+  event.currentTarget.src = "/favicon.svg";
+};
+const aiAvailabilityText = (product = {}) => {
+  if (product.stock_status === "in_stock") return "متاح";
+  if (product.stock_status === "out_of_stock") return "غير متاح حاليا";
+  if (product.availability) return product.availability;
+  if (Number(product.total_stock || product.stock || 0) > 0) return "متاح";
+  return "غير متاح حاليا";
+};
+const aiSuggestedProductPriceText = (product = {}) => {
+  const price = Number(product.final_price || product.price || product.sale_price || 0);
+  return price > 0 ? money(price) : "السعر غير محدد";
+};
+const aiActionLabel = (action = {}) => {
+  if (typeof action === "string") return AI_ACTION_LABELS[action] || action;
+  return action.label || AI_ACTION_LABELS[action.type] || AI_ACTION_LABELS[action.action] || "إجراء سريع";
+};
+const safeStockNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+const productTotalStock = (product = {}) => {
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  const variantStock = variants.reduce(
+    (sum, variant) =>
+      sum + safeStockNumber(variant?.stock ?? variant?.quantity ?? variant?.inventory_stock ?? variant?.available_stock),
+    0
+  );
+  const directStock = safeStockNumber(
+    product?.total_stock ??
+      product?.stock ??
+      product?.inventory_stock ??
+      product?.available_stock ??
+      product?.quantity ??
+      product?.inventory?.stock ??
+      product?.inventory?.available_stock
+  );
+  return Number(directStock || variantStock || 0) || 0;
+};
+const productStock = (product = {}) => productTotalStock(product);
 const isAvailableProduct = (product = {}) => productStock(product) > 0;
 const stockScore = (product = {}) => Number(product.total_stock || 0) + (String(product.badge || "").includes("مبيع") ? 100 : 0);
 const hasSale = (product = {}) => Number(product.old_price || 0) > Number(product.sale_price || product.price || 0) || String(product.badge || "").includes("عرض");
@@ -593,6 +710,218 @@ const useLastPiece = (params = {}, options = {}) => {
   return state;
 };
 
+function AiSupportChatWidget() {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState(() => [
+    {
+      id: "welcome",
+      role: "assistant",
+      answer: "أهلا بيك، اسألني عن الأسعار، المقاسات، الألوان، التوفر أو سياسة الاستبدال.",
+      confidence: 1,
+      suggested_actions: AI_QUICK_QUESTIONS.map((question) => ({ type: "quick_question", label: question, message: question })),
+    },
+  ]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [lastQuestion, setLastQuestion] = useState("");
+  const sessionId = useMemo(() => getAiSupportSessionId(), []);
+  const tenantId = useMemo(() => resolveStorefrontTenantId(), []);
+
+  const supportHref = useMemo(() => {
+    const text = encodeURIComponent(`محتاج مساعدة من الدعم بخصوص محادثة رقم ${sessionId}`);
+    return whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${text}` : "/shop/contact";
+  }, [sessionId]);
+
+  const submitQuestion = useCallback(async (questionText) => {
+    const text = cleanDisplayText(questionText || input);
+    if (!text || loading) return;
+    setInput("");
+    setError("");
+    setLastQuestion(text);
+    setMessages((items) => [...items, { id: `u_${Date.now()}`, role: "user", answer: text }]);
+    setLoading(true);
+    try {
+      const response = await api.post(
+        "/ai-support/chat",
+        {
+          message: text,
+          customer_message: text,
+          session_id: sessionId,
+          tenant_id: tenantId,
+          metadata: { channel: "storefront_chat", surface: "shop" },
+        },
+        { timeoutMs: 30000, headers: { "x-tenant-id": tenantId } }
+      );
+      if (isAiSupportDebugEnabled()) {
+        console.debug("[storefront-ai] chat response suggested_products", {
+          answer: response?.answer,
+          detected_intent: response?.detected_intent,
+          fallback_reason: response?.fallback_reason,
+          suggested_products: response?.suggested_products,
+        });
+      }
+      setMessages((items) => [
+        ...items,
+        {
+          id: `a_${Date.now()}`,
+          role: "assistant",
+          answer: response?.answer || "مش قادر أأكد الإجابة من بيانات المتجر حاليا. تواصل مع الدعم لو سمحت.",
+          confidence: Number(response?.confidence || 0),
+          needs_human_support: Boolean(response?.needs_human_support),
+          suggested_products: Array.isArray(response?.suggested_products) ? response.suggested_products : [],
+          suggested_actions: Array.isArray(response?.suggested_actions) ? response.suggested_actions : [],
+        },
+      ]);
+    } catch {
+      setError("حصلت مشكلة في الرد. جرب تاني أو تواصل مع الدعم.");
+    } finally {
+      setLoading(false);
+    }
+  }, [input, loading, sessionId, tenantId]);
+
+  const handleAction = useCallback((action) => {
+    const type = typeof action === "string" ? action : action?.type || action?.action;
+    if (type === "quick_question" || action?.message) {
+      submitQuestion(action?.message || action?.label || String(action || ""));
+      return;
+    }
+    if (type === "contact_support" || type === "ask_human") {
+      if (whatsappPhone) window.open(supportHref, "_blank", "noopener,noreferrer");
+      else navigate("/shop/contact");
+      return;
+    }
+    if (type === "view_product" && action?.product_id) {
+      navigate(productUrl({ id: action.product_id, slug: action.slug }));
+      return;
+    }
+    if (type === "show_similar_products") navigate("/shop/products");
+  }, [navigate, submitQuestion, supportHref]);
+
+  const openProduct = useCallback((product) => {
+    navigate(aiSuggestedProductUrl(product));
+    setOpen(false);
+  }, [navigate]);
+
+  return (
+    <section
+      dir="rtl"
+      className={`sf-ai-chat ${open ? "sf-ai-chat--open" : "sf-ai-chat--collapsed"}`}
+      aria-label="مساعد المتجر الذكي"
+    >
+      {open ? (
+        <div className="sf-ai-chat-panel flex flex-col overflow-hidden rounded-[1.55rem] border border-white/70 bg-white/96 text-stone-950 shadow-[0_24px_70px_rgba(39,20,75,0.24)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#080d1a]/96 dark:text-stone-100">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200/70 bg-gradient-to-l from-stone-950 via-[#3b1d78] to-[#7c3aed] px-3.5 py-3 text-white dark:border-white/10">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/15 shadow-inner">
+                <Sparkles className="h-[18px] w-[18px]" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-black">مساعد المتجر</p>
+                <p className="truncate text-[11px] font-bold text-white/70">إجابات من بيانات المتجر فقط</p>
+              </div>
+            </div>
+            <button type="button" onClick={() => setOpen(false)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-95" aria-label="إغلاق المحادثة">
+              <X className="h-[18px] w-[18px]" />
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto bg-[#f7f4ee] px-3 py-3.5 dark:bg-[#070b16]">
+            {messages.map((message) => (
+              <div key={message.id} className={`sf-ai-chat-message-row flex ${message.role === "user" ? "sf-ai-chat-message-row--user justify-end" : "sf-ai-chat-message-row--assistant justify-start"}`}>
+                <div className={`sf-ai-chat-bubble max-w-[82%] rounded-[1.35rem] px-3.5 py-2.5 text-[13px] font-bold leading-6 shadow-sm sm:max-w-[86%] ${message.role === "user" ? "sf-ai-chat-bubble--user rounded-tl-md" : "sf-ai-chat-bubble--assistant rounded-tr-md"}`}>
+                  <p className="whitespace-pre-wrap break-words">{message.answer}</p>
+                  {message.role === "assistant" && Array.isArray(message.suggested_products) && message.suggested_products.length > 0 && (
+                    <div className="mt-3 grid gap-2">
+                      {message.suggested_products.slice(0, 3).map((product, index) => (
+                        <button key={`${product.id || product.sku || index}`} type="button" onClick={() => openProduct(product)} className="flex min-w-0 items-center gap-2.5 rounded-2xl border border-stone-200 bg-stone-50 p-2 text-right transition hover:-translate-y-0.5 hover:border-[#7c3aed]/40 active:scale-[0.99] dark:border-white/10 dark:bg-white/5">
+                          <img src={aiSuggestedProductImage(product)} onError={fallbackProductImage} alt={product.name || "منتج مقترح"} className="h-12 w-12 shrink-0 rounded-xl object-cover" loading="lazy" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-black">{product.name || "منتج مقترح"}</span>
+                            <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-stone-500 dark:text-stone-300">
+                              <span>{aiSuggestedProductPriceText(product)}</span>
+                              <span className={product.stock_status === "in_stock" || Number(product.total_stock || product.stock || 0) > 0 ? "text-emerald-600 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300"}>{aiAvailabilityText(product)}</span>
+                            </span>
+                          </span>
+                          <ChevronLeft className="h-4 w-4 text-stone-400" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {message.role === "assistant" && Array.isArray(message.suggested_actions) && message.suggested_actions.length > 0 && (
+                    <div className="-mx-1 mt-3 flex max-w-full gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+                      {message.suggested_actions.slice(0, 4).map((action, index) => (
+                        <button key={`${aiActionLabel(action)}-${index}`} type="button" onClick={() => handleAction(action)} className="shrink-0 rounded-full border border-[#7c3aed]/20 bg-[#f5f3ff] px-3 py-1.5 text-[11px] font-black text-[#6d28d9] transition hover:-translate-y-0.5 active:scale-95 dark:border-white/10 dark:bg-white/10 dark:text-[#d8b4fe]">
+                          {aiActionLabel(action)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {message.role === "assistant" && message.needs_human_support && (
+                    <a href={supportHref} target={whatsappPhone ? "_blank" : undefined} rel={whatsappPhone ? "noreferrer" : undefined} className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-lg shadow-emerald-900/20 transition hover:-translate-y-0.5">
+                      <MessageCircle className="h-4 w-4" />
+                      تواصل مع الدعم
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="flex justify-end">
+                <div className="inline-flex max-w-[82%] items-center gap-2 rounded-[1.35rem] border border-stone-200 bg-white px-3.5 py-2.5 text-[13px] font-bold text-stone-600 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+                  <RefreshCcw className="h-4 w-4 animate-spin" />
+                  براجع بيانات المتجر...
+                </div>
+              </div>
+            )}
+            {error && (
+              <div className="rounded-3xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700 dark:border-rose-400/20 dark:bg-rose-950/30 dark:text-rose-200">
+                <p>{error}</p>
+                <button type="button" onClick={() => submitQuestion(lastQuestion)} className="mt-2 inline-flex items-center gap-2 rounded-full bg-rose-600 px-3 py-1.5 text-xs font-black text-white">
+                  <RefreshCcw className="h-3.5 w-3.5" />
+                  إعادة المحاولة
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 border-t border-stone-200 bg-white px-3 pb-[calc(0.8rem+env(safe-area-inset-bottom))] pt-3 dark:border-white/10 dark:bg-[#080d1a]">
+            <div className="-mx-1 mb-2.5 flex gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:none]">
+              {AI_QUICK_QUESTIONS.map((question) => (
+                <button key={question} type="button" onClick={() => submitQuestion(question)} disabled={loading} className="shrink-0 rounded-full border border-stone-200 bg-stone-50 px-3.5 py-2 text-[11.5px] font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-stone-100">
+                  {question}
+                </button>
+              ))}
+            </div>
+            <form className="grid grid-cols-[minmax(0,1fr)_3rem] items-center gap-2" onSubmit={(event) => { event.preventDefault(); submitQuestion(input); }}>
+              <input
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="اكتب سؤالك هنا..."
+                className="sf-ai-chat-input h-12 min-w-0 rounded-full border px-4 text-sm font-bold outline-none transition"
+              />
+              <button type="submit" disabled={loading || !cleanDisplayText(input)} className="sf-ai-chat-send grid h-12 w-12 shrink-0 place-items-center rounded-full shadow-lg transition hover:-translate-y-0.5 active:scale-95 disabled:cursor-not-allowed" aria-label="إرسال">
+                <Send className="h-[18px] w-[18px]" />
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} className="sf-ai-chat-launcher group grid place-items-center rounded-full bg-stone-950 text-white shadow-[0_20px_55px_rgba(39,20,75,0.28)] transition hover:-translate-y-1 active:scale-95 dark:bg-white dark:text-stone-950" aria-label="افتح مساعد المتجر">
+          <span className="grid h-11 w-11 place-items-center rounded-full bg-white/12 text-white transition group-hover:scale-105 dark:bg-stone-950/10 dark:text-stone-950">
+            <MessageCircle className="h-5 w-5" />
+          </span>
+          <span className="hidden text-right md:block">
+            <span className="block text-sm font-black">اسأل المساعد</span>
+            <span className="block text-[11px] font-bold opacity-70">أسعار ومقاسات وسياسات</span>
+          </span>
+        </button>
+      )}
+    </section>
+  );
+}
+
 function Storefront() {
   const [cart, setCart] = useState(() => readJson(CART_KEY, []));
   const [wishlist, setWishlist] = useState(() => readJson(WISHLIST_KEY, []));
@@ -733,7 +1062,7 @@ function Storefront() {
 
   return (
     <div dir="rtl" data-theme={effectiveTheme} className={`storefront-shell min-h-screen ${effectiveTheme === "dark" ? "dark storefront-dark bg-[#070b16] text-stone-100" : "bg-[#f7f4ee] text-stone-950"}`}>
-      <Header cart={cart} wishlist={wishlist} onCart={openCart} />
+      <Header cart={cart} wishlist={wishlist} onCart={openCart} addToCart={addToCart} />
       <main className="pb-32 md:pb-0">
         <Routes>
           <Route index element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} />} />
@@ -753,6 +1082,7 @@ function Storefront() {
           <Route path="returns" element={<ReturnsPolicy />} />
         </Routes>
       </main>
+      <AiSupportChatWidget />
       <Footer />
       <MobileBottomNav count={cart.length} />
       <CartDrawer open={cartOpen} onClose={closeCart} cart={cart} updateCart={updateCart} removeFromCart={removeFromCart} />
@@ -760,12 +1090,13 @@ function Storefront() {
   );
 }
 
-function Header({ cart, wishlist, onCart }) {
+function Header({ cart, wishlist, onCart, addToCart }) {
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [visualSearch, setVisualSearch] = useState({ active: false, keywords: [], message: "", error: "", previewUrl: "", fileName: "" });
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [recentSearches, setRecentSearches] = useState(() => readJson(SEARCH_RECENT_KEY, []));
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
@@ -773,6 +1104,8 @@ function Header({ cart, wishlist, onCart }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [isCompact, setIsCompact] = useState(false);
+  const visualPreviewUrlRef = useRef("");
+  const selectedVisualImageRef = useRef(null);
   const navigate = useNavigate();
   const announcementItems = [
     { label: "شحن سريع داخل مصر", icon: <Truck className="h-3.5 w-3.5" /> },
@@ -810,7 +1143,14 @@ function Header({ cart, wishlist, onCart }) {
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => () => {
+    if (visualPreviewUrlRef.current) URL.revokeObjectURL(visualPreviewUrlRef.current);
+  }, []);
+
   useEffect(() => {
+    if (visualSearch.active) {
+      return;
+    }
     if (search.trim().length < 2) {
       setSuggestions([]);
       setSearchLoading(false);
@@ -836,7 +1176,18 @@ function Header({ cart, wishlist, onCart }) {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [search]);
+  }, [search, visualSearch.active]);
+
+  const handleSearchChange = (value) => {
+    setSearch(value);
+    if (visualSearch.active) {
+      if (visualPreviewUrlRef.current) {
+        URL.revokeObjectURL(visualPreviewUrlRef.current);
+        visualPreviewUrlRef.current = "";
+      }
+      setVisualSearch({ active: false, keywords: [], message: "", error: "", previewUrl: "", fileName: "" });
+    }
+  };
 
   const rememberSearch = (value) => {
     const term = String(value || "").trim();
@@ -872,11 +1223,16 @@ function Header({ cart, wishlist, onCart }) {
     navigate(`/shop/products?q=${encodeURIComponent(value)}`);
   };
 
-  const pickProduct = (product) => {
+  const pickProduct = (product, options = {}) => {
     if (!product?.id) return;
     rememberSearch(product.name || search);
-    closeSearch();
-    setSearch("");
+    if (options.keepOpen) {
+      setSearchOpen(true);
+      setMobileSearchOpen(true);
+    } else {
+      closeSearch();
+    }
+    if (!options.keepQuery) setSearch("");
     navigate(productUrl(product));
   };
 
@@ -898,13 +1254,83 @@ function Header({ cart, wishlist, onCart }) {
     recognition.start();
   };
 
-  const handleImageSearch = (event) => {
+  const handleImageSearch = async (event) => {
     const file = event.target.files?.[0];
     if (file) {
-      setSearch(file.name.replace(/\.[^.]+$/, ""));
-      toast.success("تم تجهيز البحث بالصورة");
+      selectedVisualImageRef.current = file;
+      const supportedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+      if (!supportedTypes.has(file.type)) {
+        toast.error("نوع الصورة غير مدعوم. استخدم JPG أو PNG أو WEBP");
+        selectedVisualImageRef.current = null;
+        event.target.value = "";
+        return;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        toast.error("حجم الصورة كبير. ارفع صورة أصغر");
+        selectedVisualImageRef.current = null;
+        event.target.value = "";
+        return;
+      }
+      const label = file.name.replace(/\.[^.]+$/, "") || "بحث بالصورة";
+      if (visualPreviewUrlRef.current) URL.revokeObjectURL(visualPreviewUrlRef.current);
+      const previewUrl = URL.createObjectURL(file);
+      visualPreviewUrlRef.current = previewUrl;
+      setSearch(`بحث بالصورة: ${label}`);
+      setSuggestions([]);
+      setVisualSearch({ active: true, keywords: [], message: "", error: "", previewUrl, fileName: file.name });
+      setSearchLoading(true);
       setSearchOpen(true);
-      setMobileSearchOpen(window.innerWidth < 768);
+      setMobileSearchOpen(true);
+      const formData = new FormData();
+      formData.append("image", selectedVisualImageRef.current);
+      const tenantId = resolveStorefrontTenantId();
+      formData.append("tenant_id", tenantId);
+      const endpoint = "/storefront/products/visual-search";
+      console.debug("[visual-search] request", {
+        endpoint,
+        tenant_id: tenantId,
+        file_name: selectedVisualImageRef.current?.name || "",
+        file_type: selectedVisualImageRef.current?.type || "",
+        file_size: selectedVisualImageRef.current?.size || 0,
+      });
+      try {
+        const data = await api.post(endpoint, formData, { timeoutMs: 45000, headers: { "x-tenant-id": tenantId } });
+        const products = Array.isArray(data.products) ? data.products : [];
+        console.debug("[visual-search] response", {
+          endpoint,
+          status: 200,
+          result_count: products.length,
+          source: data.source || "",
+          keywords: Array.isArray(data.keywords) ? data.keywords : [],
+        });
+        setSuggestions(products);
+        setVisualSearch({
+          active: true,
+          keywords: Array.isArray(data.keywords) ? data.keywords : [],
+          message: products.length ? "" : data.message || "لم نجد منتج مطابق للصورة",
+          error: "",
+          previewUrl,
+          fileName: file.name,
+        });
+      } catch (error) {
+        console.error("[visual-search] failed", {
+          endpoint,
+          status: error?.status || 0,
+          response_body: error?.responseBody || null,
+          message: error?.message || "",
+        });
+        const message =
+          error?.responseBody?.message ||
+          error?.responseBody?.error ||
+          (error?.message && error.message !== "Request Failed" ? error.message : "") ||
+          "تعذر البحث بالصورة الآن";
+        setSuggestions([]);
+        setVisualSearch({ active: true, keywords: [], message: "", error: message, previewUrl, fileName: file.name });
+        toast.error(message);
+      } finally {
+        setSearchLoading(false);
+        selectedVisualImageRef.current = null;
+      }
     }
     event.target.value = "";
   };
@@ -985,7 +1411,7 @@ function Header({ cart, wishlist, onCart }) {
         </nav>
         <PremiumSearch
           value={search}
-          onChange={setSearch}
+          onChange={handleSearchChange}
           onSubmit={submit}
           onOpen={() => setSearchOpen(true)}
           onClose={closeSearch}
@@ -995,11 +1421,13 @@ function Header({ cart, wishlist, onCart }) {
           placeholder={SEARCH_PLACEHOLDERS[placeholderIndex]}
           suggestions={suggestions}
           loading={searchLoading}
+          visualSearch={visualSearch}
           recentSearches={recentSearches}
           activeIndex={activeSearchIndex}
           setActiveIndex={setActiveSearchIndex}
           onPickTerm={pickSearchTerm}
           onPickProduct={pickProduct}
+          onQuickAdd={addToCart}
           onVoice={handleVoiceSearch}
           onImage={handleImageSearch}
           className="hidden md:block"
@@ -1044,7 +1472,7 @@ function Header({ cart, wishlist, onCart }) {
       </div>
       <PremiumSearch
         value={search}
-        onChange={setSearch}
+        onChange={handleSearchChange}
         onSubmit={submit}
         onOpen={() => setSearchOpen(true)}
         onClose={closeSearch}
@@ -1054,11 +1482,13 @@ function Header({ cart, wishlist, onCart }) {
         placeholder={SEARCH_PLACEHOLDERS[placeholderIndex]}
         suggestions={suggestions}
         loading={searchLoading}
+        visualSearch={visualSearch}
         recentSearches={recentSearches}
         activeIndex={activeSearchIndex}
         setActiveIndex={setActiveSearchIndex}
         onPickTerm={pickSearchTerm}
         onPickProduct={pickProduct}
+        onQuickAdd={addToCart}
         onVoice={handleVoiceSearch}
         onImage={handleImageSearch}
         mobileOnly
@@ -1097,11 +1527,13 @@ function PremiumSearch({
   placeholder,
   suggestions = [],
   loading = false,
+  visualSearch = { active: false, keywords: [], message: "", error: "" },
   recentSearches = [],
   activeIndex,
   setActiveIndex,
   onPickTerm,
   onPickProduct,
+  onQuickAdd,
   onVoice,
   onImage,
   className = "",
@@ -1122,6 +1554,16 @@ function PremiumSearch({
     }
     return undefined;
   }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!mobileOnly || !mobileOpen) return undefined;
+    document.documentElement.classList.add("sf-mobile-search-scroll-lock");
+    document.body.classList.add("sf-mobile-search-scroll-lock");
+    return () => {
+      document.documentElement.classList.remove("sf-mobile-search-scroll-lock");
+      document.body.classList.remove("sf-mobile-search-scroll-lock");
+    };
+  }, [mobileOnly, mobileOpen]);
 
   const handleKeyDown = (event) => {
     if (event.key === "Escape") {
@@ -1164,7 +1606,7 @@ function PremiumSearch({
           }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="relative z-10 h-13 w-full bg-transparent pr-12 pl-24 text-sm font-bold text-stone-950 outline-none placeholder:text-stone-400 dark:text-white dark:placeholder:text-stone-500 md:h-12"
+          className="relative z-10 h-13 w-full truncate bg-transparent pr-12 pl-24 text-sm font-bold text-stone-950 outline-none placeholder:text-stone-400 dark:text-white dark:placeholder:text-stone-500 md:h-12"
           aria-label="Search storefront"
           role="combobox"
           aria-expanded={Boolean(open || mobileOpen)}
@@ -1183,35 +1625,39 @@ function PremiumSearch({
   );
 
   const resultsPanel = (
-    <div className="rounded-[1.6rem] border border-white/60 bg-white/92 p-3 text-stone-950 shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#090d18]/96 dark:text-white">
+    <div className="sf-search-results-panel overflow-visible rounded-[1.6rem] border border-white/60 bg-white/92 p-3 text-stone-950 shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#090d18]/96 dark:text-white sm:p-4">
       <SearchQuickSections
         value={value}
         loading={loading}
         suggestions={suggestions}
+        visualSearch={visualSearch}
         chips={chips}
         activeIndex={activeIndex}
         onPickTerm={onPickTerm}
         onPickProduct={onPickProduct}
+        onQuickAdd={onQuickAdd}
       />
     </div>
   );
 
   if (mobileOnly) {
     if (!mobileOpen) return null;
-    return (
-      <div className="fixed inset-0 z-[100] bg-[#070b16]/88 p-4 pt-[calc(1rem+env(safe-area-inset-top))] text-white backdrop-blur-2xl md:hidden" dir="rtl">
-        <div className="mx-auto flex h-full max-w-xl flex-col">
-          <div className="sticky top-0 z-10 flex items-center gap-2 pb-4">
+    return createPortal(
+      <div className="sf-mobile-search-overlay fixed inset-0 z-[2147483000] overflow-hidden bg-[#030712] text-white md:hidden" dir="rtl" role="dialog" aria-modal="true">
+        <div className="sf-mobile-search-backdrop absolute inset-0" aria-hidden="true" />
+        <div className="sf-mobile-search-panel relative mx-auto flex h-dvh max-w-xl flex-col overflow-hidden px-4 pb-0 pt-[calc(1rem+env(safe-area-inset-top))]">
+          <div className="sf-mobile-search-head sticky top-0 z-10 flex shrink-0 items-center gap-2 pb-4">
             <div className="min-w-0 flex-1">{searchInput}</div>
             <button type="button" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/8 text-white">
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="sf-mobile-search-body min-h-0 flex-1 overflow-y-auto pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
             {resultsPanel}
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
@@ -1226,39 +1672,53 @@ function PremiumSearch({
   );
 }
 
-function SearchQuickSections({ value, loading, suggestions, chips, activeIndex, onPickTerm, onPickProduct }) {
+function SearchQuickSections({ value, loading, suggestions, visualSearch, chips, activeIndex, onPickTerm, onPickProduct, onQuickAdd }) {
   const query = value.trim();
+  const isVisualSearch = Boolean(visualSearch?.active);
   return (
     <div className="grid gap-3">
       {query ? (
         <div>
-          <div className="mb-2 flex items-center justify-between px-1">
-            <span className="text-xs font-black text-stone-500 dark:text-stone-400">نتائج ذكية</span>
-            {loading ? <span className="text-[11px] font-bold text-[#7c3aed]">جاري البحث...</span> : null}
-          </div>
-          <div className="grid gap-1.5">
-            {suggestions.length ? suggestions.map((product, index) => (
-              <button
-                key={product.id}
-                type="button"
-                onClick={() => onPickProduct(product)}
-                className={`flex items-center gap-3 rounded-2xl p-2 text-right transition hover:bg-[#f7f4ee] active:scale-[0.99] dark:hover:bg-white/5 ${activeIndex === index ? "bg-[#f5f3ff] dark:bg-white/8" : ""}`}
-              >
-                <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" decoding="async" width="56" height="56" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-black">{product.name}</div>
-                  <div className="truncate text-xs font-bold text-stone-500 dark:text-stone-400">
-                    {[product.category, product.brand, product.style, product.grade].filter(Boolean).join(" / ") || product.sizes?.slice(0, 4).join(" / ") || "مقاسات متاحة"}
-                  </div>
-                </div>
-                <div className="rounded-full bg-stone-950 px-3 py-1 text-xs font-black text-white dark:bg-white dark:text-stone-950">{money(product.sale_price || product.price)}</div>
-              </button>
-            )) : (
-              <button type="button" onClick={() => onPickTerm(query)} className="rounded-2xl border border-dashed border-stone-200 p-4 text-right text-sm font-black text-stone-600 dark:border-white/10 dark:text-stone-300">
-                ابحث عن “{query}”
-              </button>
-            )}
-          </div>
+          {isVisualSearch ? (
+            <VisualSearchResults
+              products={suggestions}
+              loading={loading}
+              visualSearch={visualSearch}
+              onPickTerm={onPickTerm}
+              onPickProduct={onPickProduct}
+              onQuickAdd={onQuickAdd}
+            />
+          ) : (
+            <>
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="text-xs font-black text-stone-500 dark:text-stone-400">نتائج ذكية</span>
+                {loading ? <span className="text-[11px] font-bold text-[#7c3aed]">جاري البحث...</span> : null}
+              </div>
+              <div className="grid gap-1.5">
+                {suggestions.length ? suggestions.map((product, index) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => onPickProduct(product)}
+                    className={`flex items-center gap-3 rounded-2xl p-2 text-right transition hover:bg-[#f7f4ee] active:scale-[0.99] dark:hover:bg-white/5 ${activeIndex === index ? "bg-[#f5f3ff] dark:bg-white/8" : ""}`}
+                  >
+                    <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" decoding="async" width="56" height="56" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-black">{product.name}</div>
+                      <div className="truncate text-xs font-bold text-stone-500 dark:text-stone-400">
+                        {[product.category, product.brand, product.style, product.grade].filter(Boolean).join(" / ") || product.sizes?.slice(0, 4).join(" / ") || "مقاسات متاحة"}
+                      </div>
+                    </div>
+                    <div className="rounded-full bg-stone-950 px-3 py-1 text-xs font-black text-white dark:bg-white dark:text-stone-950">{money(product.sale_price || product.price)}</div>
+                  </button>
+                )) : (
+                  <button type="button" onClick={() => onPickTerm(query)} className="rounded-2xl border border-dashed border-stone-200 p-4 text-right text-sm font-black text-stone-600 dark:border-white/10 dark:text-stone-300">
+                    ابحث عن “{query}”
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -1273,6 +1733,174 @@ function SearchQuickSections({ value, loading, suggestions, chips, activeIndex, 
           </div>
         </>
       ) : null}
+    </div>
+  );
+}
+
+function VisualSearchResults({ products = [], loading, visualSearch, onPickTerm, onPickProduct, onQuickAdd }) {
+  const keywords = Array.isArray(visualSearch?.keywords) ? visualSearch.keywords.filter(Boolean).slice(0, 8) : [];
+  const countLabel = loading ? "..." : products.length;
+  return (
+    <section className="sf-visual-results grid gap-3" aria-live="polite">
+      {visualSearch?.previewUrl ? (
+        <div className="sf-visual-preview">
+          <img src={visualSearch.previewUrl} alt="" className="sf-visual-preview-image" />
+          {visualSearch?.fileName ? <div className="sf-visual-preview-name" title={visualSearch.fileName}>{visualSearch.fileName}</div> : null}
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-between gap-3 px-1">
+        <div className="min-w-0">
+          <h3 className="text-sm font-black text-stone-950 dark:text-white">المنتجات المشابهة</h3>
+          <p className="mt-0.5 truncate text-[11px] font-bold text-stone-500 dark:text-stone-400">
+            {loading ? "جاري تحليل الصورة والبحث عن أقرب المنتجات..." : visualSearch?.error || visualSearch?.message || "نتائج مبنية على الصورة المرفوعة"}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full border border-stone-200 bg-stone-950 px-3 py-1 text-[11px] font-black text-white shadow-sm dark:border-white/10 dark:bg-white dark:text-stone-950">
+          {countLabel} نتيجة
+        </span>
+      </div>
+
+      {loading ? <VisualSearchSkeleton /> : products.length ? (
+        <div className="sf-visual-card-list">
+          {products.map((product, index) => (
+            <VisualSearchCardBoundary key={product?.id || `visual-product-${index}`}>
+              <VisualSearchProductCard
+                product={product}
+                index={index}
+                onPickProduct={onPickProduct}
+                onQuickAdd={onQuickAdd}
+              />
+            </VisualSearchCardBoundary>
+          ))}
+        </div>
+      ) : (
+        <VisualSearchEmpty
+          message={visualSearch?.error || visualSearch?.message || "لم نجد منتج مشابه"}
+          keywords={keywords}
+          onPickTerm={onPickTerm}
+        />
+      )}
+    </section>
+  );
+}
+
+class VisualSearchCardBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.warn("[visual-search] skipped broken product card", error);
+  }
+
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
+
+function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd }) {
+  if (!product || typeof product !== "object") return null;
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  const variant = firstDisplayVariant(variants);
+  const stock = productTotalStock(product);
+  const variantStock = safeStockNumber(variant?.stock ?? variant?.quantity ?? variant?.inventory_stock ?? variant?.available_stock);
+  const isAvailable = stock > 0 && (!variant || variantStock > 0);
+  const regularPrice = Number(product?.price || variant?.price || 0);
+  const salePrice = Number(product?.sale_price || variant?.sale_price || 0);
+  const activePrice = salePrice || regularPrice;
+  const meta = [product?.brand, product?.category, product?.gender, product?.style].filter(Boolean).join(" / ") || "منتج من المتجر";
+
+  const viewProduct = (event) => {
+    event.stopPropagation();
+    if (product?.id && onPickProduct) onPickProduct(product, { keepOpen: true, keepQuery: true });
+  };
+
+  const quickAdd = (event) => {
+    event.stopPropagation();
+    if (!onQuickAdd || !variant || variantStock <= 0) {
+      toast.error("المقاس أو اللون غير متاح حاليا");
+      return;
+    }
+    onQuickAdd(product, variant, 1);
+  };
+
+  return (
+    <article className="sf-visual-card" style={{ animationDelay: `${index * 45}ms` }}>
+      <button type="button" onClick={viewProduct} className="sf-visual-card-main">
+        <span className="sf-visual-card-image-wrap">
+          <img src={imageFor(displayImageForProduct(product, variant))} alt={product?.name || ""} className="sf-visual-card-image" loading="lazy" decoding="async" />
+        </span>
+        <span className="min-w-0 flex-1 text-right">
+          <span className="sf-visual-card-name">{product?.name}</span>
+          <span className="sf-visual-card-meta">{meta}</span>
+          <span className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-black text-stone-950 dark:text-white">{money(activePrice)}</span>
+            {salePrice && regularPrice && salePrice < regularPrice ? <span className="text-[11px] font-bold text-stone-400 line-through">{money(regularPrice)}</span> : null}
+          </span>
+          <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${isAvailable ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200" : "bg-rose-50 text-rose-700 dark:bg-rose-400/10 dark:text-rose-200"}`}>
+            {isAvailable ? "متاح الآن" : "غير متاح"}
+          </span>
+        </span>
+      </button>
+      <div className="sf-visual-actions">
+        <button type="button" onClick={viewProduct} className="sf-visual-action-primary">عرض المنتج</button>
+        <button type="button" onClick={quickAdd} disabled={!isAvailable} className="sf-visual-action-soft">إضافة للسلة</button>
+        <button type="button" onClick={viewProduct} className="sf-visual-action-soft">المقاسات</button>
+      </div>
+    </article>
+  );
+}
+
+function VisualSearchSkeleton() {
+  return (
+    <div className="sf-visual-card-list">
+      {[0, 1].map((item) => (
+        <div key={item} className="sf-visual-card animate-pulse">
+          <div className="sf-visual-card-main">
+            <div className="h-24 w-24 shrink-0 rounded-2xl bg-stone-200/80 dark:bg-white/10" />
+            <div className="min-w-0 flex-1">
+              <div className="h-4 w-4/5 rounded-full bg-stone-200 dark:bg-white/10" />
+              <div className="mt-3 h-3 w-3/5 rounded-full bg-stone-200 dark:bg-white/10" />
+              <div className="mt-4 h-4 w-24 rounded-full bg-stone-200 dark:bg-white/10" />
+            </div>
+          </div>
+          <div className="sf-visual-actions">
+            <div className="h-9 rounded-full bg-stone-200 dark:bg-white/10" />
+            <div className="h-9 rounded-full bg-stone-200 dark:bg-white/10" />
+            <div className="h-9 rounded-full bg-stone-200 dark:bg-white/10" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VisualSearchEmpty({ message, keywords, onPickTerm }) {
+  return (
+    <div className="sf-visual-empty">
+      <div className="grid h-14 w-14 place-items-center rounded-2xl bg-stone-950 text-white shadow-lg dark:bg-white dark:text-stone-950">
+        <PackageSearch className="h-6 w-6" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-sm font-black text-stone-950 dark:text-white">لم نجد منتج مشابه</div>
+        <div className="mt-1 text-xs font-bold text-stone-500 dark:text-stone-400">{message || "جرّب صورة أوضح أو استخدم الكلمات المقترحة."}</div>
+        {keywords.length ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {keywords.map((keyword) => (
+              <button key={keyword} type="button" onClick={() => onPickTerm(keyword)} className="rounded-full bg-stone-100 px-3 py-1.5 text-xs font-black text-stone-700 transition hover:bg-stone-950 hover:text-white active:scale-95 dark:bg-white/8 dark:text-stone-200 dark:hover:bg-white dark:hover:text-stone-950">
+                {keyword}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -2140,13 +2768,30 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
   const style = params.get("style") || "";
   const grade = params.get("grade") || "";
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectedGender, setSelectedGender] = useState(gender);
+  const [selectedProductType, setSelectedProductType] = useState(productType);
+  const [selectedSize, setSelectedSize] = useState("");
+  const [currentStep, setCurrentStep] = useState(gender ? (productType ? "grid" : "productType") : "gender");
+  const productTypeStepRef = useRef(null);
+  const gridStepRef = useRef(null);
   const [draftFilters, setDraftFilters] = useState({ gender, product_type: productType, style, grade });
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
+  const { options: storefrontGenderOptions } = useStorefrontGenderClassifications();
   const classificationOptions = useMemo(
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false }),
     [classificationGroups]
   );
+  const isGuidedCategoryFlow = !q && !category && !sale && !style && !grade;
   const { products, loading, error } = useProducts({ q, category, sale: sale ? 1 : "", gender, product_type: productType, style, grade });
+  const {
+    products: genderProducts,
+    loading: genderProductsLoading,
+  } = useProducts({ limit: 160, gender: selectedGender, sale: "", product_type: "", q: "", category: "", style: "", grade: "" });
+  const {
+    products: gridProducts,
+    loading: gridProductsLoading,
+    error: gridProductsError,
+  } = useProducts({ limit: 160, gender: selectedGender, product_type: selectedProductType, sale: "", q: "", category: "", style: "", grade: "" });
   const filterBasePath = sale ? "/shop/sale" : "/shop/products";
   const activeFilterCount = [gender, productType, style, grade].filter(Boolean).length;
   const filterSections = useMemo(
@@ -2162,6 +2807,14 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
   useEffect(() => {
     setDraftFilters({ gender, product_type: productType, style, grade });
   }, [gender, productType, style, grade]);
+
+  useEffect(() => {
+    setSelectedGender(gender);
+    setSelectedProductType(productType);
+    setSelectedSize("");
+    if (!isGuidedCategoryFlow) return;
+    setCurrentStep(gender ? (productType ? "grid" : "productType") : "gender");
+  }, [gender, isGuidedCategoryFlow, productType]);
 
   useEffect(() => {
     if (!filtersOpen) return undefined;
@@ -2200,6 +2853,156 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
   };
 
+  const scrollToStep = (step) => {
+    const target = step === "grid" ? gridStepRef.current : step === "productType" ? productTypeStepRef.current : null;
+    if (!target) return;
+    window.setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  };
+
+  const selectGender = (value) => {
+    setSelectedGender(value);
+    setSelectedProductType("");
+    setSelectedSize("");
+    setCurrentStep("productType");
+    const next = new URLSearchParams();
+    if (value) next.set("gender", value);
+    navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
+    scrollToStep("productType");
+  };
+
+  const selectProductType = (value) => {
+    setSelectedProductType(value);
+    setSelectedSize("");
+    setCurrentStep("grid");
+    const next = new URLSearchParams();
+    if (selectedGender) next.set("gender", selectedGender);
+    if (value) next.set("product_type", value);
+    navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
+    scrollToStep("grid");
+  };
+
+  const changeGender = () => {
+    setSelectedProductType("");
+    setSelectedSize("");
+    setCurrentStep("gender");
+    navigate(filterBasePath);
+  };
+
+  const changeProductType = () => {
+    setSelectedProductType("");
+    setSelectedSize("");
+    setCurrentStep("productType");
+    const next = new URLSearchParams();
+    if (selectedGender) next.set("gender", selectedGender);
+    navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
+    scrollToStep("productType");
+  };
+
+  const genderOptions = useMemo(
+    () => uniqueClassificationOptions((storefrontGenderOptions.length ? storefrontGenderOptions : classificationOptions.gender) || []),
+    [classificationOptions.gender, storefrontGenderOptions]
+  );
+  const productTypeOptions = useMemo(() => {
+    const options = uniqueClassificationOptions(classificationOptions.productType || []);
+    if (!selectedGender || !genderProducts.length) return options;
+    const availableTypeValues = new Set(
+      genderProducts
+        .map((product) => String(product.product_type || product.productType || product.category || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const filtered = options.filter((option) => availableTypeValues.has(String(option.value || "").trim().toLowerCase()));
+    return filtered.length ? filtered : options;
+  }, [classificationOptions.productType, genderProducts, selectedGender]);
+  const filteredProductsBeforeSize = useMemo(() => {
+    const genderValue = String(selectedGender || "").trim().toLowerCase();
+    const typeValue = String(selectedProductType || "").trim().toLowerCase();
+    return (Array.isArray(gridProducts) ? gridProducts : []).filter((product) => {
+      const productGender = String(product.gender || "").trim().toLowerCase();
+      const productTypeValue = String(product.product_type || product.productType || product.category || "").trim().toLowerCase();
+      const genderOk = !genderValue || productGender === genderValue;
+      const typeOk = !typeValue || productTypeValue === typeValue;
+      return genderOk && typeOk;
+    });
+  }, [gridProducts, selectedGender, selectedProductType]);
+  const availableSizes = useMemo(() => buildAvailableSizeOptions(filteredProductsBeforeSize), [filteredProductsBeforeSize]);
+  const filteredProducts = useMemo(
+    () => selectedSize ? filteredProductsBeforeSize.filter((product) => productHasAvailableSize(product, selectedSize)) : filteredProductsBeforeSize,
+    [filteredProductsBeforeSize, selectedSize]
+  );
+
+  if (isGuidedCategoryFlow) {
+    const selectedGenderOption = genderOptions.find((option) => String(option.value) === String(selectedGender));
+    const selectedProductTypeOption = productTypeOptions.find((option) => String(option.value) === String(selectedProductType));
+    return (
+      <section className="mx-auto max-w-7xl px-4 py-5 md:py-7">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-bold text-stone-500">اختار على مزاجك</p>
+            <h1 className="mt-1 text-3xl font-black">الأقسام</h1>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs font-black">
+            <StepPill active={currentStep === "gender"} done={Boolean(selectedGender)} label="1. النوع" />
+            <StepPill active={currentStep === "productType"} done={Boolean(selectedProductType)} label="2. المنتج" />
+            <StepPill active={currentStep === "grid"} done={Boolean(selectedProductType)} label="3. المقاسات" />
+          </div>
+        </div>
+
+        <GuidedGenderStep
+          options={genderOptions}
+          selectedGender={selectedGender}
+          lang={lang}
+          onSelect={selectGender}
+        />
+
+        <section ref={productTypeStepRef} className={`mt-5 scroll-mt-28 transition ${currentStep === "gender" && !selectedGender ? "opacity-60" : ""}`}>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <SectionIntro eyebrow="Product Type" title="اختار نوع المنتج" subtitle={selectedGenderOption ? `اختيارات مناسبة لـ ${classificationLabel(selectedGenderOption, lang)}` : "اختار النوع الأول"} compact />
+            {selectedGender ? (
+              <button type="button" onClick={changeGender} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+                تغيير النوع
+              </button>
+            ) : null}
+          </div>
+          <GuidedProductTypeStep
+            options={productTypeOptions}
+            selectedProductType={selectedProductType}
+            lang={lang}
+            disabled={!selectedGender}
+            loading={genderProductsLoading}
+            products={genderProducts}
+            onSelect={selectProductType}
+          />
+        </section>
+
+        <section ref={gridStepRef} className="mt-6 scroll-mt-28">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <SectionIntro
+              eyebrow="Products"
+              title={selectedProductTypeOption ? classificationLabel(selectedProductTypeOption, lang) : "المنتجات"}
+              subtitle={selectedGenderOption ? `${classificationLabel(selectedGenderOption, lang)}${selectedSize ? ` / مقاس ${selectedSize}` : ""}` : "اختار النوع ونوع المنتج الأول"}
+              compact
+            />
+            {selectedProductType ? (
+              <button type="button" onClick={changeProductType} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+                تغيير نوع المنتج
+              </button>
+            ) : null}
+          </div>
+          <GuidedSizeFilter sizes={availableSizes} selectedSize={selectedSize} onSelect={setSelectedSize} disabled={!selectedProductType} />
+          {gridProductsError ? <EmptyState title="حصلت مشكلة بسيطة" text="جرب تاني أو كلمنا على واتساب" /> : null}
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-5">
+            {gridProductsLoading ? <ProductSkeleton count={8} /> : filteredProducts.map((product) => (
+              <ProductCard key={product.id} product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} sizeLimit={6} />
+            ))}
+          </div>
+          {!gridProductsLoading && selectedProductType && !filteredProducts.length ? (
+            <EmptyState title="مش لاقيين منتجات بالمقاس ده دلوقتي، جرّب مقاس تاني" text={selectedSize ? "اختار مقاس مختلف من الشريط فوق" : "جرب نوع منتج تاني"} />
+          ) : null}
+        </section>
+      </section>
+    );
+  }
+
   return (
     <section className="mx-auto max-w-7xl px-4 py-5 md:py-7">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -2230,11 +3033,179 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
       {error ? <EmptyState title="حصلت مشكلة بسيطة" text="جرب تاني أو كلمنا على واتساب" /> : null}
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-5">
         {loading ? <ProductSkeleton count={8} /> : products.map((product) => (
-          <ProductCard key={product.id} product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} />
+          <ProductCard key={product.id} product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} sizeLimit={6} />
         ))}
       </div>
       {!loading && !products.length ? <EmptyState title="لا توجد منتجات" text="جرب بحث أو قسم مختلف" /> : null}
     </section>
+  );
+}
+
+const productHasAvailableSize = (product = {}, size = "") => {
+  const target = String(size || "").trim().toLowerCase();
+  if (!target) return true;
+  return (Array.isArray(product.variants) ? product.variants : []).some((variant) =>
+    String(variant?.size || "").trim().toLowerCase() === target && variantHasStock(variant)
+  );
+};
+
+const buildAvailableSizeOptions = (products = []) => {
+  const sizes = new Map();
+  for (const product of Array.isArray(products) ? products : []) {
+    for (const variant of Array.isArray(product?.variants) ? product.variants : []) {
+      const size = String(variant?.size || "").trim();
+      if (!size) continue;
+      const current = sizes.get(size) || { size, available: false, stock: 0, productCount: 0 };
+      const stock = safeStockNumber(variant?.stock ?? variant?.quantity ?? variant?.inventory_stock ?? variant?.available_stock);
+      current.available ||= stock > 0;
+      current.stock += stock;
+      if (stock > 0) current.productCount += 1;
+      sizes.set(size, current);
+    }
+  }
+  return Array.from(sizes.values()).sort((a, b) => {
+    const numericA = Number(a.size);
+    const numericB = Number(b.size);
+    if (Number.isFinite(numericA) && Number.isFinite(numericB)) return numericA - numericB;
+    return String(a.size).localeCompare(String(b.size), "ar", { numeric: true });
+  });
+};
+
+function StepPill({ active, done, label }) {
+  return (
+    <span className={`rounded-full border px-3 py-1.5 ${active ? "border-[#7c3aed] bg-[#f5f3ff] text-[#6d28d9]" : done ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-stone-200 bg-white text-stone-500"} dark:border-white/10 dark:bg-white/5 dark:text-stone-200`}>
+      {label}
+    </span>
+  );
+}
+
+function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
+  return (
+    <section className="scroll-mt-28">
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <SectionIntro eyebrow="Gender" title="اختار مين هيلبس" subtitle="بعد الاختيار هننقلك لنوع المنتج" compact />
+      </div>
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        {options.map((option) => {
+          const active = String(selectedGender || "") === String(option.value || "");
+          const Icon = filterOptionIcon("gender", option, lang);
+          return (
+            <button
+              key={option.id || option.value}
+              type="button"
+              onClick={() => onSelect(option.value)}
+              className={`group rounded-[1.35rem] border p-4 text-right shadow-[0_12px_30px_rgba(39,20,75,0.055)] transition hover:-translate-y-0.5 active:scale-[0.98] ${
+                active
+                  ? "border-[#7c3aed] bg-[#f5f3ff] text-[#5b21b6] ring-2 ring-[#7c3aed]/15"
+                  : "border-stone-200 bg-white text-stone-900 hover:border-[#7c3aed]/45 dark:border-white/10 dark:bg-[#0b1020] dark:text-white"
+              }`}
+            >
+              <span className={`grid h-11 w-11 place-items-center rounded-2xl ${active ? "bg-[#7c3aed] text-white" : "bg-stone-100 text-[#6d28d9] dark:bg-white/8"}`}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="mt-3 block text-lg font-black">{classificationLabel(option, lang)}</span>
+              <span className="mt-1 block text-xs font-bold text-stone-500 dark:text-stone-400">اختار وشوف الأنواع</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function GuidedProductTypeStep({ options = [], selectedProductType, lang, disabled, loading, products = [], onSelect }) {
+  const productCountByType = useMemo(() => {
+    const counts = new Map();
+    for (const product of Array.isArray(products) ? products : []) {
+      const key = String(product?.product_type || product?.productType || product?.category || "").trim().toLowerCase();
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return counts;
+  }, [products]);
+  return (
+    <div className={`rounded-[1.5rem] border border-stone-200 bg-white p-3 shadow-[0_12px_30px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] ${disabled ? "pointer-events-none opacity-55" : ""}`}>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {loading ? <ProductTypeSkeleton /> : options.map((option) => {
+          const active = String(selectedProductType || "") === String(option.value || "");
+          const Icon = filterOptionIcon("product_type", option, lang);
+          const count = productCountByType.get(String(option.value || "").trim().toLowerCase()) ?? filterOptionCount(option);
+          return (
+            <button
+              key={option.id || option.value}
+              type="button"
+              onClick={() => onSelect(option.value)}
+              className={`group rounded-[1.25rem] border p-3 text-right transition hover:-translate-y-0.5 active:scale-[0.98] ${
+                active
+                  ? "border-[#7c3aed] bg-[#f5f3ff] text-[#5b21b6] ring-2 ring-[#7c3aed]/15"
+                  : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#7c3aed]/45 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              }`}
+            >
+              <span className={`grid h-10 w-10 place-items-center rounded-2xl ${active ? "bg-[#7c3aed] text-white" : "bg-white text-[#6d28d9] shadow-sm dark:bg-white/8"}`}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="mt-3 block truncate text-sm font-black">{classificationLabel(option, lang)}</span>
+              {Number.isFinite(Number(count)) ? <span className="mt-1 block text-[11px] font-bold text-stone-500 dark:text-stone-400">{count} منتج</span> : null}
+            </button>
+          );
+        })}
+      </div>
+      {!loading && !options.length ? <EmptyState title="مفيش أنواع متاحة للقسم ده" text="ارجع واختار نوع تاني" /> : null}
+    </div>
+  );
+}
+
+function ProductTypeSkeleton() {
+  return Array.from({ length: 5 }).map((_, index) => (
+    <div key={index} className="h-28 animate-pulse rounded-[1.25rem] bg-stone-100 dark:bg-white/5" />
+  ));
+}
+
+function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
+  return (
+    <div className={`mb-4 rounded-[1.35rem] border border-stone-200 bg-white p-3 shadow-[0_12px_30px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] ${disabled ? "opacity-55" : ""}`}>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed]">Size Filter</p>
+          <h3 className="text-sm font-black">فلتر المقاس المتاح</h3>
+        </div>
+        {selectedSize ? (
+          <button type="button" onClick={() => onSelect("")} className="rounded-full bg-stone-100 px-3 py-1.5 text-xs font-black text-stone-600 transition hover:bg-stone-950 hover:text-white dark:bg-white/8 dark:text-stone-200">
+            عرض كل المقاسات
+          </button>
+        ) : null}
+      </div>
+      <div className="sf-scroll flex gap-2 overflow-x-auto pb-1">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onSelect("")}
+          className={`shrink-0 rounded-full border px-4 py-2 text-xs font-black transition ${!selectedSize ? "border-[#7c3aed] bg-[#f5f3ff] text-[#6d28d9]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200"}`}
+        >
+          الكل
+        </button>
+        {sizes.map((item) => {
+          const active = String(selectedSize) === String(item.size);
+          return (
+            <button
+              key={item.size}
+              type="button"
+              disabled={disabled || !item.available}
+              onClick={() => onSelect(item.size)}
+              className={`shrink-0 rounded-full border px-4 py-2 text-xs font-black transition ${
+                active
+                  ? "border-[#7c3aed] bg-[#7c3aed] text-white shadow-[0_10px_24px_rgba(124,58,237,0.24)]"
+                  : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
+              } disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
+            >
+              {item.size}
+              {item.available ? <span className="mr-1 opacity-60">({item.productCount})</span> : null}
+            </button>
+          );
+        })}
+        {!sizes.length ? <span className="rounded-full border border-dashed border-stone-200 px-4 py-2 text-xs font-bold text-stone-400 dark:border-white/10">المقاسات هتظهر بعد اختيار نوع المنتج</span> : null}
+      </div>
+    </div>
   );
 }
 
@@ -2450,7 +3421,7 @@ function filterOptionIcon(sectionKey, option = {}, lang = "ar") {
   return Sparkles;
 }
 
-const ProductCard = memo(function ProductCard({ product, wishlist, toggleWishlist, addToCart, railType = "default", rank = null, featured = false }) {
+const ProductCard = memo(function ProductCard({ product, wishlist, toggleWishlist, addToCart, railType = "default", rank = null, featured = false, sizeLimit = 4 }) {
   const variants = useMemo(() => (Array.isArray(product.variants) ? product.variants : []), [product]);
   const firstAvailableVariant = useMemo(() => firstDisplayVariant(variants), [variants]);
   const [selectedVariantId, setSelectedVariantId] = useState(firstAvailableVariant?.id || "");
@@ -2467,7 +3438,7 @@ const ProductCard = memo(function ProductCard({ product, wishlist, toggleWishlis
     () => [...new Map(variants.filter((variant) => variant.size).map((variant) => [String(variant.size), variant])).values()],
     [variants]
   );
-  const visibleSizes = useMemo(() => allSizes.slice(0, 4), [allSizes]);
+  const visibleSizes = useMemo(() => allSizes.slice(0, sizeLimit), [allSizes, sizeLimit]);
   const extraSizeCount = Math.max(0, allSizes.length - visibleSizes.length);
   const displayImage = useMemo(() => displayImageForProduct(product, availableVariant), [availableVariant, product]);
   const editorialLabel =
@@ -2578,7 +3549,8 @@ const ProductCard = memo(function ProductCard({ product, wishlist, toggleWishlis
     prev.addToCart === next.addToCart &&
     prev.railType === next.railType &&
     prev.rank === next.rank &&
-    prev.featured === next.featured
+    prev.featured === next.featured &&
+    prev.sizeLimit === next.sizeLimit
   );
 });
 
@@ -2742,6 +3714,13 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
       setShowMobileBuyBar(false);
     };
   }, [product?.id]);
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    document.documentElement.style.setProperty("--product-sticky-actions-height", showMobileBuyBar ? "74px" : "0px");
+    return () => {
+      document.documentElement.style.setProperty("--product-sticky-actions-height", "0px");
+    };
+  }, [showMobileBuyBar]);
   const selectVariant = (candidate, options = {}) => {
     if (!candidate) return;
     const candidateColorKey = variantColorKey(candidate);
@@ -2837,44 +3816,44 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
         ) : null}
       </div>
       <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
-        <div className="rounded-[1.35rem] border border-stone-200 bg-white p-4 shadow-[0_14px_38px_rgba(39,20,75,0.07)] md:rounded-[1.75rem] md:p-7 md:shadow-[0_18px_50px_rgba(39,20,75,0.08)]">
+        <div className="overflow-hidden rounded-[1.15rem] border border-white/[0.08] bg-[linear-gradient(180deg,#07111f_0%,#050b16_100%)] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:rounded-[1.45rem] md:p-6">
           <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
             <div className="min-w-0">
-              <span className="inline-flex rounded-full bg-stone-100 px-2.5 py-0.5 text-[10px] font-black text-stone-700 md:px-3 md:py-1 md:text-xs">{cleanDisplayText(product.badge) || "جديد"}</span>
-              <div className="mt-1.5 text-[11px] font-black text-[#6d28d9] md:mt-3 md:text-xs">تفاصيل منتج مختار بعناية</div>
+              <span className="inline-flex rounded-full border border-white/10 bg-white/[0.07] px-2.5 py-0.5 text-[10px] font-black text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] md:px-3 md:py-1 md:text-xs">{cleanDisplayText(product.badge) || "جديد"}</span>
+              <div className="mt-1.5 text-[11px] font-black text-[#c4b5fd] md:mt-3 md:text-xs">تفاصيل منتج مختار بعناية</div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <button type="button" onClick={() => toggleWishlist(product)} className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 transition hover:border-rose-300 hover:text-rose-600">
+              <button type="button" onClick={() => toggleWishlist(product)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/75 transition hover:border-rose-300/50 hover:bg-rose-500/10 hover:text-rose-300 md:h-11 md:w-11">
                 <Heart className={`h-5 w-5 ${inWishlist ? "fill-rose-500 text-rose-500" : ""}`} />
               </button>
-              <button type="button" onClick={shareProduct} className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 transition hover:border-stone-900 hover:text-stone-950">
+              <button type="button" onClick={shareProduct} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/75 transition hover:border-white/25 hover:bg-white/[0.09] hover:text-white md:h-11 md:w-11">
                 <Share2 className="h-5 w-5" />
               </button>
             </div>
           </div>
-          <h1 className="text-2xl font-black leading-tight tracking-normal text-stone-950 md:text-4xl">{displayTitle}</h1>
+          <h1 className="text-2xl font-black leading-tight tracking-normal text-white md:text-4xl">{displayTitle}</h1>
           {mirrorProduct && variant?.edition_name ? (
-            <div className="mt-2 inline-flex rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-black text-stone-600">
+            <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-xs font-black text-white/65">
               {cleanDisplayText(variant.edition_name)}
             </div>
           ) : null}
-          <div className="mt-2 flex items-center gap-2 text-xs font-bold text-stone-600 md:mt-3 md:text-sm">
+          <div className="mt-2 flex items-center gap-2 text-xs font-bold text-white/60 md:mt-3 md:text-sm">
             <span className="flex gap-0.5 text-amber-400">{Array.from({ length: 5 }).map((_, index) => <Star key={index} className="h-4 w-4 fill-current" />)}</span>
-            <span className="text-stone-800">4.8</span>
-            <span className="text-stone-400">|</span>
+            <span className="text-white">4.8</span>
+            <span className="text-white/25">|</span>
             <span>تقييمات موثقة</span>
           </div>
-          <p className="mt-3 text-sm font-semibold leading-6 text-stone-700 md:mt-4 md:text-[15px] md:leading-[1.8]">{descriptionText}</p>
+          <p className="mt-3 text-sm font-semibold leading-6 text-white/65 md:mt-4 md:text-[15px] md:leading-[1.8]">{descriptionText}</p>
           <div className="mt-4 flex items-end gap-3 md:mt-5">
-            <span className="text-2xl font-black leading-none text-stone-950 md:text-3xl">{money(variant?.sale_price || product.sale_price || product.price)}</span>
-            {product.old_price ? <span className="font-bold text-stone-400 line-through">{money(product.old_price)}</span> : null}
+            <span className="text-2xl font-black leading-none text-white md:text-3xl">{money(variant?.sale_price || product.sale_price || product.price)}</span>
+            {product.old_price ? <span className="font-bold text-white/35 line-through">{money(product.old_price)}</span> : null}
           </div>
           <Selector
             title="المقاس"
             help={
               <Link
                 to="/shop/size-guide"
-                className="inline-flex items-center rounded-full border border-stone-300 bg-stone-50 px-3 py-1.5 text-xs font-black text-stone-800 transition hover:border-stone-950 hover:bg-white"
+                className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-black text-white/70 transition hover:border-white/25 hover:bg-white/[0.09] hover:text-white"
               >
                 دليل المقاسات
               </Link>
@@ -2892,18 +3871,18 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
             })}
           </Selector>
           {variant && Number(variant.stock || 0) <= 0 ? <p className="mt-3 text-sm font-bold text-rose-600">المقاس أو اللون ده غير متاح حاليا</p> : null}
-          {variant && Number(variant.stock || 0) > 0 && Number(variant.stock || 0) <= 3 ? <p className="mt-3 text-sm font-black text-amber-700">باقي {variant.stock} فقط</p> : null}
+          {variant && Number(variant.stock || 0) > 0 && Number(variant.stock || 0) <= 3 ? <p className="mt-3 text-sm font-black text-amber-300">باقي {variant.stock} فقط</p> : null}
           <div className="mt-5 flex items-center gap-3">
-            <button onClick={() => setQty(Math.max(1, qty - 1))} className="rounded-full border border-stone-200 p-3"><Minus className="h-4 w-4" /></button>
-            <span className="w-8 text-center font-black">{qty}</span>
-            <button onClick={() => setQty(Math.min(Number(variant?.stock || 1), qty + 1))} className="rounded-full border border-stone-200 p-3">+</button>
+            <button onClick={() => setQty(Math.max(1, qty - 1))} className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.055] text-white/80 transition hover:border-white/25 hover:bg-white/[0.09]"><Minus className="h-4 w-4" /></button>
+            <span className="grid h-11 min-w-12 place-items-center rounded-full border border-white/10 bg-black/20 px-4 text-center font-black text-white">{qty}</span>
+            <button onClick={() => setQty(Math.min(Number(variant?.stock || 1), qty + 1))} className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.055] text-white/80 transition hover:border-white/25 hover:bg-white/[0.09]">+</button>
           </div>
           <div ref={mainCtaRef} className="mt-5 grid grid-cols-2 gap-3">
-            <button onClick={() => addToCart(product, variant, qty)} disabled={!variant || Number(variant.stock || 0) <= 0} className="sf-shimmer-button rounded-full bg-stone-950 px-5 py-4 font-black text-white transition hover:bg-[#6d28d9] disabled:bg-stone-300">أضف للسلة</button>
-            <button onClick={buyNow} disabled={!variant || Number(variant.stock || 0) <= 0} className="rounded-full bg-[#6d28d9] px-5 py-4 font-black text-white shadow-[0_16px_36px_rgba(109,40,217,0.20)] transition hover:-translate-y-0.5 disabled:bg-stone-300">اشتري الآن</button>
+            <button onClick={() => addToCart(product, variant, qty)} disabled={!variant || Number(variant.stock || 0) <= 0} className="rounded-full border border-white/14 bg-white/[0.045] px-5 py-4 font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.035] disabled:text-white/30 disabled:shadow-none">أضف للسلة</button>
+            <button onClick={buyNow} disabled={!variant || Number(variant.stock || 0) <= 0} className="rounded-full bg-white px-5 py-4 font-black text-stone-950 shadow-[0_18px_38px_rgba(255,255,255,0.16)] transition hover:-translate-y-0.5 hover:bg-[#f5f3ff] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none">اشتري الآن</button>
           </div>
-          <a href="https://wa.me/" className="mt-4 inline-flex items-center gap-2 text-sm font-black text-stone-600"><Phone className="h-4 w-4" /> محتاج مساعدة في المقاس؟</a>
-          <div className="mt-6 grid grid-cols-2 gap-2 text-sm font-bold text-stone-700">
+          <a href="https://wa.me/" className="mt-4 inline-flex items-center gap-2 text-sm font-black text-white/62 transition hover:text-white"><Phone className="h-4 w-4" /> محتاج مساعدة في المقاس؟</a>
+          <div className="mt-6 grid grid-cols-2 gap-2 text-sm font-bold text-white/75">
             <InfoLine icon={<Truck className="h-4 w-4" />} text="شحن سريع" />
             <InfoLine icon={<PackageCheck className="h-4 w-4" />} text="استبدال خلال 14 يوم" />
             <InfoLine icon={<ShieldCheck className="h-4 w-4" />} text="دفع آمن" />
@@ -2920,9 +3899,9 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
 
 function Selector({ title, help, children }) {
   return (
-    <div className="mt-5">
+    <div className="mt-5 border-t border-white/[0.06] pt-4">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-black text-stone-950">{title}</h3>
+        <h3 className="text-sm font-black text-white">{title}</h3>
         {help}
       </div>
       <div className="flex flex-wrap gap-2">{children}</div>
@@ -2937,13 +3916,13 @@ function Choice({ active, disabled, onClick, children }) {
       disabled={disabled}
       className={`relative min-w-12 overflow-hidden rounded-full border px-4 py-2.5 text-sm font-black transition ${
         active
-          ? "border-stone-950 bg-stone-950 text-white shadow-[0_12px_24px_rgba(39,20,75,0.16)]"
+          ? "border-white bg-white text-stone-950 shadow-[0_12px_28px_rgba(255,255,255,0.12)]"
           : disabled
-            ? "cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400 opacity-40"
-            : "border-stone-200 bg-white text-stone-950 hover:border-stone-900"
+            ? "cursor-not-allowed border-white/[0.07] bg-white/[0.035] text-white/25 opacity-60"
+            : "border-white/10 bg-white/[0.055] text-white/78 hover:border-white/25 hover:bg-white/[0.09] hover:text-white"
       }`}
     >
-      {disabled ? <span className="pointer-events-none absolute left-1/2 top-1/2 h-px w-[120%] -translate-x-1/2 -translate-y-1/2 rotate-[-18deg] bg-stone-500/70" /> : null}
+      {disabled ? <span className="pointer-events-none absolute left-1/2 top-1/2 h-px w-[120%] -translate-x-1/2 -translate-y-1/2 rotate-[-18deg] bg-white/35" /> : null}
       <span className="relative z-10">{children}</span>
     </button>
   );
@@ -2956,13 +3935,13 @@ function RelatedProducts({ currentId, ...props }) {
     [currentId, products]
   );
   return (
-    <div className="mt-4">
+    <div className="mt-5 border-t border-white/[0.06] pt-5">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-black">منتجات مشابهة</h2>
-          <p className="mt-1 text-xs font-bold text-stone-500">ربما يعجبك أيضا</p>
+          <h2 className="text-xl font-black text-stone-950 dark:text-white">منتجات مشابهة</h2>
+          <p className="mt-1 text-xs font-bold text-stone-500 dark:text-white/55">ربما يعجبك أيضا</p>
         </div>
-        <Link to="/shop/products" className="rounded-full bg-white px-3 py-2 text-xs font-black text-stone-600 shadow-sm">عرض الكل</Link>
+        <Link to="/shop/products" className="rounded-full border border-stone-200 bg-white/70 px-3 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:border-stone-950 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70 dark:hover:border-white/25 dark:hover:text-white">عرض الكل</Link>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {filtered.length ? filtered.map((product) => <ProductCard key={product.id} product={product} railType="similar" {...props} />) : <MiniRailEmpty />}
@@ -2978,20 +3957,20 @@ function RecentProductsSection({ currentId, recent = [] }) {
   );
   if (!items.length) return null;
   return (
-    <div className="mt-4 rounded-[1.5rem] border border-stone-200 bg-white p-4">
+    <div className="mt-5 rounded-[1.25rem] border border-stone-200 bg-white/70 p-4 shadow-[0_14px_38px_rgba(39,20,75,0.05)] dark:border-white/[0.08] dark:bg-white/[0.04] dark:shadow-[0_20px_50px_rgba(0,0,0,0.20)]">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-black">شوهد مؤخرًا</h2>
-          <p className="mt-1 text-xs font-bold text-stone-500">آخر المنتجات اللي شوفتها هتظهر هنا</p>
+          <h2 className="text-xl font-black text-stone-950 dark:text-white">شوهد مؤخرًا</h2>
+          <p className="mt-1 text-xs font-bold text-stone-500 dark:text-white/55">آخر المنتجات اللي شوفتها هتظهر هنا</p>
         </div>
-        <Link to="/shop/recently-viewed" className="rounded-full bg-stone-100 px-3 py-2 text-xs font-black text-stone-700">عرض الكل</Link>
+        <Link to="/shop/recently-viewed" className="rounded-full border border-stone-200 bg-stone-100 px-3 py-2 text-xs font-black text-stone-700 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70">عرض الكل</Link>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {items.map((item) => (
-          <Link key={item.id} to={`/shop/product/${item.slug || item.id}`} className="min-w-0 rounded-2xl bg-stone-50 p-2">
+          <Link key={item.id} to={`/shop/product/${item.slug || item.id}`} className="min-w-0 rounded-2xl bg-stone-50 p-2 transition hover:-translate-y-0.5 dark:bg-white/[0.055]">
             <img src={imageFor(item.image_url)} alt="" className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" width="240" height="240" />
-            <div className="mt-2 truncate text-sm font-black">{item.name}</div>
-            <div className="mt-1 text-xs font-bold text-stone-500">{money(item.price)}</div>
+            <div className="mt-2 truncate text-sm font-black text-stone-950 dark:text-white">{item.name}</div>
+            <div className="mt-1 text-xs font-bold text-stone-500 dark:text-white/55">{money(item.price)}</div>
           </Link>
         ))}
       </div>
@@ -4526,7 +5505,12 @@ function SummaryRow({ label, value, strong }) {
 }
 
 function InfoLine({ icon, text }) {
-  return <div className="flex items-center gap-2 rounded-2xl bg-stone-50 p-3">{icon}<span>{text}</span></div>;
+  return (
+    <div className="flex min-h-14 items-center gap-2 rounded-[1rem] border border-white/[0.08] bg-white/[0.055] p-3 text-white/74 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur transition hover:border-white/16 hover:bg-white/[0.075]">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/[0.07] text-[#c4b5fd]">{icon}</span>
+      <span>{text}</span>
+    </div>
+  );
 }
 
 function PaymentMethodTab({ method, active, onClick }) {
@@ -4628,24 +5612,24 @@ function Reviews() {
   ];
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-5 md:py-7">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-2xl font-black">آراء العملاء</h2>
-        <span className="rounded-full bg-[#f5f3ff] px-3 py-1 text-xs font-black text-[#6d28d9]">4.8 / 5</span>
+    <section className="mx-auto max-w-7xl px-4 py-5 text-white md:py-7">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-2xl font-black text-white">آراء العملاء</h2>
+        <span className="rounded-full border border-white/[0.08] bg-white/[0.055] px-3 py-1.5 text-xs font-black text-[#c4b5fd] shadow-[0_0_28px_rgba(124,58,237,0.18)] backdrop-blur-xl">4.8 / 5</span>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         {reviews.map(([avatar, review]) => (
-          <div key={review} className="rounded-[1.5rem] border border-stone-200/90 bg-white p-4 font-bold text-stone-600 shadow-[0_10px_30px_rgba(39,20,75,0.06)]">
+          <div key={review} className="rounded-[1.35rem] border border-white/[0.08] bg-[linear-gradient(180deg,#07111f_0%,#050b16_100%)] p-3.5 font-bold text-white shadow-[0_16px_42px_rgba(0,0,0,0.35)] ring-1 ring-white/[0.025] backdrop-blur-xl md:p-4">
             <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-full bg-stone-950 text-sm font-black text-white">{avatar}</span>
-              <div>
-                <div className="flex gap-0.5 text-[#7c3aed]">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.06] text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">{avatar}</span>
+              <div className="min-w-0">
+                <div className="flex gap-0.5 text-[#8b5cf6]">
                   {Array.from({ length: 5 }).map((_, index) => <Star key={index} className="h-3.5 w-3.5 fill-current" />)}
                 </div>
-                <div className="mt-1 text-xs text-stone-400">عميل موثق</div>
+                <div className="mt-1 inline-flex rounded-full border border-white/[0.08] bg-white/[0.045] px-2 py-0.5 text-[11px] font-black text-white/65">عميل موثق</div>
               </div>
             </div>
-            <p className="mt-3 text-sm leading-6">{review}</p>
+            <p className="mt-3 text-sm leading-6 text-white/90">{review}</p>
           </div>
         ))}
       </div>
@@ -4659,15 +5643,15 @@ function MobileBuyBar({ product, variant, visible, addToCart, buyNow }) {
   return (
     <div
       dir="rtl"
-      className="fixed inset-x-3 bottom-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1rem)] z-30 mx-auto max-w-md rounded-[1.35rem] border border-stone-200/90 bg-white/94 p-2.5 shadow-[0_18px_48px_rgba(39,20,75,0.18)] backdrop-blur-xl transition md:hidden"
+      className="sf-mobile-buy-bar fixed inset-x-3 z-30 mx-auto max-w-md rounded-[1.15rem] border border-white/[0.08] bg-[linear-gradient(180deg,#07111f_0%,#050b16_100%)] p-2.5 text-white shadow-[0_18px_48px_rgba(0,0,0,0.35)] backdrop-blur-xl transition md:hidden"
     >
       <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
         <div className="min-w-0">
-          <div className="truncate text-sm font-black">{cleanDisplayText(product.name)}</div>
-          <div className="font-black">{money(variant?.sale_price || product.sale_price || product.price)}</div>
+          <div className="truncate text-sm font-black text-white">{cleanDisplayText(product.name)}</div>
+          <div className="font-black text-white/80">{money(variant?.sale_price || product.sale_price || product.price)}</div>
         </div>
-        <button onClick={addToCart} disabled={disabled} className="rounded-full bg-stone-950 px-4 py-3 text-sm font-black text-white shadow-[0_10px_24px_rgba(28,25,23,0.18)] disabled:bg-stone-300">أضف</button>
-        <button onClick={buyNow} disabled={disabled} className="rounded-full bg-[#6d28d9] px-4 py-3 text-sm font-black text-white shadow-[0_10px_24px_rgba(109,40,217,0.22)] disabled:bg-stone-300">اشتري</button>
+        <button onClick={addToCart} disabled={disabled} className="rounded-full border border-white/14 bg-white/[0.055] px-4 py-3 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.035] disabled:text-white/30">أضف</button>
+        <button onClick={buyNow} disabled={disabled} className="rounded-full bg-white px-4 py-3 text-sm font-black text-stone-950 shadow-[0_10px_24px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none">اشتري</button>
       </div>
     </div>
   );

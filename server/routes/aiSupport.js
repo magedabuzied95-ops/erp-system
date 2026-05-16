@@ -1,6 +1,10 @@
 import express from "express";
 import jwt from "jsonwebtoken";
-import { buildAiSupportTrustedContext, detectAiSupportIntent } from "../services/aiSupportContextService.js";
+import {
+  buildAiSupportProductSearchDebug,
+  buildAiSupportTrustedContext,
+  detectAiSupportIntent,
+} from "../services/aiSupportContextService.js";
 import {
   clearAiSupportTestHistory,
   listAiSupportHistory,
@@ -23,6 +27,68 @@ const rateLimitBuckets = new Map();
 
 const toText = (value, fallback = "") => String(value ?? fallback).trim();
 const isDevelopment = process.env.NODE_ENV !== "production";
+const isAiSupportDebug = () => process.env.AI_SUPPORT_DEBUG === "1";
+const isArabicText = (value = "") => /[\u0600-\u06ff]/.test(toText(value));
+
+const normalizePublicSuggestedProducts = (items = []) =>
+  Array.isArray(items)
+    ? items.map((item) => ({
+        ...item,
+        price: Number(item?.price) > 0 ? Number(item.price) : null,
+        sale_price: Number(item?.sale_price) > 0 ? Number(item.sale_price) : null,
+        final_price: Number(item?.final_price || item?.price || item?.sale_price) > 0
+          ? Number(item.final_price || item.price || item.sale_price)
+          : null,
+        stock_status: item?.stock_status || (Number(item?.total_stock || item?.stock || 0) > 0 ? "in_stock" : "out_of_stock"),
+      }))
+    : [];
+
+const extractRequestedModel = (message = "") => {
+  const matches = toText(message).match(/[A-Za-z][A-Za-z0-9 -]{1,40}/g) || [];
+  return matches.map((item) => item.trim()).find((item) => item.length > 1) || "";
+};
+
+const isGenericEnglishFallback = (answer = "") => {
+  const text = toText(answer).toLowerCase();
+  return (
+    text.includes("i do not have enough verified information") ||
+    text.includes("please contact support") ||
+    text.includes("ai support is temporarily unavailable")
+  );
+};
+
+const buildArabicSalesFallback = ({ message = "", suggestedProducts = [] } = {}) => {
+  const products = normalizePublicSuggestedProducts(suggestedProducts);
+  const requestedModel = extractRequestedModel(message);
+  const modelPart = requestedModel ? ` من ${requestedModel}` : "";
+  const hasOutOfStock = products.some((product) => Number(product?.total_stock || 0) <= 0 || /out|unavailable|خلص|غير/i.test(toText(product?.availability)));
+
+  if (products.length) {
+    return [
+      `أكيد يا باشا ❤️ عندنا شوية موديلات قريبة${modelPart}. بص عليهم كده، ولو عايز مقاس معين قولي مقاسك.`,
+      hasOutOfStock ? "فيه موديلات ظاهرة بس بعضها خلصان، أقدر أطلعلك المتاح بس." : "",
+    ].filter(Boolean).join(" ");
+  }
+
+  return "أكيد ❤️ تحب كوتشي رجالي ولا حريمي؟ ومقاسك كام؟ ولو معاك صورة موديل ابعتهالي وأنا أطلعلك الأقرب ليه.";
+};
+
+const sanitizePublicAiSupportResponse = ({ response, message }) => {
+  const suggestedProducts = normalizePublicSuggestedProducts(response?.suggested_products);
+  const arabicMessage = isArabicText(message);
+  const answer = toText(response?.answer);
+  const answerLooksEnglish = /[A-Za-z]/.test(answer) && !isArabicText(answer);
+  const shouldReplaceWithArabic =
+    arabicMessage &&
+    (isGenericEnglishFallback(answer) || answerLooksEnglish || (suggestedProducts.length > 0 && !answer));
+
+  return {
+    ...response,
+    answer: shouldReplaceWithArabic ? buildArabicSalesFallback({ message, suggestedProducts }) : answer,
+    needs_human_support: suggestedProducts.length ? false : response?.needs_human_support !== false,
+    suggested_products: suggestedProducts,
+  };
+};
 
 const normalizeRole = (value = "") => String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ");
 
@@ -232,12 +298,38 @@ router.delete("/knowledge-base", protect, requireAiSupportAdmin, async (req, res
   }
 });
 
+router.get("/debug-product-search", async (req, res) => {
+  if (!isDevelopment && process.env.AI_SUPPORT_DEBUG !== "1") {
+    return res.status(404).json({ success: false, message: "Not found" });
+  }
+  try {
+    const tenantId = Number(req.query?.tenant_id || req.query?.tenantId || req.headers?.["x-tenant-id"] || 1);
+    const query = toText(req.query?.q || req.query?.query);
+    if (!Number.isFinite(tenantId) || tenantId <= 0) {
+      return res.status(400).json({ success: false, message: "A valid tenant_id is required" });
+    }
+    if (!query) {
+      return res.status(400).json({ success: false, message: "Query q is required" });
+    }
+    const payload = await buildAiSupportProductSearchDebug({ tenantId, query, req });
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error("[ai-support] debug product search error", {
+      requestId: req.id,
+      message: error?.message,
+    });
+    return res.status(500).json({ success: false, message: error?.message || "Debug product search failed" });
+  }
+});
+
 router.post("/chat", attachOptionalUser, (req, res, next) => {
-  console.log("[ai-support] tenant debug", {
-    requestId: req.id,
-    received_tenant_id: req.body?.tenant_id ?? req.body?.tenantId ?? null,
-    received_x_tenant_id: req.headers?.["x-tenant-id"] ?? null,
-  });
+  if (isAiSupportDebug()) {
+    console.log("[ai-support] tenant debug", {
+      requestId: req.id,
+      received_tenant_id: req.body?.tenant_id ?? req.body?.tenantId ?? null,
+      received_x_tenant_id: req.headers?.["x-tenant-id"] ?? null,
+    });
+  }
   const tenantId = resolveTenantId(req);
   const earlyIntent = detectAiSupportIntent(req.body?.message);
   if (!tenantId && earlyIntent.type !== "conversational") {
@@ -271,9 +363,10 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
     const context = await buildAiSupportTrustedContext({
       tenantId,
       message,
+      req,
     });
 
-    if (isDevelopment) {
+    if (isAiSupportDebug()) {
       console.log("[ai-support] context", {
         requestId: req.id,
         tenantId,
@@ -284,13 +377,16 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
     }
 
     if (context.directResponse) {
-      const responsePayload = {
+      const responsePayload = sanitizePublicAiSupportResponse({
+        message,
+        response: {
         ...context.directResponse,
         detected_intent: context.intent?.type || "",
         context_source_count: context.trustedContext?.sources?.length || 0,
         source_previews: context.source_previews || [],
         fallback_reason: context.fallbackReason || "",
-      };
+        },
+      });
       await logSupportExchange({ req, tenantId, metadata, message, context, response: responsePayload });
       return res.json({
         success: true,
@@ -299,7 +395,9 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
     }
 
     if (!context.trustedContext?.sources?.length) {
-      const responsePayload = {
+      const responsePayload = sanitizePublicAiSupportResponse({
+        message,
+        response: {
         answer: "I do not have enough verified information to answer that. Please contact support so a team member can help you.",
         confidence: 0,
         needs_human_support: true,
@@ -310,7 +408,8 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
         context_source_count: 0,
         source_previews: context.source_previews || [],
         fallback_reason: context.fallbackReason || "no_trusted_context",
-      };
+        },
+      });
       await logSupportExchange({ req, tenantId, metadata, message, context, response: responsePayload });
       return res.json({
         success: true,
@@ -326,13 +425,16 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       suggestedActions: context.suggested_actions,
     });
 
-    const responsePayload = {
+    const responsePayload = sanitizePublicAiSupportResponse({
+      message,
+      response: {
       ...result,
       detected_intent: context.intent?.type || "",
       context_source_count: context.trustedContext?.sources?.length || 0,
       source_previews: context.source_previews || [],
       fallback_reason: context.fallbackReason || "",
-    };
+      },
+    });
     await logSupportExchange({ req, tenantId, metadata, message, context, response: responsePayload });
 
     return res.json({
@@ -347,7 +449,9 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       session_id: req.body?.metadata?.session_id || req.body?.session_id || req.id,
       tenant_id: tenantId,
     };
-    const responsePayload = {
+    const responsePayload = sanitizePublicAiSupportResponse({
+      message,
+      response: {
       answer: "AI support is temporarily unavailable. Please contact support so a team member can help you.",
       confidence: 0,
       needs_human_support: true,
@@ -357,7 +461,8 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       detected_intent: "route_error",
       context_source_count: 0,
       fallback_reason: "route_error",
-    };
+      },
+    });
     await logSupportExchange({
       req,
       tenantId,
