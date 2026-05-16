@@ -486,8 +486,9 @@ const queryProducts = (tenantId, q, category, filters, saleOnly, limit, offset) 
     [tenantId, q, category, saleOnly, filters.gender, filters.productType, filters.style, filters.grade, limit, offset]
   );
 
-const hydrateProductsWithImages = async (products = []) => {
+const hydrateProductsWithImages = async (products = [], options = {}) => {
   const rows = Array.isArray(products) ? products : [];
+  const compact = Boolean(options.compact);
   const productIds = rows.map((product) => Number(product.id)).filter((value) => Number.isFinite(value) && value > 0);
   if (!productIds.length) {
     return rows;
@@ -498,6 +499,34 @@ const hydrateProductsWithImages = async (products = []) => {
   return rows.map((product) => {
     const imageBundle = imageBundleMap.get(String(product.id)) || null;
     const variants = attachVariantImages(Array.isArray(product.variants) ? product.variants : [], imageBundle);
+    if (compact) {
+      const compactVariants = variants.map((variant) => {
+        const imageUrl = variant.primary_image_url || variant.image_url || variant.variant_image_url || variant.color_image_url || product.image_url || product.product_image_url || "";
+        return {
+          id: variant.id,
+          product_id: variant.product_id,
+          size: variant.size,
+          color: variant.color,
+          sku: variant.sku,
+          barcode: variant.barcode,
+          edition_name: variant.edition_name,
+          edition_slug: variant.edition_slug,
+          image_url: imageUrl,
+          price: variant.price,
+          sale_price: variant.sale_price,
+          stock: variant.stock,
+          last_piece_category: variant.last_piece_category,
+        };
+      });
+      const primaryVariant = compactVariants.find((variant) => variant.image_url) || null;
+      const primaryImage = primaryVariant?.image_url || product.image_url || product.product_image_url || "";
+      return {
+        ...product,
+        variants: compactVariants,
+        image_url: primaryImage,
+        product_image_url: primaryImage,
+      };
+    }
     const colorImages = attachGroupedColorImages(deriveColorGroupsFromVariants(variants), imageBundle);
     const primaryVariant = variants.find((variant) => Array.isArray(variant.images) && variant.images.some((image) => image.is_primary)) || variants.find((variant) => variant.image_url) || null;
     const primaryImage = primaryVariant?.primary_image_url || primaryVariant?.image_url || product.image_url || product.product_image_url || product.gallery_images?.[0] || "";
@@ -511,6 +540,34 @@ const hydrateProductsWithImages = async (products = []) => {
     };
   });
 };
+
+const slimProductForList = (product = {}) => ({
+  id: product.id,
+  slug: product.slug,
+  name: product.name,
+  category: product.category,
+  gender: product.gender,
+  product_type: product.product_type,
+  productType: product.productType,
+  style: product.style,
+  grade: product.grade,
+  brand: product.brand,
+  image_url: product.image_url,
+  product_image_url: product.product_image_url || product.image_url || "",
+  description: product.description,
+  created_at: product.created_at,
+  price: product.price,
+  sale_price: product.sale_price,
+  old_price: product.old_price,
+  total_stock: product.total_stock,
+  badge: product.badge,
+  sizes: product.sizes,
+  colors: product.colors,
+  variants: Array.isArray(product.variants) ? product.variants : [],
+  low_stock: product.low_stock,
+  is_mirror: product.is_mirror,
+  seo_title: product.seo_title,
+});
 
 export const listProducts = async (req, res) => {
   try {
@@ -546,7 +603,7 @@ export const listProducts = async (req, res) => {
         usedTenantFallback = true;
       }
     }
-    products = await hydrateProductsWithImages(products);
+    products = (await hydrateProductsWithImages(products, { compact: true })).map(slimProductForList);
     if (process.env.NODE_ENV !== "production") {
       console.log("[storefront] products", { tenantId, usedTenantFallback, q, category, saleOnly, filters: { gender, productType, style, grade }, count: products.length });
     }
@@ -699,7 +756,7 @@ export const listLastPieceProducts = async (req, res) => {
       }
     }
 
-    const products = await hydrateProductsWithImages(result.rows.map(normalizeProduct)).then((rows) => rows.map((product) => {
+    const products = await hydrateProductsWithImages(result.rows.map(normalizeProduct), { compact: true }).then((rows) => rows.map((product) => {
       const lowVariants = (product.variants || []).filter((variant) => {
         const stock = toNumber(variant.stock);
         return stock > 0 && stock <= 2;
@@ -714,7 +771,7 @@ export const listLastPieceProducts = async (req, res) => {
         colors: [...new Set(lowVariants.map((variant) => variant.color).filter(Boolean))],
         low_stock: true,
       };
-    }).filter((product) => product.variants.length));
+    }).filter((product) => product.variants.length).map(slimProductForList));
 
     const categories = ["رجالي", "حريمي", "أطفال"]
       .map((label) => ({

@@ -470,20 +470,44 @@ const heroSizesForProduct = (product = {}, limit = 5) => {
   };
 };
 
+const storefrontGetCache = new Map();
+const storefrontGetInFlight = new Map();
+const STOREFRONT_GET_CACHE_TTL_MS = 60 * 1000;
+
+const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) => {
+  const now = Date.now();
+  const cached = storefrontGetCache.get(url);
+  if (cached && now - cached.at < ttlMs) {
+    return Promise.resolve(cached.data);
+  }
+  if (storefrontGetInFlight.has(url)) {
+    return storefrontGetInFlight.get(url);
+  }
+
+  const request = api.get(url)
+    .then((data) => {
+      storefrontGetCache.set(url, { at: Date.now(), data });
+      return data;
+    })
+    .finally(() => {
+      storefrontGetInFlight.delete(url);
+    });
+  storefrontGetInFlight.set(url, request);
+  return request;
+};
+
 const useProducts = (params = {}) => {
   const [state, setState] = useState({ loading: true, error: "", products: [] });
   const queryKey = JSON.stringify(params);
 
   useEffect(() => {
     let cancelled = false;
-    const controller = new AbortController();
     setState((prev) => ({ ...prev, loading: true, error: "" }));
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== "") query.set(key, value);
     });
-    api
-      .get(`/storefront/products${query.toString() ? `?${query.toString()}` : ""}`, { signal: controller.signal })
+    cachedStorefrontGet(`/storefront/products${query.toString() ? `?${query.toString()}` : ""}`)
       .then((data) => {
         if (!cancelled) setState({ loading: false, error: "", products: data.products || [] });
       })
@@ -494,7 +518,6 @@ const useProducts = (params = {}) => {
       });
     return () => {
       cancelled = true;
-      controller.abort();
     };
   }, [queryKey]);
 
@@ -506,9 +529,7 @@ const useStorefrontGenderClassifications = () => {
 
   useEffect(() => {
     let cancelled = false;
-    const controller = new AbortController();
-    api
-      .get("/storefront/classifications/gender", { signal: controller.signal })
+    cachedStorefrontGet("/storefront/classifications/gender", { ttlMs: 5 * 60 * 1000 })
       .then((data) => {
         if (!cancelled) setState({ loading: false, error: "", options: uniqueClassificationOptions(data?.options || []) });
       })
@@ -519,27 +540,26 @@ const useStorefrontGenderClassifications = () => {
       });
     return () => {
       cancelled = true;
-      controller.abort();
     };
   }, []);
 
   return state;
 };
 
-const useLastPiece = (params = {}) => {
-  const [state, setState] = useState({ loading: true, error: "", categories: [], sizes: [], products: [], hooks: {} });
+const useLastPiece = (params = {}, options = {}) => {
+  const enabled = options.enabled !== false;
+  const [state, setState] = useState({ loading: false, error: "", categories: [], sizes: [], products: [], hooks: {} });
   const queryKey = JSON.stringify(params);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     let cancelled = false;
-    const controller = new AbortController();
     setState((prev) => ({ ...prev, loading: true, error: "" }));
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== "") query.set(key, value);
     });
-    api
-      .get(`/storefront/last-piece${query.toString() ? `?${query.toString()}` : ""}`, { signal: controller.signal })
+    cachedStorefrontGet(`/storefront/last-piece${query.toString() ? `?${query.toString()}` : ""}`)
       .then((data) => {
         if (!cancelled) {
           setState({
@@ -559,9 +579,8 @@ const useLastPiece = (params = {}) => {
       });
     return () => {
       cancelled = true;
-      controller.abort();
     };
-  }, [queryKey]);
+  }, [enabled, queryKey]);
 
   return state;
 };
@@ -789,14 +808,26 @@ function Header({ cart, wishlist, onCart }) {
       setSearchLoading(false);
       return;
     }
+    let cancelled = false;
+    const controller = new AbortController();
     setSearchLoading(true);
     const timer = setTimeout(() => {
-      api.get(`/storefront/products/search?q=${encodeURIComponent(search)}&limit=8`)
-        .then((data) => setSuggestions(data.products || []))
-        .catch(() => setSuggestions([]))
-        .finally(() => setSearchLoading(false));
+      api.get(`/storefront/products/search?q=${encodeURIComponent(search)}&limit=8`, { signal: controller.signal })
+        .then((data) => {
+          if (!cancelled) setSuggestions(data.products || []);
+        })
+        .catch((error) => {
+          if (!cancelled && error?.cause?.name !== "AbortError") setSuggestions([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSearchLoading(false);
+        });
     }, 180);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearTimeout(timer);
+    };
   }, [search]);
 
   const rememberSearch = (value) => {
@@ -871,8 +902,15 @@ function Header({ cart, wishlist, onCart }) {
   };
 
   const toggleNotifications = () => {
-    setNotificationsOpen((value) => !value);
-    api.get("/storefront/notifications").then((data) => setNotifications(data.notifications || [])).catch(() => setNotifications([]));
+    setNotificationsOpen((value) => {
+      const next = !value;
+      if (next && notifications.length === 0) {
+        cachedStorefrontGet("/storefront/notifications", { ttlMs: 30 * 1000 })
+          .then((data) => setNotifications(data.notifications || []))
+          .catch(() => setNotifications([]));
+      }
+      return next;
+    });
   };
 
   return (
@@ -1821,6 +1859,8 @@ function LastPieceFinder({ open, onClose }) {
     category: selectedCategory,
     size: selectedSize,
     limit: 80,
+  }, {
+    enabled: open,
   });
   const step = selectedSize ? "products" : selectedCategory ? "sizes" : "categories";
   const title = step === "categories" ? "اختار القسم" : step === "sizes" ? "اختار المقاس" : `${selectedCategory} / ${selectedSize}`;
@@ -2549,10 +2589,12 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
   const [qty, setQty] = useState(1);
   const [showMobileBuyBar, setShowMobileBuyBar] = useState(false);
   const mainCtaRef = useRef(null);
+  const recentlyViewedSentRef = useRef("");
 
   useEffect(() => {
     let cancelled = false;
-    api.get(`/storefront/products/${id}`).then((data) => {
+    const controller = new AbortController();
+    api.get(`/storefront/products/${id}`, { signal: controller.signal }).then((data) => {
       const product = data.product;
       const productVariants = Array.isArray(product?.variants) ? product.variants : [];
       const requestedVariantId = searchParams.get("variant") || "";
@@ -2575,12 +2617,22 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
         });
         if (product) {
           rememberProduct(product);
-          api.post("/storefront/recently-viewed", { product_id: product.id, session_id: getSessionId(), phone: profile?.primary_phone || profile?.phone || "" }).catch(() => {});
+          const phone = profile?.primary_phone || profile?.phone || "";
+          const recentlyViewedKey = `${product.id}:${phone || getSessionId()}`;
+          if (recentlyViewedSentRef.current !== recentlyViewedKey) {
+            recentlyViewedSentRef.current = recentlyViewedKey;
+            api.post("/storefront/recently-viewed", { product_id: product.id, session_id: getSessionId(), phone }).catch(() => {});
+          }
         }
       }
-    }).catch((error) => !cancelled && setState({ loading: false, product: null, error: error.message }));
+    }).catch((error) => {
+      if (!cancelled && error?.cause?.name !== "AbortError") {
+        setState({ loading: false, product: null, error: error.message });
+      }
+    });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [id, productQueryKey]);
 
