@@ -297,7 +297,15 @@ const writeJson = (key, value) => {
     }
   }
 };
-const imageFor = (value) => resolveProductImageUrl(value) || "/favicon.svg";
+const imageUrlCache = new Map();
+const imageFor = (value) => {
+  const key = String(value || "");
+  if (imageUrlCache.has(key)) return imageUrlCache.get(key);
+  const resolved = resolveProductImageUrl(value) || "/favicon.svg";
+  if (imageUrlCache.size > 500) imageUrlCache.clear();
+  imageUrlCache.set(key, resolved);
+  return resolved;
+};
 const money = (value) => formatCurrency(Number(value || 0), "ar-EG");
 const cleanDisplayText = (value = "") =>
   String(value || "")
@@ -1236,7 +1244,7 @@ function SearchQuickSections({ value, loading, suggestions, chips, activeIndex, 
                 onClick={() => onPickProduct(product)}
                 className={`flex items-center gap-3 rounded-2xl p-2 text-right transition hover:bg-[#f7f4ee] active:scale-[0.99] dark:hover:bg-white/5 ${activeIndex === index ? "bg-[#f5f3ff] dark:bg-white/8" : ""}`}
               >
-                <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" />
+                <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" decoding="async" width="56" height="56" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-black">{product.name}</div>
                   <div className="truncate text-xs font-bold text-stone-500 dark:text-stone-400">
@@ -1426,6 +1434,10 @@ function HomePage(props) {
                     alt={heroProduct.name || ""}
                     className="mx-auto max-h-[360px] w-full object-contain drop-shadow-[0_42px_38px_rgba(0,0,0,0.42)] transition duration-700 ease-out animate-[sfFloat_7s_ease-in-out_infinite] group-hover/hero:-rotate-2 group-hover/hero:scale-[1.04] md:max-h-[520px]"
                     loading="eager"
+                    decoding="async"
+                    fetchPriority="high"
+                    width="620"
+                    height="520"
                   />
                 </Link>
               ) : (
@@ -1501,7 +1513,7 @@ function HomePage(props) {
                     aria-label={product.name || `Hero ${index + 1}`}
                   >
                     <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/12">
-                      <img src={imageFor(displayImageForProduct(product, variant))} alt="" className="h-full w-full object-contain p-1.5" loading="lazy" />
+                      <img src={imageFor(displayImageForProduct(product, variant))} alt="" className="h-full w-full object-contain p-1.5" loading="lazy" decoding="async" width="44" height="44" />
                     </span>
                     <span className="hidden max-w-[9rem] min-w-0 sm:block">
                       <span className="block truncate text-xs font-black">{product.name}</span>
@@ -1544,7 +1556,7 @@ function HomePage(props) {
                 >
                   <div className="relative aspect-[4/3] overflow-hidden bg-stone-100 dark:bg-white/5">
                     {card.image ? (
-                      <img src={imageFor(card.image)} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.06]" loading="lazy" />
+                      <img src={imageFor(card.image)} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.06]" loading="lazy" decoding="async" width="320" height="240" />
                     ) : (
                       <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${card.color}, #111827)` }}>
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_22%,rgba(255,255,255,0.22),transparent_28%),radial-gradient(circle_at_28%_78%,rgba(255,255,255,0.14),transparent_22%)]" />
@@ -1615,7 +1627,7 @@ function FeaturedProductSection({ product, variant, sizes }) {
   return (
     <div className="grid gap-4 overflow-hidden rounded-[2rem] border border-stone-200 bg-white p-4 shadow-[0_20px_55px_rgba(39,20,75,0.08)] dark:border-white/10 dark:bg-[#0b1020] md:grid-cols-[1.05fr_0.95fr] md:p-6">
       <div className="relative overflow-hidden rounded-[1.65rem] bg-[radial-gradient(circle_at_50%_35%,rgba(167,139,250,0.16),transparent_30%),linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] p-4 dark:bg-[radial-gradient(circle_at_50%_35%,rgba(167,139,250,0.14),transparent_30%),linear-gradient(180deg,#111827_0%,#0b1020_100%)]">
-        <img src={imageFor(displayImageForProduct(product, variant))} alt="" className="aspect-square w-full object-contain drop-shadow-[0_20px_28px_rgba(39,20,75,0.18)] transition duration-500 hover:scale-[1.04]" loading="lazy" />
+        <img src={imageFor(displayImageForProduct(product, variant))} alt="" className="aspect-square w-full object-contain drop-shadow-[0_20px_28px_rgba(39,20,75,0.18)] transition duration-500 hover:scale-[1.04]" loading="lazy" decoding="async" width="640" height="640" />
         <div className="absolute left-4 top-4 rounded-full bg-stone-950 px-3 py-1.5 text-xs font-black text-white shadow-sm dark:bg-white dark:text-stone-950">
           منتج الأسبوع
         </div>
@@ -1737,7 +1749,7 @@ function LastPiecePreviewSection({ products, loading, onOpen }) {
             return (
               <Link key={product.id} to={productUrl(product)} className="group overflow-hidden rounded-[1.45rem] border border-stone-200 bg-white shadow-[0_14px_40px_rgba(39,20,75,0.08)] transition duration-300 hover:-translate-y-1 dark:border-white/10 dark:bg-[#0b1020]">
                 <div className="relative bg-[radial-gradient(circle_at_50%_35%,rgba(167,139,250,0.14),transparent_30%),linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] p-4 dark:bg-[radial-gradient(circle_at_50%_35%,rgba(167,139,250,0.12),transparent_30%),linear-gradient(180deg,#111827_0%,#0b1020_100%)]">
-                  <img src={imageFor(displayImageForProduct(product, variant))} alt="" className="aspect-square w-full object-contain transition duration-500 group-hover:scale-[1.04]" loading="lazy" />
+                  <img src={imageFor(displayImageForProduct(product, variant))} alt="" className="aspect-square w-full object-contain transition duration-500 group-hover:scale-[1.04]" loading="lazy" decoding="async" width="320" height="320" />
                   <span className="absolute right-3 top-3 rounded-full bg-stone-950 px-3 py-1 text-[10px] font-black text-[#f8e7b3] dark:bg-white dark:text-stone-950">{lowStockText(variant?.stock)}</span>
                 </div>
                 <div className="p-4">
@@ -1817,7 +1829,7 @@ function StoryStrip({ products = [], categories = [], loading = false, onLastPie
               <span className="relative grid h-[62px] w-[62px] place-items-center rounded-full bg-gradient-to-br from-[#7c3aed] via-[#f8e7b3] to-[#111827] p-[2px] shadow-[0_14px_32px_rgba(39,20,75,0.14)] transition group-hover:-translate-y-0.5 group-hover:scale-[1.03] md:h-[72px] md:w-[72px]">
                 <span className="grid h-full w-full place-items-center overflow-hidden rounded-full border-[3px] border-white bg-[#0b1020] dark:border-[#0b1020]">
                   {story.image ? (
-                    <img src={imageFor(story.image)} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    <img src={imageFor(story.image)} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" width="72" height="72" />
                   ) : (
                     <span className={`grid h-full w-full place-items-center bg-gradient-to-br ${story.accent || storyVisuals[index % storyVisuals.length]} text-white`}>
                       {story.icon || <Sparkles className="h-6 w-6" />}
@@ -1996,7 +2008,7 @@ function LastPieceFinder({ open, onClose }) {
                     <article key={`${product.id}-${variant.id}`} className="overflow-hidden rounded-[1.45rem] border border-white/12 bg-white/[0.08] shadow-[0_22px_60px_rgba(0,0,0,0.24)] backdrop-blur">
                       <button onClick={() => openProduct(product, variant)} className="grid w-full grid-cols-[8.5rem_1fr] gap-3 p-3 text-right sm:grid-cols-[11rem_1fr]">
                         <span className="relative aspect-[4/5] overflow-hidden rounded-[1.15rem] bg-white/8">
-                          <img src={imageFor(variant.image_url || product.image_url)} alt={product.name} className="h-full w-full object-contain p-2" loading="lazy" />
+                          <img src={imageFor(variant.image_url || product.image_url)} alt={product.name} className="h-full w-full object-contain p-2" loading="lazy" decoding="async" width="176" height="220" />
                           <span className="absolute right-2 top-2 rounded-full bg-stone-950/86 px-2.5 py-1 text-[10px] font-black text-[#f8e7b3]">{lowStockText(variant.stock)}</span>
                         </span>
                         <span className="flex min-w-0 flex-col py-1">
@@ -2489,7 +2501,7 @@ const ProductCard = memo(function ProductCard({ product, wishlist, toggleWishlis
         <div className="absolute inset-x-8 top-[20%] h-32 rounded-full bg-white/55 blur-xl dark:bg-white/10" />
         <Link to={productUrl(product)} className="relative z-10 block h-full">
           {displayImage ? (
-            <img src={imageFor(displayImage)} alt={product.name} className="h-full w-full rounded-[0.9rem] object-contain object-center p-0 opacity-0 transition duration-500 group-hover/product:-translate-y-1 group-hover/product:scale-[1.055] md:rounded-[1.35rem] md:p-1" loading="lazy" onLoad={(event) => event.currentTarget.classList.remove("opacity-0")} />
+            <img src={imageFor(displayImage)} alt={product.name} className="h-full w-full rounded-[0.9rem] object-contain object-center p-0 opacity-0 transition duration-500 group-hover/product:-translate-y-1 group-hover/product:scale-[1.055] md:rounded-[1.35rem] md:p-1" loading="lazy" decoding="async" width="360" height="432" onLoad={(event) => event.currentTarget.classList.remove("opacity-0")} />
           ) : (
             <div className="grid h-full w-full place-items-center rounded-[1.1rem] bg-white/70 text-center text-xs font-black text-stone-400 dark:bg-white/5 dark:text-stone-500 md:rounded-[1.35rem]">
               SHOES
@@ -2803,7 +2815,7 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
       <div className="min-w-0">
         <div className="relative mx-auto h-[clamp(280px,48vh,380px)] w-full max-w-[92vw] overflow-hidden rounded-[28px] border border-stone-200 bg-[linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] p-2 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-auto md:max-w-none md:rounded-[1.75rem] md:p-5 md:shadow-[0_20px_55px_rgba(39,20,75,0.10)]">
           <div className="absolute inset-x-10 bottom-5 h-12 rounded-full bg-white/80 blur-2xl md:inset-x-16 md:bottom-8 md:h-16" />
-          <img src={imageFor(mainImage)} alt={displayTitle} className="relative z-10 mx-auto h-full w-full object-contain drop-shadow-[0_14px_18px_rgba(39,20,75,0.14)] md:aspect-[4/3] md:max-h-[540px] md:drop-shadow-[0_22px_26px_rgba(39,20,75,0.18)]" loading="eager" />
+          <img src={imageFor(mainImage)} alt={displayTitle} className="relative z-10 mx-auto h-full w-full object-contain drop-shadow-[0_14px_18px_rgba(39,20,75,0.14)] md:aspect-[4/3] md:max-h-[540px] md:drop-shadow-[0_22px_26px_rgba(39,20,75,0.18)]" loading="eager" decoding="async" fetchPriority="high" width="900" height="675" />
         </div>
         {galleryItems.length > 1 ? (
           <div className="sf-scroll mt-2 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 md:mt-3">
@@ -2817,7 +2829,7 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
                   onClick={() => selectGalleryImage(item)}
                   className={`h-16 w-16 shrink-0 snap-start overflow-hidden rounded-2xl border bg-white p-1 transition hover:-translate-y-0.5 hover:border-stone-900 md:h-20 md:w-20 md:p-1.5 ${active ? "border-stone-950 shadow-[0_12px_28px_rgba(39,20,75,0.14)]" : "border-stone-200"}`}
                 >
-                  <img src={imageFor(image)} alt="" className="h-full w-full object-contain" loading="lazy" />
+                  <img src={imageFor(image)} alt="" className="h-full w-full object-contain" loading="lazy" decoding="async" width="80" height="80" />
                 </button>
               );
             })}
@@ -2977,7 +2989,7 @@ function RecentProductsSection({ currentId, recent = [] }) {
       <div className="grid grid-cols-2 gap-3">
         {items.map((item) => (
           <Link key={item.id} to={`/shop/product/${item.slug || item.id}`} className="min-w-0 rounded-2xl bg-stone-50 p-2">
-            <img src={imageFor(item.image_url)} alt="" className="aspect-square w-full rounded-xl object-cover" loading="lazy" />
+            <img src={imageFor(item.image_url)} alt="" className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" width="240" height="240" />
             <div className="mt-2 truncate text-sm font-black">{item.name}</div>
             <div className="mt-1 text-xs font-bold text-stone-500">{money(item.price)}</div>
           </Link>
@@ -3004,7 +3016,7 @@ function CartContent({ cart, updateCart, removeFromCart }) {
       <div className="space-y-3">
         {cart.map((item) => (
           <div key={item.lineId} className="flex gap-3 rounded-3xl border border-stone-200 bg-white p-3">
-            <img src={imageFor(item.image_url)} alt="" className="h-24 w-24 rounded-2xl object-cover" loading="lazy" />
+            <img src={imageFor(item.image_url)} alt="" className="h-24 w-24 rounded-2xl object-cover" loading="lazy" decoding="async" width="96" height="96" />
             <div className="min-w-0 flex-1">
               <div className="font-black">{item.name}</div>
               <div className="mt-1 text-xs font-bold text-stone-500">{item.color || "لون"} / {item.size || "مقاس"}</div>
@@ -3334,7 +3346,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
                         </span>
                       </span>
                       {shippingPaymentPreviewUrl ? (
-                        <img src={shippingPaymentPreviewUrl} alt="Shipping payment proof preview" className="mt-4 max-h-48 w-full rounded-2xl bg-black/25 object-contain ring-1 ring-white/10" />
+                        <img src={shippingPaymentPreviewUrl} alt="Shipping payment proof preview" className="mt-4 max-h-48 w-full rounded-2xl bg-black/25 object-contain ring-1 ring-white/10" decoding="async" />
                       ) : null}
                     </label>
                     {errors.shipping_payment_screenshot ? <span className="text-xs font-bold text-rose-200">{errors.shipping_payment_screenshot}</span> : null}
@@ -3433,7 +3445,7 @@ function LegacyCheckoutPage({ cart, clearCart, profile, setProfile }) {
           <div className="mt-4 space-y-3">
             {cart.map((item) => (
               <div key={item.lineId} className="flex items-center gap-3">
-                <img src={imageFor(item.image_url)} alt="" className="h-14 w-14 rounded-2xl object-cover" />
+                <img src={imageFor(item.image_url)} alt="" className="h-14 w-14 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-black">{item.name}</div>
                   <div className="text-xs font-bold text-stone-500">{item.quantity} أ— {item.size}</div>
@@ -3654,7 +3666,7 @@ function OrderItemsSummary({ items = [] }) {
       <h3 className="text-lg font-black">ملخص المنتجات</h3>
       {items.map((item) => (
         <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
-          <img src={imageFor(item.product_image || item.image_url)} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" />
+          <img src={imageFor(item.product_image || item.image_url)} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
           <div className="min-w-0 flex-1">
             <div className="truncate font-black">{item.product_name || item.name}</div>
             <div className="text-xs font-bold text-stone-500">{item.color || "لون"} / {item.size || "مقاس"} أ— {item.quantity}</div>
@@ -4166,7 +4178,7 @@ function CheckoutSummary({ cart, subtotal, discount, deliveryFee, total, codAmou
       <div className={`${open ? "block" : "hidden"} mt-3 space-y-2.5 md:block`}>
         {cart.map((item) => (
           <div key={item.lineId} className="sf-reveal flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-2.5 ring-1 ring-stone-100/80">
-            <img src={imageFor(item.image_url)} alt="" className="h-18 w-18 shrink-0 rounded-2xl object-cover shadow-sm" loading="lazy" />
+            <img src={imageFor(item.image_url)} alt="" className="h-18 w-18 shrink-0 rounded-2xl object-cover shadow-sm" loading="lazy" decoding="async" width="72" height="72" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-black leading-5">{item.name}</div>
               <div className="mt-1 inline-flex rounded-full bg-white px-2 py-1 text-[11px] font-black text-stone-500 ring-1 ring-stone-200">{item.color || "لون"} / {item.size || "مقاس"} أ— {item.quantity}</div>
@@ -4383,7 +4395,7 @@ function MobileCartRow({ item, updateCart, removeFromCart }) {
     <article className="w-full min-w-0 rounded-[1.35rem] border border-stone-200 bg-white p-3 shadow-[0_12px_34px_rgba(39,20,75,0.07)]">
       <div className="flex min-w-0 items-start gap-3">
         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-stone-100 ring-1 ring-stone-200">
-          <img src={imageFor(item.image_url)} alt="" className="h-full w-full object-cover" loading="lazy" />
+          <img src={imageFor(item.image_url)} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" width="80" height="80" />
         </div>
         <div className="min-w-0 flex-1 self-stretch">
           <h3 className="line-clamp-2 break-words text-sm font-black leading-5 text-stone-950">{item.name}</h3>
@@ -4529,7 +4541,7 @@ function PaymentMethodTab({ method, active, onClick }) {
       }`}
     >
       <span className={`grid h-7 w-7 place-items-center rounded-xl transition ${active ? "bg-[#f5f3ff]" : "bg-white/[0.07]"}`}>
-        <img src={paymentBrandLogos[method]} alt="" className={`h-5 w-5 object-contain grayscale ${active ? "opacity-90" : "opacity-70 brightness-125"}`} />
+        <img src={paymentBrandLogos[method]} alt="" className={`h-5 w-5 object-contain grayscale ${active ? "opacity-90" : "opacity-70 brightness-125"}`} decoding="async" width="20" height="20" />
       </span>
       <span>{paymentBrandLabels[method]}</span>
     </button>
@@ -4545,7 +4557,7 @@ function PaymentCopyLine({ method, label, value }) {
     <div className="flex min-w-0 items-center justify-between gap-3 rounded-[1.35rem] bg-white/[0.055] p-3 ring-1 ring-white/10">
       <div className="flex min-w-0 items-center gap-3">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/[0.075] ring-1 ring-white/10">
-          <img src={paymentBrandLogos[method]} alt="" className="h-[22px] w-[22px] object-contain grayscale opacity-80 brightness-125" />
+          <img src={paymentBrandLogos[method]} alt="" className="h-[22px] w-[22px] object-contain grayscale opacity-80 brightness-125" decoding="async" width="22" height="22" />
         </span>
         <div className="min-w-0">
           <div className="text-xs font-semibold text-white/48">{label}</div>
@@ -4569,7 +4581,7 @@ function Panel({ title, children }) {
 
 function SmallProductList({ items, empty = "لا توجد منتجات." }) {
   if (!items.length) return <p className="font-bold text-stone-500">{empty}</p>;
-  return items.slice(0, 6).map((item) => <Link key={item.id} to={`/shop/product/${item.slug || item.id}`} className="flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3"><img src={imageFor(item.image_url)} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" loading="lazy" /><span className="truncate font-black">{item.name}</span></Link>);
+  return items.slice(0, 6).map((item) => <Link key={item.id} to={`/shop/product/${item.slug || item.id}`} className="flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3"><img src={imageFor(item.image_url)} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" loading="lazy" decoding="async" width="48" height="48" /><span className="truncate font-black">{item.name}</span></Link>);
 }
 
 function SmallProductGrid({ items, action, addToCart }) {
@@ -4594,7 +4606,7 @@ function SmallProductGrid({ items, action, addToCart }) {
       {items.map((item) => (
         <div key={item.id} className="min-w-0 rounded-3xl border border-stone-200 bg-white p-3 shadow-[0_12px_32px_rgba(39,20,75,0.05)]">
           <Link to={`/shop/product/${item.slug || item.id}`}>
-            <img src={imageFor(item.image_url)} alt="" className="aspect-square w-full rounded-2xl object-cover" loading="lazy" />
+            <img src={imageFor(item.image_url)} alt="" className="aspect-square w-full rounded-2xl object-cover" loading="lazy" decoding="async" width="240" height="240" />
             <div className="mt-3 line-clamp-2 min-h-10 font-black">{item.name || "منتج محفوظ"}</div>
             <div className="mt-1 font-bold text-stone-500">{item.price || item.sale_price ? money(item.price || item.sale_price) : "افتح المنتج للتفاصيل"}</div>
           </Link>
