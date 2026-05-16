@@ -6,6 +6,7 @@ import { io } from "../utils/socket.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { recordEmployeeAnalytics } from "../utils/employeeAnalytics.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
 import { ensureAccountingSchema, postSaleEntry, postReturnEntry, postWalletLiabilityEntry } from "../services/accountingService.js";
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty } from "../services/loyaltyService.js";
@@ -282,6 +283,7 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await ensureSalesCommissionSchema(client);
+  await ensureSingleBranchMode(client);
 };
 
 const generatePublicToken = () => crypto.randomBytes(24).toString("hex");

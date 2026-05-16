@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import { Bell, CheckCheck, RefreshCw, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-import { NotificationCard } from "../../../shared/notifications/NotificationBell";
-import { useNotifications } from "../../../shared/notifications/useNotifications";
+import { NotificationCard, useNotifications } from "../../../shared/notifications/index.js";
 
-const categories = ["all", "orders", "payments", "inventory", "purchases", "security", "system"];
+const categories = ["all", "staff_tasks", "orders", "payments", "inventory", "purchases", "security", "system"];
 const priorities = ["all", "low", "medium", "high", "critical"];
 const readStates = ["all", "unread", "read"];
 
 const labels = {
+  staff_tasks: "Staff tasks",
   all: "الكل",
   orders: "الطلبات",
   payments: "المدفوعات",

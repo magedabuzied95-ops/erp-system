@@ -1,8 +1,12 @@
 import db from "../database/db.js";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { QRCodeSVG } from "qrcode.react";
 import { isSuperAdminUser } from "../utils/requestScope.js";
 import { calculateAttendanceMetrics, formatMinutes, buildShiftSummaryNotification, buildAttendanceAlertNotification } from "../utils/attendanceCalculator.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { haversineDistanceMeters } from "../utils/geoDistance.js";
+import { handleBranchQrCheckInStaffTasks } from "../services/staffTasksService.js";
 
 const safeQuery = async (client, text, params = []) => {
   try {
@@ -21,6 +25,270 @@ const resolveAuthenticatedTenantId = (req) => {
 };
 
 const getTenantScope = (req) => (isSuperAdminUser(req.user) ? null : resolveAuthenticatedTenantId(req));
+
+const GPS_VERIFICATION_MODE = String(process.env.ATTENDANCE_GPS_VERIFICATION_MODE || "strict").toLowerCase() === "warning" ? "warning" : "strict";
+const ATTENDANCE_TIMEZONE = String(process.env.ATTENDANCE_TIMEZONE || process.env.APP_TIMEZONE || process.env.TZ || "Africa/Cairo").trim() || "Africa/Cairo";
+
+const normalizeLookupValue = (value = "") => String(value || "").trim();
+const normalizePhoneDigits = (value = "") => String(value || "").replace(/\D/g, "");
+
+const getRequestIp = (req) => {
+  const forwarded = String(req.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
+  return forwarded || req.ip || req.socket?.remoteAddress || "";
+};
+
+const buildPublicOrigin = (req) => {
+  const envOrigin = String(
+    process.env.PUBLIC_FRONTEND_URL ||
+      process.env.VITE_PUBLIC_FRONTEND_URL ||
+      process.env.FRONTEND_URL ||
+      process.env.CLIENT_URL ||
+      process.env.APP_URL ||
+      ""
+  ).trim().replace(/\/$/, "");
+  if (envOrigin) return envOrigin;
+  const requestOrigin = String(req.get?.("origin") || "").trim().replace(/\/$/, "");
+  if (requestOrigin) return requestOrigin;
+  const forwardedProto = String(req.get?.("x-forwarded-proto") || "").split(",")[0].trim();
+  const forwardedHost = String(req.get?.("x-forwarded-host") || "").split(",")[0].trim();
+  const protocol = forwardedProto || req.protocol || "http";
+  const host = forwardedHost || req.get?.("host") || "";
+  return host ? `${protocol}://${host}` : "";
+};
+
+const buildAttendancePublicUrl = (req, token) => `${buildPublicOrigin(req)}/attendance/branch/${encodeURIComponent(token)}`;
+
+const buildQrSvg = (value) => {
+  const rawMarkup = renderToStaticMarkup(
+    React.createElement(QRCodeSVG, {
+      value,
+      size: 512,
+      level: "M",
+      marginSize: 4,
+      bgColor: "#ffffff",
+      fgColor: "#0f172a",
+      title: "Branch attendance QR",
+    })
+  );
+  return rawMarkup.includes("xmlns=") ? rawMarkup : rawMarkup.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ');
+};
+
+const buildQrDataUrl = (value) => {
+  const markup = buildQrSvg(value);
+  if (!markup || !markup.includes("<svg") || !markup.includes("</svg>")) {
+    throw new Error("QR SVG generation returned invalid markup");
+  }
+  return {
+    qrSvg: markup,
+    qrDataUrl: `data:image/svg+xml;base64,${Buffer.from(markup, "utf8").toString("base64")}`,
+  };
+};
+
+const parseOptionalCoordinate = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const getAttendanceDate = (date = new Date()) => {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: ATTENDANCE_TIMEZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  } catch (error) {
+    console.warn("[attendance] timezone date fallback used", {
+      timezone: ATTENDANCE_TIMEZONE,
+      error: error.message,
+    });
+    return new Date(date).toISOString().slice(0, 10);
+  }
+};
+
+const normalizeAttendanceDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return getAttendanceDate(value);
+  const text = String(value);
+  return text.includes("T") ? getAttendanceDate(new Date(text)) : text.slice(0, 10);
+};
+
+const attendanceHasCheckout = (row = {}) => Boolean(row.check_out || row.check_out_at || String(row.status || "").toLowerCase() === "checked_out");
+
+const summarizeAttendanceRow = (row = {}) => ({
+  id: row.id || null,
+  tenant_id: row.tenant_id || null,
+  employee_id: row.employee_id || null,
+  branch_id: row.branch_id || null,
+  attendance_date: normalizeAttendanceDate(row.attendance_date),
+  check_in: row.check_in_at || row.check_in || null,
+  check_out: row.check_out_at || row.check_out || null,
+  status: row.status || "",
+  attendance_source: row.attendance_source || "",
+  created_at: row.created_at || null,
+});
+
+const buildAttendanceEligibility = ({ rows = [], branchId, attendanceDate }) => {
+  const openRows = rows.filter((row) => !attendanceHasCheckout(row));
+  const selectedOpen = openRows[0] || null;
+  const latest = rows[0] || null;
+  const branchRows = rows.filter((row) => String(row.branch_id || "") === String(branchId || ""));
+
+  if (!rows.length) {
+    return {
+      status: "not_started",
+      decision: "can_check_in",
+      can_check_in: true,
+      can_check_out: false,
+      completed: false,
+      attendance_date: attendanceDate,
+      attendance: null,
+      branch_attendance_count: 0,
+      total_attendance_count: 0,
+      active_session_count: 0,
+    };
+  }
+
+  if (selectedOpen) {
+    return {
+      status: "checked_in",
+      decision: "can_check_out",
+      can_check_in: false,
+      can_check_out: true,
+      completed: false,
+      attendance_date: attendanceDate,
+      attendance: summarizeAttendanceRow(selectedOpen),
+      branch_attendance_count: branchRows.length,
+      total_attendance_count: rows.length,
+      active_session_count: openRows.length,
+    };
+  }
+
+  return {
+    status: "completed",
+    decision: "completed",
+    can_check_in: false,
+    can_check_out: false,
+    completed: true,
+    attendance_date: attendanceDate,
+    attendance: summarizeAttendanceRow(latest),
+    branch_attendance_count: branchRows.length,
+    total_attendance_count: rows.length,
+    active_session_count: 0,
+  };
+};
+
+const logAttendanceEligibility = (label, context = {}, rows = [], eligibility = {}) => {
+  console.info(`[attendance:${label}] eligibility`, {
+    timezone: ATTENDANCE_TIMEZONE,
+    attendance_date: context.attendanceDate,
+    tenant_id: context.tenantId,
+    employee_id: context.employeeId,
+    branch_id: context.branchId,
+    lookup_count: rows.length,
+    lookup_result: rows.map(summarizeAttendanceRow),
+    check_in: eligibility.attendance?.check_in || null,
+    check_out: eligibility.attendance?.check_out || null,
+    decision: eligibility.decision,
+    status: eligibility.status,
+    can_check_in: Boolean(eligibility.can_check_in),
+    can_check_out: Boolean(eligibility.can_check_out),
+    completed: Boolean(eligibility.completed),
+  });
+};
+
+const resolveAttendanceEligibility = async (client, { tenantId, employeeId, branchId, attendanceDate, lock = false, label = "lookup" }) => {
+  const result = await client.query(
+    `
+    SELECT *
+    FROM attendance_logs
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+      AND employee_id = $2
+      AND attendance_date = $3::date
+    ORDER BY
+      CASE WHEN check_out IS NULL AND check_out_at IS NULL AND COALESCE(status, 'checked_in') <> 'checked_out' THEN 0 ELSE 1 END,
+      CASE WHEN branch_id = $4 THEN 0 ELSE 1 END,
+      created_at DESC,
+      id DESC
+    ${lock ? "FOR UPDATE" : ""}
+    `,
+    [tenantId, employeeId, attendanceDate, branchId]
+  );
+  const eligibility = buildAttendanceEligibility({ rows: result.rows, branchId, attendanceDate });
+  logAttendanceEligibility(label, { tenantId, employeeId, branchId, attendanceDate }, result.rows, eligibility);
+  return {
+    rows: result.rows,
+    eligibility,
+  };
+};
+
+const lockEmployeeAttendanceDay = async (client, tenantId, employeeId) => {
+  await client.query("SELECT pg_advisory_xact_lock($1::int, $2::int)", [Number(tenantId), Number(employeeId)]);
+};
+
+const hasBranchCoordinates = (branch = {}) => branch.latitude !== null && branch.latitude !== undefined && branch.longitude !== null && branch.longitude !== undefined;
+
+const buildGpsVerification = ({ latitude, longitude, branch }) => {
+  const radiusMeters = Number(branch.attendance_radius_meters || branch.allowed_radius_meters || 100);
+  const allowedRadiusMeters = Number.isFinite(radiusMeters) && radiusMeters > 0 ? radiusMeters : 100;
+
+  if (!hasBranchCoordinates(branch)) {
+    return {
+      result: "not_configured",
+      distanceMeters: null,
+      allowedRadiusMeters,
+      mode: GPS_VERIFICATION_MODE,
+      withinRange: null,
+    };
+  }
+
+  if (latitude === null || longitude === null) {
+    return {
+      result: "missing",
+      distanceMeters: null,
+      allowedRadiusMeters,
+      mode: GPS_VERIFICATION_MODE,
+      withinRange: false,
+    };
+  }
+
+  const distanceMeters = haversineDistanceMeters(latitude, longitude, branch.latitude, branch.longitude);
+  if (!Number.isFinite(distanceMeters)) {
+    return {
+      result: "invalid",
+      distanceMeters: null,
+      allowedRadiusMeters,
+      mode: GPS_VERIFICATION_MODE,
+      withinRange: false,
+    };
+  }
+
+  const withinRange = distanceMeters <= allowedRadiusMeters;
+  return {
+    result: withinRange ? "within_range" : "outside_range",
+    distanceMeters,
+    allowedRadiusMeters,
+    mode: GPS_VERIFICATION_MODE,
+    withinRange,
+  };
+};
+
+const enforceGpsVerification = (verification) => {
+  if (GPS_VERIFICATION_MODE !== "strict") return;
+  if (verification.result === "not_configured" || verification.withinRange === true) return;
+
+  const error = new Error(
+    verification.result === "outside_range"
+      ? "You are outside the allowed branch radius"
+      : "Location permission is required to record attendance for this branch"
+  );
+  error.statusCode = verification.result === "outside_range" ? 403 : 400;
+  error.gps = verification;
+  throw error;
+};
 
 const parseJson = (value, fallback = []) => {
   if (!value) return fallback;
@@ -106,8 +374,12 @@ const normalizeAttendance = (row = {}) => ({
   check_out_at: row.check_out_at || row.check_out || null,
   check_in_latitude: row.check_in_latitude ?? null,
   check_in_longitude: row.check_in_longitude ?? null,
+  check_in_gps_distance_meters: row.check_in_gps_distance_meters === null || row.check_in_gps_distance_meters === undefined ? null : Number(row.check_in_gps_distance_meters),
+  check_in_gps_verification_result: row.check_in_gps_verification_result || "",
   check_out_latitude: row.check_out_latitude ?? null,
   check_out_longitude: row.check_out_longitude ?? null,
+  check_out_gps_distance_meters: row.check_out_gps_distance_meters === null || row.check_out_gps_distance_meters === undefined ? null : Number(row.check_out_gps_distance_meters),
+  check_out_gps_verification_result: row.check_out_gps_verification_result || "",
   attendance_source: row.attendance_source || "manual",
   status: row.status || (row.check_out || row.check_out_at ? "checked_out" : "checked_in"),
   work_minutes: Number(row.work_minutes || 0),
@@ -156,7 +428,8 @@ const normalizeBranch = (row = {}) => ({
   name: row.name || row.branch_name || "",
   latitude: row.latitude === null || row.latitude === undefined ? null : Number(row.latitude),
   longitude: row.longitude === null || row.longitude === undefined ? null : Number(row.longitude),
-  allowed_radius_meters: Number(row.allowed_radius_meters || 100),
+  attendance_radius_meters: Number(row.attendance_radius_meters || row.allowed_radius_meters || 100),
+  allowed_radius_meters: Number(row.allowed_radius_meters || row.attendance_radius_meters || 100),
   qr_token: row.qr_token || "",
   status: row.status || "active",
 });
@@ -183,29 +456,6 @@ const resolveEmployeeForUser = async (tenantId, user = {}) => {
     LIMIT 1
     `,
     [tenantId, user.employee_id || 0, user.email || "", user.name || ""]
-  );
-
-  return result.rows[0] || null;
-};
-
-const getTodayAttendanceLog = async (employeeId, tenantId) => {
-  const result = await db.query(
-    `
-    SELECT
-      al.*,
-      e.full_name,
-      e.employee_code,
-      b.name AS branch_name
-    FROM attendance_logs al
-    LEFT JOIN employees e ON e.id = al.employee_id
-    LEFT JOIN branches b ON b.id = COALESCE(al.branch_id, e.branch_id)
-    WHERE al.employee_id = $1
-      AND al.attendance_date = CURRENT_DATE
-      AND ($2::bigint IS NULL OR al.tenant_id = $2::bigint)
-    ORDER BY al.created_at DESC
-    LIMIT 1
-    `,
-    [employeeId, tenantId]
   );
 
   return result.rows[0] || null;
@@ -308,6 +558,7 @@ const fetchLatestOpeningAssignment = async (client, tenantId) => {
 };
 
 const fetchOpeningCandidates = async (client, tenantId, options = {}) => {
+  const attendanceDate = getAttendanceDate();
   const result = await safeQuery(
     client,
     `
@@ -317,10 +568,10 @@ const fetchOpeningCandidates = async (client, tenantId, options = {}) => {
         MAX(assigned_at) AS last_opening_at,
         COUNT(*)::int AS total_openings,
         COUNT(*) FILTER (
-          WHERE assigned_at >= date_trunc('week', CURRENT_DATE)::timestamp
+          WHERE assigned_at >= date_trunc('week', $2::date)::timestamp
         )::int AS openings_this_week,
         COUNT(*) FILTER (
-          WHERE assigned_at >= date_trunc('month', CURRENT_DATE)::timestamp
+          WHERE assigned_at >= date_trunc('month', $2::date)::timestamp
         )::int AS openings_this_month
       FROM shift_opening_assignments
       WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
@@ -352,7 +603,7 @@ const fetchOpeningCandidates = async (client, tenantId, options = {}) => {
           ELSE COALESCE(status, 'not_checked_in')
         END AS attendance_status
       FROM attendance_logs
-      WHERE attendance_date = CURRENT_DATE
+      WHERE attendance_date = $2::date
         AND ($1::bigint IS NULL OR tenant_id = $1::bigint)
       ORDER BY employee_id, created_at DESC
     )
@@ -381,7 +632,7 @@ const fetchOpeningCandidates = async (client, tenantId, options = {}) => {
       e.full_name ASC,
       e.id ASC
     `,
-    [tenantId]
+    [tenantId, attendanceDate]
   );
 
   const rows = result.rows || [];
@@ -429,8 +680,9 @@ export const getEmployees = async (req, res) => {
   try {
     await ensureAttendanceSchema();
     const tenantId = getTenantScope(req);
+    const attendanceDate = getAttendanceDate();
     const search = String(req.query.search || "").trim().toLowerCase();
-    const params = [tenantId];
+    const params = [tenantId, attendanceDate];
     const tenantPredicate = "($1::bigint IS NULL OR e.tenant_id = $1::bigint)";
     const searchPredicate = search
       ? ` AND (
@@ -482,7 +734,7 @@ export const getEmployees = async (req, res) => {
         SELECT *
         FROM attendance_logs al
         WHERE al.employee_id = e.id
-          AND al.attendance_date = CURRENT_DATE
+          AND al.attendance_date = $2::date
           AND ($1::bigint IS NULL OR al.tenant_id = $1::bigint)
         ORDER BY al.created_at DESC
         LIMIT 1
@@ -833,6 +1085,7 @@ export const checkIn = async (req, res) => {
     const attendanceSource = String(req.body?.attendance_source || req.body?.source || "manual").toLowerCase();
     const notes = req.body?.notes || "";
     const shiftId = req.body?.shift_id || req.body?.shiftId || null;
+    const attendanceDate = getAttendanceDate();
 
     if (!tenantId) {
       await client.query("ROLLBACK");
@@ -871,48 +1124,37 @@ export const checkIn = async (req, res) => {
       });
     }
 
-    const duplicateResult = await safeQuery(
-      client,
-      `
-      SELECT
-        al.*,
-        e.full_name AS employee_name,
-        e.employee_code,
-        b.name AS branch_name,
-        es.shift_name
-      FROM attendance_logs al
-      LEFT JOIN employees e ON e.id = al.employee_id
-      LEFT JOIN branches b ON b.id = COALESCE(al.branch_id, e.branch_id)
-      LEFT JOIN employee_shifts es ON es.id = al.shift_id
-      WHERE al.employee_id = $1
-        AND al.attendance_date = CURRENT_DATE
-        AND al.tenant_id = $2::bigint
-      ORDER BY al.created_at DESC
-      LIMIT 1
-      `,
-      [employeeId, tenantId]
-    );
+    await lockEmployeeAttendanceDay(client, tenantId, employeeId);
+    const attendanceBranchId = employeeResult.rows[0].branch_id || null;
+    const { eligibility } = await resolveAttendanceEligibility(client, {
+      tenantId,
+      employeeId,
+      branchId: attendanceBranchId,
+      attendanceDate,
+      lock: true,
+      label: "manual-check-in",
+    });
 
-    if (duplicateResult.rows.length > 0) {
-      const existingLog = duplicateResult.rows[0];
+    if (!eligibility.can_check_in) {
       await client.query("ROLLBACK");
-      if (!existingLog.check_out && !existingLog.check_out_at) {
+      if (eligibility.can_check_out) {
         return res.status(200).json({
           success: true,
           alreadyOpen: true,
-          data: normalizeAttendance(existingLog),
-          attendance: normalizeAttendance(existingLog),
+          attendance_state: eligibility,
+          data: eligibility.attendance,
+          attendance: eligibility.attendance,
         });
       }
 
       return res.status(409).json({
         success: false,
-        message: "Attendance already completed for this employee today",
+        message: "Attendance completed for today",
+        attendance_state: eligibility,
       });
     }
 
     const shift = await findLatestShift(client, employeeId, tenantId, shiftId);
-    const attendanceBranchId = employeeResult.rows[0].branch_id || null;
 
     if (attendanceSource === "pos" && !attendanceBranchId) {
       await client.query("ROLLBACK");
@@ -939,7 +1181,7 @@ export const checkIn = async (req, res) => {
         notes
       )
       VALUES (
-        $1,$2,$3,$4,CURRENT_DATE,NOW(),$5,0,0,0,0,$6
+        $1,$2,$3,$4,$5::date,NOW(),$6,0,0,0,0,$7
       )
       RETURNING *
       `,
@@ -948,6 +1190,7 @@ export const checkIn = async (req, res) => {
         employeeId,
         shift?.id || null,
         attendanceBranchId,
+        attendanceDate,
         attendanceSource || "manual",
         notes || "",
       ]
@@ -1001,6 +1244,7 @@ export const checkOut = async (req, res) => {
     const notes = req.body?.notes || "";
     const nextOpeningEmployeeIdRaw = req.body?.next_opening_employee_id || req.body?.nextOpeningEmployeeId || null;
     const nextOpeningEmployeeId = nextOpeningEmployeeIdRaw ? Number(nextOpeningEmployeeIdRaw) : null;
+    const attendanceDate = getAttendanceDate();
 
     if (!tenantId) {
       await client.query("ROLLBACK");
@@ -1026,23 +1270,41 @@ export const checkOut = async (req, res) => {
       attendanceRow = result.rows[0] || null;
     }
 
-    if ((!attendanceRow || attendanceRow.check_out || attendanceRow.check_out_at) && employeeId) {
-      const openResult = await safeQuery(
-        client,
-        `
-        SELECT *
-        FROM attendance_logs
-        WHERE employee_id = $1
-          AND attendance_date = CURRENT_DATE
-          AND check_out IS NULL
-          AND check_out_at IS NULL
-          AND tenant_id = $2::bigint
-        ORDER BY created_at DESC
-        LIMIT 1
-        `,
-        [employeeId, tenantId]
-      );
-      attendanceRow = openResult.rows[0] || attendanceRow;
+    const lookupEmployeeId = attendanceRow?.employee_id || employeeId;
+    if (lookupEmployeeId) {
+      await lockEmployeeAttendanceDay(client, tenantId, lookupEmployeeId);
+      const { eligibility } = await resolveAttendanceEligibility(client, {
+        tenantId,
+        employeeId: lookupEmployeeId,
+        branchId: attendanceRow?.branch_id || null,
+        attendanceDate,
+        lock: true,
+        label: "manual-check-out",
+      });
+      if (eligibility.can_check_out) {
+        attendanceRow = {
+          ...attendanceRow,
+          ...eligibility.attendance,
+          check_in: eligibility.attendance.check_in,
+          check_in_at: eligibility.attendance.check_in,
+          check_out: null,
+          check_out_at: null,
+        };
+      } else if (eligibility.completed) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          success: false,
+          message: "Shift already closed for this employee today",
+          attendance_state: eligibility,
+        });
+      } else {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          success: false,
+          message: "Open attendance not found",
+          attendance_state: eligibility,
+        });
+      }
     }
 
     if (!attendanceRow && !employeeId) {
@@ -1051,31 +1313,6 @@ export const checkOut = async (req, res) => {
         success: false,
         message: "Employee is required to close shift",
       });
-    }
-
-    if (!attendanceRow && employeeId) {
-      const completedResult = await safeQuery(
-        client,
-        `
-        SELECT id
-        FROM attendance_logs
-        WHERE employee_id = $1
-          AND attendance_date = CURRENT_DATE
-          AND tenant_id = $2::bigint
-          AND (check_out IS NOT NULL OR check_out_at IS NOT NULL OR status = 'checked_out')
-        ORDER BY created_at DESC
-        LIMIT 1
-        `,
-        [employeeId, tenantId]
-      );
-
-      if (completedResult.rows.length > 0) {
-        await client.query("ROLLBACK");
-        return res.status(409).json({
-          success: false,
-          message: "Shift already closed for this employee today",
-        });
-      }
     }
 
     if (!attendanceRow) {
@@ -1932,6 +2169,544 @@ export const getOpeningRotationReport = async (req, res) => {
   }
 };
 
+export const getBranchAttendanceQr = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const tenantId = getTenantScope(req);
+    const branchId = Number(req.params.branchId || 0);
+
+    if (!branchId) {
+      return res.status(400).json({
+        success: false,
+        message: "Branch is required",
+      });
+    }
+
+    const result = await db.query(
+      `
+      SELECT
+        id,
+        tenant_id,
+        name,
+        code,
+        attendance_qr_token
+      FROM branches
+      WHERE id = $1
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      LIMIT 1
+      `,
+      [branchId, tenantId]
+    );
+
+    const branch = result.rows[0];
+    if (!branch) {
+      return res.status(404).json({
+        success: false,
+        message: "Branch not found",
+      });
+    }
+
+    const publicAttendanceUrl = buildAttendancePublicUrl(req, branch.attendance_qr_token);
+    const { qrSvg, qrDataUrl } = buildQrDataUrl(publicAttendanceUrl);
+    if (!qrDataUrl || !qrDataUrl.startsWith("data:image/svg+xml;base64,")) {
+      throw new Error("QR data URL generation failed");
+    }
+    const generatedAt = new Date().toISOString();
+    let company = {};
+    const companyProfilesTable = await db.query("SELECT to_regclass('public.company_profiles') AS table_name");
+    if (companyProfilesTable.rows[0]?.table_name) {
+      const companyResult = await db.query(
+        `
+        SELECT company_name, logo_url
+        FROM company_profiles
+        WHERE tenant_id = $1
+        LIMIT 1
+        `,
+        [branch.tenant_id]
+      );
+      company = companyResult.rows[0] || {};
+    }
+
+    const branchPayload = {
+      id: branch.id,
+      name: branch.name || "",
+      code: branch.code || "",
+      tenant_id: branch.tenant_id,
+    };
+    const payload = {
+      success: true,
+      data: {
+        branch_id: branch.id,
+        branch_name: branch.name || "",
+        branch_code: branch.code || "",
+        branch: branchPayload,
+        company_name: company.company_name || "",
+        company_logo_url: company.logo_url || "",
+        generated_at: generatedAt,
+        generatedAt,
+        public_attendance_url: publicAttendanceUrl,
+        publicAttendanceUrl,
+        publicUrl: publicAttendanceUrl,
+        qrSvg,
+        qrDataUrl,
+        qrImage: qrDataUrl,
+        qr_code_data_url: qrDataUrl,
+        qrCodeDataUrl: qrDataUrl,
+      },
+    };
+    console.log("[attendance] branch QR payload", {
+      branchId: branch.id,
+      publicUrl: publicAttendanceUrl,
+      hasQrSvg: Boolean(qrSvg),
+      qrDataUrlPrefix: qrDataUrl.slice(0, 32),
+      qrDataUrlLength: qrDataUrl.length,
+    });
+    return res.status(200).json(payload);
+  } catch (error) {
+    console.log("BRANCH ATTENDANCE QR ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to generate branch attendance QR",
+      error: error.message,
+    });
+  }
+};
+
+export const getPublicBranchAttendance = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const token = normalizeLookupValue(req.params.token);
+
+    const result = await db.query(
+      `
+      SELECT
+        id,
+        tenant_id,
+        name,
+        is_active,
+        latitude,
+        longitude,
+        COALESCE(attendance_radius_meters, allowed_radius_meters, 100) AS attendance_radius_meters
+      FROM branches
+      WHERE attendance_qr_token = $1
+      LIMIT 1
+      `,
+      [token]
+    );
+
+    const branch = result.rows[0];
+    if (!branch || branch.is_active === false) {
+      return res.status(404).json({
+        success: false,
+        message: "Attendance QR code is invalid or expired",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        branch_name: branch.name || "",
+        latitude: branch.latitude === null || branch.latitude === undefined ? null : Number(branch.latitude),
+        longitude: branch.longitude === null || branch.longitude === undefined ? null : Number(branch.longitude),
+        attendance_radius_meters: Number(branch.attendance_radius_meters || 100),
+      },
+    });
+  } catch (error) {
+    console.log("PUBLIC BRANCH ATTENDANCE ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load attendance QR",
+      error: error.message,
+    });
+  }
+};
+
+export const identifyPublicBranchEmployee = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const token = normalizeLookupValue(req.params.token);
+    const identifier = normalizeLookupValue(req.body?.identifier || req.body?.phone || req.body?.employee_code || req.body?.employeeCode);
+    const identifierDigits = normalizePhoneDigits(identifier);
+
+    if (!identifier) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone number or employee code is required",
+      });
+    }
+
+    const result = await db.query(
+      `
+      SELECT
+        e.id,
+        e.full_name,
+        e.employee_code,
+        e.phone,
+        e.branch_id,
+        b.id AS qr_branch_id,
+        b.tenant_id,
+        b.name AS branch_name
+      FROM branches b
+      JOIN employees e ON e.tenant_id = b.tenant_id
+      WHERE b.attendance_qr_token = $1
+        AND b.is_active = TRUE
+        AND LOWER(COALESCE(e.status, 'active')) = 'active'
+        AND (
+          LOWER(COALESCE(e.employee_code, '')) = LOWER($2)
+          OR regexp_replace(COALESCE(e.phone, ''), '\\D', '', 'g') = $3
+        )
+      ORDER BY CASE WHEN e.branch_id = b.id THEN 0 ELSE 1 END, e.id DESC
+      LIMIT 1
+      `,
+      [token, identifier, identifierDigits || "__no_phone_match__"]
+    );
+
+    const employee = result.rows[0];
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found for this attendance QR",
+      });
+    }
+
+    const attendanceDate = getAttendanceDate();
+    const { eligibility } = await resolveAttendanceEligibility(db, {
+      tenantId: employee.tenant_id,
+      employeeId: employee.id,
+      branchId: employee.qr_branch_id,
+      attendanceDate,
+      label: "public-identify",
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        employee_id: employee.id,
+        employee_name: employee.full_name || "",
+        employee_code: employee.employee_code || "",
+        branch_name: employee.branch_name || "",
+        attendance_state: eligibility,
+      },
+    });
+  } catch (error) {
+    console.log("PUBLIC BRANCH EMPLOYEE IDENTIFY ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to identify employee",
+      error: error.message,
+    });
+  }
+};
+
+const createPublicAttendanceEvent = async ({ client, req, branch, employee, actionType, latitude, longitude, gpsVerification, attendanceDate, attendanceState }) => {
+  let attendanceLog;
+  if (actionType === "check_in") {
+    if (!attendanceState?.can_check_in) {
+      const error = new Error("Employee is already checked in today");
+      if (attendanceState?.completed) {
+        error.message = "Attendance completed for today";
+      }
+      error.statusCode = 409;
+      error.attendanceState = attendanceState;
+      throw error;
+    }
+
+    const created = await client.query(
+      `
+      INSERT INTO attendance_logs (
+        tenant_id,
+        employee_id,
+        branch_id,
+        attendance_date,
+        check_in,
+        check_in_at,
+        check_in_latitude,
+        check_in_longitude,
+        check_in_gps_distance_meters,
+        check_in_gps_verification_result,
+        attendance_source,
+        status,
+        work_minutes,
+        late_minutes,
+        early_leave_minutes,
+        overtime_minutes
+      )
+      VALUES ($1,$2,$3,$4::date,NOW(),NOW(),$5,$6,$7,$8,'branch_qr','checked_in',0,0,0,0)
+      RETURNING *
+      `,
+      [branch.tenant_id, employee.id, branch.id, attendanceDate, latitude, longitude, gpsVerification.distanceMeters, gpsVerification.result]
+    );
+    attendanceLog = created.rows[0];
+  } else {
+    if (!attendanceState?.can_check_out || !attendanceState?.attendance?.id) {
+      const error = new Error(attendanceState?.completed ? "Attendance completed for today" : "No open check-in found for today");
+      error.statusCode = 409;
+      error.attendanceState = attendanceState;
+      throw error;
+    }
+
+    const metrics = calculateAttendanceMetrics({
+      attendanceDate,
+      checkIn: attendanceState.attendance.check_in,
+      checkOut: new Date(),
+      shift: {},
+    });
+
+    const updated = await client.query(
+      `
+      UPDATE attendance_logs
+      SET
+        branch_id = COALESCE(branch_id, $1),
+        check_out = NOW(),
+        check_out_at = NOW(),
+        check_out_latitude = $2,
+        check_out_longitude = $3,
+        check_out_gps_distance_meters = $4,
+        check_out_gps_verification_result = $5,
+        attendance_source = 'branch_qr',
+        status = 'checked_out',
+        work_minutes = $6,
+        updated_at = NOW()
+      WHERE id = $7
+      RETURNING *
+      `,
+      [branch.id, latitude, longitude, gpsVerification.distanceMeters, gpsVerification.result, metrics.work_minutes, attendanceState.attendance.id]
+    );
+    attendanceLog = updated.rows[0];
+  }
+
+  const eventResult = await client.query(
+    `
+    INSERT INTO attendance_events (
+      tenant_id,
+      employee_id,
+      branch_id,
+      attendance_log_id,
+      action_type,
+      user_agent,
+      ip_address,
+      latitude,
+      longitude,
+      gps_distance_meters,
+      gps_verification_result,
+      source
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'branch_qr')
+    RETURNING *
+    `,
+    [
+      branch.tenant_id,
+      employee.id,
+      branch.id,
+      attendanceLog?.id || null,
+      actionType,
+      String(req.get?.("user-agent") || ""),
+      getRequestIp(req),
+      latitude,
+      longitude,
+      gpsVerification.distanceMeters,
+      gpsVerification.result,
+    ]
+  );
+
+  return {
+    event: eventResult.rows[0],
+    attendanceLog,
+  };
+};
+
+export const recordPublicBranchAttendance = async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    await ensureAttendanceSchema();
+    await client.query("BEGIN");
+
+    const token = normalizeLookupValue(req.params.token);
+    const employeeId = Number(req.body?.employee_id || req.body?.employeeId || 0);
+    const actionType = normalizeLookupValue(req.body?.action_type || req.body?.actionType || req.body?.action).toLowerCase();
+    const latitude = parseOptionalCoordinate(req.body?.latitude);
+    const longitude = parseOptionalCoordinate(req.body?.longitude);
+
+    if (!employeeId) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "Employee is required",
+      });
+    }
+
+    if (!["check_in", "check_out"].includes(actionType)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "Action must be check_in or check_out",
+      });
+    }
+
+    const result = await client.query(
+      `
+      SELECT
+        b.id,
+        b.tenant_id,
+        b.name,
+        b.is_active,
+        b.latitude,
+        b.longitude,
+        COALESCE(b.attendance_radius_meters, b.allowed_radius_meters, 100) AS attendance_radius_meters,
+        e.id AS employee_id,
+        e.full_name,
+        e.employee_code,
+        e.status AS employee_status
+      FROM branches b
+      JOIN employees e ON e.tenant_id = b.tenant_id
+      WHERE b.attendance_qr_token = $1
+        AND e.id = $2
+      LIMIT 1
+      `,
+      [token, employeeId]
+    );
+
+    const row = result.rows[0];
+    if (!row || row.is_active === false) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        success: false,
+        message: "Attendance QR code is invalid or expired",
+      });
+    }
+
+    if (String(row.employee_status || "active").toLowerCase() !== "active") {
+      await client.query("ROLLBACK");
+      return res.status(403).json({
+        success: false,
+        message: "Employee is not active",
+      });
+    }
+
+    const attendanceDate = getAttendanceDate();
+    await lockEmployeeAttendanceDay(client, row.tenant_id, row.employee_id);
+    const { eligibility } = await resolveAttendanceEligibility(client, {
+      tenantId: row.tenant_id,
+      employeeId: row.employee_id,
+      branchId: row.id,
+      attendanceDate,
+      lock: true,
+      label: "public-action-before",
+    });
+
+    const gpsVerification = buildGpsVerification({
+      latitude,
+      longitude,
+      branch: row,
+    });
+    enforceGpsVerification(gpsVerification);
+
+    const { event, attendanceLog } = await createPublicAttendanceEvent({
+      client,
+      req,
+      branch: {
+        id: row.id,
+        tenant_id: row.tenant_id,
+        name: row.name,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        attendance_radius_meters: row.attendance_radius_meters,
+      },
+      employee: {
+        id: row.employee_id,
+        full_name: row.full_name,
+        employee_code: row.employee_code,
+      },
+      actionType,
+      latitude,
+      longitude,
+      gpsVerification,
+      attendanceDate,
+      attendanceState: eligibility,
+    });
+
+    const { eligibility: nextEligibility } = await resolveAttendanceEligibility(client, {
+      tenantId: row.tenant_id,
+      employeeId: row.employee_id,
+      branchId: row.id,
+      attendanceDate,
+      label: "public-action-after",
+    });
+
+    await client.query("COMMIT");
+
+    let staffTasks = null;
+    if (actionType === "check_in") {
+      try {
+        staffTasks = await handleBranchQrCheckInStaffTasks({
+          tenantId: row.tenant_id,
+          branchId: row.id,
+          employeeId: row.employee_id,
+          actionType,
+          attendanceDate: attendanceLog?.attendance_date || new Date(),
+        });
+      } catch (taskError) {
+        console.warn("[attendance] branch QR staff task integration skipped", taskError.message);
+        staffTasks = {
+          skipped: true,
+          error: taskError.message,
+        };
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      action: actionType,
+      message: actionType === "check_in" ? "Check in recorded" : "Check out recorded",
+      staff_tasks: staffTasks,
+      data: {
+        event_id: event.id,
+        action_type: event.action_type,
+        timestamp: event.action_timestamp,
+        employee_id: row.employee_id,
+        employee_name: row.full_name || "",
+        employee_code: row.employee_code || "",
+        branch_name: row.name || "",
+        attendance_state: nextEligibility,
+        gps: {
+          verification_result: gpsVerification.result,
+          verification_mode: gpsVerification.mode,
+          distance_meters: gpsVerification.distanceMeters === null ? null : Math.round(gpsVerification.distanceMeters),
+          allowed_radius_meters: gpsVerification.allowedRadiusMeters,
+          within_range: gpsVerification.withinRange,
+        },
+        attendance: normalizeAttendance({
+          ...attendanceLog,
+          employee_name: row.full_name,
+          employee_code: row.employee_code,
+          branch_name: row.name,
+        }),
+      },
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.log("PUBLIC BRANCH ATTENDANCE RECORD ERROR:", error);
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "Failed to record attendance",
+      error: error.message,
+      attendance_state: error.attendanceState,
+      gps: error.gps
+        ? {
+            verification_result: error.gps.result,
+            verification_mode: error.gps.mode,
+            distance_meters: error.gps.distanceMeters === null ? null : Math.round(error.gps.distanceMeters),
+            allowed_radius_meters: error.gps.allowedRadiusMeters,
+            within_range: error.gps.withinRange,
+          }
+        : undefined,
+    });
+  } finally {
+    client.release();
+  }
+};
+
 export const scanQrAttendance = async (req, res) => {
   const client = await db.connect();
 
@@ -1950,8 +2725,8 @@ export const scanQrAttendance = async (req, res) => {
     }
 
     const qrToken = String(req.body?.qrToken || req.body?.qr_token || "").trim();
-    const latitude = Number(req.body?.latitude);
-    const longitude = Number(req.body?.longitude);
+    const latitude = parseOptionalCoordinate(req.body?.latitude);
+    const longitude = parseOptionalCoordinate(req.body?.longitude);
 
     if (!qrToken) {
       await client.query("ROLLBACK");
@@ -1961,7 +2736,7 @@ export const scanQrAttendance = async (req, res) => {
       });
     }
 
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    if (latitude === null || longitude === null) {
       await client.query("ROLLBACK");
       return res.status(400).json({
         success: false,
@@ -1977,6 +2752,7 @@ export const scanQrAttendance = async (req, res) => {
         name,
         latitude,
         longitude,
+        COALESCE(attendance_radius_meters, allowed_radius_meters, 100) AS attendance_radius_meters,
         allowed_radius_meters,
         qr_token,
         status
@@ -2005,8 +2781,8 @@ export const scanQrAttendance = async (req, res) => {
       });
     }
 
-    const distanceMeters = haversineDistanceMeters(latitude, longitude, branch.latitude, branch.longitude);
-    if (!Number.isFinite(distanceMeters)) {
+    const gpsVerification = buildGpsVerification({ latitude, longitude, branch });
+    if (gpsVerification.result === "invalid") {
       await client.query("ROLLBACK");
       return res.status(400).json({
         success: false,
@@ -2014,27 +2790,39 @@ export const scanQrAttendance = async (req, res) => {
       });
     }
 
-    if (distanceMeters > Number(branch.allowed_radius_meters || 100)) {
+    if (GPS_VERIFICATION_MODE === "strict" && gpsVerification.result === "outside_range") {
       await client.query("ROLLBACK");
       return res.status(403).json({
         success: false,
         message: "You are outside the allowed branch radius",
-        distanceMeters: Math.round(distanceMeters),
-        allowedRadiusMeters: Number(branch.allowed_radius_meters || 100),
+        distanceMeters: Math.round(gpsVerification.distanceMeters),
+        allowedRadiusMeters: gpsVerification.allowedRadiusMeters,
       });
     }
 
-    const todayLog = await getTodayAttendanceLog(employee.id, tenantId);
+    const effectiveTenantId = branch.tenant_id || employee.tenant_id || tenantId;
+    const attendanceDate = getAttendanceDate();
+    await lockEmployeeAttendanceDay(client, effectiveTenantId, employee.id);
+    const { eligibility } = await resolveAttendanceEligibility(client, {
+      tenantId: effectiveTenantId,
+      employeeId: employee.id,
+      branchId: branch.id,
+      attendanceDate,
+      lock: true,
+      label: "qr-scan-before",
+    });
     const nowPayload = {
-      tenant_id: tenantId,
+      tenant_id: effectiveTenantId,
       employee_id: employee.id,
       branch_id: branch.id,
-      attendance_date: new Date().toISOString().slice(0, 10),
+      attendance_date: attendanceDate,
       attendance_source: "qr",
       check_in: new Date(),
       check_in_at: new Date(),
       check_in_latitude: latitude,
       check_in_longitude: longitude,
+      check_in_gps_distance_meters: gpsVerification.distanceMeters,
+      check_in_gps_verification_result: gpsVerification.result,
       check_out: null,
       check_out_at: null,
       check_out_latitude: null,
@@ -2042,7 +2830,7 @@ export const scanQrAttendance = async (req, res) => {
       status: "checked_in",
     };
 
-    if (!todayLog) {
+    if (eligibility.can_check_in) {
       const created = await client.query(
         `
         INSERT INTO attendance_logs (
@@ -2056,6 +2844,8 @@ export const scanQrAttendance = async (req, res) => {
           check_out_at,
           check_in_latitude,
           check_in_longitude,
+          check_in_gps_distance_meters,
+          check_in_gps_verification_result,
           check_out_latitude,
           check_out_longitude,
           attendance_source,
@@ -2066,7 +2856,7 @@ export const scanQrAttendance = async (req, res) => {
           overtime_minutes
         )
         VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,0,0,0,0
+          $1,$2,$3,$4::date,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0,0,0,0
         )
         RETURNING *
         `,
@@ -2081,6 +2871,8 @@ export const scanQrAttendance = async (req, res) => {
           nowPayload.check_out_at,
           nowPayload.check_in_latitude,
           nowPayload.check_in_longitude,
+          nowPayload.check_in_gps_distance_meters,
+          nowPayload.check_in_gps_verification_result,
           nowPayload.check_out_latitude,
           nowPayload.check_out_longitude,
           nowPayload.attendance_source,
@@ -2093,8 +2885,8 @@ export const scanQrAttendance = async (req, res) => {
         success: true,
         action: "check_in",
         message: "Check in recorded",
-        distanceMeters: Math.round(distanceMeters),
-        allowedRadiusMeters: Number(branch.allowed_radius_meters || 100),
+        distanceMeters: Math.round(gpsVerification.distanceMeters),
+        allowedRadiusMeters: gpsVerification.allowedRadiusMeters,
         data: normalizeAttendance({
           ...created.rows[0],
           full_name: employee.full_name,
@@ -2106,13 +2898,25 @@ export const scanQrAttendance = async (req, res) => {
       });
     }
 
-    if (todayLog.check_out || todayLog.check_out_at || todayLog.status === "checked_out") {
+    if (eligibility.completed) {
       await client.query("ROLLBACK");
       return res.status(409).json({
         success: false,
         message: "Attendance already completed for today. Additional scans are rejected after checkout.",
+        attendance_state: eligibility,
       });
     }
+
+    if (!eligibility.can_check_out || !eligibility.attendance?.id) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        success: false,
+        message: "No open check-in found for today",
+        attendance_state: eligibility,
+      });
+    }
+
+    const todayLog = eligibility.attendance;
 
     const metrics = calculateAttendanceMetrics({
       attendanceDate: todayLog.attendance_date,
@@ -2129,13 +2933,15 @@ export const scanQrAttendance = async (req, res) => {
         check_out_at = NOW(),
         check_out_latitude = $1,
         check_out_longitude = $2,
+        check_out_gps_distance_meters = $3,
+        check_out_gps_verification_result = $4,
         status = 'checked_out',
-        work_minutes = $3,
+        work_minutes = $5,
         updated_at = NOW()
-      WHERE id = $4
+      WHERE id = $6
       RETURNING *
       `,
-      [latitude, longitude, metrics.work_minutes, todayLog.id]
+      [latitude, longitude, gpsVerification.distanceMeters, gpsVerification.result, metrics.work_minutes, todayLog.id]
     );
 
     await client.query("COMMIT");
@@ -2144,8 +2950,8 @@ export const scanQrAttendance = async (req, res) => {
       success: true,
       action: "check_out",
       message: "Check out recorded",
-      distanceMeters: Math.round(distanceMeters),
-      allowedRadiusMeters: Number(branch.allowed_radius_meters || 100),
+      distanceMeters: Math.round(gpsVerification.distanceMeters),
+      allowedRadiusMeters: gpsVerification.allowedRadiusMeters,
       data: normalizeAttendance({
         ...updated.rows[0],
         full_name: employee.full_name,

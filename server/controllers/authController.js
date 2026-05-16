@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import db from "../database/db.js";
+import { sendLoginTaskDigestIfNeeded } from "../services/staffTaskEmailNotificationService.js";
+import { ensureStaffTasksSchema, resolveEmployeeForUser } from "../services/staffTasksService.js";
 import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
 
 const generateToken = (user) =>
@@ -207,6 +209,18 @@ export const login = async (req, res) => {
       tenant_id: user.tenant_id,
       is_super_admin: Boolean(user.is_super_admin),
     });
+
+    void (async () => {
+      try {
+        await ensureStaffTasksSchema();
+        const employee = await resolveEmployeeForUser(user, user.tenant_id);
+        if (employee?.id) {
+          await sendLoginTaskDigestIfNeeded(user.id, employee.id, user.tenant_id);
+        }
+      } catch (digestError) {
+        console.warn("[auth] staff task login digest skipped", digestError.message);
+      }
+    })();
 
     return res.status(200).json({
       success: true,

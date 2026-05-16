@@ -267,8 +267,10 @@ CREATE TABLE IF NOT EXISTS branches (
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   latitude NUMERIC,
   longitude NUMERIC,
+  attendance_radius_meters INTEGER NOT NULL DEFAULT 100,
   allowed_radius_meters INTEGER NOT NULL DEFAULT 100,
   qr_token TEXT UNIQUE DEFAULT gen_random_uuid()::text,
+  attendance_qr_token TEXT UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -856,8 +858,12 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   check_out_at TIMESTAMP NULL,
   check_in_latitude NUMERIC NULL,
   check_in_longitude NUMERIC NULL,
+  check_in_gps_distance_meters NUMERIC NULL,
+  check_in_gps_verification_result VARCHAR(30),
   check_out_latitude NUMERIC NULL,
   check_out_longitude NUMERIC NULL,
+  check_out_gps_distance_meters NUMERIC NULL,
+  check_out_gps_verification_result VARCHAR(30),
   attendance_source VARCHAR(50) NOT NULL DEFAULT 'manual',
   status VARCHAR(30) NOT NULL DEFAULT 'checked_in',
   work_minutes INTEGER NOT NULL DEFAULT 0,
@@ -868,6 +874,24 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (tenant_id, employee_id, attendance_date)
+);
+
+CREATE TABLE IF NOT EXISTS attendance_events (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+  attendance_log_id BIGINT NULL REFERENCES attendance_logs(id) ON DELETE SET NULL,
+  action_type VARCHAR(30) NOT NULL,
+  action_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  user_agent TEXT,
+  ip_address TEXT,
+  latitude NUMERIC NULL,
+  longitude NUMERIC NULL,
+  gps_distance_meters NUMERIC NULL,
+  gps_verification_result VARCHAR(30),
+  source VARCHAR(50) NOT NULL DEFAULT 'branch_qr',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_logs_employee_date_unique
@@ -893,6 +917,9 @@ CREATE INDEX IF NOT EXISTS idx_employee_shifts_tenant_employee ON employee_shift
 CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_employee_date ON attendance_logs (tenant_id, employee_id, attendance_date DESC);
 CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_branch_date ON attendance_logs (tenant_id, branch_id, attendance_date DESC);
 CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_shift_date ON attendance_logs (tenant_id, shift_id, attendance_date DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_attendance_qr_token ON branches (attendance_qr_token);
+CREATE INDEX IF NOT EXISTS idx_attendance_events_duplicate_window ON attendance_events (tenant_id, employee_id, branch_id, action_type, action_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_attendance_events_branch_timestamp ON attendance_events (tenant_id, branch_id, action_timestamp DESC);
 
 CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users (tenant_id);
 CREATE INDEX IF NOT EXISTS idx_roles_tenant_id ON roles (tenant_id);

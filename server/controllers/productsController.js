@@ -10,6 +10,7 @@ import {
 import { normalizeClassificationInput } from "../services/productClassificationsService.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { slugifyEdition } from "../utils/mirrorProduct.js";
+import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 
 let productVariantSchemaReadyPromise = null;
 let productSchemaReadyPromise = null;
@@ -503,6 +504,7 @@ export const ensureProductVariantSchema = async () => {
       END LOOP;
     END $$;
   `);
+  await ensureSingleBranchMode(db);
 };
 
 const normalizeProductRow = (row = {}) => ({

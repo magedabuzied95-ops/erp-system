@@ -1,6 +1,8 @@
 import db from "../database/db.js";
+import { randomBytes } from "node:crypto";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureBranchSchema } from "../utils/branchSchema.js";
+import { SINGLE_BRANCH_CODE, SINGLE_BRANCH_NAME, ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 
 const normalizeBranch = (row = {}) => ({
   id: row.id,
@@ -11,8 +13,24 @@ const normalizeBranch = (row = {}) => ({
   manager: row.manager || "",
   notes: row.notes || "",
   default_warehouse_id: row.default_warehouse_id || null,
+  latitude: row.latitude === null || row.latitude === undefined ? null : Number(row.latitude),
+  longitude: row.longitude === null || row.longitude === undefined ? null : Number(row.longitude),
+  attendance_radius_meters: Number(row.attendance_radius_meters || row.allowed_radius_meters || 100),
+  allowed_radius_meters: Number(row.allowed_radius_meters || row.attendance_radius_meters || 100),
   is_active: row.is_active !== false,
 });
+
+const parseOptionalCoordinate = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const parseAttendanceRadius = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return 100;
+  return Math.round(number);
+};
 
 const normalizeBranchInput = (body = {}) => ({
   name: String(body.name || "").trim(),
@@ -22,8 +40,13 @@ const normalizeBranchInput = (body = {}) => ({
   manager: String(body.manager || "").trim(),
   notes: String(body.notes || "").trim(),
   default_warehouse_id: body.default_warehouse_id || body.defaultWarehouseId || null,
+  latitude: parseOptionalCoordinate(body.latitude),
+  longitude: parseOptionalCoordinate(body.longitude),
+  attendance_radius_meters: parseAttendanceRadius(body.attendance_radius_meters ?? body.attendanceRadiusMeters ?? body.allowed_radius_meters),
   is_active: body.is_active !== false,
 });
+
+const generateAttendanceQrToken = () => randomBytes(32).toString("hex");
 
 const findDuplicateCode = async ({ tenantId, code, excludeId = null }) => {
   if (!code) return null;
@@ -46,6 +69,7 @@ const findDuplicateCode = async ({ tenantId, code, excludeId = null }) => {
 export const getBranches = async (req, res) => {
   try {
     await ensureBranchSchema();
+    await ensureSingleBranchMode();
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const status = String(req.query?.status || "").toLowerCase();
 
@@ -74,6 +98,10 @@ export const getBranches = async (req, res) => {
         manager,
         notes,
         default_warehouse_id,
+        latitude,
+        longitude,
+        attendance_radius_meters,
+        allowed_radius_meters,
         is_active
       FROM branches
       ${whereClause}
@@ -99,6 +127,7 @@ export const getBranches = async (req, res) => {
 export const createBranch = async (req, res) => {
   try {
     await ensureBranchSchema();
+    const singleBranch = await ensureSingleBranchMode();
     const tenantId = getTenantId(req, req.user?.tenant_id) || 1;
     const branch = normalizeBranchInput(req.body);
 
@@ -106,32 +135,25 @@ export const createBranch = async (req, res) => {
       return res.status(400).json({ success: false, message: "Tenant is required" });
     }
 
-    if (!branch.name) {
-      return res.status(400).json({ success: false, message: "Branch name is required" });
-    }
-
-    const duplicate = await findDuplicateCode({ tenantId, code: branch.code });
-    if (duplicate) {
-      return res.status(409).json({
-        success: false,
-        message: "Branch code already exists",
-      });
-    }
-
     const result = await db.query(
       `
-      INSERT INTO branches (
-        tenant_id,
-        name,
-        code,
-        phone,
-        address,
-        manager,
-        notes,
-        default_warehouse_id,
-        is_active
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      UPDATE branches
+      SET
+        tenant_id = $1,
+        name = $2,
+        code = COALESCE(NULLIF($3, ''), code, $4),
+        phone = COALESCE($5, phone, ''),
+        address = COALESCE($6, address, ''),
+        manager = COALESCE($7, manager, ''),
+        notes = COALESCE($8, notes, ''),
+        default_warehouse_id = COALESCE($9, default_warehouse_id),
+        latitude = COALESCE($10, latitude),
+        longitude = COALESCE($11, longitude),
+        attendance_radius_meters = COALESCE($12, attendance_radius_meters, 100),
+        allowed_radius_meters = COALESCE($12, allowed_radius_meters, 100),
+        is_active = TRUE,
+        updated_at = NOW()
+      WHERE id = $13
       RETURNING
         id,
         name,
@@ -141,22 +163,30 @@ export const createBranch = async (req, res) => {
         manager,
         notes,
         default_warehouse_id,
+        latitude,
+        longitude,
+        attendance_radius_meters,
+        allowed_radius_meters,
         is_active
       `,
       [
         tenantId,
-        branch.name,
-        branch.code,
+        SINGLE_BRANCH_NAME,
+        branch.code || SINGLE_BRANCH_CODE,
+        SINGLE_BRANCH_CODE,
         branch.phone,
         branch.address,
         branch.manager,
         branch.notes,
         branch.default_warehouse_id,
-        branch.is_active,
+        branch.latitude,
+        branch.longitude,
+        branch.attendance_radius_meters,
+        singleBranch.branchId,
       ]
     );
 
-    return res.status(201).json({
+    return res.status(200).json({
       success: true,
       data: normalizeBranch(result.rows[0]),
       branch: normalizeBranch(result.rows[0]),
@@ -173,12 +203,9 @@ export const createBranch = async (req, res) => {
 export const updateBranch = async (req, res) => {
   try {
     await ensureBranchSchema();
+    await ensureSingleBranchMode();
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const branch = normalizeBranchInput(req.body);
-
-    if (!branch.name) {
-      return res.status(400).json({ success: false, message: "Branch name is required" });
-    }
 
     const existing = await db.query(
       `
@@ -212,16 +239,20 @@ export const updateBranch = async (req, res) => {
       UPDATE branches
       SET
         name = $1,
-        code = $2,
+        code = COALESCE(NULLIF($2, ''), code, $14),
         phone = $3,
         address = $4,
         manager = $5,
         notes = $6,
         default_warehouse_id = $7,
-        is_active = $8,
+        latitude = $8,
+        longitude = $9,
+        attendance_radius_meters = $10,
+        allowed_radius_meters = $10,
+        is_active = TRUE,
         updated_at = NOW()
-      WHERE id = $9
-        AND ($10::bigint IS NULL OR tenant_id = $10::bigint)
+      WHERE id = $12
+        AND ($13::bigint IS NULL OR tenant_id = $13::bigint)
       RETURNING
         id,
         name,
@@ -231,19 +262,27 @@ export const updateBranch = async (req, res) => {
         manager,
         notes,
         default_warehouse_id,
+        latitude,
+        longitude,
+        attendance_radius_meters,
+        allowed_radius_meters,
         is_active
       `,
       [
-        branch.name,
+        SINGLE_BRANCH_NAME,
         branch.code,
         branch.phone,
         branch.address,
         branch.manager,
         branch.notes,
         branch.default_warehouse_id,
-        branch.is_active,
+        branch.latitude,
+        branch.longitude,
+        branch.attendance_radius_meters,
+        true,
         req.params.id,
         tenantId,
+        SINGLE_BRANCH_CODE,
       ]
     );
 
@@ -264,7 +303,40 @@ export const updateBranch = async (req, res) => {
 export const deleteBranch = async (req, res) => {
   try {
     await ensureBranchSchema();
+    const singleBranch = await ensureSingleBranchMode();
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    if (String(req.params.id) === String(singleBranch.branchId)) {
+      const result = await db.query(
+        `
+        SELECT
+          id,
+          name,
+          code,
+          phone,
+          address,
+          manager,
+          notes,
+          default_warehouse_id,
+          latitude,
+          longitude,
+          attendance_radius_meters,
+          allowed_radius_meters,
+          is_active
+        FROM branches
+        WHERE id = $1
+        `,
+        [singleBranch.branchId]
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: normalizeBranch(result.rows[0]),
+        branch: normalizeBranch(result.rows[0]),
+        archived: false,
+        message: "Single system branch cannot be deleted",
+      });
+    }
+
     const employeeCount = await db.query(
       `
       SELECT COUNT(*)::int AS linked_employees
@@ -290,6 +362,10 @@ export const deleteBranch = async (req, res) => {
         manager,
         notes,
         default_warehouse_id,
+        latitude,
+        longitude,
+        attendance_radius_meters,
+        allowed_radius_meters,
         is_active
       `,
       params
@@ -311,6 +387,55 @@ export const deleteBranch = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to delete branch",
+    });
+  }
+};
+
+export const regenerateAttendanceQrToken = async (req, res) => {
+  try {
+    await ensureBranchSchema();
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const token = generateAttendanceQrToken();
+
+    const result = await db.query(
+      `
+      UPDATE branches
+      SET attendance_qr_token = $1, updated_at = NOW()
+      WHERE id = $2
+        AND ($3::bigint IS NULL OR tenant_id = $3::bigint)
+      RETURNING
+        id,
+        name,
+        code,
+        phone,
+        address,
+        manager,
+        notes,
+        default_warehouse_id,
+        latitude,
+        longitude,
+        attendance_radius_meters,
+        allowed_radius_meters,
+        is_active
+      `,
+      [token, req.params.id, tenantId]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ success: false, message: "Branch not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: normalizeBranch(result.rows[0]),
+      branch: normalizeBranch(result.rows[0]),
+      message: "Attendance QR token regenerated",
+    });
+  } catch (error) {
+    console.log("REGENERATE BRANCH ATTENDANCE QR ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to regenerate attendance QR token",
     });
   }
 };

@@ -8,8 +8,12 @@ export const socket =
   io(
     SOCKET_URL,
     {
-      autoConnect: true,
-      reconnection: false,
+      autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 8000,
+      randomizationFactor: 0.5,
       transports: ["websocket", "polling"],
     }
   );

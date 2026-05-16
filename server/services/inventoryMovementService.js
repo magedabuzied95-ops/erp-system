@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 
 let schemaReadyPromise = null;
 
@@ -126,6 +127,7 @@ const runSchema = async (client) => {
   await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_product_created ON inventory_movements (tenant_id, product_id, created_at DESC, id DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_variant_created ON inventory_movements (tenant_id, variant_id, created_at DESC, id DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_type_created ON inventory_movements (tenant_id, movement_type, created_at DESC, id DESC)`);
+  await ensureSingleBranchMode(client);
 };
 
 export const ensureInventoryMovementSchema = async () => {

@@ -15,12 +15,20 @@ import {
   getAttendanceKioskSnapshot,
   getAttendanceToday,
   getAttendanceReports,
+  getBranchAttendanceQr,
   scanQrAttendance,
+  getPublicBranchAttendance,
+  identifyPublicBranchEmployee,
+  recordPublicBranchAttendance,
   updateEmployee,
   updateEmployeeShift,
 } from "../controllers/attendanceController.js";
 
 const router = express.Router();
+
+router.get("/public/branch/:token", getPublicBranchAttendance);
+router.post("/public/branch/:token/identify", identifyPublicBranchEmployee);
+router.post("/public/branch/:token/actions", recordPublicBranchAttendance);
 
 router.get("/employees", protect, permit("attendance", "view"), getEmployees);
 router.post("/employees", protect, permit("attendance", "create"), createEmployee);
@@ -34,6 +42,7 @@ router.get("/reports/employee/:id", protect, permit("attendance", "view"), getEm
 router.get("/reports/branch", protect, permit("attendance", "view"), getBranchReport);
 router.get("/today", protect, permit("attendance", "view"), getAttendanceToday);
 router.get("/reports", protect, permit("attendance", "view"), getAttendanceReports);
+router.get("/branch-qr/:branchId", protect, permit("attendance", "view"), getBranchAttendanceQr);
 
 router.post("/check-in", protect, permit("attendance", "create"), checkIn);
 router.post("/check-out", protect, permit("attendance", "create"), checkOut);

@@ -2,6 +2,7 @@ import db from "../database/db.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureInventoryMovementSchema, recordInventoryMovement } from "../services/inventoryMovementService.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { SINGLE_BRANCH_NAME, ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 
 const ensureWarehouseSchema = async () => {
   await db.query("ALTER TABLE IF EXISTS warehouses ADD COLUMN IF NOT EXISTS tenant_id BIGINT");
@@ -10,6 +11,7 @@ const ensureWarehouseSchema = async () => {
   await db.query("ALTER TABLE IF EXISTS warehouses ADD COLUMN IF NOT EXISTS location TEXT");
   await db.query("ALTER TABLE IF EXISTS warehouses ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active'");
   await db.query("ALTER TABLE IF EXISTS warehouses ADD COLUMN IF NOT EXISTS qr_token TEXT");
+  await ensureSingleBranchMode(db);
 };
 
 export const getWarehouses = async (req, res) => {
@@ -30,10 +32,10 @@ export const getWarehouses = async (req, res) => {
       await db.query(
         `
         INSERT INTO warehouses (tenant_id, name, code, branch_name, location, qr_token, status)
-        VALUES ($1, 'Main Warehouse', 'MAIN', 'Main', '', $2, 'active')
+        VALUES ($1, 'Main Warehouse', 'MAIN', $2, '', $3, 'active')
         ON CONFLICT DO NOTHING
         `,
-        [tenantId, `main-warehouse-${tenantId}-${Date.now()}`]
+        [tenantId, SINGLE_BRANCH_NAME, `main-warehouse-${tenantId}-${Date.now()}`]
       );
       result = await db.query(
         `
@@ -81,18 +83,20 @@ export const createWarehouse = async (req, res) => {
       INSERT INTO warehouses (
         tenant_id,
         name,
+        branch_name,
         location,
         latitude,
         longitude,
         allowed_radius_meters,
         qr_token
       )
-      VALUES ($1,$2,$3,$4,$5,$6,COALESCE($7, gen_random_uuid()::text))
+      VALUES ($1,$2,$3,$4,$5,$6,$7,COALESCE($8, gen_random_uuid()::text))
       RETURNING *
       `,
       [
         tenantId,
         name,
+        SINGLE_BRANCH_NAME,
         location || "",
         latitude,
         longitude,

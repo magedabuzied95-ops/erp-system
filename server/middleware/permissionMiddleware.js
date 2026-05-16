@@ -13,6 +13,10 @@ const CORE_PERMISSIONS = [
   ["branches", "view"],
   ["notifications", "view"],
   ["notifications", "manage"],
+  ["staff_tasks", "view"],
+  ["staff_tasks", "create"],
+  ["staff_tasks", "update"],
+  ["staff_tasks", "manage"],
   ["reports", "view"],
   ["reports", "export"],
 ];

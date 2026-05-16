@@ -1,8 +1,10 @@
 import db from "../database/db.js";
+import { ensureSingleBranchMode } from "./singleBranchMode.js";
 
 let schemaReadyPromise = null;
 
 const statements = [
+  `CREATE EXTENSION IF NOT EXISTS pgcrypto;`,
   `
   CREATE TABLE IF NOT EXISTS tenants (
     id BIGSERIAL PRIMARY KEY,
@@ -32,12 +34,35 @@ const statements = [
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     latitude NUMERIC,
     longitude NUMERIC,
+    attendance_radius_meters INTEGER NOT NULL DEFAULT 100,
     allowed_radius_meters INTEGER NOT NULL DEFAULT 100,
     qr_token TEXT UNIQUE DEFAULT gen_random_uuid()::text,
+    attendance_qr_token TEXT UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
+  `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS attendance_qr_token TEXT;`,
+  `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS latitude NUMERIC;`,
+  `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS longitude NUMERIC;`,
+  `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS attendance_radius_meters INTEGER NOT NULL DEFAULT 100;`,
+  `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS allowed_radius_meters INTEGER NOT NULL DEFAULT 100;`,
+  `ALTER TABLE IF EXISTS branches ALTER COLUMN attendance_radius_meters SET DEFAULT 100;`,
+  `ALTER TABLE IF EXISTS branches ALTER COLUMN allowed_radius_meters SET DEFAULT 100;`,
+  `
+  UPDATE branches
+  SET attendance_radius_meters = COALESCE(attendance_radius_meters, allowed_radius_meters, 100),
+      allowed_radius_meters = COALESCE(allowed_radius_meters, attendance_radius_meters, 100)
+  WHERE attendance_radius_meters IS NULL
+     OR allowed_radius_meters IS NULL;
+  `,
+  `ALTER TABLE IF EXISTS branches ALTER COLUMN attendance_qr_token SET DEFAULT encode(gen_random_bytes(32), 'hex');`,
+  `
+  UPDATE branches
+  SET attendance_qr_token = COALESCE(attendance_qr_token, encode(gen_random_bytes(32), 'hex'))
+  WHERE attendance_qr_token IS NULL;
+  `,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_attendance_qr_token ON branches (attendance_qr_token);`,
   `
   CREATE TABLE IF NOT EXISTS employees (
     id BIGSERIAL PRIMARY KEY,
@@ -140,8 +165,12 @@ const statements = [
     check_out_at TIMESTAMP NULL,
     check_in_latitude NUMERIC NULL,
     check_in_longitude NUMERIC NULL,
+    check_in_gps_distance_meters NUMERIC NULL,
+    check_in_gps_verification_result VARCHAR(30),
     check_out_latitude NUMERIC NULL,
     check_out_longitude NUMERIC NULL,
+    check_out_gps_distance_meters NUMERIC NULL,
+    check_out_gps_verification_result VARCHAR(30),
     attendance_source VARCHAR(50) NOT NULL DEFAULT 'manual',
     status VARCHAR(30) NOT NULL DEFAULT 'checked_in',
     work_minutes INTEGER NOT NULL DEFAULT 0,
@@ -152,6 +181,25 @@ const statements = [
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, employee_id, attendance_date)
+  );
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS attendance_events (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    attendance_log_id BIGINT NULL REFERENCES attendance_logs(id) ON DELETE SET NULL,
+    action_type VARCHAR(30) NOT NULL,
+    action_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_agent TEXT,
+    ip_address TEXT,
+    latitude NUMERIC NULL,
+    longitude NUMERIC NULL,
+    gps_distance_meters NUMERIC NULL,
+    gps_verification_result VARCHAR(30),
+    source VARCHAR(50) NOT NULL DEFAULT 'branch_qr',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -172,6 +220,14 @@ const statements = [
   `,
   `
   ALTER TABLE IF EXISTS attendance_logs
+    ADD COLUMN IF NOT EXISTS check_in_gps_distance_meters NUMERIC NULL;
+  `,
+  `
+  ALTER TABLE IF EXISTS attendance_logs
+    ADD COLUMN IF NOT EXISTS check_in_gps_verification_result VARCHAR(30);
+  `,
+  `
+  ALTER TABLE IF EXISTS attendance_logs
     ADD COLUMN IF NOT EXISTS check_out_latitude NUMERIC NULL;
   `,
   `
@@ -180,7 +236,23 @@ const statements = [
   `,
   `
   ALTER TABLE IF EXISTS attendance_logs
+    ADD COLUMN IF NOT EXISTS check_out_gps_distance_meters NUMERIC NULL;
+  `,
+  `
+  ALTER TABLE IF EXISTS attendance_logs
+    ADD COLUMN IF NOT EXISTS check_out_gps_verification_result VARCHAR(30);
+  `,
+  `
+  ALTER TABLE IF EXISTS attendance_logs
     ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'checked_in';
+  `,
+  `
+  ALTER TABLE IF EXISTS attendance_events
+    ADD COLUMN IF NOT EXISTS gps_distance_meters NUMERIC NULL;
+  `,
+  `
+  ALTER TABLE IF EXISTS attendance_events
+    ADD COLUMN IF NOT EXISTS gps_verification_result VARCHAR(30);
   `,
   `
   ALTER TABLE IF EXISTS attendance_logs
@@ -248,6 +320,8 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_employee_date ON attendance_logs (tenant_id, employee_id, attendance_date DESC);`,
   `CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_branch_date ON attendance_logs (tenant_id, branch_id, attendance_date DESC);`,
   `CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_shift_date ON attendance_logs (tenant_id, shift_id, attendance_date DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_attendance_events_duplicate_window ON attendance_events (tenant_id, employee_id, branch_id, action_type, action_timestamp DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_attendance_events_branch_timestamp ON attendance_events (tenant_id, branch_id, action_timestamp DESC);`,
   `CREATE INDEX IF NOT EXISTS idx_shift_opening_assignments_tenant_employee ON shift_opening_assignments (tenant_id, employee_id, assigned_at DESC);`,
   `CREATE INDEX IF NOT EXISTS idx_shift_opening_assignments_tenant_assigned ON shift_opening_assignments (tenant_id, assigned_at DESC);`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_shift_opening_assignments_attendance_unique ON shift_opening_assignments (attendance_log_id) WHERE attendance_log_id IS NOT NULL;`,
@@ -276,6 +350,7 @@ export const ensureAttendanceSchema = async () => {
         for (const statement of statements) {
           await client.query(statement);
         }
+        await ensureSingleBranchMode(client);
         await client.query("COMMIT");
       } catch (error) {
         await client.query("ROLLBACK");

@@ -119,6 +119,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
   const [reportError, setReportError] = useState("");
   const hasShownReportError = useRef(false);
   const activeBranches = branches.filter((branch) => isBranchActive(branch.is_active));
+  const singleBranchId = activeBranches.length === 1 ? String(normalizeBranch(activeBranches[0]).id || "") : "";
   console.log("[employees] dropdown render branches", activeBranches);
 
   const branchSelectOptions = branchesLoading
@@ -203,6 +204,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
                 : []
           : [];
       const activeBranches = nextBranches.filter((branch) => isBranchActive(branch.is_active));
+      const defaultBranchId = activeBranches.length === 1 ? String(normalizeBranch(activeBranches[0]).id || "") : "";
       console.log("[employees] raw branches", nextBranches);
       console.log("[employees] filtered active branches", activeBranches);
       console.log("[employees] branches loaded independently", activeBranches);
@@ -225,6 +227,9 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
 
       setEmployees(nextEmployees);
       setBranches(nextBranches);
+      if (defaultBranchId) {
+        setFilters((prev) => (prev.branchId ? prev : { ...prev, branchId: defaultBranchId }));
+      }
       setBranchesLoading(false);
       setDailyReport(nextDailyReport);
       if (dailyResult.status === "rejected") {
@@ -245,10 +250,12 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
             ? prev
             : {
                 ...prev,
-                branch_id: selectedMatch.branch_id || "",
+                branch_id: selectedMatch.branch_id || defaultBranchId || "",
                 branch_name: selectedMatch.branch_name || "",
               }
         );
+      } else if (defaultBranchId) {
+        setEmployeeForm((prev) => (prev.branch_id ? prev : { ...prev, branch_id: defaultBranchId }));
       }
     } catch (err) {
       console.log(err);
@@ -771,13 +778,15 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
                 <h3 className="mt-2 text-2xl font-black text-white">Employee profile</h3>
 
                 <div className="mt-4 grid gap-3">
-                  <SelectField
-                    label="Branch"
-                    value={employeeForm.branch_id}
-                    onChange={(value) => setEmployeeForm((prev) => ({ ...prev, branch_id: value }))}
-                    options={branchSelectOptions}
-                    disabled={branchesLoading}
-                  />
+                  {activeBranches.length > 1 ? (
+                    <SelectField
+                      label="Branch"
+                      value={employeeForm.branch_id || singleBranchId}
+                      onChange={(value) => setEmployeeForm((prev) => ({ ...prev, branch_id: value }))}
+                      options={branchSelectOptions}
+                      disabled={branchesLoading}
+                    />
+                  ) : null}
                   {!branchesLoading && !activeBranches.length ? (
                     <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-4 text-sm font-semibold text-zinc-400">
                       No branches found. Create a branch first.
@@ -883,21 +892,23 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
               <InputField label="Daily date" type="date" value={filters.date} onChange={(value) => setFilters((prev) => ({ ...prev, date: value }))} />
               <InputField label="Start date" type="date" value={filters.startDate} onChange={(value) => setFilters((prev) => ({ ...prev, startDate: value }))} />
               <InputField label="End date" type="date" value={filters.endDate} onChange={(value) => setFilters((prev) => ({ ...prev, endDate: value }))} />
-              <SelectField
-                label="Branch"
-                value={filters.branchId}
-                onChange={(value) => setFilters((prev) => ({ ...prev, branchId: value }))}
-                options={[
-                  { id: "", label: "All branches" },
-                  ...activeBranches.map((branch) => {
-                    const { id: branchId, name: branchName, code: branchCode } = normalizeBranch(branch);
-                    return {
-                      id: branchId,
-                      label: branchCode ? `${branchName} (${branchCode})` : branchName,
-                    };
-                  }),
-                ]}
-              />
+              {activeBranches.length > 1 ? (
+                <SelectField
+                  label="Branch"
+                  value={filters.branchId}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, branchId: value }))}
+                  options={[
+                    { id: "", label: "All branches" },
+                    ...activeBranches.map((branch) => {
+                      const { id: branchId, name: branchName, code: branchCode } = normalizeBranch(branch);
+                      return {
+                        id: branchId,
+                        label: branchCode ? `${branchName} (${branchCode})` : branchName,
+                      };
+                    }),
+                  ]}
+                />
+              ) : null}
               <SelectField
                 label="Employee"
                 value={selectedEmployeeId}

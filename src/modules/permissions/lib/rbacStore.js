@@ -23,6 +23,7 @@ import {
   Wallet,
   ShieldCheck,
   CalendarClock,
+  ClipboardList,
   Megaphone,
   Share2,
   TicketPercent,
@@ -64,6 +65,7 @@ export const MODULES = [
   { key: "attendance", label: "Attendance" },
   { key: "marketing", label: "Marketing" },
   { key: "notifications", label: "Notifications" },
+  { key: "staff_tasks", label: "Staff Tasks" },
   { key: "website", label: "Website" },
   { key: "employees", label: "Employees" },
   { key: "reports", label: "Reports" },
@@ -72,7 +74,7 @@ export const MODULES = [
   { key: "roles", label: "Roles" },
 ];
 
-export const ACTIONS = ["view", "create", "edit", "update", "delete", "approve", "publish", "settings", "export", "print", "redeem"];
+export const ACTIONS = ["view", "create", "edit", "update", "delete", "approve", "publish", "settings", "export", "print", "redeem", "manage"];
 
 export const MARKETING_ACTIONS = ["view", "create", "update", "delete", "publish", "settings"];
 export const WEBSITE_ACTIONS = ["view", "orders", "settings"];
@@ -121,6 +123,7 @@ const marketingPermissions = [
 ];
 const websitePermissions = ["website.view", "website.orders", "website.settings"];
 const notificationsPermissions = ["notifications.view", "notifications.manage"];
+const staffTaskPermissions = ["staff_tasks.view", "staff_tasks.create", "staff_tasks.update", "staff_tasks.manage"];
 
 export const DEFAULT_ROLES = [
   {
@@ -129,7 +132,7 @@ export const DEFAULT_ROLES = [
     slug: "admin",
     description: "Full access to every module and action.",
     builtIn: true,
-    permissions: ["*", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions],
+    permissions: ["*", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions, ...staffTaskPermissions],
   },
   {
     id: "super_admin",
@@ -137,7 +140,7 @@ export const DEFAULT_ROLES = [
     slug: "super_admin",
     description: "System-wide access across every module and action.",
     builtIn: true,
-    permissions: ["*", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions],
+    permissions: ["*", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions, ...staffTaskPermissions],
   },
   {
     id: "manager",
@@ -154,6 +157,7 @@ export const DEFAULT_ROLES = [
       ...marketingPermissions,
       ...websitePermissions,
       ...notificationsPermissions,
+      ...staffTaskPermissions,
       ...allow(["employees"], ["view", "export", "print"]),
       "settings.view",
       "users.view",
@@ -178,6 +182,7 @@ export const DEFAULT_ROLES = [
       "marketing.view",
       "website.orders",
       "notifications.view",
+      "staff_tasks.view",
     ],
   },
   {
@@ -199,6 +204,8 @@ export const DEFAULT_ROLES = [
       "employees.view",
       "settings.view",
       "notifications.view",
+      "staff_tasks.view",
+      "staff_tasks.update",
     ],
   },
   {
@@ -215,6 +222,8 @@ export const DEFAULT_ROLES = [
       "attendance.view",
       "employees.view",
       "notifications.view",
+      "staff_tasks.view",
+      "staff_tasks.update",
     ],
   },
   {
@@ -239,6 +248,8 @@ export const DEFAULT_ROLES = [
       "website.view",
       "website.orders",
       "notifications.view",
+      "staff_tasks.view",
+      "staff_tasks.update",
     ],
   },
   {
@@ -346,6 +357,7 @@ export const SIDEBAR_SECTIONS = [
       { label: "Reports", to: "/attendance/reports", permission: "attendance.view", icon: BarChart3 },
       { label: "Kiosk", to: "/attendance/kiosk", permission: "attendance.create", icon: Store },
       { label: "QR Attendance", to: "/staff/qr-attendance", permission: "attendance.create", icon: QrCode },
+      { label: "Staff Tasks", to: "/staff/tasks", permission: "staff_tasks.view", icon: ClipboardList },
     ],
   },
   {

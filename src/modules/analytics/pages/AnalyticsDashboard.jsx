@@ -418,7 +418,7 @@ function AnalyticsDashboard() {
 
   const data = analytics || buildFallbackBundle();
   const isFallback = source === "fallback";
-  const showScopeFilters = branchOptions.length > 0 || warehouseOptions.length > 0;
+  const showScopeFilters = branchOptions.length > 1 || warehouseOptions.length > 0;
   const selectedBranchLabel = useMemo(
     () => branchOptions.find((branch) => String(branch.id) === String(filters.branchId))?.label || t("analytics.labels.allBranches"),
     [branchOptions, filters.branchId]
@@ -609,31 +609,32 @@ function AnalyticsDashboard() {
             </label>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:col-span-1">
-              <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                Branch
-                <div className="relative">
-                  <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                  <select
-                    value={filters.branchId}
-                    onChange={(event) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        branchId: event.target.value,
-                      }))
-                    }
-                    className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-cyan-400/40 focus:bg-zinc-950 disabled:opacity-60"
-                    disabled={branchOptions.length === 0}
-                  >
-                    <option value="">{t("analytics.labels.allBranches")}</option>
-                    {branchOptions.map((branch) => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                </div>
-              </label>
+              {branchOptions.length > 1 ? (
+                <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                  Branch
+                  <div className="relative">
+                    <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                    <select
+                      value={filters.branchId}
+                      onChange={(event) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          branchId: event.target.value,
+                        }))
+                      }
+                      className="w-full appearance-none rounded-2xl border border-white/10 bg-zinc-950/80 px-10 py-3 text-sm font-medium text-white outline-none transition focus:border-cyan-400/40 focus:bg-zinc-950 disabled:opacity-60"
+                    >
+                      <option value="">{t("analytics.labels.allBranches")}</option>
+                      {branchOptions.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                  </div>
+                </label>
+              ) : null}
 
               <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
                 Warehouse

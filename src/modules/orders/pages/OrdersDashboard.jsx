@@ -127,6 +127,7 @@ function OrdersDashboard() {
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const visibleOrders = filteredOrders.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const branchOptions = useMemo(() => uniqueValues(orders.map((order) => order.branch)), [orders]);
   const kpis = deriveKpis(orders);
   const verificationOrders = useMemo(
     () => orders.filter((order) => order.status === "awaiting_verification" || order.paymentStatus === "awaiting_verification"),
@@ -269,7 +270,9 @@ function OrdersDashboard() {
             <Select value={statusFilter} onChange={setStatusFilter} options={["all", ...uniqueValues(orders.map((o) => o.status))]} label={t("orders.filters.status")} allLabel={t("orders.filters.all")} />
             <Select value={paymentFilter} onChange={setPaymentFilter} options={["all", ...uniqueValues(orders.map((o) => o.paymentStatus))]} label={t("orders.filters.payment")} allLabel={t("orders.filters.all")} />
             <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label="Source" allLabel={t("orders.filters.all")} labels={SOURCE_LABELS} />
-            <Select value={branchFilter} onChange={setBranchFilter} options={["all", ...uniqueValues(orders.map((o) => o.branch))]} label={t("orders.filters.branch")} allLabel={t("orders.filters.all")} />
+            {branchOptions.length > 1 ? (
+              <Select value={branchFilter} onChange={setBranchFilter} options={["all", ...branchOptions]} label={t("orders.filters.branch")} allLabel={t("orders.filters.all")} />
+            ) : null}
             <input
               type="date"
               value={dateFilter}

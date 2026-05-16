@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
@@ -6,10 +6,14 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
+  Download,
   Edit3,
   Eye,
   MapPin,
   Plus,
+  Printer,
+  QrCode,
+  RefreshCcw,
   Search,
   Trash2,
   Warehouse,
@@ -17,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../shared/api/api";
+import { SafeImage, SafeRender } from "../shared/components/SafeRender";
 
 const emptyForm = {
   name: "",
@@ -26,6 +31,9 @@ const emptyForm = {
   manager: "",
   notes: "",
   default_warehouse_id: "",
+  latitude: "",
+  longitude: "",
+  attendance_radius_meters: "100",
   is_active: true,
 };
 
@@ -61,6 +69,9 @@ const fallbackLabels = {
   "branches.form.address": "Address",
   "branches.form.notes": "Notes",
   "branches.form.defaultWarehouseId": "Default warehouse ID",
+  "branches.form.latitude": "Latitude",
+  "branches.form.longitude": "Longitude",
+  "branches.form.attendanceRadius": "Attendance radius (meters)",
   "branches.form.activeStatus": "Status",
   "branches.toasts.loadFailed": "Failed to load branches",
   "branches.toasts.updated": "Branch updated",
@@ -77,6 +88,23 @@ const fallbackLabels = {
   "branches.buttons.view": "View",
   "branches.buttons.edit": "Edit",
   "branches.buttons.archiveShort": "Delete",
+  "branches.buttons.downloadQr": "Download QR",
+  "branches.buttons.printQr": "Print",
+  "branches.buttons.regenerateQr": "Regenerate QR",
+  "branches.qr.title": "Attendance QR",
+  "branches.qr.subtitle": "Employees scan this branch QR and enter their phone number or employee code.",
+  "branches.qr.publicUrl": "Public attendance URL",
+  "branches.qr.loading": "Loading QR...",
+  "branches.qr.loadFailed": "Failed to load attendance QR",
+  "branches.qr.regenerated": "Attendance QR regenerated",
+  "branches.qr.regenerateFailed": "Failed to regenerate attendance QR",
+  "branches.qr.steps.scan": "Scan QR",
+  "branches.qr.steps.identify": "Enter employee code or phone",
+  "branches.qr.steps.action": "Check in or out",
+  "branches.qr.branchBadge": "Branch attendance",
+  "branches.qr.generated": "Generated",
+  "branches.qr.note": "Regenerate this QR if it was shared outside the branch. Old printed copies stop working after regeneration.",
+  "branches.qr.previewError": "QR preview unavailable",
   "branches.confirm.title": "Delete branch",
   "branches.confirm.subtitle": "This will mark the branch inactive instead of permanently removing it. Linked employees remain preserved.",
   "branches.row.noPhone": "No phone",
@@ -93,6 +121,72 @@ const unwrapBranches = (payload) => {
   return [];
 };
 
+const safeBranch = (branch) => (branch && typeof branch === "object" ? branch : {});
+
+const formatDateTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+};
+
+const svgToDataUrl = (svg = "") => {
+  try {
+    const markup = String(svg || "").trim();
+    if (!markup || !markup.includes("<svg") || typeof window === "undefined") return "";
+    return `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(markup)))}`;
+  } catch (err) {
+    console.error("[branches] failed to convert QR SVG to data URL", err);
+    return "";
+  }
+};
+
+const normalizeBranchQrPayload = (payload = {}) => {
+  const data = payload?.data && typeof payload.data === "object" ? payload.data : payload && typeof payload === "object" ? payload : {};
+  const qrSvg = String(data?.qrSvg || data?.qr_svg || "").trim();
+  const qrDataUrl = String(
+    data?.qrDataUrl ||
+      data?.qr_data_url ||
+      data?.qr_code_data_url ||
+      data?.qrCodeDataUrl ||
+      data?.qrImage ||
+      data?.qr_image ||
+      ""
+  ).trim();
+  const normalizedDataUrl = qrDataUrl || svgToDataUrl(qrSvg);
+  return {
+    ...data,
+    publicUrl: data?.publicUrl || data?.public_attendance_url || data?.publicAttendanceUrl || "",
+    public_attendance_url: data?.public_attendance_url || data?.publicUrl || data?.publicAttendanceUrl || "",
+    publicAttendanceUrl: data?.publicAttendanceUrl || data?.publicUrl || data?.public_attendance_url || "",
+    qrSvg,
+    qrDataUrl: normalizedDataUrl,
+    qrImage: data?.qrImage || data?.qr_image || normalizedDataUrl,
+    qr_code_data_url: data?.qr_code_data_url || normalizedDataUrl,
+    qrCodeDataUrl: data?.qrCodeDataUrl || normalizedDataUrl,
+    branch: data?.branch || {
+      id: data?.branch_id,
+      name: data?.branch_name,
+      code: data?.branch_code,
+    },
+  };
+};
+
+const getQrImageSrc = (qrInfo = {}) =>
+  qrInfo?.qrDataUrl ||
+  qrInfo?.qrImage ||
+  qrInfo?.qr_code_data_url ||
+  qrInfo?.qrCodeDataUrl ||
+  svgToDataUrl(qrInfo?.qrSvg);
+
+const isValidQrImageSrc = (src) => {
+  const value = String(src || "").trim();
+  return Boolean(value && (value.startsWith("data:image/") || value.startsWith("http") || value.startsWith("/") || value.startsWith("blob:")));
+};
+
 function Branches() {
   const { t: translate } = useTranslation();
   const [branches, setBranches] = useState([]);
@@ -106,7 +200,12 @@ function Branches() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [qrInfo, setQrInfo] = useState(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrRegenerating, setQrRegenerating] = useState(false);
+  const [qrError, setQrError] = useState("");
   const [error, setError] = useState("");
+  const qrImageRef = useRef(null);
 
   const t = (key, fallback) => {
     try {
@@ -138,25 +237,30 @@ function Branches() {
     });
   }, []);
 
-  const safeBranches = useMemo(() => (Array.isArray(branches) ? branches.filter(Boolean) : []), [branches]);
+  const safeBranches = useMemo(
+    () => (Array.isArray(branches) ? branches.filter((branch) => branch && typeof branch === "object") : []),
+    [branches]
+  );
 
   const filteredBranches = useMemo(() => {
     const query = search.trim().toLowerCase();
     return safeBranches.filter((branch) => {
-      const matchesSearch = `${branch.name || ""} ${branch.code || ""} ${branch.phone || ""} ${branch.address || ""} ${branch.manager || ""} ${branch.notes || ""} ${branch.default_warehouse_id || ""}`
+      const matchesSearch = `${branch?.name || ""} ${branch?.code || ""} ${branch?.phone || ""} ${branch?.address || ""} ${branch?.manager || ""} ${branch?.notes || ""} ${branch?.default_warehouse_id || ""}`
         .toLowerCase()
         .includes(query);
-      const status = branch.is_active === false ? "Inactive" : "Active";
+      const status = branch?.is_active === false ? "Inactive" : "Active";
       const matchesStatus = statusFilter === "All" || status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [safeBranches, search, statusFilter]);
 
+  const qrImageSrc = useMemo(() => getQrImageSrc(qrInfo), [qrInfo]);
+
   const stats = useMemo(
     () => ({
       total: safeBranches.length,
-      active: safeBranches.filter((branch) => branch.is_active !== false).length,
-      mapped: safeBranches.filter((branch) => branch.default_warehouse_id).length,
+      active: safeBranches.filter((branch) => branch?.is_active !== false).length,
+      mapped: safeBranches.filter((branch) => branch?.default_warehouse_id).length,
     }),
     [safeBranches]
   );
@@ -168,16 +272,20 @@ function Branches() {
   };
 
   const openEditModal = (branch) => {
-    setEditingBranch(branch);
+    const nextBranch = safeBranch(branch);
+    setEditingBranch(nextBranch);
     setForm({
-      name: branch.name || "",
-      code: branch.code || "",
-      phone: branch.phone || "",
-      address: branch.address || "",
-      manager: branch.manager || "",
-      notes: branch.notes || "",
-      default_warehouse_id: branch.default_warehouse_id || "",
-      is_active: branch.is_active !== false,
+      name: nextBranch?.name || "",
+      code: nextBranch?.code || "",
+      phone: nextBranch?.phone || "",
+      address: nextBranch?.address || "",
+      manager: nextBranch?.manager || "",
+      notes: nextBranch?.notes || "",
+      default_warehouse_id: nextBranch?.default_warehouse_id || "",
+      latitude: nextBranch?.latitude ?? "",
+      longitude: nextBranch?.longitude ?? "",
+      attendance_radius_meters: nextBranch?.attendance_radius_meters || nextBranch?.allowed_radius_meters || "100",
+      is_active: nextBranch?.is_active !== false,
     });
     setModalOpen(true);
   };
@@ -204,10 +312,13 @@ function Branches() {
         manager: form.manager.trim(),
         notes: form.notes.trim(),
         default_warehouse_id: form.default_warehouse_id || null,
+        latitude: form.latitude === "" ? null : form.latitude,
+        longitude: form.longitude === "" ? null : form.longitude,
+        attendance_radius_meters: form.attendance_radius_meters || 100,
       };
 
-      if (editingBranch) {
-        await api.put(`/branches/${editingBranch.id}`, payload);
+      if (editingBranch?.id) {
+        await api.put(`/branches/${editingBranch?.id}`, payload);
         toast.success(t("branches.toasts.updated"));
       } else {
         await api.post("/branches", payload);
@@ -229,12 +340,12 @@ function Branches() {
   };
 
   const deleteBranch = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget?.id) return;
 
     try {
       setDeleting(true);
       setError("");
-      await api.delete(`/branches/${deleteTarget.id}`);
+      await api.delete(`/branches/${deleteTarget?.id}`);
       toast.success(t("branches.toasts.archived"));
       setDeleteTarget(null);
       await loadBranches();
@@ -246,6 +357,144 @@ function Branches() {
     } finally {
       setDeleting(false);
     }
+  };
+
+  const loadBranchQr = async (branchId) => {
+    if (!branchId) return null;
+    try {
+      setQrLoading(true);
+      setQrError("");
+      const payload = await api.get(`/attendance/branch-qr/${branchId}`);
+      const data = normalizeBranchQrPayload(payload);
+      const qrSrc = getQrImageSrc(data);
+      console.log("[branches] attendance QR payload", {
+        branchId,
+        hasQrSvg: Boolean(data?.qrSvg),
+        hasQrDataUrl: Boolean(data?.qrDataUrl),
+        hasQrImage: Boolean(data?.qrImage),
+        publicUrl: data?.publicUrl,
+        qrPrefix: String(qrSrc || "").slice(0, 32),
+        qrLength: String(qrSrc || "").length,
+      });
+      if (!isValidQrImageSrc(qrSrc)) {
+        throw new Error("Attendance QR API returned no valid QR image field");
+      }
+      setQrInfo(data);
+      return data;
+    } catch (err) {
+      console.log(err);
+      const message = err?.message || t("branches.qr.loadFailed");
+      setQrError(message);
+      toast.error(message);
+      return null;
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const openBranchDetails = async (branch) => {
+    const nextBranch = safeBranch(branch);
+    if (!nextBranch?.id) {
+      setQrError(t("branches.qr.loadFailed"));
+      return;
+    }
+    setViewBranch(nextBranch);
+    setQrInfo(null);
+    setQrError("");
+    await loadBranchQr(nextBranch.id);
+  };
+
+  const regenerateBranchQr = async () => {
+    if (!viewBranch?.id) return;
+    try {
+      setQrRegenerating(true);
+      await api.post(`/branches/${viewBranch?.id}/regenerate-attendance-qr`, {});
+      await loadBranchQr(viewBranch?.id);
+      toast.success(t("branches.qr.regenerated"));
+    } catch (err) {
+      console.log(err);
+      toast.error(err?.message || t("branches.qr.regenerateFailed"));
+    } finally {
+      setQrRegenerating(false);
+    }
+  };
+
+  const downloadBranchQr = () => {
+    const dataUrl = qrImageRef.current?.currentSrc || qrImageRef.current?.src || getQrImageSrc(qrInfo);
+    if (!isValidQrImageSrc(dataUrl) || !viewBranch?.id) return;
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = `branch-attendance-${viewBranch?.code || viewBranch?.id}.svg`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const printBranchQr = () => {
+    const dataUrl = qrImageRef.current?.currentSrc || qrImageRef.current?.src || getQrImageSrc(qrInfo);
+    const publicUrl = qrInfo?.publicUrl || qrInfo?.public_attendance_url || qrInfo?.publicAttendanceUrl || "";
+    const generatedAt = qrInfo?.generated_at || qrInfo?.generatedAt || new Date().toISOString();
+    const companyName = qrInfo?.company_name || "";
+    const logoUrl = qrInfo?.company_logo_url || "";
+    if (!isValidQrImageSrc(dataUrl) || !viewBranch?.id) return;
+    const escapeHtml = (value = "") =>
+      String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=720,height=840");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${escapeHtml(viewBranch?.name || "Branch")} Attendance QR</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; margin: 0; color: #111827; background: #fff; }
+            .page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 36px; }
+            .sheet { width: min(100%, 620px); text-align: center; border: 1px solid #e5e7eb; border-radius: 28px; padding: 36px; }
+            .logo { max-height: 54px; max-width: 180px; object-fit: contain; margin-bottom: 18px; }
+            .badge { display: inline-block; border: 1px solid #d1d5db; border-radius: 999px; padding: 8px 14px; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #374151; }
+            h1 { margin: 18px 0 6px; font-size: 34px; line-height: 1.1; }
+            .company { margin: 0; color: #4b5563; font-size: 15px; }
+            .qr-wrap { margin: 28px auto 20px; width: 410px; max-width: 100%; border: 1px solid #e5e7eb; border-radius: 26px; padding: 22px; background: #fff; }
+            .qr { display: block; width: 100%; height: auto; }
+            .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0; text-align: center; }
+            .step { border: 1px solid #e5e7eb; border-radius: 14px; padding: 12px 8px; font-size: 13px; font-weight: 700; }
+            .url { color: #4b5563; word-break: break-all; font-size: 12px; line-height: 1.5; }
+            .meta { margin-top: 14px; color: #6b7280; font-size: 11px; }
+            @media print {
+              body { background: #fff; }
+              .page { min-height: auto; padding: 0; }
+              .sheet { border: 0; border-radius: 0; width: 100%; padding: 24px; }
+              .qr-wrap { width: 4.8in; padding: .25in; }
+            }
+          </style>
+        </head>
+        <body>
+          <main class="page">
+            <section class="sheet">
+              ${logoUrl ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName || "Company")}" />` : ""}
+              <div class="badge">Branch attendance</div>
+              <h1>${escapeHtml(viewBranch?.name || "Branch")}</h1>
+              ${companyName ? `<p class="company">${escapeHtml(companyName)}</p>` : ""}
+              <div class="qr-wrap"><img class="qr" src="${dataUrl}" alt="Attendance QR" /></div>
+              <div class="steps">
+                <div class="step">1. Scan QR</div>
+                <div class="step">2. Enter code/phone</div>
+                <div class="step">3. Check in/out</div>
+              </div>
+              <p class="url">${escapeHtml(publicUrl)}</p>
+              <p class="meta">Generated ${escapeHtml(formatDateTime(generatedAt))}. Regenerate if shared outside the branch.</p>
+            </section>
+          </main>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   };
 
   return (
@@ -346,13 +595,13 @@ function Branches() {
                   </button>
                 </div>
               ) : (
-                filteredBranches.map((branch) => (
+                filteredBranches.map((branch, index) => (
                   <BranchRow
-                    key={branch.id}
+                    key={branch?.id || branch?.code || index}
                     branch={branch}
                     t={t}
                     busy={saving || deleting}
-                    onView={setViewBranch}
+                    onView={openBranchDetails}
                     onEdit={openEditModal}
                     onDelete={setDeleteTarget}
                   />
@@ -372,7 +621,7 @@ function Branches() {
                   {editingBranch ? t("branches.edit") : t("branches.create")}
                 </div>
                 <h2 className="mt-2 text-2xl font-black text-[var(--text)]">
-                  {editingBranch ? editingBranch.name : t("branches.new")}
+                  {editingBranch ? editingBranch?.name || t("branches.row.unassigned") : t("branches.new")}
                 </h2>
                 <p className="mt-1 text-sm text-[var(--muted)]">
                   {editingBranch ? t("branches.updateHint") : t("branches.createHint")}
@@ -400,6 +649,24 @@ function Branches() {
                 type="number"
                 value={form.default_warehouse_id}
                 onChange={(value) => setForm((prev) => ({ ...prev, default_warehouse_id: value }))}
+              />
+              <Field
+                label={t("branches.form.latitude")}
+                type="number"
+                value={form.latitude}
+                onChange={(value) => setForm((prev) => ({ ...prev, latitude: value }))}
+              />
+              <Field
+                label={t("branches.form.longitude")}
+                type="number"
+                value={form.longitude}
+                onChange={(value) => setForm((prev) => ({ ...prev, longitude: value }))}
+              />
+              <Field
+                label={t("branches.form.attendanceRadius")}
+                type="number"
+                value={form.attendance_radius_meters}
+                onChange={(value) => setForm((prev) => ({ ...prev, attendance_radius_meters: value }))}
               />
               <label className="md:col-span-2">
                 <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("branches.form.activeStatus")}</div>
@@ -437,17 +704,21 @@ function Branches() {
       ) : null}
 
       {viewBranch ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-6 backdrop-blur-sm lg:items-center">
-          <div className="w-full max-w-2xl rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-black/50">
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 px-3 py-4 backdrop-blur-sm sm:px-4 lg:items-center lg:py-6">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-black/50 sm:p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--primary)]">{t("branches.view")}</div>
-                <h2 className="mt-2 text-2xl font-black text-[var(--text)]">{viewBranch.name || t("branches.row.unassigned")}</h2>
-                <StatusBadge status={viewBranch.is_active === false ? t("branches.status.inactive") : t("branches.status.active")} active={viewBranch.is_active !== false} />
+                <h2 className="mt-2 text-2xl font-black text-[var(--text)]">{viewBranch?.name || t("branches.row.unassigned")}</h2>
+                <StatusBadge status={viewBranch?.is_active === false ? t("branches.status.inactive") : t("branches.status.active")} active={viewBranch?.is_active !== false} />
               </div>
               <button
                 type="button"
-                onClick={() => setViewBranch(null)}
+                onClick={() => {
+                  setViewBranch(null);
+                  setQrInfo(null);
+                  setQrError("");
+                }}
                 className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 text-[var(--text)] transition hover:bg-[var(--bg)]"
               >
                 <X className="h-4 w-4" />
@@ -455,12 +726,165 @@ function Branches() {
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <Detail label={t("branches.form.code")} value={viewBranch.code || t("branches.row.notSet")} />
-              <Detail label={t("branches.form.phone")} value={viewBranch.phone || t("branches.row.noPhone")} />
-              <Detail label={t("branches.form.manager")} value={viewBranch.manager || t("branches.row.unassigned")} />
-              <Detail label={t("branches.form.defaultWarehouseId")} value={viewBranch.default_warehouse_id || t("branches.row.notSet")} />
-              <Detail label={t("branches.form.address")} value={viewBranch.address || t("branches.row.noAddress")} className="sm:col-span-2" />
-              <Detail label={t("branches.form.notes")} value={viewBranch.notes || t("branches.row.noNotes")} className="sm:col-span-2" />
+              <Detail label={t("branches.form.code")} value={viewBranch?.code || t("branches.row.notSet")} />
+              <Detail label={t("branches.form.phone")} value={viewBranch?.phone || t("branches.row.noPhone")} />
+              <Detail label={t("branches.form.manager")} value={viewBranch?.manager || t("branches.row.unassigned")} />
+              <Detail label={t("branches.form.defaultWarehouseId")} value={viewBranch?.default_warehouse_id || t("branches.row.notSet")} />
+              <Detail label={t("branches.form.latitude")} value={viewBranch?.latitude ?? t("branches.row.notSet")} />
+              <Detail label={t("branches.form.longitude")} value={viewBranch?.longitude ?? t("branches.row.notSet")} />
+              <Detail label={t("branches.form.attendanceRadius")} value={`${viewBranch?.attendance_radius_meters || viewBranch?.allowed_radius_meters || 100} m`} />
+              <Detail label={t("branches.form.address")} value={viewBranch?.address || t("branches.row.noAddress")} className="sm:col-span-2" />
+              <Detail label={t("branches.form.notes")} value={viewBranch?.notes || t("branches.row.noNotes")} className="sm:col-span-2" />
+            </div>
+
+            {viewBranch?.latitude !== null && viewBranch?.latitude !== undefined && viewBranch?.longitude !== null && viewBranch?.longitude !== undefined ? (
+              <div className="mt-5 overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--card)]">
+                <iframe
+                  title="Branch map preview"
+                  className="h-44 w-full border-0"
+                  loading="lazy"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(viewBranch.longitude) - 0.002}%2C${Number(viewBranch.latitude) - 0.002}%2C${Number(viewBranch.longitude) + 0.002}%2C${Number(viewBranch.latitude) + 0.002}&layer=mapnik&marker=${Number(viewBranch.latitude)}%2C${Number(viewBranch.longitude)}`}
+                />
+              </div>
+            ) : null}
+
+            <div className="mt-5 overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--primary)_10%,transparent),transparent_40%),var(--card)] shadow-xl shadow-[var(--shadow)]">
+              <div className="border-b border-[var(--border)] p-5 sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--primary)]">
+                      <QrCode className="h-3.5 w-3.5" />
+                      {t("branches.qr.branchBadge")}
+                    </div>
+                    <h3 className="mt-3 text-2xl font-black leading-tight text-[var(--text)]">{viewBranch?.name || t("branches.row.unassigned")}</h3>
+                    {qrInfo?.company_name ? <p className="mt-1 text-sm font-semibold text-[var(--muted)]">{qrInfo?.company_name}</p> : null}
+                    <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--muted)]">{t("branches.qr.subtitle")}</p>
+                  </div>
+                  {qrInfo?.company_logo_url ? (
+                    <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-2xl border border-[var(--border)] bg-white p-2">
+                      <SafeImage
+                        src={qrInfo?.company_logo_url}
+                        alt={qrInfo?.company_name || "Company logo"}
+                        className="max-h-full max-w-full object-contain"
+                        fallback={null}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
+                <div className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-2xl shadow-black/10">
+                  <div className="flex aspect-square items-center justify-center rounded-[1.5rem] border border-slate-200 bg-white p-4">
+                    {qrLoading ? (
+                      <div className="text-center">
+                        <RefreshCcw className="mx-auto h-8 w-8 animate-spin text-slate-500" />
+                        <div className="mt-3 text-sm font-bold text-slate-600">{t("branches.qr.loading")}</div>
+                      </div>
+                    ) : qrError ? (
+                      <div className="px-3 text-center">
+                        <AlertTriangle className="mx-auto h-9 w-9 text-red-500" />
+                        <div className="mt-3 text-sm font-black text-slate-900">{t("branches.qr.previewError")}</div>
+                        <div className="mt-1 text-xs font-semibold text-slate-500">{qrError}</div>
+                        <button
+                          type="button"
+                          onClick={() => loadBranchQr(viewBranch?.id)}
+                          className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : isValidQrImageSrc(qrImageSrc) ? (
+                      <SafeRender
+                        message={t("branches.qr.previewError")}
+                        fallback={
+                          <QrUnavailable
+                            title={t("branches.qr.previewError")}
+                            message={t("branches.qr.loadFailed")}
+                          />
+                        }
+                      >
+                        <SafeImage
+                          ref={qrImageRef}
+                          src={qrImageSrc}
+                          alt={t("branches.qr.title")}
+                          className="h-full w-full object-contain"
+                          fallback={
+                            <QrUnavailable
+                              title={t("branches.qr.previewError")}
+                              message="QR image failed to render."
+                            />
+                          }
+                          onError={(event) => {
+                            console.error("[branches] QR image render failed", {
+                              src: event.currentTarget?.src?.slice(0, 80),
+                              qrInfo,
+                            });
+                            setQrError("QR image failed to render.");
+                          }}
+                        />
+                      </SafeRender>
+                    ) : (
+                      <QrUnavailable title={t("branches.qr.previewError")} message={t("branches.qr.loadFailed")} />
+                    )}
+                  </div>
+                  <div className="mt-4 text-center text-xs font-semibold text-slate-500">
+                    {t("branches.qr.generated")}: {formatDateTime(qrInfo?.generated_at || qrInfo?.generatedAt)}
+                  </div>
+                </div>
+
+                <div className="min-w-0 space-y-4">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {[t("branches.qr.steps.scan"), t("branches.qr.steps.identify"), t("branches.qr.steps.action")].map((label, index) => (
+                      <div key={label} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-black text-white">{index + 1}</div>
+                        <div className="mt-2 text-sm font-black leading-snug text-[var(--text)]">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("branches.qr.publicUrl")}</div>
+                    <div className="mt-2 break-all text-sm font-semibold leading-6 text-[var(--text)]">
+                      {qrInfo?.publicUrl || qrInfo?.public_attendance_url || qrInfo?.publicAttendanceUrl || t("branches.row.notSet")}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm font-semibold leading-6 text-amber-700">
+                    {t("branches.qr.note")}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={downloadBranchQr}
+                      disabled={qrLoading || qrError || !qrImageSrc}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-500/20 disabled:opacity-50"
+                    >
+                      <Download className="h-4 w-4" />
+                      {t("branches.buttons.downloadQr")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={printBranchQr}
+                      disabled={qrLoading || qrError || !qrImageSrc}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm font-black text-blue-700 transition hover:bg-blue-500/20 disabled:opacity-50"
+                    >
+                      <Printer className="h-4 w-4" />
+                      {t("branches.buttons.printQr")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={regenerateBranchQr}
+                      disabled={qrRegenerating || qrLoading}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-500/20 disabled:opacity-50"
+                    >
+                      <RefreshCcw className={`h-4 w-4 ${qrRegenerating ? "animate-spin" : ""}`} />
+                      {t("branches.buttons.regenerateQr")}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
@@ -489,7 +913,7 @@ function Branches() {
               </div>
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-red-300">{t("branches.confirm.title")}</div>
-                <h2 className="mt-2 text-2xl font-black text-[var(--text)]">{deleteTarget.name}</h2>
+                <h2 className="mt-2 text-2xl font-black text-[var(--text)]">{deleteTarget?.name || t("branches.row.unassigned")}</h2>
                 <p className="mt-2 text-sm text-[var(--muted)]">
                   {t("branches.confirm.subtitle")}
                 </p>
@@ -522,7 +946,8 @@ function Branches() {
 }
 
 function BranchRow({ branch, t, busy, onView, onEdit, onDelete }) {
-  const status = branch.is_active === false ? "Inactive" : "Active";
+  const safe = safeBranch(branch);
+  const status = safe?.is_active === false ? "Inactive" : "Active";
 
   return (
     <div className="grid gap-4 px-4 py-4 text-sm transition hover:bg-[var(--card)] hover:shadow-inner xl:grid-cols-[1.1fr_0.55fr_0.9fr_1.2fr_0.8fr_1fr] xl:items-center">
@@ -531,26 +956,26 @@ function BranchRow({ branch, t, busy, onView, onEdit, onDelete }) {
           <Building2 className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <div className="truncate font-black text-[var(--text)]">{branch.name || t("branches.row.unassigned")}</div>
+          <div className="truncate font-black text-[var(--text)]">{safe?.name || t("branches.row.unassigned")}</div>
           <div className="mt-1 flex items-center gap-1 text-xs text-[var(--muted)]">
             <MapPin className="h-3.5 w-3.5" />
-            {branch.phone || t("branches.row.noPhone")}
+            {safe?.phone || t("branches.row.noPhone")}
           </div>
           <StatusBadge status={status === "Active" ? t("branches.status.active") : t("branches.status.inactive")} active={status === "Active"} />
         </div>
       </div>
-      <div className="font-semibold text-[var(--text)]">{branch.code || "-"}</div>
-      <div className="text-[var(--muted)]">{branch.manager || t("branches.row.unassigned")}</div>
-      <div className="text-[var(--muted)]">{branch.address || t("branches.row.noAddress")}</div>
+      <div className="font-semibold text-[var(--text)]">{safe?.code || "-"}</div>
+      <div className="text-[var(--muted)]">{safe?.manager || t("branches.row.unassigned")}</div>
+      <div className="text-[var(--muted)]">{safe?.address || t("branches.row.noAddress")}</div>
       <div className="inline-flex items-center gap-2 text-[var(--text)]">
         <Warehouse className="h-4 w-4 text-[var(--primary)]" />
-        {branch.default_warehouse_id || t("branches.row.notSet")}
+        {safe?.default_warehouse_id || t("branches.row.notSet")}
       </div>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => onView(branch)}
-          disabled={busy}
+          onClick={() => onView(safe)}
+          disabled={busy || !safe?.id}
           className="inline-flex w-fit items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-50"
         >
           <Eye className="h-3.5 w-3.5" />
@@ -558,8 +983,8 @@ function BranchRow({ branch, t, busy, onView, onEdit, onDelete }) {
         </button>
         <button
           type="button"
-          onClick={() => onEdit(branch)}
-          disabled={busy}
+          onClick={() => onEdit(safe)}
+          disabled={busy || !safe?.id}
           className="inline-flex w-fit items-center gap-2 rounded-2xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs font-black text-blue-100 transition hover:bg-blue-500/20 disabled:opacity-50"
         >
           <Edit3 className="h-3.5 w-3.5" />
@@ -567,8 +992,8 @@ function BranchRow({ branch, t, busy, onView, onEdit, onDelete }) {
         </button>
         <button
           type="button"
-          onClick={() => onDelete(branch)}
-          disabled={busy || branch.is_active !== true}
+          onClick={() => onDelete(safe)}
+          disabled={busy || !safe?.id || safe?.is_active !== true}
           className="inline-flex w-fit items-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-black text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -608,6 +1033,16 @@ function StatusBadge({ status, active }) {
     >
       {status}
     </span>
+  );
+}
+
+function QrUnavailable({ title, message }) {
+  return (
+    <div className="px-3 text-center">
+      <QrCode className="mx-auto h-14 w-14 text-slate-400" />
+      <div className="mt-3 text-sm font-bold text-slate-600">{title}</div>
+      {message ? <div className="mt-1 text-xs font-semibold text-slate-500">{message}</div> : null}
+    </div>
   );
 }
 

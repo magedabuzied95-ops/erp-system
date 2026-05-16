@@ -132,11 +132,13 @@ const EmployeeSalesPerformance = lazy(() => import("./modules/employees/pages/Sa
 const EmployeeCommissions = lazy(() => import("./modules/employees/pages/Commissions"));
 const EmployeeTopPerformers = lazy(() => import("./modules/employees/pages/TopPerformers"));
 const EmployeeShiftAnalytics = lazy(() => import("./modules/employees/pages/ShiftAnalytics"));
+const StaffTasks = lazy(() => import("./modules/employees/pages/StaffTasks"));
 const AttendanceDashboard = lazy(() => import("./modules/attendance/pages/AttendanceDashboard"));
 const AttendanceEmployees = lazy(() => import("./modules/attendance/pages/EmployeesAttendance"));
 const AttendanceReports = lazy(() => import("./modules/attendance/pages/AttendanceReports"));
 const AttendanceKiosk = lazy(() => import("./modules/attendance/pages/AttendanceKiosk"));
 const StaffQrAttendance = lazy(() => import("./modules/attendance/pages/StaffQrAttendance"));
+const PublicBranchAttendance = lazy(() => import("./modules/attendance/pages/PublicBranchAttendance"));
 const MarketingDashboard = lazy(() => import("./modules/marketing/pages/MarketingDashboard"));
 const MarketingAnalytics = lazy(() => import("./modules/marketing/pages/MarketingAnalytics"));
 const MarketingAttribution = lazy(() => import("./modules/marketing/pages/MarketingAttribution"));
@@ -223,6 +225,11 @@ function App() {
       <Route
         path="/p/:productId"
         element={<PublicProduct />}
+      />
+
+      <Route
+        path="/attendance/branch/:token"
+        element={<PublicBranchAttendance />}
       />
 
       <Route
@@ -778,6 +785,15 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["employees.view"]}>
               <EmployeeShiftAnalytics />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="staff/tasks"
+          element={
+            <ProtectedRoute requiredPermissions={["staff_tasks.view"]}>
+              <StaffTasks />
             </ProtectedRoute>
           }
         />

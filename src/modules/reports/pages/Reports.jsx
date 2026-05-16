@@ -505,7 +505,6 @@ function FiltersBar({ filters, updateFilter, loading }) {
         <SelectFilter label="Range" value={filters.preset} onChange={(value) => updateFilter("preset", value)} options={[["today", "Today"], ["week", "Week"], ["month", "Month"], ["custom", "Custom"]]} />
         <TextFilter label="Start" type="date" value={filters.startDate} onChange={(value) => updateFilter("startDate", value)} />
         <TextFilter label="End" type="date" value={filters.endDate} onChange={(value) => updateFilter("endDate", value)} />
-        <TextFilter label="Branch ID" value={filters.branchId} onChange={(value) => updateFilter("branchId", value)} />
         <TextFilter label="Warehouse ID" value={filters.warehouseId} onChange={(value) => updateFilter("warehouseId", value)} />
         <TextFilter label="Employee ID" value={filters.employeeId} onChange={(value) => updateFilter("employeeId", value)} />
         <TextFilter label="Product ID" value={filters.productId} onChange={(value) => updateFilter("productId", value)} />

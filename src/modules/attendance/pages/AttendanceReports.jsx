@@ -118,7 +118,7 @@ export default function AttendanceReports() {
               </div>
               <h1 className="text-3xl font-black tracking-tight md:text-4xl">Export-ready attendance reports</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">
-                Filter by date, employee, and branch, then export a clean operational table with monthly totals.
+                Filter by date and employee, then export a clean operational table with monthly totals.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -147,7 +147,7 @@ export default function AttendanceReports() {
             <Filter className="h-4 w-4" />
             Filters
           </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">From</span>
               <input
@@ -173,16 +173,6 @@ export default function AttendanceReports() {
                 value={filters.employeeId}
                 onChange={(event) => setFilters((prev) => ({ ...prev, employeeId: event.target.value }))}
                 placeholder="All employees"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Branch ID</span>
-              <input
-                type="text"
-                value={filters.branchId}
-                onChange={(event) => setFilters((prev) => ({ ...prev, branchId: event.target.value }))}
-                placeholder="All branches"
                 className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400"
               />
             </label>

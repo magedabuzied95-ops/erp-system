@@ -9,6 +9,9 @@ const emptyForm = {
   address: "",
   manager: "",
   default_warehouse_id: "",
+  latitude: "",
+  longitude: "",
+  attendance_radius_meters: "100",
 };
 
 const unwrapBranches = (payload) => {
@@ -17,6 +20,8 @@ const unwrapBranches = (payload) => {
   if (Array.isArray(payload?.data)) return payload.data;
   return [];
 };
+
+const safeBranchRows = (rows) => (Array.isArray(rows) ? rows.filter((branch) => branch && typeof branch === "object") : []);
 
 function Branches() {
   const [branches, setBranches] = useState([]);
@@ -31,7 +36,7 @@ function Branches() {
       setLoading(true);
       setError("");
       const payload = await api.get("/branches");
-      setBranches(unwrapBranches(payload));
+      setBranches(safeBranchRows(unwrapBranches(payload)));
     } catch (err) {
       console.log(err);
       setError(err?.message || "Failed to load branches");
@@ -48,7 +53,7 @@ function Branches() {
   }, []);
 
   const activeBranches = useMemo(
-    () => branches.filter((branch) => branch.is_active !== false),
+    () => safeBranchRows(branches).filter((branch) => branch?.is_active !== false),
     [branches]
   );
 
@@ -56,7 +61,7 @@ function Branches() {
     const term = search.trim().toLowerCase();
     if (!term) return activeBranches;
     return activeBranches.filter((branch) =>
-      `${branch.name} ${branch.code} ${branch.manager} ${branch.phone} ${branch.address}`
+      `${branch?.name || ""} ${branch?.code || ""} ${branch?.manager || ""} ${branch?.phone || ""} ${branch?.address || ""}`
         .toLowerCase()
         .includes(term)
     );
@@ -78,6 +83,9 @@ function Branches() {
       const payload = {
         ...form,
         default_warehouse_id: form.default_warehouse_id || null,
+        latitude: form.latitude === "" ? null : form.latitude,
+        longitude: form.longitude === "" ? null : form.longitude,
+        attendance_radius_meters: form.attendance_radius_meters || 100,
         is_active: true,
       };
       await api.post("/branches", payload);
@@ -131,8 +139,8 @@ function Branches() {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <Kpi label="Total Branches" value={activeBranches.length} />
-        <Kpi label="With Managers" value={activeBranches.filter((branch) => branch.manager).length} />
-        <Kpi label="Warehouse Mapped" value={activeBranches.filter((branch) => branch.default_warehouse_id).length} />
+        <Kpi label="With Managers" value={activeBranches.filter((branch) => branch?.manager).length} />
+        <Kpi label="Warehouse Mapped" value={activeBranches.filter((branch) => branch?.default_warehouse_id).length} />
       </div>
 
       <div className="rounded-2xl bg-white p-5 shadow-lg dark:bg-gray-800">
@@ -165,6 +173,14 @@ function Branches() {
             value={form.default_warehouse_id}
             onChange={(value) => updateField("default_warehouse_id", value)}
           />
+          <BranchInput label="Latitude" type="number" value={form.latitude} onChange={(value) => updateField("latitude", value)} />
+          <BranchInput label="Longitude" type="number" value={form.longitude} onChange={(value) => updateField("longitude", value)} />
+          <BranchInput
+            label="Attendance Radius (meters)"
+            type="number"
+            value={form.attendance_radius_meters}
+            onChange={(value) => updateField("attendance_radius_meters", value)}
+          />
         </div>
 
         <button
@@ -188,30 +204,36 @@ function Branches() {
                 <th className="p-5 text-left">Phone</th>
                 <th className="p-5 text-left">Address</th>
                 <th className="p-5 text-left">Default Warehouse</th>
+                <th className="p-5 text-left">GPS Radius</th>
                 <th className="p-5 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="p-10 text-center font-bold text-gray-500">
+                  <td colSpan="8" className="p-10 text-center font-bold text-gray-500">
                     Loading branches...
                   </td>
                 </tr>
               ) : filteredBranches.length > 0 ? (
-                filteredBranches.map((branch) => (
-                  <tr key={branch.id} className="border-b border-gray-100 transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700">
-                    <td className="p-5 font-black dark:text-white">{branch.name}</td>
-                    <td className="p-5 dark:text-white">{branch.code || "-"}</td>
-                    <td className="p-5 dark:text-white">{branch.manager || "-"}</td>
-                    <td className="p-5 dark:text-white">{branch.phone || "-"}</td>
-                    <td className="p-5 dark:text-white">{branch.address || "-"}</td>
-                    <td className="p-5 dark:text-white">{branch.default_warehouse_id || "-"}</td>
+                filteredBranches.map((branch, index) => (
+                  <tr key={branch?.id || branch?.code || index} className="border-b border-gray-100 transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700">
+                    <td className="p-5 font-black dark:text-white">{branch?.name || "-"}</td>
+                    <td className="p-5 dark:text-white">{branch?.code || "-"}</td>
+                    <td className="p-5 dark:text-white">{branch?.manager || "-"}</td>
+                    <td className="p-5 dark:text-white">{branch?.phone || "-"}</td>
+                    <td className="p-5 dark:text-white">{branch?.address || "-"}</td>
+                    <td className="p-5 dark:text-white">{branch?.default_warehouse_id || "-"}</td>
+                    <td className="p-5 dark:text-white">
+                      {branch?.latitude !== null && branch?.latitude !== undefined && branch?.longitude !== null && branch?.longitude !== undefined
+                        ? `${branch?.attendance_radius_meters || branch?.allowed_radius_meters || 100} m`
+                        : "Not configured"}
+                    </td>
                     <td className="p-5">
                       <button
                         type="button"
-                        onClick={() => deleteBranch(branch.id)}
-                        disabled={saving}
+                        onClick={() => deleteBranch(branch?.id)}
+                        disabled={saving || !branch?.id}
                         className="rounded-xl bg-red-500 px-5 py-3 font-bold text-white transition hover:bg-red-600 disabled:opacity-50"
                       >
                         Delete
@@ -221,7 +243,7 @@ function Branches() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="p-10 text-center font-bold text-gray-500">
+                  <td colSpan="8" className="p-10 text-center font-bold text-gray-500">
                     No branches found. Create a branch first.
                   </td>
                 </tr>

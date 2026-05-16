@@ -129,13 +129,16 @@ const scopeWhere = (context = {}, params = []) => {
 
 const emitToAudience = (notification) => {
   if (!io || !notification) return;
-  const rooms = new Set(["notifications:all"]);
-  if (notification.tenant_id) rooms.add(`tenant:${notification.tenant_id}`);
+  const hasTargetAudience = Boolean(notification.user_id || notification.role_key || notification.branch_id || notification.tenant_id);
+  const rooms = new Set(hasTargetAudience ? [] : ["notifications:all"]);
+  const hasDirectAudience = Boolean(notification.user_id || notification.role_key || notification.branch_id);
+  if (notification.tenant_id && !hasDirectAudience) rooms.add(`tenant:${notification.tenant_id}`);
   if (notification.user_id) rooms.add(`user:${notification.user_id}`);
   if (notification.role_key) rooms.add(`role:${String(notification.role_key).toLowerCase()}`);
   if (notification.branch_id) rooms.add(`branch:${notification.branch_id}`);
-  rooms.forEach((room) => io.to(room).emit("notification:new", notification));
-  rooms.forEach((room) => io.to(room).emit("notification:count:refresh", { at: new Date().toISOString() }));
+  const target = [...rooms].reduce((operator, room) => operator.to(room), io);
+  target.emit("notification:new", notification);
+  target.emit("notification:count:refresh", { at: new Date().toISOString() });
 };
 
 export const createNotification = async (data = {}) => {

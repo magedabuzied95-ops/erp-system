@@ -16,7 +16,7 @@ from "socket.io";
 
 import { fileURLToPath }
 from "url";
-import { setIo } from "./utils/socket.js";
+import { normalizeSocketRoomKey, setIo } from "./utils/socket.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -116,23 +116,58 @@ const emitOnlineUsers = () => {
   });
 };
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   try {
     const token = socket.handshake?.auth?.token || socket.handshake?.query?.token;
-    if (token) {
-      const decoded = jwt.verify(String(token), process.env.JWT_SECRET || "SECRET_KEY");
-      const userId = decoded?.id || decoded?.user_id;
-      const role = String(decoded?.role || decoded?.role_name || "").trim().toLowerCase();
-      const tenantId = decoded?.tenant_id || decoded?.tenantId;
-      const branchId = decoded?.branch_id || decoded?.branchId;
-      socket.join("notifications:all");
-      if (userId) socket.join(`user:${userId}`);
-      if (role) socket.join(`role:${role}`);
-      if (tenantId) socket.join(`tenant:${tenantId}`);
-      if (branchId) socket.join(`branch:${branchId}`);
-    }
+    if (!token) throw new Error("missing socket token");
+
+    const decoded = jwt.verify(String(token), process.env.JWT_SECRET || "SECRET_KEY");
+    const userResult = await db.query(
+      `
+      SELECT
+        u.id,
+        u.tenant_id,
+        COALESCE(r.name, u.role, $2) AS role_name,
+        COALESCE(u.is_super_admin, FALSE) AS is_super_admin,
+        e.id AS employee_id,
+        e.branch_id AS employee_branch_id,
+        e.role AS employee_role
+      FROM users u
+      LEFT JOIN roles r ON r.id = u.role_id
+      LEFT JOIN employees e ON e.user_id = u.id
+      WHERE u.id = $1
+      ORDER BY e.id DESC NULLS LAST
+      LIMIT 1
+      `,
+      [decoded?.id || decoded?.user_id, decoded?.role || decoded?.role_name || ""]
+    );
+    const user = userResult.rows[0] || decoded;
+    const userId = user?.id || decoded?.id || decoded?.user_id;
+    const role = normalizeSocketRoomKey(user?.role_name || user?.role || decoded?.role || decoded?.role_name || "");
+    const employeeRole = normalizeSocketRoomKey(user?.employee_role || "");
+    const tenantId = user?.tenant_id || decoded?.tenant_id || decoded?.tenantId;
+    const branchId = user?.branch_id || user?.employee_branch_id || decoded?.branch_id || decoded?.branchId;
+
+    socket.data.user = {
+      id: userId,
+      tenant_id: tenantId || null,
+      branch_id: branchId || null,
+      role,
+      employee_id: user?.employee_id || null,
+      is_super_admin: Boolean(user?.is_super_admin || decoded?.is_super_admin),
+    };
+    socket.join("notifications:all");
+    if (userId) socket.join(`user:${userId}`);
+    if (role) socket.join(`role:${role}`);
+    if (employeeRole && employeeRole !== role) socket.join(`role:${employeeRole}`);
+    if (tenantId) socket.join(`tenant:${tenantId}`);
+    if (branchId) socket.join(`branch:${branchId}`);
+    socket.emit("realtime:ready", { user_id: userId, branch_id: branchId || null, role, at: new Date().toISOString() });
   } catch (error) {
-    console.warn("[socket] notification room join skipped", error?.message || error);
+    console.warn("[socket] authentication failed", error?.message || error);
+    socket.emit("realtime:error", { message: "Socket authentication failed" });
+    socket.disconnect(true);
+    return;
   }
   emitOnlineUsers();
 
@@ -185,6 +220,7 @@ const { default: couponsRoutes } = await import("./routes/coupons.js");
 const { default: dashboardRoutes } = await import("./routes/dashboard.js");
 const { default: rolesRoutes } = await import("./routes/roles.js");
 const { default: notificationsRoutes } = await import("./routes/notifications.js");
+const { default: staffTasksRoutes } = await import("./routes/staffTasks.js");
 const { ensureProductSchema, ensureProductVariantSchema } = await import("./controllers/productsController.js");
 const { ensureProductClassificationSchema } = await import("./services/productClassificationsService.js");
 const { ensureStorefrontSchema } = await import("./controllers/storefrontController.js");
@@ -196,6 +232,8 @@ const { ensureMarketingSchema } = await import("./utils/marketingSchema.js");
 const { ensureCouponsSchema } = await import("./services/couponsService.js");
 const { ensureLoyaltySchema } = await import("./services/loyaltyService.js");
 const { ensureDefaultTenantAndBackfillUsers } = await import("./utils/tenantBootstrap.js");
+const { ensureBranchSchema } = await import("./utils/branchSchema.js");
+const { ensureSingleBranchMode, ensureSingleBranchModeOnce } = await import("./utils/singleBranchMode.js");
 const { default: db } = await import("./database/db.js");
 const { startMetaTokenRefreshScheduler } = await import("./services/metaTokenAutoRefreshService.js");
 const { startMarketingAnalyticsSyncScheduler } = await import("./services/marketingAnalyticsService.js");
@@ -204,6 +242,8 @@ const { default: aiRoutes } = await import("./routes/ai.js");
 const { default: aiV2Routes } = await import("./routes/aiV2.js");
 const { default: smartWarehouseRoutes } = await import("./routes/smartWarehouse.js");
 const { ensureSalesCommissionSchema } = await import("./services/salesCommissionService.js");
+const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks } = await import("./services/staffTasksService.js");
+const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 
 /* =========================
    PATH FIX
@@ -304,7 +344,14 @@ app.get("/api/health", async (req, res) => {
 });
 
 const resolveFrontendOrigin = (req) => {
-  const envOrigin = String(process.env.FRONTEND_URL || process.env.CLIENT_URL || process.env.APP_URL || "").trim().replace(/\/$/, "");
+  const envOrigin = String(
+    process.env.PUBLIC_FRONTEND_URL ||
+      process.env.VITE_PUBLIC_FRONTEND_URL ||
+      process.env.FRONTEND_URL ||
+      process.env.CLIENT_URL ||
+      process.env.APP_URL ||
+      ""
+  ).trim().replace(/\/$/, "");
   if (envOrigin) return envOrigin;
   const forwardedProto = String(req?.get?.("x-forwarded-proto") || "").split(",")[0].trim();
   const forwardedHost = String(req?.get?.("x-forwarded-host") || "").split(",")[0].trim();
@@ -406,6 +453,7 @@ app.use("/api/coupons", couponsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/roles", rolesRoutes);
 app.use("/api/notifications", notificationsRoutes);
+app.use("/api/staff-tasks", staffTasksRoutes);
 console.log("[routes] /api/roles mounted");
 console.log("[server] marketing automation routes mounted");
 
@@ -542,6 +590,9 @@ server.listen(PORT, HOST, () => {
       console.log("[server] database connected");
       await ensureDefaultTenantAndBackfillUsers();
       console.log("[server] default tenant bootstrap ensured");
+      await ensureBranchSchema();
+      await ensureSingleBranchModeOnce();
+      console.log("[server] single branch mode ensured");
       await ensureProductSchema();
       console.log("[server] product schema ensured");
       await ensureProductVariantSchema();
@@ -556,6 +607,9 @@ server.listen(PORT, HOST, () => {
       await ensureLoyaltySchema(db);
       await ensureSalesCommissionSchema(db);
       console.log("[server] sales commission schema ensured");
+      await ensureStaffTasksSchema(db);
+      await ensureSingleBranchMode();
+      console.log("[server] staff tasks schema ensured");
       console.log("[server] coupons schema ensured");
       registerBackgroundJobHandlers();
       registerMarketingJobHandlers();
@@ -572,6 +626,22 @@ server.listen(PORT, HOST, () => {
       }, 60 * 1000);
       backgroundIntervals.add(storyInterval);
       safeRunDueStoryPublishes();
+      const taskInterval = setInterval(() => {
+        void processStaffTaskEmailQueue().catch((error) => {
+          console.error("[server] staff task email queue error", error);
+        });
+        void reassignOverdueTasks({ tenantId: null }).catch((error) => {
+          console.error("[server] staff task overdue reassignment error", error);
+        });
+      }, 5 * 60 * 1000);
+      backgroundIntervals.add(taskInterval);
+      void assignDailyInventoryCountTasks({ tenantId: null, limit: 20 }).catch((error) => {
+        console.warn("[server] daily inventory task assignment skipped", error.message);
+      });
+      void processStaffTaskEmailQueue().catch((error) => {
+        console.warn("[server] initial staff task email queue skipped", error.message);
+      });
+      console.log("[server] staff task schedulers started");
       console.log("[server] story scheduler started");
       console.log("[server] boot success");
     } catch (error) {

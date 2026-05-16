@@ -389,7 +389,7 @@ function Dashboard() {
                 <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-9 rounded-xl border border-white/[0.08] bg-zinc-950/65 px-3 text-xs text-white outline-none backdrop-blur-xl" />
               </>
             ) : null}
-            {branches.length ? (
+            {branches.length > 1 ? (
               <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-9 rounded-xl border border-white/[0.08] bg-zinc-950/65 px-3 text-xs font-bold text-white outline-none backdrop-blur-xl">
                 <option value="all">All branches</option>
                 {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}

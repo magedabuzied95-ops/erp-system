@@ -1,15 +1,51 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { CircleDollarSign, LogOut, Menu, Paintbrush, ShoppingBag, Store, X } from "lucide-react";
+import { Bell, CircleDollarSign, LogOut, Menu, Paintbrush, ShoppingBag, Store, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { clearAuth, getCurrentTenant, getCurrentUser, getToken } from "../auth/authStorage";
 import { getVisibleSidebarSections } from "../../modules/permissions/lib/rbacStore";
 import { useTheme } from "../../theme/useTheme";
 import { translateSidebarSections } from "../../i18n/navigation";
-import NotificationsProvider from "../notifications/NotificationsProvider";
-import NotificationBell from "../notifications/NotificationBell";
+import { NotificationBoundary, NotificationsProvider, useNotifications } from "../notifications/index.js";
+import { useRealtimeConnection } from "../realtime/socketStore";
+
+const NotificationBell = lazy(() => import("../notifications/NotificationBell.jsx"));
+
+function NotificationBellFallback() {
+  return (
+    <button
+      type="button"
+      className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] text-[var(--text)] opacity-70 shadow-sm"
+      aria-label="Notifications unavailable"
+      disabled
+    >
+      <Bell className="h-5 w-5" />
+    </button>
+  );
+}
+
+function SidebarNotificationBadge({ item }) {
+  const { unreadCount } = useNotifications();
+  if (item.to !== "/notifications" || unreadCount <= 0) return null;
+  return (
+    <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
+      {unreadCount > 99 ? "99+" : unreadCount}
+    </span>
+  );
+}
+
+function RealtimePill({ label }) {
+  const realtime = useRealtimeConnection();
+  const connected = realtime.connected;
+  return (
+    <div className="hidden h-11 items-center justify-center gap-2 rounded-full border border-cyan-300/25 bg-zinc-950/75 px-3 text-sm font-black text-cyan-100 shadow-[0_10px_30px_rgba(0,0,0,0.18),0_0_22px_rgba(34,211,238,0.12)] backdrop-blur sm:flex sm:px-4">
+      <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.85)]" : "bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.75)]"}`} />
+      <span className="hidden md:inline">{connected ? label : "Realtime reconnecting"}</span>
+    </div>
+  );
+}
 
 function MainLayout() {
   const navigate = useNavigate();
@@ -161,6 +197,7 @@ function MainLayout() {
                       >
                         {Icon ? <Icon className="h-4 w-4" /> : null}
                         <span>{item.label}</span>
+                        <SidebarNotificationBadge item={item} />
                       </NavLink>
                     );
                   })}
@@ -254,7 +291,11 @@ function MainLayout() {
                   <ShoppingBag className="h-4 w-4 text-emerald-300 transition group-hover:text-emerald-200" />
                   <span className="hidden sm:inline">Store</span>
                 </button>
-                <NotificationBell />
+                <NotificationBoundary fallback={<NotificationBellFallback />}>
+                  <Suspense fallback={<NotificationBellFallback />}>
+                    <NotificationBell />
+                  </Suspense>
+                </NotificationBoundary>
                 <button
                   type="button"
                   onClick={() => navigate("/pos")}
@@ -280,10 +321,7 @@ function MainLayout() {
                 >
                   <LogOut className="h-4 w-4" />
                 </button>
-                <div className="hidden h-11 items-center justify-center gap-2 rounded-full border border-cyan-300/25 bg-zinc-950/75 px-3 text-sm font-black text-cyan-100 shadow-[0_10px_30px_rgba(0,0,0,0.18),0_0_22px_rgba(34,211,238,0.12)] backdrop-blur sm:flex sm:px-4">
-                  <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.85)]" />
-                  <span className="hidden md:inline">{t("common.systemOnline")}</span>
-                </div>
+                <RealtimePill label={t("common.systemOnline")} />
               </div>
             </div>
           </div>

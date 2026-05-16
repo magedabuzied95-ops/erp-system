@@ -1,8 +1,10 @@
 import db from "../database/db.js";
+import { ensureSingleBranchMode } from "./singleBranchMode.js";
 
 let schemaReadyPromise = null;
 
 const statements = [
+  `CREATE EXTENSION IF NOT EXISTS pgcrypto;`,
   `
   CREATE TABLE IF NOT EXISTS branches (
     id BIGSERIAL PRIMARY KEY,
@@ -17,8 +19,10 @@ const statements = [
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     latitude NUMERIC,
     longitude NUMERIC,
+    attendance_radius_meters INTEGER NOT NULL DEFAULT 100,
     allowed_radius_meters INTEGER NOT NULL DEFAULT 100,
     qr_token TEXT UNIQUE DEFAULT gen_random_uuid()::text,
+    attendance_qr_token TEXT UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
@@ -31,16 +35,33 @@ const statements = [
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;`,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS latitude NUMERIC;`,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS longitude NUMERIC;`,
+  `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS attendance_radius_meters INTEGER NOT NULL DEFAULT 100;`,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS allowed_radius_meters INTEGER NOT NULL DEFAULT 100;`,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS qr_token TEXT;`,
+  `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS attendance_qr_token TEXT;`,
+  `ALTER TABLE IF EXISTS branches ALTER COLUMN attendance_radius_meters SET DEFAULT 100;`,
   `ALTER TABLE IF EXISTS branches ALTER COLUMN allowed_radius_meters SET DEFAULT 100;`,
+  `
+  UPDATE branches
+  SET attendance_radius_meters = COALESCE(attendance_radius_meters, allowed_radius_meters, 100),
+      allowed_radius_meters = COALESCE(allowed_radius_meters, attendance_radius_meters, 100)
+  WHERE attendance_radius_meters IS NULL
+     OR allowed_radius_meters IS NULL;
+  `,
   `ALTER TABLE IF EXISTS branches ALTER COLUMN qr_token SET DEFAULT gen_random_uuid()::text;`,
+  `ALTER TABLE IF EXISTS branches ALTER COLUMN attendance_qr_token SET DEFAULT encode(gen_random_bytes(32), 'hex');`,
   `
   UPDATE branches
   SET qr_token = COALESCE(qr_token, gen_random_uuid()::text)
   WHERE qr_token IS NULL;
   `,
+  `
+  UPDATE branches
+  SET attendance_qr_token = COALESCE(attendance_qr_token, encode(gen_random_bytes(32), 'hex'))
+  WHERE attendance_qr_token IS NULL;
+  `,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_qr_token ON branches (qr_token);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_attendance_qr_token ON branches (attendance_qr_token);`,
   `CREATE INDEX IF NOT EXISTS idx_branches_tenant_active ON branches (tenant_id, is_active, name);`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_tenant_code_unique ON branches (tenant_id, code) WHERE code IS NOT NULL AND code <> '';`,
   `ALTER TABLE IF EXISTS employees DROP CONSTRAINT IF EXISTS employees_branch_id_fkey;`,
@@ -68,6 +89,7 @@ export const ensureBranchSchema = async () => {
         for (const statement of statements) {
           await client.query(statement);
         }
+        await ensureSingleBranchMode(client);
         await client.query("COMMIT");
       } catch (error) {
         await client.query("ROLLBACK");

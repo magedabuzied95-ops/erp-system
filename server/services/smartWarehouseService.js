@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { ensureInventoryMovementSchema, recordInventoryMovement } from "./inventoryMovementService.js";
 
 let schemaReadyPromise = null;
@@ -99,6 +100,7 @@ export const ensureSmartWarehouseSchema = async () => {
         await client.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_barcode_perf ON product_variants (barcode)`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_branch_id ON warehouse_inventory (branch_id)`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_section_id ON warehouse_inventory (section_id)`);
+        await ensureSingleBranchMode(client);
 
         await client.query("COMMIT");
       } catch (error) {
