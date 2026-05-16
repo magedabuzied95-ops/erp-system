@@ -83,19 +83,10 @@ function OrdersDashboard() {
 
       const data = await api.get("/orders");
       const baseOrders = Array.isArray(data) ? data : Array.isArray(data.orders) ? data.orders : [];
-      const enriched = await Promise.all(
-        baseOrders.slice(0, 250).map(async (order) => {
-          try {
-            const details = await api.get(`/orders/${order.id}`);
-            return normalizeOrder(order, {
-              items: Array.isArray(details.items) ? details.items : [],
-              total: details?.order?.total ?? order.total,
-            });
-          } catch {
-            return normalizeOrder(order, { items: [] });
-          }
-        })
-      );
+      const enriched = baseOrders.map((order) => normalizeOrder(order, {
+        items: Array.isArray(order.items) ? order.items : [],
+        total: order.total ?? order.total_amount ?? order.total_price,
+      }));
       setOrders(enriched.length ? enriched : mockOrders());
     } catch (err) {
       console.log(err);

@@ -6,8 +6,17 @@ import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 
 const router = express.Router();
 
+const ensureExpensesSchema = async (clientOrPool = db) => {
+  await clientOrPool.query(`
+    ALTER TABLE IF EXISTS expenses
+      ADD COLUMN IF NOT EXISTS tenant_id BIGINT
+  `);
+};
+
 router.get("/", protect, permit("expenses", "view"), async (req, res) => {
   try {
+    await ensureExpensesSchema();
+
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
@@ -67,6 +76,8 @@ router.post("/", protect, permit("expenses", "create"), async (req, res) => {
 
   try {
     await client.query("BEGIN");
+    await ensureExpensesSchema(client);
+
     const tenantId = getTenantId(req, req.user?.tenant_id);
     const { title, amount, category, note, payment_method, status } = req.body;
 

@@ -1199,10 +1199,10 @@ export const createOrder = async (req, res) => {
         $16,
         $17,
         $18,
-        $19,
-        COALESCE($20::numeric, 0),
-        $21,
-        COALESCE($22::jsonb, '[]'::jsonb),
+        COALESCE($19::numeric, 0),
+        $20,
+        COALESCE($21::jsonb, '[]'::jsonb),
+        $22,
         $23,
         $24,
         $25,
@@ -1224,9 +1224,8 @@ export const createOrder = async (req, res) => {
         $41,
         $42,
         COALESCE($43::numeric, 0),
-        $44,
-        COALESCE($45::numeric, 0),
-        $46
+        COALESCE($44::numeric, 0),
+        $45
       )
       RETURNING *
       `,
@@ -1728,17 +1727,68 @@ export const getOrders = async (req, res) => {
   try {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     await ensurePosShiftOrderColumns(db, tenantId);
+
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const requestedLimit = Number(req.query.limit);
+    const limit = Math.min(Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : 250), 500);
+    const offset = (page - 1) * limit;
+    const params = tenantId === null ? [limit, offset] : [tenantId, limit, offset];
+    const tenantWhere = tenantId === null ? "" : "WHERE tenant_id = $1";
+    const limitParam = tenantId === null ? "$1" : "$2";
+    const offsetParam = tenantId === null ? "$2" : "$3";
+
     const result = await db.query(
       `
       SELECT *
       FROM orders
-      ${tenantId === null ? "" : "WHERE tenant_id = $1"}
+      ${tenantWhere}
       ORDER BY created_at DESC
+      LIMIT ${limitParam}
+      OFFSET ${offsetParam}
       `,
-      tenantId === null ? [] : [tenantId]
+      params
     );
 
-    res.status(200).json(result.rows);
+    const orderIds = result.rows.map((order) => Number(order.id)).filter((id) => Number.isFinite(id) && id > 0);
+    const itemsByOrder = new Map();
+
+    if (orderIds.length) {
+      const itemsResult = await db.query(
+        `
+        SELECT
+          oi.id,
+          oi.order_id,
+          oi.product_id,
+          oi.variant_id,
+          oi.product_name,
+          oi.sku,
+          oi.barcode,
+          COALESCE(pv.color, '') AS color,
+          COALESCE(pv.size, '') AS size,
+          oi.quantity
+        FROM order_items oi
+        LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+        WHERE oi.order_id = ANY($1::bigint[])
+          AND ($2::bigint IS NULL OR oi.tenant_id = $2::bigint OR oi.tenant_id IS NULL)
+        ORDER BY oi.order_id DESC, oi.id ASC
+        `,
+        [orderIds, tenantId]
+      );
+
+      for (const item of itemsResult.rows) {
+        const key = String(item.order_id);
+        const current = itemsByOrder.get(key) || [];
+        current.push(item);
+        itemsByOrder.set(key, current);
+      }
+    }
+
+    res.status(200).json(
+      result.rows.map((order) => ({
+        ...order,
+        items: itemsByOrder.get(String(order.id)) || [],
+      }))
+    );
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Server Error" });

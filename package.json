@@ -5,22 +5,53 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "backend:dev": "npm --prefix \"./server\" run dev",
+    "server:dev": "npm --prefix \"./server\" run dev",
+    "server:start": "npm --prefix \"./server\" run start",
+    "dev:all": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"./scripts/dev-all.ps1\"",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:setup": "node server/scripts/dbSetup.js",
+    "db:seed": "node server/scripts/seedFoundation.js",
+    "start": "npm --prefix \"./server\" run start"
   },
   "dependencies": {
     "axios": "^1.16.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "file-saver": "^2.0.5",
+    "html2canvas": "^1.4.1",
+    "html5-qrcode": "^2.3.8",
+    "i18next": "^26.0.10",
+    "i18next-browser-languagedetector": "^8.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
+    "lucide-react": "^1.14.0",
+    "multer": "^2.1.1",
     "nodemon": "^3.1.14",
     "pg": "^8.20.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "react-router-dom": "^7.15.0"
+    "react-hot-toast": "^2.6.0",
+    "react-i18next": "^17.0.7",
+    "react-qr-barcode-scanner": "^2.1.25",
+    "react-qr-code": "^2.0.21",
+    "react-router-dom": "^7.15.0",
+    "react-select": "^5.10.2",
+    "recharts": "^3.8.1",
+    "sharp": "^0.34.5",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.2.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
@@ -28,6 +59,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
+    "tailwindcss": "^4.2.4",
     "vite": "^8.0.10"
   }
 }
