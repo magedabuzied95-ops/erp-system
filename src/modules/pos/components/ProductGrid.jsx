@@ -142,6 +142,7 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct, onQuic
       tabIndex={0}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
+      style={{ contentVisibility: "auto", containIntrinsicSize: "360px 420px" }}
       className="group relative flex flex-col overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-left shadow-[0_24px_60px_rgba(0,0,0,0.45)] transition duration-300 hover:-translate-y-1 hover:border-white/20"
     >
       <div className="relative p-4 pb-0">
@@ -223,6 +224,9 @@ function ProductImage({ src, fallbackSrc, alt }) {
       src={currentSrc}
       alt={alt}
       loading="lazy"
+      decoding="async"
+      width="320"
+      height="240"
       className="h-full w-full object-contain p-5 transition duration-500 group-hover:scale-[1.03]"
       onError={() => {
         failedProductImageUrls.add(currentSrc);

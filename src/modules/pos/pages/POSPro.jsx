@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -913,30 +913,37 @@ function POSPro() {
   const a4Ref = useRef(null);
   const previousTotalRef = useRef(0);
   const selectedAttendanceEmployeeIdRef = useRef(selectedAttendanceEmployeeId);
+  const deferredSearch = useDeferredValue(search);
 
   useEffect(() => {
     writePosCart(cart);
-    writePosPersistedState({
-      search,
-      selectedMainCategoryId,
-      selectedSubCategoryId,
-      selectedChildCategoryId,
-      selectedBrandId,
-      selectedManufacturerId,
-      selectedGender,
-      selectedProductType,
-      selectedStyle,
-      selectedGrade,
-      paymentMode,
-      cashAmount,
-      cardAmount,
-      walletAmount,
-      invoiceDiscount,
-      serviceFee,
-      previewMode,
-    });
+  }, [cart]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      writePosPersistedState({
+        search,
+        selectedMainCategoryId,
+        selectedSubCategoryId,
+        selectedChildCategoryId,
+        selectedBrandId,
+        selectedManufacturerId,
+        selectedGender,
+        selectedProductType,
+        selectedStyle,
+        selectedGrade,
+        paymentMode,
+        cashAmount,
+        cardAmount,
+        walletAmount,
+        invoiceDiscount,
+        serviceFee,
+        previewMode,
+      });
+    }, 250);
+
+    return () => window.clearTimeout(timer);
   }, [
-    cart,
     search,
     selectedMainCategoryId,
     selectedSubCategoryId,
@@ -1481,7 +1488,7 @@ function POSPro() {
   );
 
   const productsAfterNonSmartFilters = useMemo(() => {
-    const query = normalizeSmartText(search.trim());
+    const query = normalizeSmartText(deferredSearch.trim());
 
     return productsAfterChildCategory.filter(({ meta }) => {
       const matchesBrand = selectedBrandId === "all" || meta.brandKey === selectedBrandId;
@@ -1492,7 +1499,7 @@ function POSPro() {
       const matchesText = !query || meta.searchText.includes(query);
       return matchesBrand && matchesManufacturer && matchesText;
     });
-  }, [productsAfterChildCategory, search, selectedBrandId, selectedManufacturerId]);
+  }, [productsAfterChildCategory, deferredSearch, selectedBrandId, selectedManufacturerId]);
 
   const smartFilterOptions = useMemo(() => {
     const renderedFilterSource = productsAfterNonSmartFilters.map(({ product }) => product);
@@ -1573,7 +1580,7 @@ function POSPro() {
   }, [productsAfterSmartFilters, manufacturers, manufacturerLookup]);
 
   const visibleProducts = useMemo(() => {
-    const query = normalizeSmartText(search.trim());
+    const query = normalizeSmartText(deferredSearch.trim());
 
     return productsAfterSmartFilters
       .filter(({ meta }) => {
@@ -1586,7 +1593,7 @@ function POSPro() {
         return matchesBrand && matchesManufacturer && matchesText;
       })
       .map(({ product }) => product);
-  }, [productsAfterSmartFilters, search, selectedBrandId, selectedManufacturerId]);
+  }, [productsAfterSmartFilters, deferredSearch, selectedBrandId, selectedManufacturerId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1688,6 +1695,23 @@ function POSPro() {
     if (!barcodeShopProduct) return null;
     return products.find((item) => String(item.product_id || item.id) === String(barcodeShopProduct.product_id || barcodeShopProduct.id)) || barcodeShopProduct;
   }, [barcodeShopProduct, products]);
+
+  const barcodeLookup = useMemo(() => {
+    const variantsByCode = new Map();
+    const productsByCode = new Map();
+    products.forEach((product) => {
+      [product.sku, product.barcode].filter(Boolean).forEach((value) => {
+        productsByCode.set(String(value).toLowerCase(), product);
+      });
+      (product.variants || []).forEach((variant) => {
+        [variant.sku, variant.barcode, product.sku, product.barcode].filter(Boolean).forEach((value) => {
+          const key = String(value).toLowerCase();
+          if (!variantsByCode.has(key)) variantsByCode.set(key, { product, variant });
+        });
+      });
+    });
+    return { productsByCode, variantsByCode };
+  }, [products]);
 
   const cartTotals = useMemo(
     () =>
@@ -1846,18 +1870,7 @@ function POSPro() {
     const normalized = rawValue.toLowerCase();
     if (!normalized) return;
 
-    const exactVariant = products
-      .flatMap((product) =>
-        (product.variants || []).map((variant) => ({
-          product,
-          variant,
-        }))
-      )
-      .find((entry) =>
-        [entry.variant.sku, entry.variant.barcode, entry.product.sku, entry.product.barcode]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase() === normalized)
-      );
+    const exactVariant = barcodeLookup.variantsByCode.get(normalized);
 
     if (exactVariant) {
       addVariantToCart(exactVariant.product, exactVariant.variant);
@@ -1865,9 +1878,7 @@ function POSPro() {
       return;
     }
 
-    const exactProduct = products.find((product) =>
-      [product.sku, product.barcode].filter(Boolean).some((value) => String(value).toLowerCase() === normalized)
-    );
+    const exactProduct = barcodeLookup.productsByCode.get(normalized);
 
     if (exactProduct) {
       quickAddProduct(exactProduct);
@@ -1885,7 +1896,7 @@ function POSPro() {
     }
   };
 
-  const addVariantToCart = (product, variant) => {
+  const addVariantToCart = useCallback((product, variant) => {
     if (!variant) {
       toast.error("Variant not available");
       return;
@@ -1970,7 +1981,7 @@ function POSPro() {
     });
 
     toast.success(`${product.name || product.product_name} added to cart`);
-  };
+  }, [products]);
 
   const quickAddProduct = (product) => {
     const variants = Array.isArray(product.variants) ? product.variants : [];
@@ -2012,8 +2023,8 @@ function POSPro() {
     setSelectedProduct(product);
   };
 
-  const handleRemoveCartItem = (key) => setCart((prev) => prev.filter((item) => item.key !== key));
-  const handleIncrease = (key) =>
+  const handleRemoveCartItem = useCallback((key) => setCart((prev) => prev.filter((item) => item.key !== key)), []);
+  const handleIncrease = useCallback((key) =>
     setCart((prev) =>
       prev.map((item) =>
         item.key === key
@@ -2033,8 +2044,8 @@ function POSPro() {
             })()
           : item
       )
-    );
-  const handleDecrease = (key) =>
+    ), [products]);
+  const handleDecrease = useCallback((key) =>
     setCart((prev) =>
       prev.map((item) =>
         item.key === key
@@ -2044,8 +2055,8 @@ function POSPro() {
             }
           : item
       )
-    );
-  const handleItemDiscount = (key, value) =>
+    ), []);
+  const handleItemDiscount = useCallback((key, value) =>
     setCart((prev) =>
       prev.map((item) =>
         item.key === key
@@ -2055,7 +2066,7 @@ function POSPro() {
             }
           : item
       )
-    );
+    ), []);
 
   const handleApplyCoupon = async () => {
     const code = String(couponCode || "").trim().toUpperCase();

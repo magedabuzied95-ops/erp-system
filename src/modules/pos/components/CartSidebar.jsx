@@ -1274,6 +1274,9 @@ function CartItemImage({ src, fallbackSrc, alt }) {
       src={currentSrc}
       alt={alt}
       loading="lazy"
+      decoding="async"
+      width="64"
+      height="64"
       className="h-full w-full object-cover"
       onError={() => {
         failedCartImageUrls.add(currentSrc);

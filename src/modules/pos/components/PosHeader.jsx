@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   BadgeCheck,
@@ -43,13 +43,17 @@ function PosHeader({
   const safeCustomers = Array.isArray(customers) ? customers : [];
   const normalizedCustomerSearch = String(customerSearch || "").trim().toLowerCase();
   const customerPhoneSearch = normalizePhone(customerSearch);
-  const customerMatches = safeCustomers.filter((item) => {
-    if (!normalizedCustomerSearch) return true;
-    const text = `${item?.name || ""} ${item?.phone || ""} ${item?.mobile || ""} ${item?.whatsapp || ""}`.toLowerCase();
-    if (text.includes(normalizedCustomerSearch)) return true;
-    if (!customerPhoneSearch.replace(/\D/g, "")) return false;
-    return [item?.phone, item?.mobile, item?.whatsapp].some((value) => matchesPhoneSearch(value, customerSearch));
-  });
+  const customerMatches = useMemo(
+    () =>
+      safeCustomers.filter((item) => {
+        if (!normalizedCustomerSearch) return true;
+        const text = `${item?.name || ""} ${item?.phone || ""} ${item?.mobile || ""} ${item?.whatsapp || ""}`.toLowerCase();
+        if (text.includes(normalizedCustomerSearch)) return true;
+        if (!customerPhoneSearch.replace(/\D/g, "")) return false;
+        return [item?.phone, item?.mobile, item?.whatsapp].some((value) => matchesPhoneSearch(value, customerSearch));
+      }),
+    [customerPhoneSearch, customerSearch, normalizedCustomerSearch, safeCustomers]
+  );
   const showCustomerSuggestions =
     customerSearchActive &&
     !selectedCustomer &&
