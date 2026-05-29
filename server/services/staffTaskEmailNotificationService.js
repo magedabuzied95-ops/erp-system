@@ -133,39 +133,41 @@ export const enqueueStaffTaskEmail = async (clientOrPool = db, {
 
 const buildTaskEmail = (row = {}) => {
   const payload = row.payload || {};
-  const title = text(payload.title || "New task assigned");
+  const title = text(payload.title_ar || payload.task_title_ar || payload.title || "مهمة جديدة");
   if (Array.isArray(payload.tasks) && payload.tasks.length) {
-    const subject = text(payload.subject || "Your task list was updated");
-    const taskLines = payload.tasks.map((task, index) => `${index + 1}. ${task.title}${task.due_at ? ` - due ${task.due_at}` : ""}`).join("\n");
+    const subject = text(payload.subject_ar || payload.subject || "تم تحديث قائمة مهامك");
+    const taskLines = payload.tasks
+      .map((task, index) => `${index + 1}. ${text(task.title_ar || task.task_title_ar || task.title)}${task.due_at ? ` - الموعد ${task.due_at}` : ""}`)
+      .join("\n");
     return {
       subject,
       body: [
-        `Hello ${payload.assignee_name || ""},`,
+        `مرحبًا ${payload.assignee_name || ""}،`,
         "",
-        text(payload.message || "Your task list was updated after check-in."),
+        text(payload.message_ar || payload.message || "تم تحديث قائمة مهامك بعد تسجيل الحضور."),
         "",
         taskLines,
         "",
-        "Open the ERP task dashboard to review and complete your tasks.",
+        "افتح لوحة مهام الموظفين لمراجعة المهام وتنفيذها.",
       ].filter(Boolean).join("\n"),
     };
   }
   const subject = row.notification_type === "task_reassigned"
-    ? `Task reassigned: ${title}`
-    : `New assigned task: ${title}`;
+    ? `تم إعادة تعيين مهمة: ${title}`
+    : `مهمة جديدة: ${title}`;
   const body = [
-    `Hello ${payload.assignee_name || ""},`,
+    `مرحبًا ${payload.assignee_name || ""}،`,
     "",
     row.notification_type === "task_reassigned"
-      ? "A task has been reassigned to you in the ERP."
-      : "A new task has been assigned to you in the ERP.",
+      ? "تم إعادة تعيين مهمة لك داخل النظام."
+      : "تم تعيين مهمة جديدة لك داخل النظام.",
     "",
-    `Task: ${title}`,
-    payload.description ? `Details: ${payload.description}` : "",
-    payload.priority ? `Priority: ${payload.priority}` : "",
-    payload.due_at ? `Deadline: ${payload.due_at}` : "",
+    `المهمة: ${title}`,
+    (payload.description_ar || payload.description) ? `التفاصيل: ${payload.description_ar || payload.description}` : "",
+    payload.priority ? `الأولوية: ${payload.priority}` : "",
+    payload.due_at ? `الموعد: ${payload.due_at}` : "",
     "",
-    "Open the ERP task dashboard to review and complete it.",
+    "افتح لوحة مهام الموظفين لمراجعتها وتنفيذها.",
   ].filter(Boolean).join("\n");
   return { subject, body };
 };
@@ -293,7 +295,7 @@ export const sendLoginTaskDigestIfNeeded = async (userId, employeeId, tenantId) 
 
   const tasksResult = await db.query(
     `
-    SELECT id, title, status, priority, due_at
+    SELECT id, title, title_ar, status, priority, due_at
     FROM staff_task_assignments
     WHERE tenant_id = $1
       AND current_assignee_id = $2
@@ -323,7 +325,7 @@ export const sendLoginTaskDigestIfNeeded = async (userId, employeeId, tenantId) 
   if (duplicate.rows[0]) return { skipped: true, reason: "duplicate" };
 
   const subject = "مهامك اليوم في النظام";
-  const taskLines = tasksResult.rows.map((task, index) => `${index + 1}. ${task.title} - ${task.status}`).join("\n");
+  const taskLines = tasksResult.rows.map((task, index) => `${index + 1}. ${text(task.title_ar || task.title)} - ${task.status}`).join("\n");
   const body = [
     `مرحبًا ${employee?.full_name || ""}،`,
     "تم تحديث مهامك اليوم داخل النظام.",

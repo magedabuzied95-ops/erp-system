@@ -112,6 +112,7 @@ const compactPurchaseLine = (item = {}, fallback = {}) => {
 const compactPurchaseRecord = (purchase = {}) => ({
   id: purchase.id ?? null,
   invoice_number: purchase.invoice_number || purchase.purchase_number || "",
+  legacy_purchase_number: purchase.legacy_purchase_number || purchase.legacyPurchaseNumber || "",
   supplier_id: purchase.supplier_id ?? null,
   supplier_name: purchase.supplier_name || "",
   warehouse_id: purchase.warehouse_id ?? null,
@@ -216,6 +217,9 @@ export const slugify = (value = "") =>
 
 export const generateCode = (prefix = "DOC") =>
   `${prefix}-${Date.now().toString(36).toUpperCase()}`;
+
+export const formatPurchaseCode = (sequence) =>
+  `PO-${String(sequence).padStart(3, "0")}`;
 
 export const seedSuppliers = () => [
   {
@@ -354,17 +358,32 @@ export const normalizeSupplier = (supplier) => {
 
 export const normalizeWarehouse = (warehouse) => {
   const meta = getWarehouseMeta()[String(warehouse.id)] || {};
+  const stockQty = Number(warehouse.stock_qty ?? warehouse.stock_quantity ?? warehouse.stockQuantity ?? 0);
+  const transfersCount = Number(warehouse.transfers_count ?? warehouse.transfer_references ?? warehouse.transferReferences ?? 0);
+  const activeTransfersCount = Number(warehouse.active_transfers_count ?? warehouse.active_transfer_references ?? warehouse.activeTransferReferences ?? 0);
   return {
     ...warehouse,
     status: meta.status || warehouse.status || "Active",
-    branch: meta.branch || warehouse.branch || "Main",
+    branch: meta.branch || warehouse.branch || warehouse.branch_name || "Main",
     notes: meta.notes || warehouse.notes || "",
+    products_count: Number(warehouse.products_count || warehouse.productsCount || 0),
+    stock_qty: stockQty,
+    stock_quantity: stockQty,
+    transfers_count: transfersCount,
+    transfer_references: transfersCount,
+    active_transfers_count: activeTransfersCount,
+    active_transfer_references: activeTransfersCount,
+    default_references: Number(warehouse.default_references || warehouse.defaultReferences || 0),
+    can_delete: Boolean(warehouse.can_delete ?? warehouse.canDelete ?? false),
+    is_protected: Boolean(warehouse.is_protected || warehouse.isProtected || warehouse.default_references),
   };
 };
 
 export const normalizePurchase = (purchase) => ({
   ...purchase,
-  invoice_number: purchase.invoice_number || `PUR-${String(purchase.id).slice(-4)}`,
+  invoice_number: purchase.purchase_number || purchase.invoice_number || formatPurchaseCode(purchase.id),
+  purchase_number: purchase.purchase_number || purchase.invoice_number || formatPurchaseCode(purchase.id),
+  legacy_purchase_number: purchase.legacy_purchase_number || purchase.legacyPurchaseNumber || "",
   status: purchase.status || "Draft",
   payment_status: purchase.payment_status || "Pending",
   warehouse_name: purchase.warehouse_name || "Main Warehouse",
@@ -378,9 +397,68 @@ export const normalizePurchase = (purchase) => ({
   created_at: purchase.created_at || new Date().toISOString(),
 });
 
+export const purchaseReceivedQuantity = (purchase = {}) =>
+  (Array.isArray(purchase.items) ? purchase.items : []).reduce(
+    (sum, item) => sum + Number(item.received_quantity ?? item.received_qty ?? item.receivedQty ?? 0),
+    0
+  );
+
+export const purchaseOrderedQuantity = (purchase = {}) =>
+  (Array.isArray(purchase.items) ? purchase.items : []).reduce(
+    (sum, item) => sum + Number(item.quantity ?? item.qty ?? 0),
+    0
+  );
+
+export const purchasePaidAmount = (purchase = {}) =>
+  Number(purchase.paid_amount ?? purchase.supplier_paid_amount ?? purchase.amount_paid ?? 0) || 0;
+
+export const purchaseHasStockMovements = (purchase = {}) =>
+  Boolean(purchase.stock_applied || purchase.stock_applied_at || purchaseReceivedQuantity(purchase) > 0);
+
+export const purchaseHasAccountingPostings = (purchase = {}) =>
+  Boolean(purchase.accounting_posted || purchase.accounting_entry_id || purchase.journal_entry_id || purchase.metadata?.accounting_posted);
+
+export const purchaseHasLinkedPayments = (purchase = {}) =>
+  purchasePaidAmount(purchase) > 0 || ["paid", "partially_paid", "partial"].includes(String(purchase.payment_status || "").toLowerCase());
+
+export const purchaseHasLinkedReturns = (purchase = {}) =>
+  Boolean(purchase.return_id || purchase.return_count || purchase.metadata?.return_id || purchase.metadata?.returns_count);
+
+export const purchaseIsFullyReceived = (purchase = {}) => {
+  const ordered = purchaseOrderedQuantity(purchase);
+  const received = purchaseReceivedQuantity(purchase);
+  const status = String(purchase.status || "").toLowerCase();
+  return Boolean(purchase.stock_applied || status.includes("fully") || status === "received" || (ordered > 0 && received >= ordered));
+};
+
+export const purchaseCanDelete = (purchase = {}) =>
+  !purchaseHasStockMovements(purchase) &&
+  !purchaseHasAccountingPostings(purchase) &&
+  !purchaseHasLinkedPayments(purchase) &&
+  !purchaseHasLinkedReturns(purchase);
+
+export const purchaseCanEditDestructively = (purchase = {}) =>
+  !purchaseHasStockMovements(purchase) && !purchaseIsFullyReceived(purchase);
+
+export const upsertLocalPurchase = (purchase) => {
+  const normalized = normalizePurchase(purchase);
+  saveLocalPurchases([
+    normalized,
+    ...getLocalPurchases().map(normalizePurchase).filter((item) => String(item.id) !== String(normalized.id)),
+  ]);
+  return normalized;
+};
+
+export const deleteLocalPurchase = (purchaseId) => {
+  saveLocalPurchases(getLocalPurchases().map(normalizePurchase).filter((purchase) => String(purchase.id) !== String(purchaseId)));
+};
+
 export const buildSearchText = (record) =>
   [
     record.invoice_number,
+    record.purchase_number,
+    record.legacy_purchase_number,
+    record.legacyPurchaseNumber,
     record.supplier_name,
     record.warehouse_name,
     record.status,

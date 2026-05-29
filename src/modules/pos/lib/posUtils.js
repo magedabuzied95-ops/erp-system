@@ -1,5 +1,6 @@
 import { mergeProductRecord } from "../../products/lib/catalog";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { formatLocalizedNumber } from "../../../shared/lib/locale";
 export { formatCurrency };
 import {
   buildInvoiceMessageTemplate,
@@ -10,13 +11,9 @@ import {
   normalizePhoneNumber,
 } from "../../../shared/utils/whatsapp.js";
 
-export const downloadInvoicePdf = async (options) => {
-  const { downloadInvoicePdf: download } = await import("../../../shared/utils/invoicePdf");
-  return download(options);
-};
-
 const CART_STORAGE_KEY = "erp.pos.cart";
 const STATE_STORAGE_KEY = "erp.pos.state";
+const SESSION_STORAGE_KEY = "erp.pos.session";
 const CUSTOMER_STATE_KEYS = new Set(["customerSearch", "selectedCustomerId", "customerId", "selectedCustomer"]);
 
 const omitCustomerState = (state = {}) =>
@@ -24,14 +21,10 @@ const omitCustomerState = (state = {}) =>
     Object.entries(state || {}).filter(([key]) => !CUSTOMER_STATE_KEYS.has(key))
   );
 
-export const formatNumber = (value) =>
-  new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 2,
-  }).format(Number(value || 0));
+export const formatNumber = (value, language = "") => formatLocalizedNumber(value, language);
 
 export const generateInvoiceNumber = () => {
-  const stamp = Date.now().toString(36).toUpperCase();
-  return `INV-${stamp.slice(-8)}`;
+  return "INV-PENDING";
 };
 
 export const readPosPersistedState = () => {
@@ -54,7 +47,7 @@ export const readPosCart = () => {
   if (typeof window === "undefined") return [];
 
   try {
-    const raw = window.localStorage.getItem(CART_STORAGE_KEY);
+    const raw = window.localStorage.getItem(CART_STORAGE_KEY) || window.sessionStorage.getItem(CART_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -63,13 +56,35 @@ export const readPosCart = () => {
 
 export const writePosCart = (cart) => {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+  const value = JSON.stringify(cart);
+  window.localStorage.setItem(CART_STORAGE_KEY, value);
+  window.sessionStorage.setItem(CART_STORAGE_KEY, value);
+};
+
+export const readPosSession = () => {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY) || window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+export const writePosSession = (session) => {
+  if (typeof window === "undefined") return;
+  const value = JSON.stringify({ ...(session || {}), updatedAt: new Date().toISOString() });
+  window.localStorage.setItem(SESSION_STORAGE_KEY, value);
+  window.sessionStorage.setItem(SESSION_STORAGE_KEY, value);
 };
 
 export const clearPosPersistedState = () => {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(CART_STORAGE_KEY);
   window.localStorage.removeItem(STATE_STORAGE_KEY);
+  window.localStorage.removeItem(SESSION_STORAGE_KEY);
+  window.sessionStorage.removeItem(CART_STORAGE_KEY);
+  window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
 };
 
 export const groupProductCatalog = (productsResponse, variantsResponse) => {
@@ -213,17 +228,21 @@ export const derivePaymentSummary = ({
   cashAmount = 0,
   cardAmount = 0,
   walletAmount = 0,
+  customerWalletAmount = 0,
 }) => {
-  const paidAmount =
+  const rawPaidAmount =
     paymentMode === "split"
-      ? Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0)
-      : Number(cashAmount || cardAmount || walletAmount || 0);
+      ? Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + Number(customerWalletAmount || 0)
+      : paymentMode === "customer_wallet"
+        ? Number(customerWalletAmount || 0)
+        : Number(cashAmount || cardAmount || walletAmount || 0);
+  const paidAmount = Math.min(Math.max(0, rawPaidAmount), Math.max(0, Number(total || 0)));
 
-  const changeAmount = Math.max(0, paidAmount - Number(total || 0));
+  const changeAmount = 0;
   const dueAmount = Math.max(0, Number(total || 0) - paidAmount);
 
   let paymentStatus = "Pending";
-  if (paidAmount >= Number(total || 0) && Number(total || 0) > 0) {
+  if (Number(total || 0) <= 0 || (paidAmount >= Number(total || 0) && Number(total || 0) > 0)) {
     paymentStatus = "Paid";
   } else if (paidAmount > 0) {
     paymentStatus = "Partial";
@@ -235,9 +254,10 @@ export const derivePaymentSummary = ({
     dueAmount,
     paymentStatus,
     walletAmount: Number(walletAmount || 0),
+    customerWalletAmount: Number(customerWalletAmount || 0),
     cashAmount: Number(cashAmount || 0),
     cardAmount: Number(cardAmount || 0),
-    remainingCashOrCard: Math.max(0, Number(total || 0) - Number(walletAmount || 0)),
+    remainingCashOrCard: Math.max(0, Number(total || 0) - Number(walletAmount || 0) - Number(customerWalletAmount || 0)),
   };
 };
 

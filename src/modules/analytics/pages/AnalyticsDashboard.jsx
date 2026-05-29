@@ -1,20 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-
-import {
-  Area,
-  Bar,
-  CartesianGrid,
-  Cell,
-  ComposedChart,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BrainCircuit,
@@ -41,16 +25,6 @@ import AnalyticsKpiCard from "../components/AnalyticsKpiCard";
 import AiInsightCard from "../components/AiInsightCard";
 import { api } from "../../../shared/api/api";
 import {
-  aiInsights as mockAiInsights,
-  analyticsKpis as mockKpis,
-  analyticsSummary as mockSummary,
-  channelSeries as mockChannelSeries,
-  deadStockItems as mockDeadStockItems,
-  predictedSales as mockPredictedSales,
-  revenueSeries as mockRevenueSeries,
-  smartAlerts as mockSmartAlerts,
-} from "../lib/analyticsMockData";
-import {
   getAiInsights,
   getAnalyticsOverview,
   getCustomerAnalytics,
@@ -67,10 +41,47 @@ import {
   printAnalyticsReport,
 } from "../lib/analyticsExport";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { logPagePerf } from "../../../shared/lib/perfDebug";
 
-const channelColors = ["#22d3ee", "#34d399", "#f59e0b", "#a78bfa"];
+const AnalyticsCharts = lazy(async () => {
+  const startedAt = performance.now();
+  const module = await import("../components/AnalyticsCharts");
+  logPagePerf("analytics.charts", startedAt, { heavy_component_load_ms: Math.round(performance.now() - startedAt) });
+  return module;
+});
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
+
+const EMPTY_ANALYTICS_BUNDLE = {
+  summary: {
+    revenue: 0,
+    profit: 0,
+    orders: 0,
+    customers: 0,
+    lowStockCount: 0,
+    deadStockCount: 0,
+    bestSeller: "n/a",
+    forecastedGrowth: 0,
+  },
+  kpis: [],
+  revenueSeries: [],
+  salesTrendSeries: [],
+  channelSeries: [],
+  deadStockItems: [],
+  lowStockItems: [],
+  reorderSuggestions: [],
+  deadStockAnalysis: [],
+  predictedSales: [],
+  smartAlerts: [],
+  aiInsights: [],
+  customerIntelligence: [],
+  topCustomers: [],
+  recentCustomers: [],
+  customerSummary: {},
+  inventoryValue: 0,
+  movementSummary: [],
+  profit: {},
+};
 
 const formatDate = (date) => {
   const year = date.getFullYear();
@@ -140,35 +151,13 @@ const buildAnalyticsParams = (filters) => {
   };
 };
 
-const buildFallbackBundle = () => ({
-  summary: mockSummary,
-  kpis: mockKpis,
-  revenueSeries: mockRevenueSeries,
-  salesTrendSeries: mockRevenueSeries,
-  channelSeries: mockChannelSeries,
-  deadStockItems: mockDeadStockItems,
-  lowStockItems: [],
-  reorderSuggestions: [],
-  deadStockAnalysis: [],
-  predictedSales: mockPredictedSales,
-  smartAlerts: mockSmartAlerts,
-  aiInsights: mockAiInsights,
-  customerIntelligence: [],
-  topCustomers: [],
-  recentCustomers: [],
-  customerSummary: {},
-  inventoryValue: 0,
-  movementSummary: [],
-  profit: {},
-});
-
 const createKpisFromBackend = ({ summary = {}, profit = {}, inventory = {}, customers = {}, bestSeller = {} }) => [
-  { label: "Revenue", value: summary.revenue || 0, delta: 12.4, trend: "up" },
-  { label: "Profit", value: profit.profit || summary.profit || 0, delta: 8.7, trend: "up" },
-  { label: "Orders", value: summary.orders || 0, delta: 5.2, trend: "up" },
-  { label: "Customers", value: summary.customers || customers.summary?.totalCustomers || 0, delta: 3.1, trend: "up" },
-  { label: "Low Stock", value: summary.lowStockCount ?? inventory.lowStockItems?.length ?? 0, delta: -11.2, trend: "down" },
-  { label: "Best Seller", value: summary.bestSeller || bestSeller.name || "n/a", delta: 19.8, trend: "up" },
+  { label: "Revenue", value: summary.revenue || 0, delta: 0, trend: "flat" },
+  { label: "Profit", value: profit.profit || summary.profit || 0, delta: 0, trend: "flat" },
+  { label: "Orders", value: summary.orders || 0, delta: 0, trend: "flat" },
+  { label: "Customers", value: summary.customers || customers.summary?.totalCustomers || 0, delta: 0, trend: "flat" },
+  { label: "Low Stock", value: summary.lowStockCount ?? inventory.lowStockItems?.length ?? 0, delta: 0, trend: "flat" },
+  { label: "Best Seller", value: summary.bestSeller || bestSeller.name || "n/a", delta: 0, trend: "flat" },
 ];
 
 const mapBackendBundle = (responses = {}) => {
@@ -180,7 +169,7 @@ const mapBackendBundle = (responses = {}) => {
   const aiInsights = responses.aiInsights?.aiInsights || responses.aiInsights || {};
 
   const summary = {
-    ...mockSummary,
+    ...EMPTY_ANALYTICS_BUNDLE.summary,
     ...(overview.summary || {}),
     revenue: overview.summary?.revenue ?? profit.revenue ?? 0,
     profit: overview.summary?.profit ?? profit.profit ?? 0,
@@ -197,9 +186,9 @@ const mapBackendBundle = (responses = {}) => {
     bestSeller:
       overview.summary?.bestSeller ||
       overview.bestSeller?.name ||
-      mockSummary.bestSeller,
+      "n/a",
     forecastedGrowth:
-      overview.summary?.forecastedGrowth ?? mockSummary.forecastedGrowth,
+      overview.summary?.forecastedGrowth ?? 0,
   };
 
   return {
@@ -217,34 +206,34 @@ const mapBackendBundle = (responses = {}) => {
     revenueSeries:
       sales.revenueSeries !== undefined
         ? safeArray(sales.revenueSeries)
-        : safeArray(profit.monthly).length > 0
-          ? profit.monthly.map((item) => ({
-              name: item.month,
-              revenue: Number(item.revenue || 0),
-              profit: Number(item.profit || 0),
-              orders: 0,
-            }))
-          : mockRevenueSeries,
+          : safeArray(profit.monthly).length > 0
+            ? profit.monthly.map((item) => ({
+                name: item.month,
+                revenue: Number(item.revenue || 0),
+                profit: Number(item.profit || 0),
+                orders: 0,
+              }))
+            : [],
     salesTrendSeries:
       sales.revenueSeries !== undefined
         ? safeArray(sales.revenueSeries)
-        : safeArray(profit.monthly).length > 0
-          ? profit.monthly.map((item) => ({
-              name: item.month,
-              revenue: Number(item.revenue || 0),
-              orders: Number(item.revenue || 0) > 0 ? Math.max(1, Math.round(Number(item.revenue || 0) / 2500)) : 0,
-            }))
-          : mockRevenueSeries,
-    channelSeries: sales.channelSeries !== undefined ? safeArray(sales.channelSeries) : mockChannelSeries,
+          : safeArray(profit.monthly).length > 0
+            ? profit.monthly.map((item) => ({
+                name: item.month,
+                revenue: Number(item.revenue || 0),
+                orders: Number(item.revenue || 0) > 0 ? Math.max(1, Math.round(Number(item.revenue || 0) / 2500)) : 0,
+              }))
+            : [],
+    channelSeries: sales.channelSeries !== undefined ? safeArray(sales.channelSeries) : [],
     deadStockItems:
-      inventory.deadStockItems !== undefined ? safeArray(inventory.deadStockItems) : mockDeadStockItems,
+      inventory.deadStockItems !== undefined ? safeArray(inventory.deadStockItems) : [],
     lowStockItems: inventory.lowStockItems !== undefined ? safeArray(inventory.lowStockItems) : [],
     predictedSales:
-      inventory.predictedSales !== undefined ? safeArray(inventory.predictedSales) : mockPredictedSales,
+      inventory.predictedSales !== undefined ? safeArray(inventory.predictedSales) : [],
     smartAlerts:
-      inventory.smartAlerts !== undefined ? safeArray(inventory.smartAlerts) : mockSmartAlerts,
+      inventory.smartAlerts !== undefined ? safeArray(inventory.smartAlerts) : [],
     aiInsights:
-      aiInsights.items !== undefined ? safeArray(aiInsights.items) : mockAiInsights,
+      aiInsights.items !== undefined ? safeArray(aiInsights.items) : [],
     reorderSuggestions:
       responses.reorderSuggestions?.items !== undefined
         ? safeArray(responses.reorderSuggestions.items)
@@ -265,6 +254,8 @@ const mapBackendBundle = (responses = {}) => {
 
 function AnalyticsDashboard() {
   const { t } = useTranslation();
+  const pageStartedAtRef = useRef(performance.now());
+  const firstDataLoggedRef = useRef(false);
   const presetOptions = useMemo(
     () => [
       { value: "today", label: t("common.today", "Today") },
@@ -291,6 +282,13 @@ function AnalyticsDashboard() {
       warehouseId: "",
     };
   });
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      logPagePerf("analytics.dashboard", pageStartedAtRef.current, { page_mount_ms: Math.round(performance.now() - pageStartedAtRef.current) });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -363,8 +361,7 @@ function AnalyticsDashboard() {
 
         if (!active) return;
 
-        setAnalytics(
-          mapBackendBundle({
+        const nextAnalytics = mapBackendBundle({
             overview,
             sales,
             profit,
@@ -374,17 +371,21 @@ function AnalyticsDashboard() {
             reorderSuggestions,
             deadStock,
             customerIntelligence,
-          })
-        );
+          });
+        setAnalytics(nextAnalytics);
         setSource("live");
+        if (!firstDataLoggedRef.current) {
+          firstDataLoggedRef.current = true;
+          logPagePerf("analytics.dashboard", pageStartedAtRef.current, { first_data_ms: Math.round(performance.now() - pageStartedAtRef.current) });
+        }
       } catch (err) {
         if (!active) return;
 
-        console.warn("Analytics dashboard fallback activated because the backend analytics response was unavailable.", err);
-        setAnalytics(buildFallbackBundle());
-        setSource("fallback");
-        setError("Analytics endpoints are unavailable. Showing local fallback intelligence.");
-      toast.error(t("analytics.labels.fallbackToast", "Using analytics fallback data"));
+        console.warn("Analytics dashboard failed to load live analytics.", err);
+        setAnalytics(null);
+        setSource("error");
+        setError(t("analytics.labels.unavailable", "Analytics endpoints are unavailable. No placeholder data is shown."));
+        toast.error(t("analytics.labels.unavailableToast", "Unable to load analytics data"));
       } finally {
         if (active) setLoading(false);
         if (active) setRefreshing(false);
@@ -416,9 +417,17 @@ function AnalyticsDashboard() {
     });
   };
 
-  const data = analytics || buildFallbackBundle();
-  const isFallback = source === "fallback";
+  const data = analytics || EMPTY_ANALYTICS_BUNDLE;
+  const isErrorSource = source === "error";
   const showScopeFilters = branchOptions.length > 1 || warehouseOptions.length > 0;
+
+  useEffect(() => {
+    if (loading) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      logPagePerf("analytics.dashboard", pageStartedAtRef.current, { render_complete_ms: Math.round(performance.now() - pageStartedAtRef.current) });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, analytics]);
   const selectedBranchLabel = useMemo(
     () => branchOptions.find((branch) => String(branch.id) === String(filters.branchId))?.label || t("analytics.labels.allBranches"),
     [branchOptions, filters.branchId]
@@ -499,7 +508,7 @@ function AnalyticsDashboard() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <StatusPill label={isFallback ? t("analytics.status.fallback") : t("analytics.status.live")} tone={isFallback ? "amber" : "emerald"} />
+          <StatusPill label={isErrorSource ? t("analytics.status.unavailable", "Unavailable") : t("analytics.status.live")} tone={isErrorSource ? "rose" : "emerald"} />
           <StatusPill label={`${t("analytics.status.bestSeller")} ${data.summary.bestSeller}`} tone="cyan" />
           {error ? <StatusPill label={error} tone="rose" /> : null}
           {refreshing ? <StatusPill label={t("analytics.buttons.refreshing")} tone="amber" /> : null}
@@ -673,7 +682,7 @@ function AnalyticsDashboard() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {data.kpis.map((kpi) => (
+        {data.kpis.length > 0 ? data.kpis.map((kpi) => (
           <AnalyticsKpiCard
             key={kpi.label}
             label={kpi.label}
@@ -682,110 +691,18 @@ function AnalyticsDashboard() {
             trend={kpi.trend}
             icon={getKpiIcon(kpi.label)}
           />
-        ))}
+        )) : (
+          <div className="rounded-[28px] border border-dashed border-white/10 bg-zinc-950/70 p-8 text-sm font-semibold text-zinc-400 md:col-span-2 xl:col-span-3">
+            {t("analytics.empty.noSalesData", "No sales data")}
+          </div>
+        )}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.8fr)]">
-        <Panel title={t("analytics.sections.revenueTrend")} subtitle={t("analytics.sections.revenueTrend")}>
-          <div className="h-[340px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={data.revenueSeries}>
-                <defs>
-                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.38} />
-                    <stop offset="95%" stopColor="#22d3ee" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                <XAxis dataKey="name" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{
-                    background: "#020617",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: "16px",
-                    color: "#fff",
-                  }}
-                />
-                <Area type="monotone" dataKey="revenue" stroke="#22d3ee" fill="url(#revenueGradient)" strokeWidth={2} />
-                <Line type="monotone" dataKey="profit" stroke="#34d399" strokeWidth={3} dot={false} />
-                <Bar dataKey="orders" fill="#a78bfa" radius={[10, 10, 0, 0]} barSize={24} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </Panel>
-
-        <Panel title="Sales trend" subtitle="Order movement and sales velocity using backend chart data.">
-          <div className="h-[340px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data.salesTrendSeries}>
-                <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                <XAxis dataKey="name" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip
-                  contentStyle={{
-                    background: "#020617",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: "16px",
-                    color: "#fff",
-                  }}
-                />
-                <Line type="monotone" dataKey="orders" stroke="#22d3ee" strokeWidth={3} dot={false} />
-                <Line type="monotone" dataKey="revenue" stroke="#a78bfa" strokeWidth={3} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </Panel>
-      </div>
+      <Suspense fallback={<ChartsSkeleton />}>
+        <AnalyticsCharts data={data} Panel={Panel} t={t} />
+      </Suspense>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Panel title="Channel mix" subtitle="Sales distribution across commerce channels.">
-          <div className="h-[340px]">
-            <ResponsiveContainer width="100%" height="100%">
-              {data.channelSeries.length > 0 ? (
-                <PieChart>
-                  <Pie
-                    data={data.channelSeries}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={70}
-                    outerRadius={112}
-                    paddingAngle={4}
-                  >
-                    {data.channelSeries.map((entry, index) => (
-                      <Cell key={entry.name} fill={channelColors[index % channelColors.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      background: "#020617",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: "16px",
-                      color: "#fff",
-                    }}
-                  />
-                </PieChart>
-              ) : (
-                <EmptyChartState label="No sales channel data available." />
-              )}
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {data.channelSeries.map((item, index) => (
-              <div key={item.name} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: channelColors[index % channelColors.length] }} />
-                    <span className="text-sm font-semibold text-white">{item.name}</span>
-                  </div>
-                  <span className="text-sm text-zinc-400">{item.value}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Panel>
-
         <Panel title={t("analytics.labels.customerTableTitle")} subtitle={t("analytics.sections.customerSubtitle")}>
           <div className="grid gap-4 sm:grid-cols-2">
             <InfoCard label={t("analytics.kpis.customers")} value={data.customerSummary.totalCustomers || data.summary.customers} />
@@ -1183,6 +1100,25 @@ function Panel({ title, subtitle, children }) {
       </div>
       <div className="mt-5">{children}</div>
     </section>
+  );
+}
+
+function ChartsSkeleton() {
+  return (
+    <>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.8fr)]">
+        {[0, 1].map((item) => (
+          <div key={item} className="h-[420px] rounded-[34px] border border-white/10 bg-zinc-950/90 p-6">
+            <div className="h-4 w-32 rounded-full bg-white/10" />
+            <div className="mt-8 h-[300px] animate-pulse rounded-3xl border border-white/5 bg-white/[0.04]" />
+          </div>
+        ))}
+      </div>
+      <div className="h-[420px] rounded-[34px] border border-white/10 bg-zinc-950/90 p-6">
+        <div className="h-4 w-32 rounded-full bg-white/10" />
+        <div className="mt-8 h-[300px] animate-pulse rounded-3xl border border-white/5 bg-white/[0.04]" />
+      </div>
+    </>
   );
 }
 

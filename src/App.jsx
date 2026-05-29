@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useEffect,
 } from "react";
 
 import {
@@ -8,12 +9,15 @@ import {
   Route,
   Navigate
 } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 /* ======================================================
    LAYOUT
 ====================================================== */
 
 import MainLayout from "./shared/layouts/MainLayout";
+import { api } from "./shared/api/api";
+import { setCurrency } from "./shared/lib/currency";
 
 /* ======================================================
    AUTH
@@ -82,6 +86,7 @@ const SupplierDetails = lazy(() => import("./modules/purchases/pages/SupplierDet
 
 const Purchases = lazy(() => import("./modules/purchases/pages/PurchasesDashboard"));
 const CreatePurchase = lazy(() => import("./modules/purchases/pages/CreatePurchase"));
+const PurchaseDetails = lazy(() => import("./modules/purchases/pages/PurchaseDetails"));
 const ReorderSuggestions = lazy(() => import("./modules/purchases/pages/ReorderSuggestions"));
 
 /* ======================================================
@@ -89,7 +94,10 @@ const ReorderSuggestions = lazy(() => import("./modules/purchases/pages/ReorderS
 ====================================================== */
 
 const Accounting = lazy(() => import("./modules/accounting/pages/Accounting"));
+const Treasury = lazy(() => import("./modules/accounting/pages/Treasury"));
 const CashRegisters = lazy(() => import("./modules/accounting/pages/CashRegisters"));
+const FinancialAccounts = lazy(() => import("./modules/accounting/pages/FinancialAccounts"));
+const PaymentMethodMappings = lazy(() => import("./modules/accounting/pages/PaymentMethodMappings"));
 const Expenses = lazy(() => import("./modules/accounting/pages/Expenses"));
 const Revenues = lazy(() => import("./modules/accounting/pages/Revenues"));
 const JournalEntries = lazy(() => import("./modules/accounting/pages/JournalEntries"));
@@ -97,6 +105,8 @@ const Accounts = lazy(() => import("./modules/accounting/pages/Accounts"));
 const FinancialReports = lazy(() => import("./modules/accounting/pages/FinancialReports"));
 const ProfitAndLoss = lazy(() => import("./modules/accounting/pages/ProfitAndLoss"));
 const Taxes = lazy(() => import("./modules/accounting/pages/Taxes"));
+const CostFixCenter = lazy(() => import("./modules/accounting/pages/CostFixCenter"));
+const AuditTrail = lazy(() => import("./modules/accounting/pages/AuditTrail"));
 
 /* ======================================================
    LOYALTY
@@ -128,11 +138,14 @@ const OrderReturns = lazy(() => import("./modules/orders/pages/Returns"));
 
 const Reports = lazy(() => import("./modules/reports/pages/Reports"));
 const AnalyticsDashboard = lazy(() => import("./modules/analytics/pages/AnalyticsDashboard"));
+const EmployeeHub = lazy(() => import("./modules/employees/pages/EmployeeHub"));
 const EmployeeSalesPerformance = lazy(() => import("./modules/employees/pages/SalesPerformance"));
 const EmployeeCommissions = lazy(() => import("./modules/employees/pages/Commissions"));
 const EmployeeTopPerformers = lazy(() => import("./modules/employees/pages/TopPerformers"));
 const EmployeeShiftAnalytics = lazy(() => import("./modules/employees/pages/ShiftAnalytics"));
 const StaffTasks = lazy(() => import("./modules/employees/pages/StaffTasks"));
+const EmployeePortal = lazy(() => import("./modules/employees/pages/EmployeePortal"));
+const EmployeePayrollPortal = lazy(() => import("./modules/employees/pages/EmployeePayrollPortal"));
 const AttendanceDashboard = lazy(() => import("./modules/attendance/pages/AttendanceDashboard"));
 const AttendanceEmployees = lazy(() => import("./modules/attendance/pages/EmployeesAttendance"));
 const AttendanceReports = lazy(() => import("./modules/attendance/pages/AttendanceReports"));
@@ -140,6 +153,8 @@ const AttendanceKiosk = lazy(() => import("./modules/attendance/pages/Attendance
 const StaffQrAttendance = lazy(() => import("./modules/attendance/pages/StaffQrAttendance"));
 const PublicBranchAttendance = lazy(() => import("./modules/attendance/pages/PublicBranchAttendance"));
 const MarketingDashboard = lazy(() => import("./modules/marketing/pages/MarketingDashboard"));
+const AiMarketingCenter = lazy(() => import("./modules/marketing/pages/AiMarketingCenter"));
+const AiMarketingVideos = lazy(() => import("./modules/marketing/pages/AiMarketingVideos"));
 const MarketingAnalytics = lazy(() => import("./modules/marketing/pages/MarketingAnalytics"));
 const MarketingAttribution = lazy(() => import("./modules/marketing/pages/MarketingAttribution"));
 const MarketingAutomation = lazy(() => import("./modules/marketing/pages/MarketingAutomation"));
@@ -180,17 +195,56 @@ const Billing = lazy(() => import("./modules/saas/pages/Billing"));
 
 const AdminTenants = lazy(() => import("./modules/saas/pages/AdminTenants"));
 
-const CompanySettings = lazy(() => import("./modules/saas/pages/CompanySettings"));
-const AppearanceSettings = lazy(() => import("./modules/settings/pages/AppearanceSettings"));
-const Currencies = lazy(() => import("./modules/settings/pages/Currencies"));
+const SettingsCenter = lazy(() => import("./modules/settings/pages/SettingsCenter"));
 const NotificationsCenter = lazy(() => import("./modules/notifications/pages/NotificationsCenter"));
+const AiSupportConsole = lazy(() => import("./modules/aiSupport/pages/AiSupportConsole"));
+const AiSupportKnowledgeBase = lazy(() => import("./modules/aiSupport/pages/AiSupportKnowledgeBase"));
+const AiInbox = lazy(() => import("./modules/aiSupport/pages/AiInbox"));
+const AiFollowups = lazy(() => import("./modules/aiSupport/pages/AiFollowups"));
+const AiChannels = lazy(() => import("./modules/aiSupport/pages/AiChannels"));
+const AiAgentSettings = lazy(() => import("./modules/aiSupport/pages/AiAgentSettings"));
+const AiSettings = lazy(() => import("./modules/aiSupport/pages/AiSettings"));
+const AiAgentAnalytics = lazy(() => import("./modules/aiSupport/pages/AiAgentAnalytics"));
+
+function RouteSkeleton() {
+  return (
+    <div className="min-h-[calc(100vh-4rem)] bg-[var(--bg)] p-4 text-[var(--text)] dark:bg-[#050816] dark:text-white md:p-6">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--surface-muted,#e5e7eb)] dark:bg-white/[0.06]" />
+        <div className="grid gap-3 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-24 animate-pulse rounded-xl bg-[var(--surface-muted,#e5e7eb)] dark:bg-white/[0.06]" />
+          ))}
+        </div>
+        <div className="h-[28rem] animate-pulse rounded-2xl bg-[var(--surface-muted,#e5e7eb)] dark:bg-white/[0.06]" />
+      </div>
+    </div>
+  );
+}
 
 function App() {
+  useTranslation();
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/settings/public", { suppressErrorStatuses: [401, 403, 404, 500] })
+      .then((response) => {
+        if (cancelled) return;
+        const settings = response?.settings || {};
+        const code = settings["general.default_currency"];
+        const symbol = settings["general.currency_symbol"];
+        if (code || symbol) setCurrency({ code, symbol });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <TenantProvider>
     <DebugErrorBoundary title="Application screen crashed">
-    <Suspense fallback={<div className="p-6 text-[var(--text)]">Loading...</div>}>
+    <Suspense fallback={<RouteSkeleton />}>
     <Routes>
 
       <Route
@@ -223,6 +277,11 @@ function App() {
       />
 
       <Route
+        path="/share/invoice/:token"
+        element={<PublicInvoice />}
+      />
+
+      <Route
         path="/p/:productId"
         element={<PublicProduct />}
       />
@@ -233,9 +292,29 @@ function App() {
       />
 
       <Route
+        path="/a/:branchKey"
+        element={<PublicBranchAttendance />}
+      />
+
+      <Route
+        path="/att/:branchKey"
+        element={<PublicBranchAttendance />}
+      />
+
+      <Route
+        path="/employee/portal/:token"
+        element={<EmployeePortal />}
+      />
+
+      <Route
+        path="/employee-portal/:token"
+        element={<EmployeePayrollPortal />}
+      />
+
+      <Route
         path="/shop/*"
         element={
-          <Suspense fallback={<div className="p-6 text-stone-700">Loading storefront...</div>}>
+          <Suspense fallback={<RouteSkeleton />}>
             <Storefront />
           </Suspense>
         }
@@ -304,10 +383,91 @@ function App() {
         />
 
         <Route
+          path="admin/ai-inbox"
+          element={
+            <ProtectedRoute adminOnly>
+              <AiInbox />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="admin/ai-followups"
+          element={
+            <ProtectedRoute adminOnly>
+              <AiFollowups />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="admin/ai-channels"
+          element={
+            <ProtectedRoute adminOnly>
+              <AiChannels />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="admin/ai-agent-settings"
+          element={
+            <ProtectedRoute adminOnly>
+              <AiAgentSettings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="ai/settings"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.edit"]}>
+              <AiSettings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="admin/ai-agent-analytics"
+          element={
+            <ProtectedRoute adminOnly>
+              <AiAgentAnalytics />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="admin/ai-support-console"
+          element={
+            <ProtectedRoute adminOnly>
+              <AiSupportConsole />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="admin/ai-support-knowledge-base"
+          element={
+            <ProtectedRoute adminOnly>
+              <AiSupportKnowledgeBase />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="settings"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <SettingsCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="settings/company"
           element={
             <ProtectedRoute requiredPermissions={["settings.view"]}>
-              <CompanySettings />
+              <SettingsCenter />
             </ProtectedRoute>
           }
         />
@@ -316,7 +476,7 @@ function App() {
           path="settings/appearance"
           element={
             <ProtectedRoute requiredPermissions={["settings.view"]}>
-              <AppearanceSettings />
+              <SettingsCenter />
             </ProtectedRoute>
           }
         />
@@ -325,7 +485,16 @@ function App() {
           path="settings/currencies"
           element={
             <ProtectedRoute requiredPermissions={["settings.view"]}>
-              <Currencies />
+              <SettingsCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="settings/debug"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <SettingsCenter debugMode />
             </ProtectedRoute>
           }
         />
@@ -444,7 +613,7 @@ function App() {
         <Route
           path="smart-warehouse"
           element={
-            <Suspense fallback={<div className="p-6 text-[var(--text)]">Loading smart warehouse...</div>}>
+            <Suspense fallback={<RouteSkeleton />}>
               <SmartWarehouse />
             </Suspense>
           }
@@ -479,9 +648,7 @@ function App() {
         <Route
           path="sales-employees"
           element={
-            <ProtectedRoute requiredPermissions={["employees.view"]}>
-              <SalesEmployees />
-            </ProtectedRoute>
+            <Navigate to="/employees/employees" replace />
           }
         />
 
@@ -543,6 +710,16 @@ function App() {
           element={<ReorderSuggestions />}
         />
 
+        <Route
+          path="purchases/:id/edit"
+          element={<CreatePurchase />}
+        />
+
+        <Route
+          path="purchases/:id"
+          element={<PurchaseDetails />}
+        />
+
         {/* ACCOUNTING */}
 
         <Route
@@ -556,8 +733,22 @@ function App() {
         />
 
         <Route
+          path="accounting/treasury"
+          element={<Treasury />}
+        />
+        <Route
           path="accounting/cashbox"
           element={<CashRegisters />}
+        />
+
+        <Route
+          path="accounting/financial-accounts"
+          element={<FinancialAccounts />}
+        />
+
+        <Route
+          path="accounting/payment-method-mappings"
+          element={<PaymentMethodMappings />}
         />
 
         <Route
@@ -567,6 +758,11 @@ function App() {
 
         <Route
           path="accounting/expenses"
+          element={<Expenses />}
+        />
+
+        <Route
+          path="expenses"
           element={<Expenses />}
         />
 
@@ -605,6 +801,16 @@ function App() {
           element={<Taxes />}
         />
 
+        <Route
+          path="accounting/cost-fix"
+          element={<CostFixCenter />}
+        />
+
+        <Route
+          path="accounting/audit-trail"
+          element={<AuditTrail />}
+        />
+
         {/* ORDERS */}
 
         <Route
@@ -634,7 +840,7 @@ function App() {
         <Route
           path="pos"
           element={
-            <Suspense fallback={<div className="p-6 text-[var(--text)]">Loading POS...</div>}>
+            <Suspense fallback={<RouteSkeleton />}>
               <POS />
             </Suspense>
           }
@@ -652,6 +858,24 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["marketing.view"]}>
               <MarketingDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="marketing/ai-center"
+          element={
+            <ProtectedRoute requiredPermissions={["marketing.view"]}>
+              <AiMarketingCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="marketing/ai-center/videos"
+          element={
+            <ProtectedRoute requiredPermissions={["marketing.view"]}>
+              <AiMarketingVideos />
             </ProtectedRoute>
           }
         />
@@ -748,16 +972,16 @@ function App() {
           path="employees"
           element={
             <ProtectedRoute requiredPermissions={["employees.view"]}>
-              <EmployeeSalesPerformance />
+              <EmployeeHub />
             </ProtectedRoute>
           }
         />
 
         <Route
-          path="employees/sales-performance"
+          path="employees/:tab"
           element={
             <ProtectedRoute requiredPermissions={["employees.view"]}>
-              <EmployeeSalesPerformance />
+              <EmployeeHub />
             </ProtectedRoute>
           }
         />
@@ -765,27 +989,21 @@ function App() {
         <Route
           path="employees/commissions"
           element={
-            <ProtectedRoute requiredPermissions={["employees.view"]}>
-              <EmployeeCommissions />
-            </ProtectedRoute>
+            <Navigate to="/employees/sales-performance" replace />
           }
         />
 
         <Route
           path="employees/top-performers"
           element={
-            <ProtectedRoute requiredPermissions={["employees.view"]}>
-              <EmployeeTopPerformers />
-            </ProtectedRoute>
+            <Navigate to="/employees/sales-performance" replace />
           }
         />
 
         <Route
           path="employees/shifts"
           element={
-            <ProtectedRoute requiredPermissions={["employees.view"]}>
-              <EmployeeShiftAnalytics />
-            </ProtectedRoute>
+            <Navigate to="/employees/attendance" replace />
           }
         />
 
@@ -803,45 +1021,35 @@ function App() {
         <Route
           path="attendance"
           element={
-            <ProtectedRoute requiredPermissions={["attendance.view"]}>
-              <AttendanceDashboard />
-            </ProtectedRoute>
+            <Navigate to="/employees/attendance" replace />
           }
         />
 
         <Route
           path="attendance/employees"
           element={
-            <ProtectedRoute requiredPermissions={["attendance.view"]}>
-              <AttendanceEmployees />
-            </ProtectedRoute>
+            <Navigate to="/employees/employees" replace />
           }
         />
 
         <Route
           path="attendance/reports"
           element={
-            <ProtectedRoute requiredPermissions={["attendance.view"]}>
-              <AttendanceReports />
-            </ProtectedRoute>
+            <Navigate to="/employees/reports" replace />
           }
         />
 
         <Route
           path="attendance/kiosk"
           element={
-            <ProtectedRoute requiredPermissions={["attendance.create"]}>
-              <AttendanceKiosk />
-            </ProtectedRoute>
+            <Navigate to="/employees/attendance" replace />
           }
         />
 
         <Route
           path="staff/qr-attendance"
           element={
-            <ProtectedRoute requiredPermissions={["attendance.create"]}>
-              <StaffQrAttendance />
-            </ProtectedRoute>
+            <Navigate to="/employees/attendance" replace />
           }
         />
 
@@ -865,11 +1073,6 @@ function App() {
               <Roles />
             </ProtectedRoute>
           }
-        />
-
-        <Route
-          path="settings"
-          element={<Navigate to="/settings/roles" replace />}
         />
 
         <Route

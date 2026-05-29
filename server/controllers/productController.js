@@ -4,6 +4,8 @@ export const getProductsWithVariants =
   async (req, res) => {
 
     try {
+      await pool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+      await pool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
 
       const products = await pool.query(
 
@@ -27,6 +29,8 @@ export const getProductsWithVariants =
 
         ON products.id =
         product_variants.product_id
+        AND product_variants.is_active IS DISTINCT FROM FALSE
+        AND product_variants.deleted_at IS NULL
 
         ORDER BY products.id DESC
         `
@@ -43,3 +47,4 @@ export const getProductsWithVariants =
       });
     }
 };
+

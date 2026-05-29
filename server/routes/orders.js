@@ -7,15 +7,22 @@ import permit from "../middleware/permissionMiddleware.js";
 import {
   createOrder,
   createReturn,
+  archiveOrder,
   confirmShippingPayment,
   cancelOrder,
+  deleteOrder,
   editOrder,
   getOrders,
+  getPosOrderSummary,
+  getPosEditOrder,
   getSingleOrder,
   getOrdersCount,
   logOrderReprint,
+  markPosEditTiming,
+  permanentDeleteOrder,
   returnOrder,
   rejectShippingPayment,
+  startPosEditTiming,
   getShiftReport,
 } from "../controllers/ordersController.js";
 
@@ -79,6 +86,23 @@ router.post(
   logOrderReprint
 );
 
+router.get(
+  "/:id/pos-summary",
+  protect,
+  permit("orders", "view"),
+  getPosOrderSummary
+);
+
+router.get(
+  "/:id/pos-edit",
+  startPosEditTiming,
+  protect,
+  markPosEditTiming("auth_ms"),
+  permit("orders", "view"),
+  markPosEditTiming("permissions_ms"),
+  getPosEditOrder
+);
+
 router.post(
   "/:id/confirm-payment",
   protect,
@@ -98,6 +122,34 @@ router.patch(
   protect,
   permit("orders", "edit"),
   editOrder
+);
+
+router.patch(
+  "/:id",
+  protect,
+  permit("orders", "edit"),
+  editOrder
+);
+
+router.patch(
+  "/:id/archive",
+  protect,
+  permit("orders", "delete"),
+  archiveOrder
+);
+
+router.delete(
+  "/:id/permanent",
+  protect,
+  permit("orders", "delete"),
+  permanentDeleteOrder
+);
+
+router.delete(
+  "/:id",
+  protect,
+  permit("orders", "delete"),
+  deleteOrder
 );
 
 router.post(

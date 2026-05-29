@@ -97,8 +97,7 @@ Typical layout:
 
 Update:
 - `FRONTEND_URL`
-- `VITE_API_BASE_URL`
-- `VITE_SOCKET_URL`
+- `VITE_API_URL`
 
 Use the production domain, not localhost.
 
@@ -259,4 +258,3 @@ Create the directories on the server and rotate them with logrotate if you are n
 4. Verify `/health`.
 5. Start the frontend or nginx static container.
 6. Point the domain and issue SSL.
-

@@ -1,37 +1,33 @@
 import {
   BarChart3,
   Bell,
+  Bot,
   Boxes,
   Building2,
-  Factory,
-  Gift,
   Globe,
   LineChart,
   LayoutDashboard,
-  LayoutTemplate,
   Package,
-  Palette,
   ReceiptText,
-  QrCode,
   Settings,
   Settings2,
   ShoppingBag,
   ShoppingCart,
+  Sparkles,
   Store,
   UsersRound,
   Warehouse,
   Wallet,
-  ShieldCheck,
   CalendarClock,
-  ClipboardList,
+  CircleDollarSign,
   Megaphone,
   Share2,
-  TicketPercent,
 } from "lucide-react";
 
 import { getCurrentUser, getUserPermissions, isAdminUser } from "../../../shared/auth/authStorage";
 
 const safeWindow = () => (typeof window !== "undefined" ? window : null);
+const SHOW_DEV_TOOLS = String(import.meta.env?.VITE_SHOW_DEV_TOOLS || "").toLowerCase() === "true";
 
 const readJson = (key, fallback) => {
   const win = safeWindow();
@@ -61,6 +57,12 @@ export const MODULES = [
   { key: "warehouses", label: "Warehouses" },
   { key: "branches", label: "Branches" },
   { key: "accounting", label: "Accounting" },
+  { key: "money_accounts", label: "Money Accounts" },
+  { key: "money_transactions", label: "Money Transactions" },
+  { key: "money_transfers", label: "Money Transfers" },
+  { key: "treasury.dashboard", label: "Treasury Dashboard" },
+  { key: "expenses", label: "Expenses" },
+  { key: "expenses.advances", label: "Employee Advances" },
   { key: "loyalty", label: "Loyalty" },
   { key: "attendance", label: "Attendance" },
   { key: "marketing", label: "Marketing" },
@@ -79,11 +81,23 @@ export const ACTIONS = ["view", "create", "edit", "update", "delete", "approve",
 export const MARKETING_ACTIONS = ["view", "create", "update", "delete", "publish", "settings"];
 export const WEBSITE_ACTIONS = ["view", "orders", "settings"];
 export const NOTIFICATIONS_ACTIONS = ["view", "manage"];
+export const EXPENSES_ACTIONS = ["view", "create", "edit", "delete", "approve", "pay", "reports"];
+export const EXPENSE_ADVANCE_ACTIONS = ["view", "create", "deduct"];
+export const MONEY_ACCOUNTS_ACTIONS = ["view", "manage"];
+export const MONEY_TRANSACTIONS_ACTIONS = ["view", "adjust"];
+export const MONEY_TRANSFERS_ACTIONS = ["create"];
+export const TREASURY_DASHBOARD_ACTIONS = ["view"];
 
 export const getModuleActions = (moduleKey) => {
   if (moduleKey === "marketing") return MARKETING_ACTIONS;
   if (moduleKey === "website") return WEBSITE_ACTIONS;
   if (moduleKey === "notifications") return NOTIFICATIONS_ACTIONS;
+  if (moduleKey === "expenses") return EXPENSES_ACTIONS;
+  if (moduleKey === "expenses.advances") return EXPENSE_ADVANCE_ACTIONS;
+  if (moduleKey === "money_accounts") return MONEY_ACCOUNTS_ACTIONS;
+  if (moduleKey === "money_transactions") return MONEY_TRANSACTIONS_ACTIONS;
+  if (moduleKey === "money_transfers") return MONEY_TRANSFERS_ACTIONS;
+  if (moduleKey === "treasury.dashboard") return TREASURY_DASHBOARD_ACTIONS;
   return ACTIONS;
 };
 
@@ -124,6 +138,73 @@ const marketingPermissions = [
 const websitePermissions = ["website.view", "website.orders", "website.settings"];
 const notificationsPermissions = ["notifications.view", "notifications.manage"];
 const staffTaskPermissions = ["staff_tasks.view", "staff_tasks.create", "staff_tasks.update", "staff_tasks.manage"];
+const expensesPermissions = [
+  "expenses.view",
+  "expenses.create",
+  "expenses.edit",
+  "expenses.delete",
+  "expenses.approve",
+  "expenses.pay",
+  "expenses.reports",
+  "expenses.advances.view",
+  "expenses.advances.create",
+  "expenses.advances.deduct",
+];
+const posExpensePermissions = ["pos.expenses.create", "pos.expenses.view_shift_total"];
+const treasuryPermissions = [
+  "money_accounts.view",
+  "money_accounts.manage",
+  "money_transactions.view",
+  "money_transactions.adjust",
+  "money_transfers.create",
+  "treasury.dashboard.view",
+];
+
+const MODULE_SEARCH_METADATA = {
+  Dashboard: { arabicTitle: "لوحة التحكم", aliases: ["Home", "Overview", "داشبورد", "الرئيسية"], keywords: ["kpi", "summary", "analytics"] },
+  Employees: { arabicTitle: "الموظفون", aliases: ["Employee", "HR", "Staff", "موظف", "الموظفين"], keywords: ["payroll", "attendance", "commissions", "مرتبات", "حضور", "عمولات"] },
+  Notifications: { arabicTitle: "الإشعارات", aliases: ["Alerts", "تنبيهات"], keywords: ["messages", "system alerts"] },
+  Workspace: { arabicTitle: "مساحة العمل", aliases: ["Company workspace", "مساحة"], keywords: ["company", "tenant", "organization"] },
+  Products: { arabicTitle: "المنتجات", aliases: ["Product", "Catalog", "Items", "منتج", "أصناف"], keywords: ["sku", "stock", "variants", "barcode", "مخزون"] },
+  "Add Product": { arabicTitle: "إضافة منتج", aliases: ["Create product", "New product", "منتج جديد"], keywords: ["catalog", "sku", "create"] },
+  Orders: { arabicTitle: "الطلبات", aliases: ["Order", "Invoices", "Sales orders", "طلب", "فاتورة"], keywords: ["sales", "receipts", "checkout", "مبيعات"] },
+  "POS PRO": { arabicTitle: "نقطة البيع", aliases: ["POS", "Point of sale", "Cashier", "Terminal", "كاشير"], keywords: ["checkout", "receipt", "بيع"] },
+  Customers: { arabicTitle: "العملاء", aliases: ["Customer", "CRM", "Clients", "عميل"], keywords: ["loyalty", "wallet", "contacts"] },
+  Purchases: { arabicTitle: "المشتريات", aliases: ["Purchase", "Procurement", "شراء"], keywords: ["suppliers", "stock in", "reorder"] },
+  Suppliers: { arabicTitle: "الموردون", aliases: ["Supplier", "Vendors", "مورد"], keywords: ["purchases", "procurement"] },
+  Inventory: { arabicTitle: "المخزون", aliases: ["Stock", "Inventory control", "مخزن"], keywords: ["products", "warehouses", "transfers"] },
+  Warehouses: { arabicTitle: "المخازن", aliases: ["Warehouse", "Stores", "Storage", "مخزن"], keywords: ["inventory", "stock", "branches"] },
+  Branches: { arabicTitle: "الفروع", aliases: ["Branch", "Branches", "Store branches", "Branch network", "فرع", "الفروع", "الشبكة", "الفروع الرئيسية"], keywords: ["stores", "locations", "branch network", "bra", "شبكة الفروع", "مواقع"] },
+  "Stock Transfers": { arabicTitle: "نقل المخزون", aliases: ["Transfers", "Inventory transfers", "تحويل مخزون"], keywords: ["warehouse", "branch", "stock movement"] },
+  Accounting: { arabicTitle: "المحاسبة", aliases: ["Accounts", "Finance ledger", "محاسبة"], keywords: ["journal", "treasury", "cash"] },
+  Expenses: { arabicTitle: "المصاريف", aliases: ["Expense", "Costs", "Spending", "مصروف", "نفقات"], keywords: ["advances", "finance", "payments", "سلف"] },
+  Payroll: { arabicTitle: "المرتبات", aliases: ["Salaries", "Salary", "Payroll calculator", "مرتبات", "رواتب", "مرتب", "راتب"], keywords: ["employees", "attendance deductions", "penalties", "خصومات", "جزاءات"] },
+  "Attendance Center": { arabicTitle: "مركز الحضور", aliases: ["Attendance", "Time attendance", "QR attendance", "حضور", "انصراف"], keywords: ["qr", "late", "absence", "missing hours", "غياب", "تأخير"] },
+  Reports: { arabicTitle: "التقارير", aliases: ["Report", "ERP reports", "تقارير"], keywords: ["analytics", "export", "pdf", "excel"] },
+  Marketing: { arabicTitle: "التسويق", aliases: ["Marketing dashboard", "Campaign marketing", "تسويق"], keywords: ["posts", "campaigns", "social"] },
+  "AI Marketing Center": { arabicTitle: "مركز التسويق بالذكاء الاصطناعي", aliases: ["AI marketing", "Marketing AI", "ذكاء تسويقي"], keywords: ["campaigns", "automation", "content"] },
+  "Social Posts": { arabicTitle: "منشورات التواصل", aliases: ["Posts", "Social media", "منشورات"], keywords: ["facebook", "instagram", "content"] },
+  Storefront: { arabicTitle: "المتجر", aliases: ["Website", "Shop", "Online store", "متجر"], keywords: ["ecommerce", "storefront"] },
+  "Website Orders": { arabicTitle: "طلبات الموقع", aliases: ["Online orders", "Website sales", "طلبات المتجر"], keywords: ["storefront", "ecommerce"] },
+  "Website Settings": { arabicTitle: "إعدادات الموقع", aliases: ["Store settings", "Shop settings", "اعدادات المتجر"], keywords: ["website", "storefront"] },
+  Company: { arabicTitle: "الشركة", aliases: ["Company settings", "Preferences", "شركة"], keywords: ["settings", "tenant", "profile"] },
+  Permissions: { arabicTitle: "الصلاحيات", aliases: ["Roles permissions", "Access control", "صلاحيات"], keywords: ["rbac", "roles", "users", "security"] },
+  Users: { arabicTitle: "المستخدمون", aliases: ["User", "System users", "مستخدم"], keywords: ["roles", "permissions", "login"] },
+  Tenants: { arabicTitle: "المستأجرون", aliases: ["Tenant", "Companies", "SaaS tenants", "مستأجر"], keywords: ["admin", "billing", "subscriptions"] },
+};
+
+const withSearchMetadata = (item, category) => {
+  const metadata = MODULE_SEARCH_METADATA[item.label] || {};
+  return {
+    ...item,
+    title: metadata.title || item.label,
+    arabicTitle: metadata.arabicTitle || "",
+    keywords: Array.isArray(metadata.keywords) ? metadata.keywords : [],
+    aliases: Array.isArray(metadata.aliases) ? metadata.aliases : [],
+    route: item.to,
+    category: metadata.category || category,
+  };
+};
 
 export const DEFAULT_ROLES = [
   {
@@ -132,7 +213,7 @@ export const DEFAULT_ROLES = [
     slug: "admin",
     description: "Full access to every module and action.",
     builtIn: true,
-    permissions: ["*", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions, ...staffTaskPermissions],
+    permissions: ["*", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions, ...staffTaskPermissions, ...expensesPermissions, ...posExpensePermissions, ...treasuryPermissions],
   },
   {
     id: "super_admin",
@@ -140,7 +221,7 @@ export const DEFAULT_ROLES = [
     slug: "super_admin",
     description: "System-wide access across every module and action.",
     builtIn: true,
-    permissions: ["*", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions, ...staffTaskPermissions],
+    permissions: ["*", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions, ...staffTaskPermissions, ...expensesPermissions, ...posExpensePermissions, ...treasuryPermissions],
   },
   {
     id: "manager",
@@ -158,6 +239,9 @@ export const DEFAULT_ROLES = [
       ...websitePermissions,
       ...notificationsPermissions,
       ...staffTaskPermissions,
+      ...expensesPermissions,
+      ...posExpensePermissions,
+      ...treasuryPermissions,
       ...allow(["employees"], ["view", "export", "print"]),
       "settings.view",
       "users.view",
@@ -173,6 +257,8 @@ export const DEFAULT_ROLES = [
     permissions: [
       ...allow(["dashboard", "accounting", "reports", "suppliers"], ["view", "export", "print"]),
       ...allow(["accounting"], ["create", "edit", "approve"]),
+      ...expensesPermissions,
+      ...treasuryPermissions,
       "purchases.view",
       "orders.view",
       "loyalty.view",
@@ -206,6 +292,7 @@ export const DEFAULT_ROLES = [
       "notifications.view",
       "staff_tasks.view",
       "staff_tasks.update",
+      ...posExpensePermissions,
     ],
   },
   {
@@ -287,35 +374,29 @@ export const DEFAULT_USERS = [
   },
 ];
 
-export const SIDEBAR_SECTIONS = [
+const RAW_SIDEBAR_SECTIONS = [
   {
     title: "Main",
     items: [
       { label: "Dashboard", to: "/dashboard", permission: "dashboard.view", icon: LayoutDashboard },
-      { label: "Notifications", to: "/notifications", permission: "notifications.view", icon: Bell },
       { label: "Workspace", to: "/workspace", permission: "settings.view", icon: Building2 },
+      { label: "Notifications", to: "/notifications", permission: "notifications.view", icon: Bell },
     ],
   },
   {
     title: "Products",
     items: [
-      { label: "All Products", to: "/products", permission: "products.view", icon: Package },
+      { label: "Products", to: "/products", permission: "products.view", icon: Package },
       { label: "Add Product", to: "/products/add", permission: "products.create", icon: Package },
-      { label: "Categories", to: "/products/categories", permission: "products.view", icon: Boxes },
-      { label: "Product Classifications", to: "/products/classifications", permission: "products.view", icon: Boxes },
-      { label: "Brands", to: "/products/brands", permission: "products.view", icon: Boxes },
-      { label: "Manufacturers", to: "/products/manufacturers", permission: "products.view", icon: Factory },
-      { label: "Units", to: "/products/units", permission: "products.view", icon: Boxes },
-      { label: "Variants", to: "/products/variants", permission: "products.view", icon: Boxes },
-      { label: "Barcode Labels", to: "/products/barcode-labels", permission: "products.print", icon: Boxes },
     ],
   },
   {
     title: "Sales",
     items: [
-      { label: "Orders", to: "/orders", permission: "orders.view", icon: ShoppingCart },
       { label: "POS PRO", to: "/pos", permission: "pos.view", icon: Store },
-      { label: "Sales Staff", to: "/sales-employees", permission: "employees.view", icon: UsersRound },
+      { label: "Orders", to: "/orders", permission: "orders.view", icon: ShoppingCart },
+      { label: "Website Orders", to: "/orders?channel=website", permission: "website.orders", icon: ShoppingBag },
+      { label: "Returns", to: "/orders/returns", permission: "orders.view", icon: ReceiptText },
       { label: "Customers", to: "/customers", permission: "orders.view", icon: UsersRound },
     ],
   },
@@ -323,7 +404,6 @@ export const SIDEBAR_SECTIONS = [
     title: "Purchasing",
     items: [
       { label: "Purchases", to: "/purchases", permission: "purchases.view", icon: ReceiptText },
-      { label: "Smart Reorder", to: "/purchases/reorder-suggestions", permission: "purchases.view", icon: LineChart },
       { label: "Suppliers", to: "/suppliers", permission: "suppliers.view", icon: Building2 },
     ],
   },
@@ -331,9 +411,7 @@ export const SIDEBAR_SECTIONS = [
     title: "Inventory",
     items: [
       { label: "Inventory", to: "/inventory", permission: "inventory.view", icon: Boxes },
-      { label: "Smart Warehouse", to: "/smart-warehouse", permission: "inventory.view", icon: QrCode },
       { label: "Warehouses", to: "/warehouses", permission: "warehouses.view", icon: Warehouse },
-      { label: "Branches", to: "/branches", permission: "branches.view", icon: Building2 },
       { label: "Stock Transfers", to: "/stock-transfers", permission: "warehouses.view", icon: Warehouse },
     ],
   },
@@ -341,56 +419,59 @@ export const SIDEBAR_SECTIONS = [
     title: "Finance",
     items: [
       { label: "Accounting", to: "/accounting", permission: "accounting.view", icon: Wallet },
-      { label: "Journal Entries", to: "/accounting/journal-entries", permission: "accounting.view", icon: ReceiptText },
-      { label: "Loyalty", to: "/loyalty", permission: "loyalty.view", icon: Gift },
-      { label: "Employee Analytics", to: "/employees", permission: "employees.view", icon: BarChart3 },
-      { label: "Analytics & Reports", to: "/reports", permission: "reports.view", icon: BarChart3 },
-      { label: "Analytics", to: "/analytics", permission: "reports.view", icon: LineChart },
-      { label: "Billing", to: "/billing", permission: "settings.view", icon: Wallet },
+      { label: "Expenses", to: "/expenses", permission: "expenses.view", icon: ReceiptText, keywords: "Expenses expense costs spending المصاريف مصاريف النفقات" },
+      { label: "Reports", to: "/reports", permission: "reports.view", icon: BarChart3 },
     ],
   },
   {
-    title: "HR / Attendance",
+    title: "Employees",
     items: [
-      { label: "Dashboard", to: "/attendance", permission: "attendance.view", icon: LayoutDashboard },
-      { label: "Employees", to: "/attendance/employees", permission: "attendance.view", icon: UsersRound },
-      { label: "Reports", to: "/attendance/reports", permission: "attendance.view", icon: BarChart3 },
-      { label: "Kiosk", to: "/attendance/kiosk", permission: "attendance.create", icon: Store },
-      { label: "QR Attendance", to: "/staff/qr-attendance", permission: "attendance.create", icon: QrCode },
-      { label: "Staff Tasks", to: "/staff/tasks", permission: "staff_tasks.view", icon: ClipboardList },
+      { label: "Employees", to: "/employees", permission: "employees.view", icon: UsersRound },
+      { label: "Attendance Center", to: "/employees/attendance", permission: "attendance.view", icon: CalendarClock },
+      { label: "Payroll", to: "/employees/payroll", permission: "employees.view", icon: CircleDollarSign },
+      { label: "Advances", to: "/employees/advances", permission: "expenses.advances.view", icon: CircleDollarSign },
     ],
   },
   {
     title: "Marketing",
     items: [
-      { label: "Marketing Dashboard", to: "/marketing", permission: "marketing.view", icon: Megaphone },
-      { label: "Social Posts", to: "/marketing/posts", permission: "marketing.view", icon: Share2 },
-      { label: "Campaigns", to: "/marketing/campaigns", permission: "marketing.view", icon: CalendarClock },
-      { label: "Coupons", to: "/marketing/coupons", permission: "marketing.view", icon: TicketPercent },
-      { label: "Templates", to: "/marketing/templates", permission: "marketing.view", icon: LayoutTemplate },
-      { label: "Settings", to: "/marketing/settings", permission: "marketing.settings", icon: Settings2 },
+      { label: "Marketing", to: "/marketing", permission: "marketing.view", icon: Megaphone, devOnly: true },
+      { label: "AI Marketing Center", to: "/marketing/ai-center", permission: "marketing.view", icon: Sparkles },
+      { label: "Social Posts", to: "/marketing/posts", permission: "marketing.view", icon: Share2, devOnly: true },
     ],
   },
   {
     title: "WEBSITE",
     items: [
-      { label: "Storefront", to: "/shop", permission: "website.view", icon: Globe },
-      { label: "Website Orders", to: "/orders?channel=website", permission: "website.orders", icon: ShoppingBag },
-      { label: "Website Settings", to: "/website/settings", permission: "website.settings", icon: Settings },
+      { label: "Storefront", to: "/shop", permission: "website.view", icon: Globe, devOnly: true },
+      { label: "Website Settings", to: "/website/settings", permission: "website.settings", icon: Settings, devOnly: true },
     ],
   },
   {
     title: "Settings",
     items: [
-      { label: "Appearance", to: "/settings/appearance", permission: "settings.view", icon: Palette },
-      { label: "Company", to: "/settings/company", permission: "settings.view", icon: Settings2 },
-      { label: "Roles", to: "/settings/roles", permission: "roles.view", icon: ShieldCheck },
-      { label: "Permissions", to: "/settings/permissions", permission: "roles.view", icon: Settings2 },
+      { label: "Branches", to: "/branches", permission: "branches.view", icon: Building2 },
       { label: "Users", to: "/settings/users", permission: "users.view", icon: UsersRound },
       { label: "Tenants", to: "/admin/tenants", permission: "settings.view", icon: Building2, adminOnly: true },
+      { label: "Permissions", to: "/settings/permissions", permission: "roles.view", icon: Settings2 },
+      { label: "Currency", to: "/settings/currencies", permission: "settings.view", icon: CircleDollarSign },
+      { label: "Preferences", to: "/settings/company", permission: "settings.view", icon: Settings2 },
+      { label: "Settings Center", to: "/settings", permission: "settings.view", icon: Settings2 },
+      { label: "AI Inbox", to: "/admin/ai-inbox", permission: "settings.view", icon: Bot, adminOnly: true },
+      { label: "AI Follow Ups", to: "/admin/ai-followups", permission: "settings.view", icon: CalendarClock, adminOnly: true },
+      { label: "AI Channels", to: "/admin/ai-channels", permission: "settings.view", icon: Share2, adminOnly: true },
+      { label: "AI Agent Analytics", to: "/admin/ai-agent-analytics", permission: "settings.view", icon: LineChart, adminOnly: true },
+      { label: "AI Agent Settings", to: "/admin/ai-agent-settings", permission: "settings.view", icon: Settings2, adminOnly: true },
+      { label: "AI Support Console", to: "/admin/ai-support-console", permission: "settings.view", icon: Bot, adminOnly: true, devOnly: true },
+      { label: "AI Knowledge Base", to: "/admin/ai-support-knowledge-base", permission: "settings.view", icon: Bot, adminOnly: true },
     ],
   },
 ];
+
+export const SIDEBAR_SECTIONS = RAW_SIDEBAR_SECTIONS.map((section) => ({
+  ...section,
+  items: section.items.map((item) => withSearchMetadata(item, section.title)),
+}));
 
 export const getRoleCatalog = () => {
   const localRoles = readJson(STORAGE_KEYS.roles, []);
@@ -532,10 +613,16 @@ export const hasAnyPermission = (permissions = [], user = getCurrentUser()) => {
 
 export const getVisibleSidebarSections = (user = getCurrentUser()) => {
   const effective = new Set(getEffectivePermissions(user).flatMap(permissionAliases));
-  if (isAdminUser(user)) return SIDEBAR_SECTIONS;
+  const visibleForEnvironment = (item) => SHOW_DEV_TOOLS || !item.devOnly;
+  if (isAdminUser(user)) {
+    return SIDEBAR_SECTIONS.map((section) => ({
+      ...section,
+      items: section.items.filter(visibleForEnvironment),
+    })).filter((section) => section.items.length > 0);
+  }
   return SIDEBAR_SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter((item) => effective.has(item.permission) && !item.adminOnly),
+    items: section.items.filter((item) => effective.has(item.permission) && !item.adminOnly && visibleForEnvironment(item)),
   })).filter((section) => section.items.length > 0);
 };
 

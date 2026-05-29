@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BarChart3, Bot, CalendarClock, Megaphone, Pencil, Settings2, Share2, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 import { getMarketingDashboard } from "../services/marketingApi";
 import MarketingMetricCard from "../components/MarketingMetricCard";
@@ -15,6 +16,7 @@ const formatDateTime = (value) => {
 };
 
 export default function MarketingDashboard() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -30,8 +32,8 @@ export default function MarketingDashboard() {
         if (active) setPayload(data);
       } catch (err) {
         if (active) {
-          setError(err?.message || "Failed to load marketing dashboard");
-          toast.error(err?.message || "Failed to load marketing dashboard");
+          setError(err?.message || t("marketing.dashboard.loadFailed"));
+          toast.error(err?.message || t("marketing.dashboard.loadFailed"));
         }
       } finally {
         if (active) setLoading(false);
@@ -47,13 +49,13 @@ export default function MarketingDashboard() {
   const recentPosts = Array.isArray(payload?.recent_posts) ? payload.recent_posts : [];
 
   const quickActions = [
-    { label: "Create Post", to: "/marketing/posts", icon: Pencil, permission: "marketing.create" },
-    { label: "Create Campaign", to: "/marketing/campaigns", icon: CalendarClock, permission: "marketing.create" },
-    { label: "Analytics", to: "/marketing/analytics", icon: BarChart3, permission: "marketing.view" },
-    { label: "Attribution", to: "/marketing/attribution", icon: Sparkles, permission: "marketing.view" },
-    { label: "Auto Replies", to: "/marketing/automation", icon: Bot, permission: "marketing.view" },
-    { label: "Templates", to: "/marketing/templates", icon: Share2, permission: "marketing.view" },
-    { label: "Settings", to: "/marketing/settings", icon: Settings2, permission: "marketing.settings" },
+    { label: t("marketing.dashboard.quickActions.createPost"), to: "/marketing/posts", icon: Pencil, permission: "marketing.create" },
+    { label: t("marketing.dashboard.quickActions.createCampaign"), to: "/marketing/campaigns", icon: CalendarClock, permission: "marketing.create" },
+    { label: t("marketing.dashboard.quickActions.analytics"), to: "/marketing/analytics", icon: BarChart3, permission: "marketing.view" },
+    { label: t("marketing.dashboard.quickActions.attribution"), to: "/marketing/attribution", icon: Sparkles, permission: "marketing.view" },
+    { label: t("marketing.dashboard.quickActions.autoReplies"), to: "/marketing/automation", icon: Bot, permission: "marketing.view" },
+    { label: t("marketing.dashboard.quickActions.templates"), to: "/marketing/templates", icon: Share2, permission: "marketing.view" },
+    { label: t("marketing.dashboard.quickActions.settings"), to: "/marketing/settings", icon: Settings2, permission: "marketing.settings" },
   ].filter((action) => hasPermission(action.permission));
 
   return (
@@ -64,10 +66,10 @@ export default function MarketingDashboard() {
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
                 <Megaphone className="h-3.5 w-3.5" />
-                Marketing engine
+                {t("marketing.dashboard.eyebrow")}
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">Marketing operations dashboard</h1>
-              <p className="max-w-3xl text-sm leading-6 text-slate-300">Campaigns, templates, draft posts, and publishing status in one place.</p>
+              <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.dashboard.title")}</h1>
+              <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.dashboard.subtitle")}</p>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {quickActions.map(({ label, to, icon: Icon }) => (
@@ -88,46 +90,46 @@ export default function MarketingDashboard() {
         {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <MarketingMetricCard label="Total posts" value={loading ? "-" : metrics.total_posts ?? 0} tone="violet" icon={<Megaphone className="h-5 w-5" />} />
-          <MarketingMetricCard label="Scheduled" value={loading ? "-" : metrics.scheduled_posts ?? 0} tone="cyan" icon={<CalendarClock className="h-5 w-5" />} />
-          <MarketingMetricCard label="Published" value={loading ? "-" : metrics.published_posts ?? 0} tone="emerald" icon={<Share2 className="h-5 w-5" />} />
-          <MarketingMetricCard label="Failed" value={loading ? "-" : metrics.failed_posts ?? 0} tone="rose" icon={<Sparkles className="h-5 w-5" />} />
-          <MarketingMetricCard label="Active campaigns" value={loading ? "-" : metrics.active_campaigns ?? 0} tone="amber" icon={<CalendarClock className="h-5 w-5" />} />
-          <MarketingMetricCard label="Drafts" value={loading ? "-" : metrics.draft_posts ?? 0} tone="slate" icon={<Pencil className="h-5 w-5" />} />
+          <MarketingMetricCard label={t("marketing.dashboard.metrics.totalPosts")} value={loading ? "-" : metrics.total_posts ?? 0} tone="violet" icon={<Megaphone className="h-5 w-5" />} />
+          <MarketingMetricCard label={t("marketing.dashboard.metrics.scheduled")} value={loading ? "-" : metrics.scheduled_posts ?? 0} tone="cyan" icon={<CalendarClock className="h-5 w-5" />} />
+          <MarketingMetricCard label={t("marketing.dashboard.metrics.published")} value={loading ? "-" : metrics.published_posts ?? 0} tone="emerald" icon={<Share2 className="h-5 w-5" />} />
+          <MarketingMetricCard label={t("marketing.dashboard.metrics.failed")} value={loading ? "-" : metrics.failed_posts ?? 0} tone="rose" icon={<Sparkles className="h-5 w-5" />} />
+          <MarketingMetricCard label={t("marketing.dashboard.metrics.activeCampaigns")} value={loading ? "-" : metrics.active_campaigns ?? 0} tone="amber" icon={<CalendarClock className="h-5 w-5" />} />
+          <MarketingMetricCard label={t("marketing.dashboard.metrics.drafts")} value={loading ? "-" : metrics.draft_posts ?? 0} tone="slate" icon={<Pencil className="h-5 w-5" />} />
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-white">Recent posts</h2>
-              <p className="text-sm text-slate-400">Latest drafts, schedules, and published posts</p>
+              <h2 className="text-lg font-black text-white">{t("marketing.dashboard.recent.title")}</h2>
+              <p className="text-sm text-slate-400">{t("marketing.dashboard.recent.subtitle")}</p>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Title</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Channel</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Status</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Campaign</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Scheduled</th>
+                <tr className="text-start text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.dashboard.recent.titleHeader")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.channel")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.status")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.dashboard.recent.campaign")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.scheduled")}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400">Loading posts...</td>
+                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.dashboard.recent.loading")}</td>
                   </tr>
                 ) : recentPosts.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400">No posts found yet.</td>
+                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.dashboard.recent.empty")}</td>
                   </tr>
                 ) : (
                   recentPosts.map((post) => (
                     <tr key={String(post.id)} className="align-top">
                       <td className="border-b border-white/5 px-3 py-4">
-                        <div className="font-semibold text-white">{post.title || "Untitled post"}</div>
+                        <div className="font-semibold text-white">{post.title || t("marketing.posts.untitled")}</div>
                         <div className="text-xs text-slate-400">{post.product_name || post.template_name || "-"}</div>
                       </td>
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{post.channel || "-"}</td>

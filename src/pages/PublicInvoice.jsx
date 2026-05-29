@@ -1,5 +1,6 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import {
   ArrowLeft,
@@ -9,7 +10,6 @@ import {
   Globe,
   Loader2,
   MessageCircle,
-  Package,
   Printer,
   ShieldCheck,
   Star,
@@ -20,13 +20,13 @@ import toast from "react-hot-toast";
 
 import { api } from "../shared/api/api";
 import { formatCurrency } from "../shared/lib/currency";
-import { resolveProductImageUrl } from "../shared/lib/imageUrls";
+import { resolveInvoiceItemImageUrl } from "../shared/lib/invoiceItemImages";
 import { buildWhatsappDeepLink } from "../shared/utils/whatsapp.js";
 import OrderInvoiceCard from "../shared/components/invoices/OrderInvoiceCard";
 import { buildOrderInvoiceWhatsappText, normalizeOrderInvoiceData } from "../shared/utils/orderInvoice";
+import { getPrintDirection, normalizePrintLanguage, tPrint } from "../shared/utils/printLocalization";
 
-const RETURN_POLICY_TEXT = "يسمح بالاستبدال والاسترجاع خلال 14 يوم بشرط عدم الاستخدام والحفاظ على الفاتورة";
-const loggedInvoiceImageItems = new WeakSet();
+const invoicePrintLabel = (key, fallback, options) => tPrint(`print.invoice.${key}`, fallback, options);
 const DEFAULT_SOCIAL_LINKS = {
   googleReviewUrl: "https://www.google.com/maps/place//data=!4m3!3m2!1s0x14f9e3498b6a02f9:0xd576a0402361f8c8!12e1?source=g.page.m._&laa=merchant-review-solicitation",
   facebookReviewUrl: "https://www.facebook.com/MONESHOESSTORE/reviews",
@@ -37,22 +37,18 @@ const getPublicAppUrl = () => {
   const env = import.meta.env || {};
   const selected = [env.VITE_PUBLIC_APP_URL, env.PUBLIC_APP_URL, env.FRONTEND_URL]
     .map((value) => String(value || "").trim())
-    .find((value) => value && !/localhost|127\.0\.0\.1/i.test(value));
+    .find(Boolean);
   if (selected) return selected.replace(/\/$/, "");
-  if (typeof window !== "undefined" && !/localhost|127\.0\.0\.1/i.test(window.location.hostname)) {
-    return window.location.origin.replace(/\/$/, "");
-  }
+  if (typeof window !== "undefined") return window.location.origin.replace(/\/$/, "");
   return "";
 };
 
 const normalizePublicUrl = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
-  if (/^https?:\/\//i.test(raw)) return /localhost|127\.0\.0\.1/i.test(raw) ? "" : raw;
+  if (/^https?:\/\//i.test(raw)) return raw;
   const baseUrl = getPublicAppUrl();
-  if (baseUrl) {
-    return new URL(raw, baseUrl).toString();
-  }
+  if (baseUrl) return new URL(raw, baseUrl).toString();
   return raw;
 };
 
@@ -78,67 +74,27 @@ const formatArabicTime = (value) => {
   }).format(date);
 };
 
-const formatItemPrice = (value) => (Number(value || 0) > 0 ? formatCurrency(value) : "غير محدد");
+const formatItemPrice = (value) => (Number(value || 0) > 0 ? formatCurrency(value) : invoicePrintLabel("notSpecified", "Not specified"));
 
 const getPaymentLabel = (value) => {
   const raw = String(value || "").toLowerCase();
   const labels = {
-    cash: "نقدًا",
-    card: "فيزا",
-    visa: "فيزا",
-    wallet: "محفظة",
-    split: "متعدد",
-    transfer: "تحويل",
-    bank_transfer: "تحويل",
+    cash: invoicePrintLabel("cash", "Cash"),
+    card: invoicePrintLabel("card", "Card"),
+    visa: invoicePrintLabel("card", "Card"),
+    wallet: invoicePrintLabel("wallet", "Wallet"),
+    split: invoicePrintLabel("split", "Split"),
+    transfer: invoicePrintLabel("transfer", "Transfer"),
+    bank_transfer: invoicePrintLabel("transfer", "Transfer"),
   };
-  return labels[raw] || (raw ? raw : "نقدًا");
+  return labels[raw] || (raw ? raw : invoicePrintLabel("cash", "Cash"));
 };
 
 const getSocialLinks = (invoice) => [
-  { key: "google", label: "قيّمنا على جوجل", url: normalizePublicUrl(invoice?.google_review_url || DEFAULT_SOCIAL_LINKS.googleReviewUrl), icon: Star },
-  { key: "facebook", label: "قيّمنا على فيسبوك", url: normalizePublicUrl(invoice?.facebook_review_url || DEFAULT_SOCIAL_LINKS.facebookReviewUrl), icon: MessageCircle },
-  { key: "instagram", label: "تابعنا على إنستجرام", url: normalizePublicUrl(invoice?.instagram_url || DEFAULT_SOCIAL_LINKS.instagramUrl), icon: ExternalLink },
+  { key: "google", label: invoicePrintLabel("rateGoogle", "Rate us on Google"), url: normalizePublicUrl(invoice?.google_review_url || DEFAULT_SOCIAL_LINKS.googleReviewUrl), icon: Star },
+  { key: "facebook", label: invoicePrintLabel("rateFacebook", "Rate us on Facebook"), url: normalizePublicUrl(invoice?.facebook_review_url || DEFAULT_SOCIAL_LINKS.facebookReviewUrl), icon: MessageCircle },
+  { key: "instagram", label: invoicePrintLabel("followInstagram", "Follow us on Instagram"), url: normalizePublicUrl(invoice?.instagram_url || DEFAULT_SOCIAL_LINKS.instagramUrl), icon: ExternalLink },
 ].filter((link) => link.url);
-
-const unwrapInvoiceImageValue = (value) => {
-  if (!value) return "";
-  if (typeof value === "object") return value.url || value.path || value.image_url || value.secure_url || "";
-  return value;
-};
-
-const getInvoiceItemImage = (item = {}) => {
-  if (import.meta.env.DEV && item && typeof item === "object" && !loggedInvoiceImageItems.has(item)) {
-    loggedInvoiceImageItems.add(item);
-    console.log("[invoice item image debug]", item);
-  }
-
-  const candidates = [
-    item.image_url,
-    item.image,
-    item.product_image,
-    item.cover_image,
-    item.thumbnail,
-    item.variant_image,
-    item.variant_image_url,
-    item.product?.image_url,
-    item.product?.image,
-    item.product?.cover_image,
-    item.product?.thumbnail,
-    item.variant?.image_url,
-    item.variant?.image,
-    item.variant?.image_path,
-    item.product_variant?.image_url,
-    item.product_variant?.image,
-    item.color?.image_url,
-    item.color_image_url,
-    item.images?.[0],
-    item.gallery?.[0],
-    item.product?.gallery?.[0],
-    item.product?.images?.[0],
-  ];
-
-  return candidates.map(unwrapInvoiceImageValue).find(Boolean) || "";
-};
 
 function BrandedSocialIcon({ type, className = "" }) {
   if (type === "facebook") {
@@ -176,13 +132,26 @@ function BrandedSocialIcon({ type, className = "" }) {
 
 function PublicInvoice() {
   const { token } = useParams();
+  const { i18n } = useTranslation();
+  const printLanguage = normalizePrintLanguage(i18n.language);
+  const printDir = getPrintDirection(printLanguage);
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const resolvedToken = useMemo(() => {
+    const raw = String(token || "").trim();
+    if (!raw) return "";
+    try {
+      return decodeURIComponent(raw).trim();
+    } catch {
+      return raw;
+    }
+  }, [token]);
+
   const loadInvoice = async () => {
-    if (!token) {
-      setError("Missing invoice token");
+    if (!resolvedToken) {
+      setError(invoicePrintLabel("missingToken", "Missing invoice token"));
       setLoading(false);
       return;
     }
@@ -190,18 +159,29 @@ function PublicInvoice() {
     try {
       setLoading(true);
       setError("");
-      const response = await api.get(`/public/invoices/${token}`);
+      const response = await api.get(`/public/invoices/${encodeURIComponent(resolvedToken)}`);
       const payload = response?.invoice || response?.data?.invoice || response?.data || response;
+      if (import.meta.env.DEV && Array.isArray(payload?.items)) {
+        console.table(payload.items.map((item, index) => ({
+          index,
+          product_image: item.product_image || null,
+          variant_image: item.variant_image || null,
+          image: item.image || item.image_url || null,
+          product_image_nested: item.product?.image || null,
+          variant_image_nested: item.variant?.image || null,
+          final_resolved_image_url: resolveInvoiceItemImageUrl(item, ""),
+        })));
+      }
       setInvoice({
         ...payload,
-        public_invoice_url: normalizePublicUrl(payload?.public_invoice_url || `/invoice/${token}`),
+        public_invoice_url: normalizePublicUrl(payload?.public_invoice_url || `/invoice/${encodeURIComponent(resolvedToken)}`),
         google_review_url: normalizePublicUrl(payload?.google_review_url || DEFAULT_SOCIAL_LINKS.googleReviewUrl),
         facebook_review_url: normalizePublicUrl(payload?.facebook_review_url || DEFAULT_SOCIAL_LINKS.facebookReviewUrl),
         instagram_url: normalizePublicUrl(payload?.instagram_url || DEFAULT_SOCIAL_LINKS.instagramUrl),
       });
     } catch (err) {
       console.error("[public-invoice] failed to load invoice:", err);
-      setError(err?.responseBody?.message || err?.message || "Invoice not found");
+      setError(err?.responseBody?.message || err?.message || invoicePrintLabel("notFound", "Invoice not found"));
     } finally {
       setLoading(false);
     }
@@ -209,28 +189,29 @@ function PublicInvoice() {
 
   useEffect(() => {
     loadInvoice();
-  }, [token]);
+  }, [resolvedToken]);
 
   const publicUrl = useMemo(
-    () => normalizePublicUrl(invoice?.public_invoice_url || `/invoice/${token || ""}`),
-    [invoice, token]
+    () => normalizePublicUrl(invoice?.public_invoice_url || `/invoice/${encodeURIComponent(resolvedToken || "")}`),
+    [invoice, resolvedToken]
   );
   const handlePrint = () => window.print();
 
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(publicUrl);
-      toast.success("Invoice link copied");
+      toast.success(invoicePrintLabel("linkCopied", "Invoice link copied"));
     } catch {
-      toast.error("Unable to copy invoice link");
+      toast.error(invoicePrintLabel("copyFailed", "Unable to copy invoice link"));
     }
   };
 
   const handleDownloadPdf = async () => {
-    if (!invoice?.public_token) return;
+    const pdfIdentifier = invoice?.invoice_number || invoice?.order_number || invoice?.invoice_code || invoice?.public_code || invoice?.code || invoice?.public_token || resolvedToken;
+    if (!pdfIdentifier) return;
     try {
-      const response = await fetch(`/api/public/invoices/${encodeURIComponent(invoice.public_token)}/pdf`);
-      if (!response.ok) throw new Error("PDF download failed");
+      const response = await fetch(`/api/public/invoices/${encodeURIComponent(pdfIdentifier)}/pdf`);
+      if (!response.ok) throw new Error(invoicePrintLabel("pdfDownloadError", "PDF download failed"));
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -240,10 +221,10 @@ function PublicInvoice() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success("PDF downloaded");
+      toast.success(invoicePrintLabel("pdfDownloaded", "PDF downloaded"));
     } catch (err) {
       console.error("[public-invoice] pdf download failed:", err);
-      toast.error("Unable to download invoice PDF");
+      toast.error(invoicePrintLabel("pdfDownloadFailed", "Unable to download invoice PDF"));
     }
   };
 
@@ -263,11 +244,11 @@ function PublicInvoice() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white">
+      <div className="public-invoice-shell min-h-screen text-white">
         <div className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-4">
-          <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-zinc-300">
+          <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.06] px-5 py-4 text-sm text-slate-300 shadow-2xl shadow-black/30 backdrop-blur-xl">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading invoice...
+            {invoicePrintLabel("loading", "Loading invoice...")}
           </div>
         </div>
       </div>
@@ -276,16 +257,16 @@ function PublicInvoice() {
 
   if (error || !invoice) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white">
+      <div className="public-invoice-shell min-h-screen text-white">
         <div className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-4">
-          <div className="w-full rounded-[2rem] border border-white/10 bg-white/5 p-6">
-            <div className="text-sm uppercase tracking-[0.2em] text-amber-300">Invoice unavailable</div>
-            <h1 className="mt-2 text-2xl font-black">Public invoice link</h1>
-            <p className="mt-3 text-sm text-zinc-300">{error || "Invoice not found"}</p>
+          <div className="w-full rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+            <div className="text-sm uppercase tracking-[0.2em] text-amber-300">{invoicePrintLabel("unavailable", "Invoice unavailable")}</div>
+            <h1 className="mt-2 text-2xl font-black">{invoicePrintLabel("publicInvoiceLink", "Public invoice link")}</h1>
+            <p className="mt-3 text-sm text-slate-300">{error || invoicePrintLabel("notFound", "Invoice not found")}</p>
             <div className="mt-6">
-              <Link to="/" className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-black">
+              <Link to="/" className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/30 transition hover:-translate-y-0.5 hover:bg-emerald-400 active:translate-y-0">
                 <ArrowLeft className="h-4 w-4" />
-                Back
+                {invoicePrintLabel("back", "Back")}
               </Link>
             </div>
           </div>
@@ -303,32 +284,32 @@ function PublicInvoice() {
   const paymentLabel = getPaymentLabel(invoice.totals?.payment_method || invoice.payment_method);
 
   return (
-    <div dir="rtl" className="min-h-screen bg-zinc-950 text-white print:bg-white print:text-black">
-      <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6 lg:px-8">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
+    <div dir={printDir} lang={printLanguage} className="public-invoice-shell min-h-screen text-white print:bg-white print:text-black">
+      <div className="mx-auto max-w-5xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <div className="mb-5 flex flex-col gap-3 print:hidden sm:flex-row sm:items-center sm:justify-between">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-slate-100 shadow-sm shadow-black/20 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/10 active:translate-y-0 sm:justify-start"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            {invoicePrintLabel("back", "Back")}
           </Link>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={handleCopyLink} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+            <button type="button" onClick={handleCopyLink} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-slate-100 shadow-sm shadow-black/20 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/10 active:translate-y-0">
               <Copy className="h-4 w-4" />
-              Copy link
+              {invoicePrintLabel("copyLink", "Copy link")}
             </button>
-            <button type="button" onClick={handleWhatsapp} className="inline-flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/15 px-4 py-2.5 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20">
+            <button type="button" onClick={handleWhatsapp} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-500 px-4 py-2.5 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/35 transition hover:-translate-y-0.5 hover:bg-emerald-400 active:translate-y-0">
               <MessageCircle className="h-4 w-4" />
-              WhatsApp
+              {invoicePrintLabel("whatsapp", "WhatsApp")}
             </button>
-            <button type="button" onClick={handleDownloadPdf} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
+            <button type="button" onClick={handleDownloadPdf} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-violet-300/25 bg-transparent px-4 py-2.5 text-sm font-semibold text-violet-100 shadow-sm shadow-black/20 transition hover:-translate-y-0.5 hover:border-violet-200/45 hover:bg-violet-400/10 active:translate-y-0">
               <Download className="h-4 w-4" />
-              Download PDF
+              {invoicePrintLabel("downloadPdf", "Download PDF")}
             </button>
-            <button type="button" onClick={handlePrint} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
+            <button type="button" onClick={handlePrint} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-slate-200/10 px-4 py-2.5 text-sm font-semibold text-slate-100 shadow-sm shadow-black/20 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-white/15 hover:bg-slate-200/15 active:translate-y-0">
               <Printer className="h-4 w-4" />
-              Print
+              {invoicePrintLabel("print", "Print")}
             </button>
           </div>
         </div>
@@ -339,31 +320,32 @@ function PublicInvoice() {
             source: invoice.source || invoice.channel || "Website",
             public_invoice_url: publicUrl,
           })}
+          luxury
           className="print:rounded-none print:border-0 print:shadow-none"
         />
 
-        <div className="mt-3 rounded-xl border border-zinc-200 bg-white p-2 text-center text-xs font-bold text-zinc-700">
-            <div className="flex items-center justify-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />{RETURN_POLICY_TEXT}</div>
+        <div className="mt-4 rounded-2xl border border-slate-200/80 bg-[#FAFAF9] p-3 text-center text-xs font-bold text-slate-600 shadow-[0_18px_50px_rgba(2,6,23,0.22)] print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none">
+            <div className="flex items-center justify-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />{invoicePrintLabel("returnPolicy", "Exchange and return are allowed within 14 days if the item is unused and the invoice is kept.")}</div>
           </div>
-          <div className="mt-2 h-px bg-emerald-600" />
+          <div className="mx-auto mt-3 h-px max-w-3xl bg-gradient-to-r from-transparent via-emerald-700/55 to-transparent" />
 
           {socialLinks.length ? (
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
               {socialLinks.map(({ key, label, url, icon: Icon }) => (
                 <a
                   key={label}
                   href={url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-black text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg ${
+                  className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border border-white/10 px-4 py-2 text-xs font-black text-white shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 ${
                     key === "google"
-                      ? "bg-[linear-gradient(90deg,#4285F4,#34A853,#FBBC05,#EA4335)]"
+                      ? "bg-[linear-gradient(135deg,#1e293b,#334155)]"
                       : key === "facebook"
-                        ? "bg-[#1877F2]"
-                        : "bg-[linear-gradient(90deg,#833AB4,#E1306C,#FD1D1D,#FCAF45)]"
+                        ? "bg-[#1452a4]"
+                        : "bg-[linear-gradient(135deg,#3b0764,#7e22ce)]"
                   }`}
                 >
-                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${key === "instagram" ? "bg-white/15" : "bg-white"}`}>
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/95 shadow-sm">
                     <BrandedSocialIcon type={key} className={`h-4 w-4 ${key === "facebook" ? "text-[#1877f2]" : key === "instagram" ? "text-white" : ""}`} />
                   </span>
                   {label}
@@ -372,12 +354,12 @@ function PublicInvoice() {
             </div>
           ) : null}
 
-          <footer className="mt-3 border-t border-emerald-600 bg-white pt-2 text-center text-xs font-bold text-zinc-600">
-            <div className="flex flex-wrap items-center justify-center gap-2.5" dir="ltr">
-              <span className="inline-flex items-center gap-1"><Globe className="h-3.5 w-3.5 text-emerald-600" />{invoice.store?.website || "www.workspace.com"}</span>
-              <span>|</span>
-              <span className="inline-flex items-center gap-1" dir="rtl"><Smartphone className="h-3.5 w-3.5 text-emerald-600" />خدمة العملاء - {invoice.store?.phone || "01234567890"}</span>
-              {publicUrl ? <QRCodeSVG value={publicUrl} size={32} level="M" /> : null}
+          <footer className="mt-4 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-center text-xs font-bold text-slate-300 shadow-lg shadow-black/20 backdrop-blur-xl print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none">
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap sm:gap-4" dir="ltr">
+              <span className="inline-flex items-center gap-1.5"><Globe className="h-3.5 w-3.5 text-emerald-400" />{invoice.store?.website || "www.workspace.com"}</span>
+              <span className="hidden text-slate-500 sm:inline">/</span>
+              <span className="inline-flex items-center gap-1.5" dir={printDir}><Smartphone className="h-3.5 w-3.5 text-emerald-400" />{invoicePrintLabel("customerService", "Customer service")} - {invoice.store?.phone || "01234567890"}</span>
+              {publicUrl ? <span className="rounded-xl bg-white p-1.5"><QRCodeSVG value={publicUrl} size={34} level="M" /></span> : null}
             </div>
           </footer>
 
@@ -386,31 +368,6 @@ function PublicInvoice() {
   );
 }
 
-function Row({ label, value }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-zinc-500">{label}</span>
-      <span className="font-semibold text-zinc-900">{value}</span>
-    </div>
-  );
-}
-
-function InvoiceItemImage({ item, alt }) {
-  const [failed, setFailed] = useState(false);
-  const rawImage = getInvoiceItemImage(item);
-  const imageUrl = resolveProductImageUrl(rawImage);
-
-  if (!imageUrl || failed) return <Package className="h-5 w-5 text-zinc-400" />;
-
-  return (
-    <img
-      src={imageUrl}
-      alt={alt}
-      loading="lazy"
-      className="h-full w-full object-cover"
-      onError={() => setFailed(true)}
-    />
-  );
-}
-
 export default PublicInvoice;
+
+

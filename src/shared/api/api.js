@@ -1,7 +1,7 @@
 import { clearAuth, getToken } from "../auth/authStorage";
 
-import { API_BASE_URL }
-from "../constants/app";
+import { API_BASE_URL } from "../constants/app";
+import { estimatePayloadSize, isErpPerfDebugEnabled } from "../lib/perfDebug";
 
 const hasFormData =
   typeof FormData !== "undefined";
@@ -24,6 +24,14 @@ const notifyAuthExpired = (requestUrl, method) => {
       detail: { requestUrl, method },
     })
   );
+};
+
+const jsonLog = (value) => {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 };
 
 const buildHeaders = (
@@ -55,10 +63,65 @@ const buildHeaders = (
     !headers["content-type"]
   ) {
     headers["Content-Type"] =
-      "application/json";
+      "application/json; charset=utf-8";
   }
 
   return headers;
+};
+
+const isDev = () =>
+  typeof import.meta !== "undefined" && Boolean(import.meta.env?.DEV);
+
+const isAiMarketingCenterEndpoint = (endpoint = "") =>
+  String(endpoint || "").startsWith("/marketing/ai-center");
+
+const debugAiMarketingRequest = ({
+  endpoint,
+  method,
+  status,
+  hasAuthToken,
+  requestUrl,
+  responseBody,
+}) => {
+  if (!isDev() || !isAiMarketingCenterEndpoint(endpoint)) return;
+  console.debug("[ai-marketing-center] api auth debug", {
+    endpoint,
+    method,
+    status,
+    hasAuthToken,
+    requestUrl,
+    responseBody,
+  });
+};
+
+const inflightRequestCounts = new Map();
+
+const normalizePerfEndpoint = (endpoint = "", params) => {
+  const query = params instanceof URLSearchParams ? params.toString() : "";
+  return `${endpoint}${query ? `?${query}` : ""}`;
+};
+
+const logApiPerf = ({
+  endpoint,
+  method,
+  status,
+  startedAt,
+  responseBody,
+  duplicateRequestKey,
+  component,
+}) => {
+  if (!isErpPerfDebugEnabled()) return;
+  const durationMs = Math.round((performance.now() - startedAt) * 100) / 100;
+  console.info("[erp-perf] api", {
+    route: typeof window !== "undefined" ? window.location.pathname : "",
+    endpoint,
+    method,
+    duration_ms: durationMs,
+    status,
+    response_size: estimatePayloadSize(responseBody),
+    duplicate_request_key: duplicateRequestKey,
+    component: component || "",
+  });
 };
 
 /* ======================================================
@@ -78,6 +141,8 @@ const request = async (
     timeoutMs,
     signal,
     suppressErrorStatuses = [],
+    debugLabel = "",
+    perfComponent = "",
     ...fetchOptions
   } = options;
 
@@ -100,6 +165,10 @@ const request = async (
   }
   const queryString = query.toString();
   const requestUrl = `${API_BASE_URL}${endpoint}${queryString ? `${endpoint.includes("?") ? "&" : "?"}${queryString}` : ""}`;
+  const perfEndpoint = normalizePerfEndpoint(endpoint, query);
+  const duplicateRequestKey = `${method}:${perfEndpoint}`;
+  const perfStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+  const token = getToken();
   const controller =
     typeof AbortController !== "undefined" ? new AbortController() : null;
   let timeoutId = null;
@@ -122,10 +191,12 @@ const request = async (
   let data;
 
   try {
+    inflightRequestCounts.set(duplicateRequestKey, (inflightRequestCounts.get(duplicateRequestKey) || 0) + 1);
     response = await fetch(requestUrl, {
       ...fetchOptions,
       method,
       headers: buildHeaders(body, extraHeaders),
+      credentials: fetchOptions.credentials || "same-origin",
       signal: controller ? controller.signal : signal,
       body:
         body === null ||
@@ -146,6 +217,14 @@ const request = async (
       });
     }
     const hint = "Backend or Vite proxy is not reachable";
+    debugAiMarketingRequest({
+      endpoint,
+      method,
+      status: "network-error",
+      hasAuthToken: Boolean(token),
+      requestUrl,
+      responseBody: null,
+    });
     console.error("[api] network error:", {
       url: requestUrl,
       method,
@@ -160,6 +239,10 @@ const request = async (
     error.hint = hint;
     error.cause = networkError;
     throw error;
+  } finally {
+    const count = inflightRequestCounts.get(duplicateRequestKey) || 0;
+    if (count <= 1) inflightRequestCounts.delete(duplicateRequestKey);
+    else inflightRequestCounts.set(duplicateRequestKey, count - 1);
   }
 
   try {
@@ -176,6 +259,35 @@ const request = async (
     clearTimeout(timeoutId);
   }
 
+  if (debugLabel) {
+    console.log("[api] debug response:", {
+      label: debugLabel,
+      method,
+      url: requestUrl,
+      status: response.status,
+      responseBody: data,
+    });
+  }
+
+  debugAiMarketingRequest({
+    endpoint,
+    method,
+    status: response.status,
+    hasAuthToken: Boolean(token),
+    requestUrl,
+    responseBody: data,
+  });
+
+  logApiPerf({
+    endpoint: perfEndpoint,
+    method,
+    status: response.status,
+    startedAt: perfStartedAt,
+    responseBody: data,
+    duplicateRequestKey,
+    component: perfComponent || debugLabel,
+  });
+
   /* =========================
      UNAUTHORIZED
   ========================= */
@@ -189,7 +301,7 @@ const request = async (
     }
 
     const error = new Error(
-      "Session expired. Please login again."
+      "Session expired or unauthorized"
     );
     error.status = 401;
     error.responseBody = data;
@@ -204,13 +316,13 @@ const request = async (
 
   if (!response.ok) {
     if (!suppressErrorStatuses.includes(response.status)) {
-      console.error("[api] request failed:", {
+      console.error("[api] request failed", jsonLog({
         method,
         url: requestUrl,
         status: response.status,
         responseBody: data,
         message: data?.message || data?.error || "Request Failed",
-      });
+      }));
     }
 
     const error = new Error(
@@ -241,6 +353,53 @@ export const api = {
       endpoint,
       "GET",
       null,
+      options
+    ),
+
+  getAISettings: (
+    options
+  ) =>
+
+    request(
+      "/ai-agent/settings",
+      "GET",
+      null,
+      options
+    ),
+
+  updateAISettings: (
+    patch,
+    options
+  ) =>
+
+    request(
+      "/ai-agent/settings",
+      "PUT",
+      patch,
+      options
+    ),
+
+  testAIReply: (
+    payload,
+    options
+  ) =>
+
+    request(
+      "/ai-agent/test-reply",
+      "POST",
+      payload,
+      options
+    ),
+
+  getAISuggestedReplies: (
+    payload,
+    options
+  ) =>
+
+    request(
+      "/ai-agent/suggested-replies",
+      "POST",
+      payload,
       options
     ),
 
@@ -291,7 +450,7 @@ export const api = {
     request(
       endpoint,
       "DELETE",
-      null,
+      options?.body ?? null,
       options
     ),
 };

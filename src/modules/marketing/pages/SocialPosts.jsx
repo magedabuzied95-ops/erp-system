@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, Copy, ExternalLink, Image as ImageIcon, Megaphone, Plus, RefreshCcw, Search, Send, Trash2, Zap } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 import {
   createMarketingPost,
@@ -34,16 +35,16 @@ const uniqueImages = (post = {}) =>
 
 const getPlatformPostId = (post = {}) => String(post.platform_post_id || post.external_post_id || "").trim();
 
-const getPublishToastMessage = (post = {}) => {
+const getPublishToastMessage = (post = {}, t = (key, options = {}) => options.defaultValue || key) => {
   const results = post.platform_publish_results || {};
   const facebookPublished = results.facebook?.status === "published";
   const instagramPublished = results.instagram?.status === "published";
 
-  if (facebookPublished && instagramPublished) return { type: "success", message: "Published to Facebook and Instagram" };
-  if (facebookPublished && results.instagram) return { type: "warning", message: "Facebook published, Instagram failed" };
-  if (instagramPublished && results.facebook) return { type: "warning", message: "Instagram published, Facebook failed" };
-  if (post.status === "failed") return { type: "error", message: `Meta publish failed: ${post.error_message || "Publish failed"}` };
-  return { type: "success", message: `Meta published successfully: ${getPlatformPostId(post)}` };
+  if (facebookPublished && instagramPublished) return { type: "success", message: t("marketing.posts.publishedBoth") };
+  if (facebookPublished && results.instagram) return { type: "warning", message: t("marketing.posts.facebookPublishedInstagramFailed") };
+  if (instagramPublished && results.facebook) return { type: "warning", message: t("marketing.posts.instagramPublishedFacebookFailed") };
+  if (post.status === "failed") return { type: "error", message: t("marketing.posts.metaPublishFailed", { message: post.error_message || t("marketing.posts.publishFailed") }) };
+  return { type: "success", message: t("marketing.posts.metaPublished", { id: getPlatformPostId(post) }) };
 };
 
 const getFacebookPostUrl = (post = {}) => {
@@ -52,15 +53,15 @@ const getFacebookPostUrl = (post = {}) => {
   return `https://www.facebook.com/${encodeURIComponent(id)}`;
 };
 
-const storyToast = (story = {}) => {
+const storyToast = (story = {}, t = (key, options = {}) => options.defaultValue || key) => {
   const results = story.story_publish_results || {};
   const instagram = results.instagram?.status;
   const facebook = results.facebook?.status;
   const whatsapp = results.whatsapp?.status;
-  if (instagram === "published" && facebook === "published") return "Story published to Instagram and Facebook";
-  if (instagram === "published" || facebook === "published") return "Story partially published";
-  if (whatsapp === "skipped") return story.story_error_message || "Story publish failed; WhatsApp skipped";
-  return story.story_error_message || "Story publish failed";
+  if (instagram === "published" && facebook === "published") return t("marketing.posts.storyPublished");
+  if (instagram === "published" || facebook === "published") return t("marketing.posts.storyPartial");
+  if (whatsapp === "skipped") return story.story_error_message || t("marketing.posts.storyFailedWhatsappSkipped");
+  return story.story_error_message || t("marketing.posts.storyFailed");
 };
 
 const Badge = ({ children, tone = "slate" }) => {
@@ -75,6 +76,7 @@ const Badge = ({ children, tone = "slate" }) => {
 };
 
 export default function SocialPosts() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -100,8 +102,8 @@ export default function SocialPosts() {
       });
       setPosts(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err?.message || "Failed to load marketing posts");
-      toast.error(err?.message || "Failed to load marketing posts");
+      setError(err?.message || t("marketing.posts.loadFailed"));
+      toast.error(err?.message || t("marketing.posts.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -136,7 +138,7 @@ export default function SocialPosts() {
 
   const savePost = async (payload) => {
     if (editorPost?.id ? !canUpdate : !canCreate) {
-      toast.error("You do not have permission to create marketing posts.");
+      toast.error(t("marketing.common.permissionCreate"));
       return;
     }
 
@@ -147,11 +149,11 @@ export default function SocialPosts() {
       } else {
         await createMarketingPost({ ...payload, status: "draft" });
       }
-      toast.success("Post saved");
+      toast.success(t("marketing.posts.saved"));
       setEditorOpen(false);
       await load();
     } catch (err) {
-      toast.error(Number(err?.status || err?.responseBody?.status) === 403 ? "You do not have permission to create marketing posts." : err?.message || "Failed to save post");
+      toast.error(Number(err?.status || err?.responseBody?.status) === 403 ? t("marketing.common.permissionCreate") : err?.message || t("marketing.posts.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -159,7 +161,7 @@ export default function SocialPosts() {
 
   const publishPost = async (payload) => {
     if (!canPublish) {
-      toast.error("You do not have permission to publish marketing posts.");
+      toast.error(t("marketing.common.permissionPublish"));
       return;
     }
 
@@ -167,7 +169,7 @@ export default function SocialPosts() {
     try {
       const saved = editorPost?.id ? await updateMarketingPost(editorPost.id, payload) : await createMarketingPost({ ...payload, status: "draft" });
       const published = await publishMarketingPost(saved.id);
-      const toastMessage = getPublishToastMessage(published);
+      const toastMessage = getPublishToastMessage(published, t);
       if (toastMessage.type === "error") toast.error(toastMessage.message);
       else if (toastMessage.type === "warning") toast(toastMessage.message);
       else toast.success(toastMessage.message);
@@ -178,7 +180,7 @@ export default function SocialPosts() {
       setEditorOpen(false);
       await load();
     } catch (err) {
-      toast.error(err?.message || "Failed to publish post");
+      toast.error(err?.message || t("marketing.posts.publishFailed"));
     } finally {
       setSaving(false);
     }
@@ -186,7 +188,7 @@ export default function SocialPosts() {
 
   const schedulePost = async (payload, scheduledAt) => {
     if (!canUpdate) {
-      toast.error("You do not have permission to update marketing posts.");
+      toast.error(t("marketing.common.permissionUpdate"));
       return;
     }
 
@@ -194,44 +196,44 @@ export default function SocialPosts() {
     try {
       const saved = editorPost?.id ? await updateMarketingPost(editorPost.id, payload) : await createMarketingPost({ ...payload, status: "draft" });
       await scheduleMarketingPost(saved.id, { scheduled_at: scheduledAt });
-      toast.success("Post scheduled");
+      toast.success(t("marketing.posts.scheduled"));
       setEditorOpen(false);
       await load();
     } catch (err) {
-      toast.error(err?.message || "Failed to schedule post");
+      toast.error(err?.message || t("marketing.posts.scheduleFailed"));
     } finally {
       setSaving(false);
     }
   };
 
   const publishStory = async (post) => {
-    if (!canPublish) return toast.error("You do not have permission to publish marketing posts.");
+    if (!canPublish) return toast.error(t("marketing.common.permissionPublish"));
     try {
       const result = await publishStoryEverywhere(post.id);
-      if (result.story_status === "failed") toast.error(storyToast(result));
-      else toast.success(storyToast(result));
+      if (result.story_status === "failed") toast.error(storyToast(result, t));
+      else toast.success(storyToast(result, t));
       await load();
     } catch (err) {
-      toast.error(err?.message || "Failed to publish story");
+      toast.error(err?.message || t("marketing.posts.storyFailed"));
     }
   };
 
   const scheduleStory = async (post) => {
-    if (!canUpdate) return toast.error("You do not have permission to update marketing posts.");
-    const scheduledAt = window.prompt("Schedule story date/time (YYYY-MM-DDTHH:mm)", new Date(Date.now() + 2 * 60 * 1000).toISOString().slice(0, 16));
+    if (!canUpdate) return toast.error(t("marketing.common.permissionUpdate"));
+    const scheduledAt = window.prompt(t("marketing.posts.storySchedulePrompt"), new Date(Date.now() + 2 * 60 * 1000).toISOString().slice(0, 16));
     if (!scheduledAt) return;
     try {
       await scheduleStoryEverywhere(post.id, { scheduled_at: scheduledAt });
-      toast.success("Story scheduled");
+      toast.success(t("marketing.posts.storyScheduled"));
       await load();
     } catch (err) {
-      toast.error(err?.message || "Failed to schedule story");
+      toast.error(err?.message || t("marketing.posts.storyScheduleFailed"));
     }
   };
 
   const generateFromProduct = async (productId) => {
     if (!canCreate) {
-      toast.error("You do not have permission to create marketing posts.");
+      toast.error(t("marketing.common.permissionCreate"));
       return;
     }
 
@@ -241,7 +243,7 @@ export default function SocialPosts() {
       setEditorPost(generated);
       setEditorOpen(true);
     } catch (err) {
-      toast.error(Number(err?.status || err?.responseBody?.status) === 403 ? "You do not have permission to create marketing posts." : err?.message || "Failed to generate post");
+      toast.error(Number(err?.status || err?.responseBody?.status) === 403 ? t("marketing.common.permissionCreate") : err?.message || t("marketing.posts.generateFailed"));
     } finally {
       setSaving(false);
     }
@@ -249,22 +251,22 @@ export default function SocialPosts() {
 
   const deletePost = async (id) => {
     if (!canDelete) return;
-    if (!window.confirm("Delete this marketing post?")) return;
+    if (!window.confirm(t("marketing.posts.deleteConfirm"))) return;
     try {
       await deleteMarketingPost(id);
-      toast.success("Post deleted");
+      toast.success(t("marketing.posts.deleted"));
       await load();
     } catch (err) {
-      toast.error(err?.message || "Failed to delete post");
+      toast.error(err?.message || t("marketing.posts.deleteFailed"));
     }
   };
 
   const copyCaption = async (caption) => {
     try {
       await navigator.clipboard.writeText(caption || "");
-      toast.success("Caption copied");
+      toast.success(t("marketing.posts.captionCopied"));
     } catch {
-      toast.error("Copy failed");
+      toast.error(t("marketing.posts.copyFailed"));
     }
   };
 
@@ -285,21 +287,21 @@ export default function SocialPosts() {
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
                 <Megaphone className="h-3.5 w-3.5" />
-                Social posts
+                {t("marketing.posts.eyebrow")}
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">Create, schedule, and publish social content</h1>
-              <p className="max-w-3xl text-sm leading-6 text-slate-300">Generate posts from products or manage drafts manually with clean mobile-first editing.</p>
+              <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.posts.title")}</h1>
+              <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.posts.subtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               {canCreate ? (
                 <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-400">
                   <Plus className="h-4 w-4" />
-                  New post
+                  {t("marketing.posts.new")}
                 </button>
               ) : null}
               <button onClick={load} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
                 <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                Refresh
+                {t("common.refresh")}
               </button>
             </div>
           </div>
@@ -308,27 +310,27 @@ export default function SocialPosts() {
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))]">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title or caption..." className="w-full rounded-2xl border border-white/10 bg-slate-950/80 py-3 pl-11 pr-4 text-sm text-white outline-none" />
+              <Search className="pointer-events-none absolute start-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("marketing.posts.searchPlaceholder")} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 py-3 ps-11 pe-4 text-sm text-white outline-none" />
             </div>
             <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
-              <option value="all">All statuses</option>
-              <option value="draft">Draft</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="published">Published</option>
-              <option value="partial_success">Partial success</option>
-              <option value="failed">Failed</option>
+              <option value="all">{t("marketing.posts.filters.allStatuses")}</option>
+              <option value="draft">{t("marketing.posts.status.draft")}</option>
+              <option value="scheduled">{t("marketing.posts.status.scheduled")}</option>
+              <option value="published">{t("marketing.posts.status.published")}</option>
+              <option value="partial_success">{t("marketing.posts.status.partialSuccess")}</option>
+              <option value="failed">{t("marketing.posts.status.failed")}</option>
             </select>
             <select value={channel} onChange={(event) => setChannel(event.target.value)} className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none">
-              <option value="all">All channels</option>
-              <option value="facebook">Facebook</option>
-              <option value="instagram">Instagram</option>
-              <option value="whatsapp">WhatsApp</option>
+              <option value="all">{t("marketing.posts.filters.allChannels")}</option>
+              <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
+              <option value="instagram">{t("marketing.social.platforms.instagram")}</option>
+              <option value="whatsapp">{t("marketing.social.platforms.whatsapp")}</option>
             </select>
             {canCreate ? (
-              <button onClick={() => generateFromProduct(window.prompt("Enter product ID to generate marketing post") || "")} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20">
+              <button onClick={() => generateFromProduct(window.prompt(t("marketing.posts.enterProductId")) || "")} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20">
                 <ImageIcon className="h-4 w-4" />
-                Generate from product
+                {t("marketing.posts.generateFromProduct")}
               </button>
             ) : null}
           </div>
@@ -338,30 +340,30 @@ export default function SocialPosts() {
           <div className="mt-6 overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Post</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Preview</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Channel</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Status</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Platform ID</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Scheduled</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold text-right">Actions</th>
+                <tr className="text-start text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.post")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.preview")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.channel")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.status")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.platformId")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.posts.headers.scheduled")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold text-end">{t("marketing.posts.headers.actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">Loading posts...</td>
+                    <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.posts.loading")}</td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">No marketing posts found.</td>
+                    <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.posts.empty")}</td>
                   </tr>
                 ) : (
                   filtered.map((post) => (
                     <tr key={String(post.id)} className="align-top">
                       <td className="border-b border-white/5 px-3 py-4">
-                        <div className="font-semibold text-white">{post.title || "Untitled post"}</div>
+                        <div className="font-semibold text-white">{post.title || t("marketing.posts.untitled")}</div>
                         <div className="mt-2 line-clamp-2 max-w-[28rem] whitespace-pre-wrap text-sm text-slate-400">{post.caption || ""}</div>
                         <div className="mt-2 text-xs text-slate-500">{post.template_name || post.campaign_name || post.product_name || "-"}</div>
                       </td>
@@ -374,7 +376,7 @@ export default function SocialPosts() {
                                 <img
                                   key={url}
                                   src={url}
-                                  alt={`${post.title || "Post preview"} ${index + 1}`}
+                                  alt={`${post.title || t("marketing.posts.headers.preview")} ${index + 1}`}
                                   className="absolute h-16 w-16 rounded-2xl border border-white/10 object-cover shadow-lg shadow-black/20"
                                   style={{ left: `${index * 10}px`, zIndex: 3 - index }}
                                 />
@@ -414,38 +416,38 @@ export default function SocialPosts() {
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatDateTime(post.scheduled_at)}</td>
                       <td className="border-b border-white/5 px-3 py-4">
                         <div className="flex flex-wrap justify-end gap-2">
-                          {canUpdate ? <button onClick={() => openEdit(post)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">Edit</button> : null}
+                          {canUpdate ? <button onClick={() => openEdit(post)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">{t("common.edit")}</button> : null}
                           <button onClick={() => copyCaption(post.caption)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">
-                            <Copy className="mr-1 inline-block h-3.5 w-3.5" />
-                            Copy
+                            <Copy className="me-1 inline-block h-3.5 w-3.5" />
+                            {t("common.copy")}
                           </button>
                           {canPublish ? (
                             <button onClick={async () => {
                               try {
                                 const published = await publishMarketingPost(post.id);
-                                const toastMessage = getPublishToastMessage(published);
+                                const toastMessage = getPublishToastMessage(published, t);
                                 if (toastMessage.type === "error") toast.error(toastMessage.message);
                                 else if (toastMessage.type === "warning") toast(toastMessage.message);
                                 else toast.success(toastMessage.message);
                                 await load();
                               } catch (err) {
-                                toast.error(err?.message || "Failed to publish post");
+                                toast.error(err?.message || t("marketing.posts.publishFailed"));
                               }
                             }} className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100">
-                              <Send className="mr-1 inline-block h-3.5 w-3.5" />
-                              Publish
+                              <Send className="me-1 inline-block h-3.5 w-3.5" />
+                              {t("marketing.posts.publish")}
                             </button>
                           ) : null}
                           {canPublish ? (
                             <button onClick={() => publishStory(post)} className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-3 py-2 text-xs font-semibold text-fuchsia-100">
-                              <Zap className="mr-1 inline-block h-3.5 w-3.5" />
-                              Generate Fast Story
+                              <Zap className="me-1 inline-block h-3.5 w-3.5" />
+                              {t("marketing.posts.generateFastStory")}
                             </button>
                           ) : null}
                           {canUpdate ? (
                             <button onClick={() => scheduleStory(post)} className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100">
-                              <CalendarClock className="mr-1 inline-block h-3.5 w-3.5" />
-                              Schedule Story
+                              <CalendarClock className="me-1 inline-block h-3.5 w-3.5" />
+                              {t("marketing.posts.scheduleStory")}
                             </button>
                           ) : null}
                           {getPlatformPostId(post) ? (
@@ -455,14 +457,14 @@ export default function SocialPosts() {
                               rel="noreferrer"
                               className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-100"
                             >
-                              <ExternalLink className="mr-1 inline-block h-3.5 w-3.5" />
-                              Open on Facebook
+                              <ExternalLink className="me-1 inline-block h-3.5 w-3.5" />
+                              {t("marketing.posts.openOnFacebook")}
                             </a>
                           ) : null}
                           {canDelete ? (
                             <button onClick={() => deletePost(post.id)} className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
-                              <Trash2 className="mr-1 inline-block h-3.5 w-3.5" />
-                              Delete
+                              <Trash2 className="me-1 inline-block h-3.5 w-3.5" />
+                              {t("common.delete")}
                             </button>
                           ) : null}
                         </div>
@@ -485,7 +487,7 @@ export default function SocialPosts() {
           onPublish={canPublish ? publishPost : null}
           onSchedule={canUpdate ? schedulePost : null}
           saving={saving}
-          title="Social post editor"
+          title={t("marketing.posts.editorTitle")}
         />
       ) : null}
     </div>

@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useProductClassifications } from "../hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../lib/productClassifications";
+
+const CATALOG_STRUCTURE_STORAGE_KEY = "product-form-show-catalog-structure";
+const PRODUCT_AUDIENCE_OPTIONS = [
+  { value: "men", label: "Men" },
+  { value: "women", label: "Women" },
+  { value: "kids", label: "Kids" },
+];
 
 function ProductForm({
   categories = [],
@@ -16,6 +23,7 @@ function ProductForm({
   brand = "",
   unit = "",
   gender = "",
+  audiences = [],
   productType = "",
   style = "",
   grade = "",
@@ -26,6 +34,7 @@ function ProductForm({
   onUnitChange,
   onVariationModeChange,
   onGenderChange,
+  onAudiencesChange,
   onProductTypeChange,
   onStyleChange,
   onGradeChange,
@@ -34,7 +43,16 @@ function ProductForm({
   const brandWrapRef = useRef(null);
   const [brandOpen, setBrandOpen] = useState(false);
   const [brandQuery, setBrandQuery] = useState(() => brand || "");
-  const { groups: classificationGroups } = useProductClassifications({ includeInactive: true });
+  const [showCatalogStructure, setShowCatalogStructure] = useState(() => {
+    if (typeof window === "undefined") return false;
+
+    try {
+      return window.localStorage.getItem(CATALOG_STRUCTURE_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
 
   const selectedMainCategory = useMemo(
     () => categories.find((item) => String(item.name || "").trim() === String(mainCategory || "").trim()) || null,
@@ -50,9 +68,10 @@ function ProductForm({
     if (!query) return brands;
     return brands.filter((item) => String(item.name || "").toLowerCase().includes(query));
   }, [brands, brandQuery]);
+  const selectedAudiences = useMemo(() => normalizeAudiences(audiences, gender), [audiences, gender]);
   const classificationOptions = useMemo(
-    () => classificationGroupsToFieldOptions(classificationGroups, { gender, productType, style, grade }, { includeInactive: true }),
-    [classificationGroups, gender, productType, style, grade]
+    () => classificationGroupsToFieldOptions(classificationGroups, { gender: selectedAudiences[0] || gender, productType, style, grade }, { includeInactive: false, includeCurrentValue: false }),
+    [classificationGroups, selectedAudiences, gender, productType, style, grade]
   );
 
   useEffect(() => {
@@ -66,40 +85,92 @@ function ProductForm({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      window.localStorage.setItem(CATALOG_STRUCTURE_STORAGE_KEY, String(showCatalogStructure));
+    } catch {
+      // localStorage can be unavailable in private or restricted browser contexts.
+    }
+  }, [showCatalogStructure]);
+
   return (
     <div className="mt-6 space-y-5">
-      <section className="rounded-[28px] border border-white/8 bg-white/[0.035] p-4 shadow-xl shadow-black/10 sm:p-5">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <section className="rounded-[28px] border border-white/8 bg-white/[0.035] p-4 shadow-xl shadow-black/10 backdrop-blur sm:p-5">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/8 pb-4">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-zinc-500">{t("products.form.catalogStructure")}</p>
             <p className="mt-1 text-sm text-zinc-400">{t("products.form.catalogHelp")}</p>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowCatalogStructure((current) => !current)}
+            aria-expanded={showCatalogStructure}
+            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm font-semibold text-zinc-200 shadow-lg shadow-black/10 transition hover:border-emerald-300/30 hover:bg-white/8 hover:text-white focus:border-emerald-300/50 focus:outline-none"
+          >
+            {showCatalogStructure ? (
+              <ChevronUp size={16} className="text-emerald-200" />
+            ) : (
+              <ChevronDown size={16} className="text-zinc-400" />
+            )}
+            <span>
+              {showCatalogStructure
+                ? t("products.form.hideCategorySelectors", "Hide category selectors")
+                : t("products.form.showCategorySelectors", "Show category selectors")}
+            </span>
+          </button>
+        </div>
+
+        <div
+          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+            showCatalogStructure
+              ? "mb-4 grid-rows-[1fr] opacity-100"
+              : "pointer-events-none grid-rows-[0fr] opacity-0"
+          }`}
+          aria-hidden={!showCatalogStructure}
+        >
+          <div className="overflow-hidden">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormSelect
+                label={t("products.form.mainCategory")}
+                value={mainCategory}
+                onChange={(value) => {
+                  onMainCategoryChange?.(value);
+                  onSubCategoryChange?.("");
+                  onChildCategoryChange?.("");
+                }}
+                placeholder={t("products.form.selectMainCategory")}
+                options={categories.filter((item) => !item.parentId).map((item) => ({ value: item.name, label: item.name, id: item.id }))}
+                tabIndex={showCatalogStructure ? undefined : -1}
+              />
+
+              <FormSelect
+                label={t("products.form.subCategory")}
+                value={subCategory}
+                onChange={(value) => {
+                  onSubCategoryChange?.(value);
+                  onChildCategoryChange?.("");
+                }}
+                placeholder={t("products.form.selectSubCategory")}
+                options={subcategories.map((item) => ({ value: item.name, label: item.name, id: item.id }))}
+                tabIndex={showCatalogStructure ? undefined : -1}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div
+          className={`transition-[max-height,opacity,transform] duration-300 ease-out ${
+            showCatalogStructure ? "max-h-0 -translate-y-1 overflow-hidden opacity-0" : "mb-4 max-h-24 translate-y-0 opacity-100"
+          }`}
+        >
+          <div className="rounded-2xl border border-white/8 bg-zinc-950/55 px-4 py-3 text-sm font-medium text-zinc-400">
+            {t("products.form.categorySelectorsHidden", "Category selectors are hidden")}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <FormSelect
-            label={t("products.form.mainCategory")}
-            value={mainCategory}
-            onChange={(value) => {
-              onMainCategoryChange?.(value);
-              onSubCategoryChange?.("");
-              onChildCategoryChange?.("");
-            }}
-            placeholder={t("products.form.selectMainCategory")}
-            options={categories.filter((item) => !item.parentId).map((item) => ({ value: item.name, label: item.name, id: item.id }))}
-          />
-
-          <FormSelect
-            label={t("products.form.subCategory")}
-            value={subCategory}
-            onChange={(value) => {
-              onSubCategoryChange?.(value);
-              onChildCategoryChange?.("");
-            }}
-            placeholder={t("products.form.selectSubCategory")}
-            options={subcategories.map((item) => ({ value: item.name, label: item.name, id: item.id }))}
-          />
-
           <div className="relative" ref={brandWrapRef}>
             <label className="text-sm font-semibold text-zinc-300">{t("products.form.brand")}</label>
             <button
@@ -131,7 +202,7 @@ function ProductForm({
                         type="button"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => {
-                          onBrandChange?.(item.name);
+                          onBrandChange?.(item.name, item);
                           setBrandQuery(item.name);
                           setBrandOpen(false);
                         }}
@@ -141,7 +212,7 @@ function ProductForm({
                       >
                         <span>{item.name}</span>
                         {String(brand || "").trim() === String(item.name || "").trim() ? (
-                          <span className="text-xs text-emerald-300">Selected</span>
+                          <span className="text-xs text-emerald-300">{t("products.form.selected", "Selected")}</span>
                         ) : null}
                       </button>
                     ))
@@ -201,12 +272,13 @@ function ProductForm({
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <SmartClassificationSelect
-            label={t("products.form.gender")}
-            value={gender}
-            onChange={onGenderChange}
-            options={classificationOptions.gender}
-            placeholder={t("products.form.genderPlaceholder")}
+          <AudienceCheckboxGroup
+            label={t("products.form.gender", "Audience")}
+            value={selectedAudiences}
+            onChange={(next) => {
+              onAudiencesChange?.(next);
+              onGenderChange?.(next[0] || "");
+            }}
           />
 
           <SmartClassificationSelect
@@ -214,7 +286,7 @@ function ProductForm({
             value={productType}
             onChange={onProductTypeChange}
             options={classificationOptions.productType}
-            placeholder={t("products.form.productTypePlaceholder")}
+            placeholder={t("products.form.selectProductType", "Select product type")}
           />
 
           <SmartClassificationSelect
@@ -222,7 +294,7 @@ function ProductForm({
             value={style}
             onChange={onStyleChange}
             options={classificationOptions.style}
-            placeholder={t("products.form.stylePlaceholder")}
+            placeholder={t("products.form.selectStyle", "Select style")}
           />
 
           <SmartClassificationSelect
@@ -230,7 +302,7 @@ function ProductForm({
             value={grade}
             onChange={onGradeChange}
             options={classificationOptions.grade}
-            placeholder={t("products.form.gradePlaceholder")}
+            placeholder={t("products.form.selectGrade", "Select grade")}
           />
         </div>
       </section>
@@ -238,12 +310,80 @@ function ProductForm({
   );
 }
 
+function normalizeAudienceValue(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["men", "man", "male"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls"].includes(normalized)) return "kids";
+  return "";
+}
+
+function normalizeAudiences(...sources) {
+  const seen = new Set();
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value === null || value === undefined) return;
+    String(value)
+      .split(/[,\n|]+/)
+      .map(normalizeAudienceValue)
+      .filter(Boolean)
+      .forEach((item) => seen.add(item));
+  };
+  sources.forEach(visit);
+  return PRODUCT_AUDIENCE_OPTIONS.map((option) => option.value).filter((value) => seen.has(value));
+}
+
+function AudienceCheckboxGroup({ label, value = [], onChange }) {
+  const selected = normalizeAudiences(value);
+  const toggle = (nextValue) => {
+    const next = selected.includes(nextValue)
+      ? selected.filter((item) => item !== nextValue)
+      : [...selected, nextValue];
+    onChange?.(next);
+  };
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-zinc-300">{label}</p>
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        {PRODUCT_AUDIENCE_OPTIONS.map((option) => {
+          const checked = selected.includes(option.value);
+          return (
+            <label
+              key={option.value}
+              className={`flex h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-bold transition ${
+                checked
+                  ? "border-emerald-300/45 bg-emerald-300/15 text-emerald-100"
+                  : "border-white/8 bg-zinc-950/80 text-zinc-300 hover:border-white/16 hover:bg-white/8"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggle(option.value)}
+                className="h-4 w-4 rounded border-white/20 bg-zinc-950 accent-emerald-400"
+              />
+              <span>{option.label}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SmartClassificationSelect({ label, value, onChange, options = [], placeholder }) {
+  const normalizedValue = String(value || "").trim();
+  const hasSelectedOption = !normalizedValue || options.some((item) => String(item.value || "") === normalizedValue);
+
   return (
     <div>
       <label className="text-sm font-semibold text-zinc-300">{label}</label>
       <select
-        value={value || ""}
+        value={hasSelectedOption ? normalizedValue : ""}
         onChange={(event) => onChange?.(event.target.value)}
         className="mt-2 h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
       >
@@ -254,6 +394,18 @@ function SmartClassificationSelect({ label, value, onChange, options = [], place
           </option>
         ))}
       </select>
+      {!hasSelectedOption ? (
+        <div className="mt-2 flex items-center justify-between gap-3 rounded-2xl border border-amber-300/15 bg-amber-400/8 px-3 py-2 text-xs text-amber-100">
+          <span className="min-w-0 truncate">Unavailable value: {normalizedValue}</span>
+          <button
+            type="button"
+            onClick={() => onChange?.("")}
+            className="shrink-0 rounded-xl border border-amber-200/20 bg-zinc-950/40 px-2.5 py-1 font-bold text-amber-50 transition hover:bg-amber-300/15"
+          >
+            Clear
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -284,13 +436,14 @@ function ModeCard({ active, title, subtitle, detail, onClick }) {
   );
 }
 
-function FormSelect({ label, value, onChange, options = [], placeholder }) {
+function FormSelect({ label, value, onChange, options = [], placeholder, tabIndex }) {
   return (
     <div>
       <label className="text-sm font-semibold text-zinc-300">{label}</label>
       <select
         value={value || ""}
         onChange={(event) => onChange?.(event.target.value)}
+        tabIndex={tabIndex}
         className="mt-2 h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"
       >
         <option value="">{placeholder}</option>

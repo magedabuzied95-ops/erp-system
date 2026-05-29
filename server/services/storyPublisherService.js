@@ -146,15 +146,38 @@ const callMeta = async ({ endpoint, params, mode, imageUrl }) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const result = ({ status, id = null, error = null }) => ({ status, platform_story_id: id, id, error });
+const storyLinkMetadata = (story = {}) => ({
+  product_url: trimString(story.product_url || story.design_json?.product_url),
+  cta_url: trimString(story.cta_url || story.design_json?.cta_url || story.product_url || story.design_json?.product_url),
+});
 
-const publishInstagramStory = async ({ story, settings, accessToken }) => {
+const result = ({ status, id = null, error = null, story = {} }) => ({ status, platform_story_id: id, id, error, ...storyLinkMetadata(story) });
+
+const isUnsupportedFacebookCtaError = (error) => {
+  const text = `${error?.message || ""} ${JSON.stringify(error?.metaResponse || {})}`.toLowerCase();
+  return ["unsupported", "unknown", "invalid parameter", "unexpected", "call_to_action", "link", "cta_url"].some((token) => text.includes(token));
+};
+
+const facebookStoryCtaParams = (story = {}) => {
+  const { cta_url: ctaUrl } = storyLinkMetadata(story);
+  if (!ctaUrl) return {};
+  return {
+    link: ctaUrl,
+    cta_url: ctaUrl,
+    call_to_action: JSON.stringify({
+      type: "VIEW_DETAILS",
+      value: { link: ctaUrl },
+    }),
+  };
+};
+
+export const publishInstagramStory = async ({ story, settings, accessToken }) => {
   const instagramAccountId = getInstagramAccountId(settings);
   const candidate = getStoryImageCandidate(story);
   const imageUrl = candidate.publicUrl;
   console.log("[story-instagram] ig account id", { instagram_account_id: instagramAccountId || null });
-  if (!instagramAccountId) return result({ status: "failed", error: "Instagram account ID is not configured." });
-  if (!imageUrl) return result({ status: "failed", error: "Instagram Story requires a valid public HTTPS image URL." });
+  if (!instagramAccountId) return result({ status: "failed", error: "Instagram account ID is not configured.", story });
+  if (!imageUrl) return result({ status: "failed", error: "Instagram Story requires a valid public HTTPS image URL.", story });
 
   try {
     await assertGeneratedStoryAsset({ story, platform: "instagram", candidate });
@@ -170,7 +193,7 @@ const publishInstagramStory = async ({ story, settings, accessToken }) => {
     });
     const containerId = trimString(container?.id);
     console.log("[story-instagram] container id", { container_id: containerId || null });
-    if (!containerId) return result({ status: "failed", error: "Instagram Story container response did not include id." });
+    if (!containerId) return result({ status: "failed", error: "Instagram Story container response did not include id.", story });
 
     let published = null;
     let publishError = null;
@@ -197,22 +220,29 @@ const publishInstagramStory = async ({ story, settings, accessToken }) => {
     if (publishError) throw publishError;
     const publishId = trimString(published?.id);
     console.log("[story-instagram] publish id", { publish_id: publishId || null, response: published });
-    return publishId ? result({ status: "published", id: publishId }) : result({ status: "failed", error: "Instagram Story publish response did not include id." });
+    return publishId ? result({ status: "published", id: publishId, story }) : result({ status: "failed", error: "Instagram Story publish response did not include id.", story });
   } catch (error) {
     console.error("[story-instagram] error", { error: error?.message, response: error?.metaResponse || null });
-    return result({ status: "failed", error: error?.message || "Instagram Story publish failed" });
+    return result({ status: "failed", error: error?.message || "Instagram Story publish failed", story });
   }
 };
 
-const publishFacebookStory = async ({ story, settings, accessToken }) => {
+export const publishFacebookStory = async ({ story, settings, accessToken }) => {
   const pageId = getPageId(settings);
   const candidate = getStoryImageCandidate(story);
   const imageUrl = candidate.publicUrl;
-  if (!pageId) return result({ status: "failed", error: "Facebook page ID is not configured." });
-  if (!imageUrl) return result({ status: "failed", error: "Facebook Story requires a valid public HTTPS image URL." });
+  const linkMetadata = storyLinkMetadata(story);
+  if (!pageId) return result({ status: "failed", error: "Facebook page ID is not configured.", story });
+  if (!imageUrl) return result({ status: "failed", error: "Facebook Story requires a valid public HTTPS image URL.", story });
 
   try {
     await assertGeneratedStoryAsset({ story, platform: "facebook", candidate });
+    console.log("[story-facebook] CTA/link metadata", {
+      post_id: story?.id || null,
+      product_id: story?.product_id || null,
+      product_url: linkMetadata.product_url || null,
+      cta_url: linkMetadata.cta_url || null,
+    });
     const photo = await callMeta({
       endpoint: `/${encodeURIComponent(pageId)}/photos`,
       mode: "facebook.story.photo_upload",
@@ -224,22 +254,48 @@ const publishFacebookStory = async ({ story, settings, accessToken }) => {
       },
     });
     const photoId = trimString(photo?.id);
-    if (!photoId) return result({ status: "failed", error: "Facebook Story photo upload response did not include id." });
+    if (!photoId) return result({ status: "failed", error: "Facebook Story photo upload response did not include id.", story });
 
-    const published = await callMeta({
-      endpoint: `/${encodeURIComponent(pageId)}/photo_stories`,
-      mode: "facebook.story.publish",
-      params: {
-        photo_id: photoId,
-        access_token: accessToken,
-      },
-    });
+    const publishParams = {
+      photo_id: photoId,
+      access_token: accessToken,
+    };
+    const ctaParams = facebookStoryCtaParams(story);
+    let published;
+    let usedFacebookCta = Boolean(Object.keys(ctaParams).length);
+    try {
+      published = await callMeta({
+        endpoint: `/${encodeURIComponent(pageId)}/photo_stories`,
+        mode: usedFacebookCta ? "facebook.story.publish.with_cta" : "facebook.story.publish",
+        params: {
+          ...publishParams,
+          ...ctaParams,
+        },
+      });
+    } catch (error) {
+      if (!usedFacebookCta || !isUnsupportedFacebookCtaError(error)) throw error;
+      usedFacebookCta = false;
+      console.warn("[story-facebook] CTA/link params rejected by Graph API; retrying story publish without CTA params", {
+        post_id: story?.id || null,
+        product_url: linkMetadata.product_url || null,
+        cta_url: linkMetadata.cta_url || null,
+        error: error?.message || "Facebook CTA params unsupported",
+        response: error?.metaResponse || null,
+      });
+      published = await callMeta({
+        endpoint: `/${encodeURIComponent(pageId)}/photo_stories`,
+        mode: "facebook.story.publish.without_cta_fallback",
+        params: publishParams,
+      });
+    }
     const storyId = trimString(published?.id || published?.post_id);
-    console.log("[story-facebook] response", { photo_id: photoId, response: published });
-    return storyId ? result({ status: "published", id: storyId }) : result({ status: "failed", error: "Facebook Story publish response did not include id." });
+    console.log("[story-facebook] response", { photo_id: photoId, response: published, used_facebook_cta: usedFacebookCta, ...linkMetadata });
+    return storyId
+      ? { ...result({ status: "published", id: storyId, story }), used_facebook_cta: usedFacebookCta }
+      : result({ status: "failed", error: "Facebook Story publish response did not include id.", story });
   } catch (error) {
-    console.error("[story-facebook] response/error", { error: error?.message, response: error?.metaResponse || null });
-    return result({ status: "failed", error: error?.message || "Facebook Story publish failed" });
+    console.error("[story-facebook] response/error", { error: error?.message, response: error?.metaResponse || null, ...linkMetadata });
+    return result({ status: "failed", error: error?.message || "Facebook Story publish failed", story });
   }
 };
 
@@ -260,15 +316,15 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
     }
   } catch (error) {
     const failed = {
-      instagram: result({ status: "failed", error: error?.message || "Meta access token is not valid." }),
-      facebook: result({ status: "failed", error: error?.message || "Meta access token is not valid." }),
+      instagram: result({ status: "failed", error: error?.message || "Meta access token is not valid.", story }),
+      facebook: result({ status: "failed", error: error?.message || "Meta access token is not valid.", story }),
       whatsapp: await publishWhatsAppStory(),
     };
     console.error("[story-all] Meta token validation failed", {
       status: error?.tokenStatus || null,
       error: error?.message,
     });
-    return { status: "failed", published_at: null, story_publish_results: failed, error_message: error?.message || "Meta access token is not valid." };
+    return { status: "failed", published_at: null, story_publish_results: failed, ...storyLinkMetadata(story), error_message: error?.message || "Meta access token is not valid." };
   }
 
   if (shouldRequireGeneratedStoryAsset(story)) {
@@ -294,6 +350,7 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
     status,
     published_at: successCount > 0 ? new Date().toISOString() : null,
     story_publish_results: { instagram, facebook, whatsapp },
+    ...storyLinkMetadata(story),
     error_message: errorMessage,
   };
   console.log("[story-all] final result", aggregate);

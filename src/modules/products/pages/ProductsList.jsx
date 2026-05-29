@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import {
   AlertTriangle,
+  BadgeDollarSign,
   ChevronDown,
   Copy,
   Eye,
@@ -13,21 +15,26 @@ import {
   Package2,
   Pencil,
   Plus,
+  Power,
   Search,
   Barcode,
   CalendarClock,
   Megaphone,
+  PackageSearch,
   Trash2,
+  X,
   Zap,
 } from "lucide-react";
 
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
+import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 
 import ProductsShell from "../components/ProductsShell";
 
+import { useProductClassifications } from "../hooks/useProductClassifications";
 import {
   cleanupProductCache,
   generateSku,
@@ -36,10 +43,16 @@ import {
   upsertProductMeta,
 } from "../lib/catalog";
 import {
+  classificationGroupsToFieldOptions,
+  normalizeClassificationValue,
+} from "../lib/productClassifications";
+import {
   createProduct,
   deleteProduct,
   getProducts,
   getProductsWithVariants,
+  updateProductPrices,
+  updateProductStatus,
 } from "../services/productsApi";
 
 import PostEditorModal from "../../marketing/components/PostEditorModal";
@@ -55,6 +68,115 @@ import {
 
 const pageSizeOptions = [8, 12, 24];
 const REQUEST_TIMEOUT_MS = 15000;
+const ACTION_MENU_WIDTH = 224;
+const ACTION_MENU_ESTIMATED_HEIGHT = 480;
+const ROW_ACTION_BREAKPOINTS = {
+  lg: 1024,
+  xl: 1280,
+  "2xl": 1536,
+};
+const CLASSIFICATION_FILTER_FIELDS = [
+  { key: "gender", field: "gender", labelKey: "products.filters.gender", fallbackLabel: "Gender" },
+  { key: "productType", field: "product_type", labelKey: "products.filters.productType", fallbackLabel: "Product type" },
+  { key: "style", field: "style", labelKey: "products.filters.style", fallbackLabel: "Style" },
+  { key: "grade", field: "grade", labelKey: "products.filters.sourceQuality", fallbackLabel: "Source / quality" },
+];
+const PRODUCT_AUDIENCE_OPTIONS = [
+  { value: "men", label_en: "Men", label_ar: "Men" },
+  { value: "women", label_en: "Women", label_ar: "Women" },
+  { value: "kids", label_en: "Kids", label_ar: "Kids" },
+];
+
+const productStatusValue = (row = {}) => String(row.status || "").trim().toLowerCase();
+
+const isInactiveProduct = (row = {}) =>
+  row.active === false ||
+  row.is_active === false ||
+  ["inactive", "disabled", "unavailable"].includes(productStatusValue(row));
+
+const isStatusToggleableProduct = (row = {}) =>
+  !["archived", "deleted", "draft"].includes(productStatusValue(row));
+
+const isInlineRowActionVisible = (action = {}, viewportWidth = 0) => {
+  const visibleFrom = action.visibleFrom || "lg";
+  const minWidth = ROW_ACTION_BREAKPOINTS[visibleFrom] || ROW_ACTION_BREAKPOINTS.lg;
+  return Number(viewportWidth || 0) >= minWidth;
+};
+
+const normalizeAudienceValue = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["men", "man", "male"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls"].includes(normalized)) return "kids";
+  return "";
+};
+
+const getProductAudiences = (row = {}) => {
+  const seen = new Set();
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value === null || value === undefined) return;
+    String(value)
+      .split(/[,\n|]+/)
+      .map(normalizeAudienceValue)
+      .filter(Boolean)
+      .forEach((audience) => seen.add(audience));
+  };
+  visit(row.audiences);
+  visit(row.product_audiences);
+  visit(row.gender);
+  return PRODUCT_AUDIENCE_OPTIONS.map((option) => option.value).filter((value) => seen.has(value));
+};
+
+const getActionMenuPosition = (rect, itemCount = 8) => {
+  const fallback = { top: 12, left: 12, width: ACTION_MENU_WIDTH, maxHeight: ACTION_MENU_ESTIMATED_HEIGHT, placement: "bottom" };
+  if (typeof window === "undefined") return fallback;
+  const padding = 12;
+  const gap = 8;
+  const width = Math.min(ACTION_MENU_WIDTH, Math.max(180, window.innerWidth - padding * 2));
+  const viewportMaxHeight = Math.max(180, window.innerHeight - padding * 2);
+  const estimatedHeight = Math.min(
+    ACTION_MENU_ESTIMATED_HEIGHT,
+    Math.max(56, Number(itemCount || 0) * 44)
+  );
+  const safeRect = rect && Number.isFinite(rect.left) && Number.isFinite(rect.right) && Number.isFinite(rect.bottom) && Number.isFinite(rect.top)
+    ? rect
+    : {
+        top: padding,
+        left: window.innerWidth - padding - width,
+        right: window.innerWidth - padding,
+        bottom: padding,
+      };
+
+  const alignRightLeft = safeRect.right - width;
+  const alignLeft = safeRect.left;
+  const preferredLeft =
+    alignRightLeft >= padding
+      ? alignRightLeft
+      : alignLeft + width <= window.innerWidth - padding
+        ? alignLeft
+        : alignRightLeft;
+  const left = Math.min(Math.max(padding, preferredLeft), window.innerWidth - width - padding);
+  const spaceBelow = window.innerHeight - safeRect.bottom - padding;
+  const spaceAbove = safeRect.top - padding;
+  const openBelow = spaceBelow >= Math.min(estimatedHeight, viewportMaxHeight) || spaceBelow >= spaceAbove;
+  const availableHeight = Math.max(180, openBelow ? spaceBelow - gap : spaceAbove - gap);
+  const maxHeight = Math.min(estimatedHeight, availableHeight, viewportMaxHeight);
+  const top = openBelow
+    ? Math.min(safeRect.bottom + gap, window.innerHeight - maxHeight - padding)
+    : Math.max(padding, safeRect.top - maxHeight - gap);
+
+  return {
+    top,
+    left,
+    width,
+    maxHeight,
+    placement: openBelow ? "bottom" : "top",
+  };
+};
 
 const isQuotaExceeded = (error) =>
   error?.name === "QuotaExceededError" ||
@@ -63,16 +185,27 @@ const isQuotaExceeded = (error) =>
   error?.code === 1014 ||
   /quota/i.test(String(error?.message || ""));
 
+const cleanSkuDisplay = (value) => {
+  const sku = String(value || "").trim();
+  if (!sku) return "";
+  if (/^(not[\s_-]*generated|n\/a|na|null|undefined|-+)$/i.test(sku)) return "";
+  return sku;
+};
+
 const duplicateVariantPayload = (variant = {}, index = 0) => ({
   color: variant.color || "",
   size: variant.size || "",
   sku: "",
   barcode: "",
-  stock: Number(variant.stock || variant.default_purchase_qty || 0),
+  stock: Number(variant.stock || 0),
   sale_price: Number(variant.sale_price ?? variant.price ?? 0),
   price: Number(variant.price ?? variant.sale_price ?? 0),
   cost_price: Number(variant.cost_price ?? variant.purchase_price ?? 0),
   manufacturer_id: variant.manufacturer_id || null,
+  image_url: variant.image_url || variant.variant_image_url || variant.color_image_url || "",
+  variant_image_url: variant.variant_image_url || variant.image_url || variant.color_image_url || "",
+  color_image_url: variant.color_image_url || variant.image_url || variant.variant_image_url || "",
+  images: Array.isArray(variant.images) ? variant.images : [],
   edition_name: variant.edition_name ? `${variant.edition_name} Copy ${index + 1}` : "",
   edition_slug: "",
 });
@@ -85,6 +218,8 @@ const duplicateProductPayload = (row = {}) => ({
   brand: row.brand || "Unbranded",
   brand_id: row.brand_id || null,
   gender: row.gender || "",
+  audiences: Array.isArray(row.audiences) ? row.audiences : [],
+  product_audiences: Array.isArray(row.product_audiences) ? row.product_audiences : Array.isArray(row.audiences) ? row.audiences : [],
   product_type: row.product_type || "",
   style: row.style || "",
   grade: row.grade || "",
@@ -98,7 +233,26 @@ const duplicateProductPayload = (row = {}) => ({
   stock: Number(row.stock || 0),
   image_url: "",
   gallery: [],
-  colorImages: [],
+  colorImages: Array.isArray(row.color_images)
+    ? row.color_images
+    : Array.isArray(row.variants)
+      ? Object.values(
+          row.variants.reduce((groups, variant) => {
+            const color = String(variant.color || "").trim();
+            if (!color) return groups;
+            const key = color.toLowerCase();
+            if (!groups[key]) {
+              groups[key] = {
+                color_name: color,
+                color_value: color,
+                images: Array.isArray(variant.images) ? variant.images : [],
+                image_url: variant.color_image_url || variant.image_url || variant.variant_image_url || "",
+              };
+            }
+            return groups;
+          }, {})
+        )
+      : [],
   variants:
     row.variation_mode === "simple"
       ? []
@@ -141,6 +295,26 @@ const getErrorMessage = (error, fallback) =>
   error?.message ||
   fallback;
 
+const priceNumber = (value) => {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const nullablePriceInput = (value) => {
+  if (value === null || value === undefined || value === "") return "";
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? String(parsed) : "";
+};
+
+const productSalePriceValue = (row = {}) => priceNumber(row.selling_price ?? row.regular_price ?? row.price ?? 0);
+const productDiscountPriceValue = (row = {}) => nullablePriceInput(row.discount_price ?? row.offer_price ?? row.sale_price);
+const variantSalePriceValue = (variant = {}) => priceNumber(variant.selling_price ?? variant.regular_price ?? variant.price ?? variant.variant_price ?? 0);
+const variantDiscountPriceValue = (variant = {}) => nullablePriceInput(variant.discount_price ?? variant.offer_price ?? variant.sale_price);
+const isSimpleCatalogProduct = (row = {}) => {
+  const mode = String(row?.variation_mode || "").trim().toLowerCase();
+  const type = String(row?.product_type || row?.type || "").trim().toLowerCase();
+  return mode === "simple" || type === "simple";
+};
 const getProductId = (row = {}) =>
   row?.product_id ?? row?.productId ?? row?.product?.id ?? row?.id ?? null;
 
@@ -224,6 +398,95 @@ const formatCardPrice = (value) => {
   }).format(Number.isFinite(amount) ? amount : 0)}`;
 };
 
+const positivePrice = (...values) => {
+  for (const value of values) {
+    const parsed = Number(value ?? 0);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
+};
+
+const activeSalePrice = (source = {}) => {
+  const sale = positivePrice(source.discount_price, source.offer_price, source.sale_price);
+  return sale > 0 ? sale : 0;
+};
+
+const uniquePriceValues = (values = []) => {
+  const seen = new Set();
+  return values
+    .map((value) => Number(value || 0))
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .filter((value) => {
+      const key = value.toFixed(2);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a - b);
+};
+
+const formatPriceRange = (values = []) => {
+  const prices = uniquePriceValues(values);
+  if (!prices.length) return "—";
+  if (prices.length === 1) return formatCardPrice(prices[0]);
+  return `${formatCardPrice(prices[0])} - ${formatCardPrice(prices[prices.length - 1])}`;
+};
+
+const getCatalogPriceDisplay = (row = {}) => {
+  const variants = Array.isArray(row.variants) ? row.variants : [];
+  const useVariants = variants.length > 0 && !isSimpleCatalogProduct(row);
+
+  const costValues = useVariants
+    ? variants.map((variant) => positivePrice(
+        variant.average_cost,
+        variant.last_purchase_price,
+        variant.last_purchase_cost,
+        variant.cost_price,
+        variant.purchase_price
+      ))
+    : [positivePrice(row.average_cost, row.last_purchase_price, row.last_purchase_cost, row.cost_price, row.purchase_price)];
+
+  const sellValues = useVariants
+    ? variants.map((variant) => positivePrice(variant.selling_price, variant.regular_price, variant.price, variant.variant_sale_price))
+    : [positivePrice(row.selling_price, row.regular_price, row.price)];
+
+  const saleValues = useVariants
+    ? variants.map(activeSalePrice)
+    : [activeSalePrice(row)];
+
+  const costUnique = uniquePriceValues(costValues);
+  const sellUnique = uniquePriceValues(sellValues);
+  const saleUnique = uniquePriceValues(saleValues);
+
+  return {
+    cost: formatPriceRange(costValues),
+    sell: formatPriceRange(sellValues),
+    sale: saleUnique.length ? formatPriceRange(saleValues) : "—",
+    costVaries: costUnique.length > 1,
+    sellVaries: sellUnique.length > 1,
+    saleVaries: saleUnique.length > 1,
+  };
+};
+
+function PriceLine({ label, value, varies = false, variesLabel = "Varies", tone = "muted" }) {
+  const toneClass =
+    tone === "sell"
+      ? "text-emerald-200"
+      : tone === "sale"
+        ? "text-amber-200"
+        : "text-zinc-300";
+
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="shrink-0 font-bold text-zinc-500">{label}:</span>
+      <span className={`min-w-0 truncate text-right font-black tabular-nums ${toneClass}`} title={`${label}: ${value}`}>
+        {varies ? <span className="me-1 text-[10px] font-bold text-zinc-500">{variesLabel}</span> : null}
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function ProductThumbnail({ row }) {
   const src = getProductThumbnail(row);
 
@@ -245,8 +508,478 @@ function ProductThumbnail({ row }) {
   );
 }
 
-function ProductsList() {
+function PriceEditorModal({ product, onClose, onSave }) {
   const { t } = useTranslation();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState(() => ({
+    variants: (Array.isArray(product?.variants) ? product.variants : []).map((variant) => ({
+      id: variant.id ?? variant.variant_id ?? variant.variantId,
+      name: [variant.color, variant.size, variant.sku || variant.barcode].filter(Boolean).join(" / ") || `Variant ${variant.id ?? variant.variant_id ?? ""}`,
+      current_sale_price: variantSalePriceValue(variant),
+      current_discount_price: variantDiscountPriceValue(variant),
+      sale_price: String(variantSalePriceValue(variant)),
+      discount_price: variantDiscountPriceValue(variant),
+    })),
+  }));
+
+  const validate = () => {
+    const values = [
+      ...form.variants.flatMap((variant) => [
+        [`${variant.name} ${t("products.priceEditor.salePrice", "سعر البيع")}`, variant.sale_price],
+        [`${variant.name} ${t("products.priceEditor.discountPrice", "سعر السيل")}`, variant.discount_price],
+      ]),
+    ];
+    for (const [label, value] of values) {
+      if (value === "" || value === null || value === undefined) continue;
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed < 0) return `${label}: ${t("products.priceEditor.nonNegative", "must be non-negative")}`;
+    }
+    return "";
+  };
+
+  const setVariant = (index, patch) => {
+    setForm((prev) => ({
+      ...prev,
+      variants: prev.variants.map((variant, variantIndex) => (variantIndex === index ? { ...variant, ...patch } : variant)),
+    }));
+  };
+
+  const submit = async () => {
+    if (saving) return;
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(product.id, {
+        variant_only: true,
+        variants: form.variants.map((variant) => ({
+          id: variant.id,
+          variant_sale_price: Number(variant.sale_price || 0),
+          variant_discount_price: variant.discount_price === "" ? null : Number(variant.discount_price),
+        })),
+      });
+    } catch (err) {
+      setError(getErrorMessage(err, t("products.priceEditor.saveFailed", "Failed to update prices")));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100001] grid place-items-center bg-black/70 p-4 backdrop-blur">
+      <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60">
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("products.priceEditor.eyebrow", "Price-only update")}</p>
+            <h2 className="mt-1 truncate text-xl font-black text-white">{t("products.actionsMenu.editPrices", "Edit Prices")}</h2>
+            <p className="mt-1 truncate text-sm text-zinc-400">{product.name || product.product_name || `Product #${product.id}`}</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-white/10 bg-white/5 p-2 text-white disabled:opacity-50">
+            ×
+          </button>
+        </div>
+        <div className="max-h-[70vh] overflow-y-auto p-5">
+          {error ? <div className="mb-4 rounded-2xl border border-red-400/30 bg-red-500/10 p-3 text-sm font-semibold text-red-100">{error}</div> : null}
+          {form.variants.length ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="mb-3 text-sm font-black text-white">{t("products.priceEditor.variantPrices", "Variant prices")}</div>
+              <div className="space-y-2">
+                {form.variants.map((variant, index) => (
+                  <div key={variant.id || index} className="grid gap-2 rounded-2xl border border-white/10 bg-black/20 p-3 md:grid-cols-[minmax(0,1fr)_9rem_9rem]">
+                    <div className="min-w-0 self-center">
+                      <div className="truncate text-sm font-black text-white">{variant.name}</div>
+                      <div className="mt-1 text-xs text-zinc-500">
+                        {t("products.priceEditor.current", "Current")}: {formatPrice(variant.current_sale_price)}
+                        {variant.current_discount_price !== "" ? ` / ${formatPrice(variant.current_discount_price)}` : ""}
+                      </div>
+                    </div>
+                    <PriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={variant.sale_price} onChange={(value) => setVariant(index, { sale_price: value })} />
+                    <PriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={variant.discount_price} onChange={(value) => setVariant(index, { discount_price: value })} placeholder={t("products.priceEditor.empty", "Empty")} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-white/10 p-4">
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
+          <button type="button" onClick={submit} disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">
+            {saving ? t("products.priceEditor.saving", "Saving...") : t("common.save", "Save")}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function formatPrice(value) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "0";
+}
+
+function PriceField({ label, value, onChange, current, placeholder = "", compact = false }) {
+  return (
+    <label className="block">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</span>
+        {current !== undefined ? <span className="text-[10px] font-semibold text-zinc-500">Current: {current}</span> : null}
+      </div>
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+        className={`w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-emerald-300/40 ${compact ? "h-10" : "h-11"}`}
+      />
+    </label>
+  );
+}
+
+function formatEditorCurrency(value) {
+  const parsed = Number(value || 0);
+  return `EGP ${new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(parsed) ? parsed : 0)}`;
+}
+
+function AdvancedPriceField({ label, value, onChange, onBlur, current, placeholder = "", compact = false, changed = false }) {
+  return (
+    <label className="block">
+      <div className={compact ? "sr-only" : "mb-1 flex items-center justify-between gap-2"}>
+        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</span>
+        {current !== undefined ? <span className="text-[10px] font-semibold text-zinc-500">Current: {current}</span> : null}
+      </div>
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
+        aria-label={label}
+        className={`w-full rounded-xl border px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 ${
+          changed ? "border-emerald-300/50 bg-emerald-400/10" : "border-white/10 bg-zinc-950"
+        } focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/10 ${compact ? "h-9" : "h-10"}`}
+      />
+    </label>
+  );
+}
+
+function EnhancedPriceEditorModal({ product, onClose, onSave }) {
+  const { t } = useTranslation();
+  const isSimpleProduct = String(product?.variation_mode || "").trim().toLowerCase() === "simple" || !Array.isArray(product?.variants) || product.variants.length === 0;
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [bulkSellingPrice, setBulkSellingPrice] = useState("");
+  const [bulkSalePrice, setBulkSalePrice] = useState("");
+  const [form, setForm] = useState(() => ({
+    product: {
+      current_sale_price: productSalePriceValue(product),
+      current_discount_price: productDiscountPriceValue(product),
+      sale_price: String(productSalePriceValue(product)),
+      discount_price: productDiscountPriceValue(product),
+    },
+    variants: (Array.isArray(product?.variants) ? product.variants : []).map((variant) => ({
+      id: variant.id ?? variant.variant_id ?? variant.variantId,
+      color: variant.color || variant.variant_color || "-",
+      size: variant.size || variant.variant_size || "-",
+      name: [variant.color, variant.size, variant.sku || variant.barcode].filter(Boolean).join(" / ") || `Variant ${variant.id ?? variant.variant_id ?? ""}`,
+      current_sale_price: variantSalePriceValue(variant),
+      current_discount_price: variantDiscountPriceValue(variant),
+      sale_price: String(variantSalePriceValue(variant)),
+      discount_price: variantDiscountPriceValue(variant),
+    })),
+  }));
+
+  const normalizePriceInput = (value, { nullable = false } = {}) => {
+    if (value === "" || value === null || value === undefined) return nullable ? "" : "0";
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return nullable ? "" : "0";
+    return parsed.toFixed(2).replace(/\.00$/, "");
+  };
+
+  const changedVariantIds = useMemo(() => {
+    const ids = new Set();
+    form.variants.forEach((variant) => {
+      const nextSale = Number(normalizePriceInput(variant.sale_price));
+      const nextDiscount = variant.discount_price === "" ? "" : normalizePriceInput(variant.discount_price, { nullable: true });
+      const currentDiscount = variant.current_discount_price === "" ? "" : normalizePriceInput(variant.current_discount_price, { nullable: true });
+      if (Number(nextSale) !== Number(variant.current_sale_price) || (nextDiscount === "" ? 0 : Number(nextDiscount)) !== (currentDiscount === "" ? 0 : Number(currentDiscount))) ids.add(String(variant.id));
+    });
+    return ids;
+  }, [form.variants]);
+
+  const productPriceChanged = useMemo(() => {
+    if (!isSimpleProduct) return false;
+    const nextSale = Number(normalizePriceInput(form.product.sale_price));
+    const nextDiscount = form.product.discount_price === "" ? 0 : Number(normalizePriceInput(form.product.discount_price, { nullable: true }));
+    const currentDiscount = form.product.current_discount_price === "" ? 0 : Number(normalizePriceInput(form.product.current_discount_price, { nullable: true }));
+    return Number(nextSale) !== Number(form.product.current_sale_price) || Number(nextDiscount) !== Number(currentDiscount);
+  }, [form.product, isSimpleProduct]);
+
+  const changedCount = changedVariantIds.size + (productPriceChanged ? 1 : 0);
+
+  const validate = () => {
+    const values = [
+      [t("products.priceEditor.bulkSellingPrice", "Bulk Selling Price"), bulkSellingPrice],
+      [t("products.priceEditor.bulkSalePrice", "Bulk Sale Price"), bulkSalePrice],
+      ...(isSimpleProduct
+        ? [
+            [`${product.name || product.product_name || t("products.fields.product", "Product")} ${t("products.priceEditor.salePrice", "سعر البيع")}`, form.product.sale_price],
+            [`${product.name || product.product_name || t("products.fields.product", "Product")} ${t("products.priceEditor.discountPrice", "سعر السيل")}`, form.product.discount_price],
+          ]
+        : []),
+      ...form.variants.flatMap((variant) => [
+        [`${variant.name} ${t("products.priceEditor.salePrice", "سعر البيع")}`, variant.sale_price],
+        [`${variant.name} ${t("products.priceEditor.discountPrice", "سعر السيل")}`, variant.discount_price],
+      ]),
+    ];
+    for (const [label, value] of values) {
+      if (value === "" || value === null || value === undefined) continue;
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed < 0) return `${label}: ${t("products.priceEditor.nonNegative", "must be non-negative")}`;
+    }
+    return "";
+  };
+
+  const setVariant = (index, patch) => {
+    setForm((prev) => ({
+      ...prev,
+      variants: prev.variants.map((variant, variantIndex) => (variantIndex === index ? { ...variant, ...patch } : variant)),
+    }));
+  };
+
+  const setProductPrice = (patch) => {
+    setForm((prev) => ({
+      ...prev,
+      product: { ...prev.product, ...patch },
+    }));
+  };
+
+  const normalizeFormInputs = () => {
+    setForm((prev) => ({
+      ...prev,
+      product: {
+        ...prev.product,
+        sale_price: normalizePriceInput(prev.product.sale_price),
+        discount_price: normalizePriceInput(prev.product.discount_price, { nullable: true }),
+      },
+      variants: prev.variants.map((variant) => ({
+        ...variant,
+        sale_price: normalizePriceInput(variant.sale_price),
+        discount_price: normalizePriceInput(variant.discount_price, { nullable: true }),
+      })),
+    }));
+    setBulkSellingPrice((value) => normalizePriceInput(value, { nullable: true }));
+    setBulkSalePrice((value) => normalizePriceInput(value, { nullable: true }));
+  };
+
+  const applyBulkPricesToVariants = () => {
+    const nextSellingPrice = bulkSellingPrice === "" ? null : normalizePriceInput(bulkSellingPrice);
+    const nextSalePrice = bulkSalePrice === "" ? null : normalizePriceInput(bulkSalePrice, { nullable: true });
+    if (nextSellingPrice === null && nextSalePrice === null) {
+      setError(t("products.priceEditor.enterBulkPrice", "Enter a bulk price first"));
+      return;
+    }
+    setError("");
+    setForm((prev) => {
+      if (isSimpleProduct) {
+        return {
+          ...prev,
+          product: {
+            ...prev.product,
+            sale_price: nextSellingPrice === null ? prev.product.sale_price : nextSellingPrice,
+            discount_price: nextSalePrice === null ? prev.product.discount_price : nextSalePrice,
+          },
+        };
+      }
+      return {
+        ...prev,
+        variants: prev.variants.map((variant) => ({
+          ...variant,
+          sale_price: nextSellingPrice === null ? variant.sale_price : nextSellingPrice,
+          discount_price: nextSalePrice === null ? variant.discount_price : nextSalePrice,
+        })),
+      };
+    });
+  };
+
+  const copyFirstVariantPriceToAll = () => {
+    setForm((prev) => {
+      const first = prev.variants[0];
+      if (!first) return prev;
+      return {
+        ...prev,
+        variants: prev.variants.map((variant) => ({
+          ...variant,
+          sale_price: normalizePriceInput(first.sale_price),
+          discount_price: normalizePriceInput(first.discount_price, { nullable: true }),
+        })),
+      };
+    });
+  };
+
+  const clearAllDiscounts = () => {
+    setForm((prev) => ({
+      ...prev,
+      product: isSimpleProduct ? { ...prev.product, discount_price: "" } : prev.product,
+      variants: prev.variants.map((variant) => ({ ...variant, discount_price: "" })),
+    }));
+    setBulkSalePrice("");
+  };
+
+  const submit = async () => {
+    if (saving) return;
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const changedVariants = form.variants.filter((variant) => changedVariantIds.has(String(variant.id)));
+      if (isSimpleProduct) {
+        await onSave(product.id, {
+          variant_only: false,
+          selling_price: Number(form.product.sale_price || 0),
+          discount_price: form.product.discount_price === "" ? null : Number(form.product.discount_price),
+        });
+      } else {
+        await onSave(product.id, {
+          variant_only: true,
+          variants: changedVariants.map((variant) => ({
+            id: variant.id,
+            variant_sale_price: Number(variant.sale_price || 0),
+            variant_discount_price: variant.discount_price === "" ? null : Number(variant.discount_price),
+          })),
+        });
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, t("products.priceEditor.saveFailed", "Failed to update prices")));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100001] grid place-items-center bg-black/70 p-3 backdrop-blur"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onClose();
+        if (event.key === "Enter" && event.target?.tagName === "INPUT") {
+          event.preventDefault();
+          submit();
+        }
+      }}
+    >
+      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60">
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("products.priceEditor.eyebrow", "Price-only update")}</p>
+            <h2 className="mt-0.5 truncate text-lg font-black text-white">{t("products.actionsMenu.editPrices", "Edit Prices")}</h2>
+            <p className="truncate text-sm text-zinc-400">{product.name || product.product_name || `Product #${product.id}`}</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-white/10 bg-white/5 p-2 text-white outline-none transition hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {error ? <div className="mb-3 rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm font-semibold text-red-100">{error}</div> : null}
+          <div className="mb-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+            <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto_auto_auto] md:items-end">
+              <AdvancedPriceField label={t("products.priceEditor.bulkSellingPrice", "Bulk Selling Price")} value={bulkSellingPrice} onBlur={normalizeFormInputs} onChange={setBulkSellingPrice} placeholder={t("products.priceEditor.empty", "Empty")} />
+              <AdvancedPriceField label={t("products.priceEditor.bulkSalePrice", "Bulk Sale Price")} value={bulkSalePrice} onBlur={normalizeFormInputs} onChange={setBulkSalePrice} placeholder={t("products.priceEditor.empty", "Empty")} />
+              <button type="button" onClick={applyBulkPricesToVariants} disabled={!isSimpleProduct && !form.variants.length} className="h-10 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 outline-none hover:bg-emerald-400/15 focus:border-emerald-300/60 disabled:opacity-50">
+                {isSimpleProduct ? t("products.priceEditor.applyToProduct", "Apply to product") : t("products.priceEditor.applyToAllVariants", "Apply to all variants")}
+              </button>
+              <button type="button" onClick={copyFirstVariantPriceToAll} disabled={!form.variants.length} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
+                {t("products.priceEditor.copyFirstVariant", "Copy first variant price to all")}
+              </button>
+              <button type="button" onClick={clearAllDiscounts} disabled={!isSimpleProduct && !form.variants.length} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
+                {t("products.priceEditor.clearDiscounts", "Clear all discount prices")}
+              </button>
+            </div>
+          </div>
+          {isSimpleProduct ? (
+            <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="text-sm font-black text-white">{t("products.priceEditor.productPrices", "Product prices")}</div>
+                <div className="text-xs font-semibold text-zinc-500">{productPriceChanged ? t("products.priceEditor.changed", "changed") : t("products.priceEditor.noChanges", "No price changes")}</div>
+              </div>
+              <div className={productPriceChanged ? "grid gap-3 rounded-xl border border-emerald-300/30 bg-emerald-400/[0.06] p-3 md:grid-cols-2" : "grid gap-3 rounded-xl border border-white/10 bg-black/10 p-3 md:grid-cols-2"}>
+                <AdvancedPriceField label={t("products.priceEditor.salePrice", "سعر البيع")} value={form.product.sale_price} changed={productPriceChanged} current={formatPrice(form.product.current_sale_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ sale_price: value })} />
+                <AdvancedPriceField label={t("products.priceEditor.discountPrice", "سعر السيل")} value={form.product.discount_price} changed={productPriceChanged} current={form.product.current_discount_price === "" ? t("products.priceEditor.empty", "Empty") : formatPrice(form.product.current_discount_price)} onBlur={normalizeFormInputs} onChange={(value) => setProductPrice({ discount_price: value })} placeholder={t("products.priceEditor.empty", "Empty")} />
+              </div>
+            </div>
+          ) : null}
+          {form.variants.length ? (
+            <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+              <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+                <div className="text-sm font-black text-white">{t("products.priceEditor.variantPrices", "Variant prices")}</div>
+                <div className="text-xs font-semibold text-zinc-500">{changedVariantIds.size} {t("products.priceEditor.changed", "changed")}</div>
+              </div>
+              <div className="max-h-[42vh] overflow-auto">
+                <table className="min-w-full table-fixed text-left text-sm">
+                  <thead className="sticky top-0 z-10 bg-zinc-950/95 text-[10px] uppercase tracking-[0.14em] text-zinc-500 backdrop-blur">
+                    <tr>
+                      <th className="w-28 px-3 py-2">{t("products.fields.color", "Color")}</th>
+                      <th className="w-24 px-3 py-2">{t("products.fields.size", "Size")}</th>
+                      <th className="w-44 px-3 py-2">{t("products.priceEditor.salePrice", "سعر البيع")}</th>
+                      <th className="w-44 px-3 py-2">{t("products.priceEditor.discountPrice", "سعر السيل")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {form.variants.map((variant, index) => {
+                      const changed = changedVariantIds.has(String(variant.id));
+                      return (
+                        <tr key={variant.id || index} className={changed ? "bg-emerald-400/[0.06]" : "bg-black/10"}>
+                          <td className="px-3 py-2 font-semibold text-white" title={variant.name}>{variant.color}</td>
+                          <td className="px-3 py-2 font-semibold text-zinc-300">{variant.size}</td>
+                          <td className="px-3 py-2">
+                            <AdvancedPriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={variant.sale_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { sale_price: value })} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <AdvancedPriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={variant.discount_price} changed={changed} onBlur={normalizeFormInputs} onChange={(value) => setVariant(index, { discount_price: value })} placeholder={t("products.priceEditor.empty", "Empty")} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-white/10 bg-zinc-950/95 px-4 py-3 backdrop-blur">
+          <div className="text-xs font-semibold text-zinc-500">
+            {changedCount ? `${changedCount} ${t("products.priceEditor.changedRows", "changed price rows")}` : t("products.priceEditor.noChanges", "No price changes")}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">{t("common.cancel")}</button>
+            <button type="button" onClick={submit} disabled={saving || !changedCount} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-black text-black outline-none hover:bg-emerald-400 focus:ring-2 focus:ring-emerald-300/40 disabled:opacity-60">
+              {saving ? t("products.priceEditor.saving", "Saving...") : t("common.save", "Save")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function ProductsList() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
 
   const [products, setProducts] = useState([]);
@@ -255,19 +988,71 @@ function ProductsList() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [classificationFilters, setClassificationFilters] = useState(() => ({
+    gender: "all",
+    productType: "all",
+    style: "all",
+    grade: "all",
+  }));
   const [brandFilter, setBrandFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [openActionId, setOpenActionId] = useState(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [actionMenuPosition, setActionMenuPosition] = useState(null);
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window === "undefined" ? 0 : window.innerWidth));
+  const [priceEditorProduct, setPriceEditorProduct] = useState(null);
+  const [statusActionProduct, setStatusActionProduct] = useState(null);
   const [marketingEditorOpen, setMarketingEditorOpen] = useState(false);
   const [marketingEditorPost, setMarketingEditorPost] = useState(null);
   const [marketingSaving, setMarketingSaving] = useState(false);
+  const actionMenuRef = useRef(null);
+  const actionMenuTriggerRef = useRef(null);
+  const filtersRef = useRef(null);
+  const filtersTriggerRef = useRef(null);
   const canCreateMarketingPost = hasPermission("marketing.create");
   const canUpdateMarketingPost = hasPermission("marketing.update");
   const canPublishMarketingPost = hasPermission("marketing.publish");
+  const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth);
+    updateViewportWidth();
+    window.addEventListener("resize", updateViewportWidth);
+    return () => window.removeEventListener("resize", updateViewportWidth);
+  }, []);
+
+  useEffect(() => {
+    if (!openActionId) return undefined;
+    const closeMenu = () => {
+      setOpenActionId(null);
+      setActionMenuPosition(null);
+    };
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+    return () => {
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+    };
+  }, [openActionId]);
+
+  useDismissableLayer({
+    enabled: Boolean(openActionId),
+    refs: [actionMenuRef, actionMenuTriggerRef],
+    onDismiss: () => {
+      setOpenActionId(null);
+      setActionMenuPosition(null);
+    },
+  });
+
+  useDismissableLayer({
+    enabled: filtersOpen,
+    refs: [filtersRef, filtersTriggerRef],
+    onDismiss: () => setFiltersOpen(false),
+  });
 
   const loadProducts = async () => {
     let baseProducts;
@@ -291,9 +1076,10 @@ function ProductsList() {
         return;
       }
 
+      const refreshToken = Date.now();
       const [productsResult, variantsResult] = await Promise.allSettled([
-        getProducts({ timeoutMs: REQUEST_TIMEOUT_MS }),
-        getProductsWithVariants({ timeoutMs: REQUEST_TIMEOUT_MS }),
+        getProducts({ timeoutMs: REQUEST_TIMEOUT_MS, params: { refresh: refreshToken } }),
+        getProductsWithVariants({ timeoutMs: REQUEST_TIMEOUT_MS, params: { refresh: refreshToken } }),
       ]);
 
       if (productsResult.status === "rejected") {
@@ -328,7 +1114,7 @@ function ProductsList() {
 
       const merged = baseProducts.map((product) => {
         const variants = groupedVariants[String(product.id)] || [];
-        const isSimpleProduct = String(product.variation_mode || "").trim().toLowerCase() === "simple";
+        const isSimpleProduct = isSimpleCatalogProduct(product);
         return {
           ...mergeProductRecord(product, isSimpleProduct ? null : variants[0] || null),
           product_image_url: product.image_url || "",
@@ -360,15 +1146,71 @@ function ProductsList() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const categories = useMemo(() => {
-    const unique = new Set(rows.map((row) => row.category).filter(Boolean));
-    return ["all", ...unique];
-  }, [rows]);
+  useEffect(() => {
+    const refetchProducts = () => {
+      setProducts([]);
+      setRows([]);
+      loadProducts();
+    };
+    window.addEventListener("products:refetch", refetchProducts);
+    return () => window.removeEventListener("products:refetch", refetchProducts);
+  }, []);
 
   const brands = useMemo(() => {
     const unique = new Set(rows.map((row) => row.brand).filter(Boolean));
     return ["all", ...unique];
   }, [rows]);
+
+  const classificationOptions = useMemo(
+    () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false, includeCurrentValue: false }),
+    [classificationGroups]
+  );
+
+  const classificationFilterGroups = useMemo(() => {
+    const locale = String(i18n.language || "").startsWith("en") ? "en" : "ar";
+    return CLASSIFICATION_FILTER_FIELDS.map((group) => {
+      const seen = new Set();
+      const sourceOptions = group.key === "gender" ? PRODUCT_AUDIENCE_OPTIONS : (classificationOptions[group.key] || []);
+      const options = sourceOptions.map((option) => {
+        const value = normalizeClassificationValue(option.value);
+        if (!value || seen.has(value)) return null;
+        seen.add(value);
+        return {
+          value,
+          label:
+            locale === "en"
+              ? option.label_en || option.label || option.value
+              : option.label_ar || option.label || option.value,
+        };
+      }).filter(Boolean);
+
+      return {
+        ...group,
+        label: t(group.labelKey, group.fallbackLabel),
+        options,
+      };
+    }).filter((group) => group.options.length > 0);
+  }, [classificationOptions, i18n.language, t]);
+
+  const activeClassificationCount = useMemo(
+    () => Object.values(classificationFilters).filter((value) => value && value !== "all").length,
+    [classificationFilters]
+  );
+
+  const setClassificationGroupFilter = (key, value) => {
+    setClassificationFilters((prev) => ({ ...prev, [key]: value }));
+    setPage(1);
+  };
+
+  const clearClassificationFilters = () => {
+    setClassificationFilters({
+      gender: "all",
+      productType: "all",
+      style: "all",
+      grade: "all",
+    });
+    setPage(1);
+  };
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -387,18 +1229,33 @@ function ProductsList() {
           row.name,
           row.sku,
           row.barcode,
+          ...(Array.isArray(row.variants) ? row.variants.flatMap((variant) => [variant.article_code, variant.sku, variant.barcode]) : []),
+          ...getProductAudiences(row),
           row.category,
           row.brand,
+          row.gender,
+          row.product_type,
+          row.style,
+          row.grade,
         ]
           .join(" ")
           .toLowerCase()
           .includes(query);
       const matchesStatus = statusFilter === "all" || effectiveStatus === statusFilter;
-      const matchesCategory = categoryFilter === "all" || row.category === categoryFilter;
+      const matchesClassification = CLASSIFICATION_FILTER_FIELDS.every(({ key, field }) => {
+        const selectedValue = classificationFilters[key];
+        if (!selectedValue || selectedValue === "all") return true;
+        if (key === "gender") return getProductAudiences(row).includes(selectedValue);
+        const rowClassificationValue =
+          field === "product_type"
+            ? row.product_type || row.productType || row.category
+            : row[field];
+        return normalizeClassificationValue(rowClassificationValue) === selectedValue;
+      });
       const matchesBrand = brandFilter === "all" || row.brand === brandFilter;
-      return matchesSearch && matchesStatus && matchesCategory && matchesBrand;
+      return matchesSearch && matchesStatus && matchesClassification && matchesBrand;
     });
-  }, [rows, search, statusFilter, categoryFilter, brandFilter]);
+  }, [rows, search, statusFilter, classificationFilters, brandFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -436,9 +1293,42 @@ function ProductsList() {
     const item = rows.find((row) => row.id === id);
     if (!item) return;
     const status = active ? "active" : "inactive";
-    upsertProductMeta({ ...item, active, status });
-    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, active, status } : row)));
-    setSelectedProduct((prev) => (prev?.id === id ? { ...prev, active, status } : prev));
+    upsertProductMeta({ ...item, active, is_active: active, status });
+    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, active, is_active: active, status } : row)));
+    setSelectedProduct((prev) => (prev?.id === id ? { ...prev, active, is_active: active, status } : prev));
+  };
+
+  const requestProductStatusToggle = (row) => {
+    setOpenActionId(null);
+    setActionMenuPosition(null);
+    if (!isStatusToggleableProduct(row)) {
+      toast.error(t("products.toasts.statusToggleUnavailable", "Draft, archived, and deleted products keep their own status workflow."));
+      return;
+    }
+    setStatusActionProduct(row);
+  };
+
+  const handleConfirmProductStatusToggle = async () => {
+    const row = statusActionProduct;
+    if (!row?.id) return;
+    const nextActive = isInactiveProduct(row);
+    const nextStatus = nextActive ? "active" : "inactive";
+
+    try {
+      await updateProductStatus(row.id, { status: nextStatus, is_active: nextActive });
+      updateLocalStatus(row.id, nextActive);
+      setStatusActionProduct(null);
+      toast.success(
+        nextActive
+          ? t("products.toasts.productActivated", "Product activated")
+          : t("products.toasts.productDeactivated", "Product deactivated")
+      );
+      await loadProducts();
+    } catch (err) {
+      console.error("[products:list] status toggle failed", err);
+      toast.error(err?.responseBody?.message || err?.message || t("products.toasts.statusUpdateFailed", "Failed to update product status"));
+      await loadProducts();
+    }
   };
 
   const handleDuplicate = async (row) => {
@@ -461,38 +1351,244 @@ function ProductsList() {
         });
       }
 
-      toast.success("تم نسخ المنتج بنجاح");
+      toast.success(t("products.toasts.productDuplicated", "Product duplicated successfully"));
       await loadProducts();
     } catch (err) {
       console.log(err);
       if (isQuotaExceeded(err)) {
         cleanupProductCache();
-        toast.error("تعذر نسخ المنتج بسبب مساحة التخزين المؤقتة، تم تنظيف الكاش حاول مرة أخرى");
+        toast.error(t("products.toasts.duplicateQuotaFailed", "Could not duplicate the product because temporary storage was full. Cache was cleaned; try again."));
       } else {
         toast.error(err?.message || t("common.noData"));
       }
     }
   };
 
+  const handleOpenPriceEditor = (row) => {
+    setPriceEditorProduct(row);
+    setOpenActionId(null);
+    setActionMenuPosition(null);
+  };
+
+  const handleOpenStock = (row) => {
+    console.log("[products:list] action click", { action: "stock", productId: row.id });
+    navigate(`/inventory/adjustments?productId=${encodeURIComponent(row.id)}`);
+    setOpenActionId(null);
+    setActionMenuPosition(null);
+  };
+
+  const handlePrintBarcode = (row) => {
+    console.log("[products:list] action click", { action: "print-barcode", productId: row.id });
+    navigate(`/products/barcode-labels?productId=${encodeURIComponent(row.id)}&availableOnly=true`);
+    setOpenActionId(null);
+    setActionMenuPosition(null);
+  };
+
+  const handleOpenBarcodeShop = (row) => {
+    console.log("[products:list] action click", { action: "barcode-shop", productId: row.id });
+    navigate(`/products/labels?mode=barcode-shop&productId=${encodeURIComponent(row.id)}`);
+    setOpenActionId(null);
+    setActionMenuPosition(null);
+  };
+
+  const handleQuickMarketingAction = (row) => {
+    if (canCreateMarketingPost) {
+      console.log("[products:list] action click", { action: "generate-marketing-post", productId: row.id });
+      handleGenerateMarketingPost(row);
+      setOpenActionId(null);
+      return;
+    }
+    if (canPublishMarketingPost) {
+      console.log("[products:list] action click", { action: "generate-fast-story", productId: row.id });
+      handlePublishProductStory(row);
+      setOpenActionId(null);
+      return;
+    }
+    toast.error(t("products.marketing.noCreatePermission", "You do not have permission to create marketing posts."));
+  };
+
+  const getRowActions = (row, statusToggleLabel) => {
+    const actions = [
+      {
+        key: "view",
+        icon: Eye,
+        label: t("products.actionsMenu.view", "View"),
+        placement: "dropdown",
+        onClick: () => {
+          console.log("[products:list] action click", { action: "view", productId: row.id });
+          navigate(`/products/${row.id}`);
+          setOpenActionId(null);
+        },
+      },
+      {
+        key: "edit",
+        icon: Pencil,
+        label: t("products.actionsMenu.edit", "Edit"),
+        placement: "primary",
+        visibleFrom: "lg",
+        onClick: () => {
+          console.log("[products:list] action click", { action: "edit", productId: row.id });
+          navigate(`/products/${row.id}/edit`);
+          setOpenActionId(null);
+        },
+      },
+      {
+        key: "advanced-pricing",
+        icon: BadgeDollarSign,
+        label: t("products.actionsMenu.editPrices", "Edit Prices"),
+        inlineLabel: t("products.actionsMenu.prices", "Prices"),
+        placement: "primary",
+        visibleFrom: "lg",
+        onClick: () => {
+          console.log("[products:list] action click", { action: "edit-prices", productId: row.id });
+          handleOpenPriceEditor(row);
+        },
+      },
+      {
+        key: "stock",
+        icon: PackageSearch,
+        label: t("products.actionsMenu.stock", "Stock"),
+        placement: "primary",
+        visibleFrom: "lg",
+        onClick: () => handleOpenStock(row),
+      },
+      {
+        key: "print-barcode",
+        icon: Barcode,
+        label: t("products.actionsMenu.printBarcode", "Print Barcode"),
+        inlineLabel: t("products.actionsMenu.barcode", "Barcode"),
+        placement: "primary",
+        visibleFrom: "xl",
+        className: "hidden xl:inline-flex",
+        onClick: () => handlePrintBarcode(row),
+      },
+      {
+        key: "barcode-shop",
+        icon: Barcode,
+        label: t("products.actionsMenu.barcodeShop", "Barcode Shop"),
+        placement: "dropdown",
+        onClick: () => handleOpenBarcodeShop(row),
+      },
+      {
+        key: canCreateMarketingPost ? "generate-marketing-post" : canPublishMarketingPost ? "generate-fast-story" : "marketing-story",
+        icon: canCreateMarketingPost ? Megaphone : Zap,
+        label: canCreateMarketingPost
+          ? t("products.actionsMenu.generateMarketingPost", "Generate Marketing Post")
+          : canPublishMarketingPost
+            ? t("products.actionsMenu.generateFastStory", "Generate Fast Story")
+            : t("products.actionsMenu.marketing", "Marketing"),
+        placement: "primary",
+        visibleFrom: "2xl",
+        className: "hidden 2xl:inline-flex",
+        disabled: !canCreateMarketingPost && !canPublishMarketingPost,
+        onClick: () => handleQuickMarketingAction(row),
+      },
+      {
+        key: "duplicate",
+        icon: Copy,
+        label: t("products.actionsMenu.duplicate", "Duplicate"),
+        placement: "dropdown",
+        onClick: () => {
+          console.log("[products:list] action click", { action: "duplicate", productId: row.id });
+          handleDuplicate(row);
+          setOpenActionId(null);
+        },
+      },
+      {
+        key: "toggle-status",
+        icon: Power,
+        label: statusToggleLabel,
+        placement: "dropdown",
+        onClick: () => requestProductStatusToggle(row),
+      },
+      {
+        key: "generate-marketing-post",
+        icon: Megaphone,
+        label: t("products.actionsMenu.generateMarketingPost", "Generate Marketing Post"),
+        placement: "dropdown",
+        hidden: !canCreateMarketingPost,
+        onClick: () => {
+          console.log("[products:list] action click", { action: "generate-marketing-post", productId: row.id });
+          handleGenerateMarketingPost(row);
+          setOpenActionId(null);
+        },
+      },
+      {
+        key: "generate-fast-story",
+        icon: Zap,
+        label: t("products.actionsMenu.generateFastStory", "Generate Fast Story"),
+        placement: "dropdown",
+        hidden: !canPublishMarketingPost,
+        onClick: () => {
+          console.log("[products:list] action click", { action: "generate-fast-story", productId: row.id });
+          handlePublishProductStory(row);
+          setOpenActionId(null);
+        },
+      },
+      {
+        key: "schedule-story",
+        icon: CalendarClock,
+        label: t("products.actionsMenu.scheduleStory", "Schedule Story"),
+        placement: "dropdown",
+        hidden: !canUpdateMarketingPost,
+        onClick: () => {
+          console.log("[products:list] action click", { action: "schedule-story", productId: row.id });
+          handleScheduleProductStory(row);
+          setOpenActionId(null);
+        },
+      },
+      {
+        key: "delete",
+        icon: Trash2,
+        label: t("products.actionsMenu.delete", "Delete"),
+        placement: "dropdown",
+        tone: "danger",
+        onClick: () => {
+          console.log("[products:list] action click", { action: "delete", productId: row.id });
+          handleDelete(row.id);
+          setOpenActionId(null);
+        },
+      },
+    ];
+
+    const inlineActions = actions.filter((action) => action.placement === "primary" && !action.hidden);
+    const visibleInlineKeys = new Set(
+      inlineActions
+        .filter((action) => isInlineRowActionVisible(action, viewportWidth))
+        .map((action) => action.key)
+    );
+    const dropdownActions = actions.filter((action) => !action.hidden && !visibleInlineKeys.has(action.key));
+
+    return { inlineActions, dropdownActions };
+  };
+
+  const handleSavePrices = async (productId, payload) => {
+    await updateProductPrices(productId, payload);
+    toast.success(t("products.priceEditor.saved", "Prices updated"));
+    setPriceEditorProduct(null);
+    await loadProducts();
+  };
+
   const handleDelete = async (id) => {
     if (!window.confirm(t("products.actions.confirmDelete"))) return;
 
     try {
-      await deleteProduct(id);
+      const result = await deleteProduct(id);
       removeProductMeta(id);
-      toast.success(t("products.actionsMenu.delete"));
+      toast.success(result?.message || t("products.actionsMenu.delete"));
       setSelectedIds((prev) => prev.filter((item) => item !== id));
       setSelectedProduct((prev) => (prev?.id === id ? null : prev));
       await loadProducts();
     } catch (err) {
       console.log(err);
-      toast.error(t("common.noData"));
+      toast.error(err?.responseBody?.message || err?.message || t("products.toasts.deleteFailed", "Failed to delete product"));
+      await loadProducts();
     }
   };
 
   const handleGenerateMarketingPost = async (product) => {
     if (!canCreateMarketingPost) {
-      toast.error("You do not have permission to create marketing posts.");
+      toast.error(t("products.marketing.noCreatePermission", "You do not have permission to create marketing posts."));
       return;
     }
 
@@ -505,7 +1601,7 @@ function ProductsList() {
     } catch (err) {
       console.error(err);
       const message = Number(err?.status || err?.responseBody?.status) === 403
-        ? "You do not have permission to create marketing posts."
+        ? t("products.marketing.noCreatePermission", "You do not have permission to create marketing posts.")
         : err?.message || t("common.noData");
       toast.error(message);
     } finally {
@@ -515,14 +1611,14 @@ function ProductsList() {
 
   const handlePublishProductStory = async (product) => {
     if (!canPublishMarketingPost) {
-      toast.error("You do not have permission to publish marketing posts.");
+      toast.error(t("products.marketing.noPublishPermission", "You do not have permission to publish marketing posts."));
       return;
     }
     try {
       setMarketingSaving(true);
       const result = await publishProductStoryEverywhere(product.id);
-      if (result?.story_status === "failed") toast.error(result.story_error_message || "Story publish failed");
-      else toast.success("Story publish completed");
+      if (result?.story_status === "failed") toast.error(result.story_error_message || t("products.marketing.storyPublishFailed", "Story publish failed"));
+      else toast.success(t("products.marketing.storyPublishCompleted", "Story publish completed"));
       await loadProducts();
     } catch (err) {
       toast.error(err?.message || t("common.noData"));
@@ -533,15 +1629,15 @@ function ProductsList() {
 
   const handleScheduleProductStory = async (product) => {
     if (!canUpdateMarketingPost) {
-      toast.error("You do not have permission to update marketing posts.");
+      toast.error(t("products.marketing.noUpdatePermission", "You do not have permission to update marketing posts."));
       return;
     }
-    const scheduledAt = window.prompt("Schedule story date/time (YYYY-MM-DDTHH:mm)", new Date(Date.now() + 2 * 60 * 1000).toISOString().slice(0, 16));
+    const scheduledAt = window.prompt(t("products.marketing.schedulePrompt", "Schedule story date/time (YYYY-MM-DDTHH:mm)"), new Date(Date.now() + 2 * 60 * 1000).toISOString().slice(0, 16));
     if (!scheduledAt) return;
     try {
       setMarketingSaving(true);
       await scheduleProductStoryEverywhere(product.id, { scheduled_at: scheduledAt });
-      toast.success("Story scheduled");
+      toast.success(t("products.marketing.storyScheduled", "Story scheduled"));
       await loadProducts();
     } catch (err) {
       toast.error(err?.message || t("common.noData"));
@@ -552,7 +1648,7 @@ function ProductsList() {
 
   const handleSaveMarketingDraft = async (payload) => {
     if (marketingEditorPost?.id ? !canUpdateMarketingPost : !canCreateMarketingPost) {
-      toast.error("You do not have permission to create marketing posts.");
+      toast.error(t("products.marketing.noCreatePermission", "You do not have permission to create marketing posts."));
       return;
     }
 
@@ -575,7 +1671,7 @@ function ProductsList() {
 
   const handlePublishMarketingPost = async (payload) => {
     if (!canPublishMarketingPost) {
-      toast.error("You do not have permission to publish marketing posts.");
+      toast.error(t("products.marketing.noPublishPermission", "You do not have permission to publish marketing posts."));
       return;
     }
 
@@ -586,7 +1682,7 @@ function ProductsList() {
         : await createMarketingPost({ ...payload, status: "draft" });
       const published = await publishMarketingPost(saved.id);
       if (published?.status === "failed") {
-        toast.error(published.error_message || "Meta account is not connected yet.");
+        toast.error(published.error_message || t("products.marketing.metaNotConnected", "Meta account is not connected yet."));
         return;
       }
       toast.success(t("common.update"));
@@ -601,7 +1697,7 @@ function ProductsList() {
 
   const handleScheduleMarketingPost = async (payload, scheduledAt) => {
     if (!canUpdateMarketingPost) {
-      toast.error("You do not have permission to update marketing posts.");
+      toast.error(t("products.marketing.noUpdatePermission", "You do not have permission to update marketing posts."));
       return;
     }
 
@@ -626,30 +1722,49 @@ function ProductsList() {
     if (!window.confirm(t("products.actions.confirmDeleteMultiple"))) return;
 
     try {
-      await Promise.all(selectedIds.map((id) => deleteProduct(id)));
+      const results = await Promise.all(selectedIds.map((id) => deleteProduct(id)));
       selectedIds.forEach((id) => removeProductMeta(id));
-      toast.success(t("products.actionsMenu.delete"));
+      const archivedCount = results.filter((result) => result?.status === "soft_deleted" || result?.action === "soft_deleted").length;
+      const deletedCount = results.length - archivedCount;
+      toast.success(
+        archivedCount && deletedCount
+          ? `${deletedCount} deleted, ${archivedCount} archived`
+          : archivedCount
+            ? `${archivedCount} product${archivedCount === 1 ? "" : "s"} archived`
+            : t("products.actionsMenu.delete")
+      );
       setSelectedIds([]);
       await loadProducts();
     } catch (err) {
       console.log(err);
-      toast.error(t("common.noData"));
+      toast.error(err?.responseBody?.message || err?.message || t("products.toasts.deleteFailed", "Failed to delete product"));
+      await loadProducts();
     }
   };
 
-  const handleBulkStatus = (active) => {
-    selectedIds.forEach((id) => updateLocalStatus(id, active));
-    toast.success(active ? t("products.filters.active") : t("products.filters.inactive"));
-  };
+  const handleBulkStatus = async (active) => {
+    const selectedRows = rows.filter((row) => selectedIds.includes(row.id));
+    const toggleableRows = selectedRows.filter(isStatusToggleableProduct);
+    if (!toggleableRows.length) {
+      toast.error(t("products.toasts.statusToggleUnavailable", "Draft, archived, and deleted products keep their own status workflow."));
+      return;
+    }
 
-  const stats = {
-    total: rows.length,
-    active: rows.filter((row) => row.active !== false).length,
-    lowStock: rows.filter((row) => {
-      const { isLowStock, isOutOfStock } = getProductStockState(row);
-      return isLowStock || isOutOfStock;
-    }).length,
-    variants: rows.reduce((sum, row) => sum + (Array.isArray(row.variants) ? row.variants.length : row.variant_id ? 1 : 0), 0),
+    try {
+      const status = active ? "active" : "inactive";
+      await Promise.all(toggleableRows.map((row) => updateProductStatus(row.id, { status, is_active: active })));
+      toggleableRows.forEach((row) => updateLocalStatus(row.id, active));
+      toast.success(
+        active
+          ? t("products.toasts.productsActivated", "Products activated")
+          : t("products.toasts.productsDeactivated", "Products deactivated")
+      );
+      await loadProducts();
+    } catch (err) {
+      console.error("[products:list] bulk status failed", err);
+      toast.error(err?.responseBody?.message || err?.message || t("products.toasts.statusUpdateFailed", "Failed to update product status"));
+      await loadProducts();
+    }
   };
 
   return (
@@ -660,14 +1775,14 @@ function ProductsList() {
         <>
           <button
             onClick={() => navigate("/products/add")}
-            className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-semibold text-white transition hover:bg-emerald-400"
+            className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-400 sm:px-5 sm:py-3 sm:text-base"
           >
             <Plus size={18} />
             {t("products.newProduct")}
           </button>
           <button
             onClick={loadProducts}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white transition hover:bg-white/10"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 sm:px-5 sm:py-3 sm:text-base"
           >
             <Filter size={18} />
             {t("products.refresh")}
@@ -675,27 +1790,8 @@ function ProductsList() {
         </>
       }
     >
-      <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[
-          [t("products.stats.totalProducts"), stats.total],
-          [t("products.stats.active"), stats.active],
-          [t("products.stats.lowStock"), stats.lowStock],
-          [t("products.stats.variants"), stats.variants],
-        ].map(([label, value]) => (
-          <div
-            key={label}
-            className="rounded-[28px] border border-white/8 bg-zinc-950/80 p-5"
-          >
-            <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
-              {label}
-            </p>
-            <h3 className="mt-3 text-3xl font-black text-white">{value}</h3>
-          </div>
-        ))}
-      </div>
-
-      <div className="min-w-0 rounded-[34px] border border-white/8 bg-zinc-950/80 p-5 xl:p-6">
-        <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))]">
+      <div className="min-w-0 rounded-2xl border border-white/8 bg-zinc-950/80 p-3 sm:rounded-[34px] sm:p-5 xl:p-6">
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
             <input
@@ -724,21 +1820,6 @@ function ProductsList() {
           </select>
 
           <select
-            value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value);
-              setPage(1);
-            }}
-            className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
-          >
-            {categories.map((category) => (
-              <option key={category} value={category}>
-                {category === "all" ? t("products.filters.allCategories") : category}
-              </option>
-            ))}
-          </select>
-
-          <select
             value={brandFilter}
             onChange={(e) => {
               setBrandFilter(e.target.value);
@@ -752,6 +1833,103 @@ function ProductsList() {
               </option>
             ))}
           </select>
+
+          <div className="relative" data-products-filter-popover>
+            <button
+              ref={filtersTriggerRef}
+              type="button"
+              onClick={() => setFiltersOpen((open) => !open)}
+              disabled={!classificationFilterGroups.length}
+              className={`flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-black outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                activeClassificationCount
+                  ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.16)]"
+                  : "border-white/8 bg-white/5 text-white hover:border-white/15 hover:bg-white/8"
+              }`}
+              aria-expanded={filtersOpen}
+            >
+              <Filter size={16} />
+              <span>{t("products.filters.filters", "Filters")}{activeClassificationCount ? ` (${activeClassificationCount})` : ""}</span>
+              <ChevronDown size={16} className={`transition ${filtersOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {filtersOpen && classificationFilterGroups.length ? (
+              <div ref={filtersRef} className="fixed inset-x-2 bottom-2 z-[80] max-h-[85dvh] overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60 sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[min(42rem,calc(100vw-2rem))]">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/[0.03] px-4 py-3">
+                  <div className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
+                    <Filter size={14} />
+                    {t("products.filters.classifications", "Product filters")}
+                    <span className={`rounded-full border px-2 py-0.5 tracking-normal ${
+                      activeClassificationCount
+                        ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200"
+                        : "border-white/10 bg-white/[0.04] text-zinc-500"
+                    }`}>
+                      {activeClassificationCount}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {activeClassificationCount ? (
+                      <button
+                        type="button"
+                        onClick={clearClassificationFilters}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-black text-zinc-300 transition hover:border-red-300/25 hover:bg-red-500/10 hover:text-red-100"
+                      >
+                        <X size={13} />
+                        {t("products.filters.clearClassifications", "Clear")}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setFiltersOpen(false)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:text-white"
+                      aria-label={t("common.close", "Close")}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-[min(28rem,70vh)] space-y-3 overflow-auto p-4">
+                  {classificationFilterGroups.map((group) => (
+                    <div key={group.key} className="grid min-w-0 gap-2 lg:grid-cols-[8.5rem_minmax(0,1fr)] lg:items-start">
+                      <div className="pt-1 text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">
+                        {group.label}
+                      </div>
+                      <div className="flex min-w-0 flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setClassificationGroupFilter(group.key, "all")}
+                          className={`rounded-xl border px-3 py-1.5 text-xs font-black transition ${
+                            classificationFilters[group.key] === "all"
+                              ? "border-white/15 bg-white/10 text-white"
+                              : "border-white/8 bg-white/[0.025] text-zinc-500 hover:border-white/15 hover:text-zinc-200"
+                          }`}
+                        >
+                          {t("products.filters.allClassifications", "All")}
+                        </button>
+                        {group.options.map((option) => {
+                          const isActive = classificationFilters[group.key] === option.value;
+                          return (
+                            <button
+                              key={`${group.key}-${option.value}`}
+                              type="button"
+                              onClick={() => setClassificationGroupFilter(group.key, option.value)}
+                              className={`rounded-xl border px-3 py-1.5 text-xs font-black transition ${
+                                isActive
+                                  ? "border-emerald-300/70 bg-emerald-400 text-black shadow-[0_0_24px_rgba(52,211,153,0.22)]"
+                                  : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20 hover:bg-white/8 hover:text-white"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {selectedCount > 0 && (
@@ -788,8 +1966,75 @@ function ProductsList() {
         ) : null}
 
         <div className="relative mt-6 max-w-full overflow-visible">
-          <div className="overflow-x-auto overflow-visible">
-            <table className="min-w-full border-separate border-spacing-y-3">
+          <div className="grid gap-3 lg:hidden">
+            {loading ? (
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-6 text-center text-sm font-semibold text-zinc-400">
+                {t("products.loading")}
+              </div>
+            ) : visibleRows.length === 0 ? (
+              <div className="rounded-3xl border border-white/8 bg-white/5 p-6 text-center">
+                <Package2 className="mx-auto text-zinc-500" size={36} />
+                <h3 className="mt-3 text-lg font-black text-white">{t("products.empty.title")}</h3>
+                <p className="mt-2 text-sm text-zinc-400">{t("products.empty.description")}</p>
+              </div>
+            ) : (
+              visibleRows.map((row) => {
+                const { totalStock, lowStockAlert, isLowStock, isOutOfStock } = getProductStockState(row);
+                const priceDisplay = getCatalogPriceDisplay(row);
+                const displaySku = cleanSkuDisplay(row.sku);
+                const inactiveProduct = isInactiveProduct(row);
+                const statusToggleLabel = inactiveProduct
+                  ? t("products.actionsMenu.activateProduct", "Activate Product")
+                  : t("products.actionsMenu.deactivateProduct", "Deactivate Product");
+                const { dropdownActions } = getRowActions(row, statusToggleLabel);
+                const statusKey =
+                  inactiveProduct
+                    ? "inactive"
+                    : isOutOfStock
+                      ? "out"
+                      : isLowStock
+                        ? "low"
+                        : "active";
+                const status =
+                  statusKey === "inactive"
+                    ? t("products.filters.inactive")
+                    : statusKey === "out"
+                      ? "Out of stock"
+                      : statusKey === "low"
+                        ? t("products.filters.lowStock")
+                        : t("products.filters.active");
+                return (
+                  <ProductMobileCard
+                    key={row.id}
+                    row={row}
+                    selected={selectedIds.includes(row.id)}
+                    onToggleSelected={() => toggleSelected(row.id)}
+                    onOpen={() => setSelectedProduct(row)}
+                    statusKey={statusKey}
+                    status={status}
+                    totalStock={totalStock}
+                    lowStockAlert={lowStockAlert}
+                    priceDisplay={priceDisplay}
+                    displaySku={displaySku}
+                    actions={dropdownActions}
+                    t={t}
+                  />
+                );
+              })
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto lg:block">
+            <table className="min-w-[1080px] table-fixed border-separate border-spacing-y-3">
+              <colgroup>
+                <col className="w-12" />
+                <col className="w-[440px]" />
+                <col className="w-[210px]" />
+                <col className="w-[135px]" />
+                <col className="w-[175px]" />
+                <col className="w-[125px]" />
+                <col className="w-[260px]" />
+              </colgroup>
               <thead>
                 <tr className="text-left text-xs uppercase tracking-[0.22em] text-zinc-500">
                   <th className="px-4 py-2">
@@ -800,7 +2045,6 @@ function ProductsList() {
                     />
                   </th>
                   <th className="px-4 py-2">{t("products.table.product")}</th>
-                  <th className="px-4 py-2">{t("products.table.skuBarcode")}</th>
                   <th className="px-4 py-2">{t("products.table.categoryBrand")}</th>
                   <th className="px-4 py-2">{t("products.table.stock")}</th>
                   <th className="px-4 py-2">{t("products.table.costSale")}</th>
@@ -811,13 +2055,13 @@ function ProductsList() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="8" className="px-4 py-12 text-center text-zinc-400">
+                    <td colSpan="7" className="px-4 py-12 text-center text-zinc-400">
                       {t("products.loading")}
                     </td>
                   </tr>
                 ) : visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="px-4 py-12 text-center">
+                    <td colSpan="7" className="px-4 py-12 text-center">
                       <div className="mx-auto max-w-sm rounded-3xl border border-white/8 bg-white/5 p-8">
                         <Package2 className="mx-auto text-zinc-500" size={42} />
                         <h3 className="mt-4 text-xl font-black text-white">{t("products.empty.title")}</h3>
@@ -830,8 +2074,16 @@ function ProductsList() {
                 ) : (
                   visibleRows.map((row) => {
                     const { totalStock, lowStockAlert, isLowStock, isOutOfStock } = getProductStockState(row);
+                    const priceDisplay = getCatalogPriceDisplay(row);
+                    const displaySku = cleanSkuDisplay(row.sku);
+                    const barcodeTitle = cleanSkuDisplay(row.barcode) ? `${displaySku ? `${displaySku} / ` : ""}${row.barcode}` : displaySku;
+                    const inactiveProduct = isInactiveProduct(row);
+                    const statusToggleLabel = inactiveProduct
+                      ? t("products.actionsMenu.activateProduct", "Activate Product")
+                      : t("products.actionsMenu.deactivateProduct", "Deactivate Product");
+                    const { inlineActions, dropdownActions } = getRowActions(row, statusToggleLabel);
                     const statusKey =
-                      row.active === false || String(row.status || "").toLowerCase() === "inactive"
+                      inactiveProduct
                         ? "inactive"
                         : isOutOfStock
                           ? "out"
@@ -849,7 +2101,7 @@ function ProductsList() {
                     return (
                       <tr
                         key={row.id}
-                        className={`relative rounded-3xl border border-white/8 bg-white/5 ${openActionId === row.id ? "z-[100]" : "z-0"}`}
+                        className={`group/product-row relative rounded-3xl border border-white/8 bg-white/5 ${openActionId === row.id ? "z-[100]" : "z-0"}`}
                       >
                         <td className="px-4 py-4 align-middle">
                           <input
@@ -858,26 +2110,26 @@ function ProductsList() {
                             onChange={() => toggleSelected(row.id)}
                           />
                         </td>
-                        <td className="px-4 py-4 align-middle">
+                        <td className="px-4 py-3 align-middle">
                           <button
                             type="button"
                             onClick={() => setSelectedProduct(row)}
-                            className="flex items-center gap-3 text-left"
+                            className="flex w-full min-w-0 items-center gap-3 text-left"
                           >
                             <ProductThumbnail row={row} />
-                            <div className="min-w-0">
-                              <p className="truncate font-semibold text-white">{row.name}</p>
-                              <p className="truncate text-sm text-zinc-400">{row.description || t("products.empty.noDescription")}</p>
+                            <div className="min-w-0 self-center">
+                              <p className="truncate text-sm font-semibold leading-5 text-white">{row.name}</p>
+                              {displaySku ? (
+                                <p className="truncate text-xs font-semibold leading-4 text-zinc-500" title={barcodeTitle || displaySku}>
+                                  {displaySku}
+                                </p>
+                              ) : null}
                             </div>
                           </button>
                         </td>
                         <td className="px-4 py-4 align-middle">
-                          <p className="font-semibold text-white">{row.sku || generateSku(row.name, row.id)}</p>
-                          <p className="text-sm text-zinc-400">{row.barcode || t("products.records.notGenerated")}</p>
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <p className="font-semibold text-white">{row.category || t("products.selected.category")}</p>
-                          <p className="text-sm text-zinc-400">{row.brand || t("products.selected.brand")}</p>
+                          <p className="truncate font-semibold text-white">{row.category || t("products.selected.category")}</p>
+                          <p className="truncate text-sm text-zinc-400">{row.brand || t("products.selected.brand")}</p>
                           <div className="mt-2">
                             <span
                               className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
@@ -901,8 +2153,11 @@ function ProductsList() {
                           <p className="text-sm text-zinc-400">{t("products.stock.lowAlert")} {lowStockAlert}</p>
                         </td>
                         <td className="px-4 py-4 align-middle">
-                          <p className="font-semibold text-white">{formatCardPrice(row.cost_price)}</p>
-                          <p className="text-sm text-emerald-300">{formatCardPrice(row.sale_price)}</p>
+                          <div className="grid gap-1.5 text-xs leading-5">
+                            <PriceLine label={t("products.priceLabels.cost", "Cost")} value={priceDisplay.cost} varies={priceDisplay.costVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="muted" />
+                            <PriceLine label={t("products.priceLabels.sell", "Sell")} value={priceDisplay.sell} varies={priceDisplay.sellVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="sell" />
+                            <PriceLine label={t("products.priceLabels.sale", "Sale")} value={priceDisplay.sale} varies={priceDisplay.saleVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="sale" />
+                          </div>
                         </td>
                         <td className="px-4 py-4 align-middle">
                           <span
@@ -923,154 +2178,81 @@ function ProductsList() {
                           </span>
                         </td>
                         <td className="px-4 py-4 align-middle">
-                          <div className={`relative flex justify-end ${openActionId === row.id ? "z-[100]" : "z-0"}`}>
+                          <div className={`relative flex min-h-10 items-center justify-end gap-2 ${openActionId === row.id ? "z-[100]" : "z-0"}`}>
+                            <div className="hidden items-center gap-1.5 lg:flex">
+                              {inlineActions.map((action) => (
+                                <QuickRowAction
+                                  key={action.key}
+                                  icon={action.icon}
+                                  label={action.inlineLabel || action.label}
+                                  onClick={action.onClick}
+                                  disabled={action.disabled}
+                                  className={action.className || ""}
+                                />
+                              ))}
+                            </div>
                             <button
+                              ref={(node) => {
+                                if (openActionId === row.id) actionMenuTriggerRef.current = node;
+                              }}
                               type="button"
-                              onClick={() =>
+                              onClick={(event) => {
+                                const button = event.currentTarget;
+                                if (!button) return;
+                                const rect = typeof button.getBoundingClientRect === "function"
+                                  ? button.getBoundingClientRect()
+                                  : null;
                                 setOpenActionId((current) => {
                                   const next = current === row.id ? null : row.id;
+                                  setActionMenuPosition(next ? getActionMenuPosition(rect, dropdownActions.length) : null);
                                   console.log("[products:list] toggle action menu", { productId: row.id, nextOpenId: next });
                                   return next;
-                                })
-                              }
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/8 bg-white/5 text-white"
+                                });
+                              }}
+                              className="group/action relative ml-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.025] text-zinc-400 opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100"
+                              title={t("products.actionsMenu.moreActions", "More actions")}
+                              aria-label={t("products.actionsMenu.moreActions", "More actions")}
                             >
-                              <MoreHorizontal size={18} />
+                              <MoreHorizontal size={15} />
+                              <span className="pointer-events-none absolute bottom-full left-1/2 z-[110] mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-zinc-950 px-2 py-1 text-[10px] font-bold text-white opacity-0 shadow-xl shadow-black/40 transition group-hover/action:opacity-100 group-focus-visible/action:opacity-100">
+                                {t("products.actionsMenu.moreActions", "More actions")}
+                              </span>
                             </button>
 
-                            {openActionId === row.id ? (
+                            {openActionId === row.id && actionMenuPosition && typeof document !== "undefined" ? createPortal((
                               <div
-                                className="absolute right-0 top-full z-[9999] mt-2 w-48 overflow-hidden rounded-2xl border border-white/8 bg-zinc-950 shadow-2xl"
+                                ref={actionMenuRef}
+                                className="fixed z-[100000] overflow-y-auto rounded-2xl border border-white/8 bg-zinc-950 shadow-2xl shadow-black/50 transition duration-100 ease-out animate-in fade-in-0 zoom-in-95"
+                                style={{
+                                  top: `${actionMenuPosition.top}px`,
+                                  left: `${actionMenuPosition.left}px`,
+                                  width: `${actionMenuPosition.width || ACTION_MENU_WIDTH}px`,
+                                  maxHeight: `${actionMenuPosition.maxHeight}px`,
+                                  transformOrigin: actionMenuPosition.placement === "top" ? "bottom right" : "top right",
+                                }}
                                 onClick={(event) => event.stopPropagation()}
                               >
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    console.log("[products:list] action click", { action: "view", productId: row.id });
-                                    navigate(`/products/${row.id}`);
-                                    setOpenActionId(null);
-                                  }}
-                                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                                >
-                                  <Eye size={16} />
-                                  {t("products.actionsMenu.view")}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    console.log("[products:list] action click", { action: "edit", productId: row.id });
-                                    navigate(`/products/${row.id}/edit`);
-                                    setOpenActionId(null);
-                                  }}
-                                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                                >
-                                  <Pencil size={16} />
-                                  {t("products.actionsMenu.edit")}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    console.log("[products:list] action click", { action: "duplicate", productId: row.id });
-                                    handleDuplicate(row);
-                                    setOpenActionId(null);
-                                  }}
-                                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                                >
-                                  <Copy size={16} />
-                                  {t("products.actionsMenu.duplicate")}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    console.log("[products:list] action click", { action: "toggle-status", productId: row.id, active: row.active });
-                                    updateLocalStatus(row.id, !(row.active !== false));
-                                    setOpenActionId(null);
-                                  }}
-                                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                                >
-                                  <ChevronDown size={16} />
-                                  {t("products.actionsMenu.toggleStatus")}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    console.log("[products:list] action click", { action: "print-barcode", productId: row.id });
-                                    navigate(`/products/barcode-labels?productId=${encodeURIComponent(row.id)}&availableOnly=true`);
-                                    setOpenActionId(null);
-                                  }}
-                                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                                >
-                                  <Barcode size={16} />
-                                  {t("products.actionsMenu.printBarcode")}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    console.log("[products:list] action click", { action: "barcode-shop", productId: row.id });
-                                    navigate(`/products/labels?mode=barcode-shop&productId=${encodeURIComponent(row.id)}`);
-                                    setOpenActionId(null);
-                                  }}
-                                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                                >
-                                  <Barcode size={16} />
-                                  {t("products.actionsMenu.barcodeShop")}
-                                </button>
-                                {canCreateMarketingPost ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      console.log("[products:list] action click", { action: "generate-marketing-post", productId: row.id });
-                                      handleGenerateMarketingPost(row);
-                                      setOpenActionId(null);
-                                    }}
-                                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                                  >
-                                    <Megaphone size={16} />
-                                    {t("products.actionsMenu.generateMarketingPost")}
-                                  </button>
-                                ) : null}
-                                {canPublishMarketingPost ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      console.log("[products:list] action click", { action: "generate-fast-story", productId: row.id });
-                                      handlePublishProductStory(row);
-                                      setOpenActionId(null);
-                                    }}
-                                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                                  >
-                                    <Zap size={16} />
-                                    Generate Fast Story
-                                  </button>
-                                ) : null}
-                                {canUpdateMarketingPost ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      console.log("[products:list] action click", { action: "schedule-story", productId: row.id });
-                                      handleScheduleProductStory(row);
-                                      setOpenActionId(null);
-                                    }}
-                                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-white hover:bg-white/5"
-                                  >
-                                    <CalendarClock size={16} />
-                                    Schedule Story
-                                  </button>
-                                ) : null}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    console.log("[products:list] action click", { action: "delete", productId: row.id });
-                                    handleDelete(row.id);
-                                    setOpenActionId(null);
-                                  }}
-                                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-red-300 hover:bg-red-500/10"
-                                >
-                                  <Trash2 size={16} />
-                                  {t("products.actionsMenu.delete")}
-                                </button>
+                                {dropdownActions.map((action) => {
+                                  const Icon = action.icon;
+                                  return (
+                                    <button
+                                      key={action.key}
+                                      type="button"
+                                      onClick={action.onClick}
+                                      disabled={action.disabled}
+                                      className={`flex w-full items-center gap-2 px-4 py-3 text-left text-sm disabled:cursor-not-allowed disabled:opacity-40 ${
+                                        action.tone === "danger"
+                                          ? "text-red-300 hover:bg-red-500/10"
+                                          : "text-white hover:bg-white/5"
+                                      }`}
+                                    >
+                                      <Icon size={16} />
+                                      {action.label}
+                                    </button>
+                                  );
+                                })}
                               </div>
-                            ) : null}
+                            ), document.body) : null}
                           </div>
                         </td>
                       </tr>
@@ -1124,6 +2306,53 @@ function ProductsList() {
         </div>
       </div>
 
+      {statusActionProduct && typeof document !== "undefined" ? createPortal((
+        <div className="fixed inset-0 z-[100100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black/50">
+            <div className="flex items-start gap-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-400/10 text-amber-200">
+                <Power size={20} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-xl font-black text-white">
+                  {isInactiveProduct(statusActionProduct)
+                    ? t("products.statusModal.activateTitle", "Activate product?")
+                    : t("products.statusModal.deactivateTitle", "Deactivate product?")}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-zinc-400">
+                  {isInactiveProduct(statusActionProduct)
+                    ? t("products.statusModal.activateDescription", "This product will be visible again in storefront and POS product results.")
+                    : t("products.statusModal.deactivateDescription", "Inactive products remain visible in admin, but are hidden from storefront, search, and POS sale results.")}
+                </p>
+                <p className="mt-3 truncate text-sm font-semibold text-zinc-200">{statusActionProduct.name}</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setStatusActionProduct(null)}
+                className="rounded-2xl border border-white/10 px-4 py-2.5 text-sm font-bold text-zinc-200 hover:bg-white/5"
+              >
+                {t("common.cancel", "Cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmProductStatusToggle}
+                className={`rounded-2xl px-4 py-2.5 text-sm font-black text-white ${
+                  isInactiveProduct(statusActionProduct)
+                    ? "bg-emerald-600 hover:bg-emerald-500"
+                    : "bg-amber-600 hover:bg-amber-500"
+                }`}
+              >
+                {isInactiveProduct(statusActionProduct)
+                  ? t("products.actionsMenu.activateProduct", "Activate Product")
+                  : t("products.actionsMenu.deactivateProduct", "Deactivate Product")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ), document.body) : null}
+
       {selectedProduct ? (
         <div className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
@@ -1143,11 +2372,11 @@ function ProductsList() {
 
           <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {[
-              [t("products.selected.sku"), selectedProduct.sku || generateSku(selectedProduct.name, selectedProduct.id)],
-              [t("products.selected.barcode"), selectedProduct.barcode || t("products.records.notGenerated")],
+              [t("products.selected.sku"), cleanSkuDisplay(selectedProduct.sku)],
+              [t("products.selected.barcode"), cleanSkuDisplay(selectedProduct.barcode)],
               [t("products.selected.brand"), selectedProduct.brand || t("products.records.unbranded")],
               [t("products.selected.category"), selectedProduct.category || t("products.records.uncategorized")],
-            ].map(([label, value]) => (
+            ].filter(([, value]) => value).map(([label, value]) => (
               <div key={label} className="rounded-2xl border border-white/8 bg-white/5 p-4">
                 <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">{label}</p>
                 <p className="mt-2 text-lg font-semibold text-white">{value}</p>
@@ -1172,6 +2401,14 @@ function ProductsList() {
         </div>
       ) : null}
 
+      {priceEditorProduct ? (
+        <EnhancedPriceEditorModal
+          product={priceEditorProduct}
+          onClose={() => setPriceEditorProduct(null)}
+          onSave={handleSavePrices}
+        />
+      ) : null}
+
       {marketingEditorOpen ? (
         <PostEditorModal
           open={marketingEditorOpen}
@@ -1185,6 +2422,114 @@ function ProductsList() {
         />
       ) : null}
     </ProductsShell>
+  );
+}
+
+function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, totalStock, lowStockAlert, priceDisplay, displaySku, actions, t }) {
+  const visibleActions = (actions || []).slice(0, 4);
+
+  return (
+    <article className="rounded-2xl border border-white/8 bg-white/[0.045] p-3 shadow-xl shadow-black/10">
+      <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelected}
+          className="mt-2 shrink-0"
+          aria-label={t("products.bulk.selected")}
+        />
+        <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-start gap-3 text-start">
+          <ProductThumbnail row={row} />
+          <div className="min-w-0 flex-1">
+            <div className="line-clamp-2 text-sm font-black leading-5 text-white">{row.name}</div>
+            {displaySku ? <div className="mt-1 truncate text-xs font-semibold text-zinc-500">SKU {displaySku}</div> : null}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${
+                  statusKey === "active"
+                    ? "bg-emerald-500/15 text-emerald-300"
+                    : statusKey === "low"
+                      ? "bg-amber-500/15 text-amber-300"
+                      : statusKey === "out"
+                        ? "bg-red-500/15 text-red-300"
+                        : "bg-zinc-500/15 text-zinc-300"
+                }`}
+              >
+                {status}
+              </span>
+              <span className="inline-flex items-center rounded-full bg-sky-500/10 px-2.5 py-1 text-[10px] font-black text-sky-200">
+                {row.variation_mode === "simple"
+                  ? t("products.variantMode.simple")
+                  : row.variation_mode === "color_only"
+                    ? t("products.variantMode.colorOnly")
+                    : t("products.variantMode.fullVariations")}
+              </span>
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-white/8 bg-black/15 p-2">
+          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{t("products.table.stock")}</div>
+          <div className="mt-1 text-sm font-black text-white">{totalStock}</div>
+          <div className="mt-0.5 text-[11px] font-semibold text-zinc-500">{t("products.stock.lowAlert")} {lowStockAlert}</div>
+        </div>
+        <div className="rounded-xl border border-white/8 bg-black/15 p-2">
+          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{t("products.table.categoryBrand")}</div>
+          <div className="mt-1 truncate text-sm font-black text-white">{row.category || t("products.selected.category")}</div>
+          <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-500">{row.brand || t("products.selected.brand")}</div>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-white/8 bg-black/15 p-2">
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <PriceLine label={t("products.priceLabels.cost", "Cost")} value={priceDisplay.cost} varies={priceDisplay.costVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="muted" />
+          <PriceLine label={t("products.priceLabels.sell", "Sell")} value={priceDisplay.sell} varies={priceDisplay.sellVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="sell" />
+          <PriceLine label={t("products.priceLabels.sale", "Sale")} value={priceDisplay.sale} varies={priceDisplay.saleVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="sale" />
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {visibleActions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <button
+              key={action.key}
+              type="button"
+              onClick={action.onClick}
+              disabled={action.disabled}
+              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                action.tone === "danger"
+                  ? "border-red-300/20 bg-red-500/10 text-red-200"
+                  : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8"
+              }`}
+            >
+              <Icon size={14} />
+              <span className="truncate">{action.inlineLabel || action.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
+function QuickRowAction({ icon: Icon, label, onClick, disabled = false, className = "" }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className={`group/action relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.025] text-zinc-400 opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100 hover:shadow-[0_0_18px_rgba(16,185,129,0.12)] disabled:cursor-not-allowed disabled:opacity-30 ${className}`}
+    >
+      <Icon size={14} />
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-[110] mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-zinc-950 px-2 py-1 text-[10px] font-bold text-white opacity-0 shadow-xl shadow-black/40 transition group-hover/action:opacity-100 group-focus-visible/action:opacity-100">
+        {label}
+      </span>
+    </button>
   );
 }
 

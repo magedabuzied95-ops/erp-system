@@ -1,31 +1,57 @@
-import { API_BASE_URL } from "../constants/app";
+import { API_ORIGIN } from "../constants/app";
 
 const trimSlashes = (value = "") => String(value).replace(/^\/+|\/+$/g, "");
 
-const getBackendAssetBaseUrl = () => {
-  const apiBase = String(API_BASE_URL || "").replace(/\/api\/?$/i, "").replace(/\/+$/g, "");
-  if (/^https?:\/\//i.test(apiBase)) {
-    if (!import.meta.env.DEV && /localhost|127\.0\.0\.1/i.test(apiBase) && typeof window !== "undefined") {
-      return window.location.origin;
-    }
-    return apiBase;
-  }
+const isLocalHost = (hostname = "") => /^(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[?::1\]?)$/i.test(String(hostname || ""));
 
+const currentWindowUrl = () => {
   if (typeof window !== "undefined") {
-    if (import.meta.env.DEV || ["5173", "4173"].includes(window.location.port)) {
-      return "http://localhost:8000";
+    return {
+      protocol: window.location.protocol || "http:",
+      hostname: window.location.hostname || "localhost",
+      port: window.location.port || "",
+      origin: window.location.origin || "",
+    };
+  }
+  return null;
+};
+
+const normalizeReachableUrl = (url) => {
+  if (!url || typeof URL === "undefined") return url || "";
+  const current = currentWindowUrl();
+  if (!current) return url;
+  try {
+    const parsed = new URL(url);
+    if (isLocalHost(parsed.hostname) && !isLocalHost(current.hostname)) {
+      parsed.hostname = current.hostname;
     }
-    return window.location.origin;
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+};
+
+const getBackendAssetBaseUrl = () => {
+  const apiOrigin = String(API_ORIGIN || "").trim().replace(/\/+$/g, "");
+  const current = currentWindowUrl();
+
+  if (/^https?:\/\//i.test(apiOrigin)) {
+    return normalizeReachableUrl(apiOrigin).replace(/\/+$/g, "");
   }
 
-  return "";
+  if (!current) return "";
+
+  return current.origin.replace(/\/+$/g, "");
 };
 
 export const resolveProductImageUrl = (value) => {
   const imageUrl = String(value || "").trim();
   if (!imageUrl) return "";
   if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) return imageUrl;
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  if (/^https?:\/\//i.test(imageUrl)) return normalizeReachableUrl(imageUrl);
+  if (/^\/\/(?!\/*uploads(?:\/|$))/i.test(imageUrl) && typeof window !== "undefined") {
+    return normalizeReachableUrl(`${window.location.protocol}${imageUrl}`);
+  }
 
   const baseUrl = getBackendAssetBaseUrl();
   const joinAssetUrl = (path) => `${baseUrl}/${trimSlashes(path)}`;

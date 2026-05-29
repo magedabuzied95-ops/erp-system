@@ -56,14 +56,18 @@ export const createVariantRow = (defaults = {}) => ({
   variantId: defaults.variantId || null,
   isStarter: defaults.isStarter ?? !defaults.variantId,
   size: formatFieldValue(defaults.size),
+  sizeManualOverride: Boolean(defaults.sizeManualOverride),
   stock: formatFieldValue(defaults.stock),
   available_stock: formatFieldValue(defaults.available_stock),
   sku: formatFieldValue(defaults.sku),
+  skuManualOverride: Boolean(defaults.skuManualOverride),
+  article_code: formatFieldValue(defaults.article_code ?? defaults.articleCode ?? defaults.variant_article_code),
   barcode: formatFieldValue(
     Object.prototype.hasOwnProperty.call(defaults, "barcode")
       ? defaults.barcode
       : generateBarcode()
   ),
+  barcodeManualOverride: Boolean(defaults.barcodeManualOverride),
   price: formatFieldValue(defaults.price),
   image_url: formatFieldValue(defaults.image_url),
   manufacturer_id: formatFieldValue(defaults.manufacturer_id),
@@ -87,6 +91,46 @@ export const isPlaceholderVariantRow = (row = {}, productPrice = 0) => {
   );
 };
 
+const hasImages = (row = {}) =>
+  Boolean(
+    String(row.image_url || row.variant_image_url || row.color_image_url || row.image || "").trim() ||
+      (Array.isArray(row.images) && row.images.length > 0) ||
+      (Array.isArray(row.color_images) && row.color_images.length > 0)
+  );
+
+const isRemovableStarterRow = (row = {}, rows = [], productPrice = 0) => {
+  const hasSavedId = Boolean(row.variantId || row.variant_id || row.idFromServer || row.database_id);
+  const isStarterRow = row.isStarter !== false || rows.length === 1;
+  const hasManualSize = Boolean(row.sizeManualOverride);
+  const hasManualSku = Boolean(row.skuManualOverride && String(row.sku || "").trim());
+  const hasManualBarcode = Boolean(
+    row.barcodeManualOverride ||
+      row.manualBarcode ||
+      row.barcode_manually_entered ||
+      row.isManualBarcode
+  );
+  const hasPlannedQty = normalizeNumberValue(row.planned_qty ?? row.planned_quantity) > 0;
+  const hasRealStock =
+    normalizeNumberValue(row.stock) > 0 ||
+    normalizeNumberValue(row.available_stock) > 0 ||
+    normalizeNumberValue(row.quantity) > 0;
+  const rowPrice = normalizeNumberValue(row.price);
+  const currentPrice = normalizeNumberValue(productPrice);
+  const hasPriceOverride = rowPrice > 0 && rowPrice !== currentPrice;
+
+  return (
+    isStarterRow &&
+    !hasSavedId &&
+    !hasManualSize &&
+    !hasManualSku &&
+    !hasManualBarcode &&
+    !hasPlannedQty &&
+    !hasRealStock &&
+    !hasPriceOverride &&
+    !hasImages(row)
+  );
+};
+
 export const applyBulkSizesToGroups = ({
   groups = [],
   sizes = [],
@@ -97,21 +141,25 @@ export const applyBulkSizesToGroups = ({
   let removedPlaceholderCount = 0;
   const groupLogs = [];
   const updatedGroups = groups.map((group) => {
+    if (group?.__skipBulkSizes) {
+      const { __skipBulkSizes, ...cleanGroup } = group;
+      return cleanGroup;
+    }
     if (targetGroupId && group.id !== targetGroupId) return group;
 
     const originalRows = Array.isArray(group.sizes) ? group.sizes : [];
-    const realRows = originalRows.filter((row) => !isPlaceholderVariantRow(row, price));
-    const removedForGroup = originalRows.length - realRows.length;
-    removedPlaceholderCount += removedForGroup;
+    const preservedRows = originalRows.filter((row) => !isRemovableStarterRow(row, originalRows, price));
+    const removedCount = originalRows.length - preservedRows.length;
+    removedPlaceholderCount += removedCount;
 
     const existingSizes = new Set(
-      realRows
+      preservedRows
         .map((row) => normalizeSizeValue(row.size))
         .filter(Boolean)
     );
     const missingSizes = sizes.filter((size) => !existingSizes.has(normalizeSizeValue(size)));
     const nextRows = [
-      ...realRows,
+      ...preservedRows,
       ...missingSizes.map((size) =>
         createVariantRow({
           variantId: null,
@@ -120,7 +168,7 @@ export const applyBulkSizesToGroups = ({
             stock: 0,
             sku: "",
             barcode: generateBarcode(),
-            price: price || 0,
+            price: 0,
             image_url: group.image_url || "",
             manufacturer_id: group.manufacturer_id || "",
           })
@@ -129,12 +177,12 @@ export const applyBulkSizesToGroups = ({
 
     groupLogs.push({
       groupId: group.id,
-      removedPlaceholders: removedForGroup,
+      removedPlaceholders: removedCount,
       existingNormalizedSizes: Array.from(existingSizes),
       finalSizes: nextRows.map((row) => row.size).filter(Boolean),
     });
 
-    if (missingSizes.length === 0 && removedForGroup === 0) return group;
+    if (missingSizes.length === 0 && removedCount === 0) return group;
 
     addedCount += missingSizes.length;
     return {
@@ -196,17 +244,25 @@ export const applyBulkStockToGroups = ({
   stock = 0,
   targetGroupId = null,
 } = {}) => {
+  let changedCount = 0;
   const updatedGroups = groups.map((group) => {
+    if (group?.__skipBulkStock) {
+      const { __skipBulkStock, ...cleanGroup } = group;
+      return cleanGroup;
+    }
     if (targetGroupId && group.id !== targetGroupId) return group;
 
     return {
       ...group,
-      sizes: (Array.isArray(group.sizes) ? group.sizes : []).map((row) => ({
-        ...row,
-        stock: formatFieldValue(stock),
-      })),
+      sizes: (Array.isArray(group.sizes) ? group.sizes : []).map((row) => {
+        changedCount += 1;
+        return {
+          ...row,
+          stock: formatFieldValue(stock),
+        };
+      }),
     };
   });
 
-  return { groups: updatedGroups };
+  return { groups: updatedGroups, changedCount };
 };

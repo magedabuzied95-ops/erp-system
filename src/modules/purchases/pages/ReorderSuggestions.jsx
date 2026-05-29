@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   BarChart3,
@@ -18,27 +19,18 @@ import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import FlowShell from "../components/FlowShell";
 
-const statusLabels = {
-  BUY_NOW: "اشتر الآن",
-  WATCH: "راقب",
-  DO_NOT_BUY: "لا تشتر",
-};
-
 const statusTone = {
   BUY_NOW: {
     badge: "border-emerald-400/40 bg-emerald-400/12 text-emerald-100",
     bar: "bg-emerald-400",
-    soft: "bg-emerald-400/10 text-emerald-100 border-emerald-400/20",
   },
   WATCH: {
     badge: "border-amber-400/40 bg-amber-400/12 text-amber-100",
     bar: "bg-amber-400",
-    soft: "bg-amber-400/10 text-amber-100 border-amber-400/20",
   },
   DO_NOT_BUY: {
     badge: "border-rose-400/40 bg-rose-400/12 text-rose-100",
     bar: "bg-rose-400",
-    soft: "bg-rose-400/10 text-rose-100 border-rose-400/20",
   },
 };
 
@@ -50,10 +42,13 @@ const riskTone = {
 
 const imageFor = (value) => resolveProductImageUrl(value) || "/favicon.svg";
 const clampPercent = (value) => Math.max(0, Math.min(100, Number(value || 0)));
-const formatNumber = (value, digits = 0) => Number(value || 0).toLocaleString("ar-EG", { maximumFractionDigits: digits });
+const localeFor = (language) => (String(language || "").toLowerCase().startsWith("ar") ? "ar-EG" : "en-US");
+const formatNumber = (value, digits = 0, locale = "en-US") => Number(value || 0).toLocaleString(locale, { maximumFractionDigits: digits });
 
 function ReorderSuggestions() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const numberLocale = localeFor(i18n.language);
   const [suggestions, setSuggestions] = useState([]);
   const [diagnostics, setDiagnostics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -77,7 +72,7 @@ function ReorderSuggestions() {
         if (!cancelled) {
           const backendMessage = err?.responseBody?.error || err?.responseBody?.message || err?.message || "";
           setError({
-            message: "تعذر تحميل اقتراحات الشراء",
+            message: t("purchases.reorder.loadFailed"),
             detail: backendMessage && backendMessage !== "Request Failed" ? backendMessage : "",
           });
           setDiagnostics(err?.responseBody?.diagnostics || null);
@@ -88,9 +83,9 @@ function ReorderSuggestions() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
-  const supplierOptions = useMemo(() => ["all", ...new Set(suggestions.map((item) => item.supplier_name || "غير محدد"))], [suggestions]);
+  const supplierOptions = useMemo(() => ["all", ...new Set(suggestions.map((item) => item.supplier_name || t("purchases.reorder.unspecifiedSupplier")))], [suggestions, t]);
   const cartonOptions = useMemo(() => ["all", "small", "medium", "large"], []);
 
   const kpis = useMemo(() => {
@@ -140,10 +135,10 @@ function ReorderSuggestions() {
     setCreatingId(suggestionId);
     try {
       const response = await api.post("/purchases/reorder-draft", { suggestion_ids: [suggestionId] });
-      toast.success(`تم إنشاء مسودة شراء ${response?.purchase?.purchase_number || ""}`.trim());
+      toast.success(t("purchases.reorder.draftCreated", { number: response?.purchase?.purchase_number || "" }).trim());
       navigate("/purchases");
     } catch (err) {
-      toast.error(err?.responseBody?.message || err?.message || "تعذر إنشاء مسودة الشراء");
+      toast.error(err?.responseBody?.message || err?.message || t("purchases.reorder.draftFailed"));
     } finally {
       setCreatingId("");
     }
@@ -151,45 +146,45 @@ function ReorderSuggestions() {
 
   return (
     <FlowShell
-      title="اقتراحات الشراء الذكية"
-      subtitle="قرار شراء أسرع حسب البيع، المخزون، المقاسات، وحجم الكرتونة."
+      title={t("purchases.reorder.title")}
+      subtitle={t("purchases.reorder.subtitle")}
       actions={
         <Link to="/purchases/create" className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-black text-black transition hover:bg-zinc-200">
-          إنشاء فاتورة شراء
+          {t("purchases.reorder.createPurchaseInvoice")}
         </Link>
       }
       tabs={[
-        { to: "/purchases", label: "Purchases", end: true },
-        { to: "/purchases/create", label: "Create PO" },
-        { to: "/purchases/reorder-suggestions", label: "Smart Reorder" },
-        { to: "/suppliers", label: "Suppliers" },
+        { to: "/purchases", label: t("purchases.tabs.purchases"), end: true },
+        { to: "/purchases/create", label: t("purchases.tabs.createPo") },
+        { to: "/purchases/reorder-suggestions", label: t("purchases.tabs.smartReorder") },
+        { to: "/suppliers", label: t("purchases.tabs.suppliers") },
       ]}
     >
       {error ? (
-        <div dir="rtl" className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">
-          <AlertTriangle className="ml-2 inline h-4 w-4" />
+        <div className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">
+          <AlertTriangle className="me-2 inline h-4 w-4" />
           {error.message}
           {error.detail ? <div dir="ltr" className="mt-2 text-xs text-rose-100/80">{error.detail}</div> : null}
         </div>
       ) : null}
 
-      <div dir="rtl" className="space-y-3">
-        <SummaryStrip kpis={kpis} />
+      <div className="space-y-3">
+        <SummaryStrip kpis={kpis} locale={numberLocale} />
 
         <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
           <div className="grid gap-2 lg:grid-cols-[1.4fr_0.75fr_0.75fr_0.75fr]">
             <label className="relative block">
-              <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+              <Search className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
               <input
                 value={filters.search}
                 onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-                placeholder="ابحث بالمنتج، اللون، المورد..."
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/5 pr-10 pl-4 text-sm font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
+                placeholder={t("purchases.reorder.searchPlaceholder")}
+                className="h-11 w-full rounded-xl border border-white/10 bg-white/5 pe-10 ps-4 text-sm font-bold text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
               />
             </label>
-            <FilterSelect label="الحالة" value={filters.status} onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))} options={["all", "BUY_NOW", "WATCH", "DO_NOT_BUY"]} labels={{ all: "كل الحالات", ...statusLabels }} />
-            <FilterSelect label="المورد" value={filters.supplier} onChange={(value) => setFilters((prev) => ({ ...prev, supplier: value }))} options={supplierOptions} labels={{ all: "كل الموردين" }} />
-            <FilterSelect label="حجم الكرتونة" value={filters.carton} onChange={(value) => setFilters((prev) => ({ ...prev, carton: value }))} options={cartonOptions} labels={{ all: "كل الأحجام", small: "صغير <= 5", medium: "متوسط", large: "كبير >= 15" }} />
+            <FilterSelect label={t("purchases.filters.status")} value={filters.status} onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))} options={["all", "BUY_NOW", "WATCH", "DO_NOT_BUY"]} labels={{ all: t("purchases.reorder.allStatuses"), BUY_NOW: t("purchases.reorder.status.buyNow"), WATCH: t("purchases.reorder.status.watch"), DO_NOT_BUY: t("purchases.reorder.status.doNotBuy") }} />
+            <FilterSelect label={t("purchases.filters.supplier")} value={filters.supplier} onChange={(value) => setFilters((prev) => ({ ...prev, supplier: value }))} options={supplierOptions} labels={{ all: t("purchases.reorder.allSuppliers") }} />
+            <FilterSelect label={t("purchases.reorder.cartonSize")} value={filters.carton} onChange={(value) => setFilters((prev) => ({ ...prev, carton: value }))} options={cartonOptions} labels={{ all: t("purchases.reorder.allSizes"), small: t("purchases.reorder.smallCarton"), medium: t("purchases.reorder.mediumCarton"), large: t("purchases.reorder.largeCarton") }} />
           </div>
         </div>
 
@@ -206,21 +201,22 @@ function ReorderSuggestions() {
                   item={item}
                   creating={creatingId === (item.suggestion_id || `${item.product_id}::${item.color || item.variant || "default"}`)}
                   onCreateDraft={() => createDraft(item)}
+                  locale={numberLocale}
                 />
               ))}
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center">
               <Boxes className="mx-auto h-10 w-10 text-zinc-500" />
-              <h3 className="mt-3 text-lg font-black text-white">لا توجد اقتراحات مطابقة</h3>
-              <p className="mt-1 text-sm font-bold text-zinc-400">راجع الفلاتر أو انتظر توفر بيانات بيع ومخزون كافية.</p>
+              <h3 className="mt-3 text-lg font-black text-white">{t("purchases.reorder.emptyTitle")}</h3>
+              <p className="mt-1 text-sm font-bold text-zinc-400">{t("purchases.reorder.emptyDescription")}</p>
             </div>
           )}
         </div>
 
         {((error || (!loading && suggestions.length === 0) || hasDiagnosticsWarning)) && diagnostics ? (
           <details className="rounded-2xl border border-white/10 bg-zinc-950/80 p-4 text-xs text-zinc-300">
-            <summary className="cursor-pointer text-right font-black text-zinc-200">تشخيص Smart Reorder</summary>
+            <summary className="cursor-pointer font-black text-zinc-200">{t("purchases.reorder.diagnostics")}</summary>
             <pre dir="ltr" className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/40 p-3 text-left text-[11px] leading-5 text-zinc-300">
               {JSON.stringify(diagnostics, null, 2)}
             </pre>
@@ -231,24 +227,25 @@ function ReorderSuggestions() {
   );
 }
 
-function SummaryStrip({ kpis }) {
+function SummaryStrip({ kpis, locale }) {
+  const { t } = useTranslation();
   return (
     <div className="grid gap-2 xl:grid-cols-[0.8fr_0.8fr_0.8fr_1.4fr]">
-      <SummaryCard label="اشتر الآن" value={kpis.buyNow} icon={<ShoppingBag className="h-4 w-4" />} tone="emerald" />
-      <SummaryCard label="خطر تكدس" value={kpis.overstock} icon={<ShieldAlert className="h-4 w-4" />} tone="rose" />
-      <SummaryCard label="متوسط البيع" value={`${kpis.avgSellThrough}%`} icon={<Gauge className="h-4 w-4" />} tone="amber" />
+      <SummaryCard label={t("purchases.reorder.status.buyNow")} value={kpis.buyNow} icon={<ShoppingBag className="h-4 w-4" />} tone="emerald" />
+      <SummaryCard label={t("purchases.reorder.overstockRisk")} value={kpis.overstock} icon={<ShieldAlert className="h-4 w-4" />} tone="rose" />
+      <SummaryCard label={t("purchases.reorder.avgSellThrough")} value={`${kpis.avgSellThrough}%`} icon={<Gauge className="h-4 w-4" />} tone="amber" />
       <div className="min-h-20 rounded-2xl border border-white/10 bg-zinc-950/90 p-3">
         <div className="mb-2 flex items-center gap-2 text-xs font-black text-zinc-400">
           <TrendingUp className="h-4 w-4 text-emerald-300" />
-          أسرع المنتجات حركة
+          {t("purchases.reorder.fastestProducts")}
         </div>
         <div className="grid gap-1.5 sm:grid-cols-3">
           {kpis.fastest.length ? kpis.fastest.map((item) => (
             <div key={item.suggestion_id || `${item.product_id}-${item.color}`} className="min-w-0 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
               <div className="truncate text-xs font-black text-white">{item.product_name}</div>
-              <div className="mt-1 text-[11px] font-bold text-zinc-400">{formatNumber(item.average_daily_sales, 2)} يوميا · {formatNumber(item.sell_through_percent, 1)}%</div>
+              <div className="mt-1 text-[11px] font-bold text-zinc-400">{t("purchases.reorder.dailyVelocity", { daily: formatNumber(item.average_daily_sales, 2, locale), percent: formatNumber(item.sell_through_percent, 1, locale) })}</div>
             </div>
-          )) : <div className="col-span-3 text-xs font-bold text-zinc-500">لا توجد حركة كافية بعد</div>}
+          )) : <div className="col-span-3 text-xs font-bold text-zinc-500">{t("purchases.reorder.noVelocityYet")}</div>}
         </div>
       </div>
     </div>
@@ -283,7 +280,8 @@ function FilterSelect({ label, value, onChange, options, labels = {} }) {
   );
 }
 
-function SuggestionCard({ item, creating, onCreateDraft }) {
+function SuggestionCard({ item, creating, onCreateDraft, locale }) {
+  const { t } = useTranslation();
   const sizes = Object.entries(item.stock_by_size || {});
   const tone = statusTone[item.status] || statusTone.WATCH;
   const sellThrough = clampPercent(item.sell_through_percent);
@@ -297,52 +295,52 @@ function SuggestionCard({ item, creating, onCreateDraft }) {
         <div className="min-w-0">
           <h3 className="truncate text-sm font-black text-white">{item.product_name}</h3>
           <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold text-zinc-400">
-            <span>{item.color || "بدون لون"}</span>
-            <span>·</span>
-            <span>{item.supplier_name || "مورد غير محدد"}</span>
+            <span>{item.color || t("purchases.reorder.noColor")}</span>
+            <span aria-hidden="true">·</span>
+            <span>{item.supplier_name || t("purchases.reorder.unspecifiedSupplier")}</span>
           </div>
           <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] font-black text-zinc-300">
             <Boxes className="h-3 w-3" />
-            كرتونة {formatNumber(item.purchase_pack_qty || 1)}
+            {t("purchases.reorder.cartonQty", { qty: formatNumber(item.purchase_pack_qty || 1, 0, locale) })}
           </div>
         </div>
       </div>
 
       <div className="min-w-0 space-y-2">
         <div className="line-clamp-2 text-xs font-bold leading-5 text-zinc-200">{item.reason}</div>
-        <SellThroughBar sellThrough={sellThrough} threshold={threshold} tone={tone} stock={item.current_stock} />
+        <SellThroughBar sellThrough={sellThrough} threshold={threshold} tone={tone} stock={item.current_stock} locale={locale} />
         <div className="flex flex-wrap gap-1.5">
           {sizes.length ? sizes.map(([size, value]) => (
-            <SizeChip key={size} size={size} value={value} slow={Array.isArray(item.slow_sizes) && item.slow_sizes.includes(size)} />
-          )) : <span className="rounded-full border border-white/10 bg-zinc-900 px-2.5 py-1 text-[11px] font-black text-zinc-400">لا توجد مقاسات</span>}
+            <SizeChip key={size} size={size} value={value} slow={Array.isArray(item.slow_sizes) && item.slow_sizes.includes(size)} locale={locale} />
+          )) : <span className="rounded-full border border-white/10 bg-zinc-900 px-2.5 py-1 text-[11px] font-black text-zinc-400">{t("purchases.reorder.noSizes")}</span>}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-zinc-400">
-          <Velocity item={item} />
-          <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">المباع {formatNumber(item.sold_qty)}</span>
-          <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">المقترح {formatNumber(suggestedQty)}</span>
+          <Velocity item={item} locale={locale} />
+          <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">{t("purchases.reorder.sold", { qty: formatNumber(item.sold_qty, 0, locale) })}</span>
+          <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">{t("purchases.reorder.suggested", { qty: formatNumber(suggestedQty, 0, locale) })}</span>
         </div>
       </div>
 
       <div className="grid content-start gap-2">
         <div className="flex flex-wrap gap-1.5">
-          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${tone.badge}`}>{statusLabels[item.status] || item.status}</span>
-          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${riskTone[item.risk_level] || riskTone.LOW}`}>خطر {item.risk_level || "LOW"}</span>
+          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${tone.badge}`}>{t(`purchases.reorder.status.${item.status}`, item.status)}</span>
+          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${riskTone[item.risk_level] || riskTone.LOW}`}>{t("purchases.reorder.risk", { level: item.risk_level || "LOW" })}</span>
         </div>
-        {item.overstock_warning ? <span className="inline-flex w-fit items-center gap-1 rounded-full border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-[11px] font-black text-rose-100"><ShieldAlert className="h-3 w-3" /> تكدس</span> : null}
+        {item.overstock_warning ? <span className="inline-flex w-fit items-center gap-1 rounded-full border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-[11px] font-black text-rose-100"><ShieldAlert className="h-3 w-3" /> {t("purchases.reorder.overstock")}</span> : null}
         <div className="grid grid-cols-3 gap-1.5">
-          <MiniStat label="مخزون" value={item.current_stock} />
-          <MiniStat label="بيع" value={item.sold_qty} />
-          <MiniStat label="%" value={sellThrough} />
+          <MiniStat label={t("purchases.reorder.stock")} value={item.current_stock} locale={locale} />
+          <MiniStat label={t("purchases.reorder.sales")} value={item.sold_qty} locale={locale} />
+          <MiniStat label="%" value={sellThrough} locale={locale} />
         </div>
         <button
           type="button"
           onClick={onCreateDraft}
           disabled={creating || suggestedQty <= 0 || item.status === "DO_NOT_BUY"}
           className="mt-1 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 text-xs font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-45"
-          title={suggestedQty <= 0 || item.status === "DO_NOT_BUY" ? "لا توجد كمية شراء مقترحة" : "إنشاء مسودة شراء"}
+          title={suggestedQty <= 0 || item.status === "DO_NOT_BUY" ? t("purchases.reorder.noSuggestedQty") : t("purchases.reorder.createDraft")}
         >
           <ShoppingBag className="h-4 w-4" />
-          {creating ? "جار الإنشاء..." : "إنشاء فاتورة شراء"}
+          {creating ? t("purchases.reorder.creating") : t("purchases.reorder.createPurchaseInvoice")}
           <ChevronLeft className="h-4 w-4" />
         </button>
       </div>
@@ -350,12 +348,13 @@ function SuggestionCard({ item, creating, onCreateDraft }) {
   );
 }
 
-function SellThroughBar({ sellThrough, threshold, tone, stock }) {
+function SellThroughBar({ sellThrough, threshold, tone, stock, locale }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-xl border border-white/10 bg-black/20 p-2">
       <div className="mb-1 flex items-center justify-between text-[11px] font-black text-zinc-400">
-        <span>Sell-through {formatNumber(sellThrough, 1)}%</span>
-        <span>المخزون {formatNumber(stock)}</span>
+        <span>{t("purchases.reorder.sellThrough", { percent: formatNumber(sellThrough, 1, locale) })}</span>
+        <span>{t("purchases.reorder.stockWithValue", { stock: formatNumber(stock, 0, locale) })}</span>
       </div>
       <div dir="ltr" className="relative h-2.5 overflow-hidden rounded-full bg-zinc-800">
         <div className={`h-full rounded-full ${tone.bar} transition-all duration-500`} style={{ width: `${sellThrough}%` }} />
@@ -363,14 +362,14 @@ function SellThroughBar({ sellThrough, threshold, tone, stock }) {
       </div>
       <div className="mt-1 flex items-center justify-between text-[10px] font-bold text-zinc-500">
         <span>0%</span>
-        <span>حد الطلب {formatNumber(threshold, 1)}%</span>
+        <span>{t("purchases.reorder.reorderPoint", { percent: formatNumber(threshold, 1, locale) })}</span>
         <span>100%</span>
       </div>
     </div>
   );
 }
 
-function SizeChip({ size, value, slow }) {
+function SizeChip({ size, value, slow, locale }) {
   const stock = Number(value?.stock || 0);
   const sold = Number(value?.sold || 0);
   const classes = stock <= 0
@@ -381,36 +380,37 @@ function SizeChip({ size, value, slow }) {
 
   return (
     <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${classes}`}>
-      {size}: {formatNumber(stock)} / {formatNumber(sold)}
+      {size}: {formatNumber(stock, 0, locale)} / {formatNumber(sold, 0, locale)}
     </span>
   );
 }
 
-function Velocity({ item }) {
+function Velocity({ item, locale }) {
+  const { t } = useTranslation();
   const hasVelocity = Number(item.average_daily_sales || 0) > 0 || Number(item.estimated_days_until_stockout || 0) > 0;
   if (!hasVelocity) {
-    return <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-zinc-500">لا توجد سرعة بيع كافية</span>;
+    return <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-zinc-500">{t("purchases.reorder.noSalesVelocity")}</span>;
   }
 
   return (
     <>
       <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-100">
         <BarChart3 className="h-3 w-3" />
-        {formatNumber(item.average_daily_sales, 2)} يوميا
+        {t("purchases.reorder.daily", { value: formatNumber(item.average_daily_sales, 2, locale) })}
       </span>
       <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2.5 py-1">
         <Timer className="h-3 w-3" />
-        نفاد خلال {formatNumber(item.estimated_days_until_stockout)} يوم
+        {t("purchases.reorder.stockoutIn", { days: formatNumber(item.estimated_days_until_stockout, 0, locale) })}
       </span>
     </>
   );
 }
 
-function MiniStat({ label, value }) {
+function MiniStat({ label, value, locale }) {
   return (
     <div className="rounded-xl border border-white/10 bg-black/20 px-2 py-1.5 text-center">
       <div className="text-[10px] font-black text-zinc-500">{label}</div>
-      <div className="text-sm font-black text-white">{formatNumber(value, 1)}</div>
+      <div className="text-sm font-black text-white">{formatNumber(value, 1, locale)}</div>
     </div>
   );
 }

@@ -59,6 +59,22 @@ function resolveAssetUrl(url) {
   return resolveProductImageUrl(url);
 }
 
+const resolveStorefrontOrigin = () => {
+  const env = typeof import.meta !== "undefined" ? import.meta.env || {} : {};
+  const configured = String(
+    env.VITE_PUBLIC_STOREFRONT_URL ||
+      env.VITE_STORE_FRONT_URL ||
+      env.VITE_STOREFRONT_URL ||
+      env.VITE_PUBLIC_FRONTEND_URL ||
+      env.VITE_PUBLIC_APP_URL ||
+      env.FRONTEND_URL ||
+      ""
+  ).trim().replace(/\/$/, "");
+  if (configured) return configured.replace(/\/shop$/i, "");
+  const win = safeWindow();
+  return win?.location?.origin ? win.location.origin.replace(/\/$/, "") : "http://localhost:5174";
+};
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const stripDigits = (value = "") => String(value).replace(/\D/g, "");
@@ -271,17 +287,25 @@ export const buildProductLabelItems = ({
 };
 
 export const getBarcodeShopQrValue = (product = {}) =>
-  product?.qr_token || product?.qrToken || "";
+  product?.slug || product?.canonical_slug || (product?.id ? String(product.id) : "");
+
+export const getBarcodeShopQrUrl = (product = {}) => {
+  const identifier = getBarcodeShopQrValue(product);
+  if (!identifier) return "";
+  return `${resolveStorefrontOrigin()}/shop/product/${String(identifier).replace(/^\/+/, "")}`;
+};
 
 export const buildBarcodeShopLabelItem = (product = null, quantity = 1) => {
   if (!product) return null;
+  const qrToken = getBarcodeShopQrValue(product);
   return {
     key: `barcode-shop:${product.id}`,
     productId: product.id,
     productName: product.name || "Unnamed product",
     brand: product.brand || "Brand",
     category: product.category || "Category",
-    qrToken: getBarcodeShopQrValue(product),
+    qrToken,
+    qrValue: getBarcodeShopQrUrl(product),
     salePrice: getLabelSalePrice(product),
     imageUrl: product.product_image_url || product.image_url || "",
     companyName: product.companyName || APP_NAME,
@@ -345,7 +369,16 @@ export const getBarcodeSvg = (value, { width = 360, height = 92, displayText = "
 export const buildBarcodePrintHtml = ({
   labels = [],
   sheetMode = "a4",
+  copy = {},
 } = {}) => {
+  const printCopy = {
+    title: "",
+    color: "",
+    size: "",
+    sku: "",
+    price: "",
+    ...copy,
+  };
   const isThermal = sheetMode === "thermal";
   const sheetClass = isThermal ? "sheet thermal" : "sheet a4";
   const labelClass = isThermal ? "label thermal" : "label a4";
@@ -379,12 +412,12 @@ export const buildBarcodePrintHtml = ({
             <div class="content">
               <h2>${item.productName}</h2>
               <div class="meta">
-                <span><strong>Color</strong> ${item.color}</span>
-                <span><strong>Size</strong> ${item.size}</span>
+                <span><strong>${printCopy.color}</strong> ${item.color}</span>
+                <span><strong>${printCopy.size}</strong> ${item.size}</span>
               </div>
               <div class="meta">
-                <span><strong>SKU</strong> ${item.sku}</span>
-                <span><strong>Price</strong> $${Number(item.salePrice || 0).toFixed(2)}</span>
+                <span><strong>${printCopy.sku}</strong> ${item.sku}</span>
+                <span><strong>${printCopy.price}</strong> $${Number(item.salePrice || 0).toFixed(2)}</span>
               </div>
               <div class="barcode">${barcodeSvg}</div>
             </div>
@@ -399,7 +432,7 @@ export const buildBarcodePrintHtml = ({
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Barcode Labels</title>
+        <title>${printCopy.title}</title>
         <style>
           :root {
             color-scheme: light;
@@ -577,6 +610,7 @@ export const openBarcodePrintWindow = ({
   sheetMode = "a4",
   companyName = APP_NAME,
   companyLogo = "LOGO",
+  copy = {},
 } = {}) => {
   const win = safeWindow();
   if (!win) return false;
@@ -590,6 +624,7 @@ export const openBarcodePrintWindow = ({
       sheetMode,
       companyName,
       companyLogo,
+      copy,
     })
   );
   popup.document.close();

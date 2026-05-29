@@ -1,3 +1,7 @@
+import { displayPublicOrderNumber } from "./publicOrderNumber";
+import { resolveInvoiceItemImageValue } from "../lib/invoiceItemImages";
+import { formatCurrency } from "../lib/currency";
+
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -28,20 +32,6 @@ const resolveRawItems = (order = {}, explicitItems = null) => {
   if (Array.isArray(order.lines)) return order.lines;
   return [];
 };
-
-const resolveItemImage = (item = {}) =>
-  firstText(
-    item.product_image,
-    item.image_url,
-    item.image,
-    item.variant_image_url,
-    item.variant_image,
-    item.thumbnail,
-    item.product?.image_url,
-    item.product?.image,
-    item.variant?.image_url,
-    item.variant?.image
-  );
 
 export const resolveInvoiceItemPrice = (item = {}, quantity = 1, fallbackLineTotal = 0) => {
   const directPrice = toNumber(item.unit_price ?? item.price ?? item.sale_price ?? item.selling_price ?? item.final_price, 0);
@@ -76,8 +66,11 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
 
     return {
       id: item.id || item.order_item_id || `${item.product_id || "item"}-${item.variant_id || index}`,
+      rawItem: item,
       productId: item.product_id || item.productId || null,
       variantId: item.variant_id || item.variantId || null,
+      product_id: item.product_id || item.productId || null,
+      variant_id: item.variant_id || item.variantId || null,
       name: firstText(item.product_name, item.name, item.title, `منتج ${index + 1}`),
       color,
       size,
@@ -85,13 +78,22 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
       unitPrice,
       lineTotal,
       sku: firstText(item.sku, item.barcode),
-      imageUrl: resolveItemImage(item),
+      image_url: item.image_url || item.imageUrl || "",
+      product_image: item.product_image || item.productImage || "",
+      variant_image: item.variant_image || item.variantImage || "",
+      product: item.product || null,
+      variant: item.variant || item.product_variant || null,
+      imageUrl: resolveInvoiceItemImageValue(item),
     };
   });
 
   const computedSubtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
   const subtotal = toNumber(order.subtotal ?? order.sub_total ?? order.totals?.subtotal, 0) || computedSubtotal;
   const grandTotal = total || Math.max(0, subtotal + shipping - discount);
+  const exchangeCredit = toNumber(order.exchange_credit_amount ?? order.exchangeCreditAmount ?? order.totals?.exchange_credit, 0);
+  const newItemsTotal = toNumber(order.new_order_total ?? order.newOrderTotal ?? order.totals?.new_items_total, 0) || grandTotal;
+  const amountPaidNow = toNumber(order.amount_due_now ?? order.amountDueNow ?? order.totals?.amount_paid_now ?? order.paid_amount, 0);
+  const exchangeMode = Boolean(order.exchange_mode || order.exchangeMode || exchangeCredit > 0);
 
   return {
     store: {
@@ -100,7 +102,7 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
       phone: firstText(order.store?.phone, order.store_phone),
       website: firstText(order.store?.website, order.website),
     },
-    invoiceNumber: firstText(order.invoice_number, order.invoiceNumber, order.order_number, order.id, "DRAFT"),
+    invoiceNumber: firstText(order.invoice_number, order.invoiceNumber, displayPublicOrderNumber(order), order.id, "DRAFT"),
     source: firstText(order.source, order.channel, options.source, "Website"),
     customer: {
       name: firstText(order.customer_name, order.customer?.name, options.customerName, "عميلنا العزيز"),
@@ -117,7 +119,14 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
       discount,
       shipping,
       grandTotal,
+      exchangeMode,
+      exchangeInvoiceNumber: firstText(order.exchange_invoice_number, order.exchangeInvoiceNumber, order.totals?.exchange_invoice_number),
+      exchangeCredit,
+      newItemsTotal,
+      amountPaidNow,
+      remainingCustomerCredit: Math.max(0, exchangeCredit - newItemsTotal),
     },
+    currency: firstText(options.currency, order.currency, order.currency_code, order.store?.currency),
     publicUrl: firstText(order.public_invoice_url, order.invoice_public_url, order.public_invoice_short_url, order.short_invoice_url, options.publicUrl),
   };
 };
@@ -126,10 +135,11 @@ export const buildOrderInvoiceWhatsappText = (orderOrInvoice = {}, explicitItems
   const invoice = orderOrInvoice.items?.[0]?.lineTotal !== undefined
     ? orderOrInvoice
     : normalizeOrderInvoiceData(orderOrInvoice, explicitItems, options);
+  const money = (value) => formatCurrency(value, invoice.currency ? { code: invoice.currency } : {});
   const lines = [
     `*${invoice.store?.name || "Tiger Store"}*`,
     "فاتورة طلب",
-    `رقم الفاتورة: ${invoice.invoiceNumber || "n/a"}`,
+    `رقم الطلب: ${invoice.invoiceNumber || "n/a"}`,
     `المصدر: ${invoice.source || "Website"}`,
     `العميل: ${invoice.customer?.name || "عميلنا العزيز"}`,
     invoice.customer?.phone ? `الموبايل: ${invoice.customer.phone}` : "",
@@ -139,13 +149,13 @@ export const buildOrderInvoiceWhatsappText = (orderOrInvoice = {}, explicitItems
     "المنتجات:",
     ...invoice.items.map((item) => {
       const variant = [item.color, item.size].filter(Boolean).join(" / ");
-      return `- ${item.name}${variant ? ` (${variant})` : ""} × ${item.quantity} = ${item.lineTotal.toFixed(2)} EGP`;
+      return `- ${item.name}${variant ? ` (${variant})` : ""} × ${item.quantity} = ${money(item.lineTotal)}`;
     }),
     "",
-    `المجموع: ${Number(invoice.totals?.subtotal || 0).toFixed(2)} EGP`,
-    `الخصم: ${Number(invoice.totals?.discount || 0).toFixed(2)} EGP`,
-    `الشحن: ${Number(invoice.totals?.shipping || 0).toFixed(2)} EGP`,
-    `الإجمالي: ${Number(invoice.totals?.grandTotal || 0).toFixed(2)} EGP`,
+    `المجموع: ${money(invoice.totals?.subtotal)}`,
+    `الخصم: ${money(invoice.totals?.discount)}`,
+    `الشحن: ${money(invoice.totals?.shipping)}`,
+    `الإجمالي: ${money(invoice.totals?.grandTotal)}`,
   ].filter(Boolean);
 
   if (invoice.publicUrl) {

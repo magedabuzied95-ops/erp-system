@@ -292,6 +292,26 @@ export const makeUniqueSku = (sku = "", used = new Set()) => {
   return candidate;
 };
 
+export const collectSkuValues = (rows = [], { excludeProductId = "" } = {}) => {
+  const excludedId = String(excludeProductId || "").trim();
+  const values = new Set();
+  const addSku = (value) => {
+    const sku = String(value || "").trim().toUpperCase();
+    if (sku) values.add(sku);
+  };
+
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const productId = String(row?.product_id ?? row?.productId ?? row?.id ?? "").trim();
+    if (excludedId && productId === excludedId) return;
+    addSku(row?.product_sku ?? row?.sku);
+    (Array.isArray(row?.variants) ? row.variants : []).forEach((variant) => {
+      addSku(variant?.sku ?? variant?.variant_sku);
+    });
+  });
+
+  return values;
+};
+
 export const buildVariantSku = ({ prefix = "", color = "", size = "", sequence = "", usedSkus } = {}) => {
   const cleanPrefix = String(prefix || "PRD")
     .toUpperCase()
@@ -355,7 +375,14 @@ export const saveUnits = (items) =>
 export const mergeProductRecord = (product, variant = null) => {
   const meta = getProductMeta(product.id) || {};
   const mergedVariant = variant || {};
-  const status = String(meta.status || product.status || "active").toLowerCase();
+  const hasVariant = Boolean(variant);
+  const status = String(product.status || meta.status || "active").toLowerCase();
+  const active =
+    product.is_active === false || product.active === false
+      ? false
+      : product.is_active === true || product.active === true
+        ? true
+        : meta.active ?? (status !== "inactive" && status !== "archived");
 
   return {
     ...product,
@@ -373,15 +400,18 @@ export const mergeProductRecord = (product, variant = null) => {
       "",
     barcode: mergedVariant.barcode ?? meta.barcode ?? meta.sku ?? "",
     sku: mergedVariant.sku ?? meta.sku ?? generateSku(product.name, product.id),
-    stock: mergedVariant.stock ?? meta.stock ?? product.stock ?? 0,
-    cost_price: mergedVariant.cost_price ?? meta.cost_price ?? 0,
-    sale_price: mergedVariant.sale_price ?? meta.sale_price ?? mergedVariant.price ?? 0,
-    wholesale_price: mergedVariant.wholesale_price ?? meta.wholesale_price ?? 0,
+    stock: hasVariant ? mergedVariant.stock ?? meta.stock ?? product.stock ?? 0 : product.stock ?? meta.stock ?? 0,
+    cost_price: hasVariant ? mergedVariant.cost_price ?? meta.cost_price ?? product.cost_price ?? 0 : product.cost_price ?? meta.cost_price ?? 0,
+    selling_price: hasVariant ? mergedVariant.selling_price ?? mergedVariant.regular_price ?? mergedVariant.price ?? meta.selling_price ?? product.selling_price ?? product.regular_price ?? product.price ?? 0 : product.selling_price ?? product.regular_price ?? product.price ?? meta.selling_price ?? 0,
+    regular_price: hasVariant ? mergedVariant.selling_price ?? mergedVariant.regular_price ?? mergedVariant.price ?? meta.regular_price ?? product.regular_price ?? product.price ?? 0 : product.selling_price ?? product.regular_price ?? product.price ?? meta.regular_price ?? 0,
+    price: hasVariant ? mergedVariant.selling_price ?? mergedVariant.regular_price ?? mergedVariant.price ?? meta.price ?? product.price ?? product.regular_price ?? 0 : product.selling_price ?? product.regular_price ?? product.price ?? meta.price ?? 0,
+    sale_price: hasVariant ? mergedVariant.sale_price ?? meta.sale_price ?? product.sale_price ?? 0 : product.sale_price ?? meta.sale_price ?? 0,
+    wholesale_price: hasVariant ? mergedVariant.wholesale_price ?? meta.wholesale_price ?? product.wholesale_price ?? 0 : product.wholesale_price ?? meta.wholesale_price ?? 0,
     category: meta.category || product.category || "Uncategorized",
     brand: meta.brand || product.brand || "Unbranded",
     image_url: mergedVariant.image_url || meta.image_url || product.image_url || "",
     status,
-    active: meta.active ?? (status !== "inactive" && status !== "archived"),
+    active,
     low_stock_threshold: meta.low_stock_threshold ?? 10,
     tax_rate: meta.tax_rate ?? 0,
     barcode_label: meta.barcode_label || mergedVariant.barcode || "",

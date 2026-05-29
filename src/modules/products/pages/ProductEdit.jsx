@@ -27,6 +27,7 @@ import ImageThumbnailActions from "../components/ImageThumbnailActions";
 import {
   buildSmartSkuPrefix,
   buildVariantSku,
+  collectSkuValues,
   makeUniqueSku,
   resolveBrandPayload,
   resolveBrandSelection,
@@ -34,24 +35,24 @@ import {
   resolveCategorySelection,
   resolveUnitPayload,
   resolveUnitSelection,
+  cleanupProductCache,
   seedBrands,
   seedCategories,
   seedUnits,
   upsertProductMeta,
 } from "../lib/catalog";
 import {
-  applyBulkPriceToGroups,
   applyBulkSizesToGroups,
   applyBulkStockToGroups,
   createVariantRow,
   isPlaceholderVariantRow,
-  parseBulkPrice,
   parseBulkSizes,
   parseBulkStock,
 } from "../lib/variantBulkSizes";
 import { dedupeImages } from "../lib/dedupeImages";
 import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from "../../../shared/utils/colorNameFromImage";
 import {
+  generateProductDescription,
   generateAiProductData,
   getManufacturers,
   getProductsWithVariants,
@@ -63,6 +64,7 @@ import {
 import { isMirrorProduct, slugifyEdition } from "../../../shared/lib/mirrorProduct";
 import { isInvalidEditionName } from "../../../shared/lib/editionNameGenerator";
 import { safeGenerateProductDescriptions } from "../../../shared/lib/generateProductDescriptions";
+import { formatCurrency } from "../../../shared/lib/currency";
 
 const emptyProduct = {
   name: "",
@@ -77,14 +79,29 @@ const emptyProduct = {
   canonical_slug: "",
   sku: "",
   barcode: "",
+  regular_price: "",
   price: "",
+  cost_price: "",
+  sale_price: "",
+  sale_price_enabled: false,
+  wholesale_price: "",
+  last_purchase_pricing_at: "",
+  sale_reason: "",
+  sale_start_at: "",
+  sale_end_at: "",
+  use_custom_compare_price: false,
+  custom_compare_price: "",
   status: "active",
   gender: "",
+  audiences: [],
+  product_audiences: [],
   product_type: "",
   style: "",
   grade: "",
   variation_mode: "full_variations",
   fixed_size_label: "One Size",
+  low_stock_threshold: "",
+  low_stock_alert: "",
 };
 
 const resolveAssetUrl = (url) => {
@@ -122,6 +139,18 @@ const createEmptyColorGroup = (defaults = {}) => ({
   color: formatFieldValue(defaults.color),
   manufacturer_id: formatFieldValue(defaults.manufacturer_id),
   manufacturer_override: Boolean(defaults.manufacturer_override),
+  article_code: formatFieldValue(defaults.article_code ?? defaults.articleCode ?? defaults.variant_article_code),
+  planned_qty: formatFieldValue(
+    defaults.default_purchase_qty ??
+      defaults.purchase_qty ??
+      defaults.purchase_quantity ??
+      defaults.planned_qty ??
+      defaults.planned_quantity ??
+      defaults.stock_qty ??
+      defaults.stockQty ??
+      defaults.quantity ??
+      defaults.bulk_purchase_qty
+  ),
   edition_name: formatFieldValue(defaults.edition_name),
   edition_slug: formatFieldValue(defaults.edition_slug || slugifyEdition(defaults.edition_name || "")),
   imagePreview: formatFieldValue(defaults.imagePreview),
@@ -195,30 +224,6 @@ const getGroupSizeCount = (group) => {
   }).length;
 };
 
-const getGroupStockTotal = (group) => {
-  if (!group) return 0;
-
-  const sizes =
-    group.sizes ||
-    group.sizeVariants ||
-    group.variants ||
-    [];
-
-  if (!Array.isArray(sizes)) return 0;
-
-  return sizes.reduce((total, size) => {
-    const qty = Number(
-      size?.quantity ??
-      size?.stock ??
-      size?.stock_quantity ??
-      size?.inventory_quantity ??
-      0
-    );
-
-    return total + (Number.isFinite(qty) ? qty : 0);
-  }, 0);
-};
-
 const normalizeColorKey = (value = "") => String(value || "default").trim().toLowerCase() || "default";
 
 const normalizeManufacturerId = (value = "") => String(value || "").trim();
@@ -227,6 +232,32 @@ const getDefaultManufacturerName = (manufacturers = [], defaultManufacturerId = 
   manufacturers.find((item) => String(item.id) === String(defaultManufacturerId))?.name || "";
 
 const SEO_PANEL_STATE_KEY = "erp.products.seoPanelOpen";
+
+const normalizeAudienceValue = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["men", "man", "male"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls"].includes(normalized)) return "kids";
+  return "";
+};
+
+const normalizeProductAudiences = (...sources) => {
+  const seen = new Set();
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value === null || value === undefined) return;
+    String(value)
+      .split(/[,\n|]+/)
+      .map(normalizeAudienceValue)
+      .filter(Boolean)
+      .forEach((audience) => seen.add(audience));
+  };
+  sources.forEach(visit);
+  return ["men", "women", "kids"].filter((audience) => seen.has(audience));
+};
 
 const normalizeProductForm = (row = {}) => ({
   name: row.name || "",
@@ -243,14 +274,31 @@ const normalizeProductForm = (row = {}) => ({
   seo_description: row.seo_description || "",
   seo_keywords: row.seo_keywords || "",
   canonical_slug: row.canonical_slug || row.slug || "",
-  price: String(row.product_price ?? row.price ?? row.sale_price ?? ""),
+  sku: row.product_sku || row.sku || "",
+  barcode: row.product_barcode || row.barcode || "",
+  regular_price: String(row.regular_price ?? row.product_price ?? row.price ?? ""),
+  price: String(row.regular_price ?? row.product_price ?? row.price ?? ""),
+  cost_price: String(row.cost_price ?? row.purchase_price ?? row.last_purchase_cost ?? ""),
+  sale_price: String(row.sale_price ?? ""),
+  sale_price_enabled: row.sale_price_enabled === true || String(row.sale_price_enabled || "").toLowerCase() === "true",
+  wholesale_price: String(row.wholesale_price ?? ""),
+  last_purchase_pricing_at: row.last_purchase_pricing_at || row.stock_applied_at || row.updated_at || "",
+  sale_reason: row.sale_reason || "",
+  sale_start_at: row.sale_start_at ? String(row.sale_start_at).slice(0, 16) : "",
+  sale_end_at: row.sale_end_at ? String(row.sale_end_at).slice(0, 16) : "",
+  use_custom_compare_price: row.use_custom_compare_price === true || String(row.use_custom_compare_price || "").toLowerCase() === "true",
+  custom_compare_price: String(row.custom_compare_price ?? ""),
   status: String(row.status || "active").toLowerCase(),
-  gender: row.gender || "",
+  gender: row.gender || (Array.isArray(row.audiences) ? row.audiences[0] : "") || "",
+  audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
+  product_audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
   product_type: row.product_type || "",
   style: row.style || "",
   grade: row.grade || "",
   variation_mode: row.variation_mode || "full_variations",
   fixed_size_label: row.fixed_size_label || "One Size",
+  low_stock_threshold: String(row.low_stock_threshold ?? row.low_stock_alert ?? ""),
+  low_stock_alert: String(row.low_stock_alert ?? row.low_stock_threshold ?? ""),
 });
 
 const normalizeGalleryImages = (value) => {
@@ -313,6 +361,8 @@ const isVariantLikeRow = (row = {}) =>
   hasValue(row.size) ||
   hasValue(row.variant_stock) ||
   hasValue(row.variant_sku) ||
+  hasValue(row.variant_article_code) ||
+  hasValue(row.article_code) ||
   hasValue(row.variant_barcode) ||
   hasValue(row.variant_image_url) ||
   hasValue(row.color_image_url);
@@ -321,10 +371,26 @@ const normalizeVariantForm = (row = {}) => ({
   variantId: getVariantRowId(row),
   color: row.color || "Default",
   size: row.size || "One size",
-  stock: String(row.default_purchase_qty ?? row.variant_default_purchase_qty ?? ""),
+  stock: String(
+    row.default_purchase_qty ??
+      row.purchase_qty ??
+      row.purchase_quantity ??
+      row.planned_qty ??
+      row.planned_quantity ??
+      row.stock_qty ??
+      row.stockQty ??
+      row.quantity ??
+      row.bulk_purchase_qty ??
+      ""
+  ),
   available_stock: String(row.stock ?? row.variant_stock ?? 0),
   price: String(row.price ?? row.sale_price ?? row.variant_sale_price ?? 0),
+  sale_price: String(row.sale_price ?? row.variant_sale_price ?? 0),
+  sale_price_enabled: row.sale_price_enabled === true || String(row.sale_price_enabled || "").toLowerCase() === "true",
+  wholesale_price: String(row.wholesale_price ?? row.variant_wholesale_price ?? 0),
+  cost_price: String(row.cost_price ?? row.purchase_price ?? row.last_purchase_cost ?? 0),
   sku: row.sku || row.variant_sku || "",
+  article_code: row.article_code || row.variant_article_code || "",
   barcode: row.barcode || row.variant_barcode || "",
   image_url: row.variant_image_url || row.color_image_url || row.image_url || "",
   variant_image_url: row.variant_image_url || "",
@@ -418,9 +484,21 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
       const groupImage = groupImages.find((image) => image.is_primary)?.image_url || row.image_url || row.variant_image_url || row.color_image_url || "";
       const group = createEmptyColorGroup({
         color: row.color || "Default",
+        article_code: row.article_code || row.variant_article_code || "",
         manufacturer_id: normalizeManufacturerId(row.manufacturer_id) || normalizeManufacturerId(defaultManufacturerId),
         manufacturer_override:
           normalizeManufacturerId(row.manufacturer_id) !== normalizeManufacturerId(defaultManufacturerId),
+        planned_qty:
+          row.default_purchase_qty ??
+          row.purchase_qty ??
+          row.purchase_quantity ??
+          row.planned_qty ??
+          row.planned_quantity ??
+          row.stock_qty ??
+          row.stockQty ??
+          row.quantity ??
+          row.bulk_purchase_qty ??
+          "",
         imagePreview: resolveAssetUrl(groupImage),
         image_url: groupImage,
         images: groupImages.length > 0 ? groupImages : groupImage ? [{ preview: resolveAssetUrl(groupImage), image_url: groupImage, is_primary: true }] : [],
@@ -433,6 +511,9 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     }
 
     const group = groupedByColor.get(key);
+    if (!String(group.article_code || "").trim() && String(row.article_code || row.variant_article_code || "").trim()) {
+      group.article_code = String(row.article_code || row.variant_article_code || "").trim();
+    }
     if (!String(group.edition_name || "").trim() && String(row.edition_name || "").trim()) {
       group.edition_name = row.edition_name || "";
       group.edition_slug = row.edition_slug || slugifyEdition(row.edition_name || "");
@@ -454,6 +535,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
         stock: row.stock,
         available_stock: row.available_stock,
         sku: row.sku,
+        article_code: row.article_code,
         barcode: row.barcode,
         price: row.price,
         image_url: row.image_url || row.variant_image_url || row.color_image_url || getPrimaryColorImage(group) || "",
@@ -466,6 +548,18 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     ...group,
     manufacturer_id: normalizeManufacturerId(group.manufacturer_id) || normalizeManufacturerId(defaultManufacturerId),
     images: normalizeColorImages(group.images),
+    article_code: formatFieldValue(group.article_code),
+    planned_qty: formatFieldValue(
+      group.default_purchase_qty ??
+        group.purchase_qty ??
+        group.purchase_quantity ??
+        group.planned_qty ??
+        group.planned_quantity ??
+        group.stock_qty ??
+        group.stockQty ??
+        group.quantity ??
+        group.bulk_purchase_qty
+    ),
     sizes: group.sizes.length > 0 ? group.sizes : [createEmptySizeRow()],
   }));
 };
@@ -485,8 +579,10 @@ function ProductEdit() {
   const [error, setError] = useState("");
   const [product, setProduct] = useState(emptyProduct);
   const [skuTouched, setSkuTouched] = useState(false);
+  const [existingSkuValues, setExistingSkuValues] = useState(() => new Set());
   const [descriptionTouched, setDescriptionTouched] = useState({ ar: false, en: false });
   const [descriptionGenerating, setDescriptionGenerating] = useState({ ar: false, en: false });
+  const [descriptionTone, setDescriptionTone] = useState("");
   const [seoTouched, setSeoTouched] = useState({ title: false, description: false, keywords: false, slug: false });
   const [seoGenerating, setSeoGenerating] = useState(false);
   const [seoOpen, setSeoOpen] = useState(() => {
@@ -507,8 +603,8 @@ function ProductEdit() {
   const [expandedGroupId, setExpandedGroupId] = useState("");
   const [removedVariantIds, setRemovedVariantIds] = useState([]);
   const [bulkSizesInput, setBulkSizesInput] = useState("");
-  const [bulkPriceInput, setBulkPriceInput] = useState("");
   const [bulkStockInput, setBulkStockInput] = useState("");
+  const [bulkArticleCodeInput, setBulkArticleCodeInput] = useState("");
   const [savedVariantsCount, setSavedVariantsCount] = useState(0);
   const [variantsHydrationFailed, setVariantsHydrationFailed] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -530,7 +626,8 @@ function ProductEdit() {
       brand,
       manufacturer: getDefaultManufacturerName(manufacturers, defaultManufacturerId),
       category: childCategory || subCategory || mainCategory || product.category,
-      gender: product.gender,
+      gender: product.audiences?.[0] || product.gender,
+      audiences: product.audiences || [],
       productType: product.product_type,
       style: product.style,
       grade: product.grade,
@@ -555,7 +652,7 @@ function ProductEdit() {
         manufacturer: getDefaultManufacturerName(manufacturers, defaultManufacturerId),
         productType: product.product_type,
         category: childCategory || subCategory || mainCategory || product.category,
-        gender: product.gender,
+        gender: product.audiences?.[0] || product.gender,
         grade: product.grade,
         detectedModel: aiSuggestions.detected_model || aiSuggestions.model,
         aiText: [
@@ -587,18 +684,57 @@ function ProductEdit() {
       aiSuggestions.classification,
     ]
   );
+  const uniqueSmartSkuPrefix = useMemo(
+    () => makeUniqueSku(smartSkuPrefix, new Set(existingSkuValues)),
+    [existingSkuValues, smartSkuPrefix]
+  );
   useEffect(() => {
-    if (!loading && !skuTouched && !String(product.sku || "").trim()) {
-      setProduct((current) => ({ ...current, sku: smartSkuPrefix }));
+    if (!loading && !skuTouched) {
+      setProduct((current) => (current.sku === uniqueSmartSkuPrefix ? current : { ...current, sku: uniqueSmartSkuPrefix }));
     }
-  }, [loading, product.sku, skuTouched, smartSkuPrefix]);
+  }, [loading, skuTouched, uniqueSmartSkuPrefix]);
   const regenerateSkuPrefix = () => {
-    setProduct((current) => ({ ...current, sku: smartSkuPrefix }));
+    setProduct((current) => ({ ...current, sku: uniqueSmartSkuPrefix }));
     setSkuTouched(false);
   };
-  const regenerateDescriptions = (target = "all") => {
+  const regenerateDescriptions = async (target = "all") => {
     setDescriptionGenerating({ ar: target === "all" || target === "ar", en: target === "all" || target === "en" });
-    window.setTimeout(() => {
+    try {
+      const result = await generateProductDescription({
+        target,
+        prompt_customization: descriptionTone,
+        current: {
+          ...descriptionContext,
+          product_name: product.name,
+          description_ar: product.description_ar,
+          description_en: product.description_en,
+          selling_vibe: descriptionTone || product.style,
+        },
+      });
+      const next = {
+        description_ar: result?.arabic_description || "",
+        description_en: result?.english_description || "",
+      };
+      setProduct((prev) => {
+        const nextDescriptionAr = target === "all" || target === "ar" ? next.description_ar : prev.description_ar;
+        const nextDescriptionEn = target === "all" || target === "en" ? next.description_en : prev.description_en;
+        return {
+          ...prev,
+          description_ar: nextDescriptionAr,
+          description_en: nextDescriptionEn,
+          description: nextDescriptionEn || nextDescriptionAr || prev.description,
+          seo_description: prev.seo_description || nextDescriptionEn || nextDescriptionAr,
+        };
+      });
+      if (target === "all") setDescriptionTouched({ ar: false, en: false });
+      else setDescriptionTouched((current) => ({ ...current, [target]: false }));
+      if (result?.source === "OPENAI") {
+        toast.success(t("products.editor.aiDescriptionsGenerated"));
+      } else {
+        toast("OpenAI unavailable. Local description fallback applied.");
+      }
+    } catch (error) {
+      console.error(error);
       const next = safeGenerateProductDescriptions(descriptionContext);
       setProduct((prev) => {
         const nextDescriptionAr = target === "all" || target === "ar" ? next.description_ar : prev.description_ar;
@@ -613,8 +749,10 @@ function ProductEdit() {
       });
       if (target === "all") setDescriptionTouched({ ar: false, en: false });
       else setDescriptionTouched((current) => ({ ...current, [target]: false }));
+      toast.error(error?.message || "Description generation failed");
+    } finally {
       setDescriptionGenerating({ ar: false, en: false });
-    }, 180);
+    }
   };
   const regenerateSeoMetadata = () => {
     setSeoGenerating(true);
@@ -716,7 +854,7 @@ function ProductEdit() {
 
   const confirmLeaveIfDirty = (event) => {
     if (!hasUnsavedChanges || saving) return;
-    const shouldLeave = window.confirm("You have unsaved product changes. Leave without saving?");
+    const shouldLeave = window.confirm(t("products.editor.confirmLeaveUnsaved"));
     if (!shouldLeave) {
       event.preventDefault();
     }
@@ -761,6 +899,8 @@ function ProductEdit() {
 
         const rows = await getProductsWithVariants();
         const allRows = Array.isArray(rows) ? rows : [];
+        const loadedExistingSkus = collectSkuValues(allRows, { excludeProductId: productId });
+        if (active) setExistingSkuValues(loadedExistingSkus);
 
         const productRows = allRows.filter((row) => {
           const hasProductReference = hasValue(row?.product_id) || hasValue(row?.productId) || hasValue(row?.product?.id);
@@ -811,6 +951,23 @@ function ProductEdit() {
 
         console.log("[edit-product] raw saved variants count", rawSavedVariants.length);
         const normalizedProduct = normalizeProductForm(firstRow);
+        const loadedSmartSkuPrefix = buildSmartSkuPrefix({
+          name: normalizedProduct.name,
+          brand: hydratedBrand.brand || firstRow.brand,
+          productType: normalizedProduct.product_type,
+          category: hydratedCategory.childCategory || hydratedCategory.subCategory || hydratedCategory.mainCategory || normalizedProduct.category,
+          gender: normalizedProduct.audiences?.[0] || normalizedProduct.gender,
+          grade: normalizedProduct.grade,
+        });
+        const loadedUniqueSkuPrefix = makeUniqueSku(loadedSmartSkuPrefix, new Set(loadedExistingSkus));
+        const loadedProductSku = String(normalizedProduct.sku || "").trim().toUpperCase();
+        const loadedSkuIsAuto =
+          !loadedProductSku ||
+          loadedProductSku === loadedSmartSkuPrefix ||
+          loadedProductSku === loadedUniqueSkuPrefix ||
+          /^-[0-9]+$/.test(loadedProductSku.slice(loadedSmartSkuPrefix.length));
+        setSkuTouched(!loadedSkuIsAuto);
+        normalizedProduct.sku = loadedProductSku || loadedUniqueSkuPrefix;
         const loadedVariantRows = rawSavedVariants;
         const variantRows = loadedVariantRows.map(normalizeVariantForm).filter((row) => row.variantId);
         setSavedVariantsCount(variantRows.length);
@@ -858,8 +1015,26 @@ function ProductEdit() {
         const mappedColorGroups = removeHydrationPlaceholders(
           buildColorGroupsFromVariants(variantRows, resolvedDefaultManufacturerId)
         );
-        const hydratedRows = mappedColorGroups.reduce((sum, group) => sum + group.sizes.filter((row) => row.variantId).length, 0);
-        console.log("[edit-product] hydrated color groups", mappedColorGroups);
+        const variantSkuSeeds = new Set(loadedExistingSkus);
+        const skuAwareColorGroups = mappedColorGroups.map((group) => ({
+          ...group,
+          sizes: group.sizes.map((row) => {
+            const expectedSku = buildVariantSku({
+              prefix: loadedProductSku || loadedUniqueSkuPrefix,
+              color: group.color,
+              size: normalizedProduct.variation_mode === "color_only" ? normalizedProduct.fixed_size_label || "One Size" : row.size,
+              usedSkus: variantSkuSeeds,
+            });
+            const rowSku = String(row.sku || "").trim().toUpperCase();
+            return {
+              ...row,
+              sku: rowSku || expectedSku,
+              skuManualOverride: Boolean(rowSku && rowSku !== expectedSku),
+            };
+          }),
+        }));
+        const hydratedRows = skuAwareColorGroups.reduce((sum, group) => sum + group.sizes.filter((row) => row.variantId).length, 0);
+        console.log("[edit-product] hydrated color groups", skuAwareColorGroups);
         console.log("[edit-product] hydrated size rows count", hydratedRows);
 
         if (variantRows.length > 0 && hydratedRows !== variantRows.length) {
@@ -867,7 +1042,7 @@ function ProductEdit() {
             productId,
             expected: variantRows.length,
             hydratedRows,
-            mappedColorGroups,
+            mappedColorGroups: skuAwareColorGroups,
           });
           setVariantsHydrationFailed(true);
         setError(t("products.editor.variantsFailed"));
@@ -877,14 +1052,14 @@ function ProductEdit() {
 
         console.log("[edit-product] loaded product", firstRow);
         console.log("[edit-product] loaded variants", variantRows);
-        console.log("[edit-product] hydrated color image", mappedColorGroups.map((group) => ({
+        console.log("[edit-product] hydrated color image", skuAwareColorGroups.map((group) => ({
           color: group.color,
           image_url: group.image_url,
           rowImages: group.sizes.map((row) => ({ size: row.size, image_url: row.image_url })),
         })));
-        console.log("[edit-product] hydrated groups", mappedColorGroups);
-        console.log("[edit-product] mapped color groups", mappedColorGroups);
-        mappedColorGroups.forEach((group) => {
+        console.log("[edit-product] hydrated groups", skuAwareColorGroups);
+        console.log("[edit-product] mapped color groups", skuAwareColorGroups);
+        skuAwareColorGroups.forEach((group) => {
           const primaryImage = getPrimaryColorImage(group);
           if (primaryImage) {
             colorImageUrlsRef.current.set(group.id, primaryImage);
@@ -901,8 +1076,8 @@ function ProductEdit() {
         setCoverLabel(firstRow.product_image_url || firstRow.image_url ? t("products.editor.currentProductImage") : "");
         setGallery(normalizeGalleryImages(firstRow.gallery_images));
         setDefaultManufacturerId(resolvedDefaultManufacturerId);
-        setColorGroups(mappedColorGroups);
-        setExpandedGroupId(mappedColorGroups[0]?.id || "");
+        setColorGroups(skuAwareColorGroups);
+        setExpandedGroupId(skuAwareColorGroups[0]?.id || "");
       } catch (err) {
         console.log(err);
         if (!active) return;
@@ -945,10 +1120,10 @@ function ProductEdit() {
   };
 
   const getEditionSuggestionInput = (group = {}) => ({
-    image_url: normalizeColorImages(group.images)
+    image_url: (normalizeColorImages(group.images)
       .map((image) => image.image_url || image.preview)
       .filter((image) => /^https?:\/\//i.test(String(image || "")))
-      [0] || "",
+      .at(0)) || "",
     product_name: product.name,
     brand,
     manufacturer: getManufacturerPayload(group.manufacturer_id).manufacturer_name || "",
@@ -978,6 +1153,82 @@ function ProductEdit() {
     };
   };
 
+  const getGroupPlannedQty = (group) => {
+    const values = [
+      group?.default_purchase_qty,
+      group?.purchase_qty,
+      group?.purchase_quantity,
+      group?.planned_qty,
+      group?.planned_quantity,
+      group?.stock_qty,
+      group?.stockQty,
+      group?.quantity,
+      group?.bulk_purchase_qty,
+    ];
+    let sawZero = false;
+    for (const value of values) {
+      const text = String(value ?? "").trim();
+      if (!text) continue;
+      const parsed = Number(text);
+      if (Number.isFinite(parsed) && parsed > 0) return String(parsed);
+      if (Number.isFinite(parsed) && parsed === 0) sawZero = true;
+    }
+    return sawZero ? "0" : "";
+  };
+
+  const getVariantPurchaseQty = (row = {}, group = {}) => {
+    const values = [
+      row.default_purchase_qty,
+      row.purchase_qty,
+      row.purchase_quantity,
+      row.planned_qty,
+      row.planned_quantity,
+      row.stock_qty,
+      row.stockQty,
+      row.quantity,
+      row.bulk_purchase_qty,
+      row.stock,
+    ];
+    for (const value of values) {
+      const parsed = Number(value || 0);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return 0;
+  };
+
+  const buildAutoVariantGroups = (groups, prefix = product.sku || uniqueSmartSkuPrefix) => {
+    if (isSimpleMode) return groups;
+    const usedSkus = new Set(existingSkuValues);
+    return groups.map((group) => {
+      const groupColor = String(group.color || "").trim();
+      return {
+        ...group,
+        sizes: (Array.isArray(group.sizes) ? group.sizes : []).map((row) => {
+          if (row.skuManualOverride) {
+            if (String(row.sku || "").trim()) makeUniqueSku(String(row.sku || "").trim().toUpperCase(), usedSkus);
+            return row;
+          }
+          const size = isColorOnlyMode
+            ? String(product.fixed_size_label || "One Size").trim() || "One Size"
+            : String(row.size || "").trim();
+          const sku = groupColor && size ? buildVariantSku({ prefix, color: groupColor, size, usedSkus }) : "";
+          return row.sku === sku && row.skuManualOverride === false ? row : { ...row, sku, skuManualOverride: false };
+        }),
+      };
+    });
+  };
+
+  useEffect(() => {
+    if (loading) return;
+    setColorGroups((prev) => {
+      const next = buildAutoVariantGroups(prev);
+      return JSON.stringify(next.map((group) => group.sizes.map((row) => [row.id, row.sku, row.skuManualOverride]))) ===
+        JSON.stringify(prev.map((group) => group.sizes.map((row) => [row.id, row.sku, row.skuManualOverride])))
+        ? prev
+        : next;
+    });
+  }, [existingSkuValues, isColorOnlyMode, isSimpleMode, loading, product.fixed_size_label, product.sku, uniqueSmartSkuPrefix]);
+
   const getGroupManufacturerSummary = (group) => {
     const manufacturerId = normalizeManufacturerId(group?.manufacturer_id);
     if (!manufacturerId) return "No manufacturer selected";
@@ -987,24 +1238,26 @@ function ProductEdit() {
 
   const updateColorGroup = (groupId, field, value) => {
     setColorGroups((prev) =>
-      prev.map((group) =>
-      group.id === groupId
-          ? {
-              ...group,
-              [field]: value,
-              ...(field === "edition_name"
-                ? {
-                    edition_slug: slugifyEdition(value),
-                  }
-                : {}),
-              ...(field === "manufacturer_id"
-                ? {
-                    manufacturer_override:
-                      normalizeManufacturerId(value) !== normalizeManufacturerId(defaultManufacturerId),
-                  }
-                : {}),
-            }
-          : group
+      buildAutoVariantGroups(
+        prev.map((group) =>
+        group.id === groupId
+            ? {
+                ...group,
+                [field]: value,
+                ...(field === "edition_name"
+                  ? {
+                      edition_slug: slugifyEdition(value),
+                    }
+                  : {}),
+                ...(field === "manufacturer_id"
+                  ? {
+                      manufacturer_override:
+                        normalizeManufacturerId(value) !== normalizeManufacturerId(defaultManufacturerId),
+                    }
+                  : {}),
+              }
+            : group
+        )
       )
     );
   };
@@ -1063,7 +1316,7 @@ function ProductEdit() {
         [group.id]: {
           status: "error",
           suggestion: null,
-          error: error?.message || "No trusted match found",
+          error: error?.message || t("products.editor.noTrustedMatch"),
         },
       }));
     }
@@ -1180,7 +1433,7 @@ function ProductEdit() {
       }
       return next;
     });
-    toast.success("Image removed");
+    toast.success(t("products.images.removed"));
   };
 
   const moveColorImage = (groupId, imageId, direction) => {
@@ -1226,7 +1479,7 @@ function ProductEdit() {
             status: uploadError?.status,
             responseBody: uploadError?.responseBody,
           });
-          toast.error("Color image upload failed. Preview kept locally.");
+          toast.error(t("products.editor.colorImageUploadFailed"));
           return { preview, image_url: "", name: file?.name || `Color image ${index + 1}` };
         });
 
@@ -1307,17 +1560,24 @@ function ProductEdit() {
     console.log("[bulk-sizes] target", targetGroupId ? { groupId: targetGroupId } : "all colors");
 
     if (!String(bulkSizesInput || "").trim()) {
-      toast.error("Enter sizes first");
+      toast.error(t("products.editor.enterSizesFirst"));
       return;
     }
 
     if (sizes.length === 0) {
-      toast.error("No valid sizes found");
+      toast.error(t("products.editor.noValidSizes"));
+      return;
+    }
+
+    const hasTargetColor = (group) =>
+      (!targetGroupId || group.id === targetGroupId) && String(group.color || "").trim();
+    if (!colorGroups.some(hasTargetColor)) {
+      toast.error(t("products.editor.addColorBeforeBulkSizes"));
       return;
     }
 
     const { groups: updatedGroups, addedCount, removedPlaceholderCount } = applyBulkSizesToGroups({
-      groups: colorGroups,
+      groups: colorGroups.map((group) => (hasTargetColor(group) ? group : { ...group, __skipBulkSizes: true })),
       sizes,
       targetGroupId,
       price: product.price || 0,
@@ -1330,40 +1590,13 @@ function ProductEdit() {
       return;
     }
 
-    setColorGroups(updatedGroups);
+    setColorGroups(buildAutoVariantGroups(updatedGroups));
     if (addedCount === 0) {
       toast("All sizes already exist");
       return;
     }
 
-    toast.success("Sizes added successfully");
-  };
-
-  const applyBulkPrice = (targetGroupId = null) => {
-    const parsedPrice = parseBulkPrice(bulkPriceInput);
-    console.log("[bulk-price] raw input", bulkPriceInput);
-    console.log("[bulk-price] parsed price", parsedPrice);
-    console.log("[bulk-price] target", targetGroupId ? { groupId: targetGroupId } : "all colors");
-
-    if (!String(bulkPriceInput || "").trim()) {
-      toast.error(t("products.editor.enterPrice"));
-      return;
-    }
-
-    if (parsedPrice === null) {
-      toast.error(t("products.editor.enterValidPrice"));
-      return;
-    }
-
-    const { groups: updatedGroups } = applyBulkPriceToGroups({
-      groups: colorGroups,
-      price: parsedPrice,
-      targetGroupId,
-    });
-
-    console.log("[bulk-price] updated groups", updatedGroups);
-    setColorGroups(updatedGroups);
-    toast.success(t("products.editor.priceApplied"));
+    toast.success(t("products.editor.sizesAdded"));
   };
 
   const applyBulkStock = (targetGroupId = null) => {
@@ -1382,15 +1615,68 @@ function ProductEdit() {
       return;
     }
 
-    const { groups: updatedGroups } = applyBulkStockToGroups({
-      groups: colorGroups,
+    const hasTargetColor = (group) =>
+      (!targetGroupId || group.id === targetGroupId) && String(group.color || "").trim();
+    if (!colorGroups.some(hasTargetColor)) {
+      toast.error(t("products.editor.addColorBeforeBulkStock"));
+      return;
+    }
+
+    const { groups: updatedGroups, changedCount } = applyBulkStockToGroups({
+      groups: colorGroups.map((group) => (hasTargetColor(group) ? group : { ...group, __skipBulkStock: true })),
       stock: parsedStock,
       targetGroupId,
     });
 
     console.log("[bulk-stock] updated groups", updatedGroups);
     setColorGroups(updatedGroups);
-    toast.success(t("products.editor.stockApplied"));
+    toast.success(changedCount > 0 ? `Stock applied to ${changedCount} row(s)` : "No size rows to update");
+  };
+
+  const applyBulkArticleCode = (targetGroupId = null, overwrite = false) => {
+    const articleCode = String(bulkArticleCodeInput || "").trim();
+    if (!articleCode) {
+      toast.error(t("products.editor.enterArticleCode", "Enter an article code first"));
+      return;
+    }
+
+    const hasTargetColor = (group) =>
+      (!targetGroupId || group.id === targetGroupId) && String(group.color || "").trim();
+    const targetGroups = colorGroups.filter(hasTargetColor);
+    if (targetGroups.length === 0) {
+      toast.error(t("products.editor.addColorBeforeBulkArticle", "Add a color before applying article codes"));
+      return;
+    }
+
+    const hasExistingArticle = targetGroups.some((group) =>
+      String(group.article_code || "").trim() ||
+      (group.sizes || []).some((row) => String(row.article_code || "").trim())
+    );
+    if (hasExistingArticle && !overwrite) {
+      const confirmed = window.confirm(t("products.editor.confirmOverwriteArticleCodes", "Some variants already have article codes. Overwrite them?"));
+      if (!confirmed) return;
+    }
+
+    let changedCount = 0;
+    setColorGroups((prev) =>
+      prev.map((group) => {
+        if (!hasTargetColor(group)) return group;
+        const shouldSetGroup = overwrite || !String(group.article_code || "").trim();
+        const nextSizes = (group.sizes || []).map((row) => {
+          const shouldSetRow = overwrite || !String(row.article_code || "").trim();
+          if (!shouldSetRow) return row;
+          changedCount += 1;
+          return { ...row, article_code: articleCode };
+        });
+        if (shouldSetGroup) changedCount += 1;
+        return {
+          ...group,
+          article_code: shouldSetGroup ? articleCode : group.article_code,
+          sizes: nextSizes,
+        };
+      })
+    );
+    toast.success(changedCount > 0 ? t("products.editor.articleCodeApplied", "Article code applied") : t("products.editor.noArticleCodesUpdated", "No article codes updated"));
   };
 
   const handleCover = async (event) => {
@@ -1422,7 +1708,7 @@ function ProductEdit() {
 
   const handleGenerateAiProductData = async () => {
     if (!coverImage) {
-      toast.error("Upload the main product image first");
+      toast.error(t("products.editor.uploadMainImageFirst"));
       return;
     }
 
@@ -1439,7 +1725,7 @@ function ProductEdit() {
       if (result?.source === "TEXT_FALLBACK") {
         toast("Vision AI unavailable. Text generator suggestions are ready.");
       } else {
-        toast.success("AI product suggestions are ready");
+        toast.success(t("products.editor.aiProductSuggestionsReady"));
       }
     } catch (error) {
       console.error(error);
@@ -1459,7 +1745,7 @@ function ProductEdit() {
           suggested_category: childCategory || subCategory || mainCategory || product.category,
           suggested_style: product.style,
           suggested_product_type: product.product_type,
-          gender: product.gender,
+          gender: product.audiences?.[0] || product.gender,
           grade: product.grade,
           dominant_colors: colorGroups.map((group) => group.color).filter(Boolean),
           detection_confidence: {
@@ -1469,7 +1755,7 @@ function ProductEdit() {
           },
         },
       });
-      toast.error("AI failed. Text generator fallback is available.");
+      toast.error(t("products.editor.aiFailedFallback"));
     } finally {
       timers.forEach((timer) => window.clearTimeout(timer));
       setAiProductProgress(AI_PROGRESS_STEPS[0]);
@@ -1510,7 +1796,15 @@ function ProductEdit() {
     if (field === "suggested_category") setMainCategory(value);
     if (field === "suggested_style") updateProductField("style", value);
     if (field === "suggested_product_type") updateProductField("product_type", value);
-    if (field === "gender") updateProductField("gender", value);
+    if (field === "gender") {
+      const nextAudience = normalizeAudienceValue(value);
+      setProduct((current) => ({
+        ...current,
+        gender: nextAudience || value,
+        audiences: nextAudience ? [nextAudience] : current.audiences || [],
+        product_audiences: nextAudience ? [nextAudience] : current.product_audiences || [],
+      }));
+    }
     if (field === "grade") updateProductField("grade", value);
   };
 
@@ -1531,7 +1825,7 @@ function ProductEdit() {
       product.grade,
     ].some((value) => String(value || "").trim());
 
-    if (overwrites && !window.confirm("Apply AI suggestions and overwrite filled product fields?")) return;
+    if (overwrites && !window.confirm(t("products.editor.confirmApplyAiSuggestions"))) return;
 
     [
       "name_en",
@@ -1582,7 +1876,7 @@ function ProductEdit() {
       setCoverImage(nextPrimary?.preview || nextPrimary?.image_url || nextPrimary?.url || "");
       setCoverLabel(nextPrimary?.name || "");
     }
-    toast.success("Image removed");
+    toast.success(t("products.images.removed"));
   };
 
   const setGalleryItemAsPrimary = (item) => {
@@ -1590,7 +1884,7 @@ function ProductEdit() {
     if (!src) return;
     setCoverImage(src);
     setCoverLabel(item?.name || "Gallery image");
-    toast.success("Primary product image updated");
+    toast.success(t("products.editor.primaryProductImageUpdated"));
   };
 
   const removeSizeRow = (groupId, rowId) => {
@@ -1617,21 +1911,24 @@ function ProductEdit() {
 
   const updateSizeRow = (groupId, rowId, field, value) => {
     setColorGroups((prev) =>
-      prev.map((group) =>
-        group.id === groupId
-          ? {
-              ...group,
-              sizes: group.sizes.map((row) =>
-                row.id === rowId
-                  ? {
-                      ...row,
-                      [field]: field === "barcode" ? String(value || "") : value,
-                      isStarter: false,
-                    }
-                  : row
-              ),
-            }
-          : group
+      buildAutoVariantGroups(
+        prev.map((group) =>
+          group.id === groupId
+            ? {
+                ...group,
+                sizes: group.sizes.map((row) =>
+                  row.id === rowId
+                    ? {
+                        ...row,
+                        [field]: field === "barcode" ? String(value || "") : field === "sku" ? String(value || "").toUpperCase().replace(/[^A-Z0-9-]/g, "") : value,
+                        ...(field === "sku" ? { skuManualOverride: true } : {}),
+                        isStarter: false,
+                      }
+                    : row
+                ),
+              }
+            : group
+        )
       )
     );
   };
@@ -1649,7 +1946,7 @@ function ProductEdit() {
     }
 
     if (!product.name.trim()) {
-      toast.error("Product name is required");
+      toast.error(t("products.editor.productNameRequired"));
       return;
     }
 
@@ -1659,6 +1956,7 @@ function ProductEdit() {
           .map((group) => ({
             ...group,
             color: String(group.color || "").trim(),
+            article_code: String(group.article_code || "").trim(),
             image_url: String(getPrimaryColorImage(group) || group.image_url || "").trim(),
             images: normalizeColorImages(group.images),
             sizes: Array.isArray(group.sizes) ? group.sizes : [],
@@ -1666,10 +1964,11 @@ function ProductEdit() {
           .filter((group) => {
             const hasAnyContent =
               Boolean(group.color) ||
+              Boolean(group.article_code) ||
               Boolean(group.edition_name) ||
               Boolean(group.image_url) ||
               (Array.isArray(group.images) && group.images.length > 0) ||
-              group.sizes.some((row) => [row.size, row.stock, row.sku, row.price, row.variantId].some((value) => String(value || "").trim()));
+              group.sizes.some((row) => [row.size, row.sku, row.price, row.variantId].some((value) => String(value || "").trim()));
             return hasAnyContent;
           });
 
@@ -1682,7 +1981,7 @@ function ProductEdit() {
 
       const invalidRow = normalizedGroups.find((group) =>
         group.sizes.some((row) => {
-          const rowHasContent = [row.stock, row.sku, row.barcode, row.price, row.variantId].some((value) =>
+          const rowHasContent = [row.sku, row.barcode, row.price, row.variantId].some((value) =>
             String(value || "").trim()
           );
           return rowHasContent && !String(row.size || "").trim();
@@ -1710,7 +2009,8 @@ function ProductEdit() {
         return {
           color_name: groupColor,
           color_value: groupColor,
-            images: dedupeImages(groupImages).map((image, index) => ({
+          article_code: String(group.article_code || "").trim(),
+          images: dedupeImages(groupImages).map((image, index) => ({
             id: image.id || makeId(),
             preview: image.preview || image.image_url || "",
             image_url: image.image_url || image.preview || "",
@@ -1721,31 +2021,46 @@ function ProductEdit() {
       })
       .filter(Boolean);
 
-    const usedVariantSkus = new Set();
+    const usedVariantSkus = new Set(existingSkuValues);
     normalizedGroups.forEach((group) => {
       const groupImageUrl = String(getPrimaryColorImage(group) || colorImageUrlsRef.current.get(group.id) || "").trim();
       const groupEditionName = mirrorEditionEnabled ? String(group.edition_name || "").trim() : "";
       const groupEditionSlug = groupEditionName ? slugifyEdition(group.edition_slug || groupEditionName) : "";
+      const groupArticleCode = String(group.article_code || "").trim();
       const groupManufacturerPayload = getManufacturerPayload(group.manufacturer_id);
       if (isColorOnlyMode) {
         const sourceRow = (Array.isArray(group.sizes) ? group.sizes : [])[0] || {};
+        const purchaseQty = getVariantPurchaseQty(sourceRow, group);
         const payload = {
           id: sourceRow.variantId || undefined,
           variant_id: sourceRow.variantId || undefined,
           color: group.color,
           size: String(product.fixed_size_label || "One Size").trim() || "One Size",
-          default_purchase_qty: Number(sourceRow.stock || 0),
-          sku: String(sourceRow.sku || "").trim()
+          default_purchase_qty: purchaseQty,
+          purchase_qty: purchaseQty,
+          purchase_quantity: purchaseQty,
+          planned_qty: purchaseQty,
+          planned_quantity: purchaseQty,
+          stock_qty: purchaseQty,
+          bulk_purchase_qty: purchaseQty,
+          sku: sourceRow.skuManualOverride && String(sourceRow.sku || "").trim()
             ? makeUniqueSku(String(sourceRow.sku || "").trim().toUpperCase(), usedVariantSkus)
             : buildVariantSku({
-                prefix: product.sku || smartSkuPrefix,
+                prefix: product.sku || uniqueSmartSkuPrefix,
                 color: group.color,
                 size: String(product.fixed_size_label || "One Size").trim() || "One Size",
                 usedSkus: usedVariantSkus,
-              }),
+          }),
           barcode: String(sourceRow.barcode || "").trim(),
-          sale_price: Number(sourceRow.price || product.price || 0),
-          price: Number(sourceRow.price || product.price || 0),
+          article_code: groupArticleCode,
+          ...(sourceRow.variantId ? {
+            purchase_price: Number(sourceRow.cost_price || 0),
+            regular_price: Number(sourceRow.price || 0),
+            price: Number(sourceRow.price || 0),
+            sale_price: Number(sourceRow.sale_price || 0),
+            sale_price_enabled: Boolean(sourceRow.sale_price_enabled),
+            wholesale_price: Number(sourceRow.wholesale_price || 0),
+          } : {}),
           image_url: sourceRow.image_url || groupImageUrl || "",
           variant_image_url: sourceRow.image_url || groupImageUrl || "",
           color_image_url: groupImageUrl,
@@ -1762,26 +2077,40 @@ function ProductEdit() {
       group.sizes.forEach((row) => {
         if (isPlaceholderVariantRow(row, product.price) || isHydrationPlaceholderRow(row)) return;
         const size = String(row.size || "").trim();
-        const rowHasContent = size || row.variantId || [row.stock, row.sku, row.price].some((value) => String(value || "").trim());
+        const rowHasContent = size || row.variantId || [row.sku, row.barcode].some((value) => String(value || "").trim());
         if (!rowHasContent || !size) return;
+        const purchaseQty = getVariantPurchaseQty(row, group);
 
         const payload = {
           id: row.variantId || undefined,
           variant_id: row.variantId || undefined,
           color: group.color,
           size,
-          default_purchase_qty: Number(row.stock || 0),
-          sku: String(row.sku || "").trim()
+          default_purchase_qty: purchaseQty,
+          purchase_qty: purchaseQty,
+          purchase_quantity: purchaseQty,
+          planned_qty: purchaseQty,
+          planned_quantity: purchaseQty,
+          stock_qty: purchaseQty,
+          bulk_purchase_qty: purchaseQty,
+          sku: row.skuManualOverride && String(row.sku || "").trim()
             ? makeUniqueSku(String(row.sku || "").trim().toUpperCase(), usedVariantSkus)
             : buildVariantSku({
-                prefix: product.sku || smartSkuPrefix,
+                prefix: product.sku || uniqueSmartSkuPrefix,
                 color: group.color,
                 size,
                 usedSkus: usedVariantSkus,
-              }),
+          }),
           barcode: String(row.barcode || "").trim(),
-          sale_price: Number(row.price || 0),
-          price: Number(row.price || 0),
+          article_code: groupArticleCode,
+          ...(row.variantId ? {
+            purchase_price: Number(row.cost_price || 0),
+            regular_price: Number(row.price || 0),
+            price: Number(row.price || 0),
+            sale_price: Number(row.sale_price || 0),
+            sale_price_enabled: Boolean(row.sale_price_enabled),
+            wholesale_price: Number(row.wholesale_price || 0),
+          } : {}),
           image_url: row.image_url || groupImageUrl || "",
           variant_image_url: row.image_url || groupImageUrl || "",
           color_image_url: groupImageUrl,
@@ -1816,6 +2145,14 @@ function ProductEdit() {
     console.log("[edit-product] save payload color groups count", normalizedGroups.length);
     console.log("[edit-product] save payload size rows count", variantPayloads.length);
     console.log("[edit-product] save payload variants", variantPayloads);
+    console.log("[edit-product] submit variant sync payload", {
+      product_id: productId,
+      submitted_colors_count: normalizedGroups.length,
+      submitted_variants_count: variantPayloads.length,
+      submitted_variant_ids: variantPayloads.map((variant) => variant.id || variant.variant_id || null).filter(Boolean),
+      submitted_color_names: normalizedGroups.map((group) => group.color).filter(Boolean),
+      removed_variant_ids: removedVariantIds,
+    });
 
     const categoryPayload = resolveCategoryPayload(categories, {
       mainCategory,
@@ -1866,15 +2203,23 @@ function ProductEdit() {
         seo_description: product.seo_description || product.description_en || product.description_ar || product.description,
         seo_keywords: product.seo_keywords,
         canonical_slug: product.canonical_slug,
-        price: Number(product.price || 0),
-        sale_price: Number(product.price || 0),
-        gender: product.gender || "",
+        use_custom_compare_price: Boolean(product.use_custom_compare_price),
+        custom_compare_price: Number(product.custom_compare_price || 0),
+        gender: product.audiences?.[0] || product.gender || "",
+        audiences: product.audiences || [],
+        product_audiences: product.audiences || [],
         product_type: product.product_type || "",
         style: product.style || "",
         grade: product.grade || "",
         variation_mode: product.variation_mode || "full_variations",
         fixed_size_label: isColorOnlyMode ? product.fixed_size_label || "One Size" : "",
-        sku: product.sku || smartSkuPrefix,
+        planned_quantities: [],
+        low_stock_threshold: Number(product.low_stock_threshold || product.low_stock_alert || 0),
+        low_stock_alert: Number(product.low_stock_alert || product.low_stock_threshold || 0),
+        low_stock_tracking_mode: null,
+        product_low_stock_threshold: null,
+        minimum_distinct_sizes_required: null,
+        sku: product.sku || uniqueSmartSkuPrefix,
         barcode: product.barcode || "",
         status: product.status || "active",
         image_url: coverImage,
@@ -1885,9 +2230,18 @@ function ProductEdit() {
           images: dedupeImages(group.images),
         })),
         ...getManufacturerPayload(defaultManufacturerId),
-        deleted_variant_ids: [],
+        deleted_variant_ids: removedVariantIds,
+      });
+      console.log("[edit-product] backend variant sync result", {
+        product_id: productId,
+        variant_sync: savedProduct?.variant_sync,
+        returned_variants_count: Array.isArray(savedProduct?.variants) ? savedProduct.variants.length : 0,
+        returned_variant_ids: Array.isArray(savedProduct?.variants)
+          ? savedProduct.variants.map((variant) => variant.id || variant.variant_id).filter(Boolean)
+          : [],
       });
       initialEditorSignatureRef.current = editorSignature;
+      cleanupProductCache();
 
       if (savedProduct?.color_images?.length) {
         setColorGroups((prev) =>
@@ -1924,9 +2278,11 @@ function ProductEdit() {
         seo_description: product.seo_description || product.description_en || product.description_ar || product.description,
         seo_keywords: product.seo_keywords,
         canonical_slug: product.canonical_slug,
-        price: Number(product.price || 0),
-        sale_price: Number(product.price || 0),
-        gender: product.gender || "",
+        use_custom_compare_price: Boolean(product.use_custom_compare_price),
+        custom_compare_price: Number(product.custom_compare_price || 0),
+        gender: product.audiences?.[0] || product.gender || "",
+        audiences: product.audiences || [],
+        product_audiences: product.audiences || [],
         product_type: product.product_type || "",
         style: product.style || "",
         grade: product.grade || "",
@@ -1939,7 +2295,7 @@ function ProductEdit() {
         gallery_images: galleryPayload,
       });
 
-      toast.success("Product updated");
+      toast.success(t("products.editor.productUpdated"));
 
       navigate("/products");
     } catch (err) {
@@ -1952,8 +2308,8 @@ function ProductEdit() {
 
   return (
     <ProductsShell
-      title="Edit Product"
-      description="Update product details and manage colors, sizes, images, and variant records from one editor."
+      title={t("products.editor.editTitle", "Edit Product")}
+      description={t("products.editor.editDescription", "Update product details and manage colors, sizes, images, and variant records from one editor.")}
       actions={
         <Link
           to="/products"
@@ -1968,7 +2324,7 @@ function ProductEdit() {
       {loading ? (
         <div className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-10 text-center text-zinc-400">
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-emerald-400" />
-          <p className="mt-4 text-sm font-semibold text-white">Loading product editor...</p>
+          <p className="mt-4 text-sm font-semibold text-white">{t("products.editor.loading")}</p>
         </div>
       ) : error ? (
         <div className="rounded-[34px] border border-red-500/20 bg-red-500/10 p-8 text-red-100">
@@ -1993,12 +2349,12 @@ function ProductEdit() {
           <section className="rounded-[30px] border border-white/8 bg-zinc-950/80 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
             <div className="flex items-center gap-3">
               <Sparkles className="h-5 w-5 text-emerald-400" />
-              <h2 className="text-xl font-black text-white">Basic information</h2>
+              <h2 className="text-xl font-black text-white">{t("products.editor.basicInformation", "Basic information")}</h2>
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-4">
               <div>
-                <label className="text-sm font-semibold text-zinc-200">Product name</label>
+                <label className="text-sm font-semibold text-zinc-200">{t("products.form.productName", "Product name")}</label>
                 <input
                   value={product.name}
                   onChange={(event) => updateProductField("name", event.target.value)}
@@ -2007,7 +2363,7 @@ function ProductEdit() {
               </div>
 
               <div className="rounded-[18px] border border-white/8 bg-white/[0.028] p-3">
-                <label className="text-sm font-semibold text-zinc-200">SKU prefix</label>
+                <label className="text-sm font-semibold text-zinc-200">{t("products.editor.skuPrefix", "SKU prefix")}</label>
                 <div className="mt-1.5 flex gap-2">
                   <input
                     value={product.sku || ""}
@@ -2023,17 +2379,70 @@ function ProductEdit() {
                     className="inline-flex h-10 items-center gap-1.5 rounded-[13px] border border-white/10 bg-white/[0.045] px-3 text-xs font-bold text-zinc-100 transition hover:border-emerald-300/30 hover:bg-emerald-300/10 hover:text-emerald-100"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
-                    Regenerate
+                    Regenerate from product name
                   </button>
                 </div>
-                <p className="mt-1 text-[11px] text-zinc-500">Auto: {smartSkuPrefix}</p>
+                <p className="mt-1 text-[11px] text-zinc-500">
+                  Auto: {uniqueSmartSkuPrefix}{skuTouched ? " (manual override)" : ""}
+                </p>
+              </div>
+
+              <div className="rounded-[18px] border border-white/8 bg-white/[0.028] p-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-200">{t("products.editor.pricingSummary", "Pricing summary")}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">{t("products.editor.pricingSummaryHelp", "Read-only. Active pricing is updated when purchase invoice stock is received.")}</p>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.currentRegularPrice", "Current regular price")}</p>
+                    <p className="mt-2 text-sm font-black text-zinc-100">{Number(product.regular_price || product.price || 0) > 0 ? formatCurrency(product.regular_price || product.price) : "Not set"}</p>
+                  </div>
+                  <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.currentSalePrice", "Current sale price")}</p>
+                    <p className="mt-2 text-sm font-black text-zinc-100">{product.sale_price_enabled && Number(product.sale_price || 0) > 0 ? formatCurrency(product.sale_price) : "Not active"}</p>
+                  </div>
+                  <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.currentCost", "Current cost")}</p>
+                    <p className="mt-2 text-sm font-black text-zinc-100">{Number(product.cost_price || 0) > 0 ? formatCurrency(product.cost_price) : "Not set"}</p>
+                  </div>
+                  <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.lastUpdatedFromPurchase", "Last updated from purchase invoice")}</p>
+                    <p className="mt-2 text-sm font-black text-zinc-100">{product.last_purchase_pricing_at ? String(product.last_purchase_pricing_at).slice(0, 16).replace("T", " ") : "Not yet"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[18px] border border-white/8 bg-white/[0.028] p-3">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(product.use_custom_compare_price)}
+                    onChange={(event) => updateProductField("use_custom_compare_price", event.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-white/20 bg-zinc-900"
+                  />
+                  <span>
+                    <span className="block text-sm font-black text-zinc-100">{t("products.editor.customComparePrice", "Custom storefront compare price")}</span>
+                    <span className="mt-1 block text-xs text-zinc-500">{t("products.editor.customComparePriceHelp", "Marketing-only old price. It does not affect POS, invoices, cost, valuation, or profit.")}</span>
+                  </span>
+                </label>
+                {product.use_custom_compare_price ? (
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={product.custom_compare_price || ""}
+                    onChange={(event) => updateProductField("custom_compare_price", event.target.value)}
+                    placeholder={t("products.editor.oldPricePlaceholder", "Old price shown on storefront")}
+                    className="mt-3 h-10 w-full rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition placeholder:text-zinc-600 hover:border-emerald-300/35 focus:border-emerald-300/50 focus:bg-white/[0.06]"
+                  />
+                ) : null}
               </div>
 
               <div className="rounded-[28px] border border-emerald-300/15 bg-gradient-to-br from-emerald-400/10 via-white/[0.055] to-cyan-400/10 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.18)] transition duration-200 hover:border-emerald-300/25 hover:bg-white/[0.07]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-base font-black text-white">Product Description (Customer-facing)</p>
-                    <p className="mt-1 text-xs leading-5 text-zinc-400">Primary storefront content for catalog pages, product pages, reports, and customer-facing previews.</p>
+                    <p className="text-base font-black text-white">{t("products.editor.customerDescriptionTitle", "Product Description (Customer-facing)")}</p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-400">{t("products.editor.customerDescriptionHelp", "Primary storefront content for catalog pages, product pages, reports, and customer-facing previews.")}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -2042,7 +2451,7 @@ function ProductEdit() {
                       disabled={descriptionGenerating.ar}
                       className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-emerald-100"
                     >
-                      {descriptionGenerating.ar ? "Generating Arabic..." : "Regenerate Arabic Description"}
+                      {descriptionGenerating.ar ? t("products.editor.generatingArabic", "Generating Arabic...") : t("products.editor.regenerateArabic", "Regenerate Arabic")}
                     </button>
                     <button
                       type="button"
@@ -2050,7 +2459,7 @@ function ProductEdit() {
                       disabled={descriptionGenerating.en}
                       className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-sky-300/30 hover:bg-sky-400/10 hover:text-sky-100"
                     >
-                      {descriptionGenerating.en ? "Generating English..." : "Regenerate English Description"}
+                      {descriptionGenerating.en ? t("products.editor.generatingEnglish", "Generating English...") : t("products.editor.regenerateEnglish", "Regenerate English")}
                     </button>
                     <button
                       type="button"
@@ -2058,14 +2467,23 @@ function ProductEdit() {
                       disabled={descriptionGenerating.ar || descriptionGenerating.en}
                       className="inline-flex h-9 items-center rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15"
                     >
-                      {descriptionGenerating.ar && descriptionGenerating.en ? "Generating..." : "Regenerate All Descriptions"}
+                      {descriptionGenerating.ar && descriptionGenerating.en ? t("products.editor.generating", "Generating...") : t("products.editor.regenerateAll", "Regenerate All")}
                     </button>
                   </div>
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div className="lg:col-span-2">
+                    <label className="text-sm font-semibold text-zinc-200">{t("products.editor.promptCustomization", "Prompt customization")}</label>
+                    <input
+                      value={descriptionTone}
+                      onChange={(event) => setDescriptionTone(event.target.value)}
+                      placeholder={t("products.editor.promptPlaceholder", "luxury tone, sporty tone, streetwear tone")}
+                      className="mt-1.5 h-11 w-full rounded-[16px] border border-white/10 bg-zinc-900/80 px-4 text-sm text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] placeholder:text-zinc-500 transition focus:border-amber-300/35 focus:bg-zinc-900"
+                    />
+                  </div>
                   <div>
-                    <label className="text-sm font-semibold text-zinc-200">Arabic description</label>
+                    <label className="text-sm font-semibold text-zinc-200">{t("products.editor.arabicDescription", "Arabic description")}</label>
                     <textarea
                       value={product.description_ar || ""}
                       onChange={(event) => {
@@ -2086,7 +2504,7 @@ function ProductEdit() {
                   </div>
 
                   <div>
-                    <label className="text-sm font-semibold text-zinc-200">English description</label>
+                    <label className="text-sm font-semibold text-zinc-200">{t("products.editor.englishDescription", "English description")}</label>
                     <textarea
                       value={product.description_en || ""}
                       onChange={(event) => {
@@ -2115,13 +2533,13 @@ function ProductEdit() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-black text-white">SEO metadata</p>
+                        <p className="text-sm font-black text-white">{t("products.editor.seoMetadata", "SEO metadata")}</p>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${seoOpen ? "bg-amber-300/20 text-amber-100" : "bg-sky-300/15 text-sky-100"}`}>
-                          {seoOpen ? "Expanded" : "Collapsed"}
+                          {seoOpen ? t("products.editor.expanded", "Expanded") : t("products.editor.collapsed", "Collapsed")}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs font-semibold text-zinc-300">Google / Facebook Preview</p>
-                      <p className="mt-0.5 text-xs text-zinc-500">Advanced preview fields generated separately from product descriptions.</p>
+                      <p className="mt-0.5 text-xs font-semibold text-zinc-300">{t("products.editor.googleFacebookPreview", "Google / Facebook Preview")}</p>
+                      <p className="mt-0.5 text-xs text-zinc-500">{t("products.editor.advancedPreviewHelp", "Advanced preview fields generated separately from product descriptions.")}</p>
                     </div>
                   </div>
                   <ChevronDown className={`h-5 w-5 shrink-0 text-amber-100 transition ${seoOpen ? "rotate-180" : ""}`} />
@@ -2130,14 +2548,14 @@ function ProductEdit() {
                 {seoOpen ? (
                   <div className="mt-3 border-t border-white/10 pt-3">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">Advanced SEO</p>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">{t("products.editor.advancedSeo", "Advanced SEO")}</p>
                       <button
                         type="button"
                         onClick={regenerateSeoMetadata}
                         disabled={seoGenerating}
                         className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
                       >
-                        {seoGenerating ? "Generating SEO..." : "Regenerate SEO Metadata"}
+                        {seoGenerating ? t("products.editor.generatingSeo", "Generating SEO...") : t("products.editor.regenerateSeoMetadata", "Regenerate SEO Metadata")}
                       </button>
                     </div>
                     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -2172,14 +2590,14 @@ function ProductEdit() {
                             )}
                           </div>
                           <div className="p-3">
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">store.example</p>
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.previewDomain")}</p>
                             <p className="mt-1 line-clamp-1 text-sm font-black text-white">{seoPreviewTitle}</p>
                             <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400">{seoPreviewDescription}</p>
                           </div>
                         </div>
                       </div>
                       <div>
-                        <label className="text-sm font-semibold text-zinc-300">Meta title</label>
+                        <label className="text-sm font-semibold text-zinc-300">{t("products.editor.metaTitle", "Meta title")}</label>
                         <input
                           value={product.meta_title || ""}
                           onChange={(event) => {
@@ -2190,7 +2608,7 @@ function ProductEdit() {
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-semibold text-zinc-300">Canonical/slug</label>
+                        <label className="text-sm font-semibold text-zinc-300">{t("products.editor.canonicalSlug")}</label>
                         <input
                           value={product.canonical_slug || ""}
                           onChange={(event) => {
@@ -2201,7 +2619,7 @@ function ProductEdit() {
                         />
                       </div>
                       <div className="lg:col-span-2">
-                        <label className="text-sm font-semibold text-zinc-300">SEO Meta Description (Google/Facebook preview)</label>
+                        <label className="text-sm font-semibold text-zinc-300">{t("products.editor.seoMetaDescriptionPreview")}</label>
                         <textarea
                           value={product.seo_description || ""}
                           onChange={(event) => {
@@ -2214,7 +2632,7 @@ function ProductEdit() {
                         <p className="mt-1 text-[11px] text-zinc-500">{String(product.seo_description || "").length}/160 characters</p>
                       </div>
                       <div className="lg:col-span-2">
-                        <label className="text-sm font-semibold text-zinc-300">SEO keywords</label>
+                        <label className="text-sm font-semibold text-zinc-300">{t("products.editor.seoKeywords", "SEO keywords")}</label>
                         <input
                           value={product.seo_keywords || ""}
                           onChange={(event) => {
@@ -2241,6 +2659,7 @@ function ProductEdit() {
               brand={brand}
               unit={unit}
               gender={product.gender}
+              audiences={product.audiences || []}
               productType={product.product_type}
               style={product.style}
               grade={product.grade}
@@ -2251,6 +2670,14 @@ function ProductEdit() {
               onUnitChange={setUnit}
               onVariationModeChange={(value) => updateProductField("variation_mode", value)}
               onGenderChange={(value) => updateProductField("gender", value)}
+              onAudiencesChange={(next) => {
+                setProduct((current) => ({
+                  ...current,
+                  audiences: next,
+                  product_audiences: next,
+                  gender: next[0] || "",
+                }));
+              }}
               onProductTypeChange={(value) => updateProductField("product_type", value)}
               onStyleChange={(value) => updateProductField("style", value)}
               onGradeChange={(value) => updateProductField("grade", value)}
@@ -2265,8 +2692,8 @@ function ProductEdit() {
                   ) : (
                     <div>
                       <ImagePlus className="mx-auto text-zinc-400" size={42} />
-                      <p className="mt-4 text-sm font-semibold text-white">Add product cover image</p>
-                      <p className="mt-2 text-xs text-zinc-500">PNG, JPG, WEBP</p>
+                      <p className="mt-4 text-sm font-semibold text-white">{t("products.editor.addProductCoverImage", "Add product cover image")}</p>
+                      <p className="mt-2 text-xs text-zinc-500">{t("products.editor.imageFileTypes")}</p>
                     </div>
                   )}
                   <input type="file" hidden accept="image/*" onChange={handleCover} />
@@ -2283,11 +2710,11 @@ function ProductEdit() {
               </div>
 
               <div className="w-full rounded-[28px] border border-white/8 bg-white/5 p-5 xl:w-[380px]">
-                <p className="text-sm font-semibold text-zinc-300">Product gallery</p>
+                <p className="text-sm font-semibold text-zinc-300">{t("products.editor.productGallery", "Product gallery")}</p>
                 <label className="mt-4 flex min-h-[120px] cursor-pointer items-center justify-center rounded-[24px] border-2 border-dashed border-white/10 bg-zinc-950/60 text-center">
                   <div>
                     <ImagePlus className="mx-auto text-zinc-400" size={30} />
-                    <p className="mt-3 text-sm font-semibold text-white">Add gallery images</p>
+                    <p className="mt-3 text-sm font-semibold text-white">{t("products.editor.addGalleryImages", "Add gallery images")}</p>
                     <p className="mt-1 text-xs text-zinc-500">{gallery.length} image(s)</p>
                   </div>
                   <input type="file" hidden accept="image/*" multiple onChange={handleGallery} />
@@ -2321,7 +2748,7 @@ function ProductEdit() {
               <div className="mt-5 rounded-[24px] border border-blue-300/20 bg-blue-400/[0.07] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-black text-white">AI product suggestions</p>
+                    <p className="text-sm font-black text-white">{t("products.editor.aiProductSuggestions", "AI product suggestions")}</p>
                     <p className="mt-1 text-xs text-zinc-400">
                       Source: {aiProductData.source || "AI"} · Confidence: {aiProductData.confidence ?? 0}%
                     </p>
@@ -2373,7 +2800,7 @@ function ProductEdit() {
                   {getSuggestionValue(aiProductData.suggestions, "dominant_colors") ? (
                     <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Detected colors</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.detectedColors", "Detected colors")}</p>
                         {getDetectionConfidenceLabel(aiProductData.suggestions, "colors") ? (
                           <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
                             {getDetectionConfidenceLabel(aiProductData.suggestions, "colors")}
@@ -2388,7 +2815,7 @@ function ProductEdit() {
                   {getSuggestionValue(aiProductData.suggestions, "suggested_product_type", "silhouette", "fashion_category") ? (
                     <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Detected product type</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.detectedProductType", "Detected product type")}</p>
                         {getDetectionConfidenceLabel(aiProductData.suggestions, "product_type") ? (
                           <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
                             {getDetectionConfidenceLabel(aiProductData.suggestions, "product_type")}
@@ -2403,7 +2830,7 @@ function ProductEdit() {
                   {getSuggestionValue(aiProductData.suggestions, "suggested_style", "classification") ? (
                     <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Detected style</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.detectedStyle", "Detected style")}</p>
                         {getDetectionConfidenceLabel(aiProductData.suggestions, "style") ? (
                           <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
                             {getDetectionConfidenceLabel(aiProductData.suggestions, "style")}
@@ -2417,7 +2844,7 @@ function ProductEdit() {
                   ) : null}
                   {getSuggestionValue(aiProductData.suggestions, "brand_resemblance") ? (
                     <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
-                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Brand style resemblance</p>
+                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.brandStyleResemblance", "Brand style resemblance")}</p>
                       <p className="mt-2 text-sm leading-5 text-zinc-200">
                         {getSuggestionValue(aiProductData.suggestions, "brand_resemblance")}
                       </p>
@@ -2425,7 +2852,7 @@ function ProductEdit() {
                   ) : null}
                   {getSuggestionValue(aiProductData.suggestions, "classification") ? (
                     <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
-                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Classification</p>
+                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.classification", "Classification")}</p>
                       <p className="mt-2 text-sm leading-5 text-zinc-200">
                         {getSuggestionValue(aiProductData.suggestions, "classification")}
                       </p>
@@ -2438,83 +2865,96 @@ function ProductEdit() {
           <section className={`${isSimpleMode ? "hidden" : ""} rounded-[28px] border border-white/8 bg-zinc-950/80 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] sm:p-5`}>
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-300">Bulk Tools</p>
-                <h2 className="mt-1 text-xl font-black text-white">Add sizes and prices faster</h2>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-300">{t("products.editor.bulkTools", "Bulk Tools")}</p>
+                <h2 className="mt-1 text-xl font-black text-white">{t("products.editor.bulkToolsHelp", "Add sizes and setup stock faster")}</h2>
                 <p className="mt-1 max-w-3xl text-sm leading-5 text-zinc-400">
-                  Enter comma-separated sizes, ranges, and one price shortcut. Existing saved variants keep their IDs.
+                  Enter comma-separated sizes, ranges, and planning stock shortcuts. Existing saved variants keep their IDs.
                 </p>
               </div>
             </div>
 
-            <div className={`mt-4 grid gap-3 rounded-[20px] border border-white/8 bg-white/5 p-3 ${isFullVariationMode ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
+            <div className={`mt-4 grid gap-4 ${isFullVariationMode ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
               {isFullVariationMode ? (
-              <label className="block">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                  Bulk Sizes
+                <div className="rounded-[20px] border border-white/8 bg-white/5 p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{t("products.editor.bulkSizes", "Bulk Sizes")}</p>
+                  <label className="mt-3 block">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      Size range
+                    </div>
+                    <input
+                      value={bulkSizesInput}
+                      onChange={(event) => setBulkSizesInput(event.target.value)}
+                      placeholder={t("products.editor.sizeRangePlaceholder")}
+                      className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => applyBulkSizes()}
+                      className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
+                    >
+                      Apply to all colors
+                    </button>
+                  </label>
                 </div>
-                <input
-                  value={bulkSizesInput}
-                  onChange={(event) => setBulkSizesInput(event.target.value)}
-                  placeholder="Example: 40,41,42,43,44 or 40-45"
-                  className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => applyBulkSizes()}
-                  className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
-                >
-                  Apply to all colors
-                </button>
-              </label>
               ) : null}
-              <label className="block">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                  Bulk Price
-                </div>
-                <input
-                  type="number"
-                  min="0"
-                  value={bulkPriceInput}
-                  onChange={(event) => setBulkPriceInput(event.target.value)}
-                  placeholder="Example: 1250"
-                  className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => applyBulkPrice()}
-                  className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-sky-500/20 bg-sky-500/10 px-4 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/15"
-                >
-                  Apply price to all colors
-                </button>
-              </label>
-              <label className="block">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                  Bulk default purchase quantity
-                </div>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={bulkStockInput}
-                  onChange={(event) => setBulkStockInput(event.target.value)}
-                  placeholder="Example: 10"
-                  className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
-                />
+              <div className="rounded-[20px] border border-white/8 bg-white/5 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{t("products.editor.bulkStockTools", "Bulk Stock Tools")}</p>
+                <label className="mt-3 block">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                    Stock Quantity
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={bulkStockInput}
+                    onChange={(event) => setBulkStockInput(event.target.value)}
+                    placeholder={t("products.editor.stockQuantityPlaceholder")}
+                    className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                  />
+                </label>
                 <button
                   type="button"
                   onClick={() => applyBulkStock()}
                   className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-violet-500/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
                 >
-                  Apply default purchase quantity to all colors
+                  Apply stock to all sizes in all colors
                 </button>
-              </label>
+                <p className="mt-2 text-xs leading-5 text-zinc-500">
+                  Planning/setup stock only. Real inventory is still received from purchase invoices.
+                </p>
+              </div>
+              <div className="rounded-[20px] border border-white/8 bg-white/5 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-300">{t("products.editor.bulkArticleTools", "Bulk Article Tools")}</p>
+                <label className="mt-3 block">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                    {t("products.fields.articleCode", "Article Code")}
+                  </div>
+                  <input
+                    value={bulkArticleCodeInput}
+                    onChange={(event) => setBulkArticleCodeInput(event.target.value)}
+                    placeholder={t("products.editor.articleCodePlaceholder", "Example: L122")}
+                    className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => applyBulkArticleCode()}
+                  className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-cyan-500/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+                >
+                  {t("products.editor.applyArticleAllColors", "Apply article to all colors")}
+                </button>
+                <p className="mt-2 text-xs leading-5 text-zinc-500">
+                  {t("products.editor.bulkArticleHelp", "Existing article codes are protected unless you confirm overwrite. Manual article fields stay editable.")}
+                </p>
+              </div>
             </div>
           </section>
 
           <section className={`${isSimpleMode ? "hidden" : ""} rounded-[28px] border border-white/8 bg-zinc-950/80 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] sm:p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-black text-white">Variant color groups</h2>
+                <h2 className="text-xl font-black text-white">{t("products.editor.variantColorGroups", "Variant color groups")}</h2>
                 <p className="mt-1 text-sm text-zinc-400">
                   Each color owns one image. Every size row under that color becomes one variant.
                 </p>
@@ -2532,7 +2972,7 @@ function ProductEdit() {
 
             <div className="mt-4 rounded-[20px] border border-white/8 bg-white/5 p-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Default manufacturer</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">{t("products.editor.defaultManufacturer")}</p>
                 <p className="mt-1 text-sm text-zinc-400">
                   Applied to every color group until you override a color manually.
                 </p>
@@ -2547,7 +2987,7 @@ function ProductEdit() {
                     onChange={(e) => applyDefaultManufacturer(e.target.value)}
                     className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none"
                   >
-                    <option value="">Select manufacturer</option>
+                    <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
                     {manufacturers.map((manufacturer) => (
                       <option key={manufacturer.id} value={String(manufacturer.id)}>
                         {manufacturer.name}
@@ -2556,8 +2996,8 @@ function ProductEdit() {
                   </select>
                 </label>
                 <div className="rounded-[14px] border border-white/8 bg-zinc-950/60 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Behavior</div>
-                  <div className="mt-1 text-sm text-zinc-200">Default colors inherit this manufacturer automatically.</div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("products.editor.behavior")}</div>
+                  <div className="mt-1 text-sm text-zinc-200">{t("products.editor.defaultColorsHelp")}</div>
                 </div>
               </div>
             </div>
@@ -2602,7 +3042,7 @@ function ProductEdit() {
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-400">
                         <span>{getGroupSizeCount(group)} size(s)</span>
-                        <span>{getGroupStockTotal(group)} default purchase qty</span>
+                        {getGroupPlannedQty(group) ? <span>{getGroupPlannedQty(group)} stock qty</span> : null}
                       </div>
                     </div>
 
@@ -2707,27 +3147,37 @@ function ProductEdit() {
                     </div>
 
                     <div className="min-w-0 space-y-3">
-                        <div className={`grid gap-3 ${mirrorEditionEnabled ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
+                        <div className={`grid gap-3 ${mirrorEditionEnabled ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
                           <div>
-                            <label className="text-sm font-semibold text-zinc-300">Color name</label>
+                            <label className="text-sm font-semibold text-zinc-300">{t("products.editor.colorName")}</label>
                               <input
                                 value={group.color}
                                 onChange={(e) => updateColorGroup(group.id, "color", e.target.value)}
-                                placeholder="Black"
+                                placeholder={t("products.placeholders.colorExample")}
                                 className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                               />
-                            <p className="mt-1 text-xs text-zinc-500">AI may confuse soles/background. Use Pick and click the real shoe color.</p>
+                            <p className="mt-1 text-xs text-zinc-500">{t("products.editor.pickColorHelp")}</p>
                             {colorDetecting[group.id] ? (
-                              <p className="mt-1 text-xs font-semibold text-cyan-200">Detecting color...</p>
+                              <p className="mt-1 text-xs font-semibold text-cyan-200">{t("products.editor.detectingColor")}</p>
                             ) : null}
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-zinc-300">{t("products.fields.articleCode", "Article Code")}</label>
+                            <input
+                              value={group.article_code || ""}
+                              onChange={(e) => updateColorGroup(group.id, "article_code", e.target.value)}
+                              placeholder="L122"
+                              className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                            />
+                            <p className="mt-1 text-xs text-zinc-500">{t("products.editor.articleCodeColorHelp", "Article code applies to this color. Stock is managed per size row.")}</p>
                           </div>
                           {mirrorEditionEnabled ? (
                             <div className="relative">
-                              <label className="text-sm font-semibold text-zinc-300">Edition Name</label>
+                              <label className="text-sm font-semibold text-zinc-300">{t("products.editor.editionName")}</label>
                               <input
                                 value={group.edition_name || ""}
                                 onChange={(e) => updateColorGroup(group.id, "edition_name", e.target.value)}
-                                placeholder="Example: Wolf Grey"
+                                placeholder={t("products.editor.editionNamePlaceholder")}
                                 className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                               />
                               {editionSuggestions[group.id]?.status === "loading" ? (
@@ -2738,7 +3188,7 @@ function ProductEdit() {
                               {editionSuggestions[group.id]?.status === "ready" ? (
                                 <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[14px] border border-violet-400/20 bg-zinc-950 p-3 shadow-2xl shadow-black/40">
                                   {editionSuggestions[group.id].suggestion.source === "NO_TRUSTED_MATCH" ? (
-                                    <div className="text-sm font-black text-white">No trusted match found</div>
+                                    <div className="text-sm font-black text-white">{t("products.editor.noTrustedMatch")}</div>
                                   ) : (
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                       <div>
@@ -2804,7 +3254,7 @@ function ProductEdit() {
                           ) : null}
                           <div>
                             <div className="mb-2 flex items-center justify-between gap-2">
-                              <label className="text-sm font-semibold text-zinc-300">Manufacturer</label>
+                              <label className="text-sm font-semibold text-zinc-300">{t("products.fields.manufacturer", "Manufacturer")}</label>
                               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-300">
                                 Color level
                               </span>
@@ -2814,7 +3264,7 @@ function ProductEdit() {
                               onChange={(e) => updateColorGroup(group.id, "manufacturer_id", e.target.value)}
                               className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none"
                             >
-                              <option value="">Select manufacturer</option>
+                              <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
                               {manufacturers.map((manufacturer) => (
                                 <option key={manufacturer.id} value={String(manufacturer.id)}>
                                   {manufacturer.name}
@@ -2877,17 +3327,10 @@ function ProductEdit() {
                             ) : null}
                             <button
                               type="button"
-                              onClick={() => applyBulkPrice(group.id)}
-                              className="inline-flex h-10 items-center justify-center rounded-[14px] border border-sky-500/20 bg-sky-500/10 px-3 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/15"
+                              onClick={() => applyBulkArticleCode(group.id)}
+                              className="inline-flex h-10 items-center justify-center rounded-[14px] border border-cyan-500/20 bg-cyan-500/10 px-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
                             >
-                              Apply price
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => applyBulkStock(group.id)}
-                              className="inline-flex h-10 items-center justify-center rounded-[14px] border border-violet-500/20 bg-violet-500/10 px-3 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
-                            >
-                              Apply default quantity
+                              {t("products.editor.applyArticleThisColor", "Apply article to this color")}
                             </button>
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
@@ -2908,12 +3351,12 @@ function ProductEdit() {
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
                               <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-                                {isFullVariationMode ? "Size rows" : "Fixed size row"}
+                                {isFullVariationMode ? t("products.editor.sizeRows", "Size rows") : t("products.editor.fixedSizeRow", "Fixed size row")}
                               </p>
                               <p className="mt-0.5 text-xs text-zinc-400">
                                 {isFullVariationMode
-                                  ? "One row becomes one variant."
-                                  : "One row per color becomes the color-only variant."}
+                                        ? t("products.editor.oneRowBecomesVariant", "One row becomes one variant.")
+                                        : t("products.editor.oneRowPerColor", "One row per color becomes the color-only variant.")}
                               </p>
                             </div>
                             <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300">
@@ -2921,24 +3364,23 @@ function ProductEdit() {
                             </div>
                           </div>
 
-                          <div className="hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,126px)_minmax(0,150px)_minmax(0,170px)_minmax(0,112px)_auto] xl:gap-2">
-                            <div>Size</div>
-                            <div>Purchase Qty</div>
+                          <div className="hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,120px)_minmax(0,170px)_minmax(0,190px)_auto] xl:gap-2">
+                            <div>{t("products.fields.size", "Size")}</div>
+                            <div>{t("products.editor.stockQty", "Stock Qty")}</div>
                             <div>SKU</div>
-                            <div>Barcode</div>
-                            <div>Price</div>
-                            <div>Actions</div>
+                            <div>{t("products.selected.barcode", "Barcode")}</div>
+                            <div>{t("products.table.actions", "Actions")}</div>
                           </div>
 
                           <div className="mt-2 space-y-2 overflow-x-auto">
                             {(isColorOnlyMode ? group.sizes.slice(0, 1) : group.sizes).map((row, rowIndex) => (
                               <div
                                 key={row.id}
-                                className="grid min-w-[720px] gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:grid-cols-[minmax(0,1fr)_minmax(0,126px)_minmax(0,150px)_minmax(0,170px)_minmax(0,112px)_auto]"
+                                className="grid min-w-[680px] gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:grid-cols-[minmax(0,1fr)_minmax(0,120px)_minmax(0,170px)_minmax(0,190px)_auto]"
                               >
                                 <div>
                                   <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                                    {isColorOnlyMode ? "Fixed size" : "Size"}
+                                    {isColorOnlyMode ? t("products.editor.fixedSize", "Fixed size") : t("products.fields.size", "Size")}
                                   </label>
                                   <input
                                     value={row.size}
@@ -2948,22 +3390,17 @@ function ProductEdit() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                                    Purchase Qty
-                                  </label>
-                                    <input
-                                      type="number"
-                                      value={row.stock}
-                                      onChange={(e) => updateSizeRow(group.id, row.id, "stock", e.target.value)}
-                                      placeholder="0"
-                                      className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
-                                    />
-                                    <p className="mt-1 text-[10px] leading-4 text-zinc-500">لا تؤثر على المخزون — المخزون يضاف من فاتورة المشتريات</p>
-                                    {row.variantId ? (
-                                      <p className="mt-1 text-[11px] font-semibold text-emerald-300">
-                                        Available Stock: {Number(row.available_stock || 0)}
-                                      </p>
-                                    ) : null}
+                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.stockQty", "Stock Qty")}</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={row.stock ?? ""}
+                                    onChange={(e) => updateSizeRow(group.id, row.id, "stock", e.target.value)}
+                                    placeholder="0"
+                                    className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                  />
+                                  <p className="mt-1 text-[10px] leading-4 text-zinc-500">{t("products.editor.preparationOnlyStock", "Preparation only. Real stock is added from purchase invoices.")}</p>
                                 </div>
                                 <div>
                                   <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
@@ -2977,23 +3414,11 @@ function ProductEdit() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Barcode</label>
+                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("products.selected.barcode", "Barcode")}</label>
                                   <input
                                     value={row.barcode}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "barcode", e.target.value)}
-                                    placeholder="Scan or enter barcode"
-                                    className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                                    Price
-                                  </label>
-                                  <input
-                                    type="number"
-                                    value={row.price}
-                                    onChange={(e) => updateSizeRow(group.id, row.id, "price", e.target.value)}
-                                    placeholder={product.price || "0"}
+                                    placeholder={t("products.editor.scanOrEnterBarcode", "Scan or enter barcode")}
                                     className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                   />
                                 </div>
@@ -3048,22 +3473,24 @@ function ProductEdit() {
 }
 
 function ColorPickModal({ target, onClose, onPick }) {
+  const { t } = useTranslation();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
       <div className="w-full max-w-2xl rounded-[28px] border border-white/10 bg-zinc-950 p-4 shadow-2xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-black text-white">Pick color</p>
-            <p className="mt-1 text-xs text-zinc-400">Click the real shoe material color, not the sole or background.</p>
+            <p className="text-sm font-black text-white">{t("products.editor.pickColor", "Pick color")}</p>
+            <p className="mt-1 text-xs text-zinc-400">{t("products.editor.pickColorHelp", "Click the real shoe material color, not the sole or background.")}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 px-3 py-2 text-sm font-semibold text-white">
-            Close
+            {t("common.close", "Close")}
           </button>
         </div>
         <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-2xl bg-zinc-900">
           <img
             src={target.source}
-            alt={target.alt || "Pick color"}
+            alt={target.alt || t("products.editor.pickColor", "Pick color")}
             className="max-h-[68vh] w-auto max-w-full cursor-crosshair object-contain"
             onClick={(event) => {
               const rect = event.currentTarget.getBoundingClientRect();
@@ -3141,15 +3568,21 @@ const getAiImagePayload = (image = "") => {
 export default ProductEdit;
 
 function ProductActionBar({ mode = "edit", saving = false, hasUnsavedChanges = false, onSave }) {
-  const label = mode === "create" ? "Save Product" : "Update Product";
+  const { t } = useTranslation();
+  const label =
+    mode === "create"
+      ? t("products.editor.saveProduct", "Save Product")
+      : t("products.editor.updateProduct", "Update Product");
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-zinc-950/95 px-4 py-3 shadow-[0_-18px_60px_rgba(0,0,0,0.45)] backdrop-blur md:left-auto md:right-6 md:bottom-6 md:w-auto md:min-w-[360px] md:rounded-[28px] md:border">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">Product Editor</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">{t("products.editor.productEditor", "Product Editor")}</p>
           <p className={`mt-1 text-sm font-semibold ${hasUnsavedChanges ? "text-amber-200" : "text-emerald-200"}`}>
-            {hasUnsavedChanges ? "Unsaved changes" : "All changes saved"}
+            {hasUnsavedChanges
+              ? t("products.editor.unsavedChanges", "Unsaved changes")
+              : t("products.editor.allChangesSaved", "All changes saved")}
           </p>
         </div>
         <button
@@ -3159,7 +3592,7 @@ function ProductActionBar({ mode = "edit", saving = false, hasUnsavedChanges = f
           className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-          {saving ? "Saving..." : label}
+          {saving ? t("common.saving", "Saving...") : label}
         </button>
       </div>
     </div>

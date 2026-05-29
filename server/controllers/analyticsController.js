@@ -3,6 +3,14 @@ import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 
 const DEFAULT_EMPTY = [];
 
+const analyticsDebugEnabled = () =>
+  ["1", "true", "yes", "on"].includes(String(process.env.ERP_ANALYTICS_DEBUG || "").toLowerCase());
+
+const logAnalyticsDebug = (tag, payload = {}) => {
+  if (!analyticsDebugEnabled()) return;
+  console.info(tag, payload);
+};
+
 const safeRows = async (query, params = [], fallback = DEFAULT_EMPTY) => {
   try {
     const result = await db.query(query, params);
@@ -992,12 +1000,12 @@ export async function getAnalyticsOverview(req, res) {
 
     const overview = {
       kpis: [
-        { label: "Revenue", value: Number(summary.revenue || 0), delta: 12.4, trend: "up" },
-        { label: "Profit", value: Number(profit.profit || 0), delta: 8.7, trend: "up" },
-        { label: "Orders", value: Number(summary.orders || 0), delta: 5.2, trend: "up" },
-        { label: "Customers", value: Number(summary.customers || 0), delta: 3.1, trend: "up" },
-        { label: "Low Stock", value: Number(inventory.lowStockItems.length || 0), delta: -11.2, trend: "down" },
-        { label: "Best Seller", value: bestSeller.name, delta: 19.8, trend: "up" },
+        { label: "Revenue", value: Number(summary.revenue || 0), delta: 0, trend: "flat" },
+        { label: "Profit", value: Number(profit.profit || 0), delta: 0, trend: "flat" },
+        { label: "Orders", value: Number(summary.orders || 0), delta: 0, trend: "flat" },
+        { label: "Customers", value: Number(summary.customers || 0), delta: 0, trend: "flat" },
+        { label: "Low Stock", value: Number(inventory.lowStockItems.length || 0), delta: 0, trend: "flat" },
+        { label: "Best Seller", value: bestSeller.name, delta: 0, trend: "flat" },
       ],
       summary: {
         revenue: summary.revenue,
@@ -1007,13 +1015,21 @@ export async function getAnalyticsOverview(req, res) {
         lowStockCount: Number(inventory.lowStockItems.length || 0),
         deadStockCount: Number(inventory.deadStockItems.length || 0),
         bestSeller: bestSeller.name,
-        forecastedGrowth: Number((summary.revenue > 0 ? 17.6 : 0).toFixed(1)),
+        forecastedGrowth: 0,
       },
       bestSeller,
       pendingReceivables: Number(summary.pendingReceivables || 0),
       pendingPayables: Number(profit.pendingPayables || 0),
       cashBalance: Number(profit.cashBalance || 0),
     };
+
+    logAnalyticsDebug("[analytics]", {
+      endpoint: "overview",
+      filters,
+      totals: overview.summary,
+      source_tables: ["orders", "order_items", "customers", "products", "purchases", "expenses", "cashbox"],
+    });
+    logAnalyticsDebug("[data-source]", { endpoint: "overview", query_counts: { low_stock_items: inventory.lowStockItems.length, dead_stock_items: inventory.deadStockItems.length } });
 
     return res.status(200).json({ success: true, overview });
   } catch (error) {
@@ -1055,6 +1071,17 @@ export async function getSalesAnalytics(req, res) {
       topProductsScope.params,
       []
     );
+
+    logAnalyticsDebug("[analytics]", {
+      endpoint: "sales",
+      filters,
+      dataset_sizes: {
+        revenueSeries: series.revenueSeries?.length || 0,
+        channelSeries: series.channelSeries?.length || 0,
+        topProducts: topProducts.length,
+      },
+      source_tables: ["orders", "order_items", "products"],
+    });
 
     return res.status(200).json({
       success: true,

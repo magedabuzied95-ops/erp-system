@@ -1,24 +1,43 @@
+import { useTranslation } from "react-i18next";
+
 const statusClasses = {
-  Pending: "border-amber-500/20 bg-amber-500/10 text-amber-300",
-  Confirmed: "border-sky-500/20 bg-sky-500/10 text-sky-300",
-  Paid: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
-  "Partially Paid": "border-orange-500/20 bg-orange-500/10 text-orange-300",
-  Shipped: "border-blue-500/20 bg-blue-500/10 text-blue-300",
-  Delivered: "border-cyan-500/20 bg-cyan-500/10 text-cyan-300",
-  Cancelled: "border-rose-500/20 bg-rose-500/10 text-rose-300",
-  Returned: "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-300",
-  Refunded: "border-purple-500/20 bg-purple-500/10 text-purple-300",
-  Unpaid: "border-zinc-500/20 bg-zinc-500/10 text-zinc-300",
-  Draft: "border-zinc-500/20 bg-zinc-500/10 text-zinc-300",
-  Submitted: "border-blue-500/20 bg-blue-500/10 text-blue-300",
-  Approved: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
-  Rejected: "border-rose-500/20 bg-rose-500/10 text-rose-300",
+  Pending: "border-amber-400/25 bg-amber-400/10 text-amber-200",
+  Confirmed: "border-blue-400/25 bg-blue-400/10 text-blue-200",
+  Completed: "border-blue-400/25 bg-blue-400/10 text-blue-200",
+  Paid: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
+  "Partially Paid": "border-amber-400/25 bg-amber-400/10 text-amber-200",
+  Shipped: "border-blue-400/25 bg-blue-400/10 text-blue-200",
+  Delivered: "border-blue-400/25 bg-blue-400/10 text-blue-200",
+  Cancelled: "border-rose-400/25 bg-rose-400/10 text-rose-200",
+  Returned: "border-purple-400/25 bg-purple-400/10 text-purple-200",
+  Refunded: "border-purple-400/25 bg-purple-400/10 text-purple-200",
+  Unpaid: "border-slate-400/20 bg-slate-400/10 text-slate-300",
+  Draft: "border-slate-400/20 bg-slate-400/10 text-slate-300",
+  Submitted: "border-blue-400/25 bg-blue-400/10 text-blue-200",
+  Approved: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
+  Rejected: "border-rose-400/25 bg-rose-400/10 text-rose-200",
+  "Awaiting Verification": "border-amber-400/25 bg-amber-400/10 text-amber-200",
+  COD: "border-slate-400/20 bg-slate-400/10 text-slate-300",
+};
+
+const fallbackLabel = (value) => {
+  const normalized = String(value || "Pending").trim().toLowerCase();
+  if (["partially_paid", "partially paid", "partial"].includes(normalized)) return "Partially Paid";
+  if (normalized === "awaiting_verification") return "Awaiting Verification";
+  return String(value || "Pending")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 };
 
 function StatusBadge({ value = "Pending" }) {
+  const { t } = useTranslation();
+  const normalized = String(value || "Pending").trim().toLowerCase().replace(/\s+/g, "_");
+  const fallback = fallbackLabel(value);
+  const label = t(`orders.statusLabels.${normalized}`, fallback);
+  const className = statusClasses[fallback] || statusClasses[value] || statusClasses.Pending;
   return (
-    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClasses[value] || statusClasses.Pending}`}>
-      {value}
+    <span className={`inline-flex max-w-full items-center truncate rounded-full border px-2 py-0.5 text-[10px] font-bold leading-4 ${className}`}>
+      {label}
     </span>
   );
 }

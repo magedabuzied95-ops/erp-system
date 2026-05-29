@@ -41,8 +41,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
-        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:8000}
+        VITE_API_URL: ${VITE_API_URL:-}
     restart: unless-stopped
     depends_on:
       - backend

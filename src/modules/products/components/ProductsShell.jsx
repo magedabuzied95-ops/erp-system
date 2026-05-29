@@ -12,6 +12,7 @@ import {
   ListChecks,
   PackagePlus,
 } from "lucide-react";
+import { ResponsiveTabs } from "../../../shared/components/mobile/ResponsiveMobile";
 
 export default function ProductsShell({
   title,
@@ -34,25 +35,25 @@ export default function ProductsShell({
   ];
 
   return (
-    <div className="w-full min-w-0 max-w-none space-y-6 overflow-x-hidden">
-      <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_22px_70px_var(--shadow)] xl:p-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+    <div className="w-full min-w-0 max-w-none space-y-4 overflow-x-hidden sm:space-y-6">
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[0_22px_70px_var(--shadow)] sm:rounded-[28px] sm:p-5 xl:p-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--primary)]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--primary)] sm:text-xs sm:tracking-[0.24em]">
               {t("products.moduleEyebrow")}
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--text)] xl:text-4xl">
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)] sm:mt-3 sm:text-3xl xl:text-4xl">
               {title}
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted)] xl:text-base">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)] sm:mt-3 xl:text-base">
               {description}
             </p>
           </div>
 
-          {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
+          {actions ? <div className="flex flex-wrap gap-2 sm:gap-3">{actions}</div> : null}
         </div>
 
-        <div className="mt-6 flex max-w-full gap-2 overflow-x-auto pb-1">
+        <ResponsiveTabs className="mobile-scroll-tabs mt-4 sm:mt-6">
           {tabs.map(({ to, label, icon: Icon }) => {
             const active =
                   location.pathname === to ||
@@ -76,7 +77,7 @@ export default function ProductsShell({
               </Link>
             );
           })}
-        </div>
+        </ResponsiveTabs>
       </div>
 
       {children}

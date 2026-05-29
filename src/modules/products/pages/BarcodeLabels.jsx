@@ -243,8 +243,8 @@ function BarcodeLabels() {
       }
     } catch (err) {
       console.log(err);
-      setError("Failed to load products for barcode labels.");
-      toast.error("Failed to load barcode labels");
+      setError(t("products.barcodeLabels.loadProductsFailed"));
+      toast.error(t("products.barcodeLabels.loadFailed"));
       setCatalog([]);
     } finally {
       setLoading(false);
@@ -302,11 +302,10 @@ function BarcodeLabels() {
   console.log("[barcode-shop] mode/productId", { mode, productId });
   console.log("[barcode-shop] selectedProduct", selectedProduct);
   console.log(
-    "[barcode-shop] qrToken",
-    selectedProduct?.qr_token ||
-      selectedProduct?.product_qr_code ||
-      selectedProduct?.barcode_shop_token ||
-      (selectedProduct?.id ? `SHOP-PROD-${selectedProduct.id}` : "")
+    "[barcode-shop] qrIdentifier",
+    selectedProduct?.slug ||
+      selectedProduct?.canonical_slug ||
+      (selectedProduct?.id ? String(selectedProduct.id) : "")
   );
   console.log("[barcode-shop] selectedProductVariants", selectedProductVariants);
 
@@ -379,21 +378,27 @@ function BarcodeLabels() {
     const popup = openBarcodePrintWindow({
       labels: expandedLabels,
       sheetMode,
+      copy: {
+        title: t("print.barcodeLabels.title"),
+        color: t("print.barcodeLabels.color"),
+        size: t("print.barcodeLabels.size"),
+        sku: t("print.barcodeLabels.sku"),
+        price: t("print.barcodeLabels.price"),
+      },
     });
 
     if (!popup) {
-      toast.error("Popup blocked. Falling back to browser print.");
+      toast.error(t("products.barcodeLabels.popupBlocked"));
       window.print();
     }
   };
 
   if (isBarcodeShopMode) {
     const normalizedProduct = selectedProduct || activeProduct || null;
-    const qrToken =
-      normalizedProduct?.qr_token ||
-      normalizedProduct?.product_qr_code ||
-      normalizedProduct?.barcode_shop_token ||
-      (normalizedProduct?.id ? `SHOP-PROD-${normalizedProduct.id}` : "");
+    const qrIdentifier =
+      normalizedProduct?.slug ||
+      normalizedProduct?.canonical_slug ||
+      (normalizedProduct?.id ? String(normalizedProduct.id) : "");
     const shopItem =
       normalizedProduct
         ? {
@@ -401,7 +406,7 @@ function BarcodeLabels() {
             productId: normalizedProduct.id,
             productName: safeText(normalizedProduct.name, t("products.barcodeLabels.product")),
             imageUrl: getProductImage(normalizedProduct),
-            qrToken: safeText(qrToken),
+            qrToken: safeText(qrIdentifier),
             quantity: getLabelQuantity(barcodeShopQuantity) || 1,
           }
         : null;
@@ -442,9 +447,9 @@ function BarcodeLabels() {
                         <ImageWithFallback src={resolveAssetUrl(shopItem.imageUrl)} alt={safeText(shopItem.productName, t("products.barcodeLabels.product"))} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs uppercase tracking-[0.22em] text-emerald-300">Product-level QR label</div>
+                        <div className="text-xs uppercase tracking-[0.22em] text-emerald-300">{t("products.barcodeLabels.productLevelQr")}</div>
                         <h2 className="mt-2 text-3xl font-black text-white">{safeText(shopItem.productName, t("products.barcodeLabels.product"))}</h2>
-                        <p className="mt-2 text-sm text-zinc-400">QR token: {safeText(shopItem.qrToken)}</p>
+                        <p className="mt-2 text-sm text-zinc-400">{t("products.barcodeLabels.qrToken")}: {safeText(shopItem.qrToken)}</p>
                         <p className="mt-1 text-sm text-zinc-500">
                           {t("products.barcodeLabels.variantRowsLoaded", { count: selectedProductVariants.length })}
                         </p>
@@ -504,8 +509,8 @@ function BarcodeLabels() {
     <>
       <div className="print:hidden">
         <ProductsShell
-          title="Barcode Labels"
-          description="Build retail-ready barcode sheets with the exact shoe image for each selected variant, then print or preview before export."
+          title={t("products.barcodeLabels.labelSheetTitle")}
+          description={t("products.barcodeLabels.labelSheetDescription")}
           actions={
             <>
               <button
@@ -514,7 +519,7 @@ function BarcodeLabels() {
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white transition hover:bg-white/10"
               >
                 <Download size={18} />
-                Download / print fallback
+                {t("products.barcodeLabels.downloadPrintFallback")}
               </button>
               <button
                 type="button"
@@ -522,7 +527,7 @@ function BarcodeLabels() {
                 className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-semibold text-white transition hover:bg-emerald-400"
               >
                 <Printer size={18} />
-                Print labels
+                {t("products.barcodeLabels.printLabels")}
               </button>
             </>
           }
@@ -530,12 +535,12 @@ function BarcodeLabels() {
           <div className="rounded-[32px] border border-white/10 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+                <Search className="pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search product, SKU, barcode, color, or size..."
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-white outline-none placeholder:text-zinc-500"
+                  placeholder={t("products.barcodeLabels.searchPlaceholder")}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 ps-11 pe-4 text-white outline-none placeholder:text-zinc-500"
                 />
               </div>
 
@@ -602,7 +607,7 @@ function BarcodeLabels() {
                       onClick={loadData}
                       className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-black"
                     >
-                      Retry
+                      {t("products.shared.retry")}
                     </button>
                   }
                 />
@@ -634,7 +639,7 @@ function BarcodeLabels() {
                     </p>
                   </div>
                   <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-300">
-                    {expandedLabels.length} labels
+                    {t("products.barcodeLabels.labelsCount", { count: expandedLabels.length })}
                   </div>
                 </div>
 
@@ -919,18 +924,24 @@ function BarcodeShopLabel({ item, print = false }) {
   const { t } = useTranslation();
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
   const qrToken = safeText(item.qrToken);
+  const qrValue = safeText(item.qrValue, qrToken);
   const price = formatCurrency(item.salePrice);
 
   return (
     <article className={`w-full rounded-[28px] border border-zinc-200 bg-white p-6 text-center text-zinc-900 ${print ? "" : "shadow-[0_18px_60px_rgba(0,0,0,0.16)]"}`}>
       <h2 className="mx-auto max-w-[260px] text-2xl font-black leading-tight tracking-tight text-zinc-950">{productName}</h2>
       <div className="mx-auto mt-6 flex w-fit rounded-[30px] border border-zinc-200 bg-white p-3 shadow-[0_14px_40px_rgba(15,23,42,0.08)]">
-        <QRCodeCanvas value={String(qrToken || "")} size={print ? 172 : 190} />
+        <QRCodeCanvas value={String(qrValue || "")} size={print ? 172 : 190} />
       </div>
       <p className="mt-6 text-3xl font-black leading-none tracking-tight text-zinc-950">{price}</p>
       <div className="mt-3 truncate rounded-full bg-zinc-100 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">
         {qrToken}
       </div>
+      {!print && qrValue !== qrToken ? (
+        <div className="mt-2 break-all rounded-2xl bg-zinc-50 px-3 py-2 text-[10px] font-semibold normal-case tracking-normal text-zinc-500">
+          {qrValue}
+        </div>
+      ) : null}
     </article>
   );
 }

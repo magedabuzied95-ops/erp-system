@@ -42,7 +42,8 @@ export function TenantProvider({ children }) {
     });
 
     if (user && !currentTenant?.id) {
-      setCurrentTenantState(fallback);
+      const persisted = setCurrentTenantRecord(fallback);
+      setCurrentTenantState(persisted || fallback);
     }
   }, [currentTenant?.id, user]);
 

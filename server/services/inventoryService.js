@@ -33,7 +33,9 @@ const tableColumns = async (clientOrPool, tableName) => {
 
 export const adjustVariantStock = async (clientOrPool, data = {}) => {
   try {
-    await ensureInventoryMovementSchema();
+    if (!shouldLockRows(clientOrPool)) {
+      await ensureInventoryMovementSchema();
+    }
 
     const dbClient = queryable(clientOrPool);
     const tenantId = data.tenantId ?? data.tenant_id ?? null;
@@ -41,6 +43,9 @@ export const adjustVariantStock = async (clientOrPool, data = {}) => {
     const variantColumns = await tableColumns(dbClient, "product_variants");
     const variantTenantClause = variantColumns.has("tenant_id")
       ? "AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)"
+      : "";
+    const variantActiveClause = variantColumns.has("is_active") && variantColumns.has("deleted_at")
+      ? "AND is_active IS DISTINCT FROM FALSE AND deleted_at IS NULL"
       : "";
     const updateTenantClause = variantColumns.has("tenant_id")
       ? "AND ($3::bigint IS NULL OR tenant_id = $3::bigint OR tenant_id IS NULL)"
@@ -58,6 +63,7 @@ export const adjustVariantStock = async (clientOrPool, data = {}) => {
       FROM product_variants
       WHERE id = $1
         ${variantTenantClause}
+        ${variantActiveClause}
       ${shouldLockRows(clientOrPool) ? "FOR UPDATE" : ""}
       `,
       [variantId, tenantId]

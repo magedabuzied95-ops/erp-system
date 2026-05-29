@@ -1,12 +1,14 @@
 import { useState } from "react";
 
 import { Boxes, Plus, Search, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import ProductsShell from "../components/ProductsShell";
 
 import { saveUnits, seedUnits, slugify } from "../lib/catalog";
 
 function Units() {
+  const { t } = useTranslation();
   const [items, setItems] = useState(() => seedUnits());
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
@@ -43,38 +45,38 @@ function Units() {
 
   return (
     <ProductsShell
-      title="Units"
-      description="Manage unit definitions for inventory, pricing, and product conversion logic."
+      title={t("products.units.title")}
+      description={t("products.units.description")}
     >
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-4">
           <div className="flex items-center gap-3">
             <Boxes className="text-amber-400" />
-            <h2 className="text-2xl font-black text-white">Unit editor</h2>
+            <h2 className="text-2xl font-black text-white">{t("products.units.editor")}</h2>
           </div>
 
           <div className="mt-5 space-y-4">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+              <Search className="pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search units..."
-                className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 pl-11 pr-4 text-white outline-none placeholder:text-zinc-500"
+                placeholder={t("products.units.searchPlaceholder")}
+                className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 ps-11 pe-4 text-white outline-none placeholder:text-zinc-500"
               />
             </div>
 
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Unit name"
+              placeholder={t("products.units.namePlaceholder")}
               className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
             />
 
             <input
               value={symbol}
               onChange={(e) => setSymbol(e.target.value)}
-              placeholder="Symbol"
+              placeholder={t("products.units.symbolPlaceholder")}
               className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
             />
 
@@ -83,8 +85,8 @@ function Units() {
               onChange={(e) => setStatus(e.target.value)}
               className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
             >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="active">{t("products.statusLabels.active")}</option>
+              <option value="inactive">{t("products.statusLabels.inactive")}</option>
             </select>
 
             <button
@@ -92,7 +94,7 @@ function Units() {
               className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-semibold text-white"
             >
               <Plus size={18} />
-              Save unit
+              {t("products.units.saveUnit")}
             </button>
           </div>
         </section>
@@ -100,11 +102,11 @@ function Units() {
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-8">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-black text-white">Unit management</h2>
-              <p className="mt-1 text-sm text-zinc-500">Use these units across products and conversion settings.</p>
+              <h2 className="text-2xl font-black text-white">{t("products.units.management")}</h2>
+              <p className="mt-1 text-sm text-zinc-500">{t("products.units.managementDescription")}</p>
             </div>
             <div className="rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-300">
-              {items.length} units
+              {t("products.units.count", { count: items.length })}
             </div>
           </div>
 
@@ -112,10 +114,10 @@ function Units() {
             <table className="min-w-full border-separate border-spacing-y-3">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-[0.22em] text-zinc-500">
-                  <th className="px-4 py-2">Unit</th>
-                  <th className="px-4 py-2">Symbol</th>
-                  <th className="px-4 py-2">Status</th>
-                  <th className="px-4 py-2 text-right">Action</th>
+                  <th className="px-4 py-2">{t("products.units.unit")}</th>
+                  <th className="px-4 py-2">{t("products.units.symbol")}</th>
+                  <th className="px-4 py-2">{t("products.table.status")}</th>
+                  <th className="px-4 py-2 text-right">{t("products.units.action")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -139,7 +141,7 @@ function Units() {
                         className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm font-semibold text-red-300"
                       >
                         <Trash2 size={16} />
-                        Remove
+                        {t("products.units.remove")}
                       </button>
                     </td>
                   </tr>

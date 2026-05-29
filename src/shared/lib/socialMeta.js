@@ -14,9 +14,9 @@ const setMetaTag = (selector, attributes) => {
 const cleanMetaText = (value = "") =>
   String(value || "")
     .replace(/\uFFFD/g, "")
-    .replace(/âœ¨/g, "")
-    .replace(/â€¦/g, "...")
-    .replace(/طŒ/g, "،")
+    .replace(/\u00e2\u0153\u00a8/g, "")
+    .replace(/\u00e2\u20ac\u00a6/g, "...")
+    .replace(/\u0637\u0152/g, "،")
     .replace(/\s+/g, " ")
     .trim();
 

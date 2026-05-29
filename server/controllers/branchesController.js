@@ -2,7 +2,7 @@ import db from "../database/db.js";
 import { randomBytes } from "node:crypto";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureBranchSchema } from "../utils/branchSchema.js";
-import { SINGLE_BRANCH_CODE, SINGLE_BRANCH_NAME, ensureSingleBranchMode } from "../utils/singleBranchMode.js";
+import { SINGLE_BRANCH_CODE, SINGLE_BRANCH_NAME, ensureSingleBranchModeOnce } from "../utils/singleBranchMode.js";
 
 const normalizeBranch = (row = {}) => ({
   id: row.id,
@@ -17,6 +17,7 @@ const normalizeBranch = (row = {}) => ({
   longitude: row.longitude === null || row.longitude === undefined ? null : Number(row.longitude),
   attendance_radius_meters: Number(row.attendance_radius_meters || row.allowed_radius_meters || 100),
   allowed_radius_meters: Number(row.allowed_radius_meters || row.attendance_radius_meters || 100),
+  attendance_public_code: row.attendance_public_code || "",
   is_active: row.is_active !== false,
 });
 
@@ -46,7 +47,7 @@ const normalizeBranchInput = (body = {}) => ({
   is_active: body.is_active !== false,
 });
 
-const generateAttendanceQrToken = () => randomBytes(32).toString("hex");
+const generateAttendancePublicCode = (branchId) => `b${branchId}-${randomBytes(3).toString("hex")}`;
 
 const findDuplicateCode = async ({ tenantId, code, excludeId = null }) => {
   if (!code) return null;
@@ -67,9 +68,11 @@ const findDuplicateCode = async ({ tenantId, code, excludeId = null }) => {
 };
 
 export const getBranches = async (req, res) => {
+  const startedAt = Date.now();
+  console.log("[branches] route start", { requestId: req.id, url: req.originalUrl, query: req.query });
   try {
     await ensureBranchSchema();
-    await ensureSingleBranchMode();
+    await ensureSingleBranchModeOnce();
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const status = String(req.query?.status || "").toLowerCase();
 
@@ -102,6 +105,7 @@ export const getBranches = async (req, res) => {
         longitude,
         attendance_radius_meters,
         allowed_radius_meters,
+        attendance_public_code,
         is_active
       FROM branches
       ${whereClause}
@@ -110,16 +114,31 @@ export const getBranches = async (req, res) => {
       params
     );
 
+    console.log("[branches] route end", {
+      requestId: req.id,
+      durationMs: Date.now() - startedAt,
+      count: result.rows.length,
+    });
+
     return res.status(200).json({
       success: true,
       data: result.rows.map(normalizeBranch),
       branches: result.rows.map(normalizeBranch),
     });
   } catch (error) {
-    console.log("GET BRANCHES ERROR:", error);
+    console.error("[branches] route thrown", {
+      requestId: req.id,
+      durationMs: Date.now() - startedAt,
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to fetch branches",
+      message: String(error.message || "").includes("timeout exceeded when trying to connect")
+        ? "Database is busy. Please retry shortly."
+        : error.message || "Failed to fetch branches",
+      code: String(error.message || "").includes("timeout exceeded when trying to connect") ? "DB_POOL_TIMEOUT" : "BRANCHES_ERROR",
     });
   }
 };
@@ -127,7 +146,7 @@ export const getBranches = async (req, res) => {
 export const createBranch = async (req, res) => {
   try {
     await ensureBranchSchema();
-    const singleBranch = await ensureSingleBranchMode();
+    const singleBranch = await ensureSingleBranchModeOnce();
     const tenantId = getTenantId(req, req.user?.tenant_id) || 1;
     const branch = normalizeBranchInput(req.body);
 
@@ -167,6 +186,7 @@ export const createBranch = async (req, res) => {
         longitude,
         attendance_radius_meters,
         allowed_radius_meters,
+        attendance_public_code,
         is_active
       `,
       [
@@ -203,7 +223,7 @@ export const createBranch = async (req, res) => {
 export const updateBranch = async (req, res) => {
   try {
     await ensureBranchSchema();
-    await ensureSingleBranchMode();
+    await ensureSingleBranchModeOnce();
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const branch = normalizeBranchInput(req.body);
 
@@ -266,6 +286,7 @@ export const updateBranch = async (req, res) => {
         longitude,
         attendance_radius_meters,
         allowed_radius_meters,
+        attendance_public_code,
         is_active
       `,
       [
@@ -303,7 +324,7 @@ export const updateBranch = async (req, res) => {
 export const deleteBranch = async (req, res) => {
   try {
     await ensureBranchSchema();
-    const singleBranch = await ensureSingleBranchMode();
+    const singleBranch = await ensureSingleBranchModeOnce();
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     if (String(req.params.id) === String(singleBranch.branchId)) {
       const result = await db.query(
@@ -321,6 +342,7 @@ export const deleteBranch = async (req, res) => {
           longitude,
           attendance_radius_meters,
           allowed_radius_meters,
+          attendance_public_code,
           is_active
         FROM branches
         WHERE id = $1
@@ -366,6 +388,7 @@ export const deleteBranch = async (req, res) => {
         longitude,
         attendance_radius_meters,
         allowed_radius_meters,
+        attendance_public_code,
         is_active
       `,
       params
@@ -395,12 +418,12 @@ export const regenerateAttendanceQrToken = async (req, res) => {
   try {
     await ensureBranchSchema();
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-    const token = generateAttendanceQrToken();
+    const publicCode = generateAttendancePublicCode(req.params.id);
 
     const result = await db.query(
       `
       UPDATE branches
-      SET attendance_qr_token = $1, updated_at = NOW()
+      SET attendance_public_code = $1, updated_at = NOW()
       WHERE id = $2
         AND ($3::bigint IS NULL OR tenant_id = $3::bigint)
       RETURNING
@@ -416,9 +439,10 @@ export const regenerateAttendanceQrToken = async (req, res) => {
         longitude,
         attendance_radius_meters,
         allowed_radius_meters,
+        attendance_public_code,
         is_active
       `,
-      [token, req.params.id, tenantId]
+      [publicCode, req.params.id, tenantId]
     );
 
     if (!result.rows[0]) {
@@ -429,7 +453,7 @@ export const regenerateAttendanceQrToken = async (req, res) => {
       success: true,
       data: normalizeBranch(result.rows[0]),
       branch: normalizeBranch(result.rows[0]),
-      message: "Attendance QR token regenerated",
+      message: "Attendance short code regenerated",
     });
   } catch (error) {
     console.log("REGENERATE BRANCH ATTENDANCE QR ERROR:", error);

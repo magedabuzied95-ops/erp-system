@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { ensureSingleBranchMode } from "./singleBranchMode.js";
+import { ensureForeignKeyConstraint } from "./schemaConstraints.js";
 
 let schemaReadyPromise = null;
 
@@ -23,6 +24,7 @@ const statements = [
     allowed_radius_meters INTEGER NOT NULL DEFAULT 100,
     qr_token TEXT UNIQUE DEFAULT gen_random_uuid()::text,
     attendance_qr_token TEXT UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+    attendance_public_code VARCHAR(32) UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
@@ -39,6 +41,7 @@ const statements = [
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS allowed_radius_meters INTEGER NOT NULL DEFAULT 100;`,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS qr_token TEXT;`,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS attendance_qr_token TEXT;`,
+  `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS attendance_public_code VARCHAR(32);`,
   `ALTER TABLE IF EXISTS branches ALTER COLUMN attendance_radius_meters SET DEFAULT 100;`,
   `ALTER TABLE IF EXISTS branches ALTER COLUMN allowed_radius_meters SET DEFAULT 100;`,
   `
@@ -60,25 +63,43 @@ const statements = [
   SET attendance_qr_token = COALESCE(attendance_qr_token, encode(gen_random_bytes(32), 'hex'))
   WHERE attendance_qr_token IS NULL;
   `,
+  `
+  UPDATE branches
+  SET attendance_public_code = 'b' || id
+  WHERE attendance_public_code IS NULL
+     OR TRIM(attendance_public_code) = '';
+  `,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_qr_token ON branches (qr_token);`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_attendance_qr_token ON branches (attendance_qr_token);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_attendance_public_code ON branches (attendance_public_code);`,
   `CREATE INDEX IF NOT EXISTS idx_branches_tenant_active ON branches (tenant_id, is_active, name);`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_tenant_code_unique ON branches (tenant_id, code) WHERE code IS NOT NULL AND code <> '';`,
-  `ALTER TABLE IF EXISTS employees DROP CONSTRAINT IF EXISTS employees_branch_id_fkey;`,
-  `
-  ALTER TABLE IF EXISTS employees
+];
+
+const ensureBranchForeignKeys = async (client) => {
+  await ensureForeignKeyConstraint(
+    client,
+    "employees",
+    "employees_branch_id_fkey",
+    `
+    ALTER TABLE employees
     ADD CONSTRAINT employees_branch_id_fkey
     FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL
-    NOT VALID;
-  `,
-  `ALTER TABLE IF EXISTS attendance_logs DROP CONSTRAINT IF EXISTS attendance_logs_branch_id_fkey;`,
-  `
-  ALTER TABLE IF EXISTS attendance_logs
+    NOT VALID
+    `
+  );
+  await ensureForeignKeyConstraint(
+    client,
+    "attendance_logs",
+    "attendance_logs_branch_id_fkey",
+    `
+    ALTER TABLE attendance_logs
     ADD CONSTRAINT attendance_logs_branch_id_fkey
     FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL
-    NOT VALID;
-  `,
-];
+    NOT VALID
+    `
+  );
+};
 
 export const ensureBranchSchema = async () => {
   if (!schemaReadyPromise) {
@@ -89,6 +110,7 @@ export const ensureBranchSchema = async () => {
         for (const statement of statements) {
           await client.query(statement);
         }
+        await ensureBranchForeignKeys(client);
         await ensureSingleBranchMode(client);
         await client.query("COMMIT");
       } catch (error) {

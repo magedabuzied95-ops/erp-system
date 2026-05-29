@@ -9,6 +9,7 @@ export const socket =
     SOCKET_URL,
     {
       autoConnect: false,
+      forceNew: true,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 500,

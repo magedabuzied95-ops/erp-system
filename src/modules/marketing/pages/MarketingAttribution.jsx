@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 import { getMarketingAttribution, syncMarketingAttribution } from "../services/marketingApi";
 import MarketingMetricCard from "../components/MarketingMetricCard";
@@ -37,6 +38,7 @@ const formatPercent = (value) => {
 const COLORS = ["#22c55e", "#06b6d4", "#f59e0b", "#8b5cf6", "#ec4899", "#3b82f6"];
 
 export default function MarketingAttribution() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
@@ -60,8 +62,8 @@ export default function MarketingAttribution() {
       });
       setPayload(data || null);
     } catch (err) {
-      setError(err?.message || "Failed to load marketing attribution");
-      toast.error(err?.message || "Failed to load marketing attribution");
+      setError(err?.message || t("marketing.analytics.attribution.loadFailed"));
+      toast.error(err?.message || t("marketing.analytics.attribution.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -76,7 +78,7 @@ export default function MarketingAttribution() {
 
   const refresh = async () => {
     if (!canSync) {
-      toast.error("You do not have permission to sync marketing attribution.");
+      toast.error(t("marketing.analytics.attribution.permissionSync"));
       return;
     }
     setSyncing(true);
@@ -87,9 +89,9 @@ export default function MarketingAttribution() {
         to: filters.to || "",
       });
       setPayload(result || null);
-      toast.success("Marketing attribution sync completed");
+      toast.success(t("marketing.analytics.attribution.syncCompleted"));
     } catch (err) {
-      toast.error(err?.message || "Failed to sync marketing attribution");
+      toast.error(err?.message || t("marketing.analytics.attribution.syncFailed"));
     } finally {
       setSyncing(false);
     }
@@ -104,10 +106,10 @@ export default function MarketingAttribution() {
   const bestPost = summary.top_converting_post || topPosts[0] || null;
   const bestPlatform = summary.best_platform || platformComparison[0] || null;
   const funnelData = [
-    { name: "Clicks", value: Number(summary.clicks || 0) },
-    { name: "Add to cart", value: Number(summary.add_to_cart || 0) },
-    { name: "Checkout", value: Number(summary.checkout || 0) },
-    { name: "Orders", value: Number(summary.order_created || 0) },
+    { name: t("marketing.analytics.funnel.clicks"), value: Number(summary.clicks || 0) },
+    { name: t("marketing.analytics.funnel.addToCart"), value: Number(summary.add_to_cart || 0) },
+    { name: t("marketing.analytics.funnel.checkout"), value: Number(summary.checkout || 0) },
+    { name: t("marketing.analytics.funnel.orders"), value: Number(summary.order_created || 0) },
   ];
 
   const topRows = useMemo(() => topPosts.slice(0, 12), [topPosts]);
@@ -120,10 +122,10 @@ export default function MarketingAttribution() {
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
                 <TrendingUp className="h-3.5 w-3.5" />
-                Marketing attribution
+                {t("marketing.analytics.attribution.eyebrow")}
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">Sales from Facebook, Instagram, Story, and campaigns</h1>
-              <p className="max-w-3xl text-sm leading-6 text-slate-300">See which marketing posts actually turn into orders, revenue, and funnel movement.</p>
+              <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.analytics.attribution.title")}</h1>
+              <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.analytics.attribution.subtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <button
@@ -133,7 +135,7 @@ export default function MarketingAttribution() {
                 className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/20 disabled:opacity-60"
               >
                 <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-                Sync attribution
+                {t("marketing.analytics.attribution.sync")}
               </button>
               <button
                 type="button"
@@ -142,7 +144,7 @@ export default function MarketingAttribution() {
                 className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
               >
                 <BarChart3 className="h-4 w-4 text-cyan-300" />
-                Refresh view
+                {t("marketing.common.refreshView")}
               </button>
             </div>
           </div>
@@ -151,32 +153,32 @@ export default function MarketingAttribution() {
         {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <MarketingMetricCard label="Revenue from marketing" value={loading ? "-" : formatNumber(summary.revenue_from_marketing)} tone="emerald" icon={<TrendingUp className="h-5 w-5" />} />
-          <MarketingMetricCard label="Orders from marketing" value={loading ? "-" : formatNumber(summary.marketing_orders)} tone="cyan" icon={<BarChart3 className="h-5 w-5" />} />
-          <MarketingMetricCard label="Top converting post" value={loading ? "-" : bestPost?.title || "-"} tone="violet" icon={<CalendarDays className="h-5 w-5" />} />
-          <MarketingMetricCard label="Best platform" value={loading ? "-" : bestPlatform?.platform || "-"} tone="amber" icon={<Filter className="h-5 w-5" />} />
-          <MarketingMetricCard label="Conversion rate" value={loading ? "-" : formatPercent(summary.conversion_rate)} tone="rose" icon={<RefreshCw className="h-5 w-5" />} />
+          <MarketingMetricCard label={t("marketing.analytics.attribution.metrics.revenue")} value={loading ? "-" : formatNumber(summary.revenue_from_marketing)} tone="emerald" icon={<TrendingUp className="h-5 w-5" />} />
+          <MarketingMetricCard label={t("marketing.analytics.attribution.metrics.orders")} value={loading ? "-" : formatNumber(summary.marketing_orders)} tone="cyan" icon={<BarChart3 className="h-5 w-5" />} />
+          <MarketingMetricCard label={t("marketing.analytics.attribution.metrics.topPost")} value={loading ? "-" : bestPost?.title || "-"} tone="violet" icon={<CalendarDays className="h-5 w-5" />} />
+          <MarketingMetricCard label={t("marketing.analytics.attribution.metrics.bestPlatform")} value={loading ? "-" : bestPlatform?.platform || "-"} tone="amber" icon={<Filter className="h-5 w-5" />} />
+          <MarketingMetricCard label={t("marketing.analytics.attribution.metrics.conversionRate")} value={loading ? "-" : formatPercent(summary.conversion_rate)} tone="rose" icon={<RefreshCw className="h-5 w-5" />} />
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="grid gap-4 md:grid-cols-3">
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Platform</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.social.platform")}</span>
               <select
                 value={filters.platform}
                 onChange={(event) => setFilters((current) => ({ ...current, platform: event.target.value }))}
                 className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
               >
-                <option value="all">All platforms</option>
-                <option value="facebook">Facebook</option>
-                <option value="instagram">Instagram</option>
-                <option value="story">Story</option>
-                <option value="tiktok">TikTok</option>
-                <option value="whatsapp">WhatsApp</option>
+                <option value="all">{t("marketing.social.allPlatforms")}</option>
+                <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
+                <option value="instagram">{t("marketing.social.platforms.instagram")}</option>
+                <option value="story">{t("marketing.social.platforms.story")}</option>
+                <option value="tiktok">{t("marketing.social.platforms.tiktok")}</option>
+                <option value="whatsapp">{t("marketing.social.platforms.whatsapp")}</option>
               </select>
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">From</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.common.from")}</span>
               <input
                 type="date"
                 value={filters.from}
@@ -185,7 +187,7 @@ export default function MarketingAttribution() {
               />
             </label>
             <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">To</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.common.to")}</span>
               <input
                 type="date"
                 value={filters.to}
@@ -197,17 +199,17 @@ export default function MarketingAttribution() {
           <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-400">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
               <Filter className="h-3.5 w-3.5" />
-              Filtered view: {payload?.filters?.platform || filters.platform}
+              {t("marketing.analytics.filteredView", { platform: payload?.filters?.platform || filters.platform })}
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
-              Last synced: {formatDateTime(summary.last_synced_at)}
+              {t("marketing.analytics.lastSynced", { value: formatDateTime(summary.last_synced_at) })}
             </span>
           </div>
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="text-lg font-black text-white">Clicks to orders funnel</h2>
+            <h2 className="text-lg font-black text-white">{t("marketing.analytics.funnel.title")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={funnelData}>
@@ -224,7 +226,7 @@ export default function MarketingAttribution() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="text-lg font-black text-white">Sales over time</h2>
+            <h2 className="text-lg font-black text-white">{t("marketing.analytics.salesOverTime")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={salesOverTime}>
@@ -241,7 +243,7 @@ export default function MarketingAttribution() {
 
         <section className="grid gap-4 xl:grid-cols-2">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="text-lg font-black text-white">Platform comparison</h2>
+            <h2 className="text-lg font-black text-white">{t("marketing.analytics.platformComparison")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -257,7 +259,7 @@ export default function MarketingAttribution() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-            <h2 className="text-lg font-black text-white">Story vs post</h2>
+            <h2 className="text-lg font-black text-white">{t("marketing.analytics.storyVsPost")}</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={storyVsPost}>
@@ -275,35 +277,35 @@ export default function MarketingAttribution() {
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
             <div className="mb-4">
-              <h2 className="text-lg font-black text-white">Top posts by sales</h2>
-              <p className="text-sm text-slate-400">Best performers in the selected range</p>
+              <h2 className="text-lg font-black text-white">{t("marketing.analytics.attribution.topPostsBySales")}</h2>
+              <p className="text-sm text-slate-400">{t("marketing.analytics.attribution.bestPerformers")}</p>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0">
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">Post</th>
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">Platform</th>
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">Orders</th>
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">Revenue</th>
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">Clicks</th>
-                    <th className="border-b border-white/10 px-3 py-3 font-semibold">Engagement</th>
+                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.table.post")}</th>
+                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.social.platform")}</th>
+                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.funnel.orders")}</th>
+                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.table.revenue")}</th>
+                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.funnel.clicks")}</th>
+                    <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.table.engagement")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-400">Loading attribution...</td>
+                      <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.analytics.attribution.loading")}</td>
                     </tr>
                   ) : topRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-400">No attribution data found yet.</td>
+                      <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.analytics.attribution.empty")}</td>
                     </tr>
                   ) : (
                     topRows.map((row) => (
                       <tr key={`${row.platform}-${row.post_id}`} className="align-top">
                         <td className="border-b border-white/5 px-3 py-4">
-                          <div className="font-semibold text-white">{row.title || `Post #${row.post_id}`}</div>
+                          <div className="font-semibold text-white">{row.title || t("marketing.analytics.table.postNumber", { id: row.post_id })}</div>
                           <div className="text-xs text-slate-400">{row.tracking_kind || "post"} • {row.last_event_at ? formatDateTime(row.last_event_at) : "-"}</div>
                         </td>
                         <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.platform || "-"}</td>
@@ -321,18 +323,18 @@ export default function MarketingAttribution() {
 
           <div className="space-y-4">
             <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-              <h2 className="text-lg font-black text-white">Top campaigns</h2>
+              <h2 className="text-lg font-black text-white">{t("marketing.analytics.attribution.topCampaigns")}</h2>
               <div className="mt-4 space-y-3">
                 {topCampaigns.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">No campaign attribution yet.</div>
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.analytics.attribution.noCampaigns")}</div>
                 ) : (
                   topCampaigns.slice(0, 6).map((campaign) => (
                     <div key={`${campaign.platform}-${campaign.campaign}`} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
-                      <div className="font-semibold text-white">{campaign.campaign || "Unassigned"}</div>
-                      <div className="mt-1 text-sm text-slate-400">{campaign.platform || "other"}</div>
+                      <div className="font-semibold text-white">{campaign.campaign || t("marketing.analytics.attribution.unassigned")}</div>
+                      <div className="mt-1 text-sm text-slate-400">{campaign.platform || t("marketing.social.platforms.other")}</div>
                       <div className="mt-3 flex items-center justify-between text-sm text-slate-300">
-                        <span>{formatNumber(campaign.orders)} orders</span>
-                        <span className="font-semibold text-white">{formatNumber(campaign.revenue)} revenue</span>
+                        <span>{t("marketing.analytics.attribution.orderCount", { count: formatNumber(campaign.orders) })}</span>
+                        <span className="font-semibold text-white">{t("marketing.analytics.attribution.revenueValue", { value: formatNumber(campaign.revenue) })}</span>
                       </div>
                     </div>
                   ))
@@ -341,17 +343,17 @@ export default function MarketingAttribution() {
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-              <h2 className="text-lg font-black text-white">Revenue per platform</h2>
+              <h2 className="text-lg font-black text-white">{t("marketing.analytics.attribution.revenuePerPlatform")}</h2>
               <div className="mt-4 space-y-3">
                 {platformComparison.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">No platform comparison yet.</div>
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-slate-400">{t("marketing.analytics.noPlatformComparison")}</div>
                 ) : (
                   platformComparison.map((row, index) => (
                     <div key={row.platform || index} className="rounded-2xl border border-white/10 bg-slate-950/80 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <div className="font-semibold text-white">{row.platform || "-"}</div>
-                          <div className="text-xs text-slate-400">{formatNumber(row.orders)} orders</div>
+                          <div className="text-xs text-slate-400">{t("marketing.analytics.attribution.orderCount", { count: formatNumber(row.orders) })}</div>
                         </div>
                         <div className="text-right">
                           <div className="font-semibold text-white">{formatNumber(row.revenue)}</div>

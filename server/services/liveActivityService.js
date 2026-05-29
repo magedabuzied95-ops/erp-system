@@ -1,9 +1,21 @@
 import db from "../database/db.js";
+import { SALE_MODE_DEFAULTS } from "./saleModeService.js";
+import { buildCacheKey, invalidateCachePattern } from "./cacheService.js";
 
-const DEFAULT_SETTINGS = {};
+const DEFAULT_SETTINGS = {
+  enable_fake_compare_price: true,
+  fake_compare_percent: 20,
+  fake_compare_rounding_mode: "none",
+  ...SALE_MODE_DEFAULTS,
+};
+let websiteSettingsSchemaPromise = null;
+let websiteSettingsSchemaEnsured = false;
 
 export const ensureWebsiteSettingsSchema = async (clientOrPool = db) => {
-  await clientOrPool.query(`
+  if (websiteSettingsSchemaEnsured) return;
+  if (clientOrPool === db && websiteSettingsSchemaPromise) return websiteSettingsSchemaPromise;
+  const runEnsure = async () => {
+    await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS website_settings (
       id BIGSERIAL PRIMARY KEY,
       tenant_id BIGINT NULL UNIQUE,
@@ -12,7 +24,18 @@ export const ensureWebsiteSettingsSchema = async (clientOrPool = db) => {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_website_settings_tenant ON website_settings (tenant_id)`);
+    await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_website_settings_tenant ON website_settings (tenant_id)`);
+  };
+  if (clientOrPool !== db) return runEnsure();
+  websiteSettingsSchemaPromise = runEnsure()
+    .then(() => {
+      websiteSettingsSchemaEnsured = true;
+    })
+    .catch((error) => {
+      websiteSettingsSchemaPromise = null;
+      throw error;
+    });
+  return websiteSettingsSchemaPromise;
 };
 
 export const getWebsiteSettings = async ({ tenantId = null } = {}) => {
@@ -47,6 +70,7 @@ export const updateWebsiteSettings = async ({ tenantId = null, settings = {} } =
         `,
         [existing.rows[0].id, JSON.stringify(next)]
       );
+      invalidateCachePattern(buildCacheKey("storefront", `tenant:public`, "*")).catch(() => {});
       return { ...DEFAULT_SETTINGS, ...(updated.rows[0]?.settings || next) };
     }
   }
@@ -61,6 +85,10 @@ export const updateWebsiteSettings = async ({ tenantId = null, settings = {} } =
     `,
     [tenantId, JSON.stringify(next)]
   );
+  invalidateCachePattern(buildCacheKey("storefront", `tenant:${tenantId || "public"}`, "*")).catch(() => {});
+  if (tenantId !== null && tenantId !== undefined) {
+    invalidateCachePattern(buildCacheKey("storefront", `tenant:public`, "*")).catch(() => {});
+  }
   return { ...DEFAULT_SETTINGS, ...(result.rows[0]?.settings || next) };
 };
 

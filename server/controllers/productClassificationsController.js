@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { invalidateCachePattern } from "../services/cacheService.js";
 import {
   ensureProductClassificationSchema,
   fetchProductClassificationGroupByKey,
@@ -78,7 +79,6 @@ const resolveGroupId = async ({ group_id, group_key }) => {
 
 
 const safeDuplicateOptionMessage = "This classification option already exists in the same group.";
-const safeOptionInUseMessage = "This classification option is used by products and cannot be deleted.";
 
 const assertUniqueOptionValue = async (client, { groupId, value, excludeId = null }) => {
   const params = [groupId, value];
@@ -103,37 +103,100 @@ const assertUniqueOptionValue = async (client, { groupId, value, excludeId = nul
   }
 };
 
-const optionUsageCount = async (client, { groupId, value }) => {
-  const groupResult = await client.query("SELECT key FROM product_classification_groups WHERE id = $1", [groupId]);
-  const groupKey = normalizeKey(groupResult.rows[0]?.key);
-  const columnCandidates = {
-    gender: ["gender"],
-    product_type: ["product_type", "productType", "type"],
-    style: ["style"],
-    grade: ["grade", "product_grade"],
-  }[groupKey] || [groupKey];
-  const normalizedValue = normalizeText(value).toLowerCase();
-  let total = 0;
+const invalidateProductClassificationCaches = async () => {
+  await Promise.all([
+    invalidateCachePattern("storefront:*"),
+    invalidateCachePattern("product-classifications:*"),
+  ]).catch((error) => {
+    console.warn("[product-classifications] cache invalidation skipped", error?.message || error);
+  });
+};
+
+const columnCandidatesForGroup = (groupKey) => ({
+  gender: ["gender"],
+  product_type: ["product_type", "productType", "type"],
+  style: ["style"],
+  grade: ["grade", "product_grade"],
+}[normalizeKey(groupKey)] || [normalizeKey(groupKey)]);
+
+const existingColumns = async (client, tableName, candidates = []) => {
+  if (!candidates.length) return [];
+  const result = await client.query(
+    `
+    SELECT column_name, is_nullable
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = $1
+      AND column_name = ANY($2::text[])
+    `,
+    [tableName, candidates]
+  );
+  return result.rows;
+};
+
+const tableExists = async (client, tableName) => {
+  const result = await client.query(
+    `
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = current_schema()
+      AND table_name = $1
+    LIMIT 1
+    `,
+    [tableName]
+  );
+  return Boolean(result.rows[0]);
+};
+
+const clearProductClassificationReferences = async (client, { groupKey, options = [] }) => {
+  const aliases = [...new Set(options.flatMap((option = {}) => [
+    option.value,
+    option.label_ar,
+    option.label_en,
+    option.name_ar,
+    option.name_en,
+    option.english_name,
+  ]).map((value) => normalizeText(value).toLowerCase()).filter(Boolean))];
+  const optionIds = options.map((option) => Number(option.id)).filter((id) => Number.isFinite(id));
+  const groupColumns = columnCandidatesForGroup(groupKey);
+  const touched = [];
 
   for (const tableName of ["products", "product_variants"]) {
-    const columnsResult = await client.query(
-      `
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = current_schema()
-        AND table_name = $1
-        AND column_name = ANY($2::text[])
-      `,
-      [tableName, columnCandidates]
-    );
-    const columns = columnsResult.rows.map((row) => row.column_name);
-    if (!columns.length) continue;
-    const where = columns.map((column) => `LOWER(TRIM(COALESCE("${column}"::text, ''))) = $1`).join(" OR ");
-    const result = await client.query(`SELECT COUNT(*)::int AS total FROM ${tableName} WHERE ${where}`, [normalizedValue]);
-    total += Number(result.rows[0]?.total || 0);
+    const fieldColumns = await existingColumns(client, tableName, groupColumns);
+    for (const column of fieldColumns) {
+      if (!aliases.length) continue;
+      const nextValue = column.is_nullable === "NO" ? "" : null;
+      const result = await client.query(
+        `UPDATE ${tableName} SET "${column.column_name}" = $1 WHERE LOWER(TRIM(COALESCE("${column.column_name}"::text, ''))) = ANY($2::text[])`,
+        [nextValue, aliases]
+      );
+      touched.push({ table: tableName, column: column.column_name, rows: result.rowCount });
+    }
+
+    const idColumns = await existingColumns(client, tableName, ["product_classification_id", "classification_id"]);
+    for (const column of idColumns) {
+      if (!optionIds.length) continue;
+      const nextValue = column.is_nullable === "NO" ? 0 : null;
+      const result = await client.query(
+        `UPDATE ${tableName} SET "${column.column_name}" = $1 WHERE "${column.column_name}" = ANY($2::bigint[])`,
+        [nextValue, optionIds]
+      );
+      touched.push({ table: tableName, column: column.column_name, rows: result.rowCount });
+    }
   }
 
-  return total;
+  if (await tableExists(client, "product_classifications")) {
+    const joinColumns = await existingColumns(client, "product_classifications", ["option_id", "classification_id", "product_classification_id"]);
+    const conditions = joinColumns
+      .map((column) => `"${column.column_name}" = ANY($1::bigint[])`)
+      .join(" OR ");
+    if (conditions && optionIds.length) {
+      const result = await client.query(`DELETE FROM product_classifications WHERE ${conditions}`, [optionIds]);
+      touched.push({ table: "product_classifications", column: "mapping", rows: result.rowCount });
+    }
+  }
+
+  console.log("[product-classifications-cleanup]", { groupKey, optionIds, aliases, touched });
 };
 
 export const listProductClassifications = async (req, res) => {
@@ -188,6 +251,7 @@ export const createProductClassificationGroup = async (req, res) => {
       [payload.key, payload.name_ar, payload.name_en, payload.sort_order, payload.is_active]
     );
     await client.query("COMMIT");
+    await invalidateProductClassificationCaches();
     res.status(201).json({ success: true, group: serializeGroups([{ ...result.rows[0], options: [] }])[0] });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -221,6 +285,7 @@ export const updateProductClassificationGroup = async (req, res) => {
       [payload.key, payload.name_ar, payload.name_en, payload.sort_order, payload.is_active, id]
     );
     await client.query("COMMIT");
+    await invalidateProductClassificationCaches();
     if (!result.rows[0]) {
       return res.status(404).json({ success: false, message: "Classification group not found" });
     }
@@ -261,10 +326,11 @@ export const deleteProductClassificationGroup = async (req, res) => {
       UPDATE product_classification_options
       SET is_active = FALSE, deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
       WHERE group_id = $1 AND deleted_at IS NULL
-      RETURNING id
+      RETURNING id, value, label_ar, label_en
       `,
       [id]
     );
+    await clearProductClassificationReferences(client, { groupKey: result.rows[0].key, options: optionsResult.rows });
     console.log("[product-classifications] delete group", {
       id,
       affectedRows: result.rowCount,
@@ -272,6 +338,7 @@ export const deleteProductClassificationGroup = async (req, res) => {
       result: result.rows[0],
     });
     await client.query("COMMIT");
+    await invalidateProductClassificationCaches();
     res.json({ success: true });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -314,6 +381,7 @@ export const createProductClassificationOption = async (req, res) => {
       [groupId, payload.value, payload.label_ar, payload.label_en, payload.icon, payload.color, payload.sort_order, payload.is_active]
     );
     await client.query("COMMIT");
+    await invalidateProductClassificationCaches();
     res.status(201).json({ success: true, option: serializeOption(result.rows[0]) });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -353,6 +421,7 @@ export const updateProductClassificationOption = async (req, res) => {
       [groupId, payload.value, payload.label_ar, payload.label_en, payload.icon, payload.color, payload.sort_order, payload.is_active, id]
     );
     await client.query("COMMIT");
+    await invalidateProductClassificationCaches();
     if (!result.rows[0]) {
       return res.status(404).json({ success: false, message: "Classification option not found" });
     }
@@ -378,9 +447,10 @@ export const deleteProductClassificationOption = async (req, res) => {
     await client.query("BEGIN");
     const optionResult = await client.query(
       `
-      SELECT id, group_id, value
-      FROM product_classification_options
-      WHERE id = $1 AND deleted_at IS NULL
+      SELECT o.id, o.group_id, o.value, o.label_ar, o.label_en, g.key AS group_key
+      FROM product_classification_options o
+      JOIN product_classification_groups g ON g.id = o.group_id
+      WHERE o.id = $1 AND o.deleted_at IS NULL
       `,
       [id]
     );
@@ -389,11 +459,7 @@ export const deleteProductClassificationOption = async (req, res) => {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, message: "Classification option not found" });
     }
-    const usageCount = await optionUsageCount(client, { groupId: option.group_id, value: option.value });
-    if (usageCount > 0) {
-      await client.query("ROLLBACK");
-      return res.status(409).json({ success: false, message: safeOptionInUseMessage });
-    }
+    await clearProductClassificationReferences(client, { groupKey: option.group_key, options: [option] });
     const result = await client.query(
       `
       UPDATE product_classification_options
@@ -413,6 +479,7 @@ export const deleteProductClassificationOption = async (req, res) => {
       result: result.rows[0],
     });
     await client.query("COMMIT");
+    await invalidateProductClassificationCaches();
     res.json({ success: true });
   } catch (error) {
     await client.query("ROLLBACK");

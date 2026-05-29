@@ -9,10 +9,10 @@ import {
 
 const router = express.Router();
 
-router.get("/:id/share-meta", getPublicProductShareMetadata);
-router.get("/:slug/og-image", getPublicProductOgImage);
-router.get("/:id", getPublicProductById);
-router.post("/:id/events", logPublicMarketingEvent);
+router.get("/:identifier/share-meta", getPublicProductShareMetadata);
+router.get("/:identifier/og-image", getPublicProductOgImage);
+router.get("/:identifier", getPublicProductById);
+router.post("/:identifier/events", logPublicMarketingEvent);
 router.post("/events", logPublicMarketingEvent);
 
 export default router;

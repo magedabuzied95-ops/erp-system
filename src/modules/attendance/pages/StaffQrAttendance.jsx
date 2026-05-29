@@ -3,6 +3,7 @@ import { Camera, CircleCheckBig, MapPin, RefreshCcw, ScanLine, ShieldAlert } fro
 import { Html5QrcodeScanner } from "html5-qrcode";
 
 import { scanQrAttendance } from "../attendanceApi";
+import { getAttendanceDeviceFingerprint, getAttendanceDeviceToken } from "../attendanceDevice";
 
 const getCurrentPosition = () =>
   new Promise((resolve, reject) => {
@@ -84,6 +85,8 @@ export default function StaffQrAttendance() {
                 qrToken: String(decodedText || "").trim(),
                 latitude: position.coords.latitude,
                 longitude: position.coords.longitude,
+                device_token: getAttendanceDeviceToken(),
+                device_fingerprint: getAttendanceDeviceFingerprint(),
               });
 
               setResult({
@@ -93,6 +96,10 @@ export default function StaffQrAttendance() {
               setIsScanning(false);
               await scanner.clear();
               setProcessing(false);
+              const portalUrl = response?.portal_url || response?.employee_portal?.url;
+              if (response?.action === "check_in" && response?.employee_portal?.auto_redirect !== false && portalUrl) {
+                window.location.assign(portalUrl);
+              }
             } catch (scanError) {
               const message =
                 scanError?.responseBody?.message ||

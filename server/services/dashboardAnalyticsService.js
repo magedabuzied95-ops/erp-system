@@ -4,6 +4,14 @@ const daySql = "date_trunc('day', NOW())";
 const yesterdaySql = "date_trunc('day', NOW()) - INTERVAL '1 day'";
 
 const toNumber = (value) => Number(value || 0);
+const tableExistsCache = new Map();
+const columnExistsCache = new Map();
+const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").toLowerCase());
+
+const logPerf = (message, payload = {}) => {
+  if (!ERP_PERF_DEBUG) return;
+  console.log(message, payload);
+};
 
 const resolveDateRange = ({ range = "today", dateFrom = "", dateTo = "" } = {}) => {
   if (range === "yesterday") return { sql: "CURRENT_DATE - INTERVAL '1 day'", endSql: "CURRENT_DATE" };
@@ -33,23 +41,61 @@ const branchClause = (alias, filters, params) => {
 };
 
 const tableExists = async (tableName) => {
-  const result = await db.query("SELECT to_regclass($1) AS regclass", [`public.${tableName}`]);
-  return Boolean(result.rows[0]?.regclass);
+  if (tableExistsCache.has(tableName)) return tableExistsCache.get(tableName);
+  const startedAt = Date.now();
+  logPerf("[dashboard] query start", { name: "tableExists", tableName });
+  try {
+    const result = await db.query("SELECT to_regclass($1) AS regclass", [`public.${tableName}`]);
+    const exists = Boolean(result.rows[0]?.regclass);
+    tableExistsCache.set(tableName, exists);
+    logPerf("[dashboard] query end", { name: "tableExists", tableName, durationMs: Date.now() - startedAt, rows: result.rowCount });
+    return exists;
+  } catch (error) {
+    console.error("[dashboard] query error", {
+      name: "tableExists",
+      tableName,
+      durationMs: Date.now() - startedAt,
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+    return false;
+  }
 };
 
 const columnExists = async (tableName, columnName) => {
-  const result = await db.query(
-    `
-    SELECT 1
-    FROM information_schema.columns
-    WHERE table_schema = current_schema()
-      AND table_name = $1
-      AND column_name = $2
-    LIMIT 1
-    `,
-    [tableName, columnName]
-  );
-  return result.rows.length > 0;
+  const cacheKey = `${tableName}.${columnName}`;
+  if (columnExistsCache.has(cacheKey)) return columnExistsCache.get(cacheKey);
+  const startedAt = Date.now();
+  logPerf("[dashboard] query start", { name: "columnExists", tableName, columnName });
+  try {
+    const result = await db.query(
+      `
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = $1
+        AND column_name = $2
+      LIMIT 1
+      `,
+      [tableName, columnName]
+    );
+    const exists = result.rows.length > 0;
+    columnExistsCache.set(cacheKey, exists);
+    logPerf("[dashboard] query end", { name: "columnExists", tableName, columnName, durationMs: Date.now() - startedAt, rows: result.rowCount });
+    return exists;
+  } catch (error) {
+    console.error("[dashboard] query error", {
+      name: "columnExists",
+      tableName,
+      columnName,
+      durationMs: Date.now() - startedAt,
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+    return false;
+  }
 };
 
 const tenantClause = (alias, tenantId, params) => {
@@ -60,14 +106,53 @@ const tenantClause = (alias, tenantId, params) => {
 
 const emptyRows = [];
 
-const safeQuery = async (sql, params = [], fallback = emptyRows) => {
+const safeQuery = async (sql, params = [], fallback = emptyRows, name = "dashboardQuery") => {
+  const startedAt = Date.now();
+  logPerf("[dashboard] query start", { name, params: params.length });
   try {
     const result = await db.query(sql, params);
+    logPerf("[dashboard] query end", { name, durationMs: Date.now() - startedAt, rows: result.rowCount });
     return result.rows;
   } catch (error) {
-    console.error("[dashboard] query failed", error.message);
+    console.error("[dashboard] query error", {
+      name,
+      durationMs: Date.now() - startedAt,
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
     return fallback;
   }
+};
+
+export const warmDashboardMetadataCache = async () => {
+  const tables = [
+    "orders",
+    "order_items",
+    "products",
+    "product_variants",
+    "purchases",
+    "customers",
+    "cashbox",
+    "expenses",
+    "returns",
+    "inventory_movements",
+    "stock_transfers",
+    "marketing_attribution_events",
+  ];
+  await Promise.all(tables.map((tableName) => tableExists(tableName)));
+  await Promise.all([
+    columnExists("orders", "tenant_id"),
+    columnExists("orders", "branch_id"),
+    columnExists("orders", "payment_method"),
+    columnExists("orders", "source"),
+    columnExists("orders", "channel"),
+    columnExists("order_items", "tenant_id"),
+    columnExists("products", "tenant_id"),
+    columnExists("product_variants", "tenant_id"),
+    columnExists("product_variants", "stock"),
+    columnExists("cashbox", "status"),
+  ]);
 };
 
 export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {}) => {
@@ -114,7 +199,8 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             ${ordersTenant}
           `,
           params,
-          [{}]
+          [{}],
+          "overview.today"
         )
       : [{}],
     tableExists("orders")
@@ -131,7 +217,8 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             ${yesterdayTenant}
           `,
           yesterdayParams,
-          [{}]
+          [{}],
+          "overview.yesterday"
         )
       : [{}],
     tableExists("products")
@@ -144,7 +231,8 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             ${productTenant}
           `,
           productParams,
-          [{}]
+          [{}],
+          "overview.productLow"
         )
       : [{}],
     tableExists("product_variants")
@@ -156,7 +244,8 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             ${variantTenant}
           `,
           variantParams,
-          [{}]
+          [{}],
+          "overview.variantLow"
         )
       : [{}],
     tableExists("purchases")
@@ -168,7 +257,8 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             ${purchaseTenant}
           `,
           purchaseParams,
-          [{}]
+          [{}],
+          "overview.pendingPurchases"
         )
       : [{}],
     tableExists("customers")
@@ -180,7 +270,8 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             ${customerTenant}
           `,
           customerParams,
-          [{}]
+          [{}],
+          "overview.customersToday"
         )
       : [{}],
     tableExists("cashbox")
@@ -192,7 +283,8 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             ${cashboxTenant}
           `,
           cashboxParams,
-          [{}]
+          [{}],
+          "overview.activePos"
         )
       : [{}],
     getRecentInvoices({ tenantId, limit: 6 }),
@@ -259,7 +351,8 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
           ${orderTenant}
         `,
         orderParams,
-        [{}]
+        [{}],
+        "profit.items"
       )
     : await safeQuery(
         `
@@ -272,7 +365,8 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
           ${orderTenant}
         `,
         orderParams,
-        [{}]
+        [{}],
+        "profit.orders"
       );
 
   const expenses = await tableExists("expenses")
@@ -281,11 +375,11 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
         SELECT COALESCE(SUM(amount), 0) AS amount
         FROM expenses e
         WHERE e.created_at >= ${daySql}
-          AND LOWER(COALESCE(e.status, 'posted')) NOT IN ('rejected', 'cancelled')
           ${expenseTenant}
         `,
         expenseParams,
-        [{}]
+        [{}],
+        "profit.expenses"
       )
     : [{}];
 
@@ -314,7 +408,9 @@ export const getSalesTrend = async ({ tenantId = null, days = 14, filters = {} }
     GROUP BY b.day
     ORDER BY b.day
     `,
-    params
+    params,
+    emptyRows,
+    "salesTrend"
   );
 };
 
@@ -339,7 +435,9 @@ export const getHourlySales = async ({ tenantId = null, filters = {} } = {}) => 
     GROUP BY hour
     ORDER BY hour
     `,
-    params
+    params,
+    emptyRows,
+    "hourlySales"
   );
 };
 
@@ -368,7 +466,9 @@ export const getTopProducts = async ({ tenantId = null, limit = 8, filters = {} 
     ORDER BY quantity DESC, revenue DESC
     LIMIT $1
     `,
-    params
+    params,
+    emptyRows,
+    "topProducts"
   );
 };
 
@@ -403,7 +503,9 @@ export const getLowStock = async ({ tenantId = null, limit = 12 } = {}) => {
         ORDER BY stock ASC, name ASC
         LIMIT $1
         `,
-        params
+        params,
+        emptyRows,
+        "lowStock.variants"
       ))
     );
   }
@@ -420,7 +522,9 @@ export const getLowStock = async ({ tenantId = null, limit = 12 } = {}) => {
         ORDER BY COALESCE(p.stock, 0) ASC
         LIMIT $1
         `,
-        params
+        params,
+        emptyRows,
+        "lowStock.products"
       ))
     );
   }
@@ -464,7 +568,7 @@ export const getLiveActivity = async ({ tenantId = null, limit = 30 } = {}) => {
     `);
   }
   if (!parts.length) return [];
-  return safeQuery(`SELECT * FROM (${parts.join(" UNION ALL ")}) activity ORDER BY created_at DESC LIMIT ${max}`, params);
+  return safeQuery(`SELECT * FROM (${parts.join(" UNION ALL ")}) activity ORDER BY created_at DESC LIMIT ${max}`, params, emptyRows, "liveActivity");
 };
 
 export const getBranchPerformance = async ({ tenantId = null, filters = {} } = {}) => {
@@ -487,7 +591,9 @@ export const getBranchPerformance = async ({ tenantId = null, filters = {} } = {
     GROUP BY COALESCE(b.name, 'Default branch')
     ORDER BY sales DESC
     `,
-    params
+    params,
+    emptyRows,
+    "branchPerformance"
   );
 };
 
@@ -513,7 +619,9 @@ export const getPaymentAnalytics = async ({ tenantId = null, filters = {} } = {}
     GROUP BY method
     ORDER BY amount DESC
     `,
-    params
+    params,
+    emptyRows,
+    "paymentAnalytics"
   );
 };
 
@@ -539,7 +647,9 @@ export const getMarketingAnalytics = async ({ tenantId = null, filters = {} } = 
     GROUP BY source
     ORDER BY sales DESC
     `,
-    params
+    params,
+    emptyRows,
+    "marketing"
   );
   return { channels: rows, attributedSales: rows.filter((row) => row.source !== "direct").reduce((sum, row) => sum + toNumber(row.sales), 0) };
 };
@@ -560,7 +670,9 @@ export const getPosLive = async ({ tenantId = null } = {}) => {
             ${cashboxTenant}
           ORDER BY c.opened_at DESC NULLS LAST
           `,
-          cashboxParams
+          cashboxParams,
+          emptyRows,
+          "posLive.sessions"
         )
       : [],
     tableExists("orders")
@@ -573,7 +685,8 @@ export const getPosLive = async ({ tenantId = null } = {}) => {
           LIMIT 1
           `,
           orderParams,
-          [{}]
+          [{}],
+          "posLive.lastInvoice"
         )
       : [{}],
     getHourlySales({ tenantId }),
@@ -606,15 +719,21 @@ export const getInventoryIntelligence = async ({ tenantId = null } = {}) => {
         LEFT JOIN product_variants pv ON pv.id = oi.variant_id
         WHERE o.created_at >= CURRENT_DATE - INTERVAL '30 days'
           ${ordersTenant}
-        GROUP BY size, color
+        GROUP BY pv.size, pv.color, oi.variant_name
         ORDER BY quantity DESC
         LIMIT 10
         `,
-        params
+        params,
+        emptyRows,
+        "inventory.sizeColor"
       )
     : [];
-  const pendingTransfers = await tableExists("stock_transfers")
-    ? await safeQuery("SELECT COUNT(*)::int AS count FROM stock_transfers WHERE LOWER(COALESCE(status, '')) IN ('pending', 'draft', 'in_transit')", [], [{ count: 0 }])
+  const hasStockTransfers = await tableExists("stock_transfers");
+  const hasStockTransferStatus = hasStockTransfers ? await columnExists("stock_transfers", "status") : false;
+  const pendingTransfers = hasStockTransfers
+    ? hasStockTransferStatus
+      ? await safeQuery("SELECT COUNT(*)::int AS count FROM stock_transfers WHERE LOWER(COALESCE(status, '')) IN ('pending', 'draft', 'in_transit')", [], [{ count: 0 }], "inventory.pendingTransfers")
+      : [{ count: 0 }]
     : [{ count: 0 }];
   return {
     lowStock,
@@ -657,6 +776,8 @@ export const getRecentInvoices = async ({ tenantId = null, limit = 8 } = {}) => 
     ORDER BY o.created_at DESC
     LIMIT $1
     `,
-    params
+    params,
+    emptyRows,
+    "recentInvoices"
   );
 };

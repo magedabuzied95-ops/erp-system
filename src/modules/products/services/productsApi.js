@@ -29,6 +29,14 @@ const normalizeNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const normalizePurchaseQuantity = (...values) => {
+  for (const value of values) {
+    const parsed = Number(value ?? 0);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
+};
+
 const normalizeText = (value) => {
   if (value === null || value === undefined) return "";
   return String(value).trim();
@@ -76,15 +84,62 @@ export const normalizeVariantPayload = (input = {}) => {
         source.sizeName ??
         source.size_name
     ),
-    default_purchase_qty: normalizeNumber(
-      source.default_purchase_qty ??
-        source.defaultPurchaseQty ??
-        source.initial_display_qty ??
-        source.initialDisplayQty ??
-        source.stock ??
-        source.quantity ??
-        source.qty ??
-        source.variant_stock
+    default_purchase_qty: normalizePurchaseQuantity(
+      source.default_purchase_qty,
+      source.purchase_qty,
+      source.purchase_quantity,
+      source.planned_qty,
+      source.planned_quantity,
+      source.stock_qty,
+      source.stockQty,
+      source.bulk_purchase_qty,
+      source.defaultPurchaseQty,
+      source.initial_display_qty,
+      source.initialDisplayQty,
+      source.stock,
+      source.quantity,
+      source.qty,
+      source.variant_stock
+    ),
+    purchase_qty: normalizePurchaseQuantity(
+      source.purchase_qty,
+      source.default_purchase_qty,
+      source.purchase_quantity,
+      source.planned_qty,
+      source.planned_quantity,
+      source.stock_qty,
+      source.stockQty,
+      source.bulk_purchase_qty
+    ),
+    purchase_quantity: normalizePurchaseQuantity(
+      source.purchase_quantity,
+      source.purchase_qty,
+      source.default_purchase_qty,
+      source.planned_qty,
+      source.planned_quantity,
+      source.stock_qty,
+      source.stockQty,
+      source.bulk_purchase_qty
+    ),
+    stock_qty: normalizePurchaseQuantity(
+      source.stock_qty,
+      source.stockQty,
+      source.default_purchase_qty,
+      source.purchase_qty,
+      source.purchase_quantity,
+      source.planned_qty,
+      source.planned_quantity,
+      source.bulk_purchase_qty
+    ),
+    bulk_purchase_qty: normalizePurchaseQuantity(
+      source.bulk_purchase_qty,
+      source.stock_qty,
+      source.stockQty,
+      source.default_purchase_qty,
+      source.purchase_qty,
+      source.purchase_quantity,
+      source.planned_qty,
+      source.planned_quantity
     ),
     sku: normalizeText(
       source.sku ??
@@ -96,6 +151,18 @@ export const normalizeVariantPayload = (input = {}) => {
       source.barcode ??
         source.variantBarcode ??
         source.variant_barcode ??
+        ""
+    ),
+    article_code: normalizeText(
+      source.article_code ??
+        source.articleCode ??
+        source.variant_article_code ??
+        source.model_code ??
+        source.modelCode ??
+        source.factory_model ??
+        source.factoryModel ??
+        source.factory_code ??
+        source.factoryCode ??
         ""
     ),
     image_url: imageUrl,
@@ -123,20 +190,46 @@ export const normalizeVariantPayload = (input = {}) => {
     purchase_price: normalizeNumber(
       source.purchase_price ??
         source.purchasePrice ??
+        source.last_purchase_price ??
+        source.lastPurchasePrice ??
+        source.last_purchase_cost ??
+        source.lastPurchaseCost ??
+        source.average_cost ??
+        source.averageCost ??
         source.cost_price ??
         source.costPrice ??
         source.variant_cost_price
     ),
-    sale_price: normalizeNumber(
-      source.sale_price ??
-        source.salePrice ??
-        source.price ??
-        source.variant_price
+    cost_price: normalizeNumber(
+      source.cost_price ??
+        source.costPrice ??
+        source.last_purchase_price ??
+        source.lastPurchasePrice ??
+        source.last_purchase_cost ??
+        source.lastPurchaseCost ??
+        source.average_cost ??
+        source.averageCost ??
+        source.purchase_price ??
+        source.purchasePrice ??
+        source.variant_cost_price
     ),
+    last_purchase_price: normalizeNumber(source.last_purchase_price ?? source.lastPurchasePrice ?? source.last_purchase_cost ?? source.lastPurchaseCost),
+    average_cost: normalizeNumber(source.average_cost ?? source.averageCost),
+    regular_price: normalizeNumber(source.selling_price ?? source.sellingPrice ?? source.regular_price ?? source.regularPrice ?? source.price ?? source.variant_price),
+    selling_price: normalizeNumber(source.selling_price ?? source.sellingPrice ?? source.regular_price ?? source.regularPrice ?? source.price ?? source.variant_price),
+    sale_price: normalizeNumber(source.sale_price ?? source.salePrice),
+    sale_price_enabled: Boolean(source.sale_price_enabled ?? source.salePriceEnabled ?? false),
+    sale_reason: normalizeText(source.sale_reason ?? source.saleReason ?? ""),
+    sale_start_at: source.sale_start_at ?? source.saleStartAt ?? null,
+    sale_end_at: source.sale_end_at ?? source.saleEndAt ?? null,
+    use_custom_compare_price: Boolean(source.use_custom_compare_price ?? source.useCustomComparePrice ?? false),
+    custom_compare_price: normalizeNumber(source.custom_compare_price ?? source.customComparePrice),
     price: normalizeNumber(
-      source.price ??
-        source.sale_price ??
-        source.salePrice ??
+      source.selling_price ??
+        source.sellingPrice ??
+        source.regular_price ??
+        source.regularPrice ??
+        source.price ??
         source.variant_price
     ),
     warehouse_id: source.warehouse_id ?? source.warehouseId ?? null,
@@ -164,6 +257,10 @@ export const createProduct = async (body) => {
 
 export const updateProduct = async (id, body) => unwrapItem(await api.put(`/products/${id}`, body));
 
+export const updateProductStatus = async (id, body) => unwrapItem(await api.patch(`/products/${id}/status`, body));
+
+export const updateProductPrices = async (id, body) => api.put(`/products/${id}/prices`, body);
+
 export const suggestMirrorEditionName = async (body) => {
   const response = await api.post("/products/suggest-edition", body, { timeoutMs: 30000 });
   return response?.suggestion || response?.data || response || null;
@@ -171,6 +268,11 @@ export const suggestMirrorEditionName = async (body) => {
 
 export const generateAiProductData = async (body) => {
   const response = await api.post("/products/generate-ai-data", body, { timeoutMs: 90000 });
+  return response?.data || response || null;
+};
+
+export const generateProductDescription = async (body) => {
+  const response = await api.post("/products/generate-description", body, { timeoutMs: 45000 });
   return response?.data || response || null;
 };
 

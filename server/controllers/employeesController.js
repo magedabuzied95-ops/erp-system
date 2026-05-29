@@ -1,6 +1,25 @@
 import db from "../database/db.js";
+import { createPerfTimer } from "../utils/perfDebug.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { getCommissionSnapshot, pickCommissionRule } from "../utils/employeeAnalytics.js";
+import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { cleanupFakeLegacyEmployees } from "../services/employeeCleanupService.js";
+import {
+  cancelEmployeePenalty,
+  createEmployeePenalty,
+  listEmployeePenalties,
+  updateEmployeePenalty,
+} from "../services/salesCommissionService.js";
+import {
+  buildEmployeePortalLink,
+  ensureEmployeePayrollPortalSchema,
+  getEmployeeGamificationAdmin,
+  grantEmployeeAdminReward,
+  listEmployeePortalRequests,
+  reviewEmployeePortalRequest,
+  regenerateEmployeePortalToken,
+  updateEmployeeGamificationSettings,
+} from "../services/employeePayrollPortalService.js";
 
 const safeQuery = async (client, text, params = []) => {
   try {
@@ -9,6 +28,14 @@ const safeQuery = async (client, text, params = []) => {
     console.warn("Employee analytics query failed:", error.message);
     return { rows: [] };
   }
+};
+
+const analyticsDebugEnabled = () =>
+  ["1", "true", "yes", "on"].includes(String(process.env.ERP_ANALYTICS_DEBUG || "").toLowerCase());
+
+const logAnalyticsDebug = (tag, payload = {}) => {
+  if (!analyticsDebugEnabled()) return;
+  console.info(tag, payload);
 };
 
 const buildRangeClause = (alias, startDate, endDate, params) => {
@@ -50,6 +77,348 @@ const getTenantContext = (req) => ({
   tenantId: isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id),
   userId: req.user?.id || null,
 });
+
+const normalizeOptionalLookupId = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const text = String(value).trim();
+  return text ? text : null;
+};
+
+const toBool = (value, fallback = false) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase());
+};
+
+const normalizeRoleValue = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+
+const canApprovePayrollPenalty = (user = {}) => {
+  if (isSuperAdminUser(user)) return true;
+  const role = normalizeRoleValue(user.role_name || user.role || "");
+  if (["admin", "super admin", "superadmin", "platform admin"].includes(role)) return true;
+  const permissions = Array.isArray(user.permissions) ? user.permissions.map((item) => String(item).toLowerCase()) : [];
+  return permissions.some((permission) =>
+    ["*", "*.*", "employees:edit", "employees.edit", "payroll:approve", "payroll.approve", "expenses:approve", "expenses.approve"].includes(permission)
+  );
+};
+
+export const getEmployees = async (req, res) => {
+  try {
+    await ensureAttendanceSchema(db);
+    await ensureEmployeePayrollPortalSchema(db);
+    const { tenantId } = getTenantContext(req);
+    const branchId = normalizeOptionalLookupId(req.query.branch_id || req.query.branchId);
+    const activeOnly = toBool(req.query.active, false);
+    const search = String(req.query.search || "").trim().toLowerCase();
+    const params = [tenantId, branchId, activeOnly];
+    const clauses = [
+      "($1::bigint IS NULL OR e.tenant_id = $1::bigint)",
+      "COALESCE(e.is_deleted, FALSE) = FALSE",
+      "($2::text IS NULL OR e.branch_id::text = $2::text)",
+      "($3::boolean = FALSE OR LOWER(COALESCE(e.status, 'active')) NOT IN ('inactive', 'disabled', 'false', '0', 'deleted'))",
+    ];
+
+    if (search) {
+      params.push(`%${search}%`);
+      clauses.push(`(
+        LOWER(COALESCE(e.full_name, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(e.employee_code, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(e.phone, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(e.email, '')) LIKE $${params.length}
+      )`);
+    }
+
+    const result = await db.query(
+      `
+      SELECT
+        e.id,
+        e.tenant_id,
+        e.branch_id,
+        b.name AS branch_name,
+        e.user_id,
+        e.full_name,
+        e.full_name AS name,
+        e.employee_code,
+        e.employee_code AS code,
+        e.phone,
+        e.email,
+        e.role,
+        e.salary,
+        e.salary AS base_salary,
+        COALESCE(e.daily_work_hours, 8) AS daily_work_hours,
+        COALESCE(e.working_days_per_month, 26) AS working_days_per_month,
+        COALESCE(e.working_days_per_week, 6) AS working_days_per_week,
+        e.work_start_time,
+        e.work_end_time,
+        COALESCE(e.absence_deduction_enabled, TRUE) AS absence_deduction_enabled,
+        COALESCE(e.missing_hours_deduction_enabled, TRUE) AS missing_hours_deduction_enabled,
+        COALESCE(e.late_deduction_enabled, TRUE) AS late_deduction_enabled,
+        COALESCE(e.early_leave_deduction_enabled, TRUE) AS early_leave_deduction_enabled,
+        e.status,
+        e.employee_portal_token,
+        e.created_at,
+        e.updated_at
+      FROM employees e
+      LEFT JOIN branches b ON b.id = e.branch_id
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY LOWER(COALESCE(e.full_name, '')) ASC, e.id ASC
+      `,
+      params
+    );
+
+    return res.json({ success: true, employees: result.rows, data: result.rows });
+  } catch (error) {
+    console.error("[employees] list error", error);
+    return res.status(500).json({ success: false, message: "Failed to load employees", error: error.message });
+  }
+};
+
+export const regenerateEmployeePayrollPortalToken = async (req, res) => {
+  try {
+    await ensureEmployeePayrollPortalSchema(db);
+    const { tenantId } = getTenantContext(req);
+    const token = await regenerateEmployeePortalToken({
+      employeeId: req.params.employeeId,
+      tenantId,
+    });
+    const portalUrl = buildEmployeePortalLink(token, req);
+    console.info("[employees] payroll portal token regenerated", {
+      requestId: req.id,
+      employeeId: req.params.employeeId,
+      token,
+    });
+    return res.json({
+      success: true,
+      token,
+      portal_url: portalUrl,
+      qr_url: portalUrl,
+      url: portalUrl,
+    });
+  } catch (error) {
+    console.error("[employees] regenerate payroll portal token error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to regenerate employee portal token" });
+  }
+};
+
+export const getEmployeePortalRequests = async (req, res) => {
+  const perf = createPerfTimer("GET /api/employees/portal-requests", { requestId: req.id });
+  try {
+    let phaseStartedAt = perf.phaseStart();
+    await ensureEmployeePayrollPortalSchema(db);
+    perf.mark("schema_guard", phaseStartedAt);
+    const { tenantId } = getTenantContext(req);
+    phaseStartedAt = perf.phaseStart();
+    const requests = await listEmployeePortalRequests({
+      tenantId,
+      status: String(req.query.status || "").trim(),
+      limit: req.query.limit,
+    });
+    perf.mark("query", phaseStartedAt);
+    perf.end({ count: requests.length });
+    return res.json({ success: true, requests });
+  } catch (error) {
+    perf.fail(error);
+    console.error("[employees] portal requests list error", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to load employee portal requests" });
+  }
+};
+
+export const reviewEmployeePortalRequestRecord = async (req, res) => {
+  const perf = createPerfTimer("PATCH /api/employees/portal-requests/:id", { requestId: req.id });
+  try {
+    let phaseStartedAt = perf.phaseStart();
+    await ensureEmployeePayrollPortalSchema(db);
+    perf.mark("schema_guard", phaseStartedAt);
+    const { tenantId, userId } = getTenantContext(req);
+    phaseStartedAt = perf.phaseStart();
+    const request = await reviewEmployeePortalRequest({
+      tenantId,
+      requestId: req.params.id,
+      status: req.body?.status,
+      adminNote: req.body?.admin_note || req.body?.adminNote || "",
+      reviewedBy: userId,
+      createAdvance: req.body?.create_advance === true || req.body?.createAdvance === true,
+    });
+    perf.mark("review_write", phaseStartedAt);
+    perf.end({ status: request.status, requestType: request.request_type });
+    return res.json({ success: true, request });
+  } catch (error) {
+    perf.fail(error);
+    console.error("[employees] portal request review error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to review employee portal request" });
+  }
+};
+
+export const getEmployeeGamificationSettingsRecord = async (req, res) => {
+  try {
+    const { tenantId } = getTenantContext(req);
+    const data = await getEmployeeGamificationAdmin({ tenantId });
+    return res.json({ success: true, ...data });
+  } catch (error) {
+    console.error("[employees] gamification settings load error", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to load gamification settings" });
+  }
+};
+
+export const updateEmployeeGamificationSettingsRecord = async (req, res) => {
+  try {
+    const { tenantId } = getTenantContext(req);
+    const settings = await updateEmployeeGamificationSettings({ tenantId, data: req.body || {} });
+    return res.json({ success: true, settings });
+  } catch (error) {
+    console.error("[employees] gamification settings update error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update gamification settings" });
+  }
+};
+
+export const grantEmployeeRewardRecord = async (req, res) => {
+  try {
+    const { tenantId, userId } = getTenantContext(req);
+    const reward = await grantEmployeeAdminReward({
+      tenantId,
+      employeeId: req.body?.employee_id || req.body?.employeeId,
+      title: req.body?.title || req.body?.reward_title,
+      pointsCost: req.body?.points_cost || req.body?.pointsCost,
+      adminNote: req.body?.admin_note || req.body?.adminNote || "",
+      createdBy: userId,
+    });
+    return res.status(201).json({ success: true, reward });
+  } catch (error) {
+    console.error("[employees] reward grant error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to grant employee reward" });
+  }
+};
+
+export const updateEmployeePayrollSettings = async (req, res) => {
+  try {
+    await ensureAttendanceSchema(db);
+    const { tenantId } = getTenantContext(req);
+    const employeeId = normalizeOptionalLookupId(req.params.employeeId);
+    if (!employeeId) return res.status(400).json({ success: false, message: "Employee is required" });
+
+    const dailyWorkHours = Number(req.body?.daily_work_hours ?? req.body?.dailyWorkHours ?? 8);
+    const workingDaysPerMonth = Number(req.body?.working_days_per_month ?? req.body?.workingDaysPerMonth ?? 26);
+    const workingDaysPerWeek = Number(req.body?.working_days_per_week ?? req.body?.workingDaysPerWeek ?? 6);
+    if (!Number.isFinite(dailyWorkHours) || dailyWorkHours <= 0) return res.status(400).json({ success: false, message: "Daily work hours must be greater than zero" });
+    if (!Number.isFinite(workingDaysPerMonth) || workingDaysPerMonth <= 0) return res.status(400).json({ success: false, message: "Working days per month must be greater than zero" });
+    if (!Number.isFinite(workingDaysPerWeek) || workingDaysPerWeek <= 0 || workingDaysPerWeek > 7) return res.status(400).json({ success: false, message: "Working days per week must be between 1 and 7" });
+
+    const result = await db.query(
+      `
+      UPDATE employees
+      SET daily_work_hours = $3,
+          working_days_per_month = $4,
+          working_days_per_week = $5,
+          work_start_time = NULLIF($6, '')::time,
+          work_end_time = NULLIF($7, '')::time,
+          absence_deduction_enabled = $8,
+          missing_hours_deduction_enabled = $9,
+          late_deduction_enabled = $10,
+          early_leave_deduction_enabled = $11,
+          updated_at = NOW()
+      WHERE id::text = $1::text
+        AND is_deleted IS DISTINCT FROM TRUE
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      RETURNING id, daily_work_hours, working_days_per_month, working_days_per_week, work_start_time, work_end_time,
+        absence_deduction_enabled, missing_hours_deduction_enabled, late_deduction_enabled, early_leave_deduction_enabled
+      `,
+      [
+        employeeId,
+        tenantId,
+        dailyWorkHours,
+        Math.round(workingDaysPerMonth),
+        Math.round(workingDaysPerWeek),
+        String(req.body?.work_start_time ?? req.body?.workStartTime ?? "").slice(0, 8),
+        String(req.body?.work_end_time ?? req.body?.workEndTime ?? "").slice(0, 8),
+        toBool(req.body?.absence_deduction_enabled ?? req.body?.absenceDeductionEnabled, true),
+        toBool(req.body?.missing_hours_deduction_enabled ?? req.body?.missingHoursDeductionEnabled, true),
+        toBool(req.body?.late_deduction_enabled ?? req.body?.lateDeductionEnabled, true),
+        toBool(req.body?.early_leave_deduction_enabled ?? req.body?.earlyLeaveDeductionEnabled, true),
+      ]
+    );
+    if (!result.rows[0]) return res.status(404).json({ success: false, message: "Employee not found" });
+    return res.json({ success: true, settings: result.rows[0] });
+  } catch (error) {
+    console.error("[employees] payroll settings update error", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to update payroll settings" });
+  }
+};
+
+export const cleanupFakeEmployees = async (req, res) => {
+  try {
+    const { tenantId, userId } = getTenantContext(req);
+    const confirm = toBool(req.body?.confirm ?? req.query?.confirm, false);
+    const result = await cleanupFakeLegacyEmployees({ tenantId, confirm, actorUserId: userId });
+    return res.json({
+      success: true,
+      message: confirm ? "Fake legacy employees deleted" : "Dry run only. Re-run with confirm=true to delete.",
+      ...result,
+    });
+  } catch (error) {
+    console.error("[employees] cleanup fake employees error", error);
+    return res.status(500).json({ success: false, message: "Failed to cleanup fake employees", error: error.message });
+  }
+};
+
+export const getEmployeePenalties = async (req, res) => {
+  try {
+    const { tenantId } = getTenantContext(req);
+    console.log(`[employee-penalties] fetching penalties for employee ${req.params.employeeId}`);
+    const penalties = await listEmployeePenalties({
+      tenantId,
+      employeeId: req.params.employeeId,
+      status: req.query.status || "",
+      includeCancelled: toBool(req.query.include_cancelled || req.query.includeCancelled, false),
+    });
+    return res.json({ success: true, penalties });
+  } catch (error) {
+    console.error("[employees] penalties list error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load employee penalties" });
+  }
+};
+
+export const createEmployeePenaltyRecord = async (req, res) => {
+  try {
+    const { tenantId, userId } = getTenantContext(req);
+    const penalty = await createEmployeePenalty({
+      tenantId,
+      employeeId: req.params.employeeId,
+      userId,
+      data: req.body || {},
+      defaultStatus: canApprovePayrollPenalty(req.user) ? "approved" : "pending",
+    });
+    return res.status(201).json({ success: true, penalty });
+  } catch (error) {
+    console.error("[employees] penalty create error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to create employee penalty" });
+  }
+};
+
+export const updateEmployeePenaltyRecord = async (req, res) => {
+  try {
+    const { tenantId } = getTenantContext(req);
+    const penalty = await updateEmployeePenalty({ tenantId, id: req.params.id, data: req.body || {} });
+    return res.json({ success: true, penalty });
+  } catch (error) {
+    console.error("[employees] penalty update error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update employee penalty" });
+  }
+};
+
+export const cancelEmployeePenaltyRecord = async (req, res) => {
+  try {
+    const { tenantId } = getTenantContext(req);
+    const penalty = await cancelEmployeePenalty({ tenantId, id: req.params.id });
+    return res.json({ success: true, penalty });
+  } catch (error) {
+    console.error("[employees] penalty cancel error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to cancel employee penalty" });
+  }
+};
 
 const loadCommissionRules = async (client, tenantId) => {
   const result = await safeQuery(
@@ -108,8 +477,8 @@ const buildEmployeePerformance = async (client, tenantId, filters = {}) => {
         GROUP BY ec.employee_id
       )
       SELECT
-        COALESCE(u.id, order_rollup.employee_id) AS employee_id,
-        COALESCE(u.name, 'Unknown Employee') AS employee_name,
+        COALESCE(e.id, employee_user.id, u.id, order_rollup.employee_id) AS employee_id,
+        COALESCE(e.full_name, employee_user.full_name, u.name, 'Unlinked employee') AS employee_name,
         COALESCE(u.email, '') AS employee_email,
         COALESCE(u.phone, '') AS employee_phone,
         COALESCE(r.name, 'staff') AS role_name,
@@ -121,6 +490,14 @@ const buildEmployeePerformance = async (client, tenantId, filters = {}) => {
         COALESCE(commission_rollup.commission_earned, 0) AS commission_earned,
         order_rollup.last_order_at
       FROM order_rollup
+      LEFT JOIN employees e
+        ON e.id = order_rollup.employee_id
+       AND e.is_deleted IS DISTINCT FROM TRUE
+       AND ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
+      LEFT JOIN employees employee_user
+        ON employee_user.user_id = order_rollup.employee_id
+       AND employee_user.is_deleted IS DISTINCT FROM TRUE
+       AND ($1::bigint IS NULL OR employee_user.tenant_id = $1::bigint)
       LEFT JOIN users u ON u.id = order_rollup.employee_id
       LEFT JOIN roles r ON r.id = u.role_id
       LEFT JOIN commission_rollup ON commission_rollup.employee_id = order_rollup.employee_id
@@ -139,7 +516,7 @@ const buildEmployeePerformance = async (client, tenantId, filters = {}) => {
     `
       SELECT
         COALESCE(o.shift_id, 0) AS shift_id,
-        COALESCE(c.name, 'Unassigned Shift') AS shift_name,
+        COALESCE(c.name, 'No shift assigned') AS shift_name,
         COUNT(*)::int AS total_orders,
         COALESCE(SUM(o.total), 0) AS total_sales,
         COALESCE(AVG(o.total), 0) AS average_order_value
@@ -161,7 +538,7 @@ const buildEmployeePerformance = async (client, tenantId, filters = {}) => {
     `
       SELECT
         COALESCE(o.branch_id, 0) AS branch_id,
-        COALESCE(w.name, 'Unassigned Branch') AS branch_name,
+        COALESCE(w.name, 'No branch assigned') AS branch_name,
         COUNT(*)::int AS total_orders,
         COALESCE(SUM(o.total), 0) AS total_sales,
         COALESCE(AVG(o.total), 0) AS average_order_value
@@ -207,6 +584,14 @@ export const getSalesPerformance = async (req, res) => {
     const { tenantId } = getTenantContext(req);
     const filters = baseFilters(req);
     const performance = await buildEmployeePerformance(client, tenantId, filters);
+    logAnalyticsDebug("[commission-report]", {
+      endpoint: "sales-performance",
+      filters,
+      rows: performance.items.length,
+      shift_rows: performance.shiftPerformance.length,
+      branch_rows: performance.branchPerformance.length,
+      totals: performance.summary,
+    });
 
     return res.json({
       success: true,
@@ -237,9 +622,17 @@ export const getCommissions = async (req, res) => {
       `
         SELECT
           ec.*,
-          COALESCE(u.name, 'Unknown Employee') AS employee_name,
+          COALESCE(e.full_name, employee_user.full_name, u.name, 'Unlinked employee') AS employee_name,
           COALESCE(o.invoice_number, '') AS invoice_number
         FROM employee_commissions ec
+        LEFT JOIN employees e
+          ON e.id = ec.employee_id
+         AND e.is_deleted IS DISTINCT FROM TRUE
+         AND ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
+        LEFT JOIN employees employee_user
+          ON employee_user.user_id = ec.employee_id
+         AND employee_user.is_deleted IS DISTINCT FROM TRUE
+         AND ($1::bigint IS NULL OR employee_user.tenant_id = $1::bigint)
         LEFT JOIN users u ON u.id = ec.employee_id
         LEFT JOIN orders o ON o.id = ec.order_id
         WHERE ($1::bigint IS NULL OR ec.tenant_id = $1::bigint)
@@ -259,6 +652,13 @@ export const getCommissions = async (req, res) => {
       },
       { commissionEarned: 0, commissionCount: 0 }
     );
+    logAnalyticsDebug("[commission-report]", {
+      endpoint: "commissions",
+      filters,
+      rows: commissionsResult.rows?.length || 0,
+      rules: rules.length,
+      totals,
+    });
 
     return res.json({
       success: true,

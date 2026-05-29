@@ -1,4 +1,6 @@
 import { buildOrderInvoiceWhatsappText, normalizeOrderInvoiceData } from "./orderInvoice.js";
+import { displayPublicOrderNumber } from "./publicOrderNumber.js";
+import { formatCurrency } from "../lib/currency";
 
 const DEFAULT_COUNTRY_CODE = "20";
 const DEFAULT_MESSAGE_LANGUAGE = "ar";
@@ -16,16 +18,12 @@ const resolveMessageLanguage = (language = DEFAULT_MESSAGE_LANGUAGE) =>
   String(language || DEFAULT_MESSAGE_LANGUAGE).toLowerCase().startsWith("ar") ? "ar" : "en";
 
 const formatMessageCurrency = (amount, language = DEFAULT_MESSAGE_LANGUAGE) => {
-  const value = Number(amount || 0);
-  const formatted = new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-  return resolveMessageLanguage(language) === "ar" ? `${formatted} ج.م` : `EGP ${formatted}`;
+  return formatCurrency(amount, { language });
 };
 
 const resolvePaymentStatusLabel = (paymentStatus, language = DEFAULT_MESSAGE_LANGUAGE) => {
   const resolved = String(paymentStatus || "").trim().toLowerCase();
+  const isPartial = resolved === "partially paid" || resolved === "partially_paid" || resolved === "partial";
   if (resolveMessageLanguage(language) === "ar") {
     if (resolved === "paid") return "مدفوعة";
     if (resolved === "partially paid" || resolved === "partial") return "مدفوعة جزئياً";
@@ -33,7 +31,7 @@ const resolvePaymentStatusLabel = (paymentStatus, language = DEFAULT_MESSAGE_LAN
   }
 
   if (resolved === "paid") return "Paid";
-  if (resolved === "partially paid" || resolved === "partial") return "Partially paid";
+  if (isPartial) return "Partially paid";
   return "Unpaid";
 };
 
@@ -85,6 +83,7 @@ export const buildInvoiceMessageTemplate = ({
   order = null,
   invoice = null,
 }) => {
+  const publicNumber = displayPublicOrderNumber(invoiceNumber) || invoiceNumber;
   if (order || invoice) {
     const normalized = invoice || normalizeOrderInvoiceData(order, items, {
       storeName: companyName,
@@ -97,14 +96,14 @@ export const buildInvoiceMessageTemplate = ({
   const lines = isArabic
     ? [
         `فاتورة شراء من ${companyName}`,
-        `رقم الفاتورة: ${invoiceNumber || "n/a"}`,
+        `رقم الطلب: ${publicNumber || "n/a"}`,
         `العميل: ${customerName || "عميل بدون اسم"}`,
         `الإجمالي المدفوع: ${formatMessageCurrency(total, "ar")}`,
         `الحالة: ${resolvePaymentStatusLabel(paymentStatus, "ar")}`,
       ]
     : [
         `Purchase invoice from ${companyName}`,
-        `Invoice number: ${invoiceNumber || "n/a"}`,
+        `Order number: ${publicNumber || "n/a"}`,
         `Customer: ${customerName || "Walk-in Customer"}`,
         `Paid total: ${formatMessageCurrency(total, "en")}`,
         `Status: ${resolvePaymentStatusLabel(paymentStatus, "en")}`,
@@ -152,7 +151,7 @@ export const buildOrderStatusMessageTemplate = ({
   const lines = [
     `*${companyName}*`,
     "Order update",
-    `Invoice: ${invoiceNumber || "n/a"}`,
+    `Order: ${displayPublicOrderNumber(invoiceNumber) || invoiceNumber || "n/a"}`,
     `Customer: ${customerName || "Walk-in Customer"}`,
     `Status: ${status || "Pending"}`,
     `Payment: ${paymentStatus || "Pending"}`,

@@ -1,5 +1,6 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import toast from "react-hot-toast";
@@ -10,31 +11,36 @@ import {
   ChevronRight,
   Loader2,
   MessageCircle,
-  ScanBarcode,
+  FileDown,
+  Printer,
+  Maximize2,
+  Minimize2,
+  Search,
+  SlidersHorizontal,
   RotateCcw,
   Banknote,
   CheckCircle2,
+  BadgeCheck,
   Clock3,
   History,
   ShieldCheck,
+  ShoppingBag,
+  Package2,
   UserCheck,
   Warehouse,
+  ReceiptText,
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
-import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
+import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
+import { useRealtimeFeedback } from "../../../hooks/useRealtimeFeedback";
+import { getCurrentTenant, getCurrentUser, hasPermission, isAdminUser } from "../../../shared/auth/authStorage";
+import { displayPublicOrderNumber } from "../../../shared/utils/publicOrderNumber";
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
 import {
   classificationGroupsToFieldOptions,
   normalizeClassificationValue,
 } from "../../products/lib/productClassifications";
-import {
-  checkInEmployee,
-  checkOutEmployee,
-  getAttendanceEmployees,
-  getAttendanceKioskSnapshot,
-  getOpeningCandidates,
-} from "../../attendance/attendanceApi";
 import {
   getLoyaltyCustomerById,
   validateLoyaltyRedemption,
@@ -49,18 +55,29 @@ import {
   pickFirstVariant,
   readPosCart,
   readPosPersistedState,
-  downloadInvoicePdf,
+  readPosSession,
   writePosCart,
   writePosPersistedState,
+  writePosSession,
 } from "../lib/posUtils";
+import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
 import { normalizePhone } from "../lib/phoneSearch";
 import { normalizePosSellableProducts, resolvePosImageUrl } from "../services/posProductsApi";
+import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
+import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
-import PosHeader from "../components/PosHeader";
 import ProductGrid from "../components/ProductGrid";
-import CartSidebar from "../components/CartSidebar";
+import CartSidebar, { ReceiptPreview } from "../components/CartSidebar";
 import ProductAvailabilityModal from "../components/ProductAvailabilityModal";
-import RecentOperationsDrawer from "../components/RecentOperationsDrawer";
+import { CurrencyText } from "../../../shared/components/CurrencyAmount";
+import { MobileBottomSheet, StickyMobileActionBar } from "../../../shared/components/mobile/ResponsiveMobile";
+
+const RecentOperationsDrawer = lazy(async () => {
+  const startedAt = performance.now();
+  const module = await import("../components/RecentOperationsDrawer");
+  logPagePerf("pos.recent-operations-drawer", startedAt, { heavy_component_load_ms: Math.round(performance.now() - startedAt) });
+  return module;
+});
 
 const defaultState = {
   search: "",
@@ -78,10 +95,47 @@ const defaultState = {
   cashAmount: 0,
   cardAmount: 0,
   walletAmount: 0,
+  customerWalletAmount: 0,
   invoiceDiscount: 0,
   serviceFee: 0,
-  previewMode: "thermal",
-  quickCustomer: { name: "", phone: "" },
+  quickCustomer: { name: "", phone: "", source_key: "" },
+};
+
+const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
+const POS_CHECKOUT_DEBUG = Boolean(
+  import.meta.env?.DEV ||
+  String(import.meta.env?.VITE_POS_CHECKOUT_DEBUG || "").trim().toLowerCase() === "true" ||
+  String(import.meta.env?.VITE_POS_DEBUG || "").trim().toLowerCase() === "true"
+);
+const quickExpenseDefaults = { category: "delivery", employee_id: "", amount: "", payment_method: "cash", notes: "" };
+const quickExpenseEmployeeAdvanceOption = { value: "employee_advance", label: "سلفة موظف / Employee Advance" };
+const quickExpenseCategories = [
+  { value: "delivery", label: "توصيل / Delivery" },
+  { value: "snacks", label: "سناكس / Snacks" },
+  { value: "cleaning", label: "تنظيف / Cleaning" },
+  { value: "small_purchases", label: "مشتريات بسيطة" },
+  { value: "water", label: "مياه / Water" },
+  { value: "electricity", label: "كهرباء / Electricity" },
+  { value: "shipping", label: "شحن / Shipping" },
+  { value: "maintenance", label: "صيانة / Maintenance" },
+  { value: "other", label: "أخرى / Other" },
+];
+
+const readLastSalespersonId = () => {
+  try {
+    return String(window.localStorage.getItem(POS_LAST_SALESPERSON_KEY) || "");
+  } catch {
+    return "";
+  }
+};
+
+const writeLastSalespersonId = (salespersonId) => {
+  try {
+    if (salespersonId) window.localStorage.setItem(POS_LAST_SALESPERSON_KEY, String(salespersonId));
+    else window.localStorage.removeItem(POS_LAST_SALESPERSON_KEY);
+  } catch {
+    // This is a cashier convenience only; checkout must continue.
+  }
 };
 
 const WALK_IN_CUSTOMER = {
@@ -100,6 +154,27 @@ const getErrorMessage = (error, fallback) =>
   error?.message ||
   fallback;
 
+const resolveCheckoutItemUnitPrice = (item = {}) => {
+  const candidates = [
+    item.unit_price,
+    item.unitPrice,
+    item.price,
+    item.sale_price,
+    item.salePrice,
+    item.final_price,
+    item.finalPrice,
+    item.variant_price,
+    item.variantPrice,
+    item.selling_price,
+    item.sellingPrice,
+  ];
+  const numbers = candidates
+    .filter((value) => value !== null && value !== undefined && value !== "")
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+  return numbers.find((value) => value > 0) ?? numbers[0] ?? 0;
+};
+
 const isForbiddenError = (error) => Number(error?.status || error?.response?.status || 0) === 403;
 
 const normalizeCheckoutOrderResponse = (response = {}) => {
@@ -114,7 +189,7 @@ const normalizeCheckoutOrderResponse = (response = {}) => {
     data?.invoiceNumber ||
     root?.invoice_number ||
     root?.invoiceNumber ||
-    (orderObject.id ? `INV-${String(orderObject.id).padStart(6, "0")}` : "");
+    (orderObject.id ? `INV-${orderObject.id}` : "");
   const orderId =
     orderObject.order_id ||
     orderObject.orderId ||
@@ -134,12 +209,21 @@ const normalizeCheckoutOrderResponse = (response = {}) => {
     root?.public_token ||
     root?.publicToken ||
     "";
+  const publicOrderNumber =
+    orderObject.public_order_number ||
+    orderObject.display_order_number ||
+    data?.public_order_number ||
+    data?.display_order_number ||
+    root?.public_order_number ||
+    root?.display_order_number ||
+    displayPublicOrderNumber(orderObject);
 
   return {
     raw: root,
     data,
     order: orderObject,
     invoiceNumber,
+    publicOrderNumber,
     orderId,
     publicToken,
     loyalty: data?.loyalty ?? root?.loyalty ?? orderObject?.loyalty ?? {},
@@ -173,6 +257,88 @@ const isFullVariationMode = (value) => String(value || "").trim().toLowerCase() 
 
 const isRealVariantId = (value) =>
   value !== undefined && value !== null && value !== "" && !String(value).startsWith("product:");
+
+const parsePaymentBreakdownRows = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const normalizePaymentMethodKey = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+
+const resolveEditOrderTotal = (order = {}) => {
+  const candidates = [
+    order.original_total,
+    order.originalTotal,
+    order.total_amount,
+    order.totalAmount,
+    order.total,
+    order.total_price,
+    order.totalPrice,
+    order.grand_total,
+    order.grandTotal,
+  ];
+  const resolved = candidates
+    .map((value) => Number(value))
+    .find((value) => Number.isFinite(value) && value > 0);
+  return Math.max(0, resolved || 0);
+};
+
+const sumOriginalCollectedPayments = (order = {}) => {
+  const originalRows = parsePaymentBreakdownRows(order.original_payment_breakdown ?? order.originalPaymentBreakdown);
+  const rows = originalRows.length
+    ? originalRows
+    : parsePaymentBreakdownRows(order.payment_breakdown ?? order.paymentBreakdown ?? order.payments);
+  const seenRows = new Set();
+  return rows.reduce((sum, payment, index) => {
+    if (!payment || typeof payment !== "object") return sum;
+    const rowKey = payment.id || payment.payment_id || `${index}:${payment.method || payment.payment_method}:${payment.amount}`;
+    if (seenRows.has(rowKey)) return sum;
+    seenRows.add(rowKey);
+    const method = normalizePaymentMethodKey(payment.method || payment.payment_method);
+    if (method === "exchange_credit" || method === "return_credit" || payment.edit_additional_payment) return sum;
+    const amount = Number(payment.amount ?? payment.paid_amount ?? payment.value ?? 0);
+    return Number.isFinite(amount) && amount > 0 ? sum + amount : sum;
+  }, 0);
+};
+
+const resolveOriginalCollectedAmount = (order = {}) => {
+  const candidates = [
+    order.original_paid_amount,
+    order.originalPaidAmount,
+    order.total_paid,
+    order.totalPaid,
+    order.amount_paid,
+    order.amountPaid,
+    order.payment_paid_amount,
+    order.paymentPaidAmount,
+    order.paid_amount,
+    order.paidAmount,
+    order.payment?.paid_amount,
+    order.payment?.paidAmount,
+  ];
+  const explicitAmount = candidates
+    .map((value) => Number(value))
+    .find((value) => Number.isFinite(value) && value > 0);
+  if (explicitAmount > 0) return Math.max(0, explicitAmount);
+
+  const breakdownAmount = sumOriginalCollectedPayments(order);
+  if (breakdownAmount > 0) return Math.max(0, breakdownAmount);
+
+  const status = normalizePaymentMethodKey(order.original_payment_status || order.originalPaymentStatus || order.payment_status || order.paymentStatus);
+  const total = resolveEditOrderTotal(order);
+  if (total > 0 && ["paid", "completed", "complete", "settled"].includes(status)) return total;
+  return 0;
+};
 
 const resolveCheckoutVariantId = (item = {}) => {
   const variantId = item.variant_id ?? item.variantId ?? null;
@@ -422,6 +588,16 @@ const getVariantStockQuantity = (variant = {}) =>
       variant.current_stock
   );
 
+const firstTextValue = (...values) => {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+};
+
+const getDisplayImageUrl = (...values) => resolvePosImageUrl(firstTextValue(...values));
+
 const getProductVisibleStock = (product = {}) => {
   const variants = Array.isArray(product.variants) ? product.variants : [];
   if (variants.length > 0) {
@@ -527,6 +703,15 @@ const getCatalogItemStock = (products = [], item = {}) => {
   return normalizeStockQuantity(product.total_stock ?? product.stock);
 };
 
+const getCatalogItemPrice = (products = [], item = {}) => {
+  const productId = item.product_id ?? item.productId ?? null;
+  const variantId = resolveCheckoutVariantId(item);
+  const product = getCatalogProductById(products, productId);
+  if (!product) return Number(item.price || 0);
+  const variant = variantId !== null ? getCatalogVariantById(product, variantId, item.color, item.size) : null;
+  return Number(variant?.price ?? variant?.final_price ?? product.price ?? item.price ?? 0);
+};
+
 const reconcileCartWithCatalog = (cart = [], products = []) => {
   const nextCart = [];
   const removedItems = [];
@@ -547,7 +732,8 @@ const reconcileCartWithCatalog = (cart = [], products = []) => {
       continue;
     }
 
-    if (nextQuantity !== Number(item.quantity || 0) || Number(item.stock || 0) !== liveStock) {
+    const livePrice = getCatalogItemPrice(products, item);
+    if (nextQuantity !== Number(item.quantity || 0) || Number(item.stock || 0) !== liveStock || Number(item.price || 0) !== livePrice) {
       changed = true;
     }
 
@@ -555,6 +741,9 @@ const reconcileCartWithCatalog = (cart = [], products = []) => {
       ...item,
       stock: liveStock,
       stock_quantity: liveStock,
+      original_price: Number(item.original_price || item.regular_price || item.price || 0),
+      price: livePrice,
+      sale_price: livePrice,
       quantity: nextQuantity,
     });
   }
@@ -608,13 +797,45 @@ const applySoldItemsToCatalog = (products = [], soldItems = []) => {
   return nextProducts;
 };
 
-const refreshCatalogProducts = async ({ setProducts, setLoading, manageLoading = true, isActive = () => true, signal } = {}) => {
+const mergeCatalogProducts = (current = [], incoming = []) => {
+  const byId = new Map();
+  (Array.isArray(current) ? current : []).forEach((product) => {
+    const key = String(product?.product_id ?? product?.id ?? "").trim();
+    if (key) byId.set(key, product);
+  });
+  (Array.isArray(incoming) ? incoming : []).forEach((product) => {
+    const key = String(product?.product_id ?? product?.id ?? "").trim();
+    if (key) byId.set(key, product);
+  });
+  return Array.from(byId.values());
+};
+
+const extractOrderItemsFromResponse = (response = {}, fallbackOrder = {}) => {
+  const candidates = [
+    response.items,
+    response.order?.items,
+    response.order?.order_items,
+    response.order?.invoice_items,
+    response.data?.items,
+    response.data?.order_items,
+    response.data?.invoice_items,
+    fallbackOrder.items,
+    fallbackOrder.order_items,
+    fallbackOrder.invoice_items,
+  ];
+  return candidates.find((items) => Array.isArray(items)) || [];
+};
+
+const refreshCatalogProducts = async ({ setProducts, setLoading, manageLoading = true, isActive = () => true, signal, saleModeSettings = {}, search } = {}) => {
   if (manageLoading && setLoading) {
     setLoading(true);
   }
   try {
-    const rawProducts = await getProductsWithVariants({ signal });
-    const catalog = normalizePosSellableProducts(rawProducts).map((product) => normalizeCatalogProduct(product));
+    const rawProducts = await getProductsWithVariants({
+      signal,
+      ...(search !== undefined ? { params: { search } } : {}),
+    });
+    const catalog = normalizePosSellableProducts(rawProducts, saleModeSettings).map((product) => normalizeCatalogProduct(product));
     if (isActive()) {
       setProducts(catalog);
     }
@@ -626,12 +847,27 @@ const refreshCatalogProducts = async ({ setProducts, setLoading, manageLoading =
   }
 };
 
+const getCustomerCreditBalance = (customer = {}, loyaltyProfile = null) => {
+  const value = customer?.credit_balance ?? loyaltyProfile?.credit_balance ?? customer?.wallet_balance ?? customer?.balance ?? loyaltyProfile?.wallet_balance ?? 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizePosCustomer = (customer = {}) => {
+  const creditBalance = getCustomerCreditBalance(customer);
+  return {
+    ...customer,
+    credit_balance: creditBalance,
+  };
+};
+
 const normalizeCustomersResponse = (response) => {
   const payload = response?.data ?? response;
-  return Array.isArray(payload) ? payload :
+  const rows = Array.isArray(payload) ? payload :
     Array.isArray(payload?.data) ? payload.data :
     Array.isArray(payload?.customers) ? payload.customers :
     [];
+  return rows.map(normalizePosCustomer);
 };
 
 const POS_SALE_STATS_KEY = "erp.pos.saleStats";
@@ -658,6 +894,34 @@ const normalizeFilterValue = (value) =>
     .replace(/&/g, "and")
     .replace(/[\s-]+/g, "_");
 
+const normalizeAudienceValue = (value = "") => {
+  const normalized = normalizeFilterValue(value);
+  if (["men", "man", "male"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls"].includes(normalized)) return "kids";
+  return "";
+};
+
+const getProductAudienceKeys = (product = {}) => {
+  const seen = new Set();
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value === null || value === undefined) return;
+    String(value)
+      .split(/[,\n|]+/)
+      .map(normalizeAudienceValue)
+      .filter(Boolean)
+      .forEach((audience) => seen.add(audience));
+  };
+  visit(product.audiences);
+  visit(product.product_audiences);
+  visit(product.gender);
+  return ["men", "women", "kids"].filter((audience) => seen.has(audience));
+};
+
 const resolveSmartFilterMatch = (value, options = []) => {
   const normalized = normalizeFilterValue(value);
   if (!normalized) return "";
@@ -682,8 +946,8 @@ const resolveSmartFilterMatch = (value, options = []) => {
 const getProductSmartFilterValue = (product, field, options = []) => {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
   const firstVariant = variants[0] || {};
+  if (field === "gender") return getProductAudienceKeys(product)[0] || resolveSmartFilterMatch(product?.gender || firstVariant.gender, options);
   const aliases = {
-    gender: [product?.gender, firstVariant.gender],
     productType: [
       product?.product_type,
       product?.productType,
@@ -719,6 +983,7 @@ const buildProductSearchText = (product, manufacturerLookup) => {
     product?.category_name,
     product?.category_path,
     product?.gender,
+    ...getProductAudienceKeys(product),
     product?.product_type,
     product?.productType,
     product?.style,
@@ -735,6 +1000,7 @@ const buildProductSearchText = (product, manufacturerLookup) => {
     manufacturerLookup.get(String(product?.manufacturer_id || product?.variant_manufacturer_id || "").trim()) || "",
     ...variants.flatMap((variant) => [
       variant.sku,
+      variant.article_code,
       variant.color,
       variant.size,
       variant.barcode,
@@ -774,7 +1040,7 @@ const buildSmartMeta = (product, manufacturerLookup, classificationOptions = {})
   const subCategory = makeCategoryOption(product?.sub_category_id, product?.sub_category_name || product?.sub_category);
   const childCategory = makeCategoryOption(product?.child_category_id, product?.child_category_name || product?.child_category);
   const firstVariant = variants[0] || {};
-  const gender = getProductSmartFilterValue(product, "gender", classificationOptions.gender) || normalizeSmartFilterKey(product?.gender || firstVariant.gender);
+  const gender = getProductSmartFilterValue(product, "gender", classificationOptions.gender) || normalizeSmartFilterKey(getProductAudienceKeys(product)[0] || product?.gender || firstVariant.gender);
   const productType =
     getProductSmartFilterValue(product, "productType", classificationOptions.productType) ||
     normalizeSmartFilterKey(product?.product_type || product?.productType || firstVariant.product_type || firstVariant.productType);
@@ -828,18 +1094,43 @@ const writePosSaleStats = (cart) => {
 };
 
 function POSPro() {
-  const { t } = useTranslation();
+  const pageStartedAtRef = useRef(performance.now());
+  const firstDataLoggedRef = useRef(false);
+  const renderLoggedRef = useRef(false);
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { emitFeedback } = useRealtimeFeedback();
   const persisted = useMemo(() => readPosPersistedState(), []);
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
+  const routeEditOrderId = useMemo(
+    () =>
+      searchParams.get("editOrderId") ||
+      searchParams.get("orderId") ||
+      searchParams.get("invoiceId") ||
+      "",
+    [searchParams]
+  );
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      logPagePerf("pos", pageStartedAtRef.current, { page_mount_ms: Math.round(performance.now() - pageStartedAtRef.current) });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   const [products, setProducts] = useState([]);
+  const [saleModeSettings, setSaleModeSettings] = useState(() => normalizeSaleModeSettings());
+  const [saleModeSaving, setSaleModeSaving] = useState(false);
   const [manufacturers, setManufacturers] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [attendanceEmployees, setAttendanceEmployees] = useState([]);
   const [salesEmployees, setSalesEmployees] = useState([]);
+  const [sellersLoading, setSellersLoading] = useState(false);
+  const [sellersLoaded, setSellersLoaded] = useState(false);
+  const [sellerLoadError, setSellerLoadError] = useState("");
   const [salesSettings, setSalesSettings] = useState({ allow_sale_without_salesperson: true, fixed_commission_mode: "fixed_per_invoice" });
   const [selectedSalespersonId, setSelectedSalespersonId] = useState("");
+  const lastSalespersonIdRef = useRef(readLastSalespersonId());
   const [cart, setCart] = useState(() => readPosCart());
   const [search, setSearch] = useState(() => persisted.search || defaultState.search);
   const [selectedMainCategoryId, setSelectedMainCategoryId] = useState(
@@ -861,7 +1152,12 @@ function POSPro() {
   const [selectedGrade, setSelectedGrade] = useState(() => persisted.selectedGrade || defaultState.selectedGrade);
   const [customerSearch, setCustomerSearch] = useState(defaultState.customerSearch);
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
-  const [selectedAttendanceEmployeeId, setSelectedAttendanceEmployeeId] = useState("");
+  const [activePosShift, setActivePosShift] = useState(null);
+  const [posShiftBranch, setPosShiftBranch] = useState(null);
+  const [posShiftLoading, setPosShiftLoading] = useState(true);
+  const [openingCash, setOpeningCash] = useState("");
+  const [closingCash, setClosingCash] = useState("");
+  const [sellerOverrideAllowed, setSellerOverrideAllowed] = useState(false);
   const [quickCustomer, setQuickCustomer] = useState(defaultState.quickCustomer);
   const [loyaltyProfile, setLoyaltyProfile] = useState(null);
   const [loyaltyValidation, setLoyaltyValidation] = useState(null);
@@ -869,15 +1165,20 @@ function POSPro() {
   const [loyaltyRedeemPoints, setLoyaltyRedeemPoints] = useState(0);
   const [, setLoyaltyLoading] = useState(false);
   const [paymentMode, setPaymentMode] = useState(defaultState.paymentMode);
+  const [activeSplitMethod, setActiveSplitMethod] = useState("cash");
   const [cashAmount, setCashAmount] = useState(defaultState.cashAmount);
   const [cardAmount, setCardAmount] = useState(defaultState.cardAmount);
   const [walletAmount, setWalletAmount] = useState(defaultState.walletAmount);
+  const [customerWalletAmount, setCustomerWalletAmount] = useState(defaultState.customerWalletAmount);
+  const [exchangeState, setExchangeState] = useState(null);
+  const [paymentAccountStatus, setPaymentAccountStatus] = useState(null);
+  const [paymentAccountLoading, setPaymentAccountLoading] = useState(false);
+  const [paymentAccountRefreshKey, setPaymentAccountRefreshKey] = useState(0);
   const [invoiceDiscount, setInvoiceDiscount] = useState(defaultState.invoiceDiscount);
   const [serviceFee, setServiceFee] = useState(defaultState.serviceFee);
   const [couponCode, setCouponCode] = useState("");
   const [couponValidation, setCouponValidation] = useState(null);
   const [couponLoading, setCouponLoading] = useState(false);
-  const [previewMode, setPreviewMode] = useState(defaultState.previewMode);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -887,8 +1188,9 @@ function POSPro() {
   const [invoiceNumber, setInvoiceNumber] = useState(generateInvoiceNumber());
   const [lastOrder, setLastOrder] = useState(null);
   const [lastShareContext, setLastShareContext] = useState(null);
+  const [checkoutSuccessOpen, setCheckoutSuccessOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [marketingAttribution, setMarketingAttribution] = useState(() => readMarketingAttributionState());
-  const [attendanceSnapshot, setAttendanceSnapshot] = useState(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [shiftReport, setShiftReport] = useState(null);
   const [shiftReportOpen, setShiftReportOpen] = useState(false);
@@ -896,28 +1198,93 @@ function POSPro() {
   const [shiftCloseSubmitting, setShiftCloseSubmitting] = useState(false);
   const [shiftCloseReport, setShiftCloseReport] = useState(null);
   const [actualDrawerAmount, setActualDrawerAmount] = useState("");
-  const [openingRotation, setOpeningRotation] = useState(null);
-  const [openingCandidatesLoading, setOpeningCandidatesLoading] = useState(false);
-  const [openingCandidatesError, setOpeningCandidatesError] = useState("");
-  const [selectedNextOpeningEmployeeId, setSelectedNextOpeningEmployeeId] = useState("");
+  const [shiftCloseNotes, setShiftCloseNotes] = useState("");
+  const [shiftVarianceReason, setShiftVarianceReason] = useState("");
   const [barcodeShopProduct, setBarcodeShopProduct] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [customerCreateOpen, setCustomerCreateOpen] = useState(false);
   const [recentOperationsOpen, setRecentOperationsOpen] = useState(false);
+  const [recentOperationsOpenedAt, setRecentOperationsOpenedAt] = useState(0);
   const [editingOrder, setEditingOrder] = useState(null);
+  const [paymobTerminalState, setPaymobTerminalState] = useState(null);
+  const [paymobTerminalLoading, setPaymobTerminalLoading] = useState(false);
+  const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
+  const [quickExpense, setQuickExpense] = useState(quickExpenseDefaults);
+  const [quickExpenseSaving, setQuickExpenseSaving] = useState(false);
 
   const searchRef = useRef(null);
+  const posShellRef = useRef(null);
   const filtersPanelRef = useRef(null);
   const filtersButtonRef = useRef(null);
-  const invoiceRef = useRef(null);
-  const a4Ref = useRef(null);
   const previousTotalRef = useRef(0);
-  const selectedAttendanceEmployeeIdRef = useRef(selectedAttendanceEmployeeId);
+  const lastBarcodeSubmitRef = useRef({ value: "", timer: null });
+  const shiftSessionRecoveredRef = useRef(false);
+  const loadedRouteEditOrderIdRef = useRef("");
+  const paymobPollingRef = useRef({ timer: null, cancelled: false });
   const deferredSearch = useDeferredValue(search);
+  const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
+  const currentUser = useMemo(() => getCurrentUser() || {}, []);
+  const canOverrideSeller = useMemo(
+    () => sellerOverrideAllowed || isAdminUser(currentUser) || hasPermission("pos.override_seller", currentUser) || hasPermission("orders.edit", currentUser),
+    [currentUser, sellerOverrideAllowed]
+  );
+  const canCreatePosExpense = useMemo(() => {
+    const role = String(currentUser?.role || currentUser?.role_name || "").toLowerCase().replace(/[_-]+/g, " ");
+    return hasPermission("pos.expenses.create", currentUser) || ["cashier", "pos", "pos cashier", "sales", "sales agent"].includes(role);
+  }, [currentUser]);
+  const canChangeSalesperson = useMemo(() => {
+    if (canOverrideSeller) return true;
+    const currentUserId = currentUser?.id ? String(currentUser.id) : "";
+    if (!currentUserId) return true;
+    return !salesEmployees.some((employee) => String(employee.user_id || "") === currentUserId);
+  }, [canOverrideSeller, currentUser?.id, salesEmployees]);
 
   useEffect(() => {
     writePosCart(cart);
-  }, [cart]);
+    if (activePosShift?.id && shiftSessionRecoveredRef.current) {
+      writePosSession({
+        shift_id: activePosShift.id,
+        branch_id: activePosShift.branch_id || posShiftBranch?.id || null,
+        cart,
+        invoiceNumber,
+        paymentMode,
+        cashAmount,
+        cardAmount,
+        walletAmount,
+        customerWalletAmount,
+        invoiceDiscount,
+        serviceFee,
+        selectedSalespersonId,
+      });
+    }
+  }, [activePosShift?.id, activePosShift?.branch_id, cardAmount, cart, cashAmount, customerWalletAmount, invoiceDiscount, invoiceNumber, paymentMode, posShiftBranch?.id, selectedSalespersonId, serviceFee, walletAmount]);
+
+  useEffect(() => {
+    if (!activePosShift?.id || shiftSessionRecoveredRef.current) return;
+    shiftSessionRecoveredRef.current = true;
+    if (routeEditOrderId) return;
+    const savedSession = readPosSession();
+    if (!savedSession?.shift_id) return;
+    if (String(savedSession.shift_id) !== String(activePosShift.id)) {
+      clearPosPersistedState();
+      setCart([]);
+      return;
+    }
+    if (Array.isArray(savedSession.cart) && savedSession.cart.length > 0) {
+      setCart(savedSession.cart);
+      setInvoiceNumber(savedSession.invoiceNumber || generateInvoiceNumber());
+      setPaymentMode(savedSession.paymentMode || defaultState.paymentMode);
+      setCashAmount(savedSession.cashAmount ?? defaultState.cashAmount);
+      setCardAmount(savedSession.cardAmount ?? defaultState.cardAmount);
+      setWalletAmount(savedSession.walletAmount ?? defaultState.walletAmount);
+      setCustomerWalletAmount(savedSession.customerWalletAmount ?? defaultState.customerWalletAmount);
+      setInvoiceDiscount(savedSession.invoiceDiscount ?? defaultState.invoiceDiscount);
+      setServiceFee(savedSession.serviceFee ?? defaultState.serviceFee);
+      if (savedSession.selectedSalespersonId) setSelectedSalespersonId(String(savedSession.selectedSalespersonId));
+      toast.success("تم استرجاع جلسة البيع المحفوظة");
+    }
+  }, [activePosShift?.id, routeEditOrderId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -936,9 +1303,9 @@ function POSPro() {
         cashAmount,
         cardAmount,
         walletAmount,
+        customerWalletAmount,
         invoiceDiscount,
         serviceFee,
-        previewMode,
       });
     }, 250);
 
@@ -958,9 +1325,9 @@ function POSPro() {
     cashAmount,
     cardAmount,
     walletAmount,
+    customerWalletAmount,
     invoiceDiscount,
     serviceFee,
-    previewMode,
   ]);
 
   useEffect(() => {
@@ -982,7 +1349,10 @@ function POSPro() {
     };
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.clearTimeout(lastBarcodeSubmitRef.current.timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -996,29 +1366,29 @@ function POSPro() {
   }, []);
 
   useEffect(() => {
-    if (!filtersOpen) return undefined;
+    const getFullscreenElement = () =>
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.msFullscreenElement ||
+      null;
+    const syncFullscreenState = () => setIsFullscreen(Boolean(getFullscreenElement()));
 
-    const handlePointerDown = (event) => {
-      const panel = filtersPanelRef.current;
-      const button = filtersButtonRef.current;
-      const target = event.target;
-      if (panel?.contains(target) || button?.contains(target)) return;
-      setFiltersOpen(false);
-    };
-
-    const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        setFiltersOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
+    syncFullscreenState();
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenState);
+    document.addEventListener("msfullscreenchange", syncFullscreenState);
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreenState);
+      document.removeEventListener("msfullscreenchange", syncFullscreenState);
     };
-  }, [filtersOpen]);
+  }, []);
+
+  useDismissableLayer({
+    enabled: filtersOpen,
+    refs: [filtersPanelRef, filtersButtonRef],
+    onDismiss: () => setFiltersOpen(false),
+  });
 
   useEffect(() => {
     if (!customerCreateOpen) return undefined;
@@ -1042,11 +1412,46 @@ function POSPro() {
           search: searchValue,
         },
       });
-      setCustomers(normalizeCustomersResponse(data));
+      const normalized = normalizeCustomersResponse(data);
+      setCustomers(normalized);
+      return normalized;
     } catch (err) {
       console.error("[pos] failed to load customers:", err);
+      return [];
     }
   };
+
+  const saveSaleModeSettings = useCallback(async (nextSettings) => {
+    const normalized = normalizeSaleModeSettings(nextSettings);
+    setSaleModeSaving(true);
+    try {
+      const response = await api.put("/website/settings", normalized);
+      const saved = normalizeSaleModeSettings(response?.settings || normalized);
+      setSaleModeSettings(saved);
+      const refreshedCatalog = await refreshCatalogProducts({
+        setProducts,
+        setLoading,
+        manageLoading: false,
+        saleModeSettings: saved,
+      });
+      setCart((current) => {
+        if (editingOrder?.id) {
+          console.log("[cart-reset-blocked-edit-mode]", {
+            order_id: editingOrder.id,
+            cart_count: current.length,
+            reason: "skip sale mode catalog reconciliation while editing invoice",
+          });
+          return current;
+        }
+        return reconcileCartWithCatalog(current, refreshedCatalog).nextCart;
+      });
+      toast.success(saved.sale_mode_enabled ? "Existing sale prices enabled" : "Existing sale prices disabled");
+    } catch (error) {
+      toast.error(error.message || "Failed to save existing sale prices setting");
+    } finally {
+      setSaleModeSaving(false);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -1056,22 +1461,31 @@ function POSPro() {
         setLoading(true);
         setError("");
 
+        const websiteSettings = await api.get("/website/settings", { signal: controller.signal }).catch(() => ({ settings: {} }));
+        const normalizedSaleMode = normalizeSaleModeSettings(websiteSettings?.settings || {});
+        setSaleModeSettings(normalizedSaleMode);
         const catalog = await refreshCatalogProducts({
           setProducts,
           setLoading,
           manageLoading: false,
           isActive: () => active,
           signal: controller.signal,
+          saleModeSettings: normalizedSaleMode,
         });
         void catalog;
 
         if (!active) return;
 
-        const [manufacturersResult, customersResult, attendanceResult, salesEmployeesResult] = await Promise.allSettled([
+        const [manufacturersResult, customersResult] = await Promise.allSettled([
           api.get("/manufacturers", { signal: controller.signal }),
-          api.get("/customers?limit=200&page=1", { signal: controller.signal }),
-          getAttendanceEmployees(),
-          api.get("/sales-employees", { signal: controller.signal }),
+          api.get("/customers", {
+            params: {
+              limit: 200,
+              page: 1,
+              branch_id: activePosShift?.branch_id || posShiftBranch?.id || "",
+            },
+            signal: controller.signal,
+          }),
         ]);
 
         if (!active) return;
@@ -1082,17 +1496,8 @@ function POSPro() {
         if (customersResult.status === "rejected") {
           console.error("[pos] failed to load customers:", customersResult.reason);
         }
-        if (attendanceResult.status === "rejected") {
-          console.error("[pos] failed to load attendance employees:", attendanceResult.reason);
-        }
-        if (salesEmployeesResult.status === "rejected") {
-          console.error("[pos] failed to load sales employees:", salesEmployeesResult.reason);
-        }
-
         const manufacturersRes = manufacturersResult.status === "fulfilled" ? manufacturersResult.value : null;
         const customersRes = customersResult.status === "fulfilled" ? customersResult.value : null;
-        const attendanceRes = attendanceResult.status === "fulfilled" ? attendanceResult.value : null;
-        const salesEmployeesRes = salesEmployeesResult.status === "fulfilled" ? salesEmployeesResult.value : null;
 
         const manufacturerRows = Array.isArray(manufacturersRes?.manufacturers)
           ? manufacturersRes.manufacturers
@@ -1124,32 +1529,6 @@ function POSPro() {
         );
 
         setCustomers(normalizeCustomersResponse(customersRes));
-
-        const rows = Array.isArray(attendanceRes) ? attendanceRes : attendanceRes?.employees || attendanceRes?.data || [];
-        setAttendanceEmployees(rows);
-        setSalesEmployees(Array.isArray(salesEmployeesRes?.employees) ? salesEmployeesRes.employees : []);
-        setSalesSettings({
-          allow_sale_without_salesperson: salesEmployeesRes?.settings?.allow_sale_without_salesperson ?? true,
-          fixed_commission_mode: salesEmployeesRes?.settings?.fixed_commission_mode || "fixed_per_invoice",
-        });
-
-        if (!selectedAttendanceEmployeeIdRef.current && rows.length > 0) {
-          const current = getCurrentUser();
-          const matched =
-            rows.find((item) =>
-              [
-                current?.email,
-                current?.name,
-                current?.full_name,
-              ]
-                .filter(Boolean)
-                .some((value) => String(item.email || item.full_name || "").toLowerCase() === String(value).toLowerCase())
-            ) || rows[0];
-
-          if (matched?.id) {
-            setSelectedAttendanceEmployeeId(String(matched.id));
-          }
-        }
       } catch (err) {
         const message = getErrorMessage(err, "Failed to load products from /products/with-variants.");
         console.error("[pos] product feed load failed:", {
@@ -1170,7 +1549,34 @@ function POSPro() {
       active = false;
       controller.abort();
     };
-  }, []);
+  }, [editingOrder?.id]);
+
+  useEffect(() => {
+    const rawSearch = String(deferredSearch ?? "");
+    if (rawSearch.trim().length < 2) return undefined;
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const rawProducts = await getProductsWithVariants({
+          params: { search: rawSearch },
+          signal: controller.signal,
+        });
+        const catalog = normalizePosSellableProducts(rawProducts, saleModeSettings).map((product) => normalizeCatalogProduct(product));
+        if (catalog.length > 0) {
+          setProducts((current) => mergeCatalogProducts(current, catalog));
+        }
+      } catch (err) {
+        if (controller.signal.aborted || err?.name === "AbortError") return;
+        console.error("[pos] product search fetch failed:", err);
+      }
+    }, 220);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [deferredSearch, saleModeSettings]);
 
   useEffect(() => {
     const searchValue = String(customerSearch || "").trim();
@@ -1184,6 +1590,7 @@ function POSPro() {
             limit: 30,
             page: 1,
             search: normalizePhone(searchValue).replace(/\D/g, "") ? normalizePhone(searchValue) : searchValue,
+            branch_id: activePosShift?.branch_id || posShiftBranch?.id || "",
           },
           signal: controller.signal,
           suppressErrorStatuses: [401],
@@ -1209,10 +1616,18 @@ function POSPro() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [customerSearch, selectedCustomerId]);
+  }, [activePosShift?.branch_id, customerSearch, posShiftBranch?.id, selectedCustomerId]);
 
   useEffect(() => {
     if (!Array.isArray(products) || products.length === 0 || !Array.isArray(cart) || cart.length === 0) {
+      return;
+    }
+    if (editingOrder?.id) {
+      console.log("[cart-reset-blocked-edit-mode]", {
+        order_id: editingOrder.id,
+        cart_count: cart.length,
+        reason: "skip catalog reconciliation while editing invoice",
+      });
       return;
     }
 
@@ -1225,53 +1640,7 @@ function POSPro() {
     } else {
       toast.error("Cart quantities were adjusted to live stock.");
     }
-  }, [products, cart]);
-
-  const loadAttendanceEmployees = async () => {
-    try {
-      const response = await getAttendanceEmployees();
-      const rows = Array.isArray(response) ? response : response?.employees || response?.data || [];
-      setAttendanceEmployees(rows);
-
-      if (!selectedAttendanceEmployeeId && rows.length > 0) {
-        const current = getCurrentUser();
-        const matched =
-          rows.find((item) =>
-            [
-              current?.email,
-              current?.name,
-              current?.full_name,
-            ]
-              .filter(Boolean)
-              .some((value) => String(item.email || item.full_name || "").toLowerCase() === String(value).toLowerCase())
-          ) || rows[0];
-
-        if (matched?.id) {
-          setSelectedAttendanceEmployeeId(String(matched.id));
-        }
-      }
-    } catch (err) {
-      console.error("[pos] failed to load attendance employees:", err);
-    }
-  };
-
-  const loadOpeningRotation = async () => {
-    try {
-      setOpeningCandidatesLoading(true);
-      setOpeningCandidatesError("");
-      const response = await getOpeningCandidates();
-      const payload = response?.data || response || {};
-      setOpeningRotation(payload);
-      return payload;
-    } catch (err) {
-      const message = err?.message || "Failed to load opening staff candidates";
-      setOpeningCandidatesError(message);
-      console.error("[pos] failed to load opening candidates:", err);
-      return null;
-    } finally {
-      setOpeningCandidatesLoading(false);
-    }
-  };
+  }, [products, cart, editingOrder?.id]);
 
   const manufacturerLookup = useMemo(
     () => new Map(manufacturers.map((item) => [String(item.id), item.name])),
@@ -1287,46 +1656,220 @@ function POSPro() {
       customers.find((item) => String(item?.id || item?.customer_id) === String(selectedCustomerId)) || null,
     [customers, selectedCustomerId]
   );
-
-  const selectedAttendanceEmployee = useMemo(
-    () => attendanceEmployees.find((item) => String(item.id) === String(selectedAttendanceEmployeeId)) || null,
-    [attendanceEmployees, selectedAttendanceEmployeeId]
+  const customerCreditBalance = useMemo(
+    () => Math.max(0, getCustomerCreditBalance(customer, loyaltyProfile)),
+    [customer, loyaltyProfile]
   );
-
-  const openingCandidates = useMemo(() => {
-    if (Array.isArray(openingRotation?.candidates)) return openingRotation.candidates;
-    if (Array.isArray(openingRotation?.data?.candidates)) return openingRotation.data.candidates;
-    return [];
-  }, [openingRotation]);
-
-  const selectedNextOpeningEmployee = useMemo(
-    () => openingCandidates.find((item) => String(item.id || item.employee_id) === String(selectedNextOpeningEmployeeId)) || null,
-    [openingCandidates, selectedNextOpeningEmployeeId]
-  );
-
-  const nextOpeningAssignment = openingRotation?.latest_assignment || openingRotation?.data?.latest_assignment || null;
-
-  const isShiftActive = Boolean(
-    selectedAttendanceEmployeeId &&
-      attendanceSnapshot?.today_attendance?.check_in &&
-      !attendanceSnapshot?.today_attendance?.check_out
+  const canUseCustomerCredit = Boolean(customer && customerCreditBalance > 0);
+  const quickCustomerExistingMatch = useMemo(() => {
+    const normalizedPhone = normalizeReceiptPhone(quickCustomer.phone);
+    if (!normalizedPhone) return null;
+    const phoneDigits = normalizedPhone.replace(/\D/g, "");
+    return (Array.isArray(customers) ? customers : []).find((item) => {
+      const itemId = item?.id || item?.customer_id;
+      if (!itemId) return false;
+      const itemPhone = normalizeReceiptPhone(item?.phone || item?.mobile || item?.whatsapp || item?.customer_phone || "");
+      return itemPhone && itemPhone.replace(/\D/g, "") === phoneDigits;
+    }) || null;
+  }, [customers, quickCustomer.phone]);
+  const quickCustomerNeedsSource = Boolean(
+    customerCreateOpen &&
+    !quickCustomerExistingMatch &&
+    (quickCustomer.name.trim() || normalizeReceiptPhone(quickCustomer.phone))
   );
 
   useEffect(() => {
-    if (!selectedAttendanceEmployeeId) return;
-    loadOpeningRotation();
-  }, [selectedAttendanceEmployeeId]);
+    if (!customer) return;
+    const invoicesCount = Number(customer.invoices_count ?? customer.orders_count ?? customer.total_orders ?? 0);
+    const loyaltyPoints = Number(loyaltyProfile?.available_points ?? loyaltyProfile?.points ?? customer.loyalty_points ?? 0);
+    if (import.meta.env.DEV || (loyaltyPoints > 0 && invoicesCount === 0)) {
+      console.log("[pos-customer-summary]", {
+        customer_id: customer.id || customer.customer_id,
+        wallet_balance: Number(loyaltyProfile?.wallet_balance ?? customer.wallet_balance ?? customer.balance ?? 0),
+        loyalty_points: loyaltyPoints,
+        loyalty_tier: loyaltyProfile?.tier || customer.loyalty_tier || customer.tier || "Bronze",
+        invoices_count: invoicesCount,
+        orders_count_query_source: loyaltyProfile?.orders_count_query_source || customer.orders_count_query_source || "unknown",
+        tenant_id: currentUser?.tenant_id || customer.tenant_id || null,
+        branch_id: activePosShift?.branch_id || posShiftBranch?.id || null,
+      });
+    }
+  }, [activePosShift?.branch_id, currentUser?.tenant_id, customer, loyaltyProfile, posShiftBranch?.id]);
+
+  const loadActivePosShift = useCallback(async ({ silent = false, branchId = null } = {}) => {
+    try {
+      if (!silent) setPosShiftLoading(true);
+      const response = await api.get("/pos/shifts/active", {
+        params: { branch_id: branchId || undefined },
+        suppressErrorStatuses: [400, 404],
+      });
+      setActivePosShift(response?.shift || null);
+      setPosShiftBranch(response?.branch || null);
+      return response;
+    } catch (error) {
+      console.error("[pos] failed to load active POS shift:", error);
+      setActivePosShift(null);
+      return null;
+    } finally {
+      if (!silent) setPosShiftLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadActivePosShift();
+  }, [loadActivePosShift]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      loadActivePosShift({ silent: true, branchId: posShiftBranch?.id || currentUser?.branch_id || null });
+    }, 45000);
+    return () => window.clearInterval(timer);
+  }, [currentUser?.branch_id, loadActivePosShift, posShiftBranch?.id]);
+
+  const loadSellerUsers = useCallback(async ({ silent = false } = {}) => {
+    const activeShiftBranchId = activePosShift?.branch_id || "";
+    const selectedBranchId = posShiftBranch?.id || currentUser?.branch_id || "";
+    const branchId = activeShiftBranchId || selectedBranchId || "";
+    if (posShiftLoading) {
+      if (import.meta.env.DEV) {
+        console.log("[pos-sellers-load:wait-branch]", {
+          reason: "active shift still loading",
+          active_shift_branch_id: activeShiftBranchId || null,
+          selected_branch_id: selectedBranchId || null,
+          resolved_branch_id: branchId || null,
+        });
+      }
+      return;
+    }
+    if (!branchId) {
+      if (import.meta.env.DEV) {
+        console.log("[pos-sellers-load:skip]", {
+          reason: "branch_id unresolved",
+          active_shift_branch_id: activeShiftBranchId || null,
+          selected_branch_id: selectedBranchId || null,
+          active_shift_id: activePosShift?.id || null,
+        });
+      }
+      return;
+    }
+
+    if (!silent) setSellersLoading(true);
+    if (silent && salesEmployees.length === 0) setSellersLoading(true);
+    setSellerLoadError("");
+    if (import.meta.env.DEV) {
+      console.log("[pos-sellers-load:request]", {
+        branch_id: branchId,
+        source: activeShiftBranchId ? "active_shift" : "selected_branch",
+        active_shift_id: activePosShift?.id || null,
+        active_shift_branch_id: activeShiftBranchId || null,
+        selected_branch_id: selectedBranchId || null,
+      });
+    }
+    try {
+      const response = await api.get("/pos/seller-users", { params: { branch_id: branchId } });
+        const rows = Array.isArray(response?.users) ? response.users : [];
+        const normalizedRows = rows.map((user) => ({
+          ...user,
+          id: user.employee_id || user.id,
+          employee_id: user.employee_id || user.id,
+          full_name: user.full_name || user.name || user.email || `User #${user.id}`,
+          name: user.name || user.full_name || user.email || `Employee #${user.employee_id || user.id}`,
+          pos_alias: user.pos_alias || "",
+          active_for_pos: user.active_for_pos === true || user.is_sales_active === true,
+        }));
+        setSellersLoaded(true);
+        setSalesEmployees(normalizedRows);
+        setSellerOverrideAllowed(Boolean(response?.can_override_seller));
+        setSalesSettings({
+          allow_sale_without_salesperson: response?.settings?.allow_sale_without_salesperson !== false,
+          fixed_commission_mode: response?.settings?.fixed_commission_mode || "fixed_per_item",
+        });
+        if (import.meta.env.DEV) {
+          console.log("[pos-sellers-load]", {
+            branch_id: branchId,
+            active_shift_branch_id: activeShiftBranchId || null,
+            selected_branch_id: selectedBranchId || null,
+            backend_debug: response?.debug || null,
+            returned_sellers_count: normalizedRows.length,
+            allow_sale_without_salesperson: response?.settings?.allow_sale_without_salesperson !== false,
+            sellers: normalizedRows.map((employee) => ({
+              employee_id: employee.employee_id || employee.id,
+              name: employee.name || "",
+              pos_alias: employee.pos_alias || "",
+              active_for_pos: employee.active_for_pos === true,
+              branch_id: employee.branch_id || null,
+            })),
+          });
+        }
+        setSelectedSalespersonId((current) => {
+          const activeRows = normalizedRows.filter((user) => user.is_active !== false && user.active_for_pos === true);
+          const currentUserId = currentUser?.id ? String(currentUser.id) : "";
+          const currentUserSeller = activeRows.find((user) => currentUserId && String(user.user_id || "") === currentUserId);
+          if (currentUserSeller?.id) {
+            const currentEmployeeId = String(currentUserSeller.id);
+            if (!canOverrideSeller) return currentEmployeeId;
+            if (activeRows.some((user) => String(user.id) === String(current))) return current || currentEmployeeId;
+            return currentEmployeeId;
+          }
+          if (response?.settings?.allow_sale_without_salesperson !== false && !current) return "";
+          if (activeRows.some((user) => String(user.id) === String(current))) return current;
+          return activeRows[0]?.id ? String(activeRows[0].id) : "";
+        });
+    } catch (error) {
+      console.error("[pos] failed to load branch seller users:", error);
+      setSellerLoadError(error?.message || "Failed to refresh sellers");
+    } finally {
+      setSellersLoading(false);
+    }
+  }, [activePosShift?.id, activePosShift?.branch_id, canOverrideSeller, currentUser, posShiftBranch?.id, posShiftLoading, salesEmployees.length]);
+
+  useEffect(() => {
+    loadSellerUsers({ silent: sellersLoaded || salesEmployees.length > 0 });
+  }, [loadSellerUsers, sellersLoaded, salesEmployees.length]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      loadSellerUsers({ silent: true });
+    }, 45000);
+    return () => window.clearInterval(timer);
+  }, [loadSellerUsers]);
+
+  const handleSalespersonChange = useCallback((salespersonId) => {
+    const nextId = String(salespersonId || "");
+    const currentUserId = currentUser?.id ? String(currentUser.id) : "";
+    const currentUserSeller = salesEmployees.find((employee) => currentUserId && String(employee.user_id || "") === currentUserId);
+    const currentEmployeeId = currentUserSeller?.id ? String(currentUserSeller.id) : "";
+    if (!canOverrideSeller && nextId && currentEmployeeId && nextId !== currentEmployeeId) {
+      toast.error("لا تملك صلاحية البيع باسم مستخدم آخر");
+      return;
+    }
+    if (!canOverrideSeller && !nextId && currentEmployeeId) {
+      setSelectedSalespersonId(currentEmployeeId);
+      return;
+    }
+    setSelectedSalespersonId(nextId);
+    lastSalespersonIdRef.current = nextId;
+    writeLastSalespersonId(nextId);
+  }, [canOverrideSeller, currentUser?.id, salesEmployees]);
+
+  const isShiftActive = Boolean(activePosShift?.id && activePosShift?.status === "open");
 
   const handleSelectCustomer = (item) => {
-    const customerId = item?.id || item?.customer_id;
+    const selected = normalizePosCustomer(item);
+    const customerId = selected?.id || selected?.customer_id;
     if (!customerId) {
       console.error("[pos] selected customer is missing id/customer_id:", item);
       toast.error("This customer cannot be selected because its ID is missing.");
       return;
     }
 
+    setCustomers((current) => {
+      const safeCurrent = Array.isArray(current) ? current : [];
+      const withoutSelected = safeCurrent.filter((customerItem) => String(customerItem?.id || customerItem?.customer_id) !== String(customerId));
+      return [selected, ...withoutSelected];
+    });
     setSelectedCustomerId(customerId);
-    setCustomerSearch(item.name || item.phone || "");
+    setCustomerSearch(selected.name || selected.phone || "");
     setLoyaltyRedeemPoints(0);
   };
 
@@ -1336,6 +1879,8 @@ function POSPro() {
     setLoyaltyProfile(null);
     setLoyaltyValidation(null);
     setLoyaltyRedeemPoints(0);
+    setCustomerWalletAmount(0);
+    setPaymentMode((current) => (current === "customer_wallet" ? "cash" : current));
   };
 
   useEffect(() => {
@@ -1367,6 +1912,28 @@ function POSPro() {
         setLoyaltyUnavailable(false);
         setLoyaltyProfile(response?.loyalty || null);
         setLoyaltyValidation(response?.loyalty ? { ...response.loyalty, customerId: selectedCustomerId } : null);
+        if (response?.loyalty) {
+          setCustomers((current) =>
+            (Array.isArray(current) ? current : []).map((item) => {
+              const itemId = item?.id || item?.customer_id;
+              if (String(itemId) !== String(selectedCustomerId)) return item;
+              const liveOrders = Number(response.loyalty.invoices_count ?? response.loyalty.orders_count ?? response.loyalty.total_orders ?? item.total_orders ?? 0);
+              return {
+                ...item,
+                loyalty_points: Number(response.loyalty.available_points ?? response.loyalty.points ?? item.loyalty_points ?? 0),
+                loyalty_tier: response.loyalty.tier || item.loyalty_tier || item.tier || "Bronze",
+                tier: response.loyalty.tier || item.tier || item.loyalty_tier || "Bronze",
+                wallet_balance: Number(response.loyalty.wallet_balance ?? item.wallet_balance ?? item.balance ?? 0),
+                credit_balance: Number(response.loyalty.credit_balance ?? response.loyalty.wallet_balance ?? item.credit_balance ?? item.wallet_balance ?? item.balance ?? 0),
+                balance: Number(response.loyalty.wallet_balance ?? item.wallet_balance ?? item.balance ?? 0),
+                total_orders: liveOrders,
+                orders_count: liveOrders,
+                invoices_count: liveOrders,
+                orders_count_query_source: response.loyalty.orders_count_query_source || item.orders_count_query_source,
+              };
+            })
+          );
+        }
       } catch (error) {
         if (!isForbiddenError(error)) {
           console.error("[pos] failed to load loyalty customer:", error);
@@ -1387,34 +1954,6 @@ function POSPro() {
       active = false;
     };
   }, [selectedCustomerId]);
-
-  useEffect(() => {
-    let active = true;
-    const loadAttendanceSnapshot = async () => {
-      if (!selectedAttendanceEmployeeId) {
-        setAttendanceSnapshot(null);
-        return;
-      }
-
-      try {
-        setAttendanceLoading(true);
-        const response = await getAttendanceKioskSnapshot({ employeeId: selectedAttendanceEmployeeId });
-        if (!active) return;
-        setAttendanceSnapshot(response?.data || response || null);
-      } catch (error) {
-        console.error("[pos] failed to load attendance snapshot:", error);
-        if (!active) return;
-        setAttendanceSnapshot(null);
-      } finally {
-        if (active) setAttendanceLoading(false);
-      }
-    };
-
-    loadAttendanceSnapshot();
-    return () => {
-      active = false;
-    };
-  }, [selectedAttendanceEmployeeId]);
 
   const availableProducts = useMemo(
     () => products.filter((product) => isVisiblePosProduct(product)),
@@ -1504,16 +2043,22 @@ function POSPro() {
   const smartFilterOptions = useMemo(() => {
     const renderedFilterSource = productsAfterNonSmartFilters.map(({ product }) => product);
 
+    const productMatchesSmartField = (product, field, optionValue) => {
+      if (field === "gender") return getProductAudienceKeys(product).includes(optionValue);
+      return getProductSmartFilterValue(product, field, smartClassificationOptions[field]) === optionValue;
+    };
+
     const withCounts = (items, field) =>
       items.map((item) => {
-        const optionValue = normalizeFilterValue(item.value || item.id || item.name || item.label);
+        const rawOptionValue = item.value || item.id || item.name || item.label;
+        const optionValue = field === "gender" ? normalizeAudienceValue(rawOptionValue) || normalizeFilterValue(rawOptionValue) : normalizeFilterValue(rawOptionValue);
         return {
           ...item,
           id: optionValue,
           name: item.name || item.label || item.label_ar || item.label_en || item.value || item.id || "",
           icon: item.icon || "",
           color: item.color || "",
-          count: renderedFilterSource.filter((product) => getProductSmartFilterValue(product, field, smartClassificationOptions[field]) === optionValue).length,
+          count: renderedFilterSource.filter((product) => productMatchesSmartField(product, field, optionValue)).length,
         };
       });
 
@@ -1535,7 +2080,7 @@ function POSPro() {
     () =>
       productsAfterNonSmartFilters.filter(({ product }) => {
         const matchesGender =
-          selectedGender === "all" || getProductSmartFilterValue(product, "gender", smartClassificationOptions.gender) === normalizeFilterValue(selectedGender);
+          selectedGender === "all" || getProductAudienceKeys(product).includes(normalizeAudienceValue(selectedGender) || normalizeFilterValue(selectedGender));
         const matchesProductType =
           selectedProductType === "all" ||
           getProductSmartFilterValue(product, "productType", smartClassificationOptions.productType) === normalizeFilterValue(selectedProductType);
@@ -1594,6 +2139,21 @@ function POSPro() {
       })
       .map(({ product }) => product);
   }, [productsAfterSmartFilters, deferredSearch, selectedBrandId, selectedManufacturerId]);
+
+  useEffect(() => {
+    if (loading || products.length === 0 || firstDataLoggedRef.current) return;
+    firstDataLoggedRef.current = true;
+    logPagePerf("pos", pageStartedAtRef.current, { first_data_ms: Math.round(performance.now() - pageStartedAtRef.current), products: products.length });
+  }, [loading, products.length]);
+
+  useEffect(() => {
+    if (loading || renderLoggedRef.current) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      renderLoggedRef.current = true;
+      logPagePerf("pos", pageStartedAtRef.current, { render_complete_ms: Math.round(performance.now() - pageStartedAtRef.current), visible_products: visibleProducts.length });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, visibleProducts.length]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1691,6 +2251,27 @@ function POSPro() {
     ) || null;
   }, [activeProduct, selectedColor, selectedSize]);
 
+  const activeVariantImageUrl = useMemo(() => {
+    if (!activeProduct) return "";
+    const variants = Array.isArray(activeProduct.variants) ? activeProduct.variants : [];
+    const colorVariant = variants.find(
+      (variant) =>
+        String(variant.color || "") === String(selectedColor || "") &&
+        firstTextValue(variant.variant_image_url, variant.primary_image_url, variant.image_url)
+    );
+
+    return getDisplayImageUrl(
+      activeVariant?.variant_image_url,
+      activeVariant?.primary_image_url,
+      colorVariant?.variant_image_url,
+      colorVariant?.primary_image_url,
+      colorVariant?.image_url,
+      activeVariant?.image_url,
+      activeProduct.product_image_url,
+      activeProduct.image_url
+    );
+  }, [activeProduct, activeVariant, selectedColor]);
+
   const liveBarcodeShopProduct = useMemo(() => {
     if (!barcodeShopProduct) return null;
     return products.find((item) => String(item.product_id || item.id) === String(barcodeShopProduct.product_id || barcodeShopProduct.id)) || barcodeShopProduct;
@@ -1704,7 +2285,7 @@ function POSPro() {
         productsByCode.set(String(value).toLowerCase(), product);
       });
       (product.variants || []).forEach((variant) => {
-        [variant.sku, variant.barcode, product.sku, product.barcode].filter(Boolean).forEach((value) => {
+        [variant.sku, variant.barcode, variant.article_code, product.sku, product.barcode].filter(Boolean).forEach((value) => {
           const key = String(value).toLowerCase();
           if (!variantsByCode.has(key)) variantsByCode.set(key, { product, variant });
         });
@@ -1725,17 +2306,127 @@ function POSPro() {
     [cart, invoiceDiscount, serviceFee, loyaltyValidation, couponValidation]
   );
 
+  const exchangeCreditAmount = Math.max(0, Number(exchangeState?.creditAmount || 0));
+  const appliedExchangeCredit = Math.min(exchangeCreditAmount, Math.max(0, Number(cartTotals.total || 0)));
+  const originalEditPaidAmount = editingOrder?.id ? resolveOriginalCollectedAmount(editingOrder) : 0;
+  const editAmountDueNow = editingOrder?.id ? Math.max(0, Number(cartTotals.total || 0) - originalEditPaidAmount) : 0;
+  const editRefundOrCreditDue = editingOrder?.id ? Math.max(0, originalEditPaidAmount - Number(cartTotals.total || 0)) : 0;
+  const paymentTargetAmount = editingOrder?.id ? editAmountDueNow : Math.max(0, Number(cartTotals.total || 0) - appliedExchangeCredit);
+  const amountDueNow = paymentTargetAmount;
+  const exchangeDifference = Number((Number(cartTotals.total || 0) - exchangeCreditAmount).toFixed(2));
+  const remainingExchangeCustomerCredit = Math.max(0, exchangeCreditAmount - Number(cartTotals.total || 0));
+  const editPaymentSummary = editingOrder?.id
+    ? {
+        originalOrderId: editingOrder.id,
+        originalInvoiceNumber: editingOrder.invoice_number || editingOrder.invoiceNumber || "",
+        originalTotal: resolveEditOrderTotal(editingOrder),
+        originalPaidAmount: originalEditPaidAmount,
+        originalPaymentStatus: editingOrder.original_payment_status || editingOrder.originalPaymentStatus || editingOrder.payment_status || editingOrder.paymentStatus || "",
+        originalItems: editingOrder.original_items || editingOrder.originalItems || editingOrder.items || [],
+        newTotal: Number(cartTotals.total || 0),
+        amountDueNow: editAmountDueNow,
+        refundOrCreditDue: editRefundOrCreditDue,
+      }
+    : null;
+
   const paymentSummary = useMemo(
     () =>
       derivePaymentSummary({
-        total: cartTotals.total,
+        total: amountDueNow,
         paymentMode,
         cashAmount,
         cardAmount,
         walletAmount,
+        customerWalletAmount,
       }),
-    [cartTotals.total, paymentMode, cashAmount, cardAmount, walletAmount]
+    [amountDueNow, paymentMode, cashAmount, cardAmount, walletAmount, customerWalletAmount]
   );
+
+  const paymobTerminalAmount = useMemo(() => {
+    if (paymentMode === "split") return Number(cardAmount || 0);
+    return Number(paymentSummary.paidAmount || amountDueNow || 0);
+  }, [amountDueNow, cardAmount, paymentMode, paymentSummary.paidAmount]);
+
+  const activePaymentAccountMethod = useMemo(() => {
+    if (paymentMode === "customer_wallet") return "";
+    if (paymentMode !== "split") return paymentMode;
+    return activeSplitMethod;
+  }, [activeSplitMethod, paymentMode]);
+
+  const activePaymentAccountAmount = useMemo(() => {
+    if (paymentMode === "split") {
+      if (activePaymentAccountMethod === "wallet") return Number(walletAmount || 0);
+      if (activePaymentAccountMethod === "card") return Number(cardAmount || 0);
+      return Number(cashAmount || 0);
+    }
+    return Number(paymentSummary.paidAmount || amountDueNow || 0);
+  }, [activePaymentAccountMethod, amountDueNow, cardAmount, cashAmount, paymentMode, paymentSummary.paidAmount, walletAmount]);
+
+  const existingPaymobOrder = cart.length === 0 ? lastOrder || lastShareContext || null : null;
+  const existingPaymobOrderId = existingPaymobOrder?.order_id || existingPaymobOrder?.orderId || existingPaymobOrder?.id || null;
+  const retryPaymobAmount = Number(existingPaymobOrder?.payment?.paymobTerminalAmount || paymobTerminalState?.amount || 0);
+  const missingFullVariantForCheckout = useMemo(
+    () => cart.find((item) => isFullVariationMode(item.variation_mode) && !resolveCheckoutVariantId(item)),
+    [cart]
+  );
+  const invalidCartItemForCheckout = useMemo(
+    () =>
+      cart.find((item) => {
+        const quantity = Number(item.quantity || 0);
+        const price = Number(item.price ?? item.unit_price ?? 0);
+        const productId = item.product_id || item.productId || null;
+        const variantId = resolveCheckoutVariantId(item);
+        return (!productId && !variantId) || quantity <= 0 || !Number.isFinite(price) || price < 0;
+      }),
+    [cart]
+  );
+  const canUsePaymobTerminal = existingPaymobOrderId
+    ? retryPaymobAmount > 0 && !paymobTerminalLoading
+    : cart.length > 0 &&
+      isShiftActive &&
+      !missingFullVariantForCheckout &&
+      !invalidCartItemForCheckout &&
+      (salesSettings.allow_sale_without_salesperson || Boolean(selectedSalespersonId)) &&
+      paymobTerminalAmount > 0 &&
+      !checkoutLoading &&
+      !paymobTerminalLoading;
+
+  useEffect(() => {
+    let active = true;
+    const branchId = activePosShift?.branch_id || posShiftBranch?.id || currentUser?.branch_id || "";
+    if (!branchId || !activePaymentAccountMethod || cart.length === 0) {
+      setPaymentAccountStatus(null);
+      setPaymentAccountLoading(false);
+      return undefined;
+    }
+
+    const loadPaymentAccountStatus = async () => {
+      try {
+        setPaymentAccountLoading(true);
+        const result = await api.get("/pos/payment-account-status", {
+          params: {
+            payment_method: activePaymentAccountMethod,
+            branch_id: branchId,
+            amount: activePaymentAccountAmount,
+            direction: "in",
+            purpose: "pos_sale",
+          },
+          timeoutMs: 15000,
+        });
+        if (active) setPaymentAccountStatus(result?.status || null);
+      } catch (statusError) {
+        if (active) setPaymentAccountStatus(null);
+        console.warn("[pos] payment account status unavailable", statusError?.message || statusError);
+      } finally {
+        if (active) setPaymentAccountLoading(false);
+      }
+    };
+
+    loadPaymentAccountStatus();
+    return () => {
+      active = false;
+    };
+  }, [activePaymentAccountAmount, activePaymentAccountMethod, activePosShift?.branch_id, cart.length, currentUser?.branch_id, paymentAccountRefreshKey, posShiftBranch?.id]);
 
   const loyaltyPointsToEarn = useMemo(() => {
     const spendAmount = 100;
@@ -1769,16 +2460,41 @@ function POSPro() {
   useEffect(() => {
     const previousTotal = Number(previousTotalRef.current || 0);
     if (paymentMode === "cash" && (Number(cashAmount || 0) === 0 || Number(cashAmount || 0) === previousTotal)) {
-      setCashAmount(cartTotals.total);
+      setCashAmount(amountDueNow);
     }
     if (paymentMode === "card" && (Number(cardAmount || 0) === 0 || Number(cardAmount || 0) === previousTotal)) {
-      setCardAmount(cartTotals.total);
+      setCardAmount(amountDueNow);
     }
     if (paymentMode === "wallet" && (Number(walletAmount || 0) === 0 || Number(walletAmount || 0) === previousTotal)) {
-      setWalletAmount(cartTotals.total);
+      setWalletAmount(amountDueNow);
     }
-    previousTotalRef.current = cartTotals.total;
-  }, [paymentMode, cartTotals.total, cashAmount, cardAmount, walletAmount]);
+    previousTotalRef.current = amountDueNow;
+  }, [paymentMode, amountDueNow, cashAmount, cardAmount, walletAmount, customerWalletAmount, customerCreditBalance]);
+
+  useEffect(() => {
+    if (!canUseCustomerCredit) {
+      if (paymentMode === "customer_wallet") setPaymentMode("cash");
+      if (Number(customerWalletAmount || 0) > 0) setCustomerWalletAmount(0);
+      return;
+    }
+
+    const maxCustomerCreditPayment = Math.min(customerCreditBalance, Number(amountDueNow || 0));
+    if (Number(customerWalletAmount || 0) > maxCustomerCreditPayment) {
+      setCustomerWalletAmount(maxCustomerCreditPayment);
+    }
+  }, [amountDueNow, canUseCustomerCredit, customerCreditBalance, customerWalletAmount, paymentMode]);
+
+  useEffect(() => {
+    const total = Math.max(0, Number(amountDueNow || 0));
+    const credit = Math.min(Math.max(0, Number(customerWalletAmount || 0)), total);
+    const nextCash = Math.min(Math.max(0, Number(cashAmount || 0)), Math.max(0, total - credit));
+    const nextCard = Math.min(Math.max(0, Number(cardAmount || 0)), Math.max(0, total - credit - nextCash));
+    const nextWallet = Math.min(Math.max(0, Number(walletAmount || 0)), Math.max(0, total - credit - nextCash - nextCard));
+
+    if (nextCash !== Number(cashAmount || 0)) setCashAmount(nextCash);
+    if (nextCard !== Number(cardAmount || 0)) setCardAmount(nextCard);
+    if (nextWallet !== Number(walletAmount || 0)) setWalletAmount(nextWallet);
+  }, [amountDueNow, cardAmount, cashAmount, customerWalletAmount, walletAmount]);
 
   useEffect(() => {
     let active = true;
@@ -1869,11 +2585,23 @@ function POSPro() {
     const rawValue = String(search || "").trim();
     const normalized = rawValue.toLowerCase();
     if (!normalized) return;
+    if (lastBarcodeSubmitRef.current.value === normalized) return;
+    window.clearTimeout(lastBarcodeSubmitRef.current.timer);
+    lastBarcodeSubmitRef.current = {
+      value: normalized,
+      timer: window.setTimeout(() => {
+        lastBarcodeSubmitRef.current = { value: "", timer: null };
+      }, 250),
+    };
 
     const exactVariant = barcodeLookup.variantsByCode.get(normalized);
 
     if (exactVariant) {
       addVariantToCart(exactVariant.product, exactVariant.variant);
+      emitFeedback("pos_barcode_scan", {
+        title: t("pos.toasts.barcodeScanned"),
+        message: exactVariant.product?.name || exactVariant.product?.product_name || rawValue,
+      });
       setSearch("");
       return;
     }
@@ -1882,6 +2610,10 @@ function POSPro() {
 
     if (exactProduct) {
       quickAddProduct(exactProduct);
+      emitFeedback("pos_barcode_scan", {
+        title: t("pos.toasts.barcodeScanned"),
+        message: exactProduct.name || exactProduct.product_name || rawValue,
+      });
       setSearch("");
       return;
     }
@@ -1889,16 +2621,24 @@ function POSPro() {
     try {
       const qrProduct = await getProductByQrToken(rawValue);
       setBarcodeShopProduct(normalizeQrProduct(qrProduct));
+      emitFeedback("pos_barcode_scan", {
+        title: t("pos.toasts.productQrScanned"),
+        message: qrProduct?.name || qrProduct?.product_name || rawValue,
+      });
       setSearch("");
     } catch (error) {
       console.error("[pos] product QR lookup failed:", error);
-      toast.error("Product QR not found");
+      toast.error(t("pos.toasts.productQrNotFound"));
+      emitFeedback("pos_product_not_found", {
+        title: t("pos.toasts.productQrNotFound"),
+        message: rawValue,
+      });
     }
   };
 
   const addVariantToCart = useCallback((product, variant) => {
     if (!variant) {
-      toast.error("Variant not available");
+      toast.error(t("pos.toasts.variantNotAvailable"));
       return;
     }
 
@@ -1913,17 +2653,23 @@ function POSPro() {
     );
 
     if (liveStock <= 0) {
-      toast.error("Stock is empty");
+      toast.error(t("pos.toasts.stockEmpty"));
       return;
     }
 
     const key = variantId ? String(variantId) : `product:${productId}`;
+    const activePrice = Number(variant.price || product.sale_price || product.price || 0);
+    const originalPrice = Number(variant.original_price || variant.regular_price || product.original_price || product.regular_price || variant.price || product.price || 0);
+    if (!(activePrice > 0)) {
+      toast.error(t("pos.toasts.productNoPrice"));
+      return;
+    }
 
     setCart((prev) => {
       const existing = prev.find((item) => item.key === key);
       if (existing) {
         if (Number(existing.quantity || 0) >= liveStock) {
-          toast.error("Stock limit reached");
+          toast.error(t("pos.toasts.stockLimitReached"));
           return prev;
         }
 
@@ -1968,7 +2714,11 @@ function POSPro() {
           variant,
           product_variant: variant.product_variant || variant,
           color_object: variant.color_object || product.color || null,
-          price: Number(variant.price || product.sale_price || product.price || 0),
+          price: activePrice,
+          original_price: originalPrice,
+          sale_badge: variant.sale_badge || product.sale_badge || "",
+          sale_source: variant.sale_source || product.sale_source || "regular",
+          sale_mode_applied: Boolean(variant.sale_mode_applied || product.sale_mode_applied),
           brand: product.brand || variant.brand || "",
           category: product.category || variant.category || "",
           manufacturer: product.manufacturer || variant.manufacturer || "",
@@ -1980,8 +2730,8 @@ function POSPro() {
       ];
     });
 
-    toast.success(`${product.name || product.product_name} added to cart`);
-  }, [products]);
+    toast.success(t("pos.toasts.addedToCart", { name: product.name || product.product_name }));
+  }, [products, t]);
 
   const quickAddProduct = (product) => {
     const variants = Array.isArray(product.variants) ? product.variants : [];
@@ -2001,7 +2751,7 @@ function POSPro() {
       return;
     }
 
-    toast.error("This product is not sellable");
+    toast.error(t("pos.toasts.notSellable"));
   };
 
   const handleSelectProduct = (product) => {
@@ -2032,7 +2782,7 @@ function POSPro() {
               const liveStock = getCatalogItemStock(products, item);
               const nextQuantity = Math.min(Number(item.quantity || 0) + 1, liveStock);
               if (nextQuantity === Number(item.quantity || 0)) {
-                toast.error("Stock limit reached");
+                toast.error(t("pos.toasts.stockLimitReached"));
                 return item;
               }
               return {
@@ -2044,7 +2794,7 @@ function POSPro() {
             })()
           : item
       )
-    ), [products]);
+    ), [products, t]);
   const handleDecrease = useCallback((key) =>
     setCart((prev) =>
       prev.map((item) =>
@@ -2067,11 +2817,106 @@ function POSPro() {
           : item
       )
     ), []);
+  const showQuantityAdjustedWarning = useCallback((oldQuantity, newQuantity, availableStock) => {
+    toast(
+      [
+        `Only ${availableStock} unit${Number(availableStock) === 1 ? "" : "s"} is available for the selected size.`,
+        `Quantity was automatically adjusted from ${oldQuantity} to ${newQuantity}.`,
+        `المخزون المتاح للمقاس المحدد هو ${availableStock} فقط.`,
+        `تم تعديل الكمية تلقائيًا من ${oldQuantity} إلى ${newQuantity}.`,
+      ].join("\n"),
+      { icon: "⚠️" }
+    );
+  }, []);
+  const handleCartVariantChange = useCallback((key, variantId) => {
+    const targetVariantId = String(variantId || "");
+    if (!targetVariantId) return;
+
+    setCart((prev) => {
+      const sourceItem = prev.find((item) => String(item.key) === String(key));
+      if (!sourceItem) return prev;
+
+      const productId = sourceItem.product_id ?? sourceItem.product?.product_id ?? sourceItem.product?.id;
+      const catalogProduct = getCatalogProductById(products, productId) || normalizeCatalogProduct(sourceItem.product || {});
+      const targetVariant = getCatalogVariantById(catalogProduct, targetVariantId) ||
+        (Array.isArray(sourceItem.product?.variants) ? sourceItem.product.variants : []).find(
+          (variant) => String(variant.variant_id ?? variant.variantId ?? variant.id ?? "") === targetVariantId
+        );
+
+      if (!targetVariant) {
+        toast.error("Variant not found / لم يتم العثور على المقاس أو اللون");
+        return prev;
+      }
+
+      const liveStock = normalizeStockQuantity(targetVariant.stock_quantity ?? targetVariant.stock);
+      if (liveStock <= 0) {
+        toast.error("Out of stock / غير متوفر بالمخزون");
+        return prev;
+      }
+
+      const nextKey = targetVariantId;
+      const sourceQuantity = Number(sourceItem.quantity || 0);
+      const nextQuantity = Math.min(sourceQuantity, liveStock);
+      const quantityWasCapped = nextQuantity < sourceQuantity;
+      const activePrice = Number(targetVariant.price || targetVariant.sale_price || catalogProduct.sale_price || catalogProduct.price || sourceItem.price || 0);
+      const originalPrice = Number(targetVariant.original_price || targetVariant.regular_price || catalogProduct.original_price || catalogProduct.regular_price || activePrice);
+      const nextItem = {
+        ...sourceItem,
+        key: nextKey,
+        product_id: catalogProduct.product_id ?? catalogProduct.id ?? productId,
+        variant_id: targetVariant.variant_id ?? targetVariant.id ?? targetVariantId,
+        sku: targetVariant.sku || catalogProduct.sku || sourceItem.sku,
+        barcode: targetVariant.barcode || catalogProduct.barcode || targetVariant.sku || sourceItem.barcode,
+        color: targetVariant.color || "",
+        size: targetVariant.size || catalogProduct.fixed_size_label || "",
+        stock: liveStock,
+        stock_quantity: liveStock,
+        image_url: targetVariant.image_url || catalogProduct.image_url || sourceItem.image_url || "",
+        image: targetVariant.image || catalogProduct.image || sourceItem.image || "",
+        product_image_url: targetVariant.product_image_url || catalogProduct.product_image_url || catalogProduct.image_url || sourceItem.product_image_url || "",
+        variant_image_url: targetVariant.variant_image_url || sourceItem.variant_image_url || "",
+        color_image_url: targetVariant.color_image_url || sourceItem.color_image_url || "",
+        product: catalogProduct,
+        variant: targetVariant,
+        product_variant: targetVariant.product_variant || targetVariant,
+        price: activePrice,
+        original_price: originalPrice,
+        sale_badge: targetVariant.sale_badge || catalogProduct.sale_badge || sourceItem.sale_badge || "",
+        sale_source: targetVariant.sale_source || catalogProduct.sale_source || sourceItem.sale_source || "regular",
+        sale_mode_applied: Boolean(targetVariant.sale_mode_applied || catalogProduct.sale_mode_applied || sourceItem.sale_mode_applied),
+        quantity: nextQuantity,
+      };
+
+      const existingTarget = prev.find((item) => String(item.key) === nextKey && String(item.key) !== String(key));
+      if (existingTarget) {
+        const requestedMergedQuantity = Number(existingTarget.quantity || 0) + nextQuantity;
+        const mergedQuantity = Math.min(requestedMergedQuantity, liveStock);
+        const cappedByMerge = mergedQuantity < requestedMergedQuantity;
+        if (quantityWasCapped) showQuantityAdjustedWarning(sourceQuantity, nextQuantity, liveStock);
+        if (cappedByMerge) showQuantityAdjustedWarning(requestedMergedQuantity, mergedQuantity, liveStock);
+        return prev
+          .filter((item) => String(item.key) !== String(key))
+          .map((item) =>
+            String(item.key) === nextKey
+              ? {
+                  ...item,
+                  ...nextItem,
+                  lineDiscount: Math.max(Number(item.lineDiscount || 0), Number(sourceItem.lineDiscount || 0)),
+                  quantity: mergedQuantity,
+                }
+              : item
+          );
+      }
+
+      if (quantityWasCapped) showQuantityAdjustedWarning(sourceQuantity, nextQuantity, liveStock);
+      return prev.map((item) => (String(item.key) === String(key) ? nextItem : item));
+    });
+  }, [products, showQuantityAdjustedWarning]);
 
   const handleApplyCoupon = async () => {
     const code = String(couponCode || "").trim().toUpperCase();
     if (!code) {
-      toast.error("Enter a coupon code");
+      toast.error(t("pos.toasts.enterCoupon"));
       return;
     }
     try {
@@ -2085,15 +2930,15 @@ function POSPro() {
       });
       if (!response.valid) {
         setCouponValidation(null);
-        toast.error(response.reason || "Coupon is invalid");
+        toast.error(response.reason || t("pos.toasts.couponInvalid"));
         return;
       }
       setCouponCode(code);
       setCouponValidation(response);
-      toast.success(`Coupon applied: ${formatCurrency(response.discount_amount || 0)}`);
+      toast.success(t("pos.toasts.couponApplied", { amount: formatCurrency(response.discount_amount || 0) }));
     } catch (err) {
       setCouponValidation(null);
-      toast.error(getErrorMessage(err, "Unable to validate coupon"));
+      toast.error(getErrorMessage(err, t("pos.toasts.couponValidateFailed")));
     } finally {
       setCouponLoading(false);
     }
@@ -2105,12 +2950,24 @@ function POSPro() {
   };
 
   const mapOrderItemToCartItem = (item = {}) => {
-    const variantId = resolveCheckoutVariantId(item);
-    const productId = item.product_id || item.productId || null;
-    const key = variantId ? String(variantId) : `product:${productId}`;
+    const variantId = resolveCheckoutVariantId({
+      ...item,
+      variant_id: item.variant_id ?? item.product_variant_id ?? item.variantId ?? item.productVariantId ?? item.variant?.id ?? item.product_variant?.id,
+    });
+    const productId =
+      item.product_id ||
+      item.productId ||
+      item.product?.id ||
+      item.product?.product_id ||
+      item.variant?.product_id ||
+      item.product_variant?.product_id ||
+      null;
+    const key = variantId ? String(variantId) : `product:${productId || item.id || item.order_item_id || item.invoice_item_id}`;
     const catalogProduct = getCatalogProductById(products, productId) || {};
     const catalogVariant = variantId ? getCatalogVariantById(catalogProduct, variantId, item.color, item.size) || {} : {};
-    const quantity = Number(item.quantity || 0);
+    const quantity = Number(item.quantity ?? item.qty ?? item.item_quantity ?? 0);
+    const unitPrice = Number(item.sale_price ?? item.unit_price ?? item.price ?? item.selling_price ?? 0);
+    const totalDiscount = Number(item.discount_amount ?? item.discount ?? 0);
     const liveStock = getCatalogItemStock(products, {
       product_id: productId,
       variant_id: variantId,
@@ -2119,92 +2976,256 @@ function POSPro() {
 
     return {
       key,
+      order_item_id: item.id || item.order_item_id || item.invoice_item_id || null,
       product_id: productId,
       variant_id: variantId,
-      name: item.product_name || catalogProduct.name || "منتج",
-      product_name: item.product_name || catalogProduct.name || "منتج",
+      name: item.product_name || item.name || item.product?.name || catalogProduct.name || "منتج",
+      product_name: item.product_name || item.name || item.product?.name || catalogProduct.name || "منتج",
       sku: item.sku || catalogVariant.sku || catalogProduct.sku || "",
       barcode: item.barcode || catalogVariant.barcode || catalogProduct.barcode || "",
-      color: item.color || catalogVariant.color || "",
-      size: item.size || catalogVariant.size || "",
+      color: item.color || item.variant_color || catalogVariant.color || "",
+      size: item.size || item.variant_size || catalogVariant.size || "",
       stock: liveStock + quantity,
       stock_quantity: liveStock + quantity,
-      image_url: item.image_url || catalogVariant.image_url || catalogProduct.image_url || "",
-      product_image_url: catalogProduct.product_image_url || catalogProduct.image_url || item.image_url || "",
+      image_url: item.image_url || item.product_image_url || item.variant_image_url || catalogVariant.image_url || catalogProduct.image_url || "",
+      product_image_url: item.product_image_url || catalogProduct.product_image_url || catalogProduct.image_url || item.image_url || "",
       product: catalogProduct,
       variant: catalogVariant,
       product_variant: catalogVariant,
-      price: Number(item.sale_price || item.price || 0),
+      price: unitPrice,
+      unit_price: unitPrice,
+      sale_price: unitPrice,
       variation_mode: item.variation_mode || catalogProduct.variation_mode || "full_variations",
       fixed_size_label: catalogProduct.fixed_size_label || "",
-      lineDiscount: Number(item.discount_amount || 0) / Math.max(1, quantity || 1),
+      discount_amount: totalDiscount,
+      tax_amount: Number(item.tax_amount || 0),
+      service_fee: Number(item.service_fee || 0),
+      total_amount: Number(item.total_amount ?? Math.max(0, unitPrice * quantity - totalDiscount)),
+      lineDiscount: totalDiscount / Math.max(1, quantity || 1),
       quantity,
     };
   };
 
+  const loadRouteOrderIntoEditMode = async (orderId) => {
+    if (!orderId) return false;
+    const editStartedAt = performance.now();
+    const editTimings = {};
+    const markEditTiming = (label, startedAt) => {
+      editTimings[label] = Math.round(performance.now() - startedAt);
+    };
+    try {
+      if (POS_CHECKOUT_DEBUG) console.log("[pos-edit-ui] click start", { order_id: orderId, source: "route" });
+      const fetchStartedAt = performance.now();
+      const response = await api.get(`/orders/${orderId}/pos-edit`, { timeoutMs: 8000 });
+      markEditTiming("fetch_invoice_details_ms", fetchStartedAt);
+      const loadedOrder = response.order || { id: orderId };
+      const loadedItems = extractOrderItemsFromResponse(response, loadedOrder);
+      if (POS_CHECKOUT_DEBUG) console.log("[invoice-edit-load]", {
+        order_id: orderId,
+        invoice_number: loadedOrder.invoice_number || "",
+        items_count: loadedItems.length,
+        source: "route",
+        fetch_invoice_details_ms: editTimings.fetch_invoice_details_ms,
+      });
+      const mapStartedAt = performance.now();
+      const mappedCart = loadedItems.map(mapOrderItemToCartItem).filter((item) => item.quantity > 0);
+      markEditTiming("map_order_to_cart_ms", mapStartedAt);
+      if (POS_CHECKOUT_DEBUG) console.log("[invoice-edit-cart-map]", {
+        order_id: orderId,
+        mapped_cart_count: mappedCart.length,
+        source: "route",
+        map_order_to_cart_ms: editTimings.map_order_to_cart_ms,
+      });
+      if (loadedItems.length > 0 && mappedCart.length === 0) {
+        toast.error("Invoice items could not be loaded into the cart.");
+        return false;
+      }
+
+      const originalPaymentBreakdown = parsePaymentBreakdownRows(loadedOrder.payment_breakdown ?? loadedOrder.paymentBreakdown ?? loadedOrder.payments);
+      const originalTotal = resolveEditOrderTotal(loadedOrder);
+      const originalPaidAmount = resolveOriginalCollectedAmount({
+        ...loadedOrder,
+        original_total: originalTotal,
+        original_payment_breakdown: originalPaymentBreakdown,
+      });
+      setEditingOrder({
+        ...loadedOrder,
+        original_order_id: loadedOrder.id || orderId,
+        original_invoice_number: loadedOrder.invoice_number || "",
+        original_total: originalTotal,
+        original_paid_amount: originalPaidAmount,
+        total_paid: originalPaidAmount,
+        original_payment_status: loadedOrder.payment_status || "",
+        original_payment_breakdown: originalPaymentBreakdown,
+        payment_breakdown: originalPaymentBreakdown,
+        original_items: loadedItems,
+        items: loadedItems,
+      });
+      setCart(mappedCart);
+      setInvoiceNumber(loadedOrder.invoice_number || invoiceNumber);
+      setPaymentMode(loadedOrder.payment_method || "cash");
+      setCashAmount(0);
+      setCardAmount(0);
+      setWalletAmount(0);
+      setCustomerWalletAmount(0);
+      setExchangeState(null);
+      setInvoiceDiscount(Number(loadedOrder.discount_amount || 0));
+      setServiceFee(Number(loadedOrder.service_fee || 0));
+
+      const loadedCustomerId = loadedOrder.customer_id || loadedOrder.customer?.id || null;
+      if (loadedCustomerId) {
+        setCustomers((current) => {
+          const rows = Array.isArray(current) ? current : [];
+          if (rows.some((item) => String(item?.id || item?.customer_id) === String(loadedCustomerId))) return rows;
+          return [
+            {
+              id: loadedCustomerId,
+              customer_id: loadedCustomerId,
+              name: loadedOrder.customer_name || loadedOrder.customer?.name || "Customer",
+              phone: loadedOrder.customer_phone || loadedOrder.customer?.phone || "",
+            },
+            ...rows,
+          ];
+        });
+      }
+      setSelectedCustomerId(loadedCustomerId);
+      setCustomerSearch(loadedOrder.customer_name || loadedOrder.customer?.name || loadedOrder.customer_phone || "");
+
+      const sellerId =
+        loadedOrder.sales_employee_id ||
+        loadedOrder.salesperson_id ||
+        loadedOrder.assigned_seller_id ||
+        loadedOrder.seller_id ||
+        loadedOrder.seller_employee_id ||
+        "";
+      setSelectedSalespersonId(sellerId ? String(sellerId) : "");
+      setMarketingAttribution((current) => ({
+        ...current,
+        marketing_source: loadedOrder.marketing_source || current.marketing_source,
+        marketing_platform: loadedOrder.marketing_platform || current.marketing_platform,
+        marketing_post_id: loadedOrder.marketing_post_id || current.marketing_post_id,
+        marketing_campaign: loadedOrder.marketing_campaign || current.marketing_campaign,
+        attribution_type: loadedOrder.attribution_type || current.attribution_type,
+        marketing_tracking_code: loadedOrder.marketing_tracking_code || current.marketing_tracking_code,
+        marketing_session_id: loadedOrder.marketing_session_id || current.marketing_session_id,
+      }));
+      const openStartedAt = performance.now();
+      setRecentOperationsOpen(false);
+      markEditTiming("open_edit_mode_ms", openStartedAt);
+      if (POS_CHECKOUT_DEBUG) {
+        console.log("[pos-edit-ui] total", {
+          order_id: orderId,
+          source: "route",
+          ...editTimings,
+          total_ms: Math.round(performance.now() - editStartedAt),
+        });
+      }
+      toast.success(t("pos.toasts.invoiceEditLoaded", { invoice: loadedOrder.invoice_number || orderId }));
+      return true;
+    } catch (err) {
+      toast.error(getErrorMessage(err, t("pos.toasts.invoiceEditLoadFailed")));
+      return false;
+    }
+  };
+
   const handleEditRecentOrder = async (order) => {
     if (!order?.id) return;
+    const editStartedAt = performance.now();
+    const editTimings = {};
+    const markEditTiming = (label, startedAt) => {
+      editTimings[label] = Math.round(performance.now() - startedAt);
+    };
     try {
-      const response = await api.get(`/orders/${order.id}`);
+      if (POS_CHECKOUT_DEBUG) console.log("[pos-edit-ui] click start", { order_id: order.id, source: "recent-orders" });
+      const fetchStartedAt = performance.now();
+      const response = await api.get(`/orders/${order.id}/pos-edit`, { timeoutMs: 8000 });
+      markEditTiming("fetch_invoice_details_ms", fetchStartedAt);
       const loadedOrder = response.order || order;
-      const loadedItems = Array.isArray(response.items) ? response.items : order.items || [];
-      setEditingOrder({ ...loadedOrder, items: loadedItems });
-      setCart(loadedItems.map(mapOrderItemToCartItem).filter((item) => item.quantity > 0));
+      const loadedItems = extractOrderItemsFromResponse(response, order);
+      if (POS_CHECKOUT_DEBUG) console.log("[invoice-edit-load]", {
+        order_id: order.id,
+        invoice_number: loadedOrder.invoice_number || order.invoice_number || "",
+        items_count: loadedItems.length,
+        fetch_invoice_details_ms: editTimings.fetch_invoice_details_ms,
+      });
+      const mapStartedAt = performance.now();
+      const mappedCart = loadedItems.map(mapOrderItemToCartItem).filter((item) => item.quantity > 0);
+      markEditTiming("map_order_to_cart_ms", mapStartedAt);
+      if (POS_CHECKOUT_DEBUG) console.log("[invoice-edit-cart-map]", {
+        order_id: order.id,
+        mapped_cart_count: mappedCart.length,
+        map_order_to_cart_ms: editTimings.map_order_to_cart_ms,
+      });
+      if (loadedItems.length > 0 && mappedCart.length === 0) {
+        toast.error("Invoice items could not be loaded into the cart.");
+        return;
+      }
+      const originalContext = { ...order, ...loadedOrder };
+      const originalPaymentBreakdown = parsePaymentBreakdownRows(
+        loadedOrder.payment_breakdown ?? loadedOrder.paymentBreakdown ?? loadedOrder.payments ?? order.payment_breakdown ?? order.paymentBreakdown ?? order.payments
+      );
+      const originalTotal = resolveEditOrderTotal(originalContext);
+      const originalPaidAmount = resolveOriginalCollectedAmount({
+        ...originalContext,
+        original_total: originalTotal,
+        original_payment_breakdown: originalPaymentBreakdown,
+      });
+      setEditingOrder({
+        ...loadedOrder,
+        original_order_id: loadedOrder.id || order.id,
+        original_invoice_number: loadedOrder.invoice_number || order.invoice_number || "",
+        original_total: originalTotal,
+        original_paid_amount: originalPaidAmount,
+        total_paid: originalPaidAmount,
+        original_payment_status: loadedOrder.payment_status || order.payment_status || "",
+        original_payment_breakdown: originalPaymentBreakdown,
+        payment_breakdown: originalPaymentBreakdown,
+        original_items: loadedItems,
+        items: loadedItems,
+      });
+      setCart(mappedCart);
       setInvoiceNumber(loadedOrder.invoice_number || order.invoice_number || invoiceNumber);
       setPaymentMode(loadedOrder.payment_method || order.payment_method || "cash");
-      setCashAmount(Number(loadedOrder.cash_amount || 0));
-      setCardAmount(Number(loadedOrder.card_amount || 0));
-      setWalletAmount(Number(loadedOrder.wallet_payment_amount || 0));
+      setCashAmount(0);
+      setCardAmount(0);
+      setWalletAmount(0);
+      setCustomerWalletAmount(0);
+      setExchangeState(null);
       setInvoiceDiscount(Number(loadedOrder.discount_amount || 0));
       setServiceFee(Number(loadedOrder.service_fee || 0));
       setSelectedCustomerId(loadedOrder.customer_id || null);
       setCustomerSearch(loadedOrder.customer_name || "");
+      const openStartedAt = performance.now();
       setRecentOperationsOpen(false);
+      markEditTiming("open_edit_mode_ms", openStartedAt);
+      if (POS_CHECKOUT_DEBUG) {
+        console.log("[pos-edit-ui] total", {
+          order_id: order.id,
+          source: "recent-orders",
+          ...editTimings,
+          total_ms: Math.round(performance.now() - editStartedAt),
+        });
+      }
       toast.success(`أنت الآن تعدل فاتورة رقم ${loadedOrder.invoice_number || order.invoice_number}`);
     } catch (err) {
       toast.error(getErrorMessage(err, "تعذر تحميل الفاتورة للتعديل"));
     }
   };
 
-  const handleResellRecentOrder = async (order) => {
-    if (!order?.id) return;
-    try {
-      const response = await api.get(`/orders/${order.id}`);
-      const loadedOrder = response.order || order;
-      const loadedItems = Array.isArray(response.items) ? response.items : order.items || [];
-      const nextCart = loadedItems
-        .map(mapOrderItemToCartItem)
-        .filter((item) => item.quantity > 0)
-        .map((item) => {
-          const liveStock = Math.max(0, Number(item.stock || 0) - Number(item.quantity || 0));
-          return {
-            ...item,
-            stock: liveStock,
-            stock_quantity: liveStock,
-          };
-        });
+  useEffect(() => {
+    const editOrderId = String(routeEditOrderId || "").trim();
+    if (!editOrderId || loadedRouteEditOrderIdRef.current === editOrderId) return;
+    loadedRouteEditOrderIdRef.current = editOrderId;
+    void loadRouteOrderIntoEditMode(editOrderId);
+  }, [routeEditOrderId]);
 
-      if (nextCart.length === 0) {
-        toast.error("لا توجد منتجات صالحة لإعادة البيع");
-        return;
-      }
-
-      setEditingOrder(null);
-      setCart(nextCart);
-      setInvoiceNumber(generateInvoiceNumber());
-      setPaymentMode("cash");
-      setCashAmount(0);
-      setCardAmount(0);
-      setWalletAmount(0);
-      setInvoiceDiscount(0);
-      setServiceFee(0);
-      handleClearSelectedCustomer();
-      setRecentOperationsOpen(false);
-      toast.success(`تم تحميل منتجات ${loadedOrder.invoice_number || order.invoice_number} كعملية بيع جديدة`);
-    } catch (err) {
-      toast.error(getErrorMessage(err, "تعذر تحميل الفاتورة لإعادة البيع"));
-    }
-  };
+  useEffect(() => {
+    if (!editingOrder?.id || selectedSalespersonId || salesEmployees.length === 0) return;
+    const sellerUserId = editingOrder.seller_user_id || editingOrder.sellerUserId || "";
+    if (!sellerUserId) return;
+    const seller = salesEmployees.find((employee) => String(employee.user_id || "") === String(sellerUserId));
+    if (seller?.id) setSelectedSalespersonId(String(seller.id));
+  }, [editingOrder, salesEmployees, selectedSalespersonId]);
 
   const handleExchangeStarted = ({ order, returnTotal = 0 } = {}) => {
     setEditingOrder(null);
@@ -2213,6 +3234,13 @@ function POSPro() {
     setCashAmount(0);
     setCardAmount(0);
     setWalletAmount(0);
+    setCustomerWalletAmount(0);
+    setExchangeState({
+      active: true,
+      originalOrderId: order?.id || order?.order_id || null,
+      invoiceNumber: order?.invoice_number || order?.public_order_number || String(order?.id || ""),
+      creditAmount: Number(returnTotal || order?.total_amount || order?.total || 0),
+    });
     setInvoiceDiscount(0);
     setServiceFee(0);
     handleClearSelectedCustomer();
@@ -2220,54 +3248,130 @@ function POSPro() {
     toast.success(`تم إنشاء الاستبدال للفاتورة ${order?.invoice_number || order?.id || ""}. أضف المنتج البديل إلى السلة كبيع جديد بقيمة مرتجع ${formatCurrency(returnTotal, "ar")}`);
   };
 
+  const lookupExchangeOrder = async (query) => {
+    const text = String(query || "").trim();
+    if (!text) return null;
+    if (/^\d+$/.test(text)) {
+      try {
+        const result = await api.get(`/orders/${text}`);
+        return result?.order || result?.data?.order || result;
+      } catch {
+        // Try invoice-number search below.
+      }
+    }
+    const result = await api.get("/orders", { params: { limit: 500 } });
+    const orders = Array.isArray(result?.orders) ? result.orders : Array.isArray(result?.data) ? result.data : [];
+    const lowerText = text.toLowerCase();
+    return orders.find((order) =>
+      [order.id, order.invoice_number, order.public_order_number, order.display_order_number]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase() === lowerText)
+    ) || null;
+  };
+
   const clearEditMode = () => {
     setEditingOrder(null);
     setInvoiceNumber(generateInvoiceNumber());
+    loadedRouteEditOrderIdRef.current = "";
+    if (routeEditOrderId) {
+      navigate("/pos", { replace: true });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingOrder(null);
+    setCart([]);
+    setInvoiceNumber(generateInvoiceNumber());
+    setPaymentMode("cash");
+    setCashAmount(0);
+    setCardAmount(0);
+    setWalletAmount(0);
+    setCustomerWalletAmount(0);
+    setExchangeState(null);
+    setInvoiceDiscount(0);
+    setServiceFee(0);
+    handleRemoveCoupon();
+    handleClearSelectedCustomer();
+    clearPosPersistedState();
+    loadedRouteEditOrderIdRef.current = "";
+    navigate("/orders", { replace: true });
+    toast.success(t("pos.toasts.invoiceEditCancelled"));
   };
 
   const handleCreateCustomer = async () => {
     const name = quickCustomer.name.trim();
     if (!name) {
-      toast.error("Customer name is required");
+      toast.error(t("pos.toasts.customerNameRequired"));
       return false;
     }
 
     const normalizedPhone = normalizeReceiptPhone(quickCustomer.phone);
     if (quickCustomer.phone && !normalizedPhone) {
-      toast.error("Enter a valid customer phone number");
+      toast.error(t("pos.toasts.customerPhoneInvalid"));
       return false;
     }
 
+    if (quickCustomerExistingMatch) {
+      handleSelectCustomer(quickCustomerExistingMatch);
+      setQuickCustomer({ name: "", phone: "", source_key: "" });
+      toast.success(t("pos.toasts.customerSelected", "Customer selected"));
+      return true;
+    }
+
+    if (!quickCustomer.source_key) {
+      toast.error(t("pos.toasts.customerSourceRequired", "Select where the new customer came from."));
+      return false;
+    }
+
+    const customerSource = resolveMarketingAttributionFromSelection(quickCustomer.source_key);
     try {
       const result = await api.post("/customers", {
         name,
         phone: normalizedPhone,
+        source: quickCustomer.source_key,
+        customer_source: quickCustomer.source_key,
+        lead_source: quickCustomer.source_key,
+        registration_source: quickCustomer.source_key,
+        marketing_source: customerSource.marketing_source || quickCustomer.source_key,
+        marketing_platform: customerSource.marketing_platform || "",
+        attribution_type: customerSource.attribution_type || quickCustomer.source_key,
       });
 
       const payload = result?.data ?? result;
-      const createdCustomer = payload?.data ?? payload?.customer ?? payload;
+      const createdCustomer = normalizePosCustomer(payload?.data ?? payload?.customer ?? payload);
 
       const createdCustomerId = createdCustomer?.id || createdCustomer?.customer_id;
       if (!createdCustomerId) {
         console.error("[pos] customer create response did not include an id:", result);
-        toast.error("Customer was not returned by the server");
+        toast.error(t("pos.toasts.customerCreateMissingId"));
         await loadCustomers();
         return false;
       }
 
-      setCustomers((prev) => {
+      const upsertCreatedCustomer = (prev) => {
         const safePrev = Array.isArray(prev) ? prev : [];
         const withoutDuplicate = safePrev.filter((item) => String(item?.id || item?.customer_id) !== String(createdCustomerId));
-        return [createdCustomer, ...withoutDuplicate];
-      });
+        return [normalizePosCustomer(createdCustomer), ...withoutDuplicate];
+      };
+
+      setCustomers(upsertCreatedCustomer);
       setSelectedCustomerId(createdCustomerId);
       setCustomerSearch(`${createdCustomer.name || ""} ${createdCustomer.phone || ""}`.trim());
+      const refreshedCustomers = await loadCustomers();
+      const refreshedCustomer = refreshedCustomers.find((item) => String(item?.id || item?.customer_id) === String(createdCustomerId));
+      setCustomers((prev) => {
+        const selectedCustomer = normalizePosCustomer(refreshedCustomer || createdCustomer);
+        const safePrev = Array.isArray(prev) ? prev : [];
+        const withoutDuplicate = safePrev.filter((item) => String(item?.id || item?.customer_id) !== String(createdCustomerId));
+        return [selectedCustomer, ...withoutDuplicate];
+      });
+      setSelectedCustomerId(createdCustomerId);
 
-      setQuickCustomer({ name: "", phone: "" });
-      toast.success("Customer created");
+      setQuickCustomer({ name: "", phone: "", source_key: "" });
+      toast.success(t("pos.toasts.customerCreated"));
       return true;
     } catch (err) {
-      const message = getErrorMessage(err, "Unable to create customer");
+      const message = getErrorMessage(err, t("pos.toasts.customerCreateFailed"));
       console.error("[pos] failed to create customer:", message, err);
       toast.error(message);
       return false;
@@ -2275,42 +3379,21 @@ function POSPro() {
   };
 
   const handleOpenShift = async () => {
-    if (!selectedAttendanceEmployeeId) {
-      toast.error("Select an employee first");
-      return;
-    }
-
-    if (!selectedAttendanceEmployee?.branch_id) {
-      toast.error("Selected employee has no branch assigned");
-      return;
-    }
-
-    if (!salesSettings.allow_sale_without_salesperson && !selectedSalespersonId) {
-      toast.error("Select a salesperson before checkout");
-      return;
-    }
-
     try {
       setAttendanceLoading(true);
-      const checkInResponse = await checkInEmployee({
-        employee_id: selectedAttendanceEmployeeId,
-        attendance_source: "pos",
-        notes: "Opened from POS",
-        shift_id: attendanceSnapshot?.current_shift?.id || null,
+      const response = await api.post("/pos/shifts/open", {
+        branch_id: posShiftBranch?.id || currentUser?.branch_id || null,
+        opening_cash: Number(openingCash || 0),
       });
-      if (checkInResponse?.alreadyOpen) {
-        const existingLog = checkInResponse?.data || checkInResponse?.attendance || null;
-        setAttendanceSnapshot((prev) => ({
-          ...(prev || {}),
-          today_attendance: existingLog,
-        }));
-        toast.success("Shift already open");
-      } else {
-        toast.success("Shift opened");
-      }
-      const response = await getAttendanceKioskSnapshot({ employeeId: selectedAttendanceEmployeeId });
-      setAttendanceSnapshot(response?.data || response || null);
-      await loadAttendanceEmployees();
+      setActivePosShift(response?.shift || null);
+      setPosShiftBranch(response?.branch || posShiftBranch || null);
+      setOpeningCash("");
+      setSelectedSalespersonId(currentUser?.id ? String(currentUser.id) : "");
+      toast.success(t("pos.shift.opened"));
+      emitFeedback("attendance_check_in", {
+        title: t("pos.shift.opened"),
+        message: currentUser?.name || currentUser?.email || "",
+      });
     } catch (err) {
       console.error("[pos] failed to open shift:", err);
       toast.error(err?.message || t("pos.shift.noBranchMessage"));
@@ -2320,29 +3403,41 @@ function POSPro() {
   };
 
   const handleCloseShift = async () => {
-    if (!selectedAttendanceEmployeeId) {
-      toast.error("Select an employee first");
+    if (!activePosShift?.id) {
+      toast.error("لا توجد وردية مفتوحة");
       return;
     }
 
     try {
       setAttendanceLoading(true);
-      const attendanceLogId = attendanceSnapshot?.today_attendance?.id || null;
-      let closeReport = null;
-      if (attendanceLogId) {
-        const reportResponse = await api.get(`/orders/shift-report/${attendanceLogId}`);
-        closeReport = reportResponse?.report || reportResponse?.data?.report || null;
-      }
-      const rotation = await loadOpeningRotation();
-      const candidates = Array.isArray(rotation?.candidates) ? rotation.candidates : rotation?.data?.candidates || [];
-      const recommended = rotation?.recommended || rotation?.data?.recommended || candidates.find((item) => item.is_recommended) || candidates[0] || null;
-      setShiftCloseReport(closeReport);
-      setActualDrawerAmount(String(closeReport?.expectedDrawer ?? 0));
-      setSelectedNextOpeningEmployeeId(recommended?.id || recommended?.employee_id ? String(recommended.id || recommended.employee_id) : "");
+      const response = await api.get(`/pos/shifts/${activePosShift.id}/report`);
+      const report = response?.report || null;
+      setShiftCloseReport(report || {
+        shift: activePosShift,
+        totals: {
+          opening_cash: Number(activePosShift.opening_cash || 0),
+          expected_cash: Number(activePosShift.expected_cash || 0),
+          total_sales: Number(activePosShift.sales_cash || 0),
+          cash: Number(activePosShift.sales_cash || 0),
+          card: 0,
+          wallet: 0,
+          invoice_count: 0,
+          returns: 0,
+          discounts: 0,
+        },
+        payment_breakdown: [],
+        top_products: [],
+        audit_timeline: [],
+      });
+      const expectedCash = report?.totals?.expected_cash ?? activePosShift.expected_cash ?? activePosShift.opening_cash ?? 0;
+      setClosingCash(String(expectedCash));
+      setActualDrawerAmount(String(expectedCash));
+      setShiftCloseNotes("");
+      setShiftVarianceReason("");
       setShiftCloseOpen(true);
     } catch (err) {
       console.error("[pos] failed to close shift:", err);
-      toast.error(err?.message || "Failed to close shift");
+      toast.error(err?.message || t("pos.shift.failedClose"));
     } finally {
       setAttendanceLoading(false);
     }
@@ -2351,168 +3446,392 @@ function POSPro() {
   const handleConfirmCloseShift = async () => {
     if (shiftCloseSubmitting) return;
 
-    if (openingCandidates.length > 0 && !selectedNextOpeningEmployeeId) {
-      toast.error("Select who will open the next shift");
-      return;
-    }
-
     try {
       setShiftCloseSubmitting(true);
-      const attendanceLogId = attendanceSnapshot?.today_attendance?.id || null;
-      const actualDrawer = actualDrawerAmount === "" ? null : Number(actualDrawerAmount);
-      await checkOutEmployee({
-        employee_id: selectedAttendanceEmployeeId,
-        attendance_log_id: attendanceLogId,
-        next_opening_employee_id: selectedNextOpeningEmployeeId || null,
-        next_opening_note: "Assigned during POS shift close",
-        notes: selectedNextOpeningEmployee
-          ? `Closed from POS\nNext opening staff: ${selectedNextOpeningEmployee.full_name}`
-          : "Closed from POS",
+      const actualDrawer = closingCash === "" ? 0 : Number(closingCash);
+      const response = await api.post(`/pos/shifts/${activePosShift.id}/close`, {
+        closing_cash: actualDrawer,
+        closing_notes: shiftCloseNotes,
+        variance_reason: shiftVarianceReason,
       });
 
-      if (shiftCloseReport) {
-        setShiftReport({
-          ...shiftCloseReport,
-          actualDrawer,
-          difference: actualDrawer === null || Number.isNaN(actualDrawer) ? null : actualDrawer - Number(shiftCloseReport.expectedDrawer || 0),
-          nextOpeningEmployeeName: selectedNextOpeningEmployee?.full_name || "",
-        });
-        setShiftReportOpen(true);
-      }
-
-      toast.success(
-        selectedNextOpeningEmployee
-          ? `Shift closed. Next opening staff: ${selectedNextOpeningEmployee.full_name}`
-          : "Shift closed"
-      );
+      const closedShift = response?.shift || {};
+      setShiftReport(response?.report || {
+        ...(shiftCloseReport || {}),
+        shift: { ...(shiftCloseReport?.shift || {}), ...closedShift },
+        totals: {
+          ...(shiftCloseReport?.totals || {}),
+          closing_cash: actualDrawer,
+          expected_cash: Number(closedShift.expected_cash ?? shiftCloseReport?.totals?.expected_cash ?? 0),
+          cash_difference: Number(closedShift.cash_difference ?? closedShift.difference ?? actualDrawer - Number(shiftCloseReport?.totals?.expected_cash || 0)),
+        },
+      });
+      setShiftReportOpen(true);
+      toast.success(t("pos.shift.closedSuccess"));
+      emitFeedback("attendance_check_out", {
+        title: t("pos.shift.closedSuccess"),
+        message: currentUser?.name || currentUser?.email || "",
+      });
       setShiftCloseOpen(false);
       setShiftCloseReport(null);
       setActualDrawerAmount("");
-      setSelectedNextOpeningEmployeeId("");
-      const response = await getAttendanceKioskSnapshot({ employeeId: selectedAttendanceEmployeeId });
-      setAttendanceSnapshot(response?.data || response || null);
-      await loadAttendanceEmployees();
-      await loadOpeningRotation();
+      setShiftCloseNotes("");
+      setShiftVarianceReason("");
+      setClosingCash("");
+      setActivePosShift(null);
+      clearPosPersistedState();
+      await loadActivePosShift({ silent: true });
     } catch (err) {
       console.error("[pos] failed to confirm shift close:", err);
-      toast.error(err?.message || "Failed to close shift");
+      toast.error(err?.message || t("pos.shift.failedClose"));
     } finally {
       setShiftCloseSubmitting(false);
     }
   };
 
-  const handleCheckout = async () => {
-    if (checkoutLoading) {
+  const handleSaveQuickExpense = async () => {
+    if (!activePosShift?.id) {
+      toast.error(t("pos.shift.openShift", "Open shift"));
       return;
+    }
+    const amount = Number(quickExpense.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid expense amount");
+      return;
+    }
+    const isEmployeeAdvance = quickExpense.category === "employee_advance";
+    if (isEmployeeAdvance && !quickExpense.employee_id) {
+      toast.error("Select an employee for the advance");
+      return;
+    }
+    try {
+      setQuickExpenseSaving(true);
+      const response = await api.post("/pos/expenses", {
+        shift_id: activePosShift.id,
+        branch_id: activePosShift.branch_id || posShiftBranch?.id || currentUser?.branch_id || null,
+        category: quickExpense.category,
+        expense_type: quickExpense.category,
+        amount,
+        payment_method: quickExpense.payment_method,
+        notes: quickExpense.notes,
+        employee_id: isEmployeeAdvance ? quickExpense.employee_id : null,
+      });
+      const report = response?.report || null;
+      if (report?.shift) {
+        setActivePosShift((prev) => ({ ...(prev || {}), ...report.shift }));
+      }
+      if (shiftCloseReport && report) setShiftCloseReport(report);
+      if (shiftReport && report) setShiftReport(report);
+      setQuickExpense(quickExpenseDefaults);
+      setQuickExpenseOpen(false);
+      toast.success(isEmployeeAdvance ? "Employee advance saved" : "Expense saved");
+    } catch (err) {
+      console.error("[pos] failed to create quick expense:", err);
+      toast.error(err?.message || "Failed to save expense");
+    } finally {
+      setQuickExpenseSaving(false);
+    }
+  };
+
+  const handleCheckout = async (options = {}) => {
+    const paymobTerminalCheckout = options?.paymobTerminal === true;
+    if (checkoutLoading) {
+      return null;
     }
 
     if (cart.length === 0) {
-      toast.error("Cart is empty");
-      return;
+      toast.error(t("pos.toasts.cartEmpty"));
+      return null;
     }
 
     if (!loyaltyUnavailable && Number(loyaltyRedeemPoints || 0) > 0 && loyaltyValidation && loyaltyValidation.valid === false) {
-      toast.error("Requested loyalty points exceed the allowed balance");
-      return;
+      toast.error(t("pos.toasts.loyaltyExceeded"));
+      return null;
     }
 
     if (!isShiftActive) {
-      toast.error("Open a POS shift before checkout");
-      return;
+      toast.error("يجب فتح وردية قبل البيع");
+      return null;
     }
 
-    if (!selectedAttendanceEmployee?.branch_id) {
-      toast.error("Selected employee has no branch assigned");
-      return;
+    const checkoutBranchId = activePosShift?.branch_id || posShiftBranch?.id || currentUser?.branch_id || null;
+    if (!checkoutBranchId) {
+      toast.error(t("pos.shift.employeeNoBranch"));
+      return null;
     }
 
-    const missingFullVariant = cart.find(
-      (item) => isFullVariationMode(item.variation_mode) && !resolveCheckoutVariantId(item)
-    );
-    if (missingFullVariant) {
-      toast.error("Please select color and size before checkout.");
-      return;
+    if (missingFullVariantForCheckout) {
+      toast.error(t("pos.toasts.selectVariantBeforeCheckout"));
+      return null;
     }
 
-    const invalidCartItem = cart.find((item) => {
-      const quantity = Number(item.quantity || 0);
-      const price = Number(item.price ?? item.unit_price ?? 0);
-      const productId = item.product_id || item.productId || null;
-      const variantId = resolveCheckoutVariantId(item);
-      return (!productId && !variantId) || quantity <= 0 || !Number.isFinite(price) || price < 0;
-    });
-    if (invalidCartItem) {
+    if (invalidCartItemForCheckout) {
       console.error("[pos] invalid checkout cart item:", {
-        product_id: invalidCartItem.product_id || invalidCartItem.productId || null,
-        variant_id: resolveCheckoutVariantId(invalidCartItem),
-        quantity: invalidCartItem.quantity,
-        price: invalidCartItem.price,
+        product_id: invalidCartItemForCheckout.product_id || invalidCartItemForCheckout.productId || null,
+        variant_id: resolveCheckoutVariantId(invalidCartItemForCheckout),
+        quantity: invalidCartItemForCheckout.quantity,
+        price: invalidCartItemForCheckout.price,
       });
-      toast.error("Cart has an invalid item. Check product, quantity, and price before checkout.");
-      return;
+      toast.error(t("pos.toasts.invalidCartItem"));
+      return null;
+    }
+
+    const currentUserId = currentUser?.id ? String(currentUser.id) : "";
+    const currentUserSeller = salesEmployees.find((employee) => currentUserId && String(employee.user_id || "") === currentUserId);
+    const currentEmployeeId = currentUserSeller?.id ? String(currentUserSeller.id) : "";
+    if (!canOverrideSeller && selectedSalespersonId && currentEmployeeId && String(selectedSalespersonId) !== currentEmployeeId) {
+      toast.error("لا تملك صلاحية البيع باسم مستخدم آخر");
+      return null;
+    }
+
+    if (!salesSettings.allow_sale_without_salesperson && !selectedSalespersonId) {
+      toast.error("Select a salesperson before checkout");
+      return null;
+    }
+
+    if (paymobTerminalCheckout && paymobTerminalAmount <= 0) {
+      toast.error("Invoice amount is required");
+      return null;
+    }
+
+    const requestedCustomerWalletAmount = paymentMode === "customer_wallet"
+      ? Number(paymentSummary.paidAmount || customerWalletAmount || 0)
+      : paymentMode === "split"
+        ? Number(customerWalletAmount || 0)
+        : 0;
+    const availableCustomerWalletBalance = canUseCustomerCredit ? customerCreditBalance : 0;
+    if (requestedCustomerWalletAmount > 0 && !canUseCustomerCredit) {
+      toast.error("رصيد العميل متاح فقط عند اختيار عميل لديه رصيد موجب.");
+      return null;
+    }
+    if (requestedCustomerWalletAmount > availableCustomerWalletBalance) {
+      const shortage = Math.max(0, requestedCustomerWalletAmount - availableCustomerWalletBalance);
+      toast.error(
+        `${POS_ARABIC_TEXT.notEnoughCredit}.\nالرصيد الحالي: ${formatCurrency(availableCustomerWalletBalance)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(requestedCustomerWalletAmount)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(shortage)}`
+      );
+      return null;
+    }
+
+    const enteredPaymentTotal = Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + requestedCustomerWalletAmount;
+    const paymentTarget = Number(amountDueNow || 0);
+    if (enteredPaymentTotal - paymentTarget > 0.009) {
+      toast.error("Payment total cannot exceed amount due now");
+      return null;
+    }
+    if (!paymobTerminalCheckout && Math.abs(enteredPaymentTotal - paymentTarget) > 0.009) {
+      toast.error(`Payment mismatch. Remaining: ${formatCurrency(Math.max(0, paymentTarget - enteredPaymentTotal))}`);
+      return null;
+    }
+
+    const selectedTreasuryRequiresBalance = paymentAccountStatus?.requires_balance !== false && paymentAccountStatus?.direction !== "in";
+    if (selectedTreasuryRequiresBalance && paymentAccountStatus?.account && paymentAccountStatus.sufficient === false && paymentAccountStatus.allow_negative_balance !== true) {
+      const accountName = safeArabicText(paymentAccountStatus.account.name, POS_ARABIC_TEXT.accountSelected);
+      const fallback = Array.isArray(paymentAccountStatus.fallback_accounts) && paymentAccountStatus.fallback_accounts[0]
+        ? `\nيوجد رصيد كاف في ${safeArabicText(paymentAccountStatus.fallback_accounts[0].name, POS_ARABIC_TEXT.account)}`
+        : "";
+      toast.error(
+        `رصيد ${accountName} غير كاف.\nالرصيد الحالي: ${formatCurrency(paymentAccountStatus.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(activePaymentAccountAmount || cartTotals.total || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(paymentAccountStatus.shortage_amount || 0)}${fallback}`
+      );
+      return null;
+    }
+    if (selectedTreasuryRequiresBalance && paymentAccountStatus?.account && paymentAccountStatus.shortage_amount > 0 && paymentAccountStatus.allow_negative_balance === true) {
+      const accountName = safeArabicText(paymentAccountStatus.account.name, POS_ARABIC_TEXT.accountSelected);
+      toast(
+        `تنبيه: سيصبح رصيد ${accountName} سالباً.\nالرصيد الحالي: ${formatCurrency(paymentAccountStatus.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(activePaymentAccountAmount || cartTotals.total || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(paymentAccountStatus.shortage_amount || 0)}`,
+        { icon: "!" }
+      );
     }
 
     try {
+      const checkoutStartedAt = performance.now();
+      let apiStartedAt = checkoutStartedAt;
       setCheckoutLoading(true);
+      if (editingOrder?.id) {
+        console.log("[cart-reset-blocked-edit-mode]", {
+          order_id: editingOrder.id,
+          cart_count: cart.length,
+          reason: "skip checkout stock reconciliation while saving invoice edit",
+        });
+      }
+
       const invoiceCustomer = customer || WALK_IN_CUSTOMER;
       const customerId = customer ? customer.id || customer.customer_id : null;
 
       if (customer && !customerId) {
         console.error("[pos] selected customer is missing id/customer_id at checkout:", customer);
-        toast.error("Selected customer is missing an ID. Re-select the customer before checkout.");
-        return;
+        toast.error(t("pos.toasts.selectedCustomerMissingId"));
+        return null;
       }
 
+      const selectedSeller = salesEmployees.find((employee) => String(employee.id) === String(selectedSalespersonId));
+      const resolvedSellerUserId = selectedSeller?.user_id || null;
+      const resolvedSalesEmployeeId = selectedSeller?.employee_id || selectedSeller?.id || null;
+      const resolvedSellerName = selectedSeller?.name || selectedSeller?.full_name || selectedSeller?.pos_alias || "";
+      console.log("[pos][seller-debug] selected seller before checkout", {
+        selectedSalespersonId,
+        selectedSeller,
+        resolvedSellerUserId,
+        resolvedSalesEmployeeId,
+        resolvedSellerName,
+      });
+      const terminalManualCashAmount = paymentMode === "split" ? Number(cashAmount || 0) : 0;
+      const terminalManualWalletAmount = paymentMode === "split" ? Number(walletAmount || 0) : 0;
+      const terminalManualCustomerWalletAmount = paymentMode === "split" ? Number(customerWalletAmount || 0) : 0;
+      const terminalManualPaidAmount = Math.max(0, terminalManualCashAmount + terminalManualWalletAmount + terminalManualCustomerWalletAmount);
+      const checkoutPaymentSummary = paymobTerminalCheckout
+        ? {
+            paidAmount: terminalManualPaidAmount,
+            changeAmount: Math.max(0, terminalManualPaidAmount - Number(amountDueNow || 0)),
+            dueAmount: Math.max(0, Number(amountDueNow || 0) - terminalManualPaidAmount),
+            paymentStatus:
+              terminalManualPaidAmount >= Number(amountDueNow || 0) && Number(amountDueNow || 0) > 0
+                ? "Paid"
+                : Number(amountDueNow || 0) <= 0
+                  ? "Paid"
+                  : terminalManualPaidAmount > 0
+                  ? "Partial"
+                  : "Pending",
+          }
+        : paymentSummary;
+      const payloadCashAmount = paymobTerminalCheckout
+        ? terminalManualCashAmount
+        : paymentMode === "cash"
+          ? paymentSummary.paidAmount
+          : paymentMode === "split"
+            ? Number(cashAmount || 0)
+            : 0;
+      const payloadCardAmount = paymobTerminalCheckout
+        ? 0
+        : paymentMode === "card"
+          ? paymentSummary.paidAmount
+          : paymentMode === "split"
+            ? Number(cardAmount || 0)
+            : 0;
+      const payloadWalletAmount = paymobTerminalCheckout
+        ? terminalManualWalletAmount
+        : paymentMode === "wallet"
+          ? paymentSummary.paidAmount
+          : paymentMode === "split"
+            ? Number(walletAmount || 0)
+            : 0;
+      const payloadCustomerWalletAmount = paymobTerminalCheckout
+        ? terminalManualCustomerWalletAmount
+        : paymentMode === "customer_wallet"
+          ? paymentSummary.paidAmount
+          : paymentMode === "split"
+            ? Number(customerWalletAmount || 0)
+            : 0;
+      const paymentBreakdown = [
+        exchangeState?.active && !editingOrder?.id
+          ? {
+              method: "exchange_credit",
+              amount: appliedExchangeCredit,
+              original_order_id: exchangeState?.originalOrderId || null,
+              invoice_number: exchangeState?.invoiceNumber || "",
+            }
+          : null,
+        { method: "cash", amount: payloadCashAmount },
+        { method: "card", amount: payloadCardAmount },
+        { method: "wallet", amount: payloadWalletAmount },
+        { method: "customer_wallet", amount: payloadCustomerWalletAmount },
+      ].filter((item) => item && Number(item.amount || 0) > 0);
+      const additionalPaymentBreakdown = editingOrder?.id
+        ? paymentBreakdown.filter((item) => item.method !== "exchange_credit")
+        : [];
       const payload = {
         customer_name: invoiceCustomer.name,
         customer_id: customerId || null,
         customer_phone: customer?.phone || "",
         payment_method: paymentMode,
-        invoice_number: invoiceNumber,
         subtotal: cartTotals.subtotal,
         discount_amount: cartTotals.itemDiscountTotal + cartTotals.invoiceDiscount,
         coupon_code: couponValidation?.valid ? couponValidation.coupon?.code || couponCode : null,
         coupon_discount_amount: couponValidation?.valid ? Number(couponValidation.discount_amount || 0) : 0,
         loyalty_points_redeemed: loyaltyUnavailable ? 0 : Number(loyaltyValidation?.applied_points || loyaltyRedeemPoints || 0),
         loyalty_discount_amount: loyaltyUnavailable ? 0 : Number(loyaltyValidation?.applied_amount || 0),
-        wallet_amount: Number(walletAmount || 0),
-        full_wallet_redemption_only: paymentMode === "wallet" && Number(walletAmount || 0) >= Number(cartTotals.total || 0),
+        wallet_amount: payloadCustomerWalletAmount,
+        full_wallet_redemption_only: paymentMode === "customer_wallet" && payloadCustomerWalletAmount >= Number(amountDueNow || 0),
         tax_amount: 0,
         tax_rate: 0,
         service_fee: cartTotals.serviceFee,
         total: cartTotals.total,
-        paid_amount: paymentSummary.paidAmount,
-        change_amount: paymentSummary.changeAmount,
-        status: paymentSummary.paymentStatus,
-        payment_status: paymentSummary.paymentStatus,
-        branch_id: selectedAttendanceEmployee.branch_id,
-        cash_amount: paymentMode === "cash" ? paymentSummary.paidAmount : Number(cashAmount || 0),
-        card_amount: paymentMode === "card" ? paymentSummary.paidAmount : Number(cardAmount || 0),
-        wallet_payment_amount: paymentMode === "wallet" ? paymentSummary.paidAmount : Number(walletAmount || 0),
-        cashier_id: selectedAttendanceEmployeeId || null,
-        sales_employee_id: selectedSalespersonId || null,
-        salesperson_id: selectedSalespersonId || null,
-        attendance_log_id: attendanceSnapshot?.today_attendance?.id || null,
+        paid_amount: checkoutPaymentSummary.paidAmount,
+        change_amount: checkoutPaymentSummary.changeAmount,
+        status: checkoutPaymentSummary.paymentStatus,
+        payment_status: checkoutPaymentSummary.paymentStatus,
+        branch_id: checkoutBranchId,
+        cash_amount: payloadCashAmount,
+        card_amount: payloadCardAmount,
+        wallet_payment_amount: payloadWalletAmount,
+        payment_breakdown: paymentBreakdown,
+        payments: paymentBreakdown,
+        edit_order_id: editingOrder?.id || null,
+        original_invoice_number: editingOrder?.id ? editingOrder.invoice_number || editingOrder.invoiceNumber || "" : "",
+        original_paid_amount: editingOrder?.id ? originalEditPaidAmount : 0,
+        new_total: editingOrder?.id ? cartTotals.total : null,
+        amount_due_now: amountDueNow,
+        refund_or_credit_due: editingOrder?.id ? editRefundOrCreditDue : 0,
+        additional_payment_breakdown: additionalPaymentBreakdown,
+        exchange_mode: Boolean(exchangeState?.active && !editingOrder?.id),
+        original_order_id: !editingOrder?.id ? exchangeState?.originalOrderId || null : null,
+        exchange_credit_amount: !editingOrder?.id ? exchangeCreditAmount : 0,
+        new_order_total: cartTotals.total,
+        exchange_difference: exchangeDifference,
+        exchange_invoice_number: exchangeState?.invoiceNumber || "",
+        shift_id: activePosShift.id,
+        seller_user_id: resolvedSellerUserId,
+        seller_id: resolvedSalesEmployeeId,
+        seller_name: resolvedSellerName,
+        salesperson_name: resolvedSellerName,
+        cashier_user_id: currentUser?.id || null,
+        cashier_id: currentUser?.id || null,
+        sales_employee_id: resolvedSalesEmployeeId,
+        salesperson_id: resolvedSalesEmployeeId,
+        assigned_seller_id: resolvedSalesEmployeeId,
+        seller_employee_id: resolvedSalesEmployeeId,
         ...resolveMarketingAttributionPayload(marketingAttribution),
-        items: cart.map((item) => ({
-          product_id: item.product_id || null,
-          product_name: item.product_name || item.name || "",
-          variant_id: resolveCheckoutVariantId(item),
-          variant_name: [item.color, item.size].filter(Boolean).join(" / "),
-          variation_mode: item.variation_mode || "full_variations",
-          sku: item.sku || "",
-          barcode: item.barcode || "",
-          quantity: Number(item.quantity || 0),
-          price: Number(item.price || 0),
-          discount_amount: Number(item.discount_amount ?? Number(item.lineDiscount || 0) * Number(item.quantity || 0)),
-          tax_amount: 0,
-          tax_rate: 0,
-          total_amount: Math.max(
-            0,
-            Number(item.price || 0) * Number(item.quantity || 0) -
-              Number(item.discount_amount ?? Number(item.lineDiscount || 0) * Number(item.quantity || 0))
-          ),
-        })),
+        items: cart.map((item) => {
+          const quantity = Number(item.quantity || 0);
+          const unitPrice = resolveCheckoutItemUnitPrice(item);
+          const discountAmount = Number(item.discount_amount ?? Number(item.lineDiscount || 0) * quantity);
+          const lineTotal = Math.max(0, unitPrice * quantity - discountAmount);
+          if (POS_CHECKOUT_DEBUG && !(unitPrice > 0) && Number(cartTotals.total || 0) > 0) {
+            console.warn("[pos] checkout item missing unit price", {
+              product_id: item.product_id || null,
+              variant_id: resolveCheckoutVariantId(item),
+              product_name: item.product_name || item.name || "",
+              quantity,
+              price_fields: {
+                unit_price: item.unit_price,
+                price: item.price,
+                sale_price: item.sale_price,
+                final_price: item.final_price,
+                variant_price: item.variant_price,
+              },
+            });
+          }
+          return {
+            product_id: item.product_id || null,
+            product_name: item.product_name || item.name || "",
+            variant_id: resolveCheckoutVariantId(item),
+            variant_name: [item.color, item.size].filter(Boolean).join(" / "),
+            variation_mode: item.variation_mode || "full_variations",
+            sku: item.sku || "",
+            barcode: item.barcode || "",
+            quantity,
+            price: unitPrice,
+            unit_price: unitPrice,
+            sale_price: unitPrice,
+            final_price: unitPrice,
+            variant_price: Number(item.variant_price ?? item.variantPrice ?? unitPrice),
+            discount_amount: discountAmount,
+            tax_amount: 0,
+            tax_rate: 0,
+            line_total: lineTotal,
+            subtotal: lineTotal,
+            total_amount: lineTotal,
+          };
+        }),
       };
 
       if (import.meta.env.DEV) {
@@ -2535,36 +3854,91 @@ function POSPro() {
           cart: [...cart],
           invoice_number: updatedOrder.invoice_number || editingOrder.invoice_number,
           invoiceNumber: updatedOrder.invoice_number || editingOrder.invoice_number,
+          customerName: payload.customer_name,
+          total: cartTotals.total,
+          totals: cartTotals,
+          payment: {
+            method: paymentMode,
+            paymentStatus: checkoutPaymentSummary.paymentStatus,
+            paidAmount: checkoutPaymentSummary.paidAmount,
+            dueAmount: checkoutPaymentSummary.dueAmount,
+            changeAmount: checkoutPaymentSummary.changeAmount,
+            exchangeMode: Boolean(exchangeState?.active),
+            exchangeInvoiceNumber: exchangeState?.invoiceNumber || "",
+            exchangeCreditAmount,
+            newOrderTotal: cartTotals.total,
+            amountDueNow,
+            exchangeDifference,
+            remainingExchangeCustomerCredit,
+            editMode: Boolean(editingOrder?.id),
+            originalPaidAmount: originalEditPaidAmount,
+            additionalPaidAmount: checkoutPaymentSummary.paidAmount,
+            finalTotal: cartTotals.total,
+            refundOrCreditDue: editRefundOrCreditDue,
+          },
         });
         setLastShareContext({
           ...editingOrder,
           ...updatedOrder,
           invoiceNumber: updatedOrder.invoice_number || editingOrder.invoice_number,
+          customerName: payload.customer_name,
+          total: cartTotals.total,
+          totals: cartTotals,
+          payment: {
+            method: paymentMode,
+            paymentStatus: checkoutPaymentSummary.paymentStatus,
+            paidAmount: checkoutPaymentSummary.paidAmount,
+            dueAmount: checkoutPaymentSummary.dueAmount,
+            changeAmount: checkoutPaymentSummary.changeAmount,
+            exchangeMode: Boolean(exchangeState?.active),
+            exchangeInvoiceNumber: exchangeState?.invoiceNumber || "",
+            exchangeCreditAmount,
+            newOrderTotal: cartTotals.total,
+            amountDueNow,
+            exchangeDifference,
+            remainingExchangeCustomerCredit,
+            editMode: Boolean(editingOrder?.id),
+            originalPaidAmount: originalEditPaidAmount,
+            additionalPaidAmount: checkoutPaymentSummary.paidAmount,
+            finalTotal: cartTotals.total,
+            refundOrCreditDue: editRefundOrCreditDue,
+          },
+          cart: [...cart],
+          items: response.items || payload.items,
         });
-        toast.success("تم حفظ تعديل الفاتورة بنجاح");
+        setCheckoutSuccessOpen(true);
+        toast.success(t("pos.toasts.invoiceEditSaved"));
         setProducts((current) => applySoldItemsToCatalog(current, []));
         setCart([]);
         clearPosPersistedState();
         setCashAmount(0);
         setCardAmount(0);
         setWalletAmount(0);
+        setCustomerWalletAmount(0);
+        setExchangeState(null);
         setInvoiceDiscount(0);
         setServiceFee(0);
         handleRemoveCoupon();
         handleClearSelectedCustomer();
         clearEditMode();
-        await refreshCatalogProducts({ setProducts, setLoading, manageLoading: false });
-        return;
+        await refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings });
+        emitFeedback("payment_success", {
+          title: t("pos.toasts.invoiceUpdated"),
+          message: updatedOrder.invoice_number || editingOrder.invoice_number || "",
+        });
+        return null;
       }
 
+      apiStartedAt = performance.now();
       const response = await api.post("/orders", payload, { timeoutMs: 30000 });
+      const apiResponseAt = performance.now();
       const normalizedResponse = normalizeCheckoutOrderResponse(response);
       const loyaltyResult = normalizedResponse.loyalty || {};
       const walletResult = normalizedResponse.wallet || {};
       const soldItems = [...cart];
       const nextInvoice =
         normalizedResponse.invoiceNumber ||
-        (normalizedResponse.orderId ? `INV-${String(normalizedResponse.orderId).padStart(6, "0")}` : generateInvoiceNumber());
+        (normalizedResponse.orderId ? `INV-${normalizedResponse.orderId}` : generateInvoiceNumber());
       const normalizedOrder = {
         ...normalizedResponse.data,
         ...normalizedResponse.order,
@@ -2576,6 +3950,8 @@ function POSPro() {
         publicToken: normalizedResponse.publicToken || "",
         invoice_number: nextInvoice || "",
         invoiceNumber: nextInvoice || "",
+        public_order_number: normalizedResponse.publicOrderNumber || "",
+        display_order_number: normalizedResponse.publicOrderNumber || "",
         public_invoice_url: normalizedResponse.publicInvoiceUrl || "",
         public_invoice_short_url: normalizedResponse.publicInvoiceShortUrl || "",
         customerName: invoiceCustomer.name,
@@ -2583,18 +3959,34 @@ function POSPro() {
         total: cartTotals.total,
         totals: cartTotals,
         coupon: normalizedResponse.raw?.coupon || normalizedResponse.data?.coupon || null,
-        paymentStatus: paymentSummary.paymentStatus,
+        paymentStatus: checkoutPaymentSummary.paymentStatus,
+        exchange_mode: Boolean(exchangeState?.active),
+        exchange_invoice_number: exchangeState?.invoiceNumber || "",
+        exchange_credit_amount: exchangeCreditAmount,
+        new_order_total: cartTotals.total,
+        amount_due_now: amountDueNow,
+        exchange_difference: exchangeDifference,
         payment: {
           method: paymentMode,
-          paymentStatus: paymentSummary.paymentStatus,
-          paidAmount: paymentSummary.paidAmount,
-          dueAmount: paymentSummary.dueAmount,
-          changeAmount: paymentSummary.changeAmount,
-          walletAmount: Number(walletResult?.redeemedAmount || walletAmount || 0),
-          remainingCashOrCard: Math.max(0, Number(cartTotals.total || 0) - Number(walletResult?.redeemedAmount || walletAmount || 0)),
+          paymentStatus: checkoutPaymentSummary.paymentStatus,
+          paidAmount: checkoutPaymentSummary.paidAmount,
+          dueAmount: checkoutPaymentSummary.dueAmount,
+          changeAmount: checkoutPaymentSummary.changeAmount,
+          walletAmount: Number(walletResult?.redeemedAmount || payloadCustomerWalletAmount || 0),
+          remainingCashOrCard: Math.max(0, Number(cartTotals.total || 0) - Number(walletResult?.redeemedAmount || payloadCustomerWalletAmount || 0)),
+          companyWalletAmount: payloadWalletAmount,
+          customerWalletAmount: payloadCustomerWalletAmount,
           walletBalanceAfter: Number(loyaltyResult?.walletBalance ?? walletResult?.balance ?? 0),
-          cashAmount: Number(cashAmount || 0),
-          cardAmount: Number(cardAmount || 0),
+          cashAmount: payloadCashAmount,
+          cardAmount: payloadCardAmount,
+          paymobTerminalAmount: paymobTerminalCheckout ? paymobTerminalAmount : 0,
+          exchangeMode: Boolean(exchangeState?.active),
+          exchangeInvoiceNumber: exchangeState?.invoiceNumber || "",
+          exchangeCreditAmount,
+          newOrderTotal: cartTotals.total,
+          amountDueNow,
+          exchangeDifference,
+          remainingExchangeCustomerCredit,
         },
         cart: [...cart],
         items: [...cart],
@@ -2607,8 +3999,9 @@ function POSPro() {
           walletBalance: Number(loyaltyResult?.walletBalance ?? walletResult?.balance ?? 0),
         },
       };
-      if (!normalizedOrder.public_invoice_url && normalizedOrder.public_token && typeof window !== "undefined" && window.location?.origin) {
-        normalizedOrder.public_invoice_url = `${window.location.origin.replace(/\/$/, "")}/invoice/${encodeURIComponent(normalizedOrder.public_token)}`;
+      const invoiceShareCode = normalizedOrder.invoice_number || normalizedOrder.invoiceNumber || normalizedOrder.public_token;
+      if (!normalizedOrder.public_invoice_url && invoiceShareCode && typeof window !== "undefined" && window.location?.origin) {
+        normalizedOrder.public_invoice_url = `${window.location.origin.replace(/\/$/, "")}/invoice/${encodeURIComponent(invoiceShareCode)}`;
       }
       if (!normalizedOrder.public_invoice_short_url) {
         normalizedOrder.public_invoice_short_url = normalizedOrder.public_invoice_url;
@@ -2621,25 +4014,45 @@ function POSPro() {
       normalizedOrder.publicToken = normalizedOrder.public_token;
       setLastOrder(normalizedOrder);
       setLastShareContext(normalizedOrder);
-      console.log("[saved normalized order]", normalizedOrder);
+      const modalRenderStartedAt = performance.now();
+      if (!paymobTerminalCheckout) setCheckoutSuccessOpen(true);
+      requestAnimationFrame(() => {
+        if (POS_CHECKOUT_DEBUG) {
+          console.log("[pos-checkout-ui-timing]", {
+            items_count: cart.length,
+            click_to_api_response_ms: Math.round(apiResponseAt - checkoutStartedAt),
+            api_request_ms: Math.round(apiResponseAt - apiStartedAt),
+            modal_render_ms: Math.round(performance.now() - modalRenderStartedAt),
+            backend_timings: normalizedResponse.raw?.timings || null,
+          });
+        }
+      });
+      if (POS_CHECKOUT_DEBUG) console.log("[saved normalized order]", normalizedOrder);
       setInvoiceNumber(nextInvoice);
       handleRemoveCoupon();
+      if (!paymobTerminalCheckout) {
+        emitFeedback("payment_success", {
+          title: t("pos.toasts.paymentSuccess"),
+          message: nextInvoice || "",
+        });
+      }
 
-      toast.success("تم إنشاء الفاتورة بنجاح");
+      if (!paymobTerminalCheckout) toast.success(t("pos.toasts.invoiceCreated"));
       if (Number(loyaltyResult?.pointsEarned || 0) > 0) {
-        toast.success(`+${Number(loyaltyResult.pointsEarned).toLocaleString()} loyalty points earned`);
+        toast.success(t("pos.toasts.loyaltyPointsEarned", { points: Number(loyaltyResult.pointsEarned).toLocaleString() }));
       }
       if (loyaltyResult?.tierUpgraded) {
-        toast.success(`${loyaltyResult.tier} tier unlocked`);
+        toast.success(t("pos.toasts.tierUnlocked", { tier: loyaltyResult.tier }));
       }
       if (Number(loyaltyResult?.cashbackAmount || walletResult?.cashbackAmount || 0) > 0) {
-        toast.success(`${formatCurrency(Number(loyaltyResult?.cashbackAmount || walletResult?.cashbackAmount || 0))} cashback added`);
+        toast.success(t("pos.toasts.cashbackAdded", { amount: formatCurrency(Number(loyaltyResult?.cashbackAmount || walletResult?.cashbackAmount || 0)) }));
       }
       if (customerId) {
         const updatedCustomer = {
           ...customer,
           loyalty_points: Number(loyaltyResult?.availablePoints ?? customer.loyalty_points ?? 0),
           wallet_balance: Number(loyaltyResult?.walletBalance ?? walletResult?.balance ?? customer.wallet_balance ?? customer.balance ?? 0),
+          credit_balance: Number(loyaltyResult?.creditBalance ?? loyaltyResult?.walletBalance ?? walletResult?.balance ?? customer.credit_balance ?? customer.wallet_balance ?? customer.balance ?? 0),
           tier: loyaltyResult?.tier || customer.tier || "Bronze",
         };
         setCustomers((current) =>
@@ -2654,6 +4067,7 @@ function POSPro() {
           total_points_earned: Number(current?.total_points_earned || 0) + Number(loyaltyResult?.pointsEarned || 0),
           total_points_redeemed: Number(current?.total_points_redeemed || 0) + Number(loyaltyResult?.pointsRedeemed || 0),
           wallet_balance: Number(loyaltyResult?.walletBalance ?? walletResult?.balance ?? current?.wallet_balance ?? 0),
+          credit_balance: Number(loyaltyResult?.creditBalance ?? loyaltyResult?.walletBalance ?? walletResult?.balance ?? current?.credit_balance ?? current?.wallet_balance ?? 0),
         }));
         setLoyaltyValidation((current) => ({
           ...(current || {}),
@@ -2667,12 +4081,16 @@ function POSPro() {
       setCashAmount(0);
       setCardAmount(0);
       setWalletAmount(0);
+      setCustomerWalletAmount(0);
+      setExchangeState(null);
       setInvoiceDiscount(0);
       setServiceFee(0);
       setLoyaltyRedeemPoints(0);
       handleClearSelectedCustomer();
-      await refreshCatalogProducts({ setProducts, setLoading, manageLoading: false });
-      await loadAttendanceEmployees();
+      refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings }).catch((refreshError) => {
+        if (POS_CHECKOUT_DEBUG) console.warn("[pos] background catalog refresh failed", refreshError?.message || refreshError);
+      });
+      return normalizedOrder;
     } catch (err) {
       console.error("[pos] checkout failed:", {
         message: err?.message,
@@ -2680,36 +4098,90 @@ function POSPro() {
         response: err?.response?.data || err?.responseBody,
         error: err,
       });
-      const message = getErrorMessage(err, "Checkout failed. The order was not created. Please try again.");
+      const message = safeArabicText(getErrorMessage(err, t("pos.toasts.checkoutFailed")), t("pos.toasts.checkoutFailed"));
       if (String(message).toLowerCase().includes("not enough stock")) {
         toast.error(message);
         try {
-          const refreshedCatalog = await refreshCatalogProducts({ setProducts, setLoading, manageLoading: false });
+          const refreshedCatalog = await refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings });
           const reconciliation = reconcileCartWithCatalog(cart, refreshedCatalog);
           if (reconciliation.changed) {
             setCart(reconciliation.nextCart);
             if (reconciliation.removedItems.length > 0) {
-              toast.error("Removed cart items that are no longer available.");
+              toast.error(t("pos.toasts.removedUnavailableItems"));
             }
           }
         } catch (refreshError) {
           console.error("[pos] failed to refresh catalog after stock error:", refreshError);
         }
+      } else if (err?.response?.data?.code === "INSUFFICIENT_CUSTOMER_WALLET_BALANCE" || err?.responseBody?.code === "INSUFFICIENT_CUSTOMER_WALLET_BALANCE") {
+        const payload = err?.response?.data || err?.responseBody || {};
+        toast.error(
+          `${POS_ARABIC_TEXT.notEnoughCredit}.\nالرصيد الحالي: ${formatCurrency(payload.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(payload.attempted_amount || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(payload.shortage_amount || 0)}`
+        );
       } else {
-        toast.error(`Checkout failed: ${message}`);
+        toast.error(t("pos.toasts.checkoutFailedWithMessage", { message }));
       }
     } finally {
       setCheckoutLoading(false);
     }
+    return null;
   };
 
-  const handlePrint = () => {
-    const node = invoiceRef.current || a4Ref.current;
-    if (!node) return;
+  const getReceiptRenderContext = (source = lastOrder || lastShareContext || {}) => {
+    const order = source || {};
+    const orderPayment = order.payment || {};
+    const orderTotals = order.totals || {};
+    const renderedCart = Array.isArray(order.cart) && order.cart.length
+      ? order.cart
+      : Array.isArray(order.items)
+        ? order.items
+        : cart;
+    const renderedTotals = {
+      ...cartTotals,
+      ...orderTotals,
+      total: Number(order.total ?? orderTotals.total ?? cartTotals.total ?? 0),
+    };
+    const renderedPaymentSummary = {
+      ...paymentSummary,
+      paymentStatus: order.paymentStatus || orderPayment.paymentStatus || paymentSummary.paymentStatus,
+      paidAmount: Number(orderPayment.paidAmount ?? paymentSummary.paidAmount ?? renderedTotals.total ?? 0),
+      dueAmount: Number(orderPayment.dueAmount ?? paymentSummary.dueAmount ?? 0),
+      changeAmount: Number(orderPayment.changeAmount ?? paymentSummary.changeAmount ?? 0),
+      exchangeMode: Boolean(order.exchange_mode || order.exchangeMode || orderPayment.exchangeMode),
+      exchangeInvoiceNumber: order.exchange_invoice_number || order.exchangeInvoiceNumber || orderPayment.exchangeInvoiceNumber || "",
+      exchangeCreditAmount: Number(order.exchange_credit_amount ?? order.exchangeCreditAmount ?? orderPayment.exchangeCreditAmount ?? 0),
+      newOrderTotal: Number(order.new_order_total ?? order.newOrderTotal ?? orderPayment.newOrderTotal ?? renderedTotals.total ?? 0),
+      amountDueNow: Number(order.amount_due_now ?? order.amountDueNow ?? orderPayment.amountDueNow ?? orderPayment.paidAmount ?? paymentSummary.paidAmount ?? 0),
+      exchangeDifference: Number(order.exchange_difference ?? order.exchangeDifference ?? orderPayment.exchangeDifference ?? 0),
+      remainingExchangeCustomerCredit: Number(orderPayment.remainingExchangeCustomerCredit ?? Math.max(0, Number(order.exchange_credit_amount ?? 0) - Number(renderedTotals.total || 0))),
+    };
+    return {
+      invoiceNumber: order.invoice_number || order.invoiceNumber || displayPublicOrderNumber(order) || invoiceNumber,
+      customer: {
+        ...(customer || {}),
+        name: order.customerName || order.customer_name || customer?.name || WALK_IN_CUSTOMER.name,
+      },
+      cart: renderedCart,
+      totals: renderedTotals,
+      paymentSummary: renderedPaymentSummary,
+      paymentMode: orderPayment.method || order.payment_method || paymentMode,
+      loyaltyProfile: order.loyalty || loyaltyProfile,
+      loyaltyValidation,
+      walletCashbackToEarn: Number(order.loyalty?.cashbackAmount ?? walletCashbackToEarn ?? 0),
+    };
+  };
+
+  const handlePrint = async () => {
+    const receiptContext = getReceiptRenderContext();
+    if (!receiptContext.invoiceNumber) return;
+    const startedAt = performance.now();
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    logPagePerf("pos.receipt-print-renderer", startedAt, { heavy_component_load_ms: Math.round(performance.now() - startedAt) });
+    const receiptHtml = renderToStaticMarkup(<ReceiptPreview {...receiptContext} compact />);
 
     const printWindow = window.open("", "_blank", "width=420,height=720");
     if (!printWindow) {
-      toast.error("Popup blocked");
+      toast.error(t("pos.toasts.popupBlocked"));
       return;
     }
 
@@ -2717,32 +4189,40 @@ function POSPro() {
       .map((element) => element.outerHTML)
       .join("\n");
 
+    const printLang = document.documentElement.lang || "en";
+    const printDir = document.documentElement.dir || "ltr";
+
     printWindow.document.write(`
-      <html>
+      <html lang="${printLang}" dir="${printDir}">
         <head>
           <title>POS Receipt</title>
           ${styles}
           <style>
             * { box-sizing: border-box; }
-            body { margin: 0; padding: 14px; background: #fff; color: #111827; font-family: Arial, sans-serif; }
-            .pos-receipt { width: 100%; margin: 0 auto; background: #fff !important; color: #111827 !important; border: 1px solid #bbf7d0 !important; box-shadow: none !important; page-break-inside: avoid; break-inside: avoid; }
-            .pos-receipt-thermal { max-width: 80mm !important; border-radius: 0 !important; padding: 12px !important; }
+            body { margin: 0; padding: 14px; background: #fff; color: #111827; direction: inherit; font-family: var(--app-font), "Cairo", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, Arial, sans-serif; }
+            .pos-receipt { width: 100%; margin: 0 auto; direction: inherit; text-align: start; background: #fff !important; color: #111827 !important; border: 1px solid #bbf7d0 !important; box-shadow: none !important; page-break-inside: avoid; break-inside: avoid; }
+            [dir="rtl"] .pos-receipt { text-align: right; }
+            [dir="ltr"] .pos-receipt { text-align: left; }
+            .pos-receipt-thermal { width: 80mm !important; max-width: 80mm !important; border-radius: 0 !important; padding: 10px !important; }
             .pos-receipt-a4 { max-width: 720px !important; border-radius: 0 !important; padding: 24px !important; }
             .pos-receipt-barcode svg { display: block; width: 100%; max-width: 100%; height: auto; }
             .pos-receipt-barcode svg text { display: none; }
+            .amount, .number, .tabular-nums, [dir="ltr"] { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+            [dir="rtl"] .text-left { text-align: right !important; }
+            [dir="rtl"] .text-right { text-align: left !important; }
             .text-emerald-600, .text-emerald-700 { color: #059669 !important; }
             .bg-emerald-500, .bg-emerald-50, .bg-emerald-50\\/60 { background-color: #ecfdf5 !important; }
             .border-emerald-100, .border-emerald-200, .border-emerald-300 { border-color: #bbf7d0 !important; }
             .shadow-2xl, .shadow-black\\/20 { box-shadow: none !important; }
             svg { display: inline-block; vertical-align: middle; }
-            @page { margin: 8mm; }
+            @page { size: 80mm auto; margin: 4mm; }
             @media print {
               body { padding: 0; }
               .pos-receipt { border-color: #bbf7d0 !important; }
             }
           </style>
         </head>
-        <body>${node.innerHTML}</body>
+        <body>${receiptHtml}</body>
       </html>
     `);
     printWindow.document.close();
@@ -2751,102 +4231,37 @@ function POSPro() {
     printWindow.close();
   };
 
-  const handleDownloadPdf = async () => {
-    const currentTenant = getCurrentTenant() || {};
-    const currentSettings = currentTenant.settings || {};
-    const storeName = currentTenant.companyName || currentTenant.company_name || currentTenant.name || "YOUR STORE";
-    const snapshot = lastShareContext || {
-      invoiceNumber,
-      customerName: (customer || WALK_IN_CUSTOMER).name,
-      customerPhone: customer?.phone || "",
-      customerEmail: customer?.email || "",
-      customerAddress: customer?.address || "",
-      items: cart.map((item) => ({
-        name: item.name,
-        product_name: item.name,
-        image_url: item.image_url,
-        image: item.image,
-        product_image: item.product_image,
-        cover_image: item.cover_image,
-        variant_image: item.variant_image || item.variant_image_url,
-        variant_image_url: item.variant_image_url,
-        thumbnail: item.thumbnail,
-        color_image_url: item.color_image_url,
-        images: item.images,
-        gallery: item.gallery,
-        product: item.product,
-        variant: item.variant,
-        product_variant: item.product_variant,
-        color: item.color,
-        product_image_url: item.product_image_url,
-        color: item.color,
-        size: item.size,
-        sku: item.sku,
-        barcode: item.barcode,
-        quantity: item.quantity,
-        price: item.price,
-        discount_amount: item.lineDiscount * item.quantity,
-        tax_amount: 0,
-        total_amount: Math.max(0, item.price * item.quantity - item.lineDiscount * item.quantity),
-      })),
-      totals: cartTotals,
-      payment: {
-        paymentStatus: paymentSummary.paymentStatus,
-        paidAmount: paymentSummary.paidAmount,
-        dueAmount: paymentSummary.dueAmount,
-        changeAmount: paymentSummary.changeAmount,
-        method: paymentMode,
-        walletAmount: Number(walletAmount || 0),
-        remainingCashOrCard: Math.max(0, Number(cartTotals.total || 0) - Number(walletAmount || 0)),
-        walletBalanceAfter: Number(loyaltyProfile?.wallet_balance || customer?.wallet_balance || customer?.balance || 0) - Number(walletAmount || 0),
-        cashAmount: Number(cashAmount || 0),
-        cardAmount: Number(cardAmount || 0),
-      },
-      loyalty: {
-        tier: loyaltyProfile?.tier || "Bronze",
-        pointsRedeemed: Number(loyaltyValidation?.applied_points || loyaltyRedeemPoints || 0),
-        pointsEarned: loyaltyPointsToEarn,
-        remainingPoints: Number(loyaltyValidation?.available_points ?? loyaltyProfile?.available_points ?? 0),
-        redeemValue: Number(loyaltyValidation?.redeem_value || loyaltyProfile?.redeem_value || 0),
-      },
-      status: paymentSummary.paymentStatus,
-      createdAt: new Date().toLocaleString(),
-      companyName: storeName,
-      companyTagline: currentSettings.tagline || currentSettings.companyTagline || currentTenant.tagline || "Premium Shoes",
-      companyWebsite: currentSettings.website || currentTenant.website || "www.workspace.com",
-      companyPhone: currentSettings.phone || currentTenant.phone || "01234567890",
-      google_review_url: currentSettings.google_review_url || currentSettings.googleReviewUrl || currentTenant.google_review_url || currentTenant.googleReviewUrl || "https://www.google.com/maps/place//data=!4m3!3m2!1s0x14f9e3498b6a02f9:0xd576a0402361f8c8!12e1?source=g.page.m._&laa=merchant-review-solicitation",
-      facebook_review_url: currentSettings.facebook_review_url || currentSettings.facebookReviewUrl || currentTenant.facebook_review_url || currentTenant.facebookReviewUrl || "https://www.facebook.com/MONESHOESSTORE/reviews",
-      instagram_url: currentSettings.instagram_url || currentSettings.instagramUrl || currentTenant.instagram_url || currentTenant.instagramUrl || "https://www.instagram.com/m1store_eg/",
-      publicInvoiceUrl: currentPublicInvoiceUrl,
-      publicToken: lastOrder?.public_token || lastShareContext?.publicToken || lastShareContext?.public_token || "",
-      qrValue: currentPublicInvoiceUrl || invoiceNumber,
-      barcodeValue: invoiceNumber,
-    };
-
-    const result = await downloadInvoicePdf({
-      format: previewMode === "thermal" ? "thermal" : "a4",
-      invoice: snapshot,
-      filename: `${invoiceNumber}.pdf`,
-      onFallback: ({ html }) => {
-        const popup = window.open("", "_blank", "width=980,height=1200");
-        if (!popup) {
-          toast.error("PDF preview blocked");
-          return false;
-        }
-        popup.document.write(html);
-        popup.document.close();
-        popup.focus();
-        popup.print();
-        popup.close();
-        return true;
-      },
-    });
-
-    if (result?.ok) {
-      toast.success("PDF generated");
-    } else if (!result?.fallbackOpened) {
-      toast.error("PDF export failed");
+  const handleDownloadInvoicePdf = async () => {
+    const source = lastOrder || lastShareContext || {};
+    if (!source?.order_id && !source?.id && !source?.invoiceNumber && !source?.invoice_number) {
+      toast.error("Create the invoice first");
+      return;
+    }
+    const receiptContext = getReceiptRenderContext(source);
+    try {
+      const importStartedAt = performance.now();
+      const { downloadInvoicePdf } = await import("../../../shared/utils/invoicePdf");
+      logPagePerf("pos.invoice-pdf", importStartedAt, { heavy_component_load_ms: Math.round(performance.now() - importStartedAt) });
+      await downloadInvoicePdf({
+        format: "a4",
+        invoice: {
+          ...source,
+          invoiceNumber: receiptContext.invoiceNumber,
+          customerName: receiptContext.customer?.name,
+          items: receiptContext.cart,
+          totals: receiptContext.totals,
+          payment: {
+            ...(source.payment || {}),
+            method: receiptContext.paymentMode,
+            paymentStatus: receiptContext.paymentSummary.paymentStatus,
+          },
+          publicInvoiceUrl: resolveReceiptInvoiceUrl(source),
+        },
+        filename: `${receiptContext.invoiceNumber || "invoice"}.pdf`,
+      });
+    } catch (error) {
+      console.error("[pos] invoice pdf download failed:", error);
+      toast.error("Unable to download invoice PDF");
     }
   };
 
@@ -2869,7 +4284,7 @@ function POSPro() {
 
     const currentTenant = getCurrentTenant() || {};
     const storeName = currentTenant.companyName || currentTenant.company_name || currentTenant.name || "YOUR STORE";
-    const context = lastOrder;
+    const context = lastOrder || lastShareContext;
     const normalizedPhone = normalizeReceiptPhone(context?.customerPhone);
     let invoiceUrl = resolveReceiptInvoiceUrl(context || {});
 
@@ -2899,7 +4314,7 @@ function POSPro() {
       const url = buildLoyaltyReceiptWhatsappUrl({
       phone: normalizedPhone || "",
       customerName: context?.customerName,
-      invoiceNumber: context?.invoice_number || context?.invoiceNumber || invoiceNumber,
+      invoiceNumber: displayPublicOrderNumber(context) || context?.invoice_number || context?.invoiceNumber || invoiceNumber,
       totalPaid: paymentSummary.paidAmount || context?.total || cartTotals.total,
       invoiceUrl,
       paymentMethod: paymentMode,
@@ -2942,13 +4357,322 @@ function POSPro() {
     window.open(currentPublicInvoiceUrl, "_blank", "noopener,noreferrer");
   };
 
+  useEffect(() => () => {
+    paymobPollingRef.current.cancelled = true;
+    if (paymobPollingRef.current.timer) {
+      window.clearTimeout(paymobPollingRef.current.timer);
+    }
+  }, []);
+
+  const applyPaymobConfirmedOrder = (sourceOrder, confirmedOrder, transaction) => {
+    if (!confirmedOrder) return;
+    const orderTotal = Number(confirmedOrder.total_amount || confirmedOrder.total || sourceOrder?.total || sourceOrder?.totals?.total || 0);
+    const paidAmount = Number(confirmedOrder.paid_amount || 0);
+    const dueAmount = Math.max(0, orderTotal - paidAmount);
+    const paymentStatus = dueAmount <= 0 && orderTotal > 0 ? "Paid" : paidAmount > 0 ? "Partial" : "Pending";
+    const nextOrder = {
+      ...(sourceOrder || {}),
+      ...confirmedOrder,
+      id: confirmedOrder.id || sourceOrder?.id,
+      order_id: confirmedOrder.id || confirmedOrder.order_id || sourceOrder?.order_id,
+      orderId: confirmedOrder.id || confirmedOrder.orderId || sourceOrder?.orderId,
+      invoice_number: confirmedOrder.invoice_number || sourceOrder?.invoice_number,
+      invoiceNumber: confirmedOrder.invoice_number || sourceOrder?.invoiceNumber,
+      total: orderTotal,
+      totals: {
+        ...(sourceOrder?.totals || {}),
+        total: orderTotal,
+      },
+      paymentStatus,
+      payment: {
+        ...(sourceOrder?.payment || {}),
+        method: sourceOrder?.payment?.method || "split",
+        paymentStatus,
+        paidAmount,
+        dueAmount,
+        changeAmount: Math.max(0, paidAmount - orderTotal),
+        cashAmount: Number(confirmedOrder.cash_amount || sourceOrder?.payment?.cashAmount || 0),
+        cardAmount: Number(confirmedOrder.card_amount || sourceOrder?.payment?.cardAmount || 0),
+        walletAmount: Number(confirmedOrder.wallet_payment_amount || sourceOrder?.payment?.walletAmount || 0),
+        paymobTerminalAmount: Number(transaction?.confirmed_amount_cents || transaction?.amount_cents || 0) / 100,
+        transactionReference: transaction?.transaction_reference || "",
+      },
+    };
+    setLastOrder(nextOrder);
+    setLastShareContext(nextOrder);
+  };
+
+  const stopPaymobPolling = () => {
+    paymobPollingRef.current.cancelled = true;
+    if (paymobPollingRef.current.timer) {
+      window.clearTimeout(paymobPollingRef.current.timer);
+      paymobPollingRef.current.timer = null;
+    }
+  };
+
+  const startPaymobTerminalPolling = ({ transactionId, sourceOrder, amount, currency = "EGP", terminalId = "" }) => {
+    if (!transactionId) {
+      if (import.meta.env.DEV) {
+        console.warn("[paymob-pos-poll-start]", { started: false, reason: "missing_transaction_id" });
+      }
+      setPaymobTerminalState((current) => ({
+        ...(current || {}),
+        open: true,
+        status: "timeout",
+        message: "Payment was sent to the terminal, but ERP did not receive confirmation. If the terminal shows Approved, click Confirm terminal payment.",
+      }));
+      return;
+    }
+    stopPaymobPolling();
+    paymobPollingRef.current.cancelled = false;
+    const startedAt = Date.now();
+    const timeoutMs = 90000;
+    const intervalMs = 3000;
+    if (import.meta.env.DEV) {
+      console.info("[paymob-pos-poll-start]", { transactionId, amount, currency, terminalId });
+    }
+
+    const poll = async () => {
+      if (paymobPollingRef.current.cancelled) return;
+      if (Date.now() - startedAt > timeoutMs) {
+        if (import.meta.env.DEV) {
+          console.warn("[paymob-pos-poll-result]", { transactionId, status: "timeout" });
+        }
+        setPaymobTerminalState((current) => ({
+          ...(current || {}),
+          open: true,
+          status: "timeout",
+          message: "Payment was sent to the terminal, but ERP did not receive confirmation. If the terminal shows Approved, click Confirm terminal payment.",
+        }));
+        return;
+      }
+
+      try {
+        const response = await api.get(`/pos/payments/paymob-terminal/status/${transactionId}`, {
+          timeoutMs: 20000,
+          suppressErrorStatuses: [501, 502, 503],
+        });
+        const status = String(response?.status || response?.transaction?.status || "sent").toLowerCase();
+        if (import.meta.env.DEV) {
+          console.info("[paymob-pos-poll-result]", {
+            transactionId,
+            status,
+            localStatus: response?.local_status || response?.transaction?.status || "",
+            message: response?.message || "",
+          });
+        }
+        if (status === "success" || status === "success_manual_confirmed") {
+          stopPaymobPolling();
+          applyPaymobConfirmedOrder(sourceOrder, response.order, response.transaction);
+          setPaymobTerminalState({
+            open: true,
+            status: "success",
+            amount,
+            currency,
+            terminalId: response?.transaction?.terminal_id || terminalId,
+            message: "Payment completed successfully.",
+            transaction: response?.transaction || null,
+            order: response?.order || sourceOrder,
+          });
+          toast.success("Payment completed successfully.");
+          emitFeedback("payment_success", {
+            title: "Payment completed successfully.",
+            message: response?.order?.invoice_number || sourceOrder?.invoice_number || "",
+          });
+          window.setTimeout(() => {
+            setPaymobTerminalState((current) => (String(current?.status || "").toLowerCase() === "success" ? null : current));
+          }, 1200);
+          return;
+        }
+        if (status === "failed" || status === "cancelled") {
+          stopPaymobPolling();
+          setPaymobTerminalState((current) => ({
+            ...(current || {}),
+            open: true,
+            status,
+            transaction: response?.transaction || current?.transaction || null,
+            order: response?.order || sourceOrder,
+            message: response?.message || (status === "cancelled" ? "Paymob terminal payment was cancelled." : "Paymob terminal payment failed."),
+          }));
+          toast.error(status === "cancelled" ? "Paymob terminal payment was cancelled." : "Paymob terminal payment failed.");
+          return;
+        }
+        setPaymobTerminalState((current) => ({
+          ...(current || {}),
+          open: true,
+          status: "waiting",
+          message: "Waiting for terminal payment confirmation...",
+          transaction: response?.transaction || current?.transaction || null,
+          order: response?.order || current?.order || sourceOrder,
+        }));
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn("[paymob-pos-poll-result]", { transactionId, status: "error", message: error?.message || String(error) });
+        }
+      }
+
+      if (!paymobPollingRef.current.cancelled) {
+        paymobPollingRef.current.timer = window.setTimeout(poll, intervalMs);
+      }
+    };
+
+    poll();
+  };
+
+  const handlePaymobRetryStatusCheck = () => {
+    const transactionId = paymobTerminalState?.transaction?.id;
+    const sourceOrder = paymobTerminalState?.order || lastOrder || lastShareContext || null;
+    startPaymobTerminalPolling({
+      transactionId,
+      sourceOrder,
+      amount: Number(paymobTerminalState?.amount || sourceOrder?.payment?.paymobTerminalAmount || 0),
+      currency: paymobTerminalState?.currency || "EGP",
+      terminalId: paymobTerminalState?.terminalId || paymobTerminalState?.transaction?.terminal_id || "",
+    });
+  };
+
+  const handlePaymobManualConfirm = async () => {
+    const transactionId = paymobTerminalState?.transaction?.id;
+    if (!transactionId) {
+      toast.error("No Paymob transaction is available to confirm.");
+      return;
+    }
+    stopPaymobPolling();
+    setPaymobTerminalLoading(true);
+    try {
+      const response = await api.post(`/pos/payments/paymob-terminal/${transactionId}/manual-confirm`, {
+        note: "Terminal showed Approved; cashier manually confirmed in POS.",
+      }, { timeoutMs: 20000 });
+      applyPaymobConfirmedOrder(paymobTerminalState?.order || lastOrder || lastShareContext, response.order, response.transaction);
+      setPaymobTerminalState({
+        ...(paymobTerminalState || {}),
+        open: true,
+        status: response?.status || "success_manual_confirmed",
+        message: "Payment completed successfully.",
+        transaction: response?.transaction || paymobTerminalState?.transaction || null,
+        order: response?.order || paymobTerminalState?.order || null,
+        audit: response?.audit || null,
+      });
+      toast.success("Payment completed successfully.");
+      window.setTimeout(() => {
+        setPaymobTerminalState((current) => {
+          const currentStatus = String(current?.status || "").toLowerCase();
+          return currentStatus === "success" || currentStatus === "success_manual_confirmed" ? null : current;
+        });
+      }, 1200);
+    } catch (error) {
+      const message = getErrorMessage(error, "Failed to confirm terminal payment");
+      setPaymobTerminalState((current) => ({
+        ...(current || {}),
+        open: true,
+        status: "timeout",
+        message,
+      }));
+      toast.error(message);
+    } finally {
+      setPaymobTerminalLoading(false);
+    }
+  };
+
+  const handlePaymobTerminalPayment = async () => {
+    if (paymobTerminalLoading || checkoutLoading) return;
+    stopPaymobPolling();
+    const existingOrder = cart.length === 0 ? lastOrder || lastShareContext || null : null;
+    const existingOrderId = existingOrder?.order_id || existingOrder?.orderId || existingOrder?.id || null;
+    const initialAmount = existingOrderId
+      ? Number(existingOrder?.payment?.paymobTerminalAmount || paymobTerminalState?.amount || 0)
+      : Number(paymobTerminalAmount || 0);
+
+    if (!existingOrderId && !canUsePaymobTerminal) {
+      toast.error(cart.length === 0 ? t("pos.toasts.cartEmpty") : "Checkout is not ready");
+      return;
+    }
+    if (!initialAmount || initialAmount <= 0) {
+      toast.error("Invoice amount is required");
+      return;
+    }
+
+    setPaymobTerminalLoading(true);
+    setPaymobTerminalState({
+      open: true,
+      status: "processing",
+      amount: initialAmount,
+      currency: "EGP",
+      terminalId: "",
+      message: existingOrderId ? "Sending payment to Paymob terminal..." : "Creating invoice...",
+      transaction: null,
+      order: existingOrder || null,
+    });
+    try {
+      const sourceOrder = existingOrderId
+        ? existingOrder
+        : await handleCheckout({ paymobTerminal: true });
+      const orderId = sourceOrder?.order_id || sourceOrder?.orderId || sourceOrder?.id;
+      const amount = Number(sourceOrder?.payment?.paymobTerminalAmount || initialAmount || 0);
+      if (!orderId) {
+        throw new Error("Invoice was not created");
+      }
+      setPaymobTerminalState((current) => ({
+        ...(current || {}),
+        open: true,
+        status: "processing",
+        amount,
+        message: "Sending payment to Paymob terminal...",
+        order: sourceOrder,
+      }));
+      const response = await api.post("/pos/payments/paymob-terminal", {
+        order_id: orderId,
+        amount,
+        currency: "EGP",
+      }, { timeoutMs: 30000 });
+      const terminalId = response?.terminal_id || response?.transaction?.terminal_id || "";
+      const transactionId = response?.transaction?.id || response?.transaction_id || response?.id || null;
+      setPaymobTerminalState({
+        open: true,
+        status: "waiting",
+        amount,
+        currency: response?.currency || "EGP",
+        terminalId,
+        message: "Waiting for terminal payment confirmation...",
+        transaction: response?.transaction || null,
+        order: sourceOrder,
+      });
+      toast.success("Payment request sent to terminal. Complete payment on the machine.");
+      startPaymobTerminalPolling({
+        transactionId,
+        sourceOrder,
+        amount,
+        currency: response?.currency || "EGP",
+        terminalId,
+      });
+    } catch (err) {
+      const message = getErrorMessage(err, "Failed to send Paymob terminal payment");
+      setPaymobTerminalState((current) => ({
+        ...(current || {}),
+        open: true,
+        status: "failed",
+        message,
+        transaction: err?.response?.data?.transaction || null,
+      }));
+      toast.error(message);
+    } finally {
+      setPaymobTerminalLoading(false);
+    }
+  };
+
   const handleClearCart = () => {
+    if (editingOrder?.id) {
+      toast.error(t("pos.toasts.cancelEditBeforeClearing"));
+      return;
+    }
     setCart([]);
     setInvoiceDiscount(0);
     setServiceFee(0);
     setCashAmount(0);
     setCardAmount(0);
     setWalletAmount(0);
+    setCustomerWalletAmount(0);
+    setExchangeState(null);
     clearPosPersistedState();
     setSelectedCustomerId(null);
     setCustomerSearch("");
@@ -2983,6 +4707,85 @@ function POSPro() {
     }
   };
 
+  const openCustomerCreateModal = () => {
+    const searchText = String(customerSearch || "").trim();
+    const normalizedPhone = normalizeReceiptPhone(searchText);
+    setQuickCustomer((prev) => ({
+      ...prev,
+      name: normalizedPhone ? prev.name : searchText || prev.name,
+      phone: normalizedPhone || prev.phone,
+      source_key: "",
+    }));
+    setCustomerCreateOpen(true);
+  };
+
+  const handlePrintShiftReport = useCallback((report) => {
+    if (!report) return;
+    const shift = report.shift || {};
+    const totals = report.totals || {};
+    const rows = [
+      ["Cashier", shift.cashier_name || currentUser?.name || currentUser?.email || ""],
+      ["Branch", shift.branch_name || posShiftBranch?.name || ""],
+      ["Opened", shift.opened_at ? new Date(shift.opened_at).toLocaleString() : ""],
+      ["Closed", shift.closed_at ? new Date(shift.closed_at).toLocaleString() : ""],
+      ["Opening cash", formatCurrency(totals.opening_cash ?? shift.opening_cash)],
+      ["Expected cash", formatCurrency(totals.expected_cash ?? shift.expected_cash)],
+      ["Closing cash", totals.closing_cash === null || totals.closing_cash === undefined ? "-" : formatCurrency(totals.closing_cash)],
+      ["Cash difference", formatCurrency(totals.cash_difference ?? shift.cash_difference)],
+      ["Total sales", formatCurrency(totals.total_sales)],
+      ["POS daily expenses", formatCurrency(totals.pos_expenses || 0)],
+      ["Employee advances", formatCurrency(totals.employee_advances || 0)],
+      ["Total cash out", formatCurrency(totals.total_cash_out || 0)],
+      ["Returns", formatCurrency(totals.returns)],
+      ["Discounts", formatCurrency(totals.discounts)],
+      ["Invoice count", Number(totals.invoice_count || 0).toLocaleString()],
+    ];
+    const printWindow = window.open("", "_blank", "width=820,height=900");
+    if (!printWindow) {
+      toast.error(t("pos.toasts.popupBlocked"));
+      return;
+    }
+    const paymentRows = (report.payment_breakdown || []).map((item) => `<tr><td>${item.payment_method}</td><td>${item.count}</td><td>${formatCurrency(item.total)}</td></tr>`).join("");
+    const totalSoldItems = (report.top_products || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const productRows = (report.top_products || []).map((item) => `<tr><td>${item.product_name}</td><td>${Number(item.quantity || 0).toLocaleString()} sales</td><td>${totalSoldItems > 0 ? Math.round((Number(item.quantity || 0) / totalSoldItems) * 100) : 0}%</td><td>${formatCurrency(item.total)}</td></tr>`).join("");
+    const sellerRows = getShiftSellerPerformance(report).map((item) => `<tr><td>${item.name}</td><td>${Number(item.count || 0).toLocaleString()}</td><td>${formatCurrency(item.total)}</td></tr>`).join("");
+    const auditRows = (report.audit_timeline || []).map((item) => `<tr><td>${item.at ? new Date(item.at).toLocaleString() : ""}</td><td>${readableAuditAction(item)}</td><td>${auditReference(item)}</td><td>${formatCurrency(item.amount || 0)}</td></tr>`).join("");
+    const netRevenue = Number(totals.total_sales || 0) - Number(totals.returns || 0) - Number(totals.discounts || 0);
+    const variance = Number(totals.cash_difference ?? shift.cash_difference ?? 0);
+    printWindow.document.write(`
+      <html><head><title>Shift report</title>
+      <style>
+        body{font-family:Arial,sans-serif;margin:24px;color:#111827}
+        h1{margin:0 0 4px;font-size:24px}
+        h2{margin:22px 0 8px;font-size:15px;text-transform:uppercase;letter-spacing:.08em}
+        table{width:100%;border-collapse:collapse;margin:14px 0}
+        th,td{border:1px solid #d1d5db;padding:8px;text-align:left;font-size:12px}
+        th{background:#f3f4f6}
+        .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .box{border:1px solid #d1d5db;padding:10px;border-radius:8px}
+        .brand{font-weight:800;color:#047857;margin-bottom:12px}
+        .variance{border:2px solid ${variance === 0 ? "#10b981" : variance > 0 ? "#f59e0b" : "#ef4444"};padding:12px;border-radius:10px;margin:14px 0;font-weight:800}
+        .signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:36px}
+        .sig{border-top:1px solid #111827;padding-top:8px;font-size:12px}
+        @media print{button{display:none}}
+      </style></head><body>
+      <button onclick="window.print()">Print</button>
+      <div class="brand">${getCurrentTenant()?.name || "ERP POS"} / Shift Close Report</div>
+      <h1>End of Shift Report #${shift.id || ""}</h1>
+      <div>Cashier: ${shift.cashier_name || currentUser?.name || currentUser?.email || ""} | Branch: ${shift.branch_name || posShiftBranch?.name || ""}</div>
+      <div class="variance">Variance: ${formatCurrency(variance)} | Net revenue: ${formatCurrency(netRevenue)}</div>
+      <div class="grid">${rows.map(([label, value]) => `<div class="box"><strong>${label}</strong><br>${value ?? ""}</div>`).join("")}</div>
+      <h2>Payment breakdown</h2><table><thead><tr><th>Method</th><th>Count</th><th>Total</th></tr></thead><tbody>${paymentRows || "<tr><td colspan='3'>No payments</td></tr>"}</tbody></table>
+      <h2>Seller performance</h2><table><thead><tr><th>Seller</th><th>Invoices</th><th>Sales</th></tr></thead><tbody>${sellerRows || "<tr><td colspan='3'>No seller data</td></tr>"}</tbody></table>
+      <h2>Top products</h2><table><thead><tr><th>Product</th><th>Qty</th><th>Share</th><th>Total</th></tr></thead><tbody>${productRows || "<tr><td colspan='4'>No products</td></tr>"}</tbody></table>
+      <h2>Audit timeline</h2><table><thead><tr><th>Time</th><th>Action</th><th>Reference</th><th>Amount</th></tr></thead><tbody>${auditRows || "<tr><td colspan='4'>No events</td></tr>"}</tbody></table>
+      <div class="signatures"><div class="sig">Cashier signature</div><div class="sig">Manager signature</div></div>
+      </body></html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+  }, [currentUser?.email, currentUser?.name, posShiftBranch?.name, t]);
+
   const topSelectionInfo = useMemo(() => {
     if (!activeProduct) return null;
     const variants = Array.isArray(activeProduct.variants) ? activeProduct.variants : [];
@@ -3000,6 +4803,49 @@ function POSPro() {
     };
   }, [activeProduct, selectedColor]);
 
+  const saleMode = useMemo(() => normalizeSaleModeSettings(saleModeSettings), [saleModeSettings]);
+  const salePricesEnabled = Boolean(saleMode.sale_mode_enabled);
+  const handleToggleSaleMode = useCallback(() => {
+    saveSaleModeSettings({
+      ...saleMode,
+      sale_mode_enabled: !salePricesEnabled,
+      sale_mode_type: "use_existing_sale_prices_only",
+      sale_mode_value: 0,
+    });
+  }, [saleMode, salePricesEnabled, saveSaleModeSettings]);
+
+  const handleToggleFullscreen = useCallback(async () => {
+    const getFullscreenElement = () =>
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.msFullscreenElement ||
+      null;
+    try {
+      if (getFullscreenElement()) {
+        const exitFullscreen =
+          document.exitFullscreen ||
+          document.webkitExitFullscreen ||
+          document.msExitFullscreen;
+        if (exitFullscreen) await exitFullscreen.call(document);
+        return;
+      }
+
+      const target = posShellRef.current || document.documentElement;
+      const requestFullscreen =
+        target.requestFullscreen ||
+        target.webkitRequestFullscreen ||
+        target.msRequestFullscreen;
+      if (requestFullscreen) {
+        await requestFullscreen.call(target);
+      } else {
+        toast.error(t("pos.fullscreenUnavailable", "Fullscreen is not available in this browser"));
+      }
+    } catch (error) {
+      toast.error(error?.message || t("pos.fullscreenFailed", "Could not toggle fullscreen"));
+    }
+  }, [t]);
+  const fullscreenTooltip = isRtl ? "\u0645\u0644\u0621 \u0627\u0644\u0634\u0627\u0634\u0629" : "Fullscreen";
+
   if (!isShiftActive) {
     return (
       <div className="h-screen w-screen min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white">
@@ -3016,17 +4862,17 @@ function POSPro() {
           </div>
 
           <ShiftGate
-            employees={attendanceEmployees}
-            selectedEmployeeId={selectedAttendanceEmployeeId}
-            onSelectEmployee={setSelectedAttendanceEmployeeId}
-            selectedEmployee={selectedAttendanceEmployee}
-            attendanceSnapshot={attendanceSnapshot}
+            currentUser={currentUser}
+            branch={posShiftBranch}
             attendanceLoading={attendanceLoading}
+            posShiftLoading={posShiftLoading}
+            openingCash={openingCash}
+            setOpeningCash={setOpeningCash}
             onOpenShift={handleOpenShift}
           />
 
           {shiftReportOpen && shiftReport ? (
-            <ShiftReportModal report={shiftReport} onClose={() => setShiftReportOpen(false)} />
+            <ShiftReportModal report={shiftReport} onClose={() => setShiftReportOpen(false)} onPrint={handlePrintShiftReport} />
           ) : null}
         </div>
       </div>
@@ -3034,14 +4880,47 @@ function POSPro() {
   }
 
   return (
-    <div className="h-screen w-screen min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white">
-      <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-3 overflow-y-auto p-2 sm:p-3 lg:p-4">
-        <div className="flex shrink-0 items-center justify-end gap-2">
+    <div
+      ref={posShellRef}
+      className="h-screen w-screen min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white"
+    >
+      <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-2 overflow-y-auto p-2 pb-24 sm:p-3 sm:pb-28 lg:p-3 xl:pb-3">
+        <div className={`flex shrink-0 items-center justify-between gap-2 overflow-x-auto ${isRtl ? "flex-row-reverse" : ""}`}>
+          <div className="hidden shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 lg:block">
+            وردية مفتوحة: {currentUser?.name || currentUser?.email || "User"} | {posShiftBranch?.name || activePosShift?.branch_name || "Branch"} | {activePosShift?.opened_at ? new Date(activePosShift.opened_at).toLocaleString() : ""}
+          </div>
+          <div className={`flex shrink-0 items-center gap-2 ${isRtl ? "flex-row-reverse" : ""}`}>
+          <button
+            type="button"
+            onClick={handleToggleFullscreen}
+            aria-label={fullscreenTooltip}
+            aria-pressed={isFullscreen}
+            title={fullscreenTooltip}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-zinc-200 shadow-[0_0_18px_rgba(0,0,0,0.18)] transition hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            aria-pressed={salePricesEnabled}
+            onClick={handleToggleSaleMode}
+            disabled={saleModeSaving}
+            title={salePricesEnabled ? "Sale Prices ON" : "Sale Prices OFF"}
+            className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-black uppercase tracking-[0.08em] shadow-[0_0_18px_rgba(0,0,0,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60 ${
+              salePricesEnabled
+                ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100 hover:border-emerald-300/50 hover:bg-emerald-400/15"
+                : "border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-300/50 hover:bg-amber-400/15"
+            }`}
+          >
+            {saleModeSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">Sale Prices</span>
+            <span>{salePricesEnabled ? "ON" : "OFF"}</span>
+          </button>
           <button
             type="button"
             onClick={handleCloseShift}
             disabled={attendanceLoading}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 text-sm font-black text-emerald-100 shadow-[0_0_20px_rgba(16,185,129,0.14)] transition hover:border-emerald-300/50 hover:bg-emerald-500/15 disabled:opacity-50"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 text-xs font-black text-emerald-100 shadow-[0_0_20px_rgba(16,185,129,0.14)] transition hover:border-emerald-300/50 hover:bg-emerald-500/15 disabled:opacity-50"
           >
             <CheckCircle2 className="h-4 w-4" />
             Shift / Close Shift
@@ -3049,45 +4928,15 @@ function POSPro() {
           <button
             type="button"
             onClick={() => navigate("/dashboard")}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-sm font-black text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.16)] transition hover:border-rose-300/50 hover:bg-rose-500/15"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-rose-400/30 bg-rose-500/10 px-3 text-xs font-black text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.16)] transition hover:border-rose-300/50 hover:bg-rose-500/15"
           >
             <LogOut className="h-4 w-4" />
             Exit POS
           </button>
+          </div>
         </div>
 
-        <NextOpeningWidget assignment={nextOpeningAssignment} loading={openingCandidatesLoading} />
-
         <div className="relative z-30">
-          <PosHeader
-            search={search}
-            setSearch={setSearch}
-            searchRef={searchRef}
-            filtersButtonRef={filtersButtonRef}
-            filtersOpen={filtersOpen}
-            activeSmartFilterCount={activeSmartFilterCount}
-            onToggleFilters={handleToggleFilters}
-            totals={cartTotals}
-            customerSearch={customerSearch}
-            setCustomerSearch={setCustomerSearch}
-            customers={customers}
-            selectedCustomer={
-              customer
-                ? {
-                    ...customer,
-                    loyalty_points: Number(loyaltyProfile?.available_points ?? customer.loyalty_points ?? 0),
-                    loyalty_tier: loyaltyProfile?.tier || customer.loyalty_tier || customer.tier || "Bronze",
-                    wallet_balance: Number(loyaltyProfile?.wallet_balance ?? customer.wallet_balance ?? customer.balance ?? 0),
-                  }
-                : null
-            }
-            selectedCustomerId={selectedCustomerId}
-            onSelectCustomer={handleSelectCustomer}
-            onClearCustomer={handleClearSelectedCustomer}
-            onCreateCustomerClick={() => setCustomerCreateOpen(true)}
-            onBarcodeSubmit={handleBarcodeSubmit}
-          />
-
           {filtersOpen ? (
             <div
               className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 px-4 py-4 backdrop-blur-xl sm:items-center sm:py-6"
@@ -3233,19 +5082,24 @@ function POSPro() {
             </div>
           ) : null}
 
-          {customerCreateOpen ? (
+          {customerCreateOpen && typeof document !== "undefined" ? createPortal(
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm"
-              onMouseDown={() => setCustomerCreateOpen(false)}
+              className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-4 py-6 backdrop-blur-sm"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setCustomerCreateOpen(false);
+              }}
             >
               <div
-                className="w-full max-w-md rounded-2xl border border-emerald-400/20 bg-slate-950/95 p-4 shadow-2xl shadow-black/50"
+                className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-auto rounded-2xl border border-emerald-400/20 bg-slate-950 p-4 shadow-2xl shadow-black/70"
                 onMouseDown={(event) => event.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="pos-add-customer-title"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">ADD CUSTOMER</div>
-                    <h3 className="mt-1 text-lg font-black text-white">Quick customer creation</h3>
+                    <h3 id="pos-add-customer-title" className="mt-1 text-lg font-black text-white">Quick customer creation</h3>
                   </div>
                   <button
                     type="button"
@@ -3277,6 +5131,31 @@ function POSPro() {
                     />
                   </label>
 
+                  {quickCustomerExistingMatch ? (
+                    <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100">
+                      Existing customer found: {quickCustomerExistingMatch.name || quickCustomerExistingMatch.phone}. Saving will select this customer without asking for a source.
+                    </div>
+                  ) : null}
+
+                  {quickCustomerNeedsSource ? (
+                    <label className="block">
+                      <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">Customer came from</div>
+                      <select
+                        value={quickCustomer.source_key}
+                        onChange={(e) => setQuickCustomer((prev) => ({ ...prev, source_key: e.target.value }))}
+                        className="h-12 w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm text-white outline-none focus:border-emerald-400/50"
+                      >
+                        <option value="">Select source</option>
+                        <option value="other">Other</option>
+                        <option value="facebook_post">Facebook</option>
+                        <option value="instagram_post">Instagram</option>
+                        <option value="instagram_story">Story</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="whatsapp_campaign">WhatsApp</option>
+                      </select>
+                    </label>
+                  ) : null}
+
                   <div className="flex items-center justify-end gap-2 pt-2">
                     <button
                       type="button"
@@ -3295,7 +5174,8 @@ function POSPro() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body
           ) : null}
         </div>
 
@@ -3303,49 +5183,126 @@ function POSPro() {
           <ShiftCloseModal
             report={shiftCloseReport}
             actualDrawerAmount={actualDrawerAmount}
-            onActualDrawerChange={setActualDrawerAmount}
-            candidates={openingCandidates}
-            loading={openingCandidatesLoading}
-            error={openingCandidatesError}
-            selectedEmployeeId={selectedNextOpeningEmployeeId}
-            onSelectEmployee={setSelectedNextOpeningEmployeeId}
-            selectedEmployee={selectedNextOpeningEmployee}
-            onReloadCandidates={loadOpeningRotation}
+            onActualDrawerChange={(value) => {
+              setActualDrawerAmount(value);
+              setClosingCash(value);
+            }}
+            closingNotes={shiftCloseNotes}
+            onClosingNotesChange={setShiftCloseNotes}
+            varianceReason={shiftVarianceReason}
+            onVarianceReasonChange={setShiftVarianceReason}
             onCancel={() => {
               if (shiftCloseSubmitting) return;
               setShiftCloseOpen(false);
             }}
             onConfirm={handleConfirmCloseShift}
             submitting={shiftCloseSubmitting}
+            onPrint={handlePrintShiftReport}
+          />
+        ) : null}
+        {quickExpenseOpen ? (
+          <QuickExpenseModal
+            value={quickExpense}
+            onChange={setQuickExpense}
+            onClose={() => {
+              if (!quickExpenseSaving) setQuickExpenseOpen(false);
+            }}
+            onSave={handleSaveQuickExpense}
+            saving={quickExpenseSaving}
+            branchName={activePosShift?.branch_name || posShiftBranch?.name || ""}
+            shiftId={activePosShift?.id || ""}
+            employees={salesEmployees}
+          />
+        ) : null}
+        {paymobTerminalState?.open ? (
+          <PaymobTerminalModal
+            state={paymobTerminalState}
+            loading={paymobTerminalLoading}
+            onClose={() => {
+              stopPaymobPolling();
+              setPaymobTerminalState(null);
+            }}
+            onRetry={handlePaymobTerminalPayment}
+            onRetryStatus={handlePaymobRetryStatusCheck}
+            onManualConfirm={handlePaymobManualConfirm}
           />
         ) : null}
 
         {editingOrder ? (
-          <div className="rounded-3xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100 shadow-2xl shadow-black/10" dir="rtl">
-            أنت الآن تعدل فاتورة رقم {editingOrder.invoice_number || editingOrder.id}
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100 shadow-2xl shadow-black/10" dir={isRtl ? "rtl" : "ltr"}>
+            <span>{t("pos.editingInvoice", { invoice: editingOrder.invoice_number || editingOrder.id })}</span>
             <button
               type="button"
-              onClick={handleClearCart}
-              className="mr-3 rounded-full border border-amber-200/30 bg-black/20 px-3 py-1 text-xs text-amber-50"
+              onClick={handleCancelEdit}
+              className="rounded-full border border-amber-200/30 bg-black/20 px-3 py-1 text-xs text-amber-50 hover:bg-black/30"
             >
-              إلغاء التعديل
+              {t("pos.cancelEdit")}
             </button>
           </div>
         ) : null}
 
-        <div className="grid min-w-0 flex-1 gap-4 xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="min-w-0 space-y-4 rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl shadow-black/10 backdrop-blur">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">Product browser</div>
-                <h2 className="text-2xl font-black text-white">Fast add-to-cart grid</h2>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
-                <ScanBarcode className="h-4 w-4 text-emerald-400" />
-                F2 focuses search
-                <span className="text-zinc-500">•</span>
-                Ctrl+K focuses search
-              </div>
+        <div className="grid min-w-0 flex-1 gap-3 xl:min-h-0 xl:grid-cols-[minmax(0,48%)_minmax(0,52%)] 2xl:grid-cols-[minmax(0,48%)_minmax(0,52%)]">
+          <section className="min-w-0 space-y-2 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-2 shadow-xl shadow-black/10 backdrop-blur">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <div className="relative min-w-0 flex-[1_1_100%] sm:flex-1 2xl:max-w-md">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+                  <input
+                    ref={searchRef}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleBarcodeSubmit();
+                      }
+                    }}
+                    placeholder={t("pos.searchPlaceholder")}
+                    className="h-9 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 pl-10 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+                  />
+                </div>
+                <button
+                  ref={filtersButtonRef}
+                  type="button"
+                  onClick={handleToggleFilters}
+                  aria-expanded={filtersOpen}
+                  className={`inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
+                    filtersOpen
+                      ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]"
+                      : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10"
+                  }`}
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  {t("pos.filters.title")}
+                  {activeSmartFilterCount > 0 ? (
+                    <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] font-black text-emerald-100">
+                      {activeSmartFilterCount}
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecentOperationsOpenedAt(performance.now());
+                    setRecentOperationsOpen(true);
+                  }}
+                  className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:border-emerald-200/50 hover:bg-emerald-400/15"
+                  dir="rtl"
+                >
+                  <History className="h-4 w-4" />
+                  العمليات الأخيرة
+                </button>
+                {canCreatePosExpense ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuickExpenseOpen(true)}
+                    disabled={!activePosShift?.id}
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 text-xs font-black text-amber-100 transition hover:border-amber-200/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="مصروف / Expense"
+                  >
+                    <ReceiptText className="h-4 w-4" />
+                    <span>مصروف</span>
+                  </button>
+                ) : null}
             </div>
 
             <ProductGrid
@@ -3354,25 +5311,33 @@ function POSPro() {
               products={visibleProducts}
               search={search}
               onSelectProduct={handleSelectProduct}
-              onQuickAdd={quickAddProduct}
             />
           </section>
 
+          <div className="hidden min-h-0 xl:block">
           <CartSidebar
             cart={cart}
             onIncrease={handleIncrease}
             onDecrease={handleDecrease}
             onRemove={handleRemoveCartItem}
             onClear={handleClearCart}
+            catalogProducts={products}
+            onVariantChange={handleCartVariantChange}
             customer={customer}
+            customerCreditBalance={customerCreditBalance}
+            canUseCustomerCredit={canUseCustomerCredit}
             paymentMode={paymentMode}
             setPaymentMode={setPaymentMode}
+            activeSplitMethod={activeSplitMethod}
+            setActiveSplitMethod={setActiveSplitMethod}
             cashAmount={cashAmount}
             setCashAmount={setCashAmount}
             cardAmount={cardAmount}
             setCardAmount={setCardAmount}
             walletAmount={walletAmount}
             setWalletAmount={setWalletAmount}
+            customerWalletAmount={customerWalletAmount}
+            setCustomerWalletAmount={setCustomerWalletAmount}
             loyaltyProfile={loyaltyProfile}
             loyaltyValidation={loyaltyValidation}
             loyaltyUnavailable={loyaltyUnavailable}
@@ -3383,26 +5348,25 @@ function POSPro() {
             walletCashbackToEarn={walletCashbackToEarn}
             totals={cartTotals}
             paymentSummary={paymentSummary}
+            exchangeState={exchangeState}
+            paymentDueAmount={amountDueNow}
+            editPaymentSummary={editPaymentSummary}
+            isEditingOrder={Boolean(editingOrder?.id)}
+            onLookupExchangeOrder={lookupExchangeOrder}
+            onApplyExchangeCredit={setExchangeState}
+            onClearExchangeCredit={() => setExchangeState(null)}
+            paymentAccountStatus={paymentAccountStatus}
+            paymentAccountLoading={paymentAccountLoading}
+            onPaymentAccountAdjusted={() => setPaymentAccountRefreshKey((key) => key + 1)}
             invoiceNumber={invoiceNumber}
             onCheckout={handleCheckout}
-            onPrint={handlePrint}
-            onDownloadPdf={handleDownloadPdf}
-            onShareWhatsapp={handleShareWhatsApp}
-            onCopyInvoiceLink={handleCopyInvoiceLink}
-            onOpenInvoice={handleOpenInvoice}
+            onPaymobTerminal={handlePaymobTerminalPayment}
+            paymobTerminalLoading={paymobTerminalLoading}
             checkoutLoading={checkoutLoading}
-            checkoutLabel={editingOrder ? "حفظ تعديل الفاتورة" : "Create order"}
-            lastInvoiceUrl={currentPublicInvoiceUrl}
-            lastInvoiceNumber={lastOrder?.invoice_number || lastShareContext?.invoiceNumber || ""}
-            lastPublicToken={lastOrder?.public_token || lastOrder?.publicToken || lastShareContext?.public_token || lastShareContext?.publicToken || ""}
-            lastOrderExists={Boolean(lastOrder || lastShareContext)}
-            canUseOrderActions={Boolean(lastOrder?.order_id || lastOrder?.id || lastShareContext?.order_id || lastShareContext?.id)}
+            checkoutLabel={editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
+            canUsePaymobTerminal={canUsePaymobTerminal}
             marketingAttribution={marketingAttribution}
             setMarketingAttribution={setMarketingAttribution}
-            invoiceRef={invoiceRef}
-            a4Ref={a4Ref}
-            previewMode={previewMode}
-            setPreviewMode={setPreviewMode}
             onItemDiscountChange={handleItemDiscount}
             invoiceDiscount={invoiceDiscount}
             setInvoiceDiscount={setInvoiceDiscount}
@@ -3415,57 +5379,192 @@ function POSPro() {
             onApplyCoupon={handleApplyCoupon}
             onRemoveCoupon={handleRemoveCoupon}
             salesEmployees={salesEmployees}
+            sellersLoading={sellersLoading}
+            sellerLoadError={sellerLoadError}
             selectedSalespersonId={selectedSalespersonId}
-            setSelectedSalespersonId={setSelectedSalespersonId}
+            setSelectedSalespersonId={handleSalespersonChange}
+            onRefreshSellers={() => loadSellerUsers({ silent: false })}
             allowSaleWithoutSalesperson={salesSettings.allow_sale_without_salesperson}
+            canChangeSalesperson={canChangeSalesperson}
+            customerSearch={customerSearch}
+            setCustomerSearch={setCustomerSearch}
+            customers={customers}
+            selectedCustomerId={selectedCustomerId}
+            onSelectCustomer={handleSelectCustomer}
+            onClearCustomer={handleClearSelectedCustomer}
+            onCreateCustomerClick={openCustomerCreateModal}
           />
+          </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setRecentOperationsOpen(true)}
-          className="fixed bottom-20 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-zinc-950/95 px-4 py-3 text-sm font-black text-emerald-100 shadow-2xl shadow-black/40 transition hover:border-emerald-200/50 hover:bg-emerald-500/10 sm:bottom-4 sm:right-44"
-          dir="rtl"
-        >
-          <History className="h-4 w-4" />
-          العمليات الأخيرة
-        </button>
+        <StickyMobileActionBar>
+          <button
+            type="button"
+            onClick={() => setMobileCartOpen(true)}
+            className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-emerald-500 px-3 text-sm font-black text-black transition hover:bg-emerald-400"
+          >
+            <span className="inline-flex min-w-0 items-center gap-2">
+              <ShoppingBag className="h-4 w-4 shrink-0" />
+              <span className="truncate">{cart.length} {t("pos.cart.items", "items")}</span>
+            </span>
+            <span dir="ltr" className="shrink-0 tabular-nums [unicode-bidi:isolate]">{formatCurrency(cartTotals.total)}</span>
+          </button>
+        </StickyMobileActionBar>
 
-        <RecentOperationsDrawer
-          open={recentOperationsOpen}
-          onClose={() => setRecentOperationsOpen(false)}
-          onEditOrder={handleEditRecentOrder}
-          onResellOrder={handleResellRecentOrder}
-          onExchangeStarted={handleExchangeStarted}
-          currentCartTotal={cartTotals.total}
-        />
+        <MobileBottomSheet
+          open={mobileCartOpen}
+          title={`${t("pos.cart.title", "Cart")} · ${formatCurrency(cartTotals.total)}`}
+          onClose={() => setMobileCartOpen(false)}
+          className="xl:hidden"
+        >
+          <CartSidebar
+            cart={cart}
+            onIncrease={handleIncrease}
+            onDecrease={handleDecrease}
+            onRemove={handleRemoveCartItem}
+            onClear={handleClearCart}
+            catalogProducts={products}
+            onVariantChange={handleCartVariantChange}
+            customer={customer}
+            customerCreditBalance={customerCreditBalance}
+            canUseCustomerCredit={canUseCustomerCredit}
+            paymentMode={paymentMode}
+            setPaymentMode={setPaymentMode}
+            activeSplitMethod={activeSplitMethod}
+            setActiveSplitMethod={setActiveSplitMethod}
+            cashAmount={cashAmount}
+            setCashAmount={setCashAmount}
+            cardAmount={cardAmount}
+            setCardAmount={setCardAmount}
+            walletAmount={walletAmount}
+            setWalletAmount={setWalletAmount}
+            customerWalletAmount={customerWalletAmount}
+            setCustomerWalletAmount={setCustomerWalletAmount}
+            loyaltyProfile={loyaltyProfile}
+            loyaltyValidation={loyaltyValidation}
+            loyaltyUnavailable={loyaltyUnavailable}
+            loyaltyRedeemPoints={loyaltyRedeemPoints}
+            setLoyaltyRedeemPoints={setLoyaltyRedeemPoints}
+            loyaltyDiscount={loyaltyDiscountAmount}
+            loyaltyPointsToEarn={loyaltyPointsToEarn}
+            walletCashbackToEarn={walletCashbackToEarn}
+            totals={cartTotals}
+            paymentSummary={paymentSummary}
+            exchangeState={exchangeState}
+            paymentDueAmount={amountDueNow}
+            editPaymentSummary={editPaymentSummary}
+            isEditingOrder={Boolean(editingOrder?.id)}
+            onLookupExchangeOrder={lookupExchangeOrder}
+            onApplyExchangeCredit={setExchangeState}
+            onClearExchangeCredit={() => setExchangeState(null)}
+            paymentAccountStatus={paymentAccountStatus}
+            paymentAccountLoading={paymentAccountLoading}
+            onPaymentAccountAdjusted={() => setPaymentAccountRefreshKey((key) => key + 1)}
+            invoiceNumber={invoiceNumber}
+            onCheckout={handleCheckout}
+            onPaymobTerminal={handlePaymobTerminalPayment}
+            paymobTerminalLoading={paymobTerminalLoading}
+            checkoutLoading={checkoutLoading}
+            checkoutLabel={editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
+            canUsePaymobTerminal={canUsePaymobTerminal}
+            marketingAttribution={marketingAttribution}
+            setMarketingAttribution={setMarketingAttribution}
+            onItemDiscountChange={handleItemDiscount}
+            invoiceDiscount={invoiceDiscount}
+            setInvoiceDiscount={setInvoiceDiscount}
+            serviceFee={serviceFee}
+            setServiceFee={setServiceFee}
+            couponCode={couponCode}
+            setCouponCode={setCouponCode}
+            couponValidation={couponValidation}
+            couponLoading={couponLoading}
+            onApplyCoupon={handleApplyCoupon}
+            onRemoveCoupon={handleRemoveCoupon}
+            salesEmployees={salesEmployees}
+            sellersLoading={sellersLoading}
+            sellerLoadError={sellerLoadError}
+            selectedSalespersonId={selectedSalespersonId}
+            setSelectedSalespersonId={handleSalespersonChange}
+            onRefreshSellers={() => loadSellerUsers({ silent: false })}
+            allowSaleWithoutSalesperson={salesSettings.allow_sale_without_salesperson}
+            canChangeSalesperson={canChangeSalesperson}
+            customerSearch={customerSearch}
+            setCustomerSearch={setCustomerSearch}
+            customers={customers}
+            selectedCustomerId={selectedCustomerId}
+            onSelectCustomer={handleSelectCustomer}
+            onClearCustomer={handleClearSelectedCustomer}
+            onCreateCustomerClick={openCustomerCreateModal}
+          />
+        </MobileBottomSheet>
+
+        {recentOperationsOpen ? (
+          <Suspense fallback={null}>
+            <RecentOperationsDrawer
+              open={recentOperationsOpen}
+              openedAt={recentOperationsOpenedAt}
+              onClose={() => setRecentOperationsOpen(false)}
+              onEditOrder={handleEditRecentOrder}
+              onExchangeStarted={handleExchangeStarted}
+              currentCartTotal={cartTotals.total}
+            />
+          </Suspense>
+        ) : null}
 
         {selectedProduct && topSelectionInfo ? (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-6 lg:items-center">
-            <div className="w-full max-w-5xl rounded-[2rem] border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/50">
-              <div className="flex items-start justify-between gap-4">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-2 py-2 sm:px-4 sm:py-6 lg:items-center">
+            <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.25rem] border border-white/10 bg-zinc-950 shadow-2xl shadow-black/50 sm:rounded-[2rem]">
+              <div className="flex items-start justify-between gap-3 border-b border-white/10 p-3 sm:gap-4 sm:p-5">
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{t("pos.labels.variantSelection")}</div>
-                  <h3 className="text-2xl font-black text-white">{activeProduct.name}</h3>
-                  <p className="mt-1 text-sm text-zinc-400">
+                  <h3 className="mt-0.5 line-clamp-1 text-base font-black text-white sm:text-2xl">{activeProduct.name}</h3>
+                  <p className="mt-0.5 hidden text-sm text-zinc-400 sm:block">
                     {t("pos.labels.chooseVariantPrompt")}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedProduct(null)}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white transition hover:bg-white/10"
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/10 sm:rounded-2xl sm:text-sm"
                 >
                   {t("common.close")}
                 </button>
               </div>
 
-              <div className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
-                <div className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{t("pos.labels.color")}</div>
-                      <div className="mt-3 flex flex-wrap gap-2">
+              <div className="grid flex-1 gap-3 overflow-y-auto p-3 pb-24 sm:gap-5 sm:p-5 sm:pb-5 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="sm:hidden">
+                  <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-2">
+                    <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-black/25">
+                      {activeVariantImageUrl ? (
+                        <img
+                          src={activeVariantImageUrl}
+                          alt={activeProduct.name}
+                          loading="eager"
+                          className="h-full w-full object-contain p-1.5"
+                          onError={(event) => {
+                            event.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <Package2 className="h-9 w-9 text-zinc-600" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">{t("pos.labels.variantSelection")}</div>
+                      <div className="mt-1 line-clamp-2 text-sm font-black leading-tight text-white" title={activeProduct.name}>
+                        {activeProduct.name}
+                      </div>
+                      <div className="mt-2 truncate text-xs font-semibold text-zinc-400">
+                        {activeVariant?.color || t("pos.labels.default")} / {activeVariant?.size || t("pos.labels.oneSize")}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="grid gap-2 sm:gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 sm:rounded-3xl sm:p-4">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">{t("pos.labels.color")}</div>
+                      <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
                         {topSelectionInfo.colors.map((color) => (
                           <button
                             key={color || "default"}
@@ -3481,7 +5580,7 @@ function POSPro() {
                             );
                             setSelectedSize(firstForColor?.size || "");
                             }}
-                            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                            className={`min-h-9 rounded-full px-3 py-1.5 text-xs font-black transition sm:px-4 sm:py-2 sm:text-sm ${
                               selectedColor === color
                                 ? "bg-emerald-500 text-black"
                                 : "border border-white/10 bg-black/30 text-white hover:bg-white/10"
@@ -3492,23 +5591,24 @@ function POSPro() {
                         ))}
                       </div>
                     </div>
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{t("pos.labels.size")}</div>
-                      <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 sm:rounded-3xl sm:p-4">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">{t("pos.labels.size")}</div>
+                      <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
                         {topSelectionInfo.sizes.map((size) => {
                           const sizeVariant = (activeProduct.variants || []).find(
                             (variant) =>
                               String(variant.color || "") === String(selectedColor || "") &&
                               String(variant.size || "") === String(size || "")
                           );
-                          const disabled = !sizeVariant || normalizeStockQuantity(sizeVariant.stock_quantity ?? sizeVariant.stock) <= 0;
+                          const stock = normalizeStockQuantity(sizeVariant?.stock_quantity ?? sizeVariant?.stock);
+                          const disabled = !sizeVariant || stock <= 0;
                           return (
                             <button
                             key={size || "one-size"}
                             type="button"
                             onClick={() => setSelectedSize(size)}
                             disabled={disabled}
-                            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                            className={`min-h-9 rounded-full px-3 py-1.5 text-xs font-black transition sm:px-4 sm:py-2 sm:text-sm ${
                               selectedSize === size
                                 ? "bg-emerald-500 text-black"
                                 : disabled
@@ -3516,7 +5616,10 @@ function POSPro() {
                                   : "border border-white/10 bg-black/30 text-white hover:bg-white/10"
                             }`}
                           >
-                            {size || t("pos.labels.oneSize")}
+                            <span className="block leading-tight">{size || t("pos.labels.oneSize")}</span>
+                            <span className={`block text-[10px] leading-tight ${disabled ? "text-zinc-600" : "text-zinc-300"}`}>
+                              {t("pos.labels.stock")}: {stock}
+                            </span>
                           </button>
                           );
                         })}
@@ -3524,42 +5627,48 @@ function POSPro() {
                     </div>
                   </div>
 
-                  <div className="overflow-hidden rounded-3xl border border-white/10">
-                    <div className="grid grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr_0.8fr] bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.16em] text-zinc-500">
+                  <div className="hidden overflow-hidden rounded-2xl border border-white/10 sm:block sm:rounded-3xl">
+                    <div className="hidden grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr_0.8fr] bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.16em] text-zinc-500 lg:grid">
                       <span>{t("pos.labels.variant")}</span>
                       <span>{t("pos.labels.sku")}</span>
                       <span>{t("pos.labels.barcode")}</span>
                       <span>{t("pos.labels.stock")}</span>
                       <span>{t("pos.labels.action")}</span>
                     </div>
-                    <div className="max-h-[28rem] overflow-auto bg-zinc-950">
+                    <div className="max-h-[46vh] overflow-auto bg-zinc-950 sm:max-h-[28rem]">
                       {(activeProduct.variants || []).map((variant) => {
                         const selected =
                           String(variant.color || "") === String(selectedColor || "") &&
                           String(variant.size || "") === String(selectedSize || "");
+                        const stock = normalizeStockQuantity(variant.stock_quantity ?? variant.stock);
+                        const price = formatCurrency(variant.price || activeProduct.sale_price || 0);
+                        const disabled = stock <= 0;
                         return (
                           <div
                             key={String(variant.variant_id || variant.id)}
-                            className={`grid grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr_0.8fr] items-center gap-3 border-t border-white/5 px-4 py-3 text-sm ${
+                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-white/5 px-2.5 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm lg:grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr_0.8fr] lg:gap-3 ${
                               selected ? "bg-emerald-500/10" : ""
                             }`}
                           >
-                            <div>
-                              <div className="font-semibold text-white">
+                            <div className="min-w-0">
+                              <div className="truncate font-black text-white sm:font-semibold">
                                 {variant.color || t("pos.labels.default")} / {variant.size || t("pos.labels.oneSize")}
                               </div>
-                              <div className="text-xs text-zinc-500">
-                                {formatCurrency(variant.price || activeProduct.sale_price || 0)}
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-zinc-300 sm:text-xs lg:hidden">
+                                <span className="rounded-full bg-white/5 px-2 py-0.5">{t("pos.labels.stock")}: {stock}</span>
+                                <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-emerald-200">{t("pos.labels.price")}: {price}</span>
+                                {(variant.sku || activeProduct.sku) ? <span className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-500">SKU: {String(variant.sku || activeProduct.sku).slice(-6)}</span> : null}
                               </div>
+                              <div className="hidden text-xs text-zinc-500 lg:block">{price}</div>
                             </div>
-                            <div className="text-zinc-300">{variant.sku || activeProduct.sku}</div>
-                            <div className="text-zinc-300">{variant.barcode || activeProduct.barcode || t("common.notAvailable")}</div>
-                            <div className="text-zinc-300">{normalizeStockQuantity(variant.stock_quantity ?? variant.stock)}</div>
+                            <div className="hidden truncate text-zinc-300 lg:block">{variant.sku || activeProduct.sku}</div>
+                            <div className="hidden truncate text-zinc-300 lg:block">{variant.barcode || activeProduct.barcode || t("common.notAvailable")}</div>
+                            <div className="hidden text-zinc-300 lg:block">{stock}</div>
                             <button
                               type="button"
                               onClick={() => addVariantToCart(activeProduct, variant)}
-                              disabled={normalizeStockQuantity(variant.stock_quantity ?? variant.stock) <= 0}
-                              className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-3 py-2 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={disabled}
+                              className="inline-flex min-h-9 items-center justify-center rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl sm:px-3 sm:py-2"
                             >
                               {t("pos.labels.add")}
                             </button>
@@ -3570,11 +5679,11 @@ function POSPro() {
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
-                    {activeVariant?.image_url || activeVariant?.primary_image_url || activeProduct.image_url ? (
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="hidden overflow-hidden rounded-3xl border border-white/10 bg-white/5 sm:block">
+                    {activeVariantImageUrl ? (
                       <img
-                        src={activeVariant?.image_url || activeVariant?.primary_image_url || activeProduct.image_url}
+                        src={activeVariantImageUrl}
                         alt={activeProduct.name}
                         loading="lazy"
                         className="h-64 w-full object-contain p-4"
@@ -3583,21 +5692,30 @@ function POSPro() {
                         }}
                       />
                     ) : (
-                      <div className="flex h-64 items-center justify-center text-sm text-zinc-500">{t("pos.labels.noImage")}</div>
+                      <div className="flex h-64 items-center justify-center text-sm text-zinc-500">
+                        <Package2 className="h-14 w-14 text-zinc-600" />
+                      </div>
                     )}
                   </div>
 
-                  <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{t("pos.labels.selectedVariant")}</div>
-                    <div className="mt-2 text-xl font-black text-white">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3 sm:rounded-3xl sm:p-4">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">{t("pos.labels.selectedVariant")}</div>
+                    <div className="mt-1 text-base font-black text-white sm:mt-2 sm:text-xl">
                       {activeVariant?.color || t("pos.labels.default")} / {activeVariant?.size || t("pos.labels.oneSize")}
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                      <SmallCard label={t("pos.labels.price")} value={formatCurrency(activeVariant?.price || 0)} />
-                      <SmallCard label={t("pos.labels.stock")} value={String(normalizeStockQuantity(activeVariant?.stock_quantity ?? activeVariant?.stock))} />
-                      <SmallCard label={t("pos.labels.sku")} value={activeVariant?.sku || t("common.notAvailable")} />
-                      <SmallCard label={t("pos.labels.barcode")} value={activeVariant?.barcode || t("common.notAvailable")} />
+                    <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-black sm:mt-4 sm:grid sm:grid-cols-2 sm:gap-3 sm:text-sm">
+                      <SmallCard compact label={t("pos.labels.stock")} value={String(normalizeStockQuantity(activeVariant?.stock_quantity ?? activeVariant?.stock))} />
+                      <SmallCard compact label={t("pos.labels.price")} value={formatCurrency(activeVariant?.price || 0)} />
+                      <SmallCard className="hidden sm:block" label={t("pos.labels.sku")} value={activeVariant?.sku || t("common.notAvailable")} />
+                      <SmallCard className="hidden sm:block" label={t("pos.labels.barcode")} value={activeVariant?.barcode || t("common.notAvailable")} />
                     </div>
+                    <details className="mt-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-400 sm:hidden">
+                      <summary className="cursor-pointer font-bold text-zinc-300">{t("pos.labels.sku")} / {t("pos.labels.barcode")}</summary>
+                      <div className="mt-2 space-y-1">
+                        <div className="truncate">SKU: {activeVariant?.sku || t("common.notAvailable")}</div>
+                        <div className="truncate">{t("pos.labels.barcode")}: {activeVariant?.barcode || t("common.notAvailable")}</div>
+                      </div>
+                    </details>
                   </div>
 
                   <button
@@ -3607,13 +5725,13 @@ function POSPro() {
                       setSelectedProduct(null);
                     }}
                     disabled={!activeVariant || normalizeStockQuantity(activeVariant.stock_quantity ?? activeVariant.stock) <= 0}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-3xl bg-emerald-500 px-4 py-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="hidden w-full items-center justify-center gap-2 rounded-3xl bg-emerald-500 px-4 py-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
                   >
-                    {t("pos.labels.addSelectedVariant")}
+                    {t("pos.labels.addToCart", "Add to cart")}
                     <ChevronRight className="h-4 w-4" />
                   </button>
 
-                  <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                  <div className="hidden rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100 sm:block">
                     <div className="flex items-center gap-2 font-semibold">
                       <AlertTriangle className="h-4 w-4" />
                       {t("pos.labels.stockNote")}
@@ -3623,6 +5741,25 @@ function POSPro() {
                     </p>
                   </div>
                 </div>
+              </div>
+              <div className="fixed inset-x-2 bottom-2 z-[55] rounded-2xl border border-emerald-300/20 bg-zinc-950/95 p-2 shadow-2xl shadow-black/50 backdrop-blur sm:hidden">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeVariant) addVariantToCart(activeProduct, activeVariant);
+                    setSelectedProduct(null);
+                  }}
+                  disabled={!activeVariant || normalizeStockQuantity(activeVariant.stock_quantity ?? activeVariant.stock) <= 0}
+                  className="inline-flex min-h-11 w-full items-center justify-between gap-2 rounded-xl bg-emerald-500 px-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="truncate">
+                    {t("pos.labels.addToCart", "Add to cart")} / {formatCurrency(activeVariant?.price || 0)}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    {activeVariant?.size || t("pos.labels.oneSize")}
+                    <ChevronRight className="h-4 w-4" />
+                  </span>
+                </button>
               </div>
             </div>
           </div>
@@ -3643,35 +5780,191 @@ function POSPro() {
           </div>
         ) : null}
 
-        <div className="fixed bottom-4 left-4 hidden rounded-full border border-white/10 bg-zinc-950 px-4 py-3 text-xs text-zinc-400 shadow-2xl shadow-black/30 xl:block">
-          <span className="font-semibold text-zinc-200">{t("pos.labels.tip")}</span> {t("pos.labels.tipBody")}
-        </div>
 
-        <button
-          type="button"
-          onClick={handleShareWhatsApp}
-          className="fixed bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-3 text-sm font-black text-black shadow-2xl shadow-emerald-950/40 transition hover:bg-emerald-400"
-        >
-          <MessageCircle className="h-4 w-4" />
-          {t("pos.labels.whatsappInvoice")}
-        </button>
+        {checkoutSuccessOpen && (lastOrder || lastShareContext) ? (
+          <InvoiceSuccessDialog
+            order={lastOrder || lastShareContext}
+            onClose={() => setCheckoutSuccessOpen(false)}
+            onPrint={handlePrint}
+            onWhatsapp={handleShareWhatsApp}
+            onDownloadPdf={handleDownloadInvoicePdf}
+          />
+        ) : null}
       </div>
     </div>
   );
 }
 
+function InvoiceSuccessDialog({ order, onClose, onPrint, onWhatsapp, onDownloadPdf }) {
+  const invoiceNumber = order?.invoice_number || order?.invoiceNumber || displayPublicOrderNumber(order) || "Invoice";
+  const total = Number(order?.total ?? order?.totals?.total ?? 0);
+  const customerName = order?.customerName || order?.customer_name || "Walk-in Customer";
+  const paymentMethod = order?.payment?.method || order?.payment_method || "cash";
+
+  return (
+    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+      <section className="w-full max-w-xl rounded-3xl border border-emerald-300/20 bg-zinc-950 p-5 text-white shadow-2xl shadow-black/50">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-100">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Checkout complete
+            </div>
+            <h2 className="mt-3 truncate text-2xl font-black">{invoiceNumber}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold text-zinc-200 transition hover:bg-white/10">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <SuccessMeta label="Total" value={formatCurrency(total)} />
+          <SuccessMeta label="Customer" value={customerName} />
+          <SuccessMeta label="Payment" value={paymentMethod} />
+          <SuccessMeta label="Status" value={order?.payment?.paymentStatus || order?.paymentStatus || "Paid"} />
+        </div>
+
+        <div className="mt-5 grid grid-cols-3 gap-2">
+          <button type="button" onClick={onPrint} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10">
+            <Printer className="h-4 w-4" />
+            Print
+          </button>
+          <button type="button" onClick={onWhatsapp} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-400/15">
+            <MessageCircle className="h-4 w-4" />
+            WhatsApp
+          </button>
+          <button type="button" onClick={onDownloadPdf} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/15">
+            <FileDown className="h-4 w-4" />
+            PDF
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SuccessMeta({ label, value }) {
+  return (
+    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <div className="mt-1 truncate text-sm font-black text-white" title={String(value || "")}><CurrencyText value={value} /></div>
+    </div>
+  );
+}
+
+function PaymobTerminalModal({ state, loading, onClose, onRetry, onRetryStatus, onManualConfirm }) {
+  const status = String(state?.status || "processing").toLowerCase();
+  const isFailed = status === "failed" || status === "cancelled" || status === "timeout";
+  const isTimeout = status === "timeout";
+  const isSuccess = status === "success" || status === "success_manual_confirmed";
+  const isProcessing = loading || status === "processing" || status === "waiting" || status === "sent";
+  const title = isFailed
+    ? status === "cancelled"
+      ? "Paymob terminal payment cancelled"
+      : status === "timeout"
+        ? "Paymob terminal confirmation timed out"
+        : "Paymob terminal payment failed"
+    : isSuccess
+      ? "Payment completed successfully."
+      : isProcessing
+      ? state?.message || "Sending payment to Paymob terminal..."
+      : "Payment sent to terminal.";
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <section className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl shadow-black/40">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.16em] ${
+              isFailed ? "border-rose-300/30 bg-rose-500/10 text-rose-100" : "border-cyan-300/30 bg-cyan-500/10 text-cyan-100"
+            }`}>
+              {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isFailed ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              Paymob POS
+            </div>
+            <h2 className="mt-3 text-2xl font-black">{title}</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-zinc-400">
+              {state?.message || "Payment request sent to terminal. Complete payment on the machine."}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-zinc-300 transition hover:bg-white/10">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 grid gap-3 rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-semibold text-zinc-400">Amount</span>
+            <span className="font-black text-white">{formatCurrency(state?.amount || 0)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-semibold text-zinc-400">Terminal ID</span>
+            <span className="font-black text-white">{state?.terminalId || "Configured on backend"}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-semibold text-zinc-400">Status</span>
+            <span className={`rounded-full px-2.5 py-1 text-xs font-black ${isFailed ? "bg-rose-500/10 text-rose-200" : isProcessing ? "bg-cyan-500/10 text-cyan-100" : "bg-emerald-500/10 text-emerald-200"}`}>
+              {state?.status || "processing"}
+            </span>
+          </div>
+          {state?.transaction?.confirmation_source || state?.audit ? (
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-semibold text-zinc-400">Confirmation</span>
+              <span className="max-w-[12rem] truncate font-black text-white" title={state?.transaction?.confirmation_source || state?.audit?.action || ""}>
+                {state?.transaction?.confirmation_source || state?.audit?.action || ""}
+              </span>
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-5 grid gap-2">
+          {isTimeout ? (
+            <>
+              <button
+                type="button"
+                onClick={onManualConfirm}
+                disabled={loading}
+                className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:opacity-60"
+              >
+                {loading ? "Confirming..." : "Confirm terminal payment"}
+              </button>
+              <button
+                type="button"
+                onClick={onRetryStatus}
+                disabled={loading}
+                className="inline-flex w-full items-center justify-center rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-cyan-300 disabled:opacity-60"
+              >
+                Retry status check
+              </button>
+            </>
+          ) : isFailed ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={loading}
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-cyan-300 disabled:opacity-60"
+            >
+              {loading ? "Sending..." : "Retry Paymob payment"}
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose} className="inline-flex w-full items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-cyan-100">
+            Close
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function ShiftGate({
-  employees,
-  selectedEmployeeId,
-  onSelectEmployee,
-  selectedEmployee,
-  attendanceSnapshot,
+  currentUser,
+  branch,
   attendanceLoading,
+  posShiftLoading,
+  openingCash,
+  setOpeningCash,
   onOpenShift,
 }) {
   const { t } = useTranslation();
-  const branchName = selectedEmployee?.branch_name || attendanceSnapshot?.branch_name || "";
-  const hasBranch = Boolean(selectedEmployee?.branch_id);
+  const branchName = branch?.name || currentUser?.branch_name || "";
+  const userName = currentUser?.name || currentUser?.email || "";
+  const hasBranch = Boolean(branch?.id || currentUser?.branch_id);
 
   return (
     <div className="flex flex-1 items-center justify-center px-2 py-8">
@@ -3684,30 +5977,22 @@ function ShiftGate({
             </div>
             <h1 className="mt-3 text-3xl font-black text-white">{t("pos.shift.openShift")}</h1>
             <p className="mt-2 text-sm text-zinc-400">
-              {t("pos.shift.instruction")}
+              يجب فتح وردية قبل البيع. سيتم فتح الوردية باسم المستخدم المسجل دخوله.
             </p>
           </div>
           <Clock3 className="h-6 w-6 text-emerald-300" />
         </div>
 
         <div className="mt-6 grid gap-4">
-          <label className="block">
-            <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("pos.shift.employee")}</div>
-            <select
-              value={selectedEmployeeId}
-              onChange={(e) => onSelectEmployee(e.target.value)}
-              className="h-12 w-full rounded-2xl border border-white/10 bg-black/50 px-4 text-sm font-semibold text-white outline-none transition focus:border-emerald-400/50"
-            >
-              <option value="">{t("pos.shift.selectEmployee")}</option>
-              {employees.map((employee) => (
-                <option key={String(employee.id)} value={employee.id}>
-                  {employee.full_name}
-                </option>
-              ))}
-            </select>
-          </label>
-
           <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">
+                <UserCheck className="h-4 w-4" />
+                الكاشير
+              </div>
+              <div className="mt-2 text-lg font-black text-white">{userName || "Current user"}</div>
+              <div className="mt-1 text-xs text-zinc-500">تلقائي من الحساب الحالي</div>
+            </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">
                 <Warehouse className="h-4 w-4" />
@@ -3716,21 +6001,22 @@ function ShiftGate({
               <div className="mt-2 text-lg font-black text-white">{branchName || t("pos.shift.noBranchAssigned")}</div>
               <div className="mt-1 text-xs text-zinc-500">{t("pos.shift.readOnly")}</div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">
-                <Clock3 className="h-4 w-4" />
-                {t("pos.shift.status")}
-              </div>
-              <div className="mt-2 text-lg font-black text-white">
-                {attendanceLoading ? t("pos.shift.loading") : attendanceSnapshot?.today_attendance?.check_out ? t("pos.shift.closed") : t("pos.shift.notOpen")}
-              </div>
-              <div className="mt-1 text-xs text-zinc-500">
-                {attendanceSnapshot?.current_shift?.shift_name || t("pos.shift.noTemplate")}
-              </div>
-            </div>
           </div>
 
-          {!hasBranch && selectedEmployee ? (
+          <label className="block">
+            <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">Opening cash</div>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={openingCash}
+              onChange={(event) => setOpeningCash(event.target.value)}
+              className="h-12 w-full rounded-2xl border border-white/10 bg-black/50 px-4 text-sm font-semibold text-white outline-none transition focus:border-emerald-400/50"
+              placeholder="0.00"
+            />
+          </label>
+
+          {!hasBranch ? (
             <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100">
               {t("pos.shift.noBranchMessage")}
             </div>
@@ -3739,11 +6025,11 @@ function ShiftGate({
           <button
             type="button"
             onClick={onOpenShift}
-            disabled={attendanceLoading || !selectedEmployeeId || !hasBranch}
+            disabled={attendanceLoading || posShiftLoading || !hasBranch}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {attendanceLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
-            {t("pos.shift.open")}
+            فتح الوردية
           </button>
         </div>
       </section>
@@ -3751,120 +6037,204 @@ function ShiftGate({
   );
 }
 
-function formatOpeningDate(value) {
-  if (!value) return "No history";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "No history";
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-
-function formatOpeningDateTime(value) {
-  if (!value) return "Not assigned yet";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not assigned yet";
-  return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
 function getShiftRotationLabels(language = "en") {
   const isArabic = String(language || "").toLowerCase().startsWith("ar");
   return isArabic
     ? {
-        nextOpeningStaff: "مسؤول فتح الشيفت القادم",
-        notAssigned: "لم يتم التحديد بعد",
-        assignHint: "أغلق الشيفت لتحديد مسؤول الفتح القادم",
-        assigned: "تم التحديد",
-        by: "بواسطة",
         shiftClose: "إغلاق الشيفت",
-        title: "من سيفتح الشيفت القادم؟",
-        helper: "يمكن اختيار أي موظف يدوياً. الترشيح يعتمد على أقدم تاريخ فتح.",
         drawerSummary: "ملخص الدرج",
         expectedDrawer: "المتوقع في الدرج",
         actualDrawer: "المبلغ الفعلي",
-        notSelected: "لم يتم الاختيار",
-        candidates: "الموظفون المتاحون",
-        scheduleHint: "فتح: 12:00-22:00. عادي: 15:00-01:00. المتوقع: 10 ساعات.",
-        refresh: "تحديث",
-        recommended: "مرشح",
-        activeEmployee: "موظف نشط",
-        lastOpening: "آخر فتح",
-        weekMonth: "الأسبوع / الشهر",
-        attendance: "الحضور",
-        noHistory: "لا يوجد سجل",
-        empty: "لا يوجد موظفون نشطون متاحون. يمكن إغلاق الشيفت بدون تحديد مسؤول فتح، وسيظهر ذلك في لوحة المتابعة.",
         cancel: "إلغاء",
         closeShift: "إغلاق الشيفت",
       }
     : {
-        nextOpeningStaff: "Next opening staff",
-        notAssigned: "Not assigned yet",
-        assignHint: "Close a shift to assign the next opener",
-        assigned: "Assigned",
-        by: "by",
         shiftClose: "Shift close",
-        title: "Who will open the next shift?",
-        helper: "Manual override is allowed. The recommendation uses the oldest last opening date.",
         drawerSummary: "Drawer summary",
         expectedDrawer: "Expected drawer",
         actualDrawer: "Actual drawer",
-        notSelected: "Not selected",
-        candidates: "Opening candidates",
-        scheduleHint: "Opening: 12:00-22:00. Regular: 15:00-01:00. Expected: 10h.",
-        refresh: "Refresh",
-        recommended: "Recommended",
-        activeEmployee: "Active employee",
-        lastOpening: "Last opening",
-        weekMonth: "Week / Month",
-        attendance: "Attendance",
-        noHistory: "No history",
-        empty: "No active employees are available. You can close the shift without a next opener, but the dashboard will show no assignment.",
         cancel: "Cancel",
         closeShift: "Close shift",
       };
 }
 
-function NextOpeningWidget({ assignment, loading }) {
-  const { i18n } = useTranslation();
-  const labels = getShiftRotationLabels(i18n.language);
-  const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
+const getShiftCloseCopy = (language = "en") => {
+  const ar = String(language || "").toLowerCase().startsWith("ar");
+  return ar
+    ? {
+        title: "\u0645\u0631\u0627\u062c\u0639\u0629 \u0648\u0625\u063a\u0644\u0627\u0642 \u0627\u0644\u0634\u064a\u0641\u062a",
+        subtitle: "\u0631\u0627\u062c\u0639 \u0627\u0644\u062f\u0631\u062c \u0648\u0627\u0644\u0645\u062f\u0641\u0648\u0639\u0627\u062a \u0648\u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a \u0642\u0628\u0644 \u0627\u0644\u0625\u063a\u0644\u0627\u0642 \u0627\u0644\u0646\u0647\u0627\u0626\u064a.",
+        balanced: "\u0634\u064a\u0641\u062a \u0645\u062a\u0648\u0627\u0632\u0646",
+        balancedHelp: "\u0644\u0627 \u064a\u0648\u062c\u062f \u0641\u0631\u0642 \u0646\u0642\u062f\u064a \u0641\u064a \u0627\u0644\u062f\u0631\u062c",
+        extra: "\u064a\u0648\u062c\u062f \u0646\u0642\u062f \u0625\u0636\u0627\u0641\u064a",
+        extraHelp: "{{amount}} \u0632\u064a\u0627\u062f\u0629 \u0641\u064a \u0627\u0644\u062f\u0631\u062c",
+        shortage: "\u064a\u0648\u062c\u062f \u0639\u062c\u0632 \u0646\u0642\u062f\u064a",
+        shortageHelp: "{{amount}} \u0646\u0627\u0642\u0635\u0629 \u0645\u0646 \u0627\u0644\u062f\u0631\u062c",
+        netRevenue: "\u0635\u0627\u0641\u064a \u0627\u0644\u0625\u064a\u0631\u0627\u062f",
+        netRevenueHelp: "\u0628\u0639\u062f \u0627\u0644\u0645\u0631\u062a\u062c\u0639\u0627\u062a \u0648\u0627\u0644\u062e\u0635\u0648\u0645\u0627\u062a",
+        paymentsReconciled: "\u062a\u0645\u062a \u0645\u0637\u0627\u0628\u0642\u0629 \u0627\u0644\u0645\u062f\u0641\u0648\u0639\u0627\u062a",
+        paymentsNeedReview: "\u0645\u0637\u0627\u0628\u0642\u0629 \u0627\u0644\u0645\u062f\u0641\u0648\u0639\u0627\u062a \u062a\u062d\u062a\u0627\u062c \u0645\u0631\u0627\u062c\u0639\u0629",
+        sellerPerformance: "\u0623\u062f\u0627\u0621 \u0627\u0644\u0628\u0627\u0626\u0639\u064a\u0646",
+        closingNotes: "\u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0627\u0644\u0625\u063a\u0644\u0627\u0642",
+        varianceReason: "\u0633\u0628\u0628 \u0641\u0631\u0642 \u0627\u0644\u062f\u0631\u062c",
+        closeReady: "\u062c\u0627\u0647\u0632 \u0644\u0644\u0625\u063a\u0644\u0627\u0642",
+        varianceDetected: "\u064a\u0648\u062c\u062f \u0641\u0631\u0642 \u064a\u062d\u062a\u0627\u062c \u0645\u0631\u0627\u062c\u0639\u0629",
+        finalConfirm: "\u062a\u0623\u0643\u064a\u062f \u0625\u063a\u0644\u0627\u0642 \u0627\u0644\u0634\u064a\u0641\u062a",
+        finalConfirmHelp: "\u0633\u064a\u062a\u0645 \u062a\u062b\u0628\u064a\u062a \u0627\u0644\u0625\u063a\u0644\u0627\u0642 \u0648\u0625\u0635\u062f\u0627\u0631 \u062a\u0642\u0631\u064a\u0631 \u0627\u0644\u0645\u0637\u0627\u0628\u0642\u0629.",
+        confirmClose: "\u062a\u0623\u0643\u064a\u062f \u0627\u0644\u0625\u063a\u0644\u0627\u0642",
+      }
+    : {
+        title: "Shift close reconciliation",
+        subtitle: "Review drawer cash, payments, sales, and audit records before final close.",
+        balanced: "Balanced Shift",
+        balancedHelp: "No cash variance detected",
+        extra: "Extra cash detected",
+        extraHelp: "{{amount}} extra in drawer",
+        shortage: "Cash shortage detected",
+        shortageHelp: "{{amount}} missing from drawer",
+        netRevenue: "Net Revenue",
+        netRevenueHelp: "After returns and discounts",
+        paymentsReconciled: "Payments reconciled",
+        paymentsNeedReview: "Payments need review",
+        sellerPerformance: "Seller performance",
+        closingNotes: "Closing notes",
+        varianceReason: "Variance reason",
+        closeReady: "Ready to close",
+        varianceDetected: "Variance detected",
+        finalConfirm: "Confirm shift close",
+        finalConfirmHelp: "This will finalize the drawer close and issue the reconciliation report.",
+        confirmClose: "Confirm close",
+      };
+};
 
-  return (
-    <section dir={isArabic ? "rtl" : "ltr"} className="grid gap-2 rounded-[22px] border border-white/10 bg-zinc-950/70 p-3 shadow-xl shadow-black/20 sm:max-w-md">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-200">
-          <UserCheck className="h-4 w-4" />
-          {labels.nextOpeningStaff}
-        </div>
-        {loading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-200" /> : null}
-      </div>
-      <div className="text-lg font-black text-white">{assignment?.employee_name || labels.notAssigned}</div>
-      <div className="text-xs font-semibold text-zinc-400">
-        {assignment?.assigned_at ? `${labels.assigned} ${formatOpeningDateTime(assignment.assigned_at)}` : labels.assignHint}
-        {assignment?.assigned_by_name ? ` ${labels.by} ${assignment.assigned_by_name}` : ""}
-      </div>
-    </section>
-  );
-}
+const formatShiftDuration = (openedAt, closedAt = new Date()) => {
+  const start = openedAt ? new Date(openedAt).getTime() : 0;
+  const end = closedAt ? new Date(closedAt).getTime() : Date.now();
+  if (!start || Number.isNaN(start) || Number.isNaN(end) || end < start) return "";
+  const minutes = Math.floor((end - start) / 60000);
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+};
+
+const readableAuditAction = (item = {}) => {
+  const raw = String(item.action || item.type || item.event_type || item.label || "").toLowerCase();
+  if (raw.includes("return") || raw.includes("refund")) return "Return processed";
+  if (raw.includes("employee_advance") || raw.includes("employee advance")) return "Employee advance";
+  if (raw.includes("expense")) return "POS expense";
+  if (raw.includes("cancel")) return "Invoice cancelled";
+  if (raw.includes("wallet")) return "Wallet payment";
+  if (raw.includes("card") || raw.includes("visa") || raw.includes("terminal")) return "Card payment";
+  if (raw.includes("cash") || raw.includes("sale")) return "Cash sale";
+  if (raw.includes("drawer") || raw.includes("adjust")) return "Drawer adjustment";
+  if (raw.includes("open")) return "Shift opened";
+  if (raw.includes("close")) return "Shift closed";
+  return String(item.label || item.type || item.action || "Shift event").replace(/_/g, " ");
+};
+
+const auditReference = (item = {}) =>
+  item.employee_name || item.invoice_number || item.public_order_number || item.order_number || item.reference || item.reference_id || item.source_id || "";
+
+const getShiftSellerPerformance = (report = {}) => {
+  const direct =
+    report.seller_performance ||
+    report.sellers ||
+    report.sales_by_seller ||
+    report.salesperson_breakdown ||
+    report.seller_breakdown ||
+    [];
+  if (Array.isArray(direct) && direct.length) {
+    return direct.map((item) => ({
+      name: item.name || item.seller_name || item.salesperson_name || item.employee_name || "Seller",
+      total: Number(item.total || item.sales || item.amount || item.total_sales || 0),
+      count: Number(item.invoice_count || item.count || item.orders || item.invoices || 0),
+    }));
+  }
+
+  const grouped = new Map();
+  (report.audit_timeline || []).forEach((item) => {
+    const name = item.seller_name || item.salesperson_name || item.employee_name || "";
+    const amount = Number(item.amount || item.total || 0);
+    if (!name || amount <= 0 || !String(item.type || item.action || "").toLowerCase().includes("sale")) return;
+    const current = grouped.get(name) || { name, total: 0, count: 0 };
+    current.total += amount;
+    current.count += 1;
+    grouped.set(name, current);
+  });
+  return Array.from(grouped.values()).sort((a, b) => b.total - a.total);
+};
+
+const getPaymentReconciliationWarnings = (report = {}) => {
+  const explicit = report.payment_reconciliation?.warnings || report.payment_warnings || report.reconciliation_warnings || [];
+  const warnings = Array.isArray(explicit) ? explicit.map((item) => (typeof item === "string" ? item : item.message || item.label || "")).filter(Boolean) : [];
+  const totals = report.totals || {};
+  const breakdown = Array.isArray(report.payment_breakdown) ? report.payment_breakdown : [];
+  const totalByMethod = (name) =>
+    breakdown
+      .filter((item) => String(item.payment_method || item.method || "").toLowerCase().includes(name))
+      .reduce((sum, item) => sum + Number(item.total || item.amount || 0), 0);
+  [["card", totals.card], ["wallet", totals.wallet]].forEach(([method, expected]) => {
+    const expectedValue = Number(expected || 0);
+    const actualValue = totalByMethod(method);
+    if (expectedValue > 0 && actualValue > 0 && Math.abs(expectedValue - actualValue) > 0.01) {
+      warnings.push(`${method[0].toUpperCase()}${method.slice(1)} mismatch: ${formatCurrency(Math.abs(expectedValue - actualValue))}`);
+    }
+  });
+  const pendingTerminal = Number(totals.pending_terminal_settlements || report.pending_terminal_settlements || 0);
+  const missingConfirmations = Number(totals.missing_payment_confirmations || report.missing_payment_confirmations || 0);
+  if (pendingTerminal > 0) warnings.push(`${pendingTerminal} pending terminal settlement${pendingTerminal === 1 ? "" : "s"}`);
+  if (missingConfirmations > 0) warnings.push(`${missingConfirmations} missing payment confirmation${missingConfirmations === 1 ? "" : "s"}`);
+  return warnings;
+};
 
 function ShiftCloseModal({
   report,
   actualDrawerAmount,
   onActualDrawerChange,
-  candidates,
-  loading,
-  error,
-  selectedEmployeeId,
-  onSelectEmployee,
-  selectedEmployee,
-  onReloadCandidates,
+  closingNotes = "",
+  onClosingNotesChange,
+  varianceReason = "",
+  onVarianceReasonChange,
   onCancel,
   onConfirm,
   submitting,
+  onPrint,
 }) {
   const { i18n } = useTranslation();
   const labels = getShiftRotationLabels(i18n.language);
+  const copy = getShiftCloseCopy(i18n.language);
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
-  const expectedDrawer = Number(report?.expectedDrawer || 0);
-  const hasCandidates = Array.isArray(candidates) && candidates.length > 0;
+  const totals = report?.totals || {};
+  const shift = report?.shift || {};
+  const expectedDrawer = Number(totals.expected_cash ?? shift.expected_cash ?? report?.expectedDrawer ?? 0);
+  const difference = Number(actualDrawerAmount || 0) - expectedDrawer;
+  const absDifference = Math.abs(difference);
+  const netRevenue = Number(totals.total_sales || 0) - Number(totals.returns || 0) - Number(totals.discounts || 0);
+  const totalSoldItems = (report?.top_products || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const sellerPerformance = getShiftSellerPerformance(report);
+  const paymentWarnings = getPaymentReconciliationWarnings(report);
+  const shiftDuration = formatShiftDuration(shift.opened_at, shift.closed_at || new Date());
+  const varianceState =
+    difference === 0
+      ? {
+          title: copy.balanced,
+          help: copy.balancedHelp,
+          icon: CheckCircle2,
+          className: "border-emerald-300/35 bg-emerald-400/15 text-emerald-50 shadow-[0_0_34px_rgba(16,185,129,0.22)]",
+        }
+      : difference > 0
+        ? {
+            title: copy.extra,
+            help: copy.extraHelp.replace("{{amount}}", formatCurrency(absDifference)),
+            icon: Banknote,
+            className: "border-amber-300/35 bg-amber-400/15 text-amber-50 shadow-[0_0_34px_rgba(251,191,36,0.2)]",
+          }
+        : {
+            title: copy.shortage,
+            help: copy.shortageHelp.replace("{{amount}}", formatCurrency(absDifference)),
+            icon: AlertTriangle,
+            className: "border-rose-300/35 bg-rose-500/15 text-rose-50 shadow-[0_0_34px_rgba(244,63,94,0.24)]",
+          };
+  const VarianceIcon = varianceState.icon;
+  const [confirmClose, setConfirmClose] = useState(false);
 
   return (
     <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/75 px-2 py-2 backdrop-blur-sm sm:items-center sm:px-3 sm:py-5">
@@ -3875,9 +6245,9 @@ function ShiftCloseModal({
               <CheckCircle2 className="h-4 w-4" />
               {labels.shiftClose}
             </div>
-            <h2 className="mt-2 text-xl font-black text-white sm:text-2xl">{labels.title}</h2>
+            <h2 className="mt-2 text-xl font-black text-white sm:text-2xl">{copy.title}</h2>
             <p className="mt-1 text-sm font-semibold text-zinc-400">
-              {labels.helper}
+              {copy.subtitle}
             </p>
           </div>
           <button
@@ -3890,12 +6260,33 @@ function ShiftCloseModal({
           </button>
         </div>
 
+        <section className={`mt-5 rounded-[24px] border p-4 ${varianceState.className}`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-black/25">
+                <VarianceIcon className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="text-xl font-black">{varianceState.title}</div>
+                <div className="mt-0.5 text-sm font-semibold opacity-80">{varianceState.help}</div>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-end">
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] opacity-60">Variance</div>
+              <div className="mt-1 text-2xl font-black">{formatCurrency(difference)}</div>
+            </div>
+          </div>
+        </section>
+
         <div className="mt-5 grid gap-4 lg:grid-cols-[0.85fr_1.4fr]">
           <section className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{labels.drawerSummary}</div>
             <div className="mt-3 grid gap-3">
-              <ShiftReportItem label={labels.expectedDrawer} value={formatCurrency(expectedDrawer)} />
-              <label className="block rounded-2xl border border-white/10 bg-black/30 p-4">
+              <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{labels.expectedDrawer}</div>
+                <div className="mt-2 text-2xl font-black text-white">{formatCurrency(expectedDrawer)}</div>
+              </div>
+              <label className="block rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4">
                 <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{labels.actualDrawer}</span>
                 <input
                   type="number"
@@ -3904,86 +6295,138 @@ function ShiftCloseModal({
                   className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/50 px-3 text-base font-black text-white outline-none transition focus:border-emerald-400/60"
                 />
               </label>
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
-                {labels.nextOpeningStaff}: {selectedEmployee?.full_name || labels.notSelected}
+              <div className={`rounded-2xl border p-4 ${difference === 0 ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100" : difference > 0 ? "border-amber-400/25 bg-amber-500/10 text-amber-100" : "border-rose-400/25 bg-rose-500/10 text-rose-100"}`}>
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] opacity-70">Variance result</div>
+                <div className="mt-2 text-2xl font-black">{formatCurrency(difference)}</div>
               </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ShiftReportItem label="Opening cash" value={formatCurrency(totals.opening_cash ?? shift.opening_cash)} />
+                <ShiftReportItem label="Shift duration" value={shiftDuration || "-"} />
+              </div>
+            </div>
+            {sellerPerformance.length ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="mb-3 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.sellerPerformance}</div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {sellerPerformance.slice(0, 6).map((seller) => (
+                    <div key={seller.name} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      <div className="truncate text-sm font-black text-white">{seller.name}</div>
+                      <div className="mt-1 text-xs font-semibold text-zinc-400">{formatCurrency(seller.total)}</div>
+                      <div className="mt-0.5 text-[11px] text-zinc-500">{Number(seller.count || 0).toLocaleString()} invoices</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className={`block rounded-2xl border p-3 ${difference !== 0 ? "border-amber-400/30 bg-amber-500/10" : "border-white/10 bg-black/20"}`}>
+                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.varianceReason}</span>
+                <textarea
+                  value={varianceReason}
+                  onChange={(event) => onVarianceReasonChange?.(event.target.value)}
+                  rows={3}
+                  placeholder="Cash drawer recount issue"
+                  className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/40 p-3 text-sm font-semibold text-white outline-none focus:border-amber-300/50"
+                />
+              </label>
+              <label className="block rounded-2xl border border-white/10 bg-black/20 p-3">
+                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.closingNotes}</span>
+                <textarea
+                  value={closingNotes}
+                  onChange={(event) => onClosingNotesChange?.(event.target.value)}
+                  rows={3}
+                  placeholder="Terminal pending settlement"
+                  className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/40 p-3 text-sm font-semibold text-white outline-none focus:border-emerald-300/50"
+                />
+              </label>
             </div>
           </section>
 
           <section className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{labels.candidates}</div>
-                <div className="mt-1 text-sm font-semibold text-zinc-400">{labels.scheduleHint}</div>
+                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">Shift audit summary</div>
+                <div className="mt-1 text-sm font-semibold text-zinc-400">{shift.cashier_name || ""} / {shift.branch_name || ""}</div>
               </div>
               <button
                 type="button"
-                onClick={onReloadCandidates}
-                disabled={loading || submitting}
+                onClick={() => onPrint?.({ ...(report || {}), totals: { ...totals, closing_cash: Number(actualDrawerAmount || 0), cash_difference: difference } })}
+                disabled={submitting}
                 className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 text-xs font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
               >
-                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                {labels.refresh}
+                <ReceiptText className="h-3.5 w-3.5" />
+                Print
               </button>
             </div>
-
-            {loading ? (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {[1, 2, 3, 4].map((item) => (
-                  <div key={item} className="h-32 animate-pulse rounded-2xl border border-white/10 bg-white/[0.06]" />
-                ))}
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <ShiftReportItem label={copy.netRevenue} value={formatCurrency(netRevenue)} subtitle={copy.netRevenueHelp} />
+              <ShiftReportItem label="Invoices" value={Number(totals.invoice_count || 0).toLocaleString()} />
+              <ShiftReportItem label="Returns" value={formatCurrency(totals.returns || 0)} />
+              <ShiftReportItem label="Discounts" value={formatCurrency(totals.discounts || 0)} />
+              <ShiftReportItem label="Cash" value={formatCurrency(totals.cash || 0)} />
+              <ShiftReportItem label="Card" value={formatCurrency(totals.card || 0)} />
+              <ShiftReportItem label="Wallet" value={formatCurrency(totals.wallet || 0)} />
+              <ShiftReportItem label="POS Daily Expenses" value={formatCurrency(totals.pos_expenses || 0)} />
+              <ShiftReportItem label="Employee Advances" value={formatCurrency(totals.employee_advances || 0)} />
+              <ShiftReportItem label="Total Cash Out" value={formatCurrency(totals.total_cash_out || 0)} />
+              <ShiftReportItem label="Net cash expected" value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)} />
+            </div>
+            <div className={`mt-4 rounded-2xl border p-4 ${paymentWarnings.length ? "border-amber-400/25 bg-amber-500/10 text-amber-100" : "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"}`}>
+              <div className="flex items-center gap-2 text-sm font-black">
+                {paymentWarnings.length ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                {paymentWarnings.length ? copy.paymentsNeedReview : copy.paymentsReconciled}
               </div>
-            ) : error ? (
-              <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm font-semibold text-rose-100">
-                {error}
+              {paymentWarnings.length ? (
+                <div className="mt-2 space-y-1 text-xs font-semibold opacity-85">
+                  {paymentWarnings.map((warning, index) => <div key={`${warning}-${index}`}>{warning}</div>)}
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Top products</div>
+                <div className="space-y-2">
+                  {(report?.top_products || []).slice(0, 5).map((item) => (
+                    <div key={item.product_name} className="flex items-center justify-between gap-3 text-xs font-semibold text-zinc-300">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-black text-white">{item.product_name}</span>
+                        <span className="mt-0.5 block text-[11px] text-zinc-500">
+                          {Number(item.quantity || 0).toLocaleString()} sales • {totalSoldItems > 0 ? Math.round((Number(item.quantity || 0) / totalSoldItems) * 100) : 0}%
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-white">{formatCurrency(item.total || 0)}</span>
+                    </div>
+                  ))}
+                  {!(report?.top_products || []).length ? <div className="text-xs text-zinc-500">No products</div> : null}
+                </div>
               </div>
-            ) : hasCandidates ? (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {candidates.map((employee) => {
-                  const employeeId = String(employee.id || employee.employee_id);
-                  const selected = String(selectedEmployeeId) === employeeId;
-                  return (
-                    <button
-                      key={employeeId}
-                      type="button"
-                      onClick={() => onSelectEmployee(employeeId)}
-                      className={`min-h-32 rounded-2xl border p-4 text-left transition ${
-                        selected
-                          ? "border-emerald-300 bg-emerald-400/15 shadow-lg shadow-emerald-950/30"
-                          : "border-white/10 bg-black/30 hover:border-emerald-300/40 hover:bg-white/[0.06]"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-base font-black text-white">{employee.full_name}</div>
-                          <div className="mt-1 text-xs font-semibold text-zinc-400">{employee.role || employee.branch_name || labels.activeEmployee}</div>
-                        </div>
-                        {employee.is_recommended ? (
-                          <span className="shrink-0 rounded-full border border-emerald-300/30 bg-emerald-400/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100">
-                            {labels.recommended}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-4 grid gap-2 text-xs font-semibold text-zinc-300">
-                        <div>{labels.lastOpening}: {employee.last_opening_at ? formatOpeningDate(employee.last_opening_at) : labels.noHistory}</div>
-                        <div>{labels.weekMonth}: {Number(employee.openings_this_week || 0)} / {Number(employee.openings_this_month || 0)}</div>
-                        <div>{labels.attendance}: {String(employee.attendance_status || "not_checked_in").replace(/_/g, " ")}</div>
-                      </div>
-                    </button>
-                  );
-                })}
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Audit timeline</div>
+                <div className="max-h-44 space-y-2 overflow-auto pr-1">
+                  {(report?.audit_timeline || []).slice(-12).map((item, index) => (
+                    <div key={`${item.type}-${item.source_id}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2 text-xs font-semibold text-zinc-300">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-black text-white">{readableAuditAction(item)}</span>
+                        <span className="mt-0.5 block truncate text-[11px] text-zinc-500">{auditReference(item) || item.label || ""}</span>
+                      </span>
+                      <span className="shrink-0 text-end">
+                        <span className="block text-white">{formatCurrency(item.amount || 0)}</span>
+                        <span className="mt-0.5 block text-[11px] text-zinc-500">{item.at ? new Date(item.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</span>
+                      </span>
+                    </div>
+                  ))}
+                  {!(report?.audit_timeline || []).length ? <div className="text-xs text-zinc-500">No events</div> : null}
+                </div>
               </div>
-            ) : (
-              <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm font-semibold text-amber-100">
-                {labels.empty}
-              </div>
-            )}
+            </div>
           </section>
         </div>
 
         <div className="sticky bottom-0 -mx-3 mt-5 flex flex-col gap-3 border-t border-white/10 bg-zinc-950/95 px-3 py-4 backdrop-blur sm:-mx-5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div className="text-sm font-bold text-zinc-300">
-            {labels.nextOpeningStaff}: <span className="text-white">{selectedEmployee?.full_name || labels.notSelected}</span>
+            <span className={difference === 0 ? "text-emerald-200" : "text-amber-200"}>{difference === 0 ? copy.closeReady : copy.varianceDetected}</span>
+            <span className="mx-2 text-zinc-600">/</span>
+            <span>{formatCurrency(difference)}</span>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <button
@@ -3996,23 +6439,62 @@ function ShiftCloseModal({
             </button>
             <button
               type="button"
-              onClick={onConfirm}
-              disabled={submitting || (hasCandidates && !selectedEmployeeId)}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => setConfirmClose(true)}
+              disabled={submitting}
+              className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black text-black shadow-lg transition disabled:cursor-not-allowed disabled:opacity-50 ${difference === 0 ? "bg-emerald-400 shadow-emerald-950/30 hover:bg-emerald-300" : "bg-amber-400 shadow-amber-950/30 hover:bg-amber-300"}`}
             >
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : difference === 0 ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
               {labels.closeShift}
             </button>
           </div>
         </div>
+        {confirmClose ? (
+          <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center">
+            <section className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl shadow-black/60">
+              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${difference === 0 ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : "border-amber-300/25 bg-amber-400/10 text-amber-100"}`}>
+                {difference === 0 ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+                {difference === 0 ? copy.closeReady : copy.varianceDetected}
+              </div>
+              <h3 className="mt-4 text-2xl font-black">{copy.finalConfirm}</h3>
+              <p className="mt-2 text-sm font-semibold leading-6 text-zinc-400">{copy.finalConfirmHelp}</p>
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-semibold text-zinc-400">Expected</span>
+                  <span className="font-black">{formatCurrency(expectedDrawer)}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="font-semibold text-zinc-400">Actual</span>
+                  <span className="font-black">{formatCurrency(Number(actualDrawerAmount || 0))}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="font-semibold text-zinc-400">Variance</span>
+                  <span className={difference === 0 ? "font-black text-emerald-200" : "font-black text-amber-200"}>{formatCurrency(difference)}</span>
+                </div>
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setConfirmClose(false)} disabled={submitting} className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 disabled:opacity-50">
+                  {labels.cancel}
+                </button>
+                <button type="button" onClick={onConfirm} disabled={submitting} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-400 text-sm font-black text-zinc-950 disabled:opacity-50">
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {copy.confirmClose}
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function ShiftReportModal({ report, onClose }) {
-  const { t, i18n } = useTranslation();
-  const labels = getShiftRotationLabels(i18n.language);
+function ShiftReportModal({ report, onClose, onPrint }) {
+  const { t } = useTranslation();
+  const totals = report?.totals || {};
+  const shift = report?.shift || {};
+  const netRevenue = Number(totals.total_sales || 0) - Number(totals.returns || 0) - Number(totals.discounts || 0);
+  const totalSoldItems = (report?.top_products || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const sellerPerformance = getShiftSellerPerformance(report);
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
       <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/50">
@@ -4021,32 +6503,216 @@ function ShiftReportModal({ report, onClose }) {
             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">{t("pos.shift.report")}</div>
             <h2 className="mt-1 text-2xl font-black text-white">{t("pos.shift.closeSummary")}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300">
-            {t("pos.shift.close")}
-          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => onPrint?.(report)} className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-sm font-bold text-emerald-100">
+              Print
+            </button>
+            <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300">
+              {t("pos.shift.close")}
+            </button>
+          </div>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <ShiftReportItem label={t("pos.shift.sales")} value={formatCurrency(report.sales)} />
-          <ShiftReportItem label="Invoices" value={Number(report.invoices || 0).toLocaleString()} />
-          <ShiftReportItem label={t("pos.shift.items")} value={Number(report.items || 0).toLocaleString()} />
-          <ShiftReportItem label={t("pos.shift.cash")} value={formatCurrency(report.cash)} />
-          <ShiftReportItem label={t("pos.shift.card")} value={formatCurrency(report.card)} />
-          <ShiftReportItem label={t("pos.shift.wallet")} value={formatCurrency(report.wallet)} />
-          <ShiftReportItem label={t("pos.shift.expectedDrawer")} value={formatCurrency(report.expectedDrawer)} />
-          <ShiftReportItem label={t("pos.shift.actualDrawer")} value={report.actualDrawer === null ? t("common.notAvailable") : formatCurrency(report.actualDrawer)} />
-          <ShiftReportItem label={t("pos.shift.difference")} value={report.difference === null ? t("common.notAvailable") : formatCurrency(report.difference)} />
-          {report.nextOpeningEmployeeName ? <ShiftReportItem label={labels.nextOpeningStaff} value={report.nextOpeningEmployeeName} /> : null}
+          <ShiftReportItem label="Cashier" value={shift.cashier_name || ""} />
+          <ShiftReportItem label="Branch" value={shift.branch_name || ""} />
+          <ShiftReportItem label="Net Revenue" value={formatCurrency(netRevenue)} subtitle="After returns and discounts" />
+          <ShiftReportItem label={t("pos.shift.sales")} value={formatCurrency(totals.total_sales)} />
+          <ShiftReportItem label="Invoices" value={Number(totals.invoice_count || 0).toLocaleString()} />
+          <ShiftReportItem label="Returns" value={formatCurrency(totals.returns)} />
+          <ShiftReportItem label="Discounts" value={formatCurrency(totals.discounts)} />
+          <ShiftReportItem label={t("pos.shift.cash")} value={formatCurrency(totals.cash)} />
+          <ShiftReportItem label={t("pos.shift.card")} value={formatCurrency(totals.card)} />
+          <ShiftReportItem label={t("pos.shift.wallet")} value={formatCurrency(totals.wallet)} />
+          <ShiftReportItem label="POS Daily Expenses" value={formatCurrency(totals.pos_expenses || 0)} subtitle={`${Number(totals.pos_expense_count || 0).toLocaleString()} expense records`} />
+          <ShiftReportItem label="Employee Advances" value={formatCurrency(totals.employee_advances || 0)} subtitle={`${Number(totals.employee_advance_count || 0).toLocaleString()} advance records`} />
+          <ShiftReportItem label="Total Cash Out" value={formatCurrency(totals.total_cash_out || 0)} subtitle="Cash expenses plus cash advances" />
+          <ShiftReportItem label="Net cash expected" value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)} subtitle="Cash sales minus cash POS expenses and employee advances" />
+          <ShiftReportItem label="Opening cash" value={formatCurrency(totals.opening_cash ?? shift.opening_cash)} />
+          <ShiftReportItem label={t("pos.shift.expectedDrawer")} value={formatCurrency(totals.expected_cash ?? shift.expected_cash)} />
+          <ShiftReportItem label={t("pos.shift.actualDrawer")} value={totals.closing_cash === null || totals.closing_cash === undefined ? t("common.notAvailable") : formatCurrency(totals.closing_cash)} />
+          <ShiftReportItem label={t("pos.shift.difference")} value={formatCurrency(totals.cash_difference ?? shift.cash_difference)} />
+        </div>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          {sellerPerformance.length ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 lg:col-span-2">
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Seller performance</div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {sellerPerformance.slice(0, 6).map((seller) => (
+                  <div key={seller.name} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                    <div className="truncate text-sm font-black text-white">{seller.name}</div>
+                    <div className="mt-1 text-xs text-zinc-400">{formatCurrency(seller.total)} / {Number(seller.count || 0).toLocaleString()} invoices</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Top products</div>
+            <div className="mt-3 space-y-2">
+              {(report.top_products || []).slice(0, 8).map((item) => (
+                <div key={item.product_name} className="flex justify-between gap-3 text-sm text-zinc-200">
+                  <span className="min-w-0">
+                    <span className="block truncate font-black text-white">{item.product_name}</span>
+                    <span className="text-xs text-zinc-500">
+                      {Number(item.quantity || 0).toLocaleString()} sales • {totalSoldItems > 0 ? Math.round((Number(item.quantity || 0) / totalSoldItems) * 100) : 0}%
+                    </span>
+                  </span>
+                  <span>{formatCurrency(item.total || 0)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Audit timeline</div>
+            <div className="mt-3 max-h-56 space-y-2 overflow-auto">
+              {(report.audit_timeline || []).slice(-16).map((item, index) => (
+                <div key={`${item.type}-${index}`} className="flex justify-between gap-3 rounded-xl bg-black/20 px-3 py-2 text-xs text-zinc-300">
+                  <span className="min-w-0">
+                    <span className="block truncate font-black text-white">{readableAuditAction(item)}</span>
+                    <span className="text-xs text-zinc-500">{auditReference(item) || item.label || ""}</span>
+                  </span>
+                  <span className="shrink-0 text-end">
+                    <span className="block">{formatCurrency(item.amount || 0)}</span>
+                    <span className="text-xs text-zinc-500">{item.at ? new Date(item.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function ShiftReportItem({ label, value }) {
+function QuickExpenseModal({ value, onChange, onClose, onSave, saving, branchName, shiftId, employees = [] }) {
+  const isEmployeeAdvance = value.category === "employee_advance";
+  const expenseOptions = useMemo(() => [...quickExpenseCategories, quickExpenseEmployeeAdvanceOption], []);
+  const employeeOptions = useMemo(() => {
+    const seen = new Set();
+    return (Array.isArray(employees) ? employees : [])
+      .map((employee) => {
+        const id = String(employee.employee_id || employee.id || "");
+        if (!id || seen.has(id)) return null;
+        seen.add(id);
+        return {
+          id,
+          name: employee.pos_alias || employee.name || employee.full_name || employee.employee_name || employee.email || `Employee #${id}`,
+        };
+      })
+      .filter(Boolean);
+  }, [employees]);
+  const update = (field, nextValue) => onChange((prev) => {
+    const next = { ...prev, [field]: nextValue };
+    if (field === "category" && nextValue !== "employee_advance") next.employee_id = "";
+    return next;
+  });
+  return createPortal(
+    <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/65 p-3 backdrop-blur-sm sm:items-center">
+      <section className="w-full max-w-sm rounded-3xl border border-amber-300/20 bg-zinc-950 p-4 text-white shadow-2xl shadow-black/60" dir="auto">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">POS EXPENSE</div>
+            <h3 className="mt-1 text-xl font-black">مصروف / Expense</h3>
+            <p className="mt-1 text-xs font-semibold text-zinc-500">
+              {branchName || "Current branch"} {shiftId ? `#${shiftId}` : ""}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/[0.08] disabled:opacity-50">
+            Close
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <label className="block">
+            <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Type</div>
+            <select
+              value={value.category}
+              onChange={(event) => update("category", event.target.value)}
+              className="h-11 w-full rounded-2xl border border-white/10 bg-black/70 px-3 text-sm font-black text-white outline-none focus:border-amber-300/50"
+            >
+              {expenseOptions.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+          </label>
+
+          {isEmployeeAdvance ? (
+            <label className="block">
+              <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Employee</div>
+              <select
+                value={value.employee_id || ""}
+                onChange={(event) => update("employee_id", event.target.value)}
+                className="h-11 w-full rounded-2xl border border-white/10 bg-black/70 px-3 text-sm font-black text-white outline-none focus:border-amber-300/50"
+              >
+                <option value="">Select employee</option>
+                {employeeOptions.map((employee) => (
+                  <option key={employee.id} value={employee.id}>{employee.name}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <label className="block">
+            <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Amount</div>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              value={value.amount}
+              onChange={(event) => update("amount", event.target.value)}
+              autoFocus
+              className="h-12 w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-lg font-black tabular-nums text-white outline-none placeholder:text-zinc-600 focus:border-amber-300/50"
+              placeholder="0.00"
+            />
+          </label>
+
+          <div className="grid grid-cols-3 gap-2">
+            {["cash", "card", "wallet"].map((method) => (
+              <button
+                key={method}
+                type="button"
+                onClick={() => update("payment_method", method)}
+                className={`h-10 rounded-2xl border text-xs font-black capitalize transition ${value.payment_method === method ? "border-amber-300/40 bg-amber-300/20 text-amber-50" : "border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08]"}`}
+              >
+                {method}
+              </button>
+            ))}
+          </div>
+
+          <label className="block">
+            <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Notes</div>
+            <textarea
+              rows={3}
+              value={value.notes}
+              onChange={(event) => update("notes", event.target.value)}
+              className="w-full resize-none rounded-2xl border border-white/10 bg-black/70 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-amber-300/50"
+              placeholder="Optional"
+            />
+          </label>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button type="button" onClick={onClose} disabled={saving} className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 disabled:opacity-50">
+            Cancel
+          </button>
+          <button type="button" onClick={onSave} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-amber-300 text-sm font-black text-zinc-950 transition hover:bg-amber-200 disabled:opacity-50">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />}
+            Save
+          </button>
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
+function ShiftReportItem({ label, value, subtitle = "" }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <div className="mt-2 text-lg font-black text-white">{value}</div>
+      <div className="mt-2 text-lg font-black text-white"><CurrencyText value={value} /></div>
+      {subtitle ? <div className="mt-1 text-[11px] font-semibold text-zinc-500">{subtitle}</div> : null}
     </div>
   );
 }
@@ -4118,11 +6784,11 @@ function CategoryPill({ active, onClick, name, count, icon, color }) {
   );
 }
 
-function SmallCard({ label, value }) {
+function SmallCard({ label, value, compact = false, className = "" }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-1 truncate text-sm font-semibold text-white">{value}</div>
+    <div className={`${compact ? "rounded-full px-2.5 py-1 sm:rounded-2xl sm:px-3 sm:py-3" : "rounded-2xl px-3 py-3"} border border-white/10 bg-black/20 ${className}`}>
+      <div className={`${compact ? "inline text-[10px] tracking-normal sm:block sm:uppercase sm:tracking-[0.18em]" : "text-[10px] uppercase tracking-[0.18em]"} text-zinc-500`}>{label}</div>
+      <div className={`${compact ? "ml-1 inline truncate text-xs sm:ml-0 sm:mt-1 sm:block sm:text-sm" : "mt-1 truncate text-sm"} font-semibold text-white`}><CurrencyText value={value} /></div>
     </div>
   );
 }

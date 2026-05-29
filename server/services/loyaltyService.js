@@ -128,6 +128,47 @@ const isPaidOrCompleted = (order = {}) => {
     || (total > 0 && paid >= total);
 };
 
+const getLiveUsableOrdersCount = async (client, { tenantId = null, customerId } = {}) => {
+  if (!customerId) return { count: 0, source: "orders.live_usable_completed_v1" };
+  const tableResult = await client.query(`SELECT to_regclass('public.orders') AS regclass`);
+  if (!tableResult.rows[0]?.regclass) return { count: 0, source: "orders.live_usable_completed_v1" };
+
+  const columnsResult = await client.query(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'orders'
+    `
+  );
+  const columns = new Set(columnsResult.rows.map((row) => row.column_name));
+  const params = [customerId];
+  const where = ["customer_id = $1"];
+
+  if (columns.has("tenant_id")) {
+    params.push(tenantId);
+    where.push(`($${params.length}::bigint IS NULL OR tenant_id = $${params.length}::bigint OR tenant_id IS NULL)`);
+  }
+  if (columns.has("deleted_at")) where.push("deleted_at IS NULL");
+  if (columns.has("cancelled_at")) where.push("cancelled_at IS NULL");
+  if (columns.has("status")) {
+    where.push(`LOWER(COALESCE(status, '')) NOT IN ('cancelled','canceled','void','refunded','returned','deleted','archived')`);
+  }
+  if (columns.has("payment_status")) {
+    where.push(`LOWER(COALESCE(payment_status, '')) NOT IN ('cancelled','canceled','void','refunded','returned','rejected','failed')`);
+  }
+
+  const statusPaidClause = columns.has("status") ? "LOWER(COALESCE(status, '')) IN ('completed','complete','delivered','done','paid')" : "FALSE";
+  const paymentPaidClause = columns.has("payment_status") ? "LOWER(COALESCE(payment_status, '')) IN ('paid','completed','complete','settled')" : "FALSE";
+  const totalExpr = columns.has("total_amount") ? "COALESCE(total_amount, 0)" : columns.has("total") ? "COALESCE(total, 0)" : "0";
+  const paidExpr = columns.has("paid_amount") ? "COALESCE(paid_amount, 0)" : "0";
+  const paidAmountClause = columns.has("paid_amount") && (columns.has("total_amount") || columns.has("total")) ? `(${totalExpr}) > 0 AND (${paidExpr}) >= (${totalExpr})` : "FALSE";
+  where.push(`(${statusPaidClause} OR ${paymentPaidClause} OR ${paidAmountClause})`);
+
+  const result = await client.query(`SELECT COUNT(*)::int AS count FROM orders WHERE ${where.join(" AND ")}`, params);
+  return { count: Number(result.rows[0]?.count || 0), source: "orders.live_usable_completed_v1" };
+};
+
 const normalizeSource = (order = {}) => {
   const source = String(order.source || order.channel || "pos").toLowerCase();
   return source === "website" || source === "storefront" || source === "web" ? "website" : "pos";
@@ -460,6 +501,7 @@ export const getCustomerLoyaltySummary = async (client, customerId, tenantId = n
   );
   const row = customer.rows[0] || {};
   const points = Number(row.loyalty_points || 0);
+  const liveOrders = await getLiveUsableOrdersCount(client, { tenantId, customerId });
   const tier = row.loyalty_tier || calculateTier(points);
   const thresholds = Object.entries(TIER_THRESHOLDS);
   const currentIndex = Math.max(0, thresholds.findIndex(([name]) => name === tier));
@@ -484,7 +526,10 @@ export const getCustomerLoyaltySummary = async (client, customerId, tenantId = n
     available_points: points,
     tier,
     total_spent: Number(row.total_spent || 0),
-    total_orders: Number(row.total_orders || 0),
+    total_orders: liveOrders.count,
+    orders_count: liveOrders.count,
+    invoices_count: liveOrders.count,
+    orders_count_query_source: liveOrders.source,
     wallet_balance: Number(row.wallet_balance || 0),
     next_tier: next[0] === tier ? null : next[0],
     points_to_next_tier: next[0] === tier ? 0 : Math.max(0, Number(next[1]) - points),

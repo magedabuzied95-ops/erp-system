@@ -1,47 +1,644 @@
 {
-  "moduleEyebrow": "الحسابات",
-  "title": "لوحة الحسابات",
-  "subtitle": "مؤشرات مالية أساسية مبنية من حركات المخزون والمبيعات والمشتريات والمرتجعات المقيدة.",
-  "liveData": "بيانات حسابات مباشرة",
-  "awaitingData": "بانتظار بيانات الحسابات",
+  "moduleEyebrow": "المحاسبة",
+  "shell": {
+    "eyebrow": "المحاسبة والمالية"
+  },
+  "title": "لوحة المحاسبة",
+  "subtitle": "مؤشرات مالية أساسية مبنية على قيود المخزون والمبيعات والمشتريات والمرتجعات.",
+  "liveData": "بيانات محاسبية مباشرة",
+  "awaitingData": "بانتظار بيانات المحاسبة",
   "journalEntries": "قيود اليومية",
   "tabs": {
     "dashboard": "لوحة التحكم",
-    "journal": "القيود",
+    "journal": "اليومية",
     "accounts": "الحسابات",
+    "ledgers": "دفاتر الحسابات",
     "reports": "التقارير",
-    "profitLoss": "الربح والخسارة",
-    "taxes": "الضرائب"
+    "profitLoss": "الأرباح والخسائر",
+    "compliance": "الامتثال",
+    "taxes": "الضرائب",
+    "financialAccounts": "الحسابات المالية",
+    "paymentMappings": "ربط طرق الدفع",
+    "costFix": "تصحيح التكلفة",
+    "auditTrail": "سجل التدقيق",
+    "cashDrawer": "درج النقدية",
+    "expenses": "المصروفات",
+    "income": "الدخل"
+  },
+  "common": {
+    "actions": {
+      "apply": "تطبيق",
+      "cancel": "إلغاء",
+      "edit": "تعديل",
+      "exportCsv": "تصدير CSV",
+      "exportExcel": "تصدير Excel",
+      "exportPdf": "تصدير PDF",
+      "refresh": "تحديث",
+      "retry": "إعادة المحاولة",
+      "search": "بحث",
+      "view": "عرض",
+      "clear": "مسح",
+      "delete": "حذف",
+      "save": "حفظ"
+    },
+    "labels": {
+      "account": "الحساب",
+      "accountType": "نوع الحساب",
+      "active": "نشط",
+      "amount": "المبلغ",
+      "balance": "الرصيد",
+      "branch": "الفرع",
+      "branchId": "رقم الفرع",
+      "created": "تاريخ الإنشاء",
+      "credit": "دائن",
+      "currency": "العملة",
+      "date": "التاريخ",
+      "debit": "مدين",
+      "description": "الوصف",
+      "from": "من",
+      "name": "الاسم",
+      "notes": "ملاحظات",
+      "opening": "الافتتاحي",
+      "reference": "المرجع",
+      "source": "المصدر",
+      "to": "إلى",
+      "type": "النوع",
+      "all": "الكل",
+      "category": "التصنيف",
+      "createdAt": "تاريخ الإنشاء",
+      "createdBy": "أنشأه",
+      "inactive": "غير نشط",
+      "loading": "جاري التحميل...",
+      "noNotes": "لا توجد ملاحظات",
+      "notAvailable": "غير متاح",
+      "status": "الحالة",
+      "title": "العنوان"
+    },
+    "metrics": {
+      "endingBalance": "الرصيد الختامي",
+      "totalCredit": "إجمالي الدائن",
+      "totalDebit": "إجمالي المدين"
+    },
+    "placeholders": {
+      "branchId": "رقم الفرع"
+    },
+    "rows": {
+      "liveRows": "{{count}} صف مباشر",
+      "liveRows_plural": "{{count}} صفوف مباشرة",
+      "rows": "{{count}} صف",
+      "rows_plural": "{{count}} صفوف"
+    }
+  },
+  "accountTypes": {
+    "asset": "الأصول",
+    "bank": "بنك",
+    "card_settlement": "تسوية البطاقات",
+    "cash_drawer": "درج النقدية",
+    "digital_wallet": "محفظة رقمية",
+    "equity": "حقوق الملكية",
+    "expense": "المصروفات",
+    "ledger": "قيود الدفتر",
+    "liability": "الالتزامات",
+    "revenue": "الإيرادات",
+    "safe": "خزنة",
+    "wallet": "محفظة"
   },
   "kpis": {
     "revenue": "الإيرادات",
     "expenses": "المصروفات",
     "inventoryValue": "قيمة المخزون",
     "cogs": "تكلفة البضاعة المباعة",
-    "grossProfit": "إجمالي الربح"
+    "grossProfit": "مجمل الربح"
   },
   "hints": {
-    "revenue": "إيرادات المبيعات المقيدة في الدفتر",
+    "revenue": "إيرادات المبيعات المسجلة في الدفتر",
     "expenses": "أثر المصروفات التشغيلية والمقيدة",
     "inventoryValue": "رصيد أصل المخزون",
     "cogs": "تكلفة البضاعة المباعة من المبيعات",
-    "grossProfit": "الإيرادات ناقص تكلفة البضاعة المباعة"
+    "grossProfit": "الإيرادات بعد خصم تكلفة البضاعة"
   },
-  "snapshotTitle": "ملخص الحسابات",
-  "snapshotSubtitle": "تظهر هنا حركات المخزون المقيدة والمبيعات والمشتريات والمرتجعات.",
+  "snapshotTitle": "ملخص المحاسبة",
+  "snapshotSubtitle": "تظهر هنا حركات المخزون والمبيعات والمشتريات والمرتجعات المقيدة.",
   "tiles": {
     "salesTotal": "إجمالي المبيعات",
     "purchasesTotal": "إجمالي المشتريات",
-    "journalEntries": "عدد القيود",
+    "journalEntries": "قيود اليومية",
     "margin": "الهامش"
   },
   "quickLinks": "روابط سريعة",
   "links": {
     "journal": "مراجعة دفتر اليومية",
     "inventory": "فحص حركات المخزون",
-    "products": "مراجعة المنتجات والخيارات"
+    "products": "مراجعة المنتجات والمتغيرات",
+    "costFix": "مركز تصحيح التكلفة",
+    "financialAccounts": "الحسابات المالية",
+    "paymentMappings": "ربط طرق الدفع",
+    "auditTrail": "سجل التدقيق"
+  },
+  "ledgers": {
+    "title": "دفاتر الحسابات",
+    "subtitle": "دفتر معاملات مباشر من المبيعات المدفوعة والمصروفات والمشتريات والمدفوعات والمرتجعات وتسويات المخزون.",
+    "filters": {
+      "allAccounts": "كل الحسابات"
+    },
+    "errors": {
+      "loadFailed": "تعذر تحميل دفاتر الحسابات."
+    },
+    "states": {
+      "loadingTitle": "جاري تحميل الدفاتر",
+      "loadingText": "قراءة صفوف المعاملات المباشرة وإعادة حساب الأرصدة الجارية.",
+      "errorTitle": "تعذر تحميل دفاتر الحسابات"
+    },
+    "table": {
+      "title": "دفتر المعاملات",
+      "empty": "لا توجد صفوف دفتر للفلاتر المحددة."
+    }
+  },
+  "reports": {
+    "title": "التقارير المالية",
+    "subtitle": "الأرباح والخسائر، تقرير الإيرادات، تقرير المصروفات، أفضل العملاء، أفضل المنتجات، وتقييم المخزون من بيانات النظام المباشرة.",
+    "actions": {
+      "rebuildEntries": "إعادة بناء القيود",
+      "syncEntries": "مزامنة قيود المحاسبة"
+    },
+    "cards": {
+      "expensesByCategory": "المصروفات حسب التصنيف",
+      "profitLossStatement": "قائمة الأرباح والخسائر",
+      "topCustomers": "أفضل العملاء",
+      "topProducts": "أفضل المنتجات"
+    },
+    "empty": {
+      "noProfitLossActivity": "لا يوجد نشاط أرباح وخسائر للفلاتر المحددة.",
+      "noRows": "لا توجد صفوف في التقرير.",
+      "noTrialBalanceRows": "لا توجد صفوف ميزان مراجعة للفلاتر المحددة."
+    },
+    "errors": {
+      "loadFailed": "تعذر تحميل التقارير المالية.",
+      "syncFailed": "تعذرت مزامنة قيود المحاسبة"
+    },
+    "fallbacks": {
+      "uncategorized": "غير مصنف",
+      "unknownProduct": "منتج غير معروف",
+      "walkInCustomer": "عميل نقدي"
+    },
+    "hints": {
+      "inventoryValuation": "المخزون الحالي × التكلفة",
+      "operatingExpense": "مصروف تشغيلي",
+      "orders": "{{count}} طلب",
+      "orders_plural": "{{count}} طلبات",
+      "paidOrders": "{{count}} طلب مدفوع",
+      "paidOrders_plural": "{{count}} طلبات مدفوعة",
+      "units": "{{count}} وحدة",
+      "units_plural": "{{count}} وحدات"
+    },
+    "metrics": {
+      "assets": "الأصول",
+      "cogs": "تكلفة البضاعة المباعة",
+      "difference": "الفرق",
+      "discounts": "الخصومات",
+      "equity": "حقوق الملكية",
+      "expenseReport": "تقرير المصروفات",
+      "grossProfit": "مجمل الربح",
+      "grossSales": "إجمالي المبيعات",
+      "inventoryValuation": "تقييم المخزون",
+      "liabilities": "الالتزامات",
+      "netProfit": "صافي الربح",
+      "netSales": "صافي المبيعات",
+      "profit": "الربح",
+      "returns": "المرتجعات",
+      "revenueReport": "تقرير الإيرادات",
+      "totalExpenses": "إجمالي المصروفات"
+    },
+    "states": {
+      "balanceSheetDifference": "تختلف الأصول عن الالتزامات بالإضافة إلى حقوق الملكية بمقدار {{amount}}.",
+      "balanceSheetUnbalanced": "الميزانية العمومية غير متوازنة",
+      "errorTitle": "تعذر تحميل التقارير المالية",
+      "loadingText": "قراءة المبيعات المدفوعة والمصروفات والمرتجعات وتكلفة البضاعة وتقييم تكلفة المخزون.",
+      "loadingTitle": "جاري تحميل التقارير المالية",
+      "trialBalanceDifference": "يختلف المدين والدائن بمقدار {{amount}}.",
+      "trialBalanceUnbalanced": "ميزان المراجعة غير متوازن"
+    },
+    "syncModal": {
+      "body": "سيؤدي هذا إلى إعادة بناء قيود المحاسبة المولدة من المبيعات والمشتريات والمصروفات والمرتجعات التاريخية. لن يتم حذف القيود اليدوية.",
+      "title": "مزامنة قيود المحاسبة"
+    },
+    "tabs": {
+      "balanceSheet": "الميزانية العمومية",
+      "overview": "نظرة عامة",
+      "profitLoss": "الأرباح والخسائر",
+      "trialBalance": "ميزان المراجعة"
+    },
+    "toasts": {
+      "syncSuccess": "تمت مزامنة قيود المحاسبة. تم إنشاء {{created}}، وحذف {{deleted}}، وتخطي {{skipped}}.",
+      "syncWarnings": "تحذيرات: {{warnings}}"
+    }
+  },
+  "financialAccounts": {
+    "title": "الحسابات المالية",
+    "subtitle": "إدارة أدراج النقدية والخزن والبنوك والمحافظ والمحافظ الرقمية وحسابات تسوية البطاقات.",
+    "actions": {
+      "newAccount": "حساب جديد",
+      "postTransfer": "ترحيل التحويل",
+      "saveAccount": "حفظ الحساب",
+      "transfer": "تحويل"
+    },
+    "empty": {
+      "noAccounts": "لا توجد حسابات مالية.",
+      "noTransactions": "لا توجد معاملات محملة.",
+      "noTransfers": "لا توجد تحويلات بعد."
+    },
+    "errors": {
+      "historyFailed": "تعذر تحميل سجل الحساب",
+      "loadFailed": "تعذر تحميل الحسابات المالية",
+      "nameRequired": "اسم الحساب مطلوب.",
+      "saveFailed": "تعذر حفظ الحساب المالي",
+      "transferFailed": "تعذر ترحيل التحويل",
+      "transferRequired": "اختر الحسابين وأدخل مبلغًا."
+    },
+    "filters": {
+      "allTypes": "كل الأنواع",
+      "anyBranch": "أي فرع"
+    },
+    "history": {
+      "selectAccount": "اختر حسابًا",
+      "title": "سجل المعاملات"
+    },
+    "labels": {
+      "allBranches": "كل الفروع",
+      "balanceShort": "الرصيد",
+      "branchNumber": "فرع رقم {{id}}",
+      "negativeBalance": "رصيد سالب"
+    },
+    "metrics": {
+      "accounts": "الحسابات",
+      "combinedBalance": "الرصيد المجمع",
+      "transfers": "التحويلات"
+    },
+    "modals": {
+      "createTitle": "إنشاء حساب مالي",
+      "editTitle": "تعديل حساب مالي",
+      "transferTitle": "تحويل بين الحسابات"
+    },
+    "placeholders": {
+      "chooseAccount": "اختر حسابًا"
+    },
+    "toasts": {
+      "saved": "تم حفظ الحساب المالي.",
+      "transferPosted": "تم ترحيل التحويل."
+    },
+    "transfers": {
+      "title": "التحويلات"
+    }
   },
   "toasts": {
-    "loadFailed": "تعذر تحميل لوحة الحسابات"
+    "loadFailed": "تعذر تحميل لوحة المحاسبة"
+  },
+  "auditTrail": {
+    "title": "سجل تدقيق المحاسبة",
+    "subtitle": "إجراءات محاسبية حساسة وتصحيحات تكلفة وعمليات مزامنة وتصدير وتجاوزات تاريخية حسب المستأجر والمستخدم.",
+    "permissionSubtitle": "يتطلب الوصول صلاحية مسؤول أو مدير محاسبة.",
+    "noAccess": "ليس لديك صلاحية الوصول إلى سجلات تدقيق المحاسبة.",
+    "eventsTitle": "أحداث التدقيق",
+    "recentEntries": "{{count}} إدخال حديث",
+    "recentEntries_plural": "{{count}} إدخالات حديثة",
+    "labels": {
+      "action": "الإجراء",
+      "after": "بعد",
+      "before": "قبل",
+      "entity": "الكيان",
+      "metadata": "البيانات الوصفية",
+      "user": "المستخدم",
+      "userId": "رقم المستخدم"
+    },
+    "placeholders": {
+      "anyAction": "أي إجراء",
+      "anyEntity": "أي كيان",
+      "anyUser": "أي مستخدم",
+      "search": "ابحث في الإجراء أو المستخدم أو الكيان أو البيانات الوصفية"
+    },
+    "states": {
+      "emptyText": "جرّب نطاق تاريخ أوسع أو امسح الفلاتر.",
+      "emptyTitle": "لا توجد سجلات تدقيق",
+      "loadingText": "قراءة أحداث المحاسبة لهذا المستأجر.",
+      "loadingTitle": "جاري تحميل سجلات التدقيق"
+    },
+    "fallbacks": {
+      "noEntityId": "لا يوجد رقم كيان",
+      "noUser": "لا يوجد مستخدم",
+      "system": "النظام",
+      "userNumber": "مستخدم رقم {{id}}"
+    },
+    "errors": {
+      "loadFailed": "تعذر تحميل سجلات تدقيق المحاسبة"
+    }
+  },
+  "cashDrawer": {
+    "title": "درج النقدية",
+    "subtitle": "افتح ورديات الكاشير وتتبع المبيعات النقدية والمصروفات وسوِّ النقدية المعدودة وراجع فروق الإغلاق.",
+    "actions": {
+      "addMovement": "إضافة حركة",
+      "applyFilters": "تطبيق الفلاتر",
+      "closeShift": "إغلاق الوردية",
+      "openShift": "فتح وردية"
+    },
+    "currentShift": "الوردية الحالية",
+    "manualMovement": "حركة نقدية يدوية",
+    "shiftEvents": "أحداث الوردية",
+    "eventsCount": "{{count}} حدث",
+    "eventsCount_plural": "{{count}} أحداث",
+    "metrics": {
+      "cashSales": "المبيعات النقدية",
+      "expectedCash": "النقدية المتوقعة",
+      "openingCash": "نقدية الافتتاح",
+      "refundsExpenses": "المرتجعات والمصروفات",
+      "shiftDuration": "مدة الوردية"
+    },
+    "labels": {
+      "actual": "الفعلي",
+      "actualCountedCash": "النقدية المعدودة فعليًا",
+      "cashier": "الكاشير",
+      "closedAt": "وقت الإغلاق",
+      "differencePreview": "معاينة الفرق",
+      "events": "الأحداث",
+      "expected": "المتوقع",
+      "openedAt": "وقت الفتح"
+    },
+    "movement": {
+      "cashIn": "إيداع نقدي",
+      "cashOut": "سحب نقدي"
+    },
+    "status": {
+      "closed": "مغلقة",
+      "open": "مفتوحة",
+      "opened": "تم الفتح"
+    },
+    "placeholders": {
+      "any": "أي"
+    },
+    "modals": {
+      "closeTitle": "إغلاق وردية درج النقدية",
+      "openTitle": "فتح وردية درج النقدية"
+    },
+    "empty": {
+      "noEvents": "لا توجد أحداث للوردية بعد.",
+      "noOpenShift": "لا توجد وردية درج نقدية مفتوحة للفرع المحدد.",
+      "noShifts": "لا توجد ورديات درج نقدية."
+    },
+    "warnings": {
+      "addClosingNote": "فرق كبير. أضف ملاحظة إغلاق قبل الحفظ.",
+      "largeDifference": "تم اكتشاف فرق نقدية كبير. راجع قائمة الأحداث وملاحظات الإغلاق قبل ترحيل الوردية."
+    },
+    "errors": {
+      "amountPositive": "يجب أن يكون المبلغ أكبر من صفر.",
+      "branchRequired": "رقم الفرع مطلوب.",
+      "closeFailed": "تعذر إغلاق الوردية",
+      "loadFailed": "تعذر تحميل درج النقدية",
+      "movementFailed": "تعذر تسجيل الحركة النقدية",
+      "openFailed": "تعذر فتح الوردية",
+      "openShiftFirst": "افتح وردية قبل تسجيل حركة نقدية."
+    },
+    "toasts": {
+      "closed": "تم إغلاق وردية درج النقدية.",
+      "movementRecorded": "تم تسجيل الحركة النقدية.",
+      "opened": "تم فتح وردية درج النقدية."
+    }
+  },
+  "costFix": {
+    "title": "مركز تصحيح التكلفة",
+    "subtitle": "اعثر على المنتجات والمتغيرات المباعة بتكلفة صفرية، ثم حدّث التكاليف وأعد بناء قيود المحاسبة حتى تستخدم تقارير تكلفة البضاعة والربح القيم المصححة.",
+    "permissionSubtitle": "يتطلب تحديث تكاليف المنتجات والمتغيرات صلاحية مسؤول.",
+    "noAccess": "يمكن للمسؤولين فقط فتح مركز تصحيح تكلفة المحاسبة.",
+    "savedNotice": "تم حفظ التكاليف. شغّل مزامنة قيود المحاسبة مرة أخرى لإعادة بناء تكلفة البضاعة وتقارير الربح.",
+    "catalogTitle": "تصحيحات تكلفة الكتالوج",
+    "catalogSubtitle": "يمكن إصلاح المنتجات والمتغيرات القابلة للحل بتحديث تكلفة الكتالوج.",
+    "historicalTitle": "تصحيحات السطور التاريخية غير المحلولة",
+    "historicalSubtitle": "يمكن إعطاء لقطات عناصر الطلبات المباعة غير المرتبطة بالكتالوج تجاوزًا يدويًا لتكلفة البضاعة دون ربطها بالمنتجات.",
+    "actions": {
+      "applySuggested": "تطبيق التكاليف المقترحة",
+      "saveAll": "حفظ الكل",
+      "saveAllOverrides": "حفظ كل التجاوزات",
+      "saveAndSync": "حفظ وإعادة مزامنة المحاسبة",
+      "saveOverride": "حفظ التجاوز"
+    },
+    "metrics": {
+      "affectedOrderLines": "سطور الطلبات المتأثرة",
+      "missingCostRows": "صفوف التكلفة الناقصة",
+      "suggestedCogsValue": "قيمة تكلفة البضاعة المقترحة"
+    },
+    "labels": {
+      "affectedLines": "السطور المتأثرة",
+      "baseProduct": "المنتج الأساسي",
+      "currentCost": "التكلفة الحالية",
+      "currentOverride": "التجاوز الحالي",
+      "itemSnapshot": "لقطة العنصر",
+      "lastAvg": "آخر {{last}} | متوسط {{avg}}",
+      "newCost": "التكلفة الجديدة",
+      "noSku": "لا يوجد SKU",
+      "noTarget": "لا يوجد هدف",
+      "order": "الطلب",
+      "product": "المنتج",
+      "productNumber": "منتج رقم {{id}}",
+      "reason": "السبب",
+      "soldQty": "الكمية المباعة",
+      "suggestedCost": "التكلفة المقترحة",
+      "unitCost": "تكلفة الوحدة",
+      "unresolvedHistoricalLine": "سطر تاريخي غير محلول",
+      "variantNumber": "متغير رقم {{id}}",
+      "variantSku": "المتغير / SKU"
+    },
+    "placeholders": {
+      "historicalReason": "رابط كتالوج تاريخي مفقود"
+    },
+    "states": {
+      "loadingHistoricalText": "قراءة عناصر الطلبات المدفوعة غير المحلولة.",
+      "loadingHistoricalTitle": "جاري تحميل السطور التاريخية",
+      "loadingMissingText": "فحص سطور المبيعات المدفوعة وتكاليف الكتالوج.",
+      "loadingMissingTitle": "جاري تحميل عناصر التكلفة الناقصة",
+      "noCatalogText": "لا توجد حاليًا صفوف مبيعات مدفوعة لها منتج أو متغير قابل للحل بتكلفة صفرية.",
+      "noCatalogTitle": "لا توجد تصحيحات تكلفة كتالوج",
+      "noHistoricalText": "كل صف مبيعات ناقص التكلفة لديه حاليًا هدف كتالوج أو تجاوز.",
+      "noHistoricalTitle": "لا توجد سطور تاريخية غير محلولة"
+    },
+    "errors": {
+      "costPositive": "أدخل تكلفة أكبر من صفر قبل الحفظ.",
+      "loadFailed": "تعذر تحميل عناصر التكلفة الناقصة",
+      "overrideCostPositive": "أدخل تكلفة وحدة أكبر من صفر قبل حفظ التجاوزات.",
+      "overrideSaveFailed": "تعذر حفظ تجاوزات التكلفة التاريخية",
+      "saveFailed": "تعذر حفظ تحديثات التكلفة"
+    },
+    "toasts": {
+      "costSaved": "تم حفظ {{count}} تحديث تكلفة.",
+      "overrideSaved": "تم حفظ {{count}} تجاوز تكلفة تاريخي.",
+      "suggestedApplied": "تم تطبيق التكاليف المقترحة على الحقول القابلة للتعديل."
+    }
+  },
+  "journal": {
+    "title": "قيود اليومية",
+    "subtitle": "دفتر محاسبي متوازن مع فلاتر وبحث بالمرجع ومراجعة تفاصيل القيود.",
+    "ledgerTitle": "الدفتر",
+    "ledgerSubtitle": "ابحث بالمرجع وفلتر حسب النوع وافحص كل قيد متوازن.",
+    "detailTitle": "تفاصيل القيد",
+    "balanceHint": "يتم حفظ المدين والدائن كسطور يومية متوازنة فقط.",
+    "showingEntries": "عرض {{shown}} من {{total}} قيد",
+    "actions": {
+      "closeDrawer": "إغلاق اللوحة"
+    },
+    "errors": {
+      "detailFailed": "تعذر تحميل تفاصيل قيد اليومية",
+      "loadFailed": "تعذر تحميل قيود اليومية",
+      "loadFailedWithPeriod": "تعذر تحميل قيود اليومية."
+    },
+    "fallbacks": {
+      "journalEntry": "قيد يومية"
+    },
+    "labels": {
+      "creditTotal": "إجمالي الدائن",
+      "debitTotal": "إجمالي المدين",
+      "lines": "السطور"
+    },
+    "metrics": {
+      "balanced": "متوازنة",
+      "credits": "دائن",
+      "debits": "مدين",
+      "entries": "القيود"
+    },
+    "placeholders": {
+      "search": "ابحث بالمرجع أو الحساب أو الوصف أو الملاحظات..."
+    },
+    "referenceTypes": {
+      "all": "كل المراجع",
+      "inventory": "المخزون",
+      "manualAdjustment": "تسوية يدوية",
+      "order": "بيع",
+      "purchase": "شراء",
+      "return": "مرتجع"
+    },
+    "states": {
+      "emptyRows": "لا توجد قيود يومية.",
+      "loadingDetail": "جاري تحميل تفاصيل القيد...",
+      "loadingRows": "جاري تحميل قيود اليومية..."
+    }
+  },
+  "paymentMappings": {
+    "title": "ربط طرق الدفع",
+    "subtitle": "وجّه الدفع النقدي والبطاقات والتحويل البنكي والمحافظ والدفع عند الاستلام تلقائيًا إلى الحسابات المالية الصحيحة.",
+    "missingDefaults": "ربط افتراضي مفقود",
+    "mappingsTitle": "عمليات الربط",
+    "mappingsSubtitle": "ربط الفروع يتجاوز افتراضيات المستأجر.",
+    "rulesCount": "{{count}} قاعدة",
+    "rulesCount_plural": "{{count}} قواعد",
+    "actions": {
+      "newMapping": "ربط جديد",
+      "quickSetup": "إعداد سريع",
+      "saveMapping": "حفظ الربط"
+    },
+    "empty": {
+      "noMappings": "لا توجد عمليات ربط لطرق الدفع."
+    },
+    "errors": {
+      "chooseAccount": "اختر حسابًا ماليًا.",
+      "createAccountFirst": "أنشئ أولًا حساب {{method}} نشطًا.",
+      "deleteFailed": "تعذر حذف ربط الدفع",
+      "loadFailed": "تعذر تحميل ربط طرق الدفع",
+      "quickSetupFailed": "تعذر تطبيق الإعداد السريع",
+      "saveFailed": "تعذر حفظ ربط الدفع"
+    },
+    "labels": {
+      "actions": "الإجراءات",
+      "default": "افتراضي",
+      "financialAccount": "الحساب المالي",
+      "override": "تجاوز",
+      "paymentMethod": "طريقة الدفع",
+      "tenantDefault": "افتراضي المستأجر"
+    },
+    "modals": {
+      "createTitle": "إنشاء ربط دفع",
+      "editTitle": "تعديل ربط الدفع"
+    },
+    "placeholders": {
+      "tenantDefault": "اتركه فارغًا لافتراضي المستأجر"
+    },
+    "toasts": {
+      "deleted": "تم حذف ربط الدفع.",
+      "quickSetup": "تم تطبيق الإعداد السريع.",
+      "saved": "تم حفظ ربط الدفع."
+    }
+  },
+  "profitLoss": {
+    "title": "الأرباح والخسائر",
+    "subtitle": "المبيعات والخصومات والمرتجعات وتكلفة البضاعة والمصروفات وصافي الربح مباشرة.",
+    "empty": {
+      "noExpenseRows": "لا توجد صفوف مصروفات."
+    },
+    "errors": {
+      "loadFailed": "تعذر تحميل تقرير الأرباح والخسائر."
+    },
+    "states": {
+      "errorTitle": "تعذر تحميل الأرباح والخسائر",
+      "loadingText": "قراءة المبيعات المدفوعة والمرتجعات وتكلفة البضاعة وتصنيفات المصروفات.",
+      "loadingTitle": "جاري تحميل الأرباح والخسائر"
+    }
+  },
+  "revenues": {
+    "title": "وحدة الدخل",
+    "subtitle": "تتبع إدخالات الدخل الأخرى وتصنيفات الدخل وسجل الدخل دون الاعتماد على خدمة دخل خلفية مخصصة.",
+    "createTitle": "إنشاء إدخال دخل",
+    "categoriesTitle": "تصنيفات الدخل",
+    "historyTitle": "سجل الدخل",
+    "labels": {
+      "paymentMethod": "طريقة الدفع"
+    },
+    "metrics": {
+      "categories": "التصنيفات",
+      "entries": "الإدخالات",
+      "incomeTotal": "إجمالي الدخل",
+      "otherIncome": "دخل آخر"
+    },
+    "categories": {
+      "Delivery income": "دخل التوصيل",
+      "Interest": "فوائد",
+      "Other income": "دخل آخر",
+      "Service income": "دخل خدمات"
+    },
+    "methods": {
+      "Bank transfer": "تحويل بنكي",
+      "Card": "بطاقة",
+      "Cash": "نقدًا",
+      "Wallet": "محفظة"
+    },
+    "placeholders": {
+      "notes": "مرجع أو مشروع أو مصدر الدخل...",
+      "title": "رسوم استشارة أو رسوم خدمة..."
+    },
+    "empty": {
+      "noAnalytics": "لا توجد تحليلات دخل بعد.",
+      "noEntries": "لا توجد إدخالات دخل مسجلة."
+    },
+    "toasts": {
+      "fallback": "واجهة الدخل الخلفية غير متاحة. تم الحفظ محليًا.",
+      "required": "العنوان والمبلغ مطلوبان",
+      "saved": "تم حفظ الدخل"
+    }
+  },
+  "compliance": {
+    "title": "الامتثال",
+    "subtitle": "واجهة مالية مؤقتة مع نقاط ربط للتقارير المؤسسية وتكامل امتثال مستقبلي.",
+    "actions": {
+      "reports": "تقارير الامتثال"
+    },
+    "cards": {
+      "notesText": "هذه الشاشة للقراءة فقط حتى تتم إضافة واجهات الامتثال المباشرة.",
+      "notesTitle": "ملاحظات الامتثال",
+      "settingsText": "اضبط التقارير والاستقطاعات والقواعد الخاصة بالولاية القضائية عند توفر خدمة الامتثال الخلفية.",
+      "settingsTitle": "إعدادات الامتثال"
+    },
+    "metrics": {
+      "expenseBase": "أساس المصروفات",
+      "revenueBase": "أساس الإيرادات",
+      "status": "حالة الامتثال"
+    },
+    "status": {
+      "placeholder": "مؤقت"
+    }
   }
 }

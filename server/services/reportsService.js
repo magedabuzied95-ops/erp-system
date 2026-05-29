@@ -310,11 +310,11 @@ export const getDashboardReport = async ({ tenantId, filters }) => {
 
     const salesByBranch = await safeQuery(
       `
-      SELECT COALESCE(b.name, 'Unassigned') AS label, COALESCE(SUM(${orders.totalExpr}), 0)::numeric AS value
+      SELECT COALESCE(b.name, 'No branch assigned') AS label, COALESCE(SUM(${orders.totalExpr}), 0)::numeric AS value
       FROM orders o
       LEFT JOIN branches b ON b.id = o.branch_id
       ${orders.where.where}
-      GROUP BY COALESCE(b.name, 'Unassigned')
+      GROUP BY COALESCE(b.name, 'No branch assigned')
       ORDER BY value DESC
       LIMIT 10
       `,
@@ -402,13 +402,13 @@ export const getSalesRows = async (tenantId, filters, options = {}) => {
 
   const groupExpr =
     mode === "branch"
-      ? "COALESCE(b.name, 'Unassigned')"
+      ? "COALESCE(b.name, 'No branch assigned')"
       : mode === "hour"
         ? `EXTRACT(HOUR FROM ${orders.createdExpr})::text`
         : mode === "payment"
           ? "COALESCE(NULLIF(o.payment_method, ''), 'Unknown')"
           : mode === "employee"
-            ? "COALESCE(se.name, o.salesperson_name, e.full_name, 'Unassigned')"
+            ? "COALESCE(se.name, o.salesperson_name, e.full_name, 'Unlinked employee')"
             : `DATE(${orders.createdExpr})::text`;
 
   const joins =

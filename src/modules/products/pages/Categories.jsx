@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { Layers3, Plus, Search, Trash2, Upload } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import ProductsShell from "../components/ProductsShell";
 
@@ -18,15 +19,19 @@ const readFileAsDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
-function CategoryNode({ item, level = 0, onDelete, items = [] }) {
+function CategoryNode({ item, level = 0, onDelete, items = [], t }) {
   const parent = items.find((entry) => String(entry.id) === String(item.parentId)) || null;
   const grandparent = parent?.parentId ? items.find((entry) => String(entry.id) === String(parent.parentId)) : null;
-  const levelLabel = grandparent ? "Child category" : parent ? "Sub category" : "Main category";
+  const levelLabel = grandparent
+    ? t("products.categories.childCategory")
+    : parent
+      ? t("products.categories.subCategory")
+      : t("products.categories.mainCategory");
 
   return (
     <div
       className="rounded-3xl border border-white/8 bg-white/5 p-5"
-      style={{ marginLeft: level * 18 }}
+      style={{ marginInlineStart: level * 18 }}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -55,6 +60,7 @@ function CategoryNode({ item, level = 0, onDelete, items = [] }) {
 }
 
 function Categories() {
+  const { t } = useTranslation();
   const [items, setItems] = useState(() => seedCategories());
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState("");
@@ -105,38 +111,38 @@ function Categories() {
       .filter((item) => String(item.parentId || "") === String(parentId || ""))
       .map((item) => (
         <div key={item.id} className="space-y-3">
-          <CategoryNode item={item} level={level} onDelete={handleDelete} items={items} />
+          <CategoryNode item={item} level={level} onDelete={handleDelete} items={items} t={t} />
           {renderTree(item.id, level + 1)}
         </div>
       ));
 
   return (
     <ProductsShell
-      title="Categories"
-      description="Build a nested product taxonomy with main categories, sub categories, status tracking, and image support."
+      title={t("products.categories.title")}
+      description={t("products.categories.description")}
     >
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-4">
           <div className="flex items-center gap-3">
             <Layers3 className="text-emerald-400" />
-            <h2 className="text-2xl font-black text-white">Category editor</h2>
+            <h2 className="text-2xl font-black text-white">{t("products.categories.editor")}</h2>
           </div>
 
           <div className="mt-5 space-y-4">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+              <Search className="pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search categories..."
-                className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 pl-11 pr-4 text-white outline-none placeholder:text-zinc-500"
+                placeholder={t("products.categories.searchPlaceholder")}
+                className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 ps-11 pe-4 text-white outline-none placeholder:text-zinc-500"
               />
             </div>
 
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Category name"
+              placeholder={t("products.categories.namePlaceholder")}
               className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
             />
 
@@ -145,10 +151,10 @@ function Categories() {
               onChange={(e) => setParentId(e.target.value)}
               className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
             >
-              <option value="">Main category</option>
+              <option value="">{t("products.categories.mainCategory")}</option>
               {items.map((item) => (
                 <option key={item.id} value={item.id}>
-                  Child of {item.name}
+                  {t("products.categories.childOf", { name: item.name })}
                 </option>
               ))}
             </select>
@@ -159,8 +165,8 @@ function Categories() {
                 onChange={(e) => setStatus(e.target.value)}
                 className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="active">{t("products.statusLabels.active")}</option>
+                <option value="inactive">{t("products.statusLabels.inactive")}</option>
               </select>
 
               <label className="inline-flex cursor-pointer items-center justify-center rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white">
@@ -169,14 +175,14 @@ function Categories() {
               </label>
             </div>
 
-            {image ? <img src={image} alt="preview" className="h-44 w-full rounded-[28px] object-cover" /> : null}
+            {image ? <img src={image} alt={t("products.categories.previewAlt")} className="h-44 w-full rounded-[28px] object-cover" /> : null}
 
             <button
               onClick={handleCreate}
               className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 font-semibold text-white"
             >
               <Plus size={18} />
-              Save category
+              {t("products.categories.saveCategory")}
             </button>
           </div>
         </section>
@@ -184,13 +190,13 @@ function Categories() {
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-8">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-black text-white">Nested catalog</h2>
+              <h2 className="text-2xl font-black text-white">{t("products.categories.nestedCatalog")}</h2>
               <p className="mt-1 text-sm text-zinc-500">
-                The tree below supports multiple nesting levels.
+                {t("products.categories.nestedCatalogDescription")}
               </p>
             </div>
             <div className="rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-300">
-              {items.length} categories
+              {t("products.categories.count", { count: items.length })}
             </div>
           </div>
 

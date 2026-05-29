@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
+  Copy,
   Download,
   Edit3,
   Eye,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../shared/api/api";
+import { isAdminUser } from "../shared/auth/authStorage";
 import { SafeImage, SafeRender } from "../shared/components/SafeRender";
 
 const emptyForm = {
@@ -90,10 +92,13 @@ const fallbackLabels = {
   "branches.buttons.archiveShort": "Delete",
   "branches.buttons.downloadQr": "Download QR",
   "branches.buttons.printQr": "Print",
+  "branches.buttons.copyShortLink": "Copy Short Link",
+  "branches.buttons.regenerateShortCode": "Regenerate Short Code",
   "branches.buttons.regenerateQr": "Regenerate QR",
   "branches.qr.title": "Attendance QR",
   "branches.qr.subtitle": "Employees scan this branch QR and enter their phone number or employee code.",
   "branches.qr.publicUrl": "Public attendance URL",
+  "branches.qr.shortUrl": "Short attendance link",
   "branches.qr.loading": "Loading QR...",
   "branches.qr.loadFailed": "Failed to load attendance QR",
   "branches.qr.regenerated": "Attendance QR regenerated",
@@ -103,7 +108,7 @@ const fallbackLabels = {
   "branches.qr.steps.action": "Check in or out",
   "branches.qr.branchBadge": "Branch attendance",
   "branches.qr.generated": "Generated",
-  "branches.qr.note": "Regenerate this QR if it was shared outside the branch. Old printed copies stop working after regeneration.",
+  "branches.qr.note": "Regenerating the branch QR code will invalidate printed copies using the short code.",
   "branches.qr.previewError": "QR preview unavailable",
   "branches.confirm.title": "Delete branch",
   "branches.confirm.subtitle": "This will mark the branch inactive instead of permanently removing it. Linked employees remain preserved.",
@@ -157,11 +162,17 @@ const normalizeBranchQrPayload = (payload = {}) => {
       ""
   ).trim();
   const normalizedDataUrl = qrDataUrl || svgToDataUrl(qrSvg);
+  const shortUrl = data?.shortUrl || data?.short_public_attendance_url || data?.shortPublicAttendanceUrl || data?.publicUrl || data?.public_attendance_url || data?.publicAttendanceUrl || "";
   return {
     ...data,
-    publicUrl: data?.publicUrl || data?.public_attendance_url || data?.publicAttendanceUrl || "",
-    public_attendance_url: data?.public_attendance_url || data?.publicUrl || data?.publicAttendanceUrl || "",
-    publicAttendanceUrl: data?.publicAttendanceUrl || data?.publicUrl || data?.public_attendance_url || "",
+    shortUrl,
+    short_public_attendance_url: data?.short_public_attendance_url || shortUrl,
+    shortPublicAttendanceUrl: data?.shortPublicAttendanceUrl || shortUrl,
+    publicUrl: shortUrl,
+    public_attendance_url: data?.public_attendance_url || shortUrl,
+    publicAttendanceUrl: data?.publicAttendanceUrl || shortUrl,
+    legacyPublicAttendanceUrl: data?.legacyPublicAttendanceUrl || data?.legacy_public_attendance_url || "",
+    legacy_public_attendance_url: data?.legacy_public_attendance_url || data?.legacyPublicAttendanceUrl || "",
     qrSvg,
     qrDataUrl: normalizedDataUrl,
     qrImage: data?.qrImage || data?.qr_image || normalizedDataUrl,
@@ -206,6 +217,7 @@ function Branches() {
   const [qrError, setQrError] = useState("");
   const [error, setError] = useState("");
   const qrImageRef = useRef(null);
+  const canRegenerateBranchQr = isAdminUser();
 
   const t = (key, fallback) => {
     try {
@@ -419,6 +431,18 @@ function Branches() {
     }
   };
 
+  const copyShortLink = async () => {
+    const shortUrl = qrInfo?.shortUrl || qrInfo?.short_public_attendance_url || qrInfo?.shortPublicAttendanceUrl || qrInfo?.publicUrl || "";
+    if (!shortUrl) return;
+    try {
+      await navigator.clipboard.writeText(shortUrl);
+      toast.success("Short link copied");
+    } catch (err) {
+      console.log(err);
+      toast.error("Failed to copy short link");
+    }
+  };
+
   const downloadBranchQr = () => {
     const dataUrl = qrImageRef.current?.currentSrc || qrImageRef.current?.src || getQrImageSrc(qrInfo);
     if (!isValidQrImageSrc(dataUrl) || !viewBranch?.id) return;
@@ -432,7 +456,7 @@ function Branches() {
 
   const printBranchQr = () => {
     const dataUrl = qrImageRef.current?.currentSrc || qrImageRef.current?.src || getQrImageSrc(qrInfo);
-    const publicUrl = qrInfo?.publicUrl || qrInfo?.public_attendance_url || qrInfo?.publicAttendanceUrl || "";
+    const publicUrl = qrInfo?.shortUrl || qrInfo?.short_public_attendance_url || qrInfo?.shortPublicAttendanceUrl || qrInfo?.publicUrl || qrInfo?.public_attendance_url || qrInfo?.publicAttendanceUrl || "";
     const generatedAt = qrInfo?.generated_at || qrInfo?.generatedAt || new Date().toISOString();
     const companyName = qrInfo?.company_name || "";
     const logoUrl = qrInfo?.company_logo_url || "";
@@ -458,7 +482,7 @@ function Branches() {
             .badge { display: inline-block; border: 1px solid #d1d5db; border-radius: 999px; padding: 8px 14px; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #374151; }
             h1 { margin: 18px 0 6px; font-size: 34px; line-height: 1.1; }
             .company { margin: 0; color: #4b5563; font-size: 15px; }
-            .qr-wrap { margin: 28px auto 20px; width: 410px; max-width: 100%; border: 1px solid #e5e7eb; border-radius: 26px; padding: 22px; background: #fff; }
+            .qr-wrap { margin: 28px auto 20px; width: 420px; max-width: 100%; border: 1px solid #e5e7eb; border-radius: 26px; padding: 22px; background: #fff; }
             .qr { display: block; width: 100%; height: auto; }
             .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0; text-align: center; }
             .step { border: 1px solid #e5e7eb; border-radius: 14px; padding: 12px 8px; font-size: 13px; font-weight: 700; }
@@ -773,9 +797,9 @@ function Branches() {
                 </div>
               </div>
 
-              <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
+              <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(420px,460px)_minmax(0,1fr)]">
                 <div className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-2xl shadow-black/10">
-                  <div className="flex aspect-square items-center justify-center rounded-[1.5rem] border border-slate-200 bg-white p-4">
+                  <div className="flex min-h-[420px] aspect-square items-center justify-center rounded-[1.5rem] border border-slate-200 bg-white p-4">
                     {qrLoading ? (
                       <div className="text-center">
                         <RefreshCcw className="mx-auto h-8 w-8 animate-spin text-slate-500" />
@@ -844,9 +868,9 @@ function Branches() {
                   </div>
 
                   <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("branches.qr.publicUrl")}</div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("branches.qr.shortUrl")}</div>
                     <div className="mt-2 break-all text-sm font-semibold leading-6 text-[var(--text)]">
-                      {qrInfo?.publicUrl || qrInfo?.public_attendance_url || qrInfo?.publicAttendanceUrl || t("branches.row.notSet")}
+                      {qrInfo?.shortUrl || qrInfo?.short_public_attendance_url || qrInfo?.shortPublicAttendanceUrl || qrInfo?.publicUrl || t("branches.row.notSet")}
                     </div>
                   </div>
 
@@ -855,6 +879,15 @@ function Branches() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={copyShortLink}
+                      disabled={qrLoading || qrError || !(qrInfo?.shortUrl || qrInfo?.publicUrl)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-slate-500/30 bg-slate-500/10 px-4 py-3 text-sm font-black text-[var(--text)] transition hover:bg-slate-500/20 disabled:opacity-50"
+                    >
+                      <Copy className="h-4 w-4" />
+                      {t("branches.buttons.copyShortLink")}
+                    </button>
                     <button
                       type="button"
                       onClick={downloadBranchQr}
@@ -873,15 +906,17 @@ function Branches() {
                       <Printer className="h-4 w-4" />
                       {t("branches.buttons.printQr")}
                     </button>
-                    <button
-                      type="button"
-                      onClick={regenerateBranchQr}
-                      disabled={qrRegenerating || qrLoading}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-500/20 disabled:opacity-50"
-                    >
-                      <RefreshCcw className={`h-4 w-4 ${qrRegenerating ? "animate-spin" : ""}`} />
-                      {t("branches.buttons.regenerateQr")}
-                    </button>
+                    {canRegenerateBranchQr ? (
+                      <button
+                        type="button"
+                        onClick={regenerateBranchQr}
+                        disabled={qrRegenerating || qrLoading}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-700 transition hover:bg-amber-500/20 disabled:opacity-50"
+                      >
+                        <RefreshCcw className={`h-4 w-4 ${qrRegenerating ? "animate-spin" : ""}`} />
+                      {t("branches.buttons.regenerateShortCode")}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </div>

@@ -2,6 +2,18 @@ import jwt from "jsonwebtoken";
 import db from "../database/db.js";
 import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
 
+let tenantBootstrapPromise = null;
+
+const ensureTenantBootstrapOnce = async () => {
+  if (!tenantBootstrapPromise) {
+    tenantBootstrapPromise = ensureDefaultTenantAndBackfillUsers().catch((error) => {
+      tenantBootstrapPromise = null;
+      throw error;
+    });
+  }
+  return tenantBootstrapPromise;
+};
+
 export const protect = async (
   req,
   res,
@@ -30,7 +42,7 @@ export const protect = async (
         );
 
       try {
-        await ensureDefaultTenantAndBackfillUsers();
+        await ensureTenantBootstrapOnce();
         const userResult = await db.query(
           `
           SELECT

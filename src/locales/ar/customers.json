@@ -1,44 +1,44 @@
 {
-  "eyebrow": "إدارة علاقات العملاء",
-  "title": "دليل العملاء",
-  "subtitle": "إدارة ملفات العملاء وبيانات الاتصال وسجلات الحساب من مساحة عمل واحدة.",
-  "count": "العملاء",
-  "search": "بحث",
-  "searchPlaceholder": "ابحث بالاسم أو الهاتف أو البريد الإلكتروني...",
-  "form": {
-    "titleAdd": "إضافة عميل",
-    "titleUpdate": "تحديث العميل",
-    "subtitle": "حافظ على بيانات الاتصال واضحة وجاهزة للبحث في نقطة البيع.",
-    "namePlaceholder": "اسم العميل",
-    "phonePlaceholder": "الهاتف",
-    "emailPlaceholder": "البريد الإلكتروني",
-    "addressPlaceholder": "العنوان",
-    "submitAdd": "إضافة عميل",
-    "submitUpdate": "تحديث العميل",
-    "cancel": "إلغاء"
-  },
-  "table": {
-    "title": "سجلات العملاء",
-    "visibleRecords": "{{count}} سجل ظاهر",
-    "customer": "العميل",
-    "phone": "الهاتف",
-    "email": "البريد الإلكتروني",
-    "address": "العنوان",
-    "actions": "الإجراءات"
-  },
-  "loading": "جارٍ تحميل العملاء...",
-  "empty": {
-    "title": "لا يوجد عملاء بعد",
-    "description": "أضف أول عميل أعلاه لملء جدول إدارة العلاقات."
-  },
-  "records": {
-    "id": "المعرف",
-    "notSet": "غير محدد",
-    "unnamed": "عميل بدون اسم"
-  },
-  "actions": {
-    "edit": "تعديل",
-    "delete": "حذف",
-    "confirmDelete": "هل تريد حذف العميل؟"
-  }
+    "eyebrow":  "إدارة علاقات العملاء",
+    "title":  "دليل العملاء",
+    "subtitle":  "إدارة ملفات العملاء وبيانات الاتصال وسجلات الحساب من مساحة عمل واحدة.",
+    "count":  "العملاء",
+    "search":  "بحث",
+    "searchPlaceholder":  "ابحث بالاسم أو الهاتف أو البريد الإلكتروني...",
+    "form":  {
+                 "titleAdd":  "إضافة عميل",
+                 "titleUpdate":  "تحديث العميل",
+                 "subtitle":  "حافظ على بيانات الاتصال واضحة وجاهزة للبحث في نقطة البيع.",
+                 "namePlaceholder":  "اسم العميل",
+                 "phonePlaceholder":  "الهاتف",
+                 "emailPlaceholder":  "البريد الإلكتروني",
+                 "addressPlaceholder":  "العنوان",
+                 "submitAdd":  "إضافة عميل",
+                 "submitUpdate":  "تحديث العميل",
+                 "cancel":  "إلغاء"
+             },
+    "table":  {
+                  "title":  "سجلات العملاء",
+                  "visibleRecords":  "{{count}} سجل ظاهر",
+                  "customer":  "العميل",
+                  "phone":  "الهاتف",
+                  "email":  "البريد الإلكتروني",
+                  "address":  "العنوان",
+                  "actions":  "الإجراءات"
+              },
+    "loading":  "جارٍ تحميل العملاء...",
+    "empty":  {
+                  "title":  "لا يوجد عملاء بعد",
+                  "description":  "أضف أول عميل أعلاه لملء جدول إدارة العلاقات."
+              },
+    "records":  {
+                    "id":  "المعرف",
+                    "notSet":  "غير محدد",
+                    "unnamed":  "عميل بدون اسم"
+                },
+    "actions":  {
+                    "edit":  "تعديل",
+                    "delete":  "حذف",
+                    "confirmDelete":  "هل تريد حذف العميل؟"
+                }
 }

@@ -1,0 +1,660 @@
+{
+  "toasts": {
+    "unsupportedImageType": "Unsupported image type. Use JPG, PNG, or WEBP.",
+    "aiReplyFailed": "There was a problem with the reply. Try again or contact support.",
+    "emptyImage": "The image is empty. Choose a clear image.",
+    "imageTooLarge": "The image is too large. Upload a smaller image.",
+    "addedToCart": "Great choice. Added to cart.",
+    "successMessages": [
+      "Great choice",
+      "Your order is being prepared now",
+      "Strong pick",
+      "We will prepare it quickly"
+    ],
+    "profileSavedAndAdded": "Your details were saved and the item was added to cart.",
+    "profileSaved": "Your details were saved.",
+    "variantUnavailable": "This size or color is currently unavailable.",
+    "priceUnavailable": "The price is currently unavailable.",
+    "voiceUnsupported": "Voice search is not supported in this browser.",
+    "productLinkCopied": "Product link copied.",
+    "completeRequiredData": "Review the required details to complete the order.",
+    "uploadTransferProof": "Upload the transfer proof image first.",
+    "invalidTransferProof": "The transfer proof image is invalid.",
+    "checkoutFailed": "Something went wrong. Try again or contact us on WhatsApp.",
+    "accountUnavailable": "We cannot open the account right now.",
+    "reorderPartial": "Available items were added to cart. Some choices are currently unavailable.",
+    "reorderAdded": "The order was added to cart again.",
+    "reorderUnavailable": "These products are currently unavailable. Try different choices.",
+    "copied": "Copied.",
+    "sizeUnavailable": "This size is currently unavailable.",
+    "addFailed": "We cannot add the item to cart right now."
+  },
+  "checkout": {
+    "actions": {
+      "continueToAddress": "Continue to address",
+      "continueToPayment": "Continue to payment",
+      "confirmOrder": "Confirm order",
+      "uploadProofAndConfirm": "Upload transfer proof and confirm order",
+      "confirming": "Confirming your order...",
+      "completePurchase": "Complete purchase"
+    },
+    "payment": {
+      "cod": {
+        "title": "Cash on delivery",
+        "text": "Pay the full order amount when you receive it."
+      },
+      "shippingConfirmation": {
+        "title": "Shipping confirmation",
+        "text": "Pay the shipping fee now to confirm the order, and the rest on delivery."
+      }
+    },
+    "chooseGovernorate": "Choose governorate",
+    "codOnDelivery": "Cash on delivery",
+    "deliveryAddress": "Delivery address",
+    "discount": "Discount",
+    "expectedDeliveryNotice": "Expected delivery within 2-5 business days.",
+    "orderSummary": "Order summary",
+    "paymentMethod": "Payment method",
+    "products": "Products",
+    "remainingOnDelivery": "Remaining on delivery",
+    "shipping": "Shipping",
+    "shippingProvidersReady": "Shipping providers are ready",
+    "total": "Total",
+    "unitPrice": "Unit price",
+    "eyebrow": "Checkout",
+    "title": "Complete order",
+    "subtitle": "Clear details, fast confirmation, and your order moves straight to preparation.",
+    "emptyCartTitle": "Your cart is empty",
+    "emptyCartText": "Choose a product first, then continue checkout",
+    "addressNote": "Write the full address so the courier can reach you quickly",
+    "latestAddressApplied": "We used your latest saved shipping address. You can edit it.",
+    "governorate": "Governorate",
+    "fullAddress": "Full address",
+    "fullAddressPlaceholder": "Street, building number, floor, apartment",
+    "landmark": "Landmark",
+    "landmarkPlaceholder": "Near...",
+    "deliveryNotes": "Delivery notes",
+    "deliveryNotesPlaceholder": "Preferred time or courier note",
+    "codEligibilityNote": "Cash on delivery is available only for returning customers and Damietta addresses.",
+    "coupon": "Discount coupon",
+    "couponPlaceholder": "If you have a discount code",
+    "orderNotes": "Order notes",
+    "orderNotesPlaceholder": "Alternative size or special note",
+    "sections": {
+      "customer": "Customer details",
+      "address": "Delivery address",
+      "payment": "Payment method"
+    },
+    "progress": {
+      "customer": "Your details",
+      "address": "Address",
+      "payment": "Payment",
+      "confirmation": "Confirmation"
+    },
+    "trust": {
+      "safeData": "Your data is safe",
+      "fastShipping": "Fast shipping",
+      "exchange": "Exchange within 14 days",
+      "whatsapp": "WhatsApp support"
+    },
+    "transfer": {
+      "safeBankPayment": "Secure bank payment",
+      "amountDueNow": "Amount to transfer now",
+      "instructions": "Transfer only the shipping fee using InstaPay or Vodafone Cash, then upload the receipt so we can review your order before preparation.",
+      "manualReview": "Transfer is reviewed manually",
+      "scanQr": "Scan QR to pay",
+      "scanQrHint": "Open your payment app, scan the code, then upload the receipt.",
+      "qrComingSoon": "QR coming soon",
+      "useDirectDetails": "Use the direct transfer details without waiting.",
+      "steps": {
+        "transfer": "Transfer the required amount",
+        "upload": "Upload receipt image",
+        "review": "We review and confirm"
+      },
+      "proofUploaded": "Receipt image uploaded",
+      "uploadPrompt": "Drag the receipt here or click to upload",
+      "acceptedFormats": "PNG, JPG, or WEBP from an InstaPay or Vodafone Cash receipt",
+      "readyToSend": "Ready to send",
+      "replace": "Replace",
+      "removeProof": "Remove payment proof",
+      "shippingDeducted": "The shipping fee is deducted from the order total.",
+      "protectiveReview": "Transfers are manually reviewed to protect orders.",
+      "vodafoneWallet": "Vodafone wallet",
+      "instantBankTransfer": "Instant bank transfer",
+      "transferDetailsVia": "Transfer details via {{label}}",
+      "amount": "Amount",
+      "noCardSharing": "No card details shared",
+      "copyPaymentDetails": "Copy payment details",
+      "openApp": "Open app",
+      "proofPreviewAlt": "Transfer proof preview"
+    },
+    "chooseGovernorateFirst": "Choose governorate first",
+    "cityAreaPlaceholder": "Choose or search city / area",
+    "cityAreaManualPlaceholder": "Write city or area",
+    "estimatedShipping": "Estimated shipping",
+    "finalCostNote": "The final cost appears on checkout based on governorate.",
+    "finalShippingAtCheckout": "Final shipping at checkout"
+  },
+  "invoice": {
+    "unavailable": "Unavailable",
+    "walkInCustomer": "Walk-in customer",
+    "source": "Source",
+    "orderNumber": "Order number",
+    "customer": "Customer",
+    "phone": "Phone",
+    "status": "Status",
+    "payment": "Payment",
+    "product": "Product",
+    "variant": "Size / Color",
+    "quantity": "Quantity",
+    "price": "Price",
+    "total": "Total",
+    "notSpecified": "Not specified",
+    "empty": "No invoice items.",
+    "paymentMethods": {
+      "cod": "Cash on delivery",
+      "cash": "Cash",
+      "shipping_confirmation": "Shipping confirmation",
+      "instapay": "Instapay",
+      "vodafone_cash": "Vodafone Cash"
+    }
+  },
+  "common": {
+    "continueShopping": "Continue shopping",
+    "shopNow": "Shop now",
+    "soon": "Soon",
+    "loading": "Loading...",
+    "choose": "Choose",
+    "close": "Close",
+    "noResults": "No results",
+    "search": "Search",
+    "remove": "Remove",
+    "viewAll": "View all",
+    "back": "Back",
+    "refreshPage": "Refresh page"
+  },
+  "header": {
+    "tagline": "Premium Shoes",
+    "trackOrder": "Track Order",
+    "wishlist": "Wishlist",
+    "account": "Account",
+    "languageArabic": "Arabic",
+    "menu": "Menu",
+    "notifications": "Notifications",
+    "noNotifications": "No notifications right now",
+    "announcements": {
+      "fastShipping": "Fast shipping in Egypt",
+      "exchange": "14-day exchange",
+      "cod": "Cash on delivery",
+      "premium": "Mirror Premium products",
+      "todayDeals": "Today deals"
+    }
+  },
+  "nav": {
+    "home": "Home",
+    "categories": "Categories",
+    "sale": "Sale",
+    "new": "New",
+    "men": "Men",
+    "women": "Women",
+    "kids": "Kids",
+    "sizeGuide": "Size guide",
+    "returns": "Returns policy",
+    "mobileNavigation": "Storefront mobile navigation"
+  },
+  "search": {
+    "aria": "Search storefront",
+    "voice": "Voice search",
+    "image": "Image search",
+    "close": "Close search",
+    "smartResults": "Smart results",
+    "searching": "Searching...",
+    "searchFor": "Search for",
+    "trendingTitle": "Trending searches",
+    "recentTitle": "Recent searches",
+    "categories": "Categories",
+    "brands": "Brands",
+    "styles": "Styles",
+    "resultCount": "{{count}} result",
+    "resultsFor": "Search results for \"{{query}}\"",
+    "placeholders": [
+      "Search Jordan 4...",
+      "Search sneakers...",
+      "Search size 42...",
+      "Search by brand...",
+      "Search by SKU..."
+    ],
+    "trending": [
+      "Jordan 4",
+      "Sneakers",
+      "Size 42",
+      "Mirror Original",
+      "Adidas",
+      "Black mens"
+    ],
+    "fallbackSections": {
+      "categories": [
+        "Men",
+        "Women",
+        "Kids",
+        "Sale",
+        "Last piece"
+      ],
+      "brands": [
+        "Nike",
+        "Adidas",
+        "New Balance",
+        "Air Jordan"
+      ],
+      "styles": [
+        "Sneakers",
+        "Running",
+        "Lifestyle",
+        "Mirror Original"
+      ]
+    }
+  },
+  "aiSupport": {
+    "aria": "Smart store assistant",
+    "title": "Store assistant",
+    "subtitle": "Answers from store data only",
+    "closeChat": "Close chat",
+    "uploadedImageAlt": "Uploaded image",
+    "suggestedProduct": "Suggested product",
+    "contactSupport": "Contact support",
+    "analyzingImage": "Analyzing image...",
+    "checkingStore": "Checking store data...",
+    "openCamera": "Open camera",
+    "camera": "Camera",
+    "chooseGalleryImage": "Choose image from gallery",
+    "gallery": "Gallery",
+    "inputPlaceholder": "Type your question here...",
+    "openAssistant": "Open AI shopping assistant",
+    "hint": "Ask about size or model",
+    "askAssistant": "Ask assistant",
+    "launcherSubtitle": "Prices, sizes, and policies"
+  },
+  "customerCapture": {
+    "title": "Save your cart and enjoy a faster experience",
+    "subtitle": "Register your phone to track orders and earn loyalty points",
+    "loyaltyHint": "Get gift points when you register",
+    "skipNow": "Skip for now",
+    "saveFailed": "We could not save your details right now. Check the phone number and try again."
+  },
+  "home": {
+    "trustPoints": [
+      "Secure payment",
+      "Easy exchange",
+      "Real photos",
+      "Fast shipping"
+    ],
+    "heroFallbackSubtitle": "A selected drop from the latest available styles.",
+    "newArrival": "New Arrival",
+    "featuredStyle": "Featured Style",
+    "shopByCategory": "Shop by category",
+    "shopByCategorySubtitle": "Choose quickly by category or type",
+    "bestsellers": "Best sellers",
+    "bestsellersSubtitle": "Best sellers this week",
+    "saleSubtitle": "Selected discounts for a limited time",
+    "newSubtitle": "Recently added to stock",
+    "productOfWeek": "Product of the week",
+    "productOfWeekEmpty": "The featured product will appear here once stock updates.",
+    "featuredDescription": "This week's featured pick comes with clearer photos, visible sizes, and a faster shopping experience."
+  },
+  "visualSearch": {
+    "similarProducts": "Similar products",
+    "analyzing": "Analyzing the image and finding closest products...",
+    "resultsFromImage": "Results based on the uploaded image",
+    "noSimilarProduct": "No similar product found",
+    "emptyHint": "Try a clearer image or use the suggested keywords."
+  },
+  "products": {
+    "products": "Products",
+    "allProducts": "All products",
+    "productDetails": "Product details",
+    "viewProduct": "View product",
+    "sizes": "Sizes",
+    "size": "Size",
+    "color": "Color",
+    "chooseColor": "Choose color",
+    "chooseSize": "Choose size",
+    "selectOptions": "Select options",
+    "viewSizes": "View Sizes",
+    "sizesAvailable": "Available sizes",
+    "sizesInsideProduct": "Sizes inside product",
+    "sizesWillAppear": "Sizes will appear here",
+    "storeProduct": "Store product",
+    "availableNow": "Available now",
+    "unavailable": "Unavailable",
+    "limitedStock": "Limited stock",
+    "availableLiveStock": "Available now from live stock",
+    "checkAvailability": "Check availability",
+    "customerFavorite": "Customer favorite",
+    "bestsellerThisWeek": "Best seller this week",
+    "limitedOffer": "Limited-time offer",
+    "newInStock": "New in stock",
+    "lastAvailableSizes": "Last available sizes",
+    "onlyLeft": "Only {{count}} left",
+    "discountBadge": "-{{percent}}%",
+    "oneSize": "One size",
+    "emptyRailTitle": "We are preparing products here",
+    "comingSoon": "Coming soon",
+    "guidedIntro": "Choose your way",
+    "chooseProductType": "Choose product type",
+    "suitableFor": "Suitable choices for {{label}}",
+    "chooseGenderFirst": "Choose type first",
+    "chooseTypeAndProductFirst": "Choose type and product type first",
+    "changeType": "Change type",
+    "changeProductType": "Change product type",
+    "chooseWearer": "Choose who will wear it",
+    "chooseWearerSubtitle": "After choosing, we will take you to product type",
+    "chooseAndViewTypes": "Choose and view types",
+    "noTypesForCategory": "No types available for this category",
+    "goBackChooseAnother": "Go back and choose another type",
+    "noProductsForSize": "No products for this size right now. Try another size.",
+    "pickDifferentSize": "Pick a different size above",
+    "tryDifferentProductType": "Try another product type",
+    "limitedOffers": "Limited-time offers",
+    "shopEasily": "Shop easily",
+    "productCount": "{{count}} product",
+    "emptyTitle": "No products found",
+    "emptyText": "Try another search or category",
+    "sizeWithValue": "Size {{size}}",
+    "steps": {
+      "gender": "1. Type",
+      "product": "2. Product",
+      "sizes": "3. Sizes"
+    },
+    "curatedDetails": "Carefully selected product details",
+    "verifiedReviews": "Verified reviews",
+    "variantUnavailable": "This size or color is currently unavailable",
+    "premiumMaterial": "Premium material",
+    "similarProducts": "Similar products",
+    "youMayAlsoLike": "You may also like",
+    "savedProduct": "Saved product",
+    "openForDetails": "Open product for details",
+    "checkingLiveStock": "Checking live stock...",
+    "notFoundTitle": "Product not found",
+    "notFoundText": "Go back to products and try another choice"
+  },
+  "filters": {
+    "gender": "Gender",
+    "productType": "Product Type",
+    "type": "Type",
+    "style": "Style",
+    "grade": "Grade",
+    "sizeFilter": "Size Filter",
+    "availableSize": "Available size filter",
+    "showAllSizes": "Show all sizes",
+    "sizesAppearAfterType": "Sizes will appear after choosing product type",
+    "curatedFilters": "Curated Filters",
+    "quickPremium": "Quick filters with a premium experience",
+    "clearFilters": "Clear filters",
+    "filters": "Filters",
+    "closeFilters": "Close filters",
+    "premiumFilters": "Premium Filters",
+    "chooseWhatFits": "Choose what fits you",
+    "applyFilters": "Apply Filters"
+  },
+  "lastPiece": {
+    "title": "Last piece"
+  },
+  "cart": {
+    "readyToShop": "Ready to shop",
+    "removeItem": "Remove item",
+    "decreaseQuantity": "Decrease quantity",
+    "increaseQuantity": "Increase quantity",
+    "emptyTitle": "Your cart is empty",
+    "emptyText": "Choose a product first, then complete checkout",
+    "emptyCheckoutText": "Choose a product first, then complete checkout",
+    "title": "Cart",
+    "addToCart": "Add to cart",
+    "quickAdd": "Quick add",
+    "buyNow": "Buy now",
+    "quantity": "Quantity",
+    "add": "Add",
+    "buy": "Buy",
+    "reserveProduct": "Reserve product",
+    "orderNow": "Order now"
+  },
+  "success": {
+    "awaitingVerificationSubtitle": "We will review the transfer proof, then start preparing the order.",
+    "awaitingVerificationTitle": "Your order is waiting for payment review",
+    "confirmedSubtitle": "The order was recorded and we will start preparing it.",
+    "confirmedTitle": "Order confirmed",
+    "orderRecorded": "Order recorded",
+    "recommendedProducts": "Recommended products",
+    "reviewNotice": "Keep your order number for tracking.",
+    "thanks": "Thanks for your order"
+  },
+  "status": {
+    "awaiting_verification": "Awaiting payment review",
+    "pending": "Order received",
+    "confirmed": "Order received",
+    "processing": "Preparing",
+    "packed": "Preparing",
+    "shipped": "Shipped",
+    "in_transit": "On the way",
+    "out_for_delivery": "On the way",
+    "delivered": "Delivered",
+    "cancelled": "Cancelled",
+    "canceled": "Cancelled",
+    "unpaid": "Unpaid",
+    "paid": "Paid",
+    "partially_paid": "Partially paid",
+    "partial": "Partially paid",
+    "shipping_confirmation": "Shipping confirmation",
+    "shipping_paid": "Shipping paid",
+    "cod": "Cash on delivery",
+    "manual": "Manual delivery"
+  },
+  "shipping": {
+    "manual": "Manual delivery",
+    "provider": "Shipping provider",
+    "trackingNumber": "Tracking number",
+    "status": "Shipping status"
+  },
+  "support": {
+    "generalHelpMessage": "Hello, I need help with a website order",
+    "orderHelpMessage": "Hello, I need help with order {{orderNumber}}",
+    "whatsapp": "WhatsApp",
+    "whatsappUnavailable": "WhatsApp is unavailable right now",
+    "needHelpWhatsapp": "Need help? Contact us on WhatsApp",
+    "sizeHelp": "Need help with sizing?",
+    "whatsappHelp": "WhatsApp help"
+  },
+  "errors": {
+    "simpleProblem": "Something went wrong",
+    "tryAgainOrWhatsapp": "Try again or contact us on WhatsApp",
+    "cleanedTemporaryData": "We cleaned temporary browsing data. Try refreshing the page."
+  },
+  "form": {
+    "fullName": "Full name",
+    "fullNamePlaceholder": "Enter your full name",
+    "mobileNumber": "Mobile number",
+    "primaryPhone": "Primary mobile number",
+    "secondaryPhone": "Optional alternate number",
+    "secondaryPhonePlaceholder": "Alternative contact number"
+  },
+  "customer": {
+    "customer": "Customer",
+    "dearCustomer": "Dear customer"
+  },
+  "validation": {
+    "fullNameRequired": "Enter your full name",
+    "phoneRequired": "Mobile number is required",
+    "invalidEgyptPhone": "Enter a valid Egyptian mobile number, example 01012345678",
+    "governorateRequired": "Choose the governorate",
+    "cityAreaRequired": "Choose the city or area",
+    "cityAreaManualRequired": "Enter the city or area",
+    "addressRequired": "Enter the full address so the courier can reach you quickly",
+    "paymentMethodRequired": "Choose a payment method",
+    "codUnavailable": "Cash on delivery is not available for this customer",
+    "transferProofRequired": "Upload the transfer proof image to confirm the order"
+  },
+  "tracking": {
+    "eyebrow": "Your order is on the way",
+    "title": "Track order",
+    "subtitle": "Enter your order number and mobile number, or open the direct tracking link from your confirmation message.",
+    "readyTitle": "Ready to check",
+    "readyText": "Order number and shipping status will appear here after searching.",
+    "notFoundTitle": "We could not find the order",
+    "notFoundText": "Check the order number and mobile number, or contact us on WhatsApp.",
+    "validation": {
+      "orderNumberRequired": "Enter the order number first"
+    }
+  },
+  "orders": {
+    "orderNumber": "Order number",
+    "orderStatus": "Order status",
+    "expectedDelivery": "Expected delivery",
+    "expectedDeliveryWindow": "2 to 5 business days",
+    "addressSaved": "Address saved with order",
+    "tracking": "Order tracking",
+    "trackOrder": "Track order",
+    "orderDate": "Order date",
+    "itemsLoading": "Product summary will appear here after loading order details.",
+    "itemsSummary": "Product summary",
+    "orderDetails": "Order details",
+    "reorder": "Reorder",
+    "timelineLabels": [
+      "Order received",
+      "Preparing",
+      "Shipped",
+      "On the way",
+      "Delivered"
+    ]
+  },
+  "account": {
+    "eyebrow": "Light account by mobile",
+    "title": "My account",
+    "showMyData": "Show my details",
+    "myData": "My details",
+    "enterPhoneHint": "Enter your phone to view the account",
+    "myOrders": "My orders",
+    "noOrders": "No orders yet",
+    "myAddresses": "My addresses",
+    "addressesEmpty": "Addresses used in orders will appear here",
+    "wishlistEmpty": "Save products you like here",
+    "recentlyViewed": "Recently viewed",
+    "recentEmpty": "Recently viewed products will appear here",
+    "loyaltyBalance": "Loyalty balance",
+    "points": "points",
+    "pointsToNextTier": "{{count}} points to reach {{tier}}",
+    "topTierReached": "You reached the top tier"
+  },
+  "contact": {
+    "title": "Contact us",
+    "phone": "Phone",
+    "whatsappHint": "Tap the support button from any order page.",
+    "address": "Address",
+    "addressPlaceholder": "Branch location appears here.",
+    "workingHours": "Working hours",
+    "workingHoursValue": "Daily from 12 PM to 11 PM."
+  },
+  "faq": {
+    "title": "FAQ",
+    "deliveryTime": {
+      "question": "Delivery time?",
+      "answer": "Usually 2 to 5 business days depending on governorate and shipping provider."
+    },
+    "paymentMethods": {
+      "question": "Payment methods?",
+      "answer": "Cash on delivery is available, and electronic payment support is ready to add."
+    },
+    "exchangeReturns": {
+      "question": "Exchange and return?",
+      "answer": "Available within 14 days under the policy conditions."
+    },
+    "sizeHelp": {
+      "question": "Size help?",
+      "answer": "Use the size guide or contact us on WhatsApp."
+    },
+    "trackOrder": {
+      "question": "Track order?",
+      "answer": "Use the tracking page with order number and phone."
+    },
+    "shippingProviders": {
+      "question": "Shipping providers?",
+      "answer": "The system is ready for Bosta, Mylerz, Aramex, and manual delivery."
+    }
+  },
+  "recent": {
+    "lastTwenty": "Last 20 products",
+    "emptyTitle": "No products here yet"
+  },
+  "returns": {
+    "title": "Exchange and return policy",
+    "noBags": "Bags cannot be exchanged or returned.",
+    "originalCondition": "The product must be in its original condition."
+  },
+  "reviews": {
+    "title": "Customer reviews",
+    "verifiedCustomer": "Verified customer",
+    "items": {
+      "quality": "The material is excellent and delivery was fast.",
+      "size": "The size was accurate and support helped me.",
+      "experience": "Easy experience and the order arrived neatly."
+    }
+  },
+  "sizeGuide": {
+    "eyebrow": "Shoe Fit Guide",
+    "title": "Size guide",
+    "subtitle": "Measurements are approximate and may vary slightly by foot shape, shoe material, and model design. If your foot is wide or between sizes, choose the larger size.",
+    "centimeterMeasurement": "Foot measurement in centimeters",
+    "tableTitle": "Shoe size table",
+    "mobileScrollHint": "Scroll the table horizontally on mobile to view all columns.",
+    "euSize": "EU size",
+    "footLength": "Foot length",
+    "notesLabel": "Notes",
+    "measurementMethod": "Measurement method",
+    "measurementIntro": "Correct measurement helps you choose the closest size from the first time. Stand while measuring because foot length increases slightly with weight.",
+    "measurementCaption": "Measure foot length from heel to longest toe for the most accurate size.",
+    "illustrationAria": "Illustration for measuring foot length from heel to longest toe",
+    "heel": "Heel",
+    "longestToe": "Longest toe",
+    "lengthCm": "Length in centimeters",
+    "notes": {
+      "39": "Good for relatively small feet",
+      "40": "A common daily casual choice",
+      "41": "If your foot is wide, choose half a size up when available",
+      "42": "Most requested in men's models",
+      "43": "Suitable for medium to wide feet",
+      "44": "Check the model shape if it is Slim Fit",
+      "45": "Better if you are between 44 and 45"
+    },
+    "steps": {
+      "paper": {
+        "title": "Stand on paper",
+        "text": "Place your foot on paper over a flat floor while standing with your full weight."
+      },
+      "mark": {
+        "title": "Mark the edges",
+        "text": "Mark the heel start and longest toe end without tilting the foot."
+      },
+      "measure": {
+        "title": "Measure in centimeters",
+        "text": "Use a ruler or tape and measure the distance between marks accurately."
+      },
+      "larger": {
+        "title": "Choose the larger",
+        "text": "Repeat for both feet and choose based on the larger foot."
+      }
+    }
+  },
+  "wishlist": {
+    "subtitle": "Your favorite picks are saved here",
+    "priceDropAlert": "Price drop alert",
+    "priceDropSoon": "Soon we will notify you when a wishlist product price drops.",
+    "backInStockAlert": "Back in stock alert",
+    "backInStockSoon": "Soon we will notify you when your size returns.",
+    "emptyTitle": "Your wishlist is empty",
+    "emptyText": "Save products you like here"
+  },
+  "footer": {
+    "tagline": "A simple and fast shopping experience connected to real inventory.",
+    "links": "Links",
+    "contact": "Contact",
+    "followUs": "Follow us"
+  }
+}

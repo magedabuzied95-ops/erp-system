@@ -1,8 +1,19 @@
 import { api } from "../../../shared/api/api";
 
 export const getSalesEmployees = (options = {}) => api.get("/sales-employees", options);
+export const getBranchEmployees = (params = {}) => api.get("/employees", { params });
+export const getSalesEmployeeProfiles = (options = {}) => api.get("/sales-employees/profiles", options);
 export const createSalesEmployee = (payload = {}) => api.post("/sales-employees", payload);
 export const updateSalesEmployee = (id, payload = {}) => api.put(`/sales-employees/${id}`, payload);
+export const upsertSalesEmployeeProfile = (employeeId, payload = {}) => api.put(`/sales-employees/profiles/${employeeId}`, payload);
 export const updateSalesEmployeeSettings = (payload = {}) => api.put("/sales-employees/settings", payload);
 export const getSalesCommissionReport = (params = {}) => api.get("/sales-commissions/report", { params });
 export const getSalesCommissionPayroll = (employeeId, params = {}) => api.get(`/sales-commissions/payroll/${employeeId}`, { params });
+export const getSalesEmployeePayrollPreview = (employeeId, params = {}) => api.get(`/sales-employees/${employeeId}/payroll-preview`, { params });
+export const finalizeSalesEmployeePayroll = (employeeId, payload = {}) => api.post(`/sales-employees/${employeeId}/payroll-finalize`, payload);
+export const getEmployeePenalties = (employeeId, params = {}) => api.get(`/employees/${employeeId}/penalties`, { params });
+export const createEmployeePenalty = (employeeId, payload = {}) => api.post(`/employees/${employeeId}/penalties`, payload);
+export const updateEmployeePenalty = (id, payload = {}) => api.patch(`/employee-penalties/${id}`, payload);
+export const cancelEmployeePenalty = (id) => api.delete(`/employee-penalties/${id}`);
+export const updateEmployeePayrollSettings = (employeeId, payload = {}) => api.patch(`/employees/${employeeId}/payroll-settings`, payload);
+export const regenerateEmployeePortalToken = (employeeId) => api.post(`/employees/${employeeId}/portal-token/regenerate`, {});

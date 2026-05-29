@@ -1,5 +1,6 @@
 import { getLocalPurchases, normalizePurchase } from "../../purchases/lib/flowStore";
 import { mockOrders, normalizeOrder, getReturns } from "../../orders/lib/ordersStore";
+import { formatLocalizedDate } from "../../../shared/lib/locale";
 export { formatCurrency } from "../../../shared/lib/currency";
 
 const STORAGE_KEYS = {
@@ -29,14 +30,12 @@ const writeJson = (key, value) => {
   win.localStorage.setItem(key, JSON.stringify(value));
 };
 
-export const formatDateTime = (value) => {
+export const formatDateTime = (value, language = "") => {
   if (!value) return "n/a";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat("en-US", {
+  return formatLocalizedDate(value, language, {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(date);
+  });
 };
 
 export const slugify = (value = "") =>

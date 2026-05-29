@@ -68,6 +68,37 @@ const slugify = (value = "") =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 120);
 
+const escapeRegex = (value = "") => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const stripDuplicateBrand = (value = "", brandName = "") => {
+  const brand = cleanText(brandName);
+  let text = withoutPlaceholders(value);
+  if (!brand || !text) return text;
+  const pattern = new RegExp(`\\b${escapeRegex(brand)}\\b`, "gi");
+  let seen = false;
+  text = text
+    .split(/\s+/)
+    .filter((part) => {
+      const isBrand = pattern.test(part);
+      pattern.lastIndex = 0;
+      if (!isBrand) return true;
+      if (seen) return false;
+      seen = true;
+      return true;
+    })
+    .join(" ");
+  return text.replace(/\s{2,}/g, " ").trim();
+};
+
+const ensureBrandTitle = (value = "", brandName = "") => {
+  const brand = cleanText(brandName);
+  const text = stripDuplicateBrand(value, brand);
+  if (!brand) return text;
+  if (!text) return brand;
+  const brandPattern = new RegExp(`\\b${escapeRegex(brand)}\\b`, "i");
+  return brandPattern.test(text) ? text : `${brand} ${text}`;
+};
+
 const translateColorAr = (value = "") => {
   const text = cleanText(value).toLowerCase();
   if (text.includes("black")) return AR.black;
@@ -237,10 +268,14 @@ const extractJson = (value = "") => {
   }
 };
 
-const normalizeAiSuggestion = (raw = {}, fallback = {}) => {
+const normalizeAiSuggestion = (raw = {}, fallback = {}, context = {}) => {
   const suggestions = raw.suggestions || raw;
   const fallbackSuggestions = fallback.suggestions || {};
-  const nameEn = withoutPlaceholders(suggestions.name_en || suggestions.english_name || suggestions.product_name_en) || fallbackSuggestions.name_en;
+  const brandName = cleanText(context.brand_name || context.brand || fallbackSuggestions.brand_resemblance);
+  const nameEn = ensureBrandTitle(
+    withoutPlaceholders(suggestions.name_en || suggestions.english_name || suggestions.product_name_en) || fallbackSuggestions.name_en,
+    brandName
+  );
   const nameAr = withoutPlaceholders(suggestions.name_ar || suggestions.arabic_name || suggestions.product_name_ar) || fallbackSuggestions.name_ar;
   const descriptionEn = withoutPlaceholders(suggestions.description_en || suggestions.english_description) || fallbackSuggestions.description_en;
   const descriptionAr = withoutPlaceholders(suggestions.description_ar || suggestions.arabic_description) || fallbackSuggestions.description_ar;
@@ -261,7 +296,7 @@ const normalizeAiSuggestion = (raw = {}, fallback = {}) => {
       description_ar: descriptionAr,
       description_en: descriptionEn,
       meta_title_ar: withoutPlaceholders(suggestions.meta_title_ar) || nameAr,
-      meta_title_en: withoutPlaceholders(suggestions.meta_title_en || suggestions.meta_title) || fallbackSuggestions.meta_title_en,
+      meta_title_en: ensureBrandTitle(withoutPlaceholders(suggestions.meta_title_en || suggestions.meta_title) || fallbackSuggestions.meta_title_en, brandName),
       seo_description_ar: seoDescriptionAr || descriptionAr,
       seo_description_en: seoDescriptionEn || descriptionEn,
       seo_keywords: sanitizeList(suggestions.seo_keywords || suggestions.keywords).join(", ") || fallbackSuggestions.seo_keywords,
@@ -274,7 +309,7 @@ const normalizeAiSuggestion = (raw = {}, fallback = {}) => {
       grade: cleanText(suggestions.grade) || fallbackSuggestions.grade,
       dominant_colors: normalizeList(suggestions.dominant_colors || suggestions.colors || fallbackSuggestions.dominant_colors),
       brand_resemblance:
-        cleanText(suggestions.brand_resemblance || suggestions.brand_style_resemblance) || fallbackSuggestions.brand_resemblance,
+        brandName || cleanText(suggestions.brand_resemblance || suggestions.brand_style_resemblance) || fallbackSuggestions.brand_resemblance,
       detected_model: cleanText(suggestions.detected_model || suggestions.model) || fallbackSuggestions.detected_model,
       classification: cleanText(suggestions.classification) || fallbackSuggestions.classification,
       silhouette: cleanText(suggestions.silhouette) || fallbackSuggestions.silhouette,
@@ -292,10 +327,23 @@ const normalizeAiSuggestion = (raw = {}, fallback = {}) => {
   };
 };
 
-const buildPrompt = (current = {}) => `Analyze the uploaded product image and combine it with any existing fields.
+const buildPrompt = (current = {}) => {
+  const brandName = cleanText(current.brand_name || current.brand);
+  const brandContext = brandName
+    ? `
+Selected brand:
+- Brand name: ${brandName}
+- Use this exact brand name naturally in English product titles when it fits the image.
+- Title formula: brand + product type + color/style, for example "Nike Casual Running Shoes" or "Puma Black Street Sneakers".
+- Do not repeat the brand name twice. If the product name already contains the brand, do not add it again.
+`
+    : "";
+
+  return `Analyze the uploaded product image and combine it with any existing fields.
 
 Existing fields:
 ${JSON.stringify(current, null, 2)}
+${brandContext}
 
 Return strict JSON only using this shape:
 {
@@ -341,6 +389,7 @@ Image recognition requirements:
 - Arabic must sound premium for Egyptian ecommerce and include color, product type, gender, grade, and look when available.
 - Never output placeholder wording: "Style", "Stylish sneakers", "Fashion footwear", "fashion shoes", or generic filler.
 Keep English concise and retail-ready.`;
+};
 
 const getResponseText = (payload = {}) => {
   if (typeof payload.output_text === "string") return payload.output_text;
@@ -388,15 +437,22 @@ const callOpenAiVision = async ({ imageUrl, imageBase64, current }) => {
 };
 
 export const generateAiProductData = async (input = {}) => {
-  const fallback = buildFallbackSuggestion(input);
+  const brandName = cleanText(input.brand_name || input.brandName || input.brand || input.current?.brand_name || input.current?.brand);
+  const current = {
+    ...(input.current || {}),
+    brand_id: input.brand_id || input.brandId || input.current?.brand_id || input.current?.brandId || "",
+    brand_name: brandName,
+    brand: brandName || cleanText(input.current?.brand),
+  };
+  const fallback = buildFallbackSuggestion({ ...input, current });
   try {
     const raw = await callOpenAiVision({
       imageUrl: input.image_url,
       imageBase64: input.image_base64_optional || input.image_base64,
-      current: input.current || {},
+      current,
     });
     if (!raw) return fallback;
-    return normalizeAiSuggestion(raw, fallback);
+    return normalizeAiSuggestion(raw, fallback, current);
   } catch (error) {
     console.error("[ai-product-data] vision generation failed", error);
     return fallback;

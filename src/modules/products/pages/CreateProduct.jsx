@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import {
   Barcode,
@@ -30,6 +31,7 @@ import {
   generateSku,
   buildSmartSkuPrefix,
   buildVariantSku,
+  collectSkuValues,
   makeUniqueSku,
   resolveBrandPayload,
   resolveCategoryPayload,
@@ -40,11 +42,9 @@ import {
   upsertProductMeta,
 } from "../lib/catalog";
 import {
-  applyBulkPriceToGroups,
   applyBulkSizesToGroups,
   applyBulkStockToGroups,
   createVariantRow,
-  parseBulkPrice,
   parseBulkSizes,
   parseBulkStock,
 } from "../lib/variantBulkSizes";
@@ -53,7 +53,9 @@ import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from
 import {
   createProduct,
   generateAiProductData,
+  generateProductDescription,
   getManufacturers,
+  getProductsWithVariants,
   normalizeVariantPayload,
   suggestMirrorEditionName,
   uploadProductImage,
@@ -105,13 +107,31 @@ const makeId = () =>
 
 const createEmptySizeRow = (defaults = {}) => createVariantRow(defaults);
 
+const getColorGroupName = (group = {}) =>
+  [group.color, group.color_name, group.colorName, group.name, group.label]
+    .map((value) => String(value ?? "").trim())
+    .find(Boolean) || "";
+
 const createEmptyColorGroup = (defaults = {}) => {
   const source = typeof defaults === "string" ? { manufacturer_id: defaults } : defaults || {};
   return {
     id: makeId(),
-    color: String(source.color || "").trim(),
+    color: getColorGroupName(source),
     manufacturer_id: String(source.manufacturer_id || "").trim(),
     manufacturer_override: Boolean(source.manufacturer_override),
+    planned_qty: String(
+      source.default_purchase_qty ??
+        source.purchase_qty ??
+        source.purchase_quantity ??
+        source.planned_qty ??
+        source.planned_quantity ??
+        source.stock_qty ??
+        source.stockQty ??
+        source.quantity ??
+        source.bulk_purchase_qty ??
+        ""
+    ).trim(),
+    article_code: String(source.article_code || source.articleCode || source.variant_article_code || "").trim(),
     edition_name: String(source.edition_name || "").trim(),
     edition_slug: String(source.edition_slug || slugifyEdition(source.edition_name || "") || "").trim(),
     imagePreview: String(source.imagePreview || "").trim(),
@@ -192,6 +212,7 @@ const getDefaultManufacturerName = (manufacturers = [], defaultManufacturerId = 
 const SEO_PANEL_STATE_KEY = "erp.products.seoPanelOpen";
 
 function CreateProduct() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const categories = useMemo(() => seedCategories(), []);
@@ -205,6 +226,7 @@ function CreateProduct() {
   const [descriptionEn, setDescriptionEn] = useState("");
   const [descriptionTouched, setDescriptionTouched] = useState({ ar: false, en: false });
   const [descriptionGenerating, setDescriptionGenerating] = useState({ ar: false, en: false });
+  const [descriptionTone, setDescriptionTone] = useState("");
   const [metaTitle, setMetaTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
   const [seoKeywords, setSeoKeywords] = useState("");
@@ -220,21 +242,29 @@ function CreateProduct() {
   const [subCategory, setSubCategory] = useState("");
   const [childCategory, setChildCategory] = useState("");
   const [gender, setGender] = useState("");
+  const [audiences, setAudiences] = useState([]);
   const [productType, setProductType] = useState("");
   const [style, setStyle] = useState("");
   const [grade, setGrade] = useState("");
   const [variationMode, setVariationMode] = useState("full_variations");
   const [fixedSizeLabel, setFixedSizeLabel] = useState("One Size");
   const [brand, setBrand] = useState("");
+  const [brandId, setBrandId] = useState("");
   const [unit, setUnit] = useState("");
   const [barcode, setBarcode] = useState(generateBarcode());
   const [skuPrefix, setSkuPrefix] = useState("");
   const [skuPrefixTouched, setSkuPrefixTouched] = useState(false);
+  const [existingSkuValues, setExistingSkuValues] = useState(() => new Set());
   const [costPrice, setCostPrice] = useState("");
+  const [regularPrice, setRegularPrice] = useState("");
   const [salePrice, setSalePrice] = useState("");
+  const [salePriceEnabled, setSalePriceEnabled] = useState(false);
+  const [saleReason, setSaleReason] = useState("");
+  const [saleStartAt, setSaleStartAt] = useState("");
+  const [saleEndAt, setSaleEndAt] = useState("");
   const [wholesalePrice, setWholesalePrice] = useState("");
-  const [stock, setStock] = useState("0");
-  const [lowStockThreshold, setLowStockThreshold] = useState("10");
+  const [useCustomComparePrice, setUseCustomComparePrice] = useState(false);
+  const [customComparePrice, setCustomComparePrice] = useState("");
   const [active, setActive] = useState(true);
   const [trackStock, setTrackStock] = useState(true);
   const [coverImage, setCoverImage] = useState("");
@@ -243,8 +273,8 @@ function CreateProduct() {
   const [defaultManufacturerId, setDefaultManufacturerId] = useState("");
   const [colorGroups, setColorGroups] = useState([createEmptyColorGroup()]);
   const [bulkSizesInput, setBulkSizesInput] = useState("");
-  const [bulkPriceInput, setBulkPriceInput] = useState("");
   const [bulkStockInput, setBulkStockInput] = useState("");
+  const [bulkArticleCodeInput, setBulkArticleCodeInput] = useState("");
   const [expandedGroupId, setExpandedGroupId] = useState(colorGroups[0]?.id || "");
   const [barcodePreview, setBarcodePreview] = useState(barcode);
   const [coverLabel, setCoverLabel] = useState("");
@@ -275,7 +305,8 @@ function CreateProduct() {
       brand,
       manufacturer: getDefaultManufacturerName(manufacturers, defaultManufacturerId),
       category: childCategory || subCategory || mainCategory,
-      gender,
+      gender: audiences[0] || gender,
+      audiences,
       productType,
       style,
       grade,
@@ -290,6 +321,7 @@ function CreateProduct() {
       childCategory,
       subCategory,
       mainCategory,
+      audiences,
       gender,
       productType,
       style,
@@ -307,6 +339,13 @@ function CreateProduct() {
   const seoPreviewSlug = canonicalSlug || generatedDescriptions.canonical_slug || "product";
   const seoPreviewUrl = `store.example/products/${seoPreviewSlug}`;
   const aiSuggestions = aiProductData?.suggestions || {};
+  const selectedBrand = useMemo(() => {
+    const byId = brands.find((item) => String(item.id) === String(brandId)) || null;
+    if (byId) return byId;
+    return brands.find((item) => String(item.name || "").trim() === String(brand || "").trim()) || null;
+  }, [brand, brandId, brands]);
+  const selectedBrandId = selectedBrand?.id ? String(selectedBrand.id) : brandId;
+  const selectedBrandName = selectedBrand?.name || brand;
   const smartSkuPrefix = useMemo(
     () =>
       buildSmartSkuPrefix({
@@ -315,7 +354,7 @@ function CreateProduct() {
         manufacturer: getDefaultManufacturerName(manufacturers, defaultManufacturerId),
         productType,
         category: childCategory || subCategory || mainCategory,
-        gender,
+        gender: audiences[0] || gender,
         grade,
         detectedModel: aiSuggestions.detected_model || aiSuggestions.model,
         aiText: [
@@ -335,6 +374,7 @@ function CreateProduct() {
       childCategory,
       subCategory,
       mainCategory,
+      audiences,
       gender,
       grade,
       aiSuggestions.detected_model,
@@ -346,16 +386,51 @@ function CreateProduct() {
       aiSuggestions.classification,
     ]
   );
+  const uniqueSmartSkuPrefix = useMemo(
+    () => makeUniqueSku(smartSkuPrefix, new Set(existingSkuValues)),
+    [existingSkuValues, smartSkuPrefix]
+  );
   useEffect(() => {
-    if (!skuPrefixTouched) setSkuPrefix(smartSkuPrefix);
-  }, [skuPrefixTouched, smartSkuPrefix]);
+    if (!skuPrefixTouched) setSkuPrefix(uniqueSmartSkuPrefix);
+  }, [skuPrefixTouched, uniqueSmartSkuPrefix]);
   const regenerateSkuPrefix = () => {
-    setSkuPrefix(smartSkuPrefix);
+    setSkuPrefix(uniqueSmartSkuPrefix);
     setSkuPrefixTouched(false);
   };
-  const regenerateDescriptions = (target = "all") => {
+  const regenerateDescriptions = async (target = "all") => {
     setDescriptionGenerating({ ar: target === "all" || target === "ar", en: target === "all" || target === "en" });
-    window.setTimeout(() => {
+    try {
+      const result = await generateProductDescription({
+        target,
+        prompt_customization: descriptionTone,
+        current: {
+          ...descriptionContext,
+          product_name: name,
+          description_ar: descriptionAr,
+          description_en: descriptionEn,
+          selling_vibe: descriptionTone || style,
+        },
+      });
+      const next = {
+        description_ar: result?.arabic_description || "",
+        description_en: result?.english_description || "",
+      };
+      if (target === "all" || target === "ar") {
+        setDescriptionAr(next.description_ar);
+        setDescriptionTouched((current) => ({ ...current, ar: false }));
+      }
+      if (target === "all" || target === "en") {
+        setDescriptionEn(next.description_en);
+        setDescriptionTouched((current) => ({ ...current, en: false }));
+      }
+      setDescription(next.description_en || next.description_ar || descriptionEn || descriptionAr);
+      if (result?.source === "OPENAI") {
+        toast.success(t("products.editor.aiDescriptionsGenerated"));
+      } else {
+        toast(t("products.editor.openAiFallbackApplied"));
+      }
+    } catch (error) {
+      console.error(error);
       const next = safeGenerateProductDescriptions(descriptionContext);
       if (target === "all" || target === "ar") {
         setDescriptionAr(next.description_ar);
@@ -366,8 +441,10 @@ function CreateProduct() {
         setDescriptionTouched((current) => ({ ...current, en: false }));
       }
       setDescription(next.description_en || next.description_ar);
+      toast.error(error?.message || t("products.editor.descriptionGenerationFailed"));
+    } finally {
       setDescriptionGenerating({ ar: false, en: false });
-    }, 180);
+    }
   };
   const regenerateSeoMetadata = () => {
     setSeoGenerating(true);
@@ -396,6 +473,7 @@ function CreateProduct() {
           subCategory ||
           childCategory ||
           gender ||
+          audiences.length > 0 ||
           productType ||
           style ||
           grade ||
@@ -403,19 +481,27 @@ function CreateProduct() {
           unit ||
           skuPrefix ||
           costPrice ||
+          regularPrice ||
           salePrice ||
+          salePriceEnabled ||
+          saleReason ||
+          saleStartAt ||
+          saleEndAt ||
           wholesalePrice ||
+          useCustomComparePrice ||
+          customComparePrice ||
           coverImage ||
           gallery.length > 0 ||
           colorGroups.some((group) =>
             Boolean(
               String(group?.color || "").trim() ||
+                String(group?.article_code || "").trim() ||
                 String(group?.imagePreview || "").trim() ||
                 String(group?.image_url || "").trim() ||
                 (Array.isArray(group?.images) && group.images.length > 0) ||
                 (Array.isArray(group?.sizes) &&
                   group.sizes.some((row) =>
-                    [row?.size, row?.stock, row?.sku, row?.price].some((value) => String(value || "").trim())
+                    [row?.size, row?.sku, row?.price].some((value) => String(value || "").trim())
                   ))
             )
           )
@@ -433,6 +519,7 @@ function CreateProduct() {
       subCategory,
       childCategory,
       gender,
+      audiences,
       productType,
       style,
       grade,
@@ -440,8 +527,15 @@ function CreateProduct() {
       unit,
       skuPrefix,
       costPrice,
+      regularPrice,
       salePrice,
+      salePriceEnabled,
+      saleReason,
+      saleStartAt,
+      saleEndAt,
       wholesalePrice,
+      useCustomComparePrice,
+      customComparePrice,
       coverImage,
       gallery,
       colorGroups,
@@ -501,7 +595,7 @@ function CreateProduct() {
 
   const confirmLeaveIfDirty = (event) => {
     if (!hasUnsavedChanges || saving) return;
-    const shouldLeave = window.confirm("You have unsaved product changes. Leave without saving?");
+    const shouldLeave = window.confirm(t("products.editor.confirmLeaveUnsaved"));
     if (!shouldLeave) {
       event.preventDefault();
     }
@@ -528,21 +622,41 @@ function CreateProduct() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadExistingSkus = async () => {
+      try {
+        const rows = await getProductsWithVariants();
+        if (active) setExistingSkuValues(collectSkuValues(rows));
+      } catch (error) {
+        console.warn("[products:sku] failed to load existing SKUs", error?.message || error);
+      }
+    };
+
+    loadExistingSkus();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const hasGroupContent = (group) =>
     Boolean(
       String(group?.color || "").trim() ||
-        String(group?.edition_name || "").trim() ||
+              String(group?.article_code || "").trim() ||
+              String(group?.edition_name || "").trim() ||
         String(group?.imagePreview || "").trim() ||
         String(group?.image_url || "").trim() ||
         (Array.isArray(group?.images) && group.images.length > 0) ||
         (Array.isArray(group?.sizes) &&
           group.sizes.some((row) =>
-            [row?.size, row?.stock, row?.sku, row?.price].some((value) => String(value || "").trim())
+            [row?.size, row?.sku, row?.price].some((value) => String(value || "").trim())
           ))
     );
 
   const hasRowContent = (row) =>
-    Boolean([row?.size, row?.stock, row?.sku, row?.barcode, row?.price].some((value) => String(value || "").trim()));
+    Boolean([row?.size, row?.sku, row?.barcode, row?.price].some((value) => String(value || "").trim()));
 
   const normalizeManufacturerId = (value) => {
     const next = String(value || "").trim();
@@ -574,14 +688,54 @@ function CreateProduct() {
   const getGroupSizeCount = (group) =>
     (Array.isArray(group?.sizes) ? group.sizes : []).filter((row) => String(row.size || "").trim()).length;
 
-  const getGroupStockTotal = (group) =>
-    (Array.isArray(group?.sizes) ? group.sizes : []).reduce((sum, row) => sum + Number(row.stock || 0), 0);
+  const getGroupPlannedQty = (group) => {
+    const values = [
+      group?.default_purchase_qty,
+      group?.purchase_qty,
+      group?.purchase_quantity,
+      group?.planned_qty,
+      group?.planned_quantity,
+      group?.stock_qty,
+      group?.stockQty,
+      group?.quantity,
+      group?.bulk_purchase_qty,
+    ];
+    let sawZero = false;
+    for (const value of values) {
+      const text = String(value ?? "").trim();
+      if (!text) continue;
+      const parsed = Number(text);
+      if (Number.isFinite(parsed) && parsed > 0) return String(parsed);
+      if (Number.isFinite(parsed) && parsed === 0) sawZero = true;
+    }
+    return sawZero ? "0" : "";
+  };
+
+  const getVariantPurchaseQty = (row = {}, group = {}) => {
+    const values = [
+      row.default_purchase_qty,
+      row.purchase_qty,
+      row.purchase_quantity,
+      row.planned_qty,
+      row.planned_quantity,
+      row.stock_qty,
+      row.stockQty,
+      row.quantity,
+      row.bulk_purchase_qty,
+      row.stock,
+    ];
+    for (const value of values) {
+      const parsed = Number(value || 0);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return 0;
+  };
 
   const getEditionSuggestionInput = (group = {}) => ({
-    image_url: normalizeColorImages(group.images)
+    image_url: (normalizeColorImages(group.images)
       .map((image) => image.image_url || image.preview)
       .filter((image) => /^https?:\/\//i.test(String(image || "")))
-      [0] || "",
+      .at(0)) || "",
     product_name: name,
     brand,
     manufacturer: getManufacturerPayload(group.manufacturer_id).manufacturer_name || "",
@@ -597,41 +751,78 @@ function CreateProduct() {
   });
 
   const pageNavSections = [
-    { id: "basic-info", title: "Basic Info" },
-    { id: "media-ai", title: "Media" },
-    { id: "content-seo", title: "SEO" },
-    { id: "pricing", title: "Pricing" },
-    { id: "inventory", title: "Inventory" },
-    { id: "variants", title: "Variants" },
+    { id: "basic-info", title: t("products.editor.basicInfoNav") },
+    { id: "media-ai", title: t("products.editor.mediaNav") },
+    { id: "content-seo", title: t("products.editor.seoNav") },
+    { id: "pricing", title: t("products.editor.pricing") },
+    { id: "inventory", title: t("products.editor.inventory") },
+    { id: "variants", title: t("products.stats.variants") },
   ];
   const productContentTabs = [
-    { id: "description", title: "Customer Description" },
-    { id: "metadata", title: "SEO Metadata" },
-    { id: "preview", title: "Facebook/WhatsApp Preview" },
+    { id: "description", title: t("products.editor.customerDescriptionShortTitle") },
+    { id: "metadata", title: t("products.editor.seoMetadata") },
+    { id: "preview", title: t("products.editor.facebookWhatsappPreview") },
   ];
   const scrollToSection = (sectionId) => {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const buildAutoVariantGroups = (groups, prefix = skuPrefix || uniqueSmartSkuPrefix) => {
+    if (isSimpleMode) return groups;
+    const usedSkus = new Set(existingSkuValues);
+    return groups.map((group) => {
+      const groupColor = getColorGroupName(group);
+      return {
+        ...group,
+        color: groupColor || group.color || "",
+        sizes: (Array.isArray(group.sizes) ? group.sizes : []).map((row) => {
+          if (row.skuManualOverride) {
+            if (String(row.sku || "").trim()) makeUniqueSku(String(row.sku || "").trim().toUpperCase(), usedSkus);
+            return row;
+          }
+          const size = isColorOnlyMode
+            ? String(fixedSizeLabel || "One Size").trim() || "One Size"
+            : String(row.size || "").trim();
+          const sku = groupColor && size
+            ? buildVariantSku({ prefix, color: groupColor, size, usedSkus })
+            : "";
+          return row.sku === sku && row.skuManualOverride === false ? row : { ...row, sku, skuManualOverride: false };
+        }),
+      };
+    });
+  };
+
+  useEffect(() => {
+    setColorGroups((prev) => {
+      const next = buildAutoVariantGroups(prev);
+      return next === prev || JSON.stringify(next.map((group) => group.sizes.map((row) => [row.id, row.sku, row.skuManualOverride]))) ===
+        JSON.stringify(prev.map((group) => group.sizes.map((row) => [row.id, row.sku, row.skuManualOverride])))
+        ? prev
+        : next;
+    });
+  }, [existingSkuValues, fixedSizeLabel, isColorOnlyMode, isSimpleMode, skuPrefix, uniqueSmartSkuPrefix]);
+
   const variantMatrix = useMemo(() => {
     if (isSimpleMode) return [];
-    const basePrice = Number(salePrice || 0);
+    const basePrice = Number(regularPrice || 0);
 
-    const previewSkus = new Set();
+    const previewSkus = new Set(existingSkuValues);
     if (isColorOnlyMode) {
       return colorGroups.flatMap((group, groupIndex) => {
-        const groupColor = String(group.color || "").trim();
+        const groupColor = getColorGroupName(group);
+        const groupArticleCode = String(group.article_code || "").trim();
         if (!groupColor) return [];
         return [
           {
             previewKey: `${group.id || groupIndex}-${groupColor}-color-only`,
             color: groupColor,
             size: String(fixedSizeLabel || "One Size").trim() || "One Size",
-            stock: Number(group.sizes?.[0]?.stock || 0),
-            sku: String(group.sizes?.[0]?.sku || "").trim()
+            stock: 0,
+            sku: group.sizes?.[0]?.skuManualOverride && String(group.sizes?.[0]?.sku || "").trim()
               ? makeUniqueSku(String(group.sizes?.[0]?.sku || "").trim().toUpperCase(), previewSkus)
-              : buildVariantSku({ prefix: skuPrefix || smartSkuPrefix, color: groupColor, size: String(fixedSizeLabel || "One Size").trim() || "One Size", usedSkus: previewSkus }),
+              : buildVariantSku({ prefix: skuPrefix || uniqueSmartSkuPrefix, color: groupColor, size: String(fixedSizeLabel || "One Size").trim() || "One Size", usedSkus: previewSkus }),
             barcode: String(group.sizes?.[0]?.barcode || "").trim(),
+            article_code: groupArticleCode,
             price: Number(group.sizes?.[0]?.price || basePrice || 0),
             image_url: String(getPrimaryColorImage(group) || "").trim(),
             manufacturer_id: String(group.manufacturer_id || "").trim(),
@@ -641,7 +832,8 @@ function CreateProduct() {
     }
 
     return colorGroups.flatMap((group, groupIndex) => {
-      const groupColor = String(group.color || "").trim();
+      const groupColor = getColorGroupName(group);
+      const groupArticleCode = String(group.article_code || "").trim();
       if (!groupColor) return [];
 
           return (Array.isArray(group.sizes) ? group.sizes : [])
@@ -650,17 +842,18 @@ function CreateProduct() {
           previewKey: `${group.id || groupIndex}-${row.id || rowIndex}-${groupColor}-${String(row.size || "").trim()}`,
           color: groupColor,
           size: String(row.size || "").trim(),
-          stock: Number(row.stock || 0),
-          sku: String(row.sku || "").trim()
+          stock: 0,
+          sku: row.skuManualOverride && String(row.sku || "").trim()
             ? makeUniqueSku(String(row.sku || "").trim().toUpperCase(), previewSkus)
-            : buildVariantSku({ prefix: skuPrefix || smartSkuPrefix, color: groupColor, size: String(row.size || "").trim(), usedSkus: previewSkus }),
+            : buildVariantSku({ prefix: skuPrefix || uniqueSmartSkuPrefix, color: groupColor, size: String(row.size || "").trim(), usedSkus: previewSkus }),
           barcode: String(row.barcode || "").trim(),
+          article_code: groupArticleCode,
           price: Number(row.price || basePrice || 0),
           image_url: String(getPrimaryColorImage(group) || "").trim(),
           manufacturer_id: String(group.manufacturer_id || "").trim(),
         }));
     });
-  }, [colorGroups, fixedSizeLabel, isColorOnlyMode, isSimpleMode, salePrice, skuPrefix, smartSkuPrefix]);
+  }, [colorGroups, existingSkuValues, fixedSizeLabel, isColorOnlyMode, isSimpleMode, regularPrice, skuPrefix, uniqueSmartSkuPrefix]);
 
   const addColorGroup = () => {
     const nextGroup = createEmptyColorGroup(defaultManufacturerId);
@@ -686,24 +879,26 @@ function CreateProduct() {
 
   const updateColorGroup = (colorGroupId, field, value) => {
     setColorGroups((prev) =>
-      prev.map((group) =>
-      group.id === colorGroupId
-          ? {
-              ...group,
-              [field]: value,
-              ...(field === "edition_name"
-                ? {
-                    edition_slug: slugifyEdition(value),
-                  }
-                : {}),
-              ...(field === "manufacturer_id"
-                ? {
-                    manufacturer_override:
-                      normalizeManufacturerId(value) !== normalizeManufacturerId(defaultManufacturerId),
-                  }
-                : {}),
-            }
-          : group
+      buildAutoVariantGroups(
+        prev.map((group) =>
+        group.id === colorGroupId
+            ? {
+                ...group,
+                [field]: value,
+                ...(field === "edition_name"
+                  ? {
+                      edition_slug: slugifyEdition(value),
+                    }
+                  : {}),
+                ...(field === "manufacturer_id"
+                  ? {
+                      manufacturer_override:
+                        normalizeManufacturerId(value) !== normalizeManufacturerId(defaultManufacturerId),
+                    }
+                  : {}),
+              }
+            : group
+        )
       )
     );
   };
@@ -816,7 +1011,7 @@ function CreateProduct() {
       setColorGroups((prev) =>
         prev.map((group) => {
           if (group.id !== colorGroupId) return group;
-          if (!overwrite && String(group.color || "").trim()) return group;
+          if (!overwrite && getColorGroupName(group)) return group;
           return { ...group, color: label };
         })
       );
@@ -879,7 +1074,7 @@ function CreateProduct() {
       }
       return next;
     });
-    toast.success("Image removed");
+    toast.success(t("products.images.removed"));
   };
 
   const moveColorImage = (colorGroupId, imageId, direction) => {
@@ -927,7 +1122,7 @@ function CreateProduct() {
             status: error?.status,
             responseBody: error?.responseBody,
           });
-          toast.error("Color image upload failed. Preview kept locally.");
+          toast.error(t("products.editor.colorImageUploadFailed"));
           return { preview, image_url: "", name: file?.name || `Color image ${index + 1}` };
         });
       pendingColorUploadsRef.current.set(`${colorGroupId}:${index}`, uploadPromise);
@@ -959,7 +1154,7 @@ function CreateProduct() {
                 createEmptySizeRow({
                   image_url: getPrimaryColorImage(group) || colorImageUrlsRef.current.get(group.id) || "",
                   manufacturer_id: group.manufacturer_id || "",
-                  price: salePrice || "",
+                  price: regularPrice || "",
                 }),
               ],
             }
@@ -973,22 +1168,35 @@ function CreateProduct() {
     console.log("[bulk-sizes] raw input", bulkSizesInput);
     console.log("[bulk-sizes] parsed sizes", sizes);
     console.log("[bulk-sizes] target", targetGroupId ? { groupId: targetGroupId } : "all colors");
+    console.log("[bulk-sizes] color groups before apply", colorGroups);
 
     if (!String(bulkSizesInput || "").trim()) {
-      toast.error("Enter sizes first");
+      toast.error(t("products.editor.enterSizesFirst"));
       return;
     }
 
     if (sizes.length === 0) {
-      toast.error("No valid sizes found");
+      toast.error(t("products.editor.noValidSizes"));
       return;
     }
 
+    const isTargetGroup = (group) => !targetGroupId || group.id === targetGroupId;
+    const targetGroups = colorGroups.filter(isTargetGroup);
+    if (targetGroups.length === 0) {
+      toast.error(t("products.editor.addColorBeforeBulkSizes"));
+      return;
+    }
+
+    const normalizedColorGroups = colorGroups.map((group) => ({
+      ...group,
+      color: getColorGroupName(group) || group.color || "",
+    }));
+
     const { groups: updatedGroups, addedCount, removedPlaceholderCount } = applyBulkSizesToGroups({
-      groups: colorGroups,
+      groups: normalizedColorGroups.map((group) => (isTargetGroup(group) ? group : { ...group, __skipBulkSizes: true })),
       sizes,
       targetGroupId,
-      price: salePrice || 0,
+      price: regularPrice || 0,
     });
 
     console.log("[bulk-sizes] updated groups", updatedGroups);
@@ -998,40 +1206,13 @@ function CreateProduct() {
       return;
     }
 
-    setColorGroups(updatedGroups);
+    setColorGroups(buildAutoVariantGroups(updatedGroups));
     if (addedCount === 0) {
       toast("All sizes already exist");
       return;
     }
 
-    toast.success("Sizes added successfully");
-  };
-
-  const applyBulkPrice = (targetGroupId = null) => {
-    const parsedPrice = parseBulkPrice(bulkPriceInput);
-    console.log("[bulk-price] raw input", bulkPriceInput);
-    console.log("[bulk-price] parsed price", parsedPrice);
-    console.log("[bulk-price] target", targetGroupId ? { groupId: targetGroupId } : "all colors");
-
-    if (!String(bulkPriceInput || "").trim()) {
-      toast.error("Enter price first");
-      return;
-    }
-
-    if (parsedPrice === null) {
-      toast.error("Enter a valid price");
-      return;
-    }
-
-    const { groups: updatedGroups } = applyBulkPriceToGroups({
-      groups: colorGroups,
-      price: parsedPrice,
-      targetGroupId,
-    });
-
-    console.log("[bulk-price] updated groups", updatedGroups);
-    setColorGroups(updatedGroups);
-    toast.success("Price applied successfully");
+    toast.success(t("products.editor.sizesAdded"));
   };
 
   const applyBulkStock = (targetGroupId = null) => {
@@ -1041,25 +1222,76 @@ function CreateProduct() {
     console.log("[bulk-stock] target", targetGroupId ? { groupId: targetGroupId } : "all colors");
 
     if (!String(bulkStockInput || "").trim()) {
-      toast.error("Enter stock first");
+      toast.error(t("products.editor.enterStock"));
       return;
     }
 
     if (parsedStock === null) {
-      toast.error("Enter a valid stock");
+      toast.error(t("products.editor.enterValidStock"));
       return;
     }
 
-    const { groups: updatedGroups } = applyBulkStockToGroups({
-      groups: colorGroups,
+    const isTargetGroup = (group) => !targetGroupId || group.id === targetGroupId;
+    const targetGroups = colorGroups.filter(isTargetGroup);
+    if (targetGroups.length === 0) {
+      toast.error(t("products.editor.addColorBeforeBulkStock"));
+      return;
+    }
+
+    const { groups: updatedGroups, changedCount } = applyBulkStockToGroups({
+      groups: colorGroups.map((group) => (isTargetGroup(group) ? group : { ...group, __skipBulkStock: true })),
       stock: parsedStock,
       targetGroupId,
     });
 
     console.log("[bulk-stock] updated groups", updatedGroups);
     setColorGroups(updatedGroups);
-    setStock(String(updatedGroups.reduce((sum, group) => sum + getGroupStockTotal(group), 0)));
-      toast.success("Default purchase quantity applied successfully");
+    toast.success(changedCount > 0 ? `Stock applied to ${changedCount} row(s)` : "No size rows to update");
+  };
+
+  const applyBulkArticleCode = (targetGroupId = null, overwrite = false) => {
+    const articleCode = String(bulkArticleCodeInput || "").trim();
+    if (!articleCode) {
+      toast.error(t("products.editor.enterArticleCode", "Enter an article code first"));
+      return;
+    }
+
+    const isTargetGroup = (group) => !targetGroupId || group.id === targetGroupId;
+    const targetGroups = colorGroups.filter(isTargetGroup);
+    if (targetGroups.length === 0) {
+      toast.error(t("products.editor.addColorBeforeBulkArticle", "Add a color before applying article codes"));
+      return;
+    }
+
+    const hasExistingArticle = targetGroups.some((group) =>
+      String(group.article_code || "").trim() ||
+      (group.sizes || []).some((row) => String(row.article_code || "").trim())
+    );
+    if (hasExistingArticle && !overwrite) {
+      const confirmed = window.confirm(t("products.editor.confirmOverwriteArticleCodes", "Some variants already have article codes. Overwrite them?"));
+      if (!confirmed) return;
+    }
+
+    let changedCount = 0;
+    setColorGroups((prev) =>
+      prev.map((group) => {
+        if (!isTargetGroup(group)) return group;
+        const shouldSetGroup = overwrite || !String(group.article_code || "").trim();
+        const nextSizes = (group.sizes || []).map((row) => {
+          const shouldSetRow = overwrite || !String(row.article_code || "").trim();
+          if (!shouldSetRow) return row;
+          changedCount += 1;
+          return { ...row, article_code: articleCode };
+        });
+        if (shouldSetGroup) changedCount += 1;
+        return {
+          ...group,
+          article_code: shouldSetGroup ? articleCode : group.article_code,
+          sizes: nextSizes,
+        };
+      })
+    );
+    toast.success(changedCount > 0 ? t("products.editor.articleCodeApplied", "Article code applied") : t("products.editor.noArticleCodesUpdated", "No article codes updated"));
   };
 
   const removeSizeRow = (colorGroupId, sizeRowId) => {
@@ -1077,20 +1309,25 @@ function CreateProduct() {
 
   const updateSizeRow = (colorGroupId, sizeRowId, field, value) => {
     setColorGroups((prev) =>
-      prev.map((group) =>
-        group.id === colorGroupId
-          ? {
-              ...group,
-              sizes: group.sizes.map((row) =>
-                row.id === sizeRowId
-                  ? {
-                      ...row,
-                      [field]: field === "barcode" ? String(value || "") : value,
-                    }
-                  : row
-              ),
-            }
-          : group
+      buildAutoVariantGroups(
+        prev.map((group) =>
+          group.id === colorGroupId
+            ? {
+                ...group,
+                sizes: group.sizes.map((row) =>
+                  row.id === sizeRowId
+                    ? {
+                        ...row,
+                        [field]: field === "barcode" ? String(value || "") : field === "sku" ? String(value || "").toUpperCase().replace(/[^A-Z0-9-]/g, "") : value,
+                        ...(field === "size" ? { sizeManualOverride: true } : {}),
+                        ...(field === "sku" ? { skuManualOverride: true } : {}),
+                        ...(field === "barcode" ? { barcodeManualOverride: true } : {}),
+                      }
+                    : row
+                ),
+              }
+            : group
+        )
       )
     );
   };
@@ -1105,12 +1342,17 @@ function CreateProduct() {
 
   const buildAiProductPayload = () => ({
     ...getAiImagePayload(coverImage),
+    brand_id: selectedBrandId || undefined,
+    brand_name: selectedBrandName || undefined,
     color_name: colorGroups.map((group) => group.color).filter(Boolean).join(", "),
     product_name: name,
-    brand,
+    brand: selectedBrandName || brand,
     manufacturer: getDefaultManufacturerName(manufacturers, defaultManufacturerId),
     current: {
       ...descriptionContext,
+      brand_id: selectedBrandId || "",
+      brand_name: selectedBrandName || "",
+      brand: selectedBrandName || brand,
       product_name: name,
       description_ar: descriptionAr,
       description_en: descriptionEn,
@@ -1123,7 +1365,7 @@ function CreateProduct() {
 
   const handleGenerateAiProductData = async () => {
     if (!coverImage) {
-      toast.error("Upload the main product image first");
+      toast.error(t("products.editor.uploadMainImageFirst"));
       return;
     }
 
@@ -1137,10 +1379,14 @@ function CreateProduct() {
     try {
       const result = await generateAiProductData(buildAiProductPayload());
       setAiProductData(result);
+      if (selectedBrandId || selectedBrandName) {
+        setBrandId(selectedBrandId || "");
+        setBrand(selectedBrandName || brand);
+      }
       if (result?.source === "TEXT_FALLBACK") {
         toast("Vision AI unavailable. Text generator suggestions are ready.");
       } else {
-        toast.success("AI product suggestions are ready");
+        toast.success(t("products.editor.aiProductSuggestionsReady"));
       }
     } catch (error) {
       console.error(error);
@@ -1160,7 +1406,8 @@ function CreateProduct() {
           suggested_category: childCategory || subCategory || mainCategory,
           suggested_style: style,
           suggested_product_type: productType,
-          gender,
+          gender: audiences[0] || gender,
+          audiences,
           grade,
           dominant_colors: colorGroups.map((group) => group.color).filter(Boolean),
           detection_confidence: {
@@ -1170,7 +1417,7 @@ function CreateProduct() {
           },
         },
       });
-      toast.error("AI failed. Text generator fallback is available.");
+      toast.error(t("products.editor.aiFailedFallback"));
     } finally {
       timers.forEach((timer) => window.clearTimeout(timer));
       setAiProductProgress(AI_PROGRESS_STEPS[0]);
@@ -1213,7 +1460,19 @@ function CreateProduct() {
     if (field === "suggested_category") setMainCategory(value);
     if (field === "suggested_style") setStyle(value);
     if (field === "suggested_product_type") setProductType(value);
-    if (field === "gender") setGender(value);
+    if (field === "gender") {
+      const normalized = String(value || "").trim().toLowerCase();
+      const nextAudience =
+        ["men", "man", "male"].includes(normalized)
+          ? "men"
+          : ["women", "woman", "female", "ladies"].includes(normalized)
+            ? "women"
+            : ["kids", "kid", "children", "child", "boys", "girls"].includes(normalized)
+              ? "kids"
+              : "";
+      setGender(nextAudience || value);
+      if (nextAudience) setAudiences([nextAudience]);
+    }
     if (field === "grade") setGrade(value);
   };
 
@@ -1234,7 +1493,7 @@ function CreateProduct() {
       grade,
     ].some((value) => String(value || "").trim());
 
-    if (overwrites && !window.confirm("Apply AI suggestions and overwrite filled product fields?")) return;
+    if (overwrites && !window.confirm(t("products.editor.confirmApplyAiSuggestions"))) return;
 
     [
       "name_en",
@@ -1280,7 +1539,7 @@ function CreateProduct() {
       setCoverImage(nextPrimary?.preview || nextPrimary?.image_url || nextPrimary?.url || "");
       setCoverLabel(nextPrimary?.name || "");
     }
-    toast.success("Image removed");
+    toast.success(t("products.images.removed"));
   };
 
   const setGalleryItemAsPrimary = (item) => {
@@ -1288,7 +1547,7 @@ function CreateProduct() {
     if (!src) return;
     setCoverImage(src);
     setCoverLabel(item?.name || "Gallery image");
-    toast.success("Primary product image updated");
+    toast.success(t("products.editor.primaryProductImageUpdated"));
   };
 
   const generateNewBarcode = () => {
@@ -1302,7 +1561,7 @@ function CreateProduct() {
     setVariantNotice("");
 
     if (!name.trim()) {
-      toast.error("Product name is required");
+      toast.error(t("products.editor.productNameRequired"));
       return;
     }
 
@@ -1355,34 +1614,43 @@ function CreateProduct() {
         await Promise.allSettled(pendingUploads);
       }
 
-      const usedVariantSkus = new Set();
+      const usedVariantSkus = new Set(existingSkuValues);
       const generatedVariants = filledGroups.flatMap((group) => {
         const groupColor = String(group.color || "").trim();
         const groupImageUrl = String(getPrimaryColorImage(group) || colorImageUrlsRef.current.get(group.id) || "").trim();
         const groupEditionName = mirrorEditionEnabled ? String(group.edition_name || "").trim() : "";
         const groupEditionSlug = groupEditionName ? slugifyEdition(group.edition_slug || groupEditionName) : "";
+        const groupArticleCode = String(group.article_code || "").trim();
         const groupManufacturerPayload = getManufacturerPayload(group.manufacturer_id);
         if (!groupColor) return [];
 
         if (isColorOnlyMode) {
           const sourceRow = (Array.isArray(group.sizes) ? group.sizes : [])[0] || {};
+          const purchaseQty = getVariantPurchaseQty(sourceRow, group);
           return [
             normalizeVariantPayload({
               color: groupColor,
               size: String(fixedSizeLabel || "One Size").trim() || "One Size",
-              default_purchase_qty: Number(sourceRow.stock || 0),
-              sku: String(sourceRow.sku || "").trim()
+              default_purchase_qty: purchaseQty,
+              purchase_qty: purchaseQty,
+              purchase_quantity: purchaseQty,
+              planned_qty: purchaseQty,
+              planned_quantity: purchaseQty,
+              stock_qty: purchaseQty,
+              bulk_purchase_qty: purchaseQty,
+              sku: sourceRow.skuManualOverride && String(sourceRow.sku || "").trim()
                 ? makeUniqueSku(String(sourceRow.sku || "").trim().toUpperCase(), usedVariantSkus)
                 : buildVariantSku({
-                prefix: skuPrefix || smartSkuPrefix,
+                prefix: skuPrefix || uniqueSmartSkuPrefix,
                 color: groupColor,
                 size: String(fixedSizeLabel || "One Size").trim() || "One Size",
                 usedSkus: usedVariantSkus,
               }),
               barcode: String(sourceRow.barcode || "").trim() || "",
-              purchase_price: Number(costPrice || 0),
-              sale_price: Number(sourceRow.price || salePrice || 0),
-              price: Number(sourceRow.price || salePrice || 0),
+              article_code: groupArticleCode,
+              purchase_price: 0,
+              sale_price: 0,
+              price: 0,
               image_url: String(sourceRow.image_url || groupImageUrl || "").trim() || "",
               variant_image_url: String(sourceRow.image_url || groupImageUrl || "").trim() || "",
               color_image_url: groupImageUrl,
@@ -1399,32 +1667,40 @@ function CreateProduct() {
 
         return (Array.isArray(group.sizes) ? group.sizes : [])
           .filter((row) => String(row.size || "").trim())
-          .map((row, rowIndex) =>
-            normalizeVariantPayload({
+          .map((row, rowIndex) => {
+            const purchaseQty = getVariantPurchaseQty(row, group);
+            return normalizeVariantPayload({
               color: groupColor,
               size: String(row.size || "").trim(),
-              default_purchase_qty: Number(row.stock || 0),
-              sku: String(row.sku || "").trim()
+              default_purchase_qty: purchaseQty,
+              purchase_qty: purchaseQty,
+              purchase_quantity: purchaseQty,
+              planned_qty: purchaseQty,
+              planned_quantity: purchaseQty,
+              stock_qty: purchaseQty,
+              bulk_purchase_qty: purchaseQty,
+              sku: row.skuManualOverride && String(row.sku || "").trim()
                 ? makeUniqueSku(String(row.sku || "").trim().toUpperCase(), usedVariantSkus)
                 : buildVariantSku({
-                prefix: skuPrefix || smartSkuPrefix,
+                prefix: skuPrefix || uniqueSmartSkuPrefix,
                 color: groupColor,
                 size: String(row.size || "").trim(),
                 sequence: rowIndex > 0 ? "" : "",
                 usedSkus: usedVariantSkus,
               }),
               barcode: String(row.barcode || "").trim() || "",
-              purchase_price: Number(costPrice || 0),
-              sale_price: Number(row.price || salePrice || 0),
-              price: Number(row.price || salePrice || 0),
+              article_code: groupArticleCode,
+              purchase_price: 0,
+              sale_price: 0,
+              price: 0,
               image_url: String(row.image_url || groupImageUrl || "").trim() || "",
               variant_image_url: String(row.image_url || groupImageUrl || "").trim() || "",
               color_image_url: groupImageUrl,
               ...groupManufacturerPayload,
               edition_name: groupEditionName,
               edition_slug: groupEditionSlug,
-            })
-          );
+            });
+          });
       });
 
       const colorImagesPayload = filledGroups
@@ -1441,6 +1717,7 @@ function CreateProduct() {
           return {
             color_name: groupColor,
             color_value: groupColor,
+            article_code: String(group.article_code || "").trim(),
             images: dedupeImages(groupImages).map((image, index) => ({
               id: image.id || makeId(),
               preview: image.preview || image.image_url || "",
@@ -1483,24 +1760,26 @@ function CreateProduct() {
           childCategory,
           fallbackCategory: "Uncategorized",
         }),
-        ...resolveBrandPayload(brands, { brand }),
+        ...resolveBrandPayload(brands, { brand: selectedBrandName || brand, fallbackBrandId: selectedBrandId || brandId }),
         ...resolveUnitPayload(units, { unit }),
-        gender,
+        gender: audiences[0] || gender,
+        audiences,
+        product_audiences: audiences,
         product_type: productType,
         style,
         grade,
         variation_mode: variationMode,
         fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
-        sku: skuPrefix || smartSkuPrefix,
+        planned_quantities: [],
+        sku: skuPrefix || uniqueSmartSkuPrefix,
         barcode,
-        cost_price: Number(costPrice || 0),
-        purchase_price: Number(costPrice || 0),
-        sale_price: Number(salePrice || 0),
-        price: Number(salePrice || 0),
-        wholesale_price: Number(wholesalePrice || 0),
+        use_custom_compare_price: useCustomComparePrice,
+        custom_compare_price: Number(customComparePrice || 0),
         tax_rate: 0,
-        default_purchase_qty: Number(stock || 0),
-        low_stock_threshold: Number(lowStockThreshold || 10),
+        default_purchase_qty: 0,
+        low_stock_tracking_mode: null,
+        product_low_stock_threshold: null,
+        minimum_distinct_sizes_required: null,
         active,
         status: active ? "active" : "inactive",
         track_stock: trackStock,
@@ -1539,7 +1818,7 @@ function CreateProduct() {
 
       console.log("[products:add] POST /api/products response:", product);
 
-      const productSku = product.sku || skuPrefix || smartSkuPrefix || generateSku(name, product.id).split("-")[0];
+      const productSku = product.sku || skuPrefix || uniqueSmartSkuPrefix || generateSku(name, product.id).split("-")[0];
       const meta = {
         id: product.id,
         name: product.name,
@@ -1554,23 +1833,28 @@ function CreateProduct() {
         main_category: mainCategory,
         sub_category: subCategory,
         child_category: childCategory,
-        gender,
+        gender: audiences[0] || gender,
+        audiences,
+        product_audiences: audiences,
         product_type: productType,
         style,
         grade,
         variation_mode: variationMode,
         fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
-        brand,
+        planned_quantities: [],
+        brand: selectedBrandName || brand,
+        brand_id: selectedBrandId || brandId || "",
         unit,
         sku: productSku,
         barcode,
-        cost_price: Number(costPrice || 0),
-        sale_price: Number(salePrice || 0),
-        wholesale_price: Number(wholesalePrice || 0),
+        use_custom_compare_price: useCustomComparePrice,
+        custom_compare_price: Number(customComparePrice || 0),
         tax_rate: 0,
         stock: 0,
-        default_purchase_qty: Number(stock || 0),
-        low_stock_threshold: Number(lowStockThreshold || 10),
+        default_purchase_qty: 0,
+        low_stock_tracking_mode: null,
+        product_low_stock_threshold: null,
+        minimum_distinct_sizes_required: null,
         active,
         status: active ? "active" : "inactive",
         track_stock: trackStock,
@@ -1605,7 +1889,7 @@ function CreateProduct() {
     <div className="rounded-[18px] border border-white/8 bg-white/[0.035] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-black text-white">Customer-facing description</p>
+          <p className="text-sm font-black text-white">{t("products.editor.customerDescriptionShortTitle", "Customer-facing description")}</p>
           <p className="mt-1 text-xs leading-5 text-zinc-400">
             Generated after image analysis, then refined for storefront catalog and product detail pages.
           </p>
@@ -1617,7 +1901,7 @@ function CreateProduct() {
             disabled={descriptionGenerating.ar}
             className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-emerald-100"
           >
-            {descriptionGenerating.ar ? "Generating Arabic..." : "Regenerate Arabic"}
+            {descriptionGenerating.ar ? t("products.editor.generatingArabic", "Generating Arabic...") : t("products.editor.regenerateArabic", "Regenerate Arabic")}
           </button>
           <button
             type="button"
@@ -1625,7 +1909,7 @@ function CreateProduct() {
             disabled={descriptionGenerating.en}
             className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-sky-300/30 hover:bg-sky-400/10 hover:text-sky-100"
           >
-            {descriptionGenerating.en ? "Generating English..." : "Regenerate English"}
+            {descriptionGenerating.en ? t("products.editor.generatingEnglish", "Generating English...") : t("products.editor.regenerateEnglish", "Regenerate English")}
           </button>
           <button
             type="button"
@@ -1633,14 +1917,23 @@ function CreateProduct() {
             disabled={descriptionGenerating.ar || descriptionGenerating.en}
             className="inline-flex h-9 items-center rounded-[12px] border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15"
           >
-            {descriptionGenerating.ar && descriptionGenerating.en ? "Generating..." : "Regenerate All"}
+            {descriptionGenerating.ar && descriptionGenerating.en ? t("products.editor.generating", "Generating...") : t("products.editor.regenerateAll", "Regenerate All")}
           </button>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="lg:col-span-2">
+          <label className="text-sm font-semibold text-zinc-200">{t("products.editor.promptCustomization", "Prompt customization")}</label>
+          <input
+            value={descriptionTone}
+            onChange={(event) => setDescriptionTone(event.target.value)}
+            placeholder={t("products.editor.promptPlaceholder", "luxury tone, sporty tone, streetwear tone")}
+            className="mt-1.5 h-11 w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-4 text-sm text-white shadow-inner shadow-black/20 outline-none placeholder:text-zinc-500 transition focus:border-amber-300/35 focus:bg-zinc-900"
+          />
+        </div>
         <div>
-          <label className="text-sm font-semibold text-zinc-200">Arabic description</label>
+          <label className="text-sm font-semibold text-zinc-200">{t("products.editor.arabicDescription", "Arabic description")}</label>
           <textarea
             value={descriptionAr}
             onChange={(e) => {
@@ -1656,7 +1949,7 @@ function CreateProduct() {
         </div>
 
         <div>
-          <label className="text-sm font-semibold text-zinc-200">English description</label>
+          <label className="text-sm font-semibold text-zinc-200">{t("products.editor.englishDescription", "English description")}</label>
           <textarea
             value={descriptionEn}
             onChange={(e) => {
@@ -1677,8 +1970,8 @@ function CreateProduct() {
     <div className="rounded-[18px] border border-white/8 bg-white/[0.035] p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-black text-white">SEO metadata</p>
-          <p className="mt-1 text-xs text-zinc-400">Search title, meta description, and keywords generated from product image and content.</p>
+          <p className="text-sm font-black text-white">{t("products.editor.seoMetadata", "SEO metadata")}</p>
+          <p className="mt-1 text-xs text-zinc-400">{t("products.editor.seoMetadataHelp", "Search title, meta description, and keywords generated from product image and content.")}</p>
         </div>
         <button
           type="button"
@@ -1686,12 +1979,12 @@ function CreateProduct() {
           disabled={seoGenerating}
           className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
         >
-          {seoGenerating ? "Generating SEO..." : "Regenerate SEO Metadata"}
+          {seoGenerating ? t("products.editor.generatingSeo", "Generating SEO...") : t("products.editor.regenerateSeoMetadata", "Regenerate SEO Metadata")}
         </button>
       </div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div>
-          <label className="text-sm font-semibold text-zinc-300">Meta title</label>
+          <label className="text-sm font-semibold text-zinc-300">{t("products.editor.metaTitle", "Meta title")}</label>
           <input
             value={metaTitle}
             onChange={(event) => {
@@ -1702,7 +1995,7 @@ function CreateProduct() {
           />
         </div>
         <div>
-          <label className="text-sm font-semibold text-zinc-300">SEO keywords</label>
+          <label className="text-sm font-semibold text-zinc-300">{t("products.editor.seoKeywords", "SEO keywords")}</label>
           <input
             value={seoKeywords}
             onChange={(event) => {
@@ -1713,7 +2006,7 @@ function CreateProduct() {
           />
         </div>
         <div className="lg:col-span-2">
-          <label className="text-sm font-semibold text-zinc-300">SEO meta description</label>
+          <label className="text-sm font-semibold text-zinc-300">{t("products.editor.seoMetaDescription", "SEO meta description")}</label>
           <textarea
             value={seoDescription}
             onChange={(event) => {
@@ -1734,7 +2027,7 @@ function CreateProduct() {
       <div className="rounded-[18px] border border-white/8 bg-white/[0.035] p-4">
         <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
           <Search size={14} />
-          Google search result preview
+          {t("products.editor.googlePreview")}
         </div>
         <div className="rounded-[16px] border border-white/8 bg-zinc-950/65 p-3">
           <p className="truncate text-[13px] text-zinc-400">{seoPreviewUrl}</p>
@@ -1746,7 +2039,7 @@ function CreateProduct() {
       <div className="overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.04]">
         <div className="relative aspect-[1.91/1] w-full overflow-hidden bg-white">
           {coverImage ? (
-            <img src={coverImage} alt="Open Graph preview" className="h-full w-full bg-white object-contain" />
+            <img src={coverImage} alt={t("products.editor.openGraphPreviewAlt")} className="h-full w-full bg-white object-contain" />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-zinc-900/90">
               <Share2 className="text-zinc-600" size={28} />
@@ -1754,7 +2047,7 @@ function CreateProduct() {
           )}
         </div>
         <div className="p-3">
-          <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">store.example</p>
+          <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.previewDomain")}</p>
           <p className="mt-1 line-clamp-1 text-sm font-black text-white">{seoPreviewTitle}</p>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400">{seoPreviewDescription}</p>
         </div>
@@ -1766,9 +2059,9 @@ function CreateProduct() {
     <div className="mt-5 rounded-[18px] border border-blue-300/20 bg-blue-400/[0.07] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-black text-white">AI Vision results</p>
+          <p className="text-sm font-black text-white">{t("products.editor.aiVisionResults", "AI Vision results")}</p>
           <p className="mt-1 text-xs text-zinc-400">
-            Source: {aiProductData.source || "AI"} · Confidence: {aiProductData.confidence ?? 0}%
+            {t("products.editor.aiSourceConfidence", { source: aiProductData.source || "AI", confidence: aiProductData.confidence ?? 0 })}
           </p>
         </div>
         <button
@@ -1776,7 +2069,7 @@ function CreateProduct() {
           onClick={applyAllAiProductSuggestions}
           className="inline-flex h-9 items-center rounded-[12px] border border-blue-300/30 bg-blue-300/10 px-3 text-xs font-black text-blue-100 transition hover:bg-blue-300/15"
         >
-          Apply all
+          {t("products.editor.applyAll")}
         </button>
       </div>
       <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -1797,44 +2090,10 @@ function CreateProduct() {
     </div>
   ) : null;
 
-  const inventoryDefaultsPanel = (
-    <div className="rounded-[18px] border border-white/8 bg-white/[0.028] p-3">
-      <div>
-        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-200">Inventory defaults</p>
-        <p className="mt-0.5 text-xs text-zinc-500">Starting purchase quantities and alert thresholds.</p>
-      </div>
-      <div className="mt-2.5 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,170px)_minmax(0,150px)_1fr]">
-        <div className="max-w-[170px]">
-          <label className="text-[13px] font-semibold text-zinc-100">Default purchase quantity</label>
-          <input
-            type="number"
-            value={stock}
-            onChange={(e) => setStock(e.target.value)}
-            className="mt-1 h-10 w-full rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none"
-          />
-        </div>
-        <div className="max-w-[150px]">
-          <label className="text-[13px] font-semibold text-zinc-100">Low stock alert</label>
-          <input
-            type="number"
-            value={lowStockThreshold}
-            onChange={(e) => setLowStockThreshold(e.target.value)}
-            className="mt-1 h-10 w-full rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none"
-          />
-        </div>
-        <div className="flex items-end">
-          <p className="rounded-[13px] border border-white/8 bg-zinc-950/35 px-3 py-2 text-xs leading-5 text-zinc-400">
-            لا تؤثر على المخزون — المخزون يضاف من فاتورة المشتريات
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <ProductsShell
-      title="Create Product"
-      description="Enterprise-grade product intake with catalog metadata, pricing, media, barcode generation, and variant generation."
+      title={t("products.editor.createTitle", "Create Product")}
+      description={t("products.editor.createDescription", "Enterprise-grade product intake with catalog metadata, pricing, media, barcode generation, and variant generation.")}
       actions={
         <Link
           to="/products"
@@ -1856,9 +2115,9 @@ function CreateProduct() {
           <section className="rounded-[18px] border border-white/10 bg-[#10172a] p-4 shadow-[0_14px_42px_rgba(0,0,0,0.18)]">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-white">Create Product</h1>
+                <h1 className="text-2xl font-semibold tracking-tight text-white">{t("products.editor.createTitle", "Create Product")}</h1>
                 <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-400">
-                  Professional single-page product workflow for catalog data, media intelligence, content, pricing, inventory, and variants.
+                  {t("products.editor.createWorkflowDescription")}
                 </p>
               </div>
 
@@ -1868,7 +2127,7 @@ function CreateProduct() {
                   onClick={confirmLeaveIfDirty}
                   className="inline-flex h-9 items-center gap-2 rounded-[12px] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:border-white/20 hover:bg-white/10"
                 >
-                  Back to list
+                  {t("products.editor.backToList")}
                 </Link>
                 <button
                   type="submit"
@@ -1876,7 +2135,7 @@ function CreateProduct() {
                   className={buttonClasses("primary", "h-9 rounded-[12px] px-4")}
                 >
                   <Plus size={16} strokeWidth={2} />
-                  {saving ? "Saving..." : "Save Product"}
+                  {saving ? t("products.shared.saving") : t("products.editor.saveProduct")}
                 </button>
               </div>
             </div>
@@ -1901,31 +2160,31 @@ function CreateProduct() {
             <SectionCard id="basic-info">
               <SectionHeader
                 icon={Sparkles}
-                title="Basic Information"
-                subtitle="Product naming, descriptions, catalog classification, and sales metadata."
+                title={t("products.editor.basicInformation")}
+                subtitle={t("products.editor.basicInformationHelp")}
                 tone="emerald"
               />
 
               <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="md:col-span-2">
-                  <label className="text-sm font-semibold text-zinc-300">Product name</label>
+                  <label className="text-sm font-semibold text-zinc-300">{t("products.form.productName", "Product name")}</label>
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Example: Air Max Pro"
+                    placeholder={t("products.editor.productNamePlaceholder")}
                     className="mt-2 w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="text-sm font-semibold text-zinc-300">Slug</label>
+                  <label className="text-sm font-semibold text-zinc-300">{t("products.editor.slug")}</label>
                   <input
                     value={canonicalSlug}
                     onChange={(event) => {
                       setCanonicalSlug(event.target.value);
                       setSeoTouched((current) => ({ ...current, slug: true }));
                     }}
-                    placeholder="air-max-pro"
+                    placeholder={t("products.editor.slugPlaceholder")}
                     className="mt-2 w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3 font-mono text-sm text-white outline-none placeholder:text-zinc-500"
                   />
                 </div>
@@ -1942,16 +2201,24 @@ function CreateProduct() {
                 brand={brand}
                 unit={unit}
                 gender={gender}
+                audiences={audiences}
                 productType={productType}
                 style={style}
                 grade={grade}
                 onMainCategoryChange={setMainCategory}
                 onSubCategoryChange={setSubCategory}
                 onChildCategoryChange={setChildCategory}
-                onBrandChange={setBrand}
+                onBrandChange={(nextBrand, selected) => {
+                  setBrand(nextBrand);
+                  setBrandId(selected?.id ? String(selected.id) : "");
+                }}
                 onUnitChange={setUnit}
                 onVariationModeChange={setVariationMode}
                 onGenderChange={setGender}
+                onAudiencesChange={(next) => {
+                  setAudiences(next);
+                  setGender(next[0] || "");
+                }}
                 onProductTypeChange={setProductType}
                 onStyleChange={setStyle}
                 onGradeChange={setGrade}
@@ -1959,14 +2226,14 @@ function CreateProduct() {
 
               {isColorOnlyMode ? (
                 <div className="mt-5 rounded-[24px] border border-cyan-400/15 bg-cyan-400/10 p-4">
-                  <label className="text-sm font-semibold text-cyan-100">Fixed size</label>
+                  <label className="text-sm font-semibold text-cyan-100">{t("products.editor.fixedSize", "Fixed size")}</label>
                   <input
                     value={fixedSizeLabel}
                     onChange={(event) => setFixedSizeLabel(event.target.value)}
-                    placeholder="One Size"
+                    placeholder={t("products.editor.oneSize")}
                     className="mt-2 w-full rounded-2xl border border-cyan-400/15 bg-zinc-950 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
                   />
-                  <p className="mt-2 text-xs text-cyan-100/70">Used for every color variant. Shoes keep the current size matrix.</p>
+                  <p className="mt-2 text-xs text-cyan-100/70">{t("products.editor.fixedSizeHelp")}</p>
                 </div>
               ) : null}
             </SectionCard>
@@ -1974,8 +2241,8 @@ function CreateProduct() {
             <SectionCard id="media-ai">
               <SectionHeader
                 icon={ImagePlus}
-                title="Media + AI Vision"
-                subtitle="Upload product imagery and run AI vision enrichment from the cover image."
+                title={t("products.editor.mediaAiVision")}
+                subtitle={t("products.editor.mediaAiVisionHelp")}
                 tone="blue"
               />
 
@@ -1987,12 +2254,18 @@ function CreateProduct() {
                     ) : (
                       <>
                         <Upload className="text-blue-400" size={42} />
-                        <p className="mt-4 text-lg font-semibold text-white">Upload product image</p>
+                        <p className="mt-4 text-lg font-semibold text-white">{t("products.editor.uploadProductImage", "Upload product image")}</p>
                         <p className="mt-2 text-sm text-zinc-400">{coverLabel || "PNG, JPG, WEBP"}</p>
                       </>
                     )}
                     <input type="file" hidden accept="image/*" onChange={handleCover} />
                   </label>
+                  {selectedBrandName ? (
+                    <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-xs font-black text-blue-100">
+                      <span className="text-blue-200/70">{t("products.form.brand", "Brand")}</span>
+                      <span className="truncate" dir="auto">{selectedBrandName}</span>
+                    </div>
+                  ) : null}
                   <button
                     type="button"
                     onClick={handleGenerateAiProductData}
@@ -2005,11 +2278,11 @@ function CreateProduct() {
                 </div>
 
                 <div className="rounded-[28px] border border-white/8 bg-white/5 p-5">
-                  <p className="text-sm font-semibold text-zinc-300">Gallery upload</p>
+                  <p className="text-sm font-semibold text-zinc-300">{t("products.editor.galleryUpload", "Gallery upload")}</p>
                   <label className="mt-4 flex min-h-[220px] cursor-pointer items-center justify-center rounded-[24px] border-2 border-dashed border-white/10 bg-zinc-950/60 text-center">
                     <div>
                       <ImagePlus className="mx-auto text-zinc-400" size={38} />
-                      <p className="mt-4 text-sm font-semibold text-white">Add multiple gallery images</p>
+                      <p className="mt-4 text-sm font-semibold text-white">{t("products.editor.addMultipleGalleryImages", "Add multiple gallery images")}</p>
                       <p className="mt-2 text-xs text-zinc-500">{gallery.length} image(s) selected</p>
                     </div>
                     <input type="file" hidden accept="image/*" multiple onChange={handleGallery} />
@@ -2044,8 +2317,8 @@ function CreateProduct() {
             <SectionCard id="content-seo">
               <SectionHeader
                 icon={Search}
-                title="Product Content & SEO"
-                subtitle="Image upload, AI detection, product description, and SEO metadata stay in one connected workflow."
+                title={t("products.editor.productContentSeo")}
+                subtitle={t("products.editor.productContentSeoHelp")}
                 tone="sky"
               />
 
@@ -2078,20 +2351,20 @@ function CreateProduct() {
             <SectionCard id="pricing">
               <SectionHeader
                 icon={Barcode}
-                title="Pricing"
-                subtitle="SKU prefix, barcode, cost, shelf price, and wholesale references."
+                title={t("products.editor.pricing")}
+                subtitle={t("products.editor.pricingHelp")}
                 tone="amber"
               />
 
               <div className="mt-5 space-y-4">
                 <div className="hidden rounded-[18px] border border-white/8 bg-white/[0.028] p-3 transition duration-200 hover:-translate-y-0.5 hover:border-white/14 hover:bg-white/[0.045] hover:shadow-lg hover:shadow-black/10">
                   <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-200">Identifiers</p>
-                    <p className="mt-0.5 text-xs text-zinc-500">Internal product codes and scannable labels.</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-200">{t("products.editor.identifiers", "Identifiers")}</p>
+                    <p className="mt-0.5 text-xs text-zinc-500">{t("products.editor.identifiersHelp", "Internal product codes and scannable labels.")}</p>
                   </div>
                   <div className="mt-2.5 grid grid-cols-1 gap-4 lg:grid-cols-2">
                     <div>
-                      <label className="text-[13px] font-semibold text-zinc-100">SKU prefix</label>
+                      <label className="text-[13px] font-semibold text-zinc-100">{t("products.editor.skuPrefix", "SKU prefix")}</label>
                       <div className="mt-1 flex gap-2">
                         <input
                           value={skuPrefix}
@@ -2107,14 +2380,16 @@ function CreateProduct() {
                           className="inline-flex h-10 items-center gap-1.5 rounded-[13px] border border-white/10 bg-white/[0.045] px-2.5 text-xs font-bold text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
                         >
                           <Sparkles className="h-3.5 w-3.5" />
-                          Regenerate
+                          {t("products.editor.regenerateFromProductName")}
                         </button>
                       </div>
-                      <p className="mt-1 text-[11px] text-zinc-500">Auto: {smartSkuPrefix}</p>
+                      <p className="mt-1 text-[11px] text-zinc-500">
+                        {t("products.editor.autoSkuPrefix", { prefix: uniqueSmartSkuPrefix, suffix: skuPrefixTouched ? t("products.editor.manualOverrideSuffix") : "" })}
+                      </p>
                     </div>
 
                     <div>
-                      <label className="text-[13px] font-semibold text-zinc-100">Barcode</label>
+                      <label className="text-[13px] font-semibold text-zinc-100">{t("products.selected.barcode", "Barcode")}</label>
                       <div className="mt-1 flex gap-2">
                         <input
                           value={barcode}
@@ -2130,7 +2405,7 @@ function CreateProduct() {
                           className="inline-flex h-10 items-center gap-1.5 rounded-[13px] border border-white/10 bg-white/[0.045] px-2.5 text-xs font-bold text-zinc-100 transition hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100 active:translate-y-0"
                         >
                           <ScanLine size={13} />
-                          Generate
+                          {t("products.editor.generate")}
                         </button>
                       </div>
                     </div>
@@ -2139,75 +2414,49 @@ function CreateProduct() {
 
                 <div className="rounded-[18px] border border-white/8 bg-[#0f1725] p-4 transition duration-200 hover:-translate-y-0.5 hover:border-emerald-300/20 hover:shadow-lg hover:shadow-black/10">
                   <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-200">Pricing</p>
-                    <p className="mt-0.5 text-xs text-zinc-500">Cost, shelf price, and wholesale references.</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-200">{t("products.editor.pricingSummary", "Pricing summary")}</p>
+                    <p className="mt-0.5 text-xs text-zinc-500">{t("products.editor.pricingFilledFromPurchases", "Pricing is filled from purchase invoices after stock is received.")}</p>
                   </div>
-                  <div className="mt-2.5 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.15fr)_minmax(0,0.9fr)]">
-                    <div>
-                      <label className="text-[13px] font-semibold text-zinc-100">Cost price</label>
-                      <input
-                        type="number"
-                        value={costPrice}
-                        onChange={(e) => setCostPrice(e.target.value)}
-                        className="mt-1 h-10 w-full rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition placeholder:text-zinc-600 hover:border-white/14 focus:border-amber-300/35 focus:bg-white/[0.06]"
-                      />
-                    </div>
-
-                    <div className="rounded-[16px] border border-amber-300/28 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.12),rgba(251,191,36,0.035)_42%,rgba(255,255,255,0.025)_100%)] p-3 shadow-[0_0_28px_rgba(251,191,36,0.09)] transition duration-200 hover:-translate-y-0.5 hover:border-amber-300/45 hover:shadow-[0_0_34px_rgba(251,191,36,0.13)]">
-                      <label className="text-[13px] font-black text-amber-100">Sale price</label>
-                      <input
-                        type="number"
-                        value={salePrice}
-                        onChange={(e) => setSalePrice(e.target.value)}
-                        className="mt-1 h-11 w-full rounded-[13px] border border-amber-200/20 bg-white/[0.06] px-4 text-lg font-black text-white shadow-inner shadow-black/25 outline-none ring-1 ring-inset ring-amber-100/[0.06] transition placeholder:text-amber-100/30 hover:border-amber-200/30 focus:border-amber-200/50 focus:bg-white/[0.075]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[13px] font-semibold text-zinc-100">Wholesale price</label>
-                      <input
-                        type="number"
-                        value={wholesalePrice}
-                        onChange={(e) => setWholesalePrice(e.target.value)}
-                        className="mt-1 h-10 w-full rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition placeholder:text-zinc-600 hover:border-white/14 focus:border-amber-300/35 focus:bg-white/[0.06]"
-                      />
-                    </div>
+                  <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+                    {[
+                      t("products.editor.currentRegularPrice"),
+                      t("products.editor.currentSalePrice"),
+                      t("products.editor.currentCost"),
+                      t("products.editor.lastUpdatedFromPurchase"),
+                    ].map((label) => (
+                      <div key={label} className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</p>
+                        <p className="mt-2 text-sm font-black text-zinc-100">{t("products.editor.notSet")}</p>
+                      </div>
+                    ))}
                   </div>
-                </div>
-
-                <div className="rounded-[18px] border border-white/8 bg-white/[0.028] p-3 transition duration-200 hover:-translate-y-0.5 hover:border-white/14 hover:bg-white/[0.045] hover:shadow-lg hover:shadow-black/10">
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-200">Inventory defaults</p>
-                    <p className="mt-0.5 text-xs text-zinc-500">Starting quantities and alert thresholds.</p>
-                  </div>
-                  <div className="mt-2.5 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,170px)_minmax(0,150px)_1fr]">
-                    <div className="max-w-[170px]">
-                      <label className="text-[13px] font-semibold text-zinc-100">Default purchase quantity</label>
+                  <div className="mt-3 rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={useCustomComparePrice}
+                        onChange={(e) => setUseCustomComparePrice(e.target.checked)}
+                        className="mt-1 h-4 w-4 rounded border-white/20 bg-zinc-900"
+                      />
+                      <span>
+                        <span className="block text-[13px] font-black text-zinc-100">{t("products.editor.customComparePrice", "Custom storefront compare price")}</span>
+                        <span className="mt-1 block text-xs text-zinc-500">{t("products.editor.customComparePriceCreateHelp", "Marketing-only old price. It does not change cost, POS price, invoices, or profit.")}</span>
+                      </span>
+                    </label>
+                    {useCustomComparePrice ? (
                       <input
                         type="number"
-                        value={stock}
-                        onChange={(e) => setStock(e.target.value)}
-                        className="mt-1 h-10 w-full rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition placeholder:text-zinc-600 hover:border-white/14 focus:border-amber-300/35 focus:bg-white/[0.06]"
+                        min="0"
+                        step="0.01"
+                        value={customComparePrice}
+                        onChange={(e) => setCustomComparePrice(e.target.value)}
+                        placeholder={t("products.editor.oldPricePlaceholder", "Old price shown on storefront")}
+                        className="mt-3 h-10 w-full rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition placeholder:text-zinc-600 hover:border-white/14 focus:border-amber-300/35 focus:bg-white/[0.06]"
                       />
-                    </div>
-
-                    <div className="max-w-[150px]">
-                      <label className="text-[13px] font-semibold text-zinc-100">Low stock alert</label>
-                      <input
-                        type="number"
-                        value={lowStockThreshold}
-                        onChange={(e) => setLowStockThreshold(e.target.value)}
-                        className="mt-1 h-10 w-full rounded-[13px] border border-white/8 bg-white/[0.045] px-3.5 font-semibold text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.045] transition placeholder:text-zinc-600 hover:border-white/14 focus:border-amber-300/35 focus:bg-white/[0.06]"
-                      />
-                    </div>
-
-                    <div className="flex items-end">
-                      <p className="rounded-[13px] border border-white/8 bg-zinc-950/35 px-3 py-2 text-xs leading-5 text-zinc-400">
-                        لا تؤثر على المخزون — المخزون يضاف من فاتورة المشتريات
-                      </p>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
+
                 </div>
 
                 <div className="hidden rounded-[22px] border border-sky-300/18 bg-[#0f1725] p-4 shadow-[0_16px_45px_rgba(0,0,0,0.16)] transition">
@@ -2222,13 +2471,13 @@ function CreateProduct() {
                         </div>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-black text-white">SEO metadata</p>
+                            <p className="text-sm font-black text-white">{t("products.editor.seoMetadata", "SEO metadata")}</p>
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${seoOpen ? "bg-amber-300/20 text-amber-100" : "bg-sky-300/15 text-sky-100"}`}>
-                              {seoOpen ? "Expanded" : "Collapsed"}
+                              {seoOpen ? t("products.editor.expanded", "Expanded") : t("products.editor.collapsed", "Collapsed")}
                             </span>
                           </div>
-                          <p className="mt-0.5 text-xs font-semibold text-zinc-300">Google / Facebook Preview</p>
-                          <p className="mt-0.5 text-xs text-zinc-500">Advanced preview fields generated separately from product descriptions.</p>
+                          <p className="mt-0.5 text-xs font-semibold text-zinc-300">{t("products.editor.googleFacebookPreview", "Google / Facebook Preview")}</p>
+                          <p className="mt-0.5 text-xs text-zinc-500">{t("products.editor.advancedPreviewHelp", "Advanced preview fields generated separately from product descriptions.")}</p>
                         </div>
                       </div>
                       <ChevronDown className={`h-5 w-5 shrink-0 text-amber-100 transition ${seoOpen ? "rotate-180" : ""}`} />
@@ -2237,21 +2486,21 @@ function CreateProduct() {
                     {seoOpen ? (
                       <div className="mt-3 border-t border-white/10 pt-3">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">Advanced SEO</p>
+                          <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">{t("products.editor.advancedSeo", "Advanced SEO")}</p>
                           <button
                             type="button"
                             onClick={regenerateSeoMetadata}
                             disabled={seoGenerating}
                             className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
                           >
-                            {seoGenerating ? "Generating SEO..." : "Regenerate SEO Metadata"}
+                            {seoGenerating ? t("products.editor.generatingSeo", "Generating SEO...") : t("products.editor.regenerateSeoMetadata", "Regenerate SEO Metadata")}
                           </button>
                         </div>
                         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                           <div className="rounded-[18px] border border-white/10 bg-zinc-950/75 p-4 lg:col-span-2">
                             <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
                               <Search size={14} />
-                              Google search result preview
+                              {t("products.editor.googlePreview")}
                             </div>
                             <div className="rounded-[16px] border border-white/8 bg-white/[0.03] p-3">
                               <p className="truncate text-[13px] text-zinc-400">{seoPreviewUrl}</p>
@@ -2262,14 +2511,14 @@ function CreateProduct() {
                           <div className="rounded-[18px] border border-white/10 bg-zinc-950/75 p-4 lg:col-span-2">
                             <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
                               <Share2 size={14} />
-                              Facebook / WhatsApp preview
+                              {t("products.editor.facebookWhatsappPreview")}
                             </div>
                             <div className="overflow-hidden rounded-[16px] border border-white/10 bg-white/[0.04]">
                               <div className="relative w-full aspect-[1.91/1] overflow-hidden rounded-t-2xl bg-white">
                                 {coverImage ? (
                                   <img
                                     src={coverImage}
-                                    alt="Open Graph preview"
+                                    alt={t("products.editor.openGraphPreviewAlt")}
                                     className="h-full w-full object-contain bg-white"
                                   />
                                 ) : (
@@ -2279,14 +2528,14 @@ function CreateProduct() {
                                 )}
                               </div>
                               <div className="p-3">
-                                <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">store.example</p>
+                                <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.previewDomain")}</p>
                                 <p className="mt-1 line-clamp-1 text-sm font-black text-white">{seoPreviewTitle}</p>
                                 <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400">{seoPreviewDescription}</p>
                               </div>
                             </div>
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-zinc-300">Meta title</label>
+                            <label className="text-sm font-semibold text-zinc-300">{t("products.editor.metaTitle", "Meta title")}</label>
                             <input
                               value={metaTitle}
                               onChange={(event) => {
@@ -2297,7 +2546,7 @@ function CreateProduct() {
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-zinc-300">Canonical/slug</label>
+                            <label className="text-sm font-semibold text-zinc-300">{t("products.editor.canonicalSlug")}</label>
                             <input
                               value={canonicalSlug}
                               onChange={(event) => {
@@ -2308,7 +2557,7 @@ function CreateProduct() {
                             />
                           </div>
                           <div className="lg:col-span-2">
-                            <label className="text-sm font-semibold text-zinc-300">SEO Meta Description (Google/Facebook preview)</label>
+                            <label className="text-sm font-semibold text-zinc-300">{t("products.editor.seoMetaDescriptionPreview")}</label>
                             <textarea
                               value={seoDescription}
                               onChange={(event) => {
@@ -2321,7 +2570,7 @@ function CreateProduct() {
                             <p className="mt-1 text-[11px] text-zinc-500">{seoDescription.length}/160 characters</p>
                           </div>
                           <div className="lg:col-span-2">
-                            <label className="text-sm font-semibold text-zinc-300">SEO keywords</label>
+                            <label className="text-sm font-semibold text-zinc-300">{t("products.editor.seoKeywords", "SEO keywords")}</label>
                             <input
                               value={seoKeywords}
                               onChange={(event) => {
@@ -2340,9 +2589,9 @@ function CreateProduct() {
                 <div className="mt-5 rounded-[24px] border border-blue-300/20 bg-blue-400/[0.07] p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-black text-white">AI product suggestions</p>
+                      <p className="text-sm font-black text-white">{t("products.editor.aiProductSuggestions", "AI product suggestions")}</p>
                       <p className="mt-1 text-xs text-zinc-400">
-                        Source: {aiProductData.source || "AI"} · Confidence: {aiProductData.confidence ?? 0}%
+                        {t("products.editor.aiSourceConfidence", { source: aiProductData.source || "AI", confidence: aiProductData.confidence ?? 0 })}
                       </p>
                     </div>
                     <button
@@ -2350,7 +2599,7 @@ function CreateProduct() {
                       onClick={applyAllAiProductSuggestions}
                       className="inline-flex h-9 items-center rounded-[12px] border border-blue-300/30 bg-blue-300/10 px-3 text-xs font-black text-blue-100 transition hover:bg-blue-300/15"
                     >
-                      Apply all
+                      {t("products.editor.applyAll")}
                     </button>
                   </div>
                   <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -2392,7 +2641,7 @@ function CreateProduct() {
                     {getSuggestionValue(aiProductData.suggestions, "dominant_colors") ? (
                       <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Detected colors</p>
+                          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.detectedColors", "Detected colors")}</p>
                           {getDetectionConfidenceLabel(aiProductData.suggestions, "colors") ? (
                             <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
                               {getDetectionConfidenceLabel(aiProductData.suggestions, "colors")}
@@ -2407,7 +2656,7 @@ function CreateProduct() {
                     {getSuggestionValue(aiProductData.suggestions, "suggested_product_type", "silhouette", "fashion_category") ? (
                       <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Detected product type</p>
+                          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.detectedProductType", "Detected product type")}</p>
                           {getDetectionConfidenceLabel(aiProductData.suggestions, "product_type") ? (
                             <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
                               {getDetectionConfidenceLabel(aiProductData.suggestions, "product_type")}
@@ -2422,7 +2671,7 @@ function CreateProduct() {
                     {getSuggestionValue(aiProductData.suggestions, "suggested_style", "classification") ? (
                       <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Detected style</p>
+                          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.detectedStyle", "Detected style")}</p>
                           {getDetectionConfidenceLabel(aiProductData.suggestions, "style") ? (
                             <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
                               {getDetectionConfidenceLabel(aiProductData.suggestions, "style")}
@@ -2436,7 +2685,7 @@ function CreateProduct() {
                     ) : null}
                     {getSuggestionValue(aiProductData.suggestions, "brand_resemblance") ? (
                       <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Brand style resemblance</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.brandStyleResemblance", "Brand style resemblance")}</p>
                         <p className="mt-2 text-sm leading-5 text-zinc-200">
                           {getSuggestionValue(aiProductData.suggestions, "brand_resemblance")}
                         </p>
@@ -2444,7 +2693,7 @@ function CreateProduct() {
                     ) : null}
                     {getSuggestionValue(aiProductData.suggestions, "classification") ? (
                       <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Classification</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.classification", "Classification")}</p>
                         <p className="mt-2 text-sm leading-5 text-zinc-200">
                           {getSuggestionValue(aiProductData.suggestions, "classification")}
                         </p>
@@ -2457,21 +2706,19 @@ function CreateProduct() {
             <SectionCard id="inventory">
               <SectionHeader
                 icon={Layers3}
-                title="Catalog Controls"
-                subtitle="Product status, stock behavior, barcode preview, and generated matrix summary."
+                title={t("products.editor.catalogControls")}
+                subtitle={t("products.editor.advancedSettingsHelp")}
                 tone="violet"
               />
 
               <div className="mt-5 space-y-4">
-                {inventoryDefaultsPanel}
-
                 <label className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
-                  <span className="text-sm font-semibold text-white">Active product</span>
+                  <span className="text-sm font-semibold text-white">{t("products.editor.activeProduct")}</span>
                   <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
                 </label>
 
                 <label className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
-                  <span className="text-sm font-semibold text-white">Track stock</span>
+                  <span className="text-sm font-semibold text-white">{t("products.editor.trackStock")}</span>
                   <input type="checkbox" checked={trackStock} onChange={(e) => setTrackStock(e.target.checked)} />
                 </label>
 
@@ -2482,8 +2729,8 @@ function CreateProduct() {
                     className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-zinc-950/70 px-4 py-3 text-right transition hover:border-white/15"
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-black text-white">إعدادات متقدمة</p>
-                      <p className="mt-1 text-xs text-zinc-400">Barcode preview, matrix summary, and internal helpers.</p>
+                      <p className="text-sm font-black text-white">{t("products.editor.advancedSettings")}</p>
+                      <p className="mt-1 text-xs text-zinc-400">{t("products.editor.barcodeMatrixHelp")}</p>
                     </div>
                     <ChevronDown className={`h-4 w-4 shrink-0 text-zinc-400 transition ${advancedOpen ? "rotate-180" : ""}`} />
                   </button>
@@ -2491,10 +2738,10 @@ function CreateProduct() {
                   {advancedOpen ? (
                     <div className="mt-4 space-y-4">
                       <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-4">
-                        <p className="text-sm font-semibold text-zinc-300">Barcode preview</p>
+                        <p className="text-sm font-semibold text-zinc-300">{t("products.editor.barcodePreview")}</p>
                         <div className="mt-3 rounded-2xl border border-white/8 bg-zinc-950 px-4 py-4">
                           <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">SKU</p>
-                          <p className="mt-2 text-xl font-black text-white">{skuPrefix || smartSkuPrefix || generateSku(name).split("-")[0]}</p>
+                          <p className="mt-2 text-xl font-black text-white">{skuPrefix || uniqueSmartSkuPrefix || generateSku(name).split("-")[0]}</p>
                           <div className="mt-4 h-14 rounded-2xl bg-white/5 p-3">
                             <div className="flex h-full items-end gap-1">
                               {Array.from({ length: 22 }).map((_, index) => (
@@ -2512,14 +2759,14 @@ function CreateProduct() {
 
                       {variantMatrix.length > 0 ? (
                         <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-4">
-                          <p className="text-sm font-semibold text-zinc-300">Variant matrix</p>
+                          <p className="text-sm font-semibold text-zinc-300">{t("products.editor.variantMatrix")}</p>
                           <p className="mt-2 text-sm text-zinc-400">
                             {isColorOnlyMode
-                              ? "Generate one fixed-size variant per color."
-                              : "Generate color and size combinations for the first product variants."}
+                              ? t("products.editor.generateFixedSizePerColor")
+                              : t("products.editor.generateColorSizeCombinations")}
                           </p>
                           <div className="mt-4 rounded-2xl border border-white/8 bg-zinc-950/70 p-4">
-                            <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">Combinations</p>
+                            <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">{t("products.editor.combinations")}</p>
                             <p className="mt-2 text-2xl font-black text-white">{variantMatrix.length}</p>
                           </div>
                         </div>
@@ -2533,73 +2780,86 @@ function CreateProduct() {
             <SectionCard id="variants" hidden={isSimpleMode}>
               <SectionHeader
                 icon={Sparkles}
-                title="Bulk Variant Tools"
-                subtitle="Enter size ranges and price or quantity shortcuts. Missing sizes are added without touching existing rows."
+                title={t("products.editor.bulkVariantTools")}
+                subtitle={t("products.editor.bulkVariantToolsHelp")}
                 tone="emerald"
               />
 
-              <div className={`mt-4 grid gap-3 rounded-[20px] border border-white/8 bg-white/5 p-3 ${isFullVariationMode ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
+              <div className={`mt-4 grid gap-4 ${isFullVariationMode ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
                 {isFullVariationMode ? (
-                <label className="block">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                    Bulk Sizes
+                  <div className="rounded-[20px] border border-white/8 bg-white/5 p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{t("products.editor.bulkSizes", "Bulk Sizes")}</p>
+                    <label className="mt-3 block">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                        {t("products.editor.sizeRange")}
+                      </div>
+                      <input
+                        value={bulkSizesInput}
+                        onChange={(event) => setBulkSizesInput(event.target.value)}
+                        placeholder={t("products.editor.sizeRangePlaceholder")}
+                        className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => applyBulkSizes()}
+                        className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
+                      >
+                        {t("products.editor.applyToAllColors")}
+                      </button>
+                    </label>
                   </div>
-                  <input
-                    value={bulkSizesInput}
-                    onChange={(event) => setBulkSizesInput(event.target.value)}
-                    placeholder="Example: 40,41,42,43,44 or 40-45"
-                    className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => applyBulkSizes()}
-                    className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
-                  >
-                    Apply to all colors
-                  </button>
-                </label>
                 ) : null}
-                <label className="block">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                    Bulk Price
-                  </div>
-                  <input
-                    type="number"
-                    min="0"
-                    value={bulkPriceInput}
-                    onChange={(event) => setBulkPriceInput(event.target.value)}
-                    placeholder="Example: 1250"
-                    className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => applyBulkPrice()}
-                    className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-sky-500/20 bg-sky-500/10 px-4 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/15"
-                  >
-                    Apply price to all colors
-                  </button>
-                </label>
-                <label className="block">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                    Bulk default purchase quantity
-                  </div>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={bulkStockInput}
-                    onChange={(event) => setBulkStockInput(event.target.value)}
-                    placeholder="Example: 10"
-                    className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
-                  />
+                <div className="rounded-[20px] border border-white/8 bg-white/5 p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{t("products.editor.bulkStockTools", "Bulk Stock Tools")}</p>
+                  <label className="mt-3 block">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      {t("products.editor.stockQuantity")}
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={bulkStockInput}
+                      onChange={(event) => setBulkStockInput(event.target.value)}
+                      placeholder={t("products.editor.stockQuantityPlaceholder")}
+                      className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                    />
+                  </label>
                   <button
                     type="button"
                     onClick={() => applyBulkStock()}
                     className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-violet-500/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
                   >
-                    Apply default purchase quantity to all colors
+                    {t("products.editor.applyStockAllSizes")}
                   </button>
-                </label>
+                  <p className="mt-2 text-xs leading-5 text-zinc-500">
+                    {t("products.editor.planningStockOnly")}
+                  </p>
+                </div>
+                <div className="rounded-[20px] border border-white/8 bg-white/5 p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-300">{t("products.editor.bulkArticleTools", "Bulk Article Tools")}</p>
+                  <label className="mt-3 block">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      {t("products.fields.articleCode", "Article Code")}
+                    </div>
+                    <input
+                      value={bulkArticleCodeInput}
+                      onChange={(event) => setBulkArticleCodeInput(event.target.value)}
+                      placeholder={t("products.editor.articleCodePlaceholder", "Example: L122")}
+                      className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => applyBulkArticleCode()}
+                    className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-[14px] border border-cyan-500/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+                  >
+                    {t("products.editor.applyArticleAllColors", "Apply article to all colors")}
+                  </button>
+                  <p className="mt-2 text-xs leading-5 text-zinc-500">
+                    {t("products.editor.bulkArticleHelp", "Existing article codes are protected unless you confirm overwrite. Manual article fields stay editable.")}
+                  </p>
+                </div>
               </div>
             </SectionCard>
 
@@ -2608,8 +2868,8 @@ function CreateProduct() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <SectionHeader
                     icon={Layers3}
-                    title="Variant Color Groups"
-                    subtitle="Each color gets one image. Every size row under that color becomes one variant."
+                    title={t("products.editor.variantColorGroups")}
+                    subtitle={t("products.editor.variantColorGroupsHelp")}
                     tone="cyan"
                   />
 
@@ -2619,27 +2879,27 @@ function CreateProduct() {
                     className={buttonClasses("primary", "h-9 rounded-full px-4")}
                   >
                     <Plus size={16} strokeWidth={2} />
-                    Add color
+                    {t("products.editor.addColor")}
                   </button>
                 </div>
               </div>
 
               <div className="mt-4 rounded-[20px] border border-white/8 bg-white/5 p-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Default manufacturer</p>
+                  <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">{t("products.editor.defaultManufacturer")}</p>
                   <p className="mt-1 text-sm text-zinc-400">
-                    Applied to all color groups until a color is changed manually.
+                    {t("products.editor.defaultManufacturerHelp")}
                   </p>
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
                   <label className="block">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Manufacturer</div>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{t("products.fields.manufacturer", "Manufacturer")}</div>
                     <select
                       value={defaultManufacturerId}
                       onChange={(e) => applyDefaultManufacturer(e.target.value)}
                       className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none"
                     >
-                      <option value="">Select manufacturer</option>
+                      <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
                       {manufacturers.map((manufacturer) => (
                         <option key={manufacturer.id} value={String(manufacturer.id)}>
                           {manufacturer.name}
@@ -2648,9 +2908,9 @@ function CreateProduct() {
                     </select>
                   </label>
                   <div className="rounded-[14px] border border-white/8 bg-zinc-950/60 px-3 py-2">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Behavior</div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("products.editor.behavior")}</div>
                     <div className="mt-1 text-sm text-zinc-200">
-                      Non-custom color cards inherit this default automatically.
+                      {t("products.editor.defaultColorsHelp")}
                     </div>
                   </div>
                 </div>
@@ -2696,7 +2956,7 @@ function CreateProduct() {
                           </div>
                           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-400">
                             <span>{getGroupSizeCount(group)} size(s)</span>
-                            <span>{getGroupStockTotal(group)} default purchase qty</span>
+                            {getGroupPlannedQty(group) ? <span>{getGroupPlannedQty(group)} stock qty</span> : null}
                           </div>
                         </div>
 
@@ -2730,7 +2990,7 @@ function CreateProduct() {
                                 ) : (
                                   <div className="text-center">
                                     <ImagePlus className="mx-auto text-zinc-400" size={26} />
-                                    <span className="mt-2 block text-[11px] font-semibold text-zinc-500">Color images</span>
+                                    <span className="mt-2 block text-[11px] font-semibold text-zinc-500">{t("products.editor.colorImages")}</span>
                                   </div>
                                 )}
                                 <input
@@ -2746,7 +3006,7 @@ function CreateProduct() {
                               </label>
                               <label className="inline-flex h-9 w-20 cursor-pointer items-center justify-center gap-1.5 rounded-[12px] border border-white/10 bg-white/5 px-2 text-xs font-semibold text-white transition hover:bg-white/10">
                                 <Upload size={14} />
-                                Add
+                                {t("products.shared.add")}
                                 <input
                                   type="file"
                                   hidden
@@ -2793,45 +3053,55 @@ function CreateProduct() {
                                 ))}
                                 {normalizeColorImages(group.images).length === 0 ? (
                                   <div className="col-span-4 rounded-[14px] border border-dashed border-white/10 bg-zinc-950/60 px-2 py-3 text-center text-[10px] font-semibold text-zinc-500">
-                                    No images
+                                    {t("products.images.noImage")}
                                   </div>
                                 ) : null}
                               </div>
                             </div>
 
                             <div className="min-w-0 space-y-3">
-                              <div className={`grid gap-3 ${mirrorEditionEnabled ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
+                              <div className={`grid gap-3 ${mirrorEditionEnabled ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
                                 <div>
-                                  <label className="text-sm font-semibold text-zinc-300">Color name</label>
+                                  <label className="text-sm font-semibold text-zinc-300">{t("products.editor.colorName")}</label>
                                   <input
                                     value={group.color}
                                     onChange={(e) => updateColorGroup(group.id, "color", e.target.value)}
-                                    placeholder="Black"
+                                    placeholder={t("products.placeholders.colorExample")}
                                     className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                   />
-                                  <p className="mt-1 text-xs text-zinc-500">AI may confuse soles/background. Use Pick and click the real shoe color.</p>
+                                  <p className="mt-1 text-xs text-zinc-500">{t("products.editor.pickColorHelp")}</p>
                                   {colorDetecting[group.id] ? (
-                                    <p className="mt-1 text-xs font-semibold text-cyan-200">Detecting color...</p>
+                                    <p className="mt-1 text-xs font-semibold text-cyan-200">{t("products.editor.detectingColor")}</p>
                                   ) : null}
+                                </div>
+                                <div>
+                                  <label className="text-sm font-semibold text-zinc-300">{t("products.fields.articleCode", "Article Code")}</label>
+                                  <input
+                                    value={group.article_code || ""}
+                                    onChange={(e) => updateColorGroup(group.id, "article_code", e.target.value)}
+                                    placeholder="L122"
+                                    className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                  />
+                                  <p className="mt-1 text-xs text-zinc-500">{t("products.editor.articleCodeColorHelp", "Article code applies to this color. Stock is managed per size row.")}</p>
                                 </div>
                                 {mirrorEditionEnabled ? (
                                   <div className="relative">
-                                    <label className="text-sm font-semibold text-zinc-300">Edition Name</label>
+                                    <label className="text-sm font-semibold text-zinc-300">{t("products.editor.editionName")}</label>
                                     <input
                                       value={group.edition_name || ""}
                                       onChange={(e) => updateColorGroup(group.id, "edition_name", e.target.value)}
-                                      placeholder="Example: Wolf Grey"
+                                      placeholder={t("products.editor.editionNamePlaceholder")}
                                       className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                     />
                                       {editionSuggestions[group.id]?.status === "loading" ? (
                                         <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 py-2 text-xs font-semibold text-zinc-300 shadow-2xl shadow-black/40">
-                                          Searching similar products...
+                                          {t("products.editor.searchingSimilarProducts")}
                                         </div>
                                       ) : null}
                                     {editionSuggestions[group.id]?.status === "ready" ? (
                                       <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full rounded-[14px] border border-violet-400/20 bg-zinc-950 p-3 shadow-2xl shadow-black/40">
                                         {editionSuggestions[group.id].suggestion.source === "NO_TRUSTED_MATCH" ? (
-                                          <div className="text-sm font-black text-white">No trusted match found</div>
+                                          <div className="text-sm font-black text-white">{t("products.editor.noTrustedMatch")}</div>
                                         ) : (
                                           <div className="flex flex-wrap items-center justify-between gap-2">
                                             <div>
@@ -2897,7 +3167,7 @@ function CreateProduct() {
                                 ) : null}
                                 <div>
                                   <div className="mb-2 flex items-center justify-between gap-2">
-                                    <label className="text-sm font-semibold text-zinc-300">Manufacturer</label>
+                                    <label className="text-sm font-semibold text-zinc-300">{t("products.fields.manufacturer", "Manufacturer")}</label>
                                     <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-300">
                                       Color level
                                     </span>
@@ -2907,7 +3177,7 @@ function CreateProduct() {
                                     onChange={(e) => updateColorGroup(group.id, "manufacturer_id", e.target.value)}
                                     className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none"
                                   >
-                                    <option value="">Select manufacturer</option>
+                                    <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
                                     {manufacturers.map((manufacturer) => (
                                       <option key={manufacturer.id} value={String(manufacturer.id)}>
                                         {manufacturer.name}
@@ -2966,17 +3236,10 @@ function CreateProduct() {
                                   ) : null}
                                   <button
                                     type="button"
-                                    onClick={() => applyBulkPrice(group.id)}
-                                    className="inline-flex h-10 items-center justify-center rounded-[14px] border border-sky-500/20 bg-sky-500/10 px-3 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/15"
+                                    onClick={() => applyBulkArticleCode(group.id)}
+                                    className="inline-flex h-10 items-center justify-center rounded-[14px] border border-cyan-500/20 bg-cyan-500/10 px-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
                                   >
-                                    Apply price
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => applyBulkStock(group.id)}
-                                    className="inline-flex h-10 items-center justify-center rounded-[14px] border border-violet-500/20 bg-violet-500/10 px-3 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/15"
-                                  >
-                                    Apply default quantity
+                                    {t("products.editor.applyArticleThisColor", "Apply article to this color")}
                                   </button>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
@@ -2997,12 +3260,12 @@ function CreateProduct() {
                                 <div className="mb-3 flex items-center justify-between gap-3">
                                   <div>
                                     <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-                                      {isFullVariationMode ? "Size rows" : "Fixed size row"}
+                                      {isFullVariationMode ? t("products.editor.sizeRows", "Size rows") : t("products.editor.fixedSizeRow", "Fixed size row")}
                                     </p>
                                     <p className="mt-0.5 text-xs text-zinc-400">
                                       {isFullVariationMode
-                                        ? "One row becomes one variant."
-                                        : "One row per color becomes the color-only variant."}
+                                        ? t("products.editor.oneRowBecomesVariant", "One row becomes one variant.")
+                                        : t("products.editor.oneRowPerColor", "One row per color becomes the color-only variant.")}
                                     </p>
                                   </div>
                                   <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300">
@@ -3010,42 +3273,43 @@ function CreateProduct() {
                                   </div>
                                 </div>
 
-                                <div className="hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,126px)_minmax(0,150px)_minmax(0,170px)_minmax(0,112px)_auto] xl:gap-2">
-                                  <div>Size</div>
-                                  <div>Purchase Qty</div>
+                                <div className="hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,120px)_minmax(0,170px)_minmax(0,190px)_auto] xl:gap-2">
+                                  <div>{t("products.fields.size", "Size")}</div>
+                                  <div>{t("products.editor.stockQty", "Stock Qty")}</div>
                                   <div>SKU</div>
-                                  <div>Barcode</div>
-                                  <div>Price</div>
-                                  <div>Actions</div>
+                                  <div>{t("products.selected.barcode", "Barcode")}</div>
+                                  <div>{t("products.table.actions", "Actions")}</div>
                                 </div>
 
                                 <div className="mt-2 max-w-full space-y-2 overflow-x-auto">
                                   {(isColorOnlyMode ? group.sizes.slice(0, 1) : group.sizes).map((row, rowIndex) => (
                                   <div
                                     key={row.id}
-                                    className="grid min-w-[720px] gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:grid-cols-[minmax(0,1fr)_minmax(0,126px)_minmax(0,150px)_minmax(0,170px)_minmax(0,112px)_auto]"
+                                    className="grid min-w-[680px] gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:grid-cols-[minmax(0,1fr)_minmax(0,120px)_minmax(0,170px)_minmax(0,190px)_auto]"
                                   >
                                       <div>
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                                          {isColorOnlyMode ? "Fixed size" : "Size"}
+                                          {isColorOnlyMode ? t("products.editor.fixedSize", "Fixed size") : t("products.fields.size", "Size")}
                                         </label>
                                         <input
                                           value={row.size}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "size", e.target.value)}
-                                          placeholder={isColorOnlyMode ? fixedSizeLabel || "One Size" : "40"}
+                                          placeholder={isColorOnlyMode ? fixedSizeLabel || t("products.editor.oneSize") : "40"}
                                           className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                         />
                                       </div>
                                       <div>
-                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Purchase Qty</label>
+                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.stockQty", "Stock Qty")}</label>
                                         <input
                                           type="number"
-                                          value={row.stock}
+                                          min="0"
+                                          step="1"
+                                          value={row.stock ?? ""}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "stock", e.target.value)}
                                           placeholder="0"
                                           className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                         />
-                                        <p className="mt-1 text-[10px] leading-4 text-zinc-500">لا تؤثر على المخزون — المخزون يضاف من فاتورة المشتريات</p>
+                                        <p className="mt-1 text-[10px] leading-4 text-zinc-500">{t("products.editor.preparationOnlyStock", "Preparation only. Real stock is added from purchase invoices.")}</p>
                                       </div>
                                       <div>
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">SKU</label>
@@ -3057,21 +3321,11 @@ function CreateProduct() {
                                         />
                                       </div>
                                       <div>
-                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Barcode</label>
+                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("products.selected.barcode", "Barcode")}</label>
                                         <input
                                           value={row.barcode}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "barcode", e.target.value)}
-                                          placeholder="Scan or enter barcode"
-                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Price</label>
-                                        <input
-                                          type="number"
-                                          value={row.price}
-                                          onChange={(e) => updateSizeRow(group.id, row.id, "price", e.target.value)}
-                                          placeholder={salePrice || "0"}
+                                          placeholder={t("products.editor.scanOrEnterBarcode", "Scan or enter barcode")}
                                           className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                         />
                                       </div>
@@ -3102,8 +3356,8 @@ function CreateProduct() {
             <SectionCard hidden={isSimpleMode}>
               <SectionHeader
                 icon={ScanLine}
-                title="Variant Preview"
-                subtitle={isColorOnlyMode ? "Each color becomes a single fixed-size variant." : "The matrix below will be created after the product is saved."}
+                title={t("products.editor.variantPreview")}
+                subtitle={isColorOnlyMode ? t("products.editor.colorOnlyPreviewHelp") : t("products.editor.variantPreviewAfterSave")}
                 tone="emerald"
               />
 
@@ -3117,8 +3371,8 @@ function CreateProduct() {
                 {variantMatrix.length === 0 ? (
                   <div className="rounded-2xl border border-white/8 bg-white/5 p-5 text-sm text-zinc-400">
                     {isColorOnlyMode
-                      ? "Add a color name to preview fixed-size color variants."
-                      : "Add a color name and at least one size row to generate combinations."}
+                      ? t("products.editor.addColorToPreview", "Add a color name to preview fixed-size color variants.")
+                      : t("products.editor.addColorAndSizeToPreview", "Add a color name and at least one size row to generate combinations.")}
                   </div>
                 ) : (
                   variantMatrix.slice(0, 8).map((variant, index) => (
@@ -3130,10 +3384,7 @@ function CreateProduct() {
                           </p>
                           <p className="mt-1 text-xs font-mono text-zinc-500">{variant.sku}</p>
                         </div>
-                        <div className="text-right">
-                          <span className="block text-sm text-emerald-300">{variant.stock} default purchase qty</span>
-                          <span className="block text-xs text-zinc-500">{variant.image_url ? "Color image linked" : "No image linked"}</span>
-                        </div>
+                        <span className="block text-xs text-zinc-500">{variant.image_url ? t("products.editor.colorImageLinked", "Color image linked") : t("products.editor.noImageLinked", "No image linked")}</span>
                       </div>
                     </div>
                   ))
@@ -3150,7 +3401,7 @@ function CreateProduct() {
             className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-6 py-3 font-semibold text-white disabled:opacity-60"
           >
             <Plus size={18} />
-            {saving ? "Saving..." : "Create Product"}
+            {saving ? t("common.saving", "Saving...") : t("products.editor.createTitle", "Create Product")}
           </button>
           <button
             type="button"
@@ -3178,22 +3429,24 @@ function CreateProduct() {
 export default CreateProduct;
 
 function ColorPickModal({ target, onClose, onPick }) {
+  const { t } = useTranslation();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
       <div className="w-full max-w-2xl rounded-[28px] border border-white/10 bg-zinc-950 p-4 shadow-2xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-black text-white">Pick color</p>
-            <p className="mt-1 text-xs text-zinc-400">Click the real shoe material color, not the sole or background.</p>
+            <p className="text-sm font-black text-white">{t("products.editor.pickColor", "Pick color")}</p>
+            <p className="mt-1 text-xs text-zinc-400">{t("products.editor.pickColorHelp", "Click the real shoe material color, not the sole or background.")}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 px-3 py-2 text-sm font-semibold text-white">
-            Close
+            {t("common.close", "Close")}
           </button>
         </div>
         <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-2xl bg-zinc-900">
           <img
             src={target.source}
-            alt={target.alt || "Pick color"}
+            alt={target.alt || t("products.editor.pickColor", "Pick color")}
             className="max-h-[68vh] w-auto max-w-full cursor-crosshair object-contain"
             onClick={(event) => {
               const rect = event.currentTarget.getBoundingClientRect();
@@ -3256,15 +3509,21 @@ function SectionCard({ children, hidden = false, className = "", id }) {
 }
 
 function ProductActionBar({ mode = "create", saving = false, hasUnsavedChanges = false, formId }) {
-  const label = mode === "create" ? "Save Product" : "Update Product";
+  const { t } = useTranslation();
+  const label =
+    mode === "create"
+      ? t("products.editor.saveProduct", "Save Product")
+      : t("products.editor.updateProduct", "Update Product");
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0b1020]/95 px-4 py-3 shadow-[0_-18px_60px_rgba(0,0,0,0.38)] backdrop-blur md:left-auto md:right-6 md:bottom-6 md:w-auto md:min-w-[360px] md:rounded-[24px] md:border">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-zinc-500">Product Editor</p>
+          <p className="text-xs font-semibold text-zinc-500">{t("products.editor.productEditor", "Product Editor")}</p>
           <p className={`mt-1 text-sm font-semibold ${hasUnsavedChanges ? "text-amber-200" : "text-emerald-200"}`}>
-            {hasUnsavedChanges ? "Unsaved changes" : "No changes yet"}
+            {hasUnsavedChanges
+              ? t("products.editor.unsavedChanges", "Unsaved changes")
+              : t("products.editor.noChangesYet", "No changes yet")}
           </p>
         </div>
         <button
@@ -3274,7 +3533,7 @@ function ProductActionBar({ mode = "create", saving = false, hasUnsavedChanges =
           className={buttonClasses("primary", "h-11 w-full rounded-[14px] px-5 sm:w-auto")}
         >
           {saving ? <Loader2 size={16} strokeWidth={2} className="animate-spin" /> : <Save size={16} strokeWidth={2} />}
-          {saving ? "Saving..." : label}
+          {saving ? t("common.saving", "Saving...") : label}
         </button>
       </div>
     </div>

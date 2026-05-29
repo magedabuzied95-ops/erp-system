@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 const statusClasses = {
   Draft: "border-zinc-500/20 bg-zinc-500/10 text-zinc-300",
   Ordered: "border-sky-500/20 bg-sky-500/10 text-sky-300",
@@ -14,13 +16,15 @@ const statusClasses = {
 };
 
 function StatusBadge({ value = "Draft" }) {
+  const { t } = useTranslation();
   const key = String(value).replace(/\s+/g, "");
+  const normalized = String(value || "Draft").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const label = t(`purchases.statusLabels.${normalized}`, value);
   return (
     <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClasses[key] || statusClasses[value] || statusClasses.Draft}`}>
-      {value}
+      {label}
     </span>
   );
 }
 
 export default StatusBadge;
-

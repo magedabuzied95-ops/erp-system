@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Eye,
@@ -8,27 +8,33 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
-  ShoppingCart,
   Trash2,
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
-import { getCurrentUser, getUserRole, hasPermission, isAdminUser } from "../../../shared/auth/authStorage";
-import { downloadInvoicePdf, formatCurrency } from "../lib/posUtils";
+import { getCurrentUser, getUserRole, hasPermission } from "../../../shared/auth/authStorage";
+import { DEFAULT_PRODUCT_PLACEHOLDER, resolveInvoiceItemImageUrl } from "../../../shared/lib/invoiceItemImages";
+import { formatCurrency } from "../lib/posUtils";
+import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 
-const blockedStatuses = new Set(["cancelled", "canceled", "refunded", "returned", "partially_refunded"]);
 const DEFAULT_EDIT_LOCK_HOURS = Number(import.meta.env.VITE_POS_INVOICE_EDIT_LOCK_HOURS || 24);
+const POS_DEBUG = Boolean(
+  import.meta.env?.DEV ||
+  String(import.meta.env?.VITE_POS_CHECKOUT_DEBUG || "").trim().toLowerCase() === "true" ||
+  String(import.meta.env?.VITE_POS_DEBUG || "").trim().toLowerCase() === "true"
+);
 
 const normalizeStatus = (value = "") => String(value || "").trim().toLowerCase();
 
-const canMutateOrder = (order = {}) => !blockedStatuses.has(normalizeStatus(order.status));
 const canReturnOrder = (order = {}) => !["cancelled", "canceled", "refunded", "returned"].includes(normalizeStatus(order.status || order.payment_status));
 
 const getOrderTotal = (order = {}) => Number(order.total_amount ?? order.total ?? order.total_price ?? 0);
 
-const getOrderInvoiceNumber = (order = {}) => order.invoice_number || `INV-${String(order.id || "").padStart(6, "0")}`;
+const getOrderInvoiceNumber = (order = {}) => order.invoice_number || (order.id ? `INV-${order.id}` : "INV-PENDING");
+
+const getOrderActionKey = (order = {}, action = "") => `${order.id || getOrderInvoiceNumber(order)}:${action}`;
 
 const arabicFallbacks = {
   "walk-in customer": "عميل نقدي",
@@ -58,7 +64,47 @@ const normalizeArabicValue = (value, fallback = "-") => {
   return arabicFallbacks[text.toLowerCase()] || text;
 };
 
-const getOrderCustomer = (order = {}) => normalizeArabicValue(order.customer_name || order.customer_record_name, "عميل نقدي");
+const isPlaceholderCustomer = (value = "") => {
+  const text = String(value || "").trim().toLowerCase();
+  return (
+    !text ||
+    /^guest[:#-]?\d*/.test(text) ||
+    text === "guest" ||
+    text === "walk-in" ||
+    text === "walk in" ||
+    text === "walk-in customer" ||
+    text === "عميل نقدي"
+  );
+};
+
+const firstMeaningful = (...values) =>
+  values.map((value) => String(value ?? "").trim()).find((value) => value && !isPlaceholderCustomer(value)) || "";
+
+const getOrderCustomer = (order = {}) =>
+  normalizeArabicValue(
+    firstMeaningful(
+      order.customer_name,
+      order.customer?.name,
+      order.customer_full_name,
+      order.customer_record_name,
+      order.customer_phone,
+      order.customer_record_phone
+    ),
+    typeof document !== "undefined" && document.documentElement?.dir === "rtl" ? "عميل نقدي" : "Walk-in customer"
+  );
+
+const getOrderSeller = (order = {}) => {
+  const excluded = new Set(
+    [order.cashier_name, order.created_by_name, order.admin_name]
+      .map((value) => String(value ?? "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+  return (
+    [order.sales_employee_name, order.seller_name, order.salesperson_name, order.assigned_seller_name, order.employee_name]
+      .map((value) => String(value ?? "").trim())
+      .find((value) => value && !excluded.has(value.toLowerCase())) || "-"
+  );
+};
 
 const getOrderPhone = (order = {}) => order.customer_phone || order.customer_record_phone || "";
 
@@ -112,8 +158,6 @@ const isManagerUser = (user = {}) => {
 
 const isCashierUser = (user = {}) => getUserRole(user) === "cashier";
 
-const canCancelInvoices = (user = {}) => isAdminUser(user) || hasPermission("pos.cancel", user) || hasPermission("orders.delete", user);
-
 const canEditInvoices = (user = {}) => !isCashierUser(user) && (hasPermission("orders.edit", user) || hasPermission("pos.edit", user) || isManagerUser(user));
 
 const canEditOldInvoices = (user = {}) => isManagerUser(user) || hasPermission("pos.edit_old", user) || hasPermission("orders.approve", user);
@@ -166,7 +210,21 @@ const getReturnedQuantity = (item = {}) => Number(item.returned_quantity || 0);
 
 const getReturnableQuantity = (item = {}) => Math.max(0, getItemQuantity(item) - getReturnedQuantity(item));
 
-const getItemImage = (item = {}) => item.image_url || item.product_image_url || item.variant_image_url || "";
+const getItemImage = (item = {}) =>
+  resolveInvoiceItemImageUrl(item, "");
+
+const getItemVariantInfo = (item = {}) => {
+  const colorSize = [item.color, item.size].filter(Boolean).join(" / ");
+  return colorSize || item.variant_name || item.variant?.name || "";
+};
+
+const escapeHtml = (value = "") =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 const returnReasons = ["مقاس غير مناسب", "عيب صناعة", "تغيير رأي العميل", "استبدال", "أخرى"];
 
@@ -181,6 +239,8 @@ const refundMethods = [
   { key: "original", label: "نفس وسيلة الدفع" },
   { key: "wallet", label: "محفظة العميل" },
 ];
+
+const RECENT_ORDERS_PAGE_SIZE = 10;
 
 const auditActionLabels = {
   created: "إنشاء",
@@ -215,19 +275,18 @@ const buildInvoiceSnapshot = (order = {}) => {
     createdAt: order.created_at,
     customerName: getOrderCustomer(order),
     customerPhone: getOrderPhone(order),
-    sellerName: order.cashier_name || order.seller_name || "",
+    sellerName: getOrderSeller(order),
     payment_method: order.payment_method,
     publicToken: order.public_token || "",
     publicInvoiceUrl: order.public_invoice_url || order.invoice_public_url || "",
     barcodeValue: getOrderInvoiceNumber(order),
-    items: items.map((item) => ({
-      ...item,
-      name: item.product_name || item.name || "منتج",
-      price: Number(item.sale_price || item.price || 0),
-      quantity: Number(item.quantity || 0),
-      total_amount: Number(item.total_amount || 0),
-      image_url: item.image_url || "",
-    })),
+      items: items.map((item) => ({
+        ...item,
+        name: item.product_name || item.name || "منتج",
+        price: Number(item.sale_price || item.price || 0),
+        quantity: Number(item.quantity || 0),
+        total_amount: Number(item.total_amount || 0),
+      })),
     totals: {
       subtotal,
       discount,
@@ -240,65 +299,222 @@ const buildInvoiceSnapshot = (order = {}) => {
   };
 };
 
-function RecentOperationsDrawer({ open, onClose, onEditOrder, onResellOrder, onExchangeStarted, currentCartTotal = 0 }) {
+function RecentOperationsDrawer({ open, openedAt = 0, onClose, onEditOrder, onExchangeStarted, currentCartTotal = 0 }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [returnOrder, setReturnOrder] = useState(null);
-  const [busyId, setBusyId] = useState(null);
+  const [permanentDeleteOrder, setPermanentDeleteOrder] = useState(null);
+  const [permanentDeleteConfirm, setPermanentDeleteConfirm] = useState("");
+  const [loadingActions, setLoadingActions] = useState({});
+  const requestSeqRef = useRef(0);
+  const ordersLengthRef = useRef(0);
+  const initialRenderLoggedRef = useRef(false);
+  const pendingRenderStartedAtRef = useRef(0);
+  const drawerOpenedAtRef = useRef(0);
   const currentUser = useMemo(() => getCurrentUser() || { name: "أدمن", role: "admin", permissions: ["*"] }, []);
   const editLockHours = useMemo(() => readEditLockHours(), []);
 
-  const loadOrders = useCallback(async () => {
+  useEffect(() => {
+    ordersLengthRef.current = orders.length;
+  }, [orders.length]);
+
+  const runOrderAction = useCallback(async (order, action, task) => {
+    const key = getOrderActionKey(order, action);
+    setLoadingActions((current) => ({ ...current, [key]: true }));
     try {
-      setLoading(true);
+      return await task();
+    } finally {
+      setLoadingActions((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+    }
+  }, []);
+
+  const loadOrderSummary = useCallback(async (order) => {
+    if (!order?.id) return order;
+    const response = await api.get(`/orders/${order.id}/pos-summary`, { timeoutMs: 10000 });
+    const loadedOrder = response.order || order;
+    const loadedItems = Array.isArray(response.items) ? response.items : loadedOrder.items || order.items || [];
+    const timeline = Array.isArray(response.audit_timeline) ? response.audit_timeline : loadedOrder.audit_timeline;
+    return { ...order, ...loadedOrder, items: loadedItems, audit_timeline: timeline || [] };
+  }, []);
+
+  const loadOrders = useCallback(async ({ reset = false } = {}) => {
+    const seq = requestSeqRef.current + 1;
+    requestSeqRef.current = seq;
+    const fetchStartedAt = performance.now();
+    const offset = reset ? 0 : ordersLengthRef.current;
+    try {
+      if (reset) {
+        setLoading(true);
+        setOrders([]);
+        setHasMore(false);
+        setTotalCount(null);
+      } else setLoadingMore(true);
       setError("");
-      const response = await api.get("/pos/recent-orders?limit=20", { timeoutMs: 15000 });
-      setOrders(Array.isArray(response.data) ? response.data : Array.isArray(response.orders) ? response.orders : []);
+      const response = await api.get("/orders", {
+        params: {
+          mode: "pos_recent",
+          limit: RECENT_ORDERS_PAGE_SIZE,
+          offset,
+          search: debouncedSearch,
+        },
+        timeoutMs: 10000,
+      });
+      if (seq !== requestSeqRef.current) return;
+      const nextOrders = Array.isArray(response.data) ? response.data : Array.isArray(response.orders) ? response.orders : [];
+      const pagination = response.pagination || {};
+      const nextTotal = Number.isFinite(Number(pagination.total)) ? Number(pagination.total) : null;
+      pendingRenderStartedAtRef.current = performance.now();
+      setOrders((current) => (reset ? nextOrders : [...current, ...nextOrders]));
+      setTotalCount(nextTotal);
+      setHasMore(Boolean(pagination.has_more ?? (nextOrders.length === RECENT_ORDERS_PAGE_SIZE)));
+      if (POS_DEBUG) {
+        console.log("[pos-recent-operations-timing]", {
+          recent_orders_fetch_ms: Math.round(performance.now() - fetchStartedAt),
+          limit: RECENT_ORDERS_PAGE_SIZE,
+          offset,
+          search: debouncedSearch || "",
+          count: nextOrders.length,
+        });
+      }
     } catch (err) {
+      if (seq !== requestSeqRef.current) return;
       console.error("[RecentOperationsDrawer] load failed:", err?.response?.data || err?.responseBody || err);
       setError("تعذر تحميل العمليات الأخيرة");
     } finally {
-      setLoading(false);
+      if (seq === requestSeqRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
-  }, []);
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    if (!open) {
+      requestSeqRef.current += 1;
+      setOrders([]);
+      setLoading(false);
+      setLoadingMore(false);
+      setError("");
+      setHasMore(false);
+      setTotalCount(null);
+      initialRenderLoggedRef.current = false;
+      pendingRenderStartedAtRef.current = 0;
+      return undefined;
+    }
+    drawerOpenedAtRef.current = Number(openedAt || performance.now());
+    if (POS_DEBUG) {
+      window.requestAnimationFrame(() => {
+        console.log("[pos-recent-operations-timing]", {
+          drawer_open_ms: Math.round(performance.now() - drawerOpenedAtRef.current),
+        });
+      });
+    }
+    setLoading(true);
+    return undefined;
+  }, [open, openedAt]);
 
   useEffect(() => {
     if (!open) return undefined;
     const timer = window.setTimeout(() => {
-      void loadOrders();
+      void loadOrders({ reset: true });
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadOrders, open]);
+  }, [debouncedSearch, loadOrders, open]);
 
-  const filteredOrders = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return orders;
-    return orders.filter((order) =>
-      `${getOrderInvoiceNumber(order)} ${getOrderCustomer(order)} ${getOrderPhone(order)} ${order.status || ""}`.toLowerCase().includes(q)
-    );
-  }, [orders, search]);
+  useEffect(() => {
+    if (!open || !pendingRenderStartedAtRef.current) return undefined;
+    const renderStartedAt = pendingRenderStartedAtRef.current;
+    pendingRenderStartedAtRef.current = 0;
+    const frame = window.requestAnimationFrame(() => {
+      if (!POS_DEBUG) return;
+      const payload = {
+        render_ms: Math.round(performance.now() - renderStartedAt),
+      };
+      if (!initialRenderLoggedRef.current) {
+        initialRenderLoggedRef.current = true;
+        payload.total_ms = Math.round(performance.now() - drawerOpenedAtRef.current);
+      }
+      console.log("[pos-recent-operations-timing]", payload);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, orders]);
+
+  const filteredOrders = orders;
 
   const handleReprint = async (order) => {
-    try {
-      setBusyId(order.id);
+    await runOrderAction(order, "print", async () => {
+      try {
+      const loadedOrder = await loadOrderSummary(order);
       await api.post(`/orders/${order.id}/reprint-log`, {});
-      const invoice = buildInvoiceSnapshot(order);
-      const result = await downloadInvoicePdf({
-        invoice,
-        format: "thermal",
-        filename: `${getOrderInvoiceNumber(order)}.pdf`,
-      });
-      if (result?.ok || result?.fallbackOpened) {
-        toast.success("تم تجهيز الفاتورة للطباعة مرة أخرى");
+      const invoice = buildInvoiceSnapshot(loadedOrder);
+      const printWindow = window.open("", "_blank", "width=420,height=720");
+      if (!printWindow) {
+        toast.error("تعذر فتح نافذة الطباعة");
+        return;
       }
-    } catch (err) {
-      toast.error(err.message || "تعذر إعادة الطباعة");
-    } finally {
-      setBusyId(null);
-    }
+      const rows = (invoice.items || [])
+        .map(
+          (item) => `
+            <tr>
+              <td>${escapeHtml(item.name || item.product_name || "منتج")}</td>
+              <td>${Number(item.quantity || 0).toLocaleString("en-US")}</td>
+              <td>${escapeHtml(formatDrawerCurrency(item.total_amount ?? getItemSubtotal(item)))}</td>
+            </tr>
+          `
+        )
+        .join("");
+      printWindow.document.write(`
+        <html dir="rtl">
+          <head>
+            <title>${escapeHtml(invoice.invoiceNumber)}</title>
+            <style>
+              body{font-family:Arial,sans-serif;margin:0;padding:10px;color:#111;width:80mm}
+              h1{font-size:16px;margin:0 0 8px;text-align:center}
+              .meta{font-size:12px;margin:4px 0}
+              table{width:100%;border-collapse:collapse;margin-top:8px}
+              td,th{border-bottom:1px dashed #aaa;padding:5px 2px;font-size:11px;text-align:right}
+              .total{margin-top:10px;font-size:14px;font-weight:800;text-align:left}
+              @media print{button{display:none}body{width:auto}}
+            </style>
+          </head>
+          <body>
+            <button onclick="window.print()">طباعة</button>
+            <h1>${escapeHtml(invoice.invoiceNumber)}</h1>
+            <div class="meta">العميل: ${escapeHtml(invoice.customerName)}</div>
+            <div class="meta">الهاتف: ${escapeHtml(invoice.customerPhone)}</div>
+            <div class="meta">التاريخ: ${escapeHtml(formatDateTime(invoice.createdAt))}</div>
+            <table>
+              <thead><tr><th>الصنف</th><th>الكمية</th><th>الإجمالي</th></tr></thead>
+              <tbody>${rows || "<tr><td colspan=\"3\">لا توجد أصناف</td></tr>"}</tbody>
+            </table>
+            <div class="total">الإجمالي: ${escapeHtml(formatDrawerCurrency(invoice.totals?.total || 0))}</div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      toast.success("تم تجهيز الفاتورة للطباعة مرة أخرى");
+      } catch (err) {
+        toast.error(err.message || "تعذر إعادة الطباعة");
+      }
+    });
   };
 
   const handleViewDetails = async (order) => {
@@ -306,49 +522,48 @@ function RecentOperationsDrawer({ open, onClose, onEditOrder, onResellOrder, onE
       setSelectedOrder(order);
       return;
     }
-    try {
-      setBusyId(order.id);
-      const response = await api.get(`/orders/${order.id}`);
-      const loadedOrder = response.order || order;
-      const loadedItems = Array.isArray(response.items) ? response.items : order.items || [];
-      const timeline = Array.isArray(response.audit_timeline) ? response.audit_timeline : loadedOrder.audit_timeline;
-      setSelectedOrder({ ...order, ...loadedOrder, items: loadedItems, audit_timeline: timeline || [] });
-    } catch (err) {
-      toast.error(err.message || "تعذر تحميل تفاصيل الفاتورة");
-      setSelectedOrder(order);
-    } finally {
-      setBusyId(null);
-    }
+    await runOrderAction(order, "details", async () => {
+      try {
+      const loadedOrder = await loadOrderSummary(order);
+      console.log("[pos][seller-debug] seller returned from invoice details API", {
+        order_id: order.id,
+        seller_id: loadedOrder.seller_id || loadedOrder.sales_employee_id || loadedOrder.salesperson_id || loadedOrder.assigned_seller_id || null,
+        seller_name: loadedOrder.seller_name,
+        sales_employee_name: loadedOrder.sales_employee_name,
+        salesperson_name: loadedOrder.salesperson_name,
+        assigned_seller_name: loadedOrder.assigned_seller_name,
+        cashier_name: loadedOrder.cashier_name,
+      });
+      setSelectedOrder(loadedOrder);
+      } catch (err) {
+        toast.error(err.message || "تعذر تحميل تفاصيل الفاتورة");
+        setSelectedOrder(order);
+      }
+    });
   };
 
-  const handleEditClick = (order) => {
+  const handleEditClick = async (order) => {
     const lock = getInvoiceLock(order, currentUser, editLockHours);
     if (lock.locked) {
       toast.error(lock.reason);
       return;
     }
-    onEditOrder(order);
-  };
-
-  const handleCancel = async (order) => {
-    if (!canMutateOrder(order)) {
-      toast.error("لا يمكن إلغاء فاتورة ملغاة أو مستردة");
-      return;
+    const startedAt = performance.now();
+    if (POS_DEBUG) {
+      console.log("[pos-edit-drawer] click start", {
+        order_id: order?.id || null,
+        invoice_number: getOrderInvoiceNumber(order),
+      });
     }
-    if (!canCancelInvoices(currentUser)) {
-      toast.error("إلغاء الفواتير متاح للأدمن فقط");
-      return;
-    }
-    if (!window.confirm(`تأكيد إلغاء الفاتورة ${getOrderInvoiceNumber(order)}طں سيتم إرجاع المخزون.`)) return;
-    try {
-      setBusyId(order.id);
-      await api.post(`/orders/${order.id}/cancel`, { reason: "Cancelled from POS recent operations" });
-      toast.success("تم إلغاء الفاتورة وإرجاع المخزون");
-      await loadOrders();
-    } catch (err) {
-      toast.error(err.message || "تعذر إلغاء الفاتورة");
-    } finally {
-      setBusyId(null);
+    await runOrderAction(order, "edit", async () => {
+      await Promise.resolve(onEditOrder(order));
+    });
+    if (POS_DEBUG) {
+      console.log("[pos-edit-drawer] total", {
+        order_id: order?.id || null,
+        invoice_number: getOrderInvoiceNumber(order),
+        total_ms: Math.round(performance.now() - startedAt),
+      });
     }
   };
 
@@ -357,17 +572,40 @@ function RecentOperationsDrawer({ open, onClose, onEditOrder, onResellOrder, onE
       toast.error("لا يمكن عمل مرتجع لهذه الفاتورة");
       return;
     }
-    try {
-      setBusyId(order.id);
-      const response = await api.get(`/orders/${order.id}`);
-      const loadedOrder = response.order || order;
-      const loadedItems = Array.isArray(response.items) ? response.items : order.items || [];
-      setReturnOrder({ ...order, ...loadedOrder, items: loadedItems });
-    } catch (err) {
-      toast.error(err.message || "تعذر تحميل الفاتورة للمرتجع");
-    } finally {
-      setBusyId(null);
+    await runOrderAction(order, "return", async () => {
+      try {
+      setReturnOrder(await loadOrderSummary(order));
+      } catch (err) {
+        toast.error(err.message || "تعذر تحميل الفاتورة للمرتجع");
+      }
+    });
+  };
+
+  const openPermanentDelete = (order) => {
+    setPermanentDeleteOrder(order);
+    setPermanentDeleteConfirm("");
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!permanentDeleteOrder?.id) return;
+    const confirmation = permanentDeleteConfirm.trim();
+    if (confirmation !== "DELETE" && confirmation !== "حذف") {
+      toast.error("اكتب DELETE أو حذف للتأكيد");
+      return;
     }
+    await runOrderAction(permanentDeleteOrder, "permanent-delete", async () => {
+      try {
+        await api.delete(`/orders/${permanentDeleteOrder.id}/permanent`, { body: { confirmation } });
+        setOrders((current) => current.filter((order) => String(order.id) !== String(permanentDeleteOrder.id)));
+        setSelectedOrder((current) => (String(current?.id) === String(permanentDeleteOrder.id) ? null : current));
+        setReturnOrder((current) => (String(current?.id) === String(permanentDeleteOrder.id) ? null : current));
+        setPermanentDeleteOrder(null);
+        setPermanentDeleteConfirm("");
+        toast.success("تم حذف الفاتورة نهائيًا");
+      } catch (err) {
+        toast.error(err.responseBody?.message || err.message || "تعذر حذف الفاتورة نهائيًا");
+      }
+    });
   };
 
   const handleReturnCreated = async (payload) => {
@@ -390,12 +628,7 @@ function RecentOperationsDrawer({ open, onClose, onEditOrder, onResellOrder, onE
         : current
     );
     setReturnOrder(null);
-    await loadOrders();
-  };
-
-  const handleResell = (order) => {
-    if (!onResellOrder) return;
-    onResellOrder(order);
+    await loadOrders({ reset: true });
   };
 
   if (!open) return null;
@@ -409,7 +642,7 @@ function RecentOperationsDrawer({ open, onClose, onEditOrder, onResellOrder, onE
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-200">POS</div>
               <h2 className="mt-1 text-2xl font-black">العمليات الأخيرة</h2>
-              <p className="mt-1 text-sm text-zinc-400">عرض، إعادة طباعة، تعديل، إلغاء، أو مرتجع الفواتير الأخيرة.</p>
+              <p className="mt-1 text-sm text-zinc-400">عرض، إعادة طباعة، تعديل، أو مرتجع الفواتير الأخيرة.</p>
             </div>
             <button type="button" onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300">
               <X className="h-4 w-4" />
@@ -425,40 +658,52 @@ function RecentOperationsDrawer({ open, onClose, onEditOrder, onResellOrder, onE
                 className="h-12 w-full rounded-2xl border border-white/10 bg-black/40 pr-11 pl-4 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
             </div>
-            <button type="button" onClick={loadOrders} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]" title="تحديث">
-              <RefreshCw className="h-4 w-4" />
+            <button type="button" onClick={() => loadOrders({ reset: true })} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]" title="تحديث">
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          {loading ? (
+          {loading && orders.length === 0 ? (
             <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, index) => (
-                <div key={index} className="h-36 animate-pulse rounded-3xl border border-white/10 bg-white/[0.04]" />
+                <div key={index} className="h-28 animate-pulse rounded-xl border border-white/10 bg-white/[0.04]" />
               ))}
             </div>
           ) : error ? (
-            <State icon={AlertTriangle} title="حدث خطأ" text={error} />
+            <State icon={AlertTriangle} title="حدث خطأ" text={error} actionLabel="إعادة المحاولة" onAction={() => loadOrders({ reset: true })} />
           ) : filteredOrders.length === 0 ? (
-            <State icon={RotateCcw} title="لا توجد عمليات" text="ستظهر آخر فواتير POS هنا بعد البيع." />
+            <State icon={RotateCcw} title="لا توجد عمليات" text={debouncedSearch ? "لا توجد نتائج مطابقة للبحث." : "ستظهر آخر فواتير POS هنا بعد البيع."} />
           ) : (
             <div className="space-y-3">
               {filteredOrders.map((order) => (
                 <OrderCard
                   key={order.id}
                   order={order}
-                  busyId={busyId}
+                  loadingActions={loadingActions}
                   currentUser={currentUser}
                   editLockHours={editLockHours}
                   onReprint={handleReprint}
                   onViewDetails={handleViewDetails}
                   onEdit={handleEditClick}
                   onReturn={handleReturn}
-                  onCancel={handleCancel}
-                  onResell={handleResell}
+                  onPermanentDelete={openPermanentDelete}
                 />
               ))}
+              {hasMore ? (
+                <button
+                  type="button"
+                  onClick={() => loadOrders({ reset: false })}
+                  disabled={loadingMore}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-100 transition hover:bg-white/[0.08] disabled:cursor-wait disabled:opacity-60"
+                >
+                  {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {loadingMore ? "جار التحميل..." : "تحميل المزيد"}
+                </button>
+              ) : totalCount !== null ? (
+                <div className="py-2 text-center text-xs font-bold text-zinc-500">تم عرض {orders.length} من {totalCount}</div>
+              ) : null}
             </div>
           )}
         </div>
@@ -476,61 +721,124 @@ function RecentOperationsDrawer({ open, onClose, onEditOrder, onResellOrder, onE
           onCreated={handleReturnCreated}
         />
       ) : null}
+
+      {permanentDeleteOrder ? (
+        <PermanentDeleteModal
+          order={permanentDeleteOrder}
+          value={permanentDeleteConfirm}
+          loading={Boolean(loadingActions[getOrderActionKey(permanentDeleteOrder, "permanent-delete")])}
+          onChange={setPermanentDeleteConfirm}
+          onClose={() => {
+            setPermanentDeleteOrder(null);
+            setPermanentDeleteConfirm("");
+          }}
+          onConfirm={handlePermanentDelete}
+        />
+      ) : null}
     </div>
   );
 }
 
-function OrderCard({ order, busyId, currentUser, editLockHours, onReprint, onViewDetails, onEdit, onReturn, onCancel, onResell }) {
+function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprint, onViewDetails, onEdit, onReturn, onPermanentDelete }) {
   const lock = getInvoiceLock(order, currentUser, editLockHours);
-  const canCancel = canCancelInvoices(currentUser) && canMutateOrder(order);
   const badges = getStatusBadges(order);
+  const isActionLoading = (action) => Boolean(loadingActions[getOrderActionKey(order, action)]);
+  const detailsLoading = isActionLoading("details");
+  const printLoading = isActionLoading("print");
+  const returnLoading = isActionLoading("return");
+  const editLoading = isActionLoading("edit");
+  const deleteLoading = isActionLoading("permanent-delete");
+  const statusBadge = badges[0] || { label: getOrderStatus(order), className: "border-white/10 bg-white/[0.04] text-zinc-200" };
+  const isRtl = typeof document !== "undefined" && document.documentElement?.dir === "rtl";
+  const labels = {
+    payment: isRtl ? "الدفع" : "Payment",
+    seller: isRtl ? "البائع" : "Seller",
+    date: isRtl ? "التاريخ" : "Date",
+  };
 
   return (
-    <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                  <div className="flex items-start justify-between gap-3">
+    <article className="relative rounded-xl border border-white/10 bg-white/[0.04] p-2">
+                  <div className="grid grid-cols-[minmax(0,1.05fr)_minmax(0,1.25fr)_auto_auto] items-center gap-1.5">
                     <div className="min-w-0">
-                      <div className="font-black text-white">{getOrderInvoiceNumber(order)}</div>
-                      <div className="mt-1 truncate text-sm text-zinc-400">
-                        {getOrderCustomer(order)} {getOrderPhone(order) ? `- ${getOrderPhone(order)}` : ""}
+                      <div className="max-w-[8.5rem] truncate text-xs font-extrabold leading-4 text-white sm:text-sm" title={getOrderInvoiceNumber(order)}>
+                        {getOrderInvoiceNumber(order)}
                       </div>
                     </div>
-                    <div className="shrink-0 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-100">
-                      {formatDrawerCurrency(getOrderTotal(order))}
+                    <div className="min-w-0 truncate text-[11px] font-semibold leading-4 text-zinc-300" dir="auto" title={getOrderCustomer(order)}>
+                      {getOrderCustomer(order)}
                     </div>
+                    <div className="shrink-0 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-2 py-1 text-[11px] font-black text-emerald-100">
+                      <CurrencyText value={formatDrawerCurrency(getOrderTotal(order))} />
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-black ${statusBadge.className}`}>
+                      {statusBadge.label}
+                    </span>
                   </div>
 
-                  {badges.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {badges.map((badge) => (
-                        <span key={badge.label} className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${badge.className}`}>
-                          {badge.label}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-3 grid gap-2 text-xs text-zinc-400 sm:grid-cols-2">
-                    <Info label="الدفع" value={getPaymentMethod(order)} />
-                    <Info label="الحالة" value={getOrderStatus(order)} />
-                    <Info label="الكاشير" value={normalizeArabicValue(order.cashier_name, "أدمن")} />
-                    <Info label="التاريخ" value={formatDateTime(order.created_at)} />
+                  <div className="mt-1.5 grid grid-cols-3 gap-1 text-[10px] text-zinc-400">
+                    <Info label={labels.payment} value={getPaymentMethod(order)} />
+                    <Info label={labels.seller} value={getOrderSeller(order)} />
+                    <Info label={labels.date} value={formatDateTime(order.created_at)} />
                   </div>
 
                   {lock.locked ? (
-                    <div className="mt-3 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-100">
+                    <div className="mt-1.5 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-100">
                       {lock.reason}
                     </div>
                   ) : null}
 
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <Action icon={Printer} label="طباعة مرة أخرى" disabled={busyId === order.id} onClick={() => onReprint(order)} />
-                    <Action icon={Eye} label="عرض التفاصيل" disabled={busyId === order.id} onClick={() => onViewDetails(order)} />
-                    <Action icon={ShoppingCart} label="إعادة بيع" disabled={busyId === order.id || isCashierUser(currentUser)} onClick={() => onResell(order)} />
-                    <Action icon={Pencil} label="تعديل الفاتورة" disabled={lock.locked || busyId === order.id} onClick={() => onEdit(order)} title={lock.reason} />
-                    <Action icon={RotateCcw} label="مرتجع" disabled={!canReturnOrder(order) || busyId === order.id || isCashierUser(currentUser)} onClick={() => onReturn(order)} />
-                    <Action className="col-span-2" icon={Trash2} label="إلغاء الفاتورة" danger disabled={!canCancel || busyId === order.id} onClick={() => onCancel(order)} />
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    <Action icon={Eye} label="تفاصيل" loading={detailsLoading} disabled={detailsLoading} onClick={() => onViewDetails(order)} />
+                    <Action icon={Printer} label="طباعة" loading={printLoading} disabled={printLoading} onClick={() => onReprint(order)} />
+                    <Action icon={RotateCcw} label="مرتجع" loading={returnLoading} disabled={!canReturnOrder(order) || returnLoading || isCashierUser(currentUser)} onClick={() => onReturn(order)} />
+                    <Action icon={Pencil} label="تعديل" loading={editLoading} disabled={lock.locked || editLoading} title={lock.reason} onClick={() => onEdit(order)} />
+                    <span className="mx-0.5 h-5 w-px bg-white/10" />
+                    <Action icon={Trash2} label="حذف نهائي" loading={deleteLoading} disabled={deleteLoading || isCashierUser(currentUser)} danger onClick={() => onPermanentDelete(order)} />
                   </div>
     </article>
+  );
+}
+
+function PermanentDeleteModal({ order, value, loading, onChange, onClose, onConfirm }) {
+  const canConfirm = value.trim() === "DELETE" || value.trim() === "حذف";
+  return (
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 px-3 py-4 sm:items-center" dir="rtl">
+      <div className="w-full max-w-md rounded-3xl border border-rose-400/35 bg-zinc-950 p-5 text-white shadow-2xl shadow-rose-950/20">
+        <div className="flex items-start gap-3">
+          <div className="rounded-2xl bg-rose-500/15 p-2 text-rose-200"><Trash2 className="h-5 w-5" /></div>
+          <div className="min-w-0">
+            <h3 className="text-lg font-black">حذف نهائي</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-rose-100">سيتم حذف الفاتورة نهائيًا ولا يمكن التراجع عن هذه العملية.</p>
+            <p className="mt-1 text-sm leading-6 text-zinc-300">سيتم حذف السجلات المرتبطة واسترجاع المخزون إذا لم يكن مسترجعًا مسبقًا.</p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <Info label="الفاتورة" value={getOrderInvoiceNumber(order)} />
+          <Info label="الإجمالي" value={formatDrawerCurrency(getOrderTotal(order))} />
+        </div>
+        <label className="mt-4 block">
+          <div className="mb-1.5 text-xs font-black text-rose-100">اكتب DELETE أو حذف للتأكيد</div>
+          <input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            autoFocus
+            placeholder="DELETE"
+            className="w-full rounded-2xl border border-rose-400/30 bg-black/35 px-3 py-2.5 text-sm font-black text-white outline-none placeholder:text-zinc-600 focus:border-rose-300"
+          />
+        </label>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} disabled={loading} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-black text-white disabled:opacity-60">إلغاء</button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!canConfirm || loading}
+            className={`rounded-2xl px-4 py-2 text-sm font-black text-white ${canConfirm && !loading ? "bg-rose-600 hover:bg-rose-500" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
+          >
+            {loading ? "جار الحذف..." : "حذف نهائي"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -707,7 +1015,14 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
               {lines.map(({ item, max, selected }) => (
                 <div key={item.id} className="grid gap-3 p-3 sm:grid-cols-[56px_minmax(0,1fr)_150px] sm:items-center">
                   <div className="h-14 w-14 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
-                    {getItemImage(item) ? <img src={getItemImage(item)} alt="" className="h-full w-full object-cover" /> : null}
+                    <img
+                      src={getItemImage(item) || DEFAULT_PRODUCT_PLACEHOLDER}
+                      alt={getItemName(item)}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
+                      }}
+                    />
                   </div>
                   <div className="min-w-0">
                     <div className="truncate text-sm font-black text-white">{getItemName(item)}</div>
@@ -774,13 +1089,20 @@ function SummaryBox({ label, value, tone = "emerald" }) {
   return (
     <div className={`rounded-2xl border px-4 py-3 ${tones[tone] || tones.emerald}`}>
       <div className="text-xs font-bold opacity-70">{label}</div>
-      <div className="mt-1 text-lg font-black">{value}</div>
+      <div className="mt-1 text-lg font-black"><CurrencyText value={value} /></div>
     </div>
   );
 }
 
 function DetailsModal({ order, onClose }) {
   const timeline = buildAuditTimeline(order);
+  const isRtl = typeof document !== "undefined" && document.documentElement?.dir === "rtl";
+  const labels = {
+    customer: isRtl ? "العميل" : "Customer",
+    seller: isRtl ? "البائع" : "Seller",
+    payment: isRtl ? "الدفع" : "Payment",
+    date: isRtl ? "التاريخ" : "Date",
+  };
 
   return (
         <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/70 px-3 py-4 sm:items-center" dir="rtl">
@@ -793,27 +1115,39 @@ function DetailsModal({ order, onClose }) {
               <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm">إغلاق</button>
             </div>
             <div className="max-h-[65vh] overflow-y-auto p-4">
+              <div className="mb-4 grid gap-2 sm:grid-cols-4">
+                <Info label={labels.customer} value={getOrderCustomer(order)} />
+                <Info label={labels.seller} value={getOrderSeller(order)} />
+                <Info label={labels.payment} value={getPaymentMethod(order)} />
+                <Info label={labels.date} value={formatDateTime(order.created_at)} />
+              </div>
               <div className="overflow-hidden rounded-2xl border border-white/10">
-                <div className="grid grid-cols-[minmax(0,1.8fr)_0.7fr_0.9fr_0.9fr] gap-2 bg-white/[0.06] px-3 py-2 text-xs font-bold text-zinc-400">
+                <div className="grid grid-cols-[minmax(0,2.1fr)_0.65fr_0.85fr_0.95fr] gap-2 bg-white/[0.06] px-3 py-2 text-xs font-bold text-zinc-400">
                   <div>المنتج</div>
                   <div className="text-center">الكمية</div>
                   <div className="text-left">السعر</div>
                   <div className="text-left">الإجمالي الفرعي</div>
                 </div>
                 {(order.items || []).length > 0 ? (
-                  (order.items || []).map((item, index) => (
-                    <div key={item.id || index} className="grid grid-cols-[minmax(0,1.8fr)_0.7fr_0.9fr_0.9fr] gap-2 border-t border-white/10 px-3 py-3 text-sm">
-                      <div className="min-w-0">
-                        <div className="truncate font-black text-white">{getItemName(item)}</div>
-                        {[item.color, item.size].filter(Boolean).length > 0 ? (
-                          <div className="mt-1 truncate text-xs font-semibold text-zinc-500">{[item.color, item.size].filter(Boolean).join(" / ")}</div>
-                        ) : null}
+                  (order.items || []).map((item, index) => {
+                    const variantInfo = getItemVariantInfo(item);
+                    return (
+                    <div key={item.id || index} className="grid grid-cols-[minmax(0,2.1fr)_0.65fr_0.85fr_0.95fr] items-center gap-2 border-t border-white/10 px-3 py-3 text-sm">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <InvoiceItemThumbnail item={item} />
+                        <div className="min-w-0">
+                          <div className="truncate font-black text-white" title={getItemName(item)}>{getItemName(item)}</div>
+                          {variantInfo ? (
+                            <div className="mt-1 truncate text-xs font-semibold text-zinc-500" title={variantInfo}>{variantInfo}</div>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="text-center font-black text-zinc-100">{getItemQuantity(item)}</div>
-                      <div className="text-left font-black text-zinc-100">{formatDrawerCurrency(getItemPrice(item))}</div>
-                      <div className="text-left font-black text-zinc-100">{formatDrawerCurrency(getItemSubtotal(item))}</div>
+                      <div className="text-left font-black text-zinc-100"><CurrencyText value={formatDrawerCurrency(getItemPrice(item))} /></div>
+                      <div className="text-left font-black text-zinc-100"><CurrencyText value={formatDrawerCurrency(getItemSubtotal(item))} /></div>
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="border-t border-white/10 px-3 py-6 text-center text-sm font-semibold text-zinc-400">لا توجد منتجات في هذه الفاتورة</div>
                 )}
@@ -821,7 +1155,7 @@ function DetailsModal({ order, onClose }) {
               <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-sm font-semibold text-emerald-100/70">الإجمالي</span>
-                  <span className="text-lg font-black text-emerald-50">{formatDrawerCurrency(getOrderTotal(order))}</span>
+                  <span className="text-lg font-black text-emerald-50"><CurrencyText value={formatDrawerCurrency(getOrderTotal(order))} /></span>
                 </div>
               </div>
               <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -851,40 +1185,66 @@ function DetailsModal({ order, onClose }) {
   );
 }
 
-function Info({ label, value }) {
+function InvoiceItemThumbnail({ item }) {
+  const [failed, setFailed] = useState(false);
+  const imageUrl = getItemImage(item);
+  const showImage = imageUrl && !failed;
+
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-      <span className="shrink-0 font-semibold text-zinc-500">{label}</span>
-      <span className="min-w-0 truncate text-left font-black text-zinc-100" dir="auto">{value}</span>
+    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-black/30">
+      <img
+        src={showImage ? imageUrl : DEFAULT_PRODUCT_PLACEHOLDER}
+        alt={getItemName(item)}
+        loading="lazy"
+        className="h-full w-full object-cover"
+        onError={(e) => {
+          setFailed(true);
+          e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
+        }}
+      />
     </div>
   );
 }
 
-function Action({ icon: Icon, label, onClick, disabled, danger = false, className = "", title = "" }) {
+function Info({ label, value }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-white/10 bg-black/20 px-1.5 py-1">
+      <div className="truncate text-[8px] font-black text-zinc-500">{label}</div>
+      <div className="truncate text-[10px] font-black text-zinc-100" dir="auto"><CurrencyText value={value} /></div>
+    </div>
+  );
+}
+
+function Action({ icon: Icon, label, onClick, disabled, loading = false, danger = false, className = "", title = "" }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-45 ${className} ${
+      className={`inline-flex h-7 items-center justify-center gap-1 rounded-lg border px-2 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-45 ${className} ${
         danger
           ? "border-rose-400/30 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
           : "border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
       }`}
     >
-      {disabled ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Icon className="h-3 w-3" />}
       {label}
     </button>
   );
 }
 
-function State({ icon: Icon, title, text }) {
+function State({ icon: Icon, title, text, actionLabel = "", onAction }) {
   return (
-    <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.04] p-10 text-center">
+    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.04] p-6 text-center">
       <Icon className="mx-auto h-10 w-10 text-zinc-500" />
       <h3 className="mt-3 text-lg font-black text-white">{title}</h3>
       <p className="mt-2 text-sm text-zinc-400">{text}</p>
+      {actionLabel && onAction ? (
+        <button type="button" onClick={onAction} className="mt-4 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-black text-white">
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   );
 }

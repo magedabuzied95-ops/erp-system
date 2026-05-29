@@ -66,5 +66,65 @@
     "pending": "Pending",
     "approved": "Approved",
     "rejected": "Rejected"
+  },
+  "centerOptions": {
+    "type": {
+      "electricity": "Electricity",
+      "water": "Water",
+      "rent": "Rent",
+      "salaries": "Salaries",
+      "shipping": "Shipping",
+      "maintenance": "Maintenance",
+      "groceries_supplies": "Groceries / supplies",
+      "marketing": "Marketing",
+      "supplier_related": "Supplier related",
+      "employee_advance": "Employee advance",
+      "other": "Other"
+    },
+    "category": {
+      "electricity": "Utilities - Electricity",
+      "utilities_electricity": "Utilities - Electricity",
+      "water": "Utilities - Water",
+      "utilities_water": "Utilities - Water",
+      "rent": "Rent",
+      "salaries": "Salaries",
+      "shipping": "Shipping",
+      "maintenance": "Maintenance",
+      "groceries_supplies": "Groceries / Supplies",
+      "marketing": "Marketing",
+      "supplier_related": "Supplier Related",
+      "employee_advance": "Employee Advance",
+      "other": "Other"
+    },
+    "payment": {
+      "cash": "Cash",
+      "card": "Card",
+      "bank_transfer": "Bank transfer",
+      "wallet": "Wallet",
+      "instapay": "Instapay",
+      "vodafone_cash": "Vodafone Cash"
+    },
+    "status": {
+      "draft": "Draft",
+      "pending_approval": "Pending approval",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "paid": "Paid",
+      "pending": "Pending",
+      "partially_deducted": "Partially deducted",
+      "deducted": "Deducted",
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "frequency": {
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "yearly": "Yearly"
+    },
+    "boolean": {
+      "true": "Yes",
+      "false": "No"
+    }
   }
 }

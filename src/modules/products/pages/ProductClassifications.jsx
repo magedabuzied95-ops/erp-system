@@ -120,7 +120,7 @@ function ProductClassifications() {
 
   const errorMessage = (error, fallbackKey) => error?.responseBody?.message || error?.response?.data?.message || error?.message || t(fallbackKey);
 
-  const useExistingOption = async (existingOption = null) => {
+  const restoreExistingOption = async (existingOption = null) => {
     if (existingOption?.id) {
       setDeletedOptionIds((current) => {
         const next = new Set(current);
@@ -129,7 +129,7 @@ function ProductClassifications() {
       });
     }
     setOptionForm(emptyOptionForm);
-    toast.error("This option already exists");
+    toast.error(t("products.classifications.toast.optionAlreadyExists"));
     await refresh();
   };
 
@@ -196,7 +196,7 @@ function ProductClassifications() {
     }
     const existingOption = findMatchingClassificationOption(selectedGroup.options || [], optionForm);
     if (existingOption) {
-      await useExistingOption(existingOption);
+      await restoreExistingOption(existingOption);
       return;
     }
     try {
@@ -209,7 +209,7 @@ function ProductClassifications() {
     } catch (error) {
       if (isDuplicateClassificationOptionError(error)) {
         const latestOptions = await getProductClassificationOptions(selectedGroup.key, { includeInactive: true }).catch(() => []);
-        await useExistingOption(findMatchingClassificationOption(latestOptions, optionForm));
+        await restoreExistingOption(findMatchingClassificationOption(latestOptions, optionForm));
         return;
       }
       toast.error(errorMessage(error, "products.classifications.toast.optionCreateFailed"));
@@ -282,9 +282,9 @@ function ProductClassifications() {
           <div className="mt-3 grid gap-4 lg:grid-cols-[1fr_1.1fr]">
             <div className="rounded-[1.45rem] border border-white/8 bg-white/[0.03] p-4">
               <div className="grid gap-3">
-                <Field label={t("products.classifications.key")} value={groupForm.key} onChange={(value) => setGroupForm((current) => ({ ...current, key: value }))} placeholder="gender" />
-                <Field label={t("products.classifications.arabicName")} value={groupForm.name_ar} onChange={(value) => setGroupForm((current) => ({ ...current, name_ar: value }))} placeholder="الجنس" />
-                <Field label={t("products.classifications.englishName")} value={groupForm.name_en} onChange={(value) => setGroupForm((current) => ({ ...current, name_en: value }))} placeholder="Gender" />
+                <Field label={t("products.classifications.key")} value={groupForm.key} onChange={(value) => setGroupForm((current) => ({ ...current, key: value }))} placeholder={t("products.classifications.keyPlaceholder")} />
+                <Field label={t("products.classifications.arabicName")} value={groupForm.name_ar} onChange={(value) => setGroupForm((current) => ({ ...current, name_ar: value }))} placeholder={t("products.classifications.arabicNamePlaceholder")} />
+                <Field label={t("products.classifications.englishName")} value={groupForm.name_en} onChange={(value) => setGroupForm((current) => ({ ...current, name_en: value }))} placeholder={t("products.classifications.englishNamePlaceholder")} />
                 <Field label={t("products.classifications.sortOrder")} type="number" value={groupForm.sort_order} onChange={(value) => setGroupForm((current) => ({ ...current, sort_order: value }))} />
                 <Toggle checked={groupForm.is_active} onChange={(checked) => setGroupForm((current) => ({ ...current, is_active: checked }))} label={t("products.classifications.active")} />
                 <div className="flex flex-wrap gap-2">
@@ -296,9 +296,9 @@ function ProductClassifications() {
 
             <div className="rounded-[1.45rem] border border-white/8 bg-white/[0.03] p-4">
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label={t("products.classifications.value")} value={optionForm.value} onChange={(value) => setOptionForm((current) => ({ ...current, value }))} placeholder="men" />
-                <Field label={t("products.classifications.arabicName")} value={optionForm.label_ar} onChange={(value) => setOptionForm((current) => ({ ...current, label_ar: value }))} placeholder="رجالي" />
-                <Field label={t("products.classifications.englishLabel")} value={optionForm.label_en} onChange={(value) => setOptionForm((current) => ({ ...current, label_en: value }))} placeholder="Men" />
+                <Field label={t("products.classifications.value")} value={optionForm.value} onChange={(value) => setOptionForm((current) => ({ ...current, value }))} placeholder={t("products.classifications.valuePlaceholder")} />
+                <Field label={t("products.classifications.arabicName")} value={optionForm.label_ar} onChange={(value) => setOptionForm((current) => ({ ...current, label_ar: value }))} placeholder={t("products.classifications.optionArabicPlaceholder")} />
+                <Field label={t("products.classifications.englishLabel")} value={optionForm.label_en} onChange={(value) => setOptionForm((current) => ({ ...current, label_en: value }))} placeholder={t("products.classifications.optionEnglishPlaceholder")} />
                 <Field label={t("products.classifications.icon")} value={optionForm.icon} onChange={(value) => setOptionForm((current) => ({ ...current, icon: value }))} placeholder="M" />
                 <Field label={t("products.classifications.color")} value={optionForm.color} onChange={(value) => setOptionForm((current) => ({ ...current, color: value }))} placeholder="#7c3aed" />
                 <Field label={t("products.classifications.sortOrder")} type="number" value={optionForm.sort_order} onChange={(value) => setOptionForm((current) => ({ ...current, sort_order: value }))} />
@@ -350,9 +350,9 @@ function ProductClassifications() {
             <div className="text-sm font-black text-white">{t("products.classifications.createNewGroup")}</div>
             <div className="mt-1 text-xs font-semibold text-zinc-400">{t("products.classifications.createNewGroupHelp")}</div>
             <div className="mt-4 grid gap-3">
-              <Field label={t("products.classifications.key")} value={newGroupForm.key} onChange={(value) => setNewGroupForm((current) => ({ ...current, key: value }))} placeholder="custom_key" />
-              <Field label={t("products.classifications.arabicName")} value={newGroupForm.name_ar} onChange={(value) => setNewGroupForm((current) => ({ ...current, name_ar: value }))} placeholder="اسم التصنيف" />
-              <Field label={t("products.classifications.englishName")} value={newGroupForm.name_en} onChange={(value) => setNewGroupForm((current) => ({ ...current, name_en: value }))} placeholder="Custom Group" />
+              <Field label={t("products.classifications.key")} value={newGroupForm.key} onChange={(value) => setNewGroupForm((current) => ({ ...current, key: value }))} placeholder={t("products.classifications.customKeyPlaceholder")} />
+              <Field label={t("products.classifications.arabicName")} value={newGroupForm.name_ar} onChange={(value) => setNewGroupForm((current) => ({ ...current, name_ar: value }))} placeholder={t("products.classifications.customArabicPlaceholder")} />
+              <Field label={t("products.classifications.englishName")} value={newGroupForm.name_en} onChange={(value) => setNewGroupForm((current) => ({ ...current, name_en: value }))} placeholder={t("products.classifications.customEnglishPlaceholder")} />
               <Field label={t("products.classifications.sortOrder")} type="number" value={newGroupForm.sort_order} onChange={(value) => setNewGroupForm((current) => ({ ...current, sort_order: value }))} />
               <Toggle checked={newGroupForm.is_active} onChange={(checked) => setNewGroupForm((current) => ({ ...current, is_active: checked }))} label={t("products.classifications.active")} />
               <ActionButton tone="light" onClick={saveNewGroup} disabled={savingNewGroup} icon={<Plus className="h-4 w-4" />} label={savingNewGroup ? t("products.classifications.saving") : t("products.classifications.createGroup")} />

@@ -44,6 +44,7 @@ const sessionExpiredError = (error) => {
 export const getAttendanceEmployees = (params = {}) => request("/attendance/employees", params);
 export const createAttendanceEmployee = (payload = {}) => api.post("/attendance/employees", payload);
 export const updateAttendanceEmployee = (id, payload = {}) => api.put(`/attendance/employees/${id}`, payload);
+export const deleteAttendanceEmployee = (id) => api.delete(`/attendance/employees/${id}`);
 export const getBranches = async (params = {}) => {
   try {
     const payload = await api.get(`/branches${buildQuery(params)}`);
@@ -60,6 +61,38 @@ export const updateAttendanceShift = (id, payload = {}) => api.put(`/attendance/
 export const checkInEmployee = (payload = {}) => api.post("/attendance/check-in", payload);
 export const checkOutEmployee = (payload = {}) => api.post("/attendance/check-out", payload);
 export const scanQrAttendance = async (payload = {}) => unwrap(await api.post("/attendance/qr-scan", payload));
+export const getAttendanceDevices = (params = {}) => request("/attendance/devices", params);
+export const getAttendanceDeviceSettings = () => request("/attendance/devices/settings");
+export const updateAttendanceDeviceSettings = (payload = {}) => api.put("/attendance/devices/settings", payload);
+export const approveAttendanceDevice = (id) => api.post(`/attendance/devices/${id}/approve`);
+export const rejectAttendanceDevice = (id) => api.post(`/attendance/devices/${id}/reject`);
+export const resetEmployeeAttendanceDevice = (employeeId) => api.post(`/attendance/employees/${employeeId}/reset-device`);
+export const resetEmployeeTodayAttendance = (employeeId, payload = {}) =>
+  api.delete(`/admin/attendance/employees/${employeeId}/today-attendance`, { body: payload });
+export const resetTodayAttendanceDeviceBindings = () => api.delete("/admin/attendance/device-bindings/today");
+export const resetEmployeeAttendanceDeviceBindings = (employeeId, businessDate) =>
+  api.delete("/admin/attendance/device-bindings/reset-device", {
+    body: {
+      employee_id: employeeId,
+      business_date: businessDate,
+    },
+  });
+export const resetAttendanceDeviceBindingByKey = (deviceKey) => api.delete("/admin/attendance/device-bindings/reset-device", { body: { device_key: deviceKey } });
+export const resetAttendanceDeviceBinding = (device = {}) => {
+  const bindingId = device.record_type === "binding" ? device.binding_id || device.id : device.binding_id;
+  const body = bindingId
+    ? { binding_id: bindingId }
+    : device.device_key
+      ? { device_key: device.device_key }
+      : {
+          employee_id: device.employee_id,
+          employee_code: device.employee_code,
+          business_date: device.business_date,
+        };
+
+  return api.delete("/admin/attendance/device-bindings/reset-device", { body });
+};
+export const resetAllAttendanceDeviceBindings = () => api.delete("/admin/attendance/device-bindings/all");
 
 export const getDailyAttendanceReport = (params = {}) => request("/attendance/reports/daily", params);
 export const getEmployeeAttendanceReport = (id, params = {}) => request(`/attendance/reports/employee/${id}`, params);
@@ -67,6 +100,13 @@ export const getBranchAttendanceReport = (params = {}) => request("/attendance/r
 export const getAttendanceKioskSnapshot = (params = {}) => request("/attendance/kiosk", params);
 export const getAttendanceToday = (params = {}) => request("/attendance/today", params);
 export const getAttendanceReports = (params = {}) => request("/attendance/reports", params);
+export const getAttendanceDashboard = (params = {}) => request("/attendance/dashboard", params);
+export const getAttendanceList = (params = {}) => request("/attendance/list", params);
+export const getAttendanceLive = (params = {}) => request("/attendance/live", params);
+export const getAttendancePayrollImpact = (params = {}) => request("/attendance/payroll-impact", params);
+export const getAttendanceCenterReports = (params = {}) => request("/attendance/center-reports", params);
+export const getAttendanceLeaves = (params = {}) => request("/attendance/leaves", params);
+export const getAttendanceQrSessions = (params = {}) => request("/attendance/qr-sessions", params);
 export const getOpeningCandidates = (params = {}) => request("/shifts/opening-candidates", params);
 export const getNextOpeningAssignment = (params = {}) => request("/shifts/next-opening", params);
 export const getOpeningRotationReport = (params = {}) => request("/shifts/opening-rotation-report", params);

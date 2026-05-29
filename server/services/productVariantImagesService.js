@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { indexProductImagesForProduct } from "./aiVisualProductImageIndexService.js";
 
 const toText = (value = "") => String(value || "").trim();
 const toNumber = (value, fallback = 0) => {
@@ -7,6 +8,8 @@ const toNumber = (value, fallback = 0) => {
 };
 
 const toBool = (value) => value === true || value === 1 || value === "1" || String(value || "").toLowerCase() === "true";
+let productVariantImagesSchemaPromise = null;
+let productVariantImagesSchemaEnsured = false;
 
 const imageRecordKeys = (record = {}) => {
   const keys = [];
@@ -96,6 +99,9 @@ const normalizeImageInput = (image = {}, fallback = {}) => {
 };
 
 export const ensureProductVariantImagesSchema = async (clientOrPool = db) => {
+  if (productVariantImagesSchemaEnsured) return;
+  if (clientOrPool === db && productVariantImagesSchemaPromise) return productVariantImagesSchemaPromise;
+  const runEnsure = async () => {
   const { client, release } = await getClient(clientOrPool);
   try {
     await client.query(`
@@ -141,6 +147,17 @@ export const ensureProductVariantImagesSchema = async (clientOrPool = db) => {
   } finally {
     if (release) client.release();
   }
+  };
+  if (clientOrPool !== db) return runEnsure();
+  productVariantImagesSchemaPromise = runEnsure()
+    .then(() => {
+      productVariantImagesSchemaEnsured = true;
+    })
+    .catch((error) => {
+      productVariantImagesSchemaPromise = null;
+      throw error;
+    });
+  return productVariantImagesSchemaPromise;
 };
 
 const collectColorImageRecords = (entry = {}, fallback = {}) => {
@@ -234,7 +251,15 @@ export const replaceProductVariantImages = async (clientOrPool, { productId, var
   const { client, release } = await getClient(clientOrPool);
   try {
     await client.query("DELETE FROM product_variant_images WHERE product_id = $1", [productId]);
-    if (!records.length) return [];
+    if (!records.length) {
+      await indexProductImagesForProduct(client, { productId }).catch((error) => {
+        console.warn("[ai-visual-index] product image indexing skipped", {
+          product_id: productId,
+          message: error?.message || "indexing failed",
+        });
+      });
+      return [];
+    }
     const rows = [];
     let order = 0;
     for (const record of records) {
@@ -265,6 +290,12 @@ export const replaceProductVariantImages = async (clientOrPool, { productId, var
       rows.push(result.rows[0]);
       order += 1;
     }
+    await indexProductImagesForProduct(client, { productId }).catch((error) => {
+      console.warn("[ai-visual-index] product image indexing skipped", {
+        product_id: productId,
+        message: error?.message || "indexing failed",
+      });
+    });
     return rows;
   } finally {
     if (release) client.release();

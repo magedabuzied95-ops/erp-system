@@ -7,10 +7,13 @@
     "appearance": "المظهر",
     "logout": "تسجيل الخروج",
     "currency": "العملة",
-    "loading": "جارٍ التحميل",
+    "loading": "جاري التحميل",
+    "saving": "جاري الحفظ...",
+    "save": "حفظ",
     "cancel": "إلغاء",
     "close": "إغلاق",
     "open": "فتح",
+    "back": "رجوع",
     "copy": "نسخ",
     "refresh": "تحديث",
     "previous": "السابق",
@@ -28,13 +31,579 @@
     "total": "الإجمالي",
     "subtotal": "الإجمالي الفرعي",
     "discount": "الخصم",
-    "paid": "مدفوعة",
+    "paid": "مدفوع",
     "print": "طباعة",
     "download": "تنزيل",
     "share": "مشاركة",
     "all": "الكل",
+    "notAvailable": "غير متاح",
     "noResults": "لا توجد نتائج",
-    "noData": "لا توجد بيانات"
+    "noData": "لا توجد بيانات",
+    "aiChannels": {
+      "eyebrow": "مركز تحكم دعم الذكاء الاصطناعي",
+      "title": "مركز تحكم قنوات الذكاء الاصطناعي",
+      "subtitle": "راقب قنوات العملاء، طلبات التحويل للبشر، إشارات الصندوق، ومؤشرات الرد من شاشة تشغيل واحدة.",
+      "refresh": "تحديث",
+      "settings": "الإعدادات",
+      "status": {
+        "online": "متصل",
+        "offline": "غير متصل",
+        "enabled": "مفعل",
+        "disabled": "معطل"
+      },
+      "health": {
+        "status": "حالة دعم الذكاء الاصطناعي",
+        "active": "المحادثات النشطة",
+        "waiting": "بانتظار تدخل بشري",
+        "avgResponse": "متوسط زمن الرد",
+        "resolvedToday": "تم حلها بالذكاء اليوم"
+      },
+      "channels": {
+        "web_chat": "دردشة الموقع",
+        "whatsapp": "واتساب",
+        "instagram": "إنستجرام",
+        "facebook": "فيسبوك",
+        "facebook_messenger": "فيسبوك"
+      },
+      "connection": {
+        "connected": "متصل",
+        "local": "متاح محليًا",
+        "setup": "يحتاج إعداد",
+        "disconnected": "غير متصل"
+      },
+      "note": {
+        "externalChannels": "القنوات الخارجية تحتاج اتصال API. دردشة الموقع يمكن أن تعمل محليًا أولًا."
+      },
+      "card": {
+        "autoReply": "الرد التلقائي",
+        "messagesToday": "رسائل اليوم",
+        "lastSync": "آخر مزامنة",
+        "pending": "محادثات معلقة"
+      },
+      "actions": {
+        "manage": "إدارة",
+        "configure": "إعداد",
+        "viewInbox": "عرض الصندوق",
+        "test": "اختبار القناة",
+        "openInbox": "فتح الصندوق"
+      },
+      "inbox": {
+        "title": "معاينة الصندوق المباشر",
+        "subtitle": "أحدث محادثات الذكاء الاصطناعي عبر القنوات المحلية والمتصلة.",
+        "customer": "العميل",
+        "channel": "القناة",
+        "message": "آخر رسالة",
+        "intent": "النية المكتشفة",
+        "aiStatus": "حالة الذكاء",
+        "time": "الوقت"
+      },
+      "aiStatus": {
+        "replied": "تم الرد",
+        "needs_human": "يحتاج بشري",
+        "pending": "معلق"
+      },
+      "analytics": {
+        "title": "لقطة تحليلات الذكاء الاصطناعي",
+        "takeoverRate": "معدل التدخل البشري",
+        "resolutionRate": "معدل الحل بالذكاء",
+        "avgResponse": "متوسط زمن الرد",
+        "aiReplies": "ردود الذكاء",
+        "topIntents": "أهم النوايا المكتشفة",
+        "sentiment": "توزيع الانطباع"
+      },
+      "internal": {
+        "title": "اختبارات داخلية",
+        "customer": "اختبار داخلي"
+      },
+      "messageLabels": {
+        "imageSearch": "طلب بحث بالصور",
+        "productDiscovery": "اكتشاف منتجات",
+        "general": "رسالة عامة"
+      },
+      "intentLabels": {
+        "imageSearch": "طلب بحث بالصور",
+        "productDiscovery": "اكتشاف منتجات",
+        "general": "رسالة عامة",
+        "general message": "رسالة عامة",
+        "greeting only": "تحية",
+        "order": "طلب شراء",
+        "price": "سؤال عن السعر",
+        "discount": "طلب خصم",
+        "delivery": "سؤال عن التوصيل",
+        "exchange": "استبدال أو استرجاع",
+        "complaint": "شكوى"
+      },
+      "sentimentLabels": {
+        "positive": "إيجابي",
+        "neutral": "محايد",
+        "negative": "سلبي"
+      },
+      "empty": {
+        "never": "لا يوجد",
+        "guest": "عميل زائر",
+        "noPreview": "لا توجد معاينة للرسالة",
+        "unknownIntent": "غير معروف",
+        "noConversationsTitle": "لا توجد محادثات ذكاء اصطناعي بعد",
+        "noConversations": "لا توجد محادثات ذكاء اصطناعي بعد. اربط قناة أو فعل دردشة الموقع لبدء استقبال الرسائل.",
+        "noAnalytics": "لا توجد بيانات تحليلية بعد.",
+        "noSentiment": "لا توجد إشارات انطباع بعد."
+      }
+    },
+    "employeeHub": {
+      "eyebrow": "مركز الموظفين",
+      "title": "الموظفون",
+      "subtitle": "ملفات الموظفين والحضور والورديات والرواتب وأداء المبيعات والسلف والتقارير في مساحة عمل واحدة.",
+      "currentSection": "القسم الحالي في مركز الموظفين: {{section}}",
+      "tabs": {
+        "overview": "نظرة عامة",
+        "employees": "الموظفون",
+        "attendance": "الحضور",
+        "payroll": "الرواتب",
+        "analytics": "التحليلات",
+        "salesPerformance": "أداء المبيعات",
+        "advances": "السلف",
+        "reports": "التقارير"
+      },
+      "metrics": {
+        "people": "الأفراد",
+        "profiles": "الملفات",
+        "time": "الوقت",
+        "attendance": "الحضور",
+        "pay": "الأجر",
+        "payroll": "الرواتب",
+        "sales": "المبيعات",
+        "performance": "الأداء"
+      },
+      "cards": {
+        "employees": {
+          "title": "قائمة الموظفين",
+          "text": "ملفات الموظفين والمسميات الوظيفية وتعيين الفروع والراتب وبيانات التواصل والحالة وإعداد بائع نقطة البيع."
+        },
+        "attendance": {
+          "title": "الحضور والورديات",
+          "text": "تسجيل الدخول والخروج وتدفقات QR والكشك وتعيين الورديات والتأخير والغياب والعمل الإضافي واعتمادات الأجهزة."
+        },
+        "payroll": {
+          "title": "الرواتب",
+          "text": "الراتب الأساسي والعمولات والمكافآت والخصومات وسلف الموظفين وحساب صافي الراتب."
+        },
+        "salesPerformance": {
+          "title": "أداء المبيعات",
+          "text": "مبيعات كل موظف وقواعد العمولات وأثر المرتجعات وأفضل الموظفين وتحليلات الأداء."
+        },
+        "advances": {
+          "title": "سلف الموظفين",
+          "text": "إنشاء السلف ومتابعة الرصيد المستحق وخصمها من الرواتب ومراجعة السجل."
+        },
+        "reports": {
+          "title": "التقارير",
+          "text": "تقارير الرواتب والحضور والعمولات وأداء الموظفين من مكان واحد."
+        }
+      },
+      "reports": {
+        "title": "تقارير الموظفين",
+        "subtitle": "يمكن الوصول إلى كل تقارير الموظفين من الأقسام المناسبة داخل مركز الموظفين.",
+        "payroll": {
+          "label": "تقرير الرواتب",
+          "description": "حساب صافي الراتب مع العمولات والمكافآت والخصومات والسلف."
+        },
+        "attendance": {
+          "label": "تقرير الحضور",
+          "description": "مراجعة الحضور اليومي والتأخير والغياب والعمل الإضافي وساعات العمل."
+        },
+        "commission": {
+          "label": "تقرير العمولات",
+          "description": "مراجعة قواعد العمولات وأثر المرتجعات وأفضل الموظفين وأداء المبيعات."
+        },
+        "performance": {
+          "label": "تقرير أداء الموظفين",
+          "description": "مقارنة المبيعات والورديات وأداء الفروع وبطاقات تقييم الموظفين."
+        }
+      },
+      "attendance": {
+        "eyebrow": "الموارد البشرية / الحضور",
+        "title": "إدارة الحضور والورديات",
+        "subtitle": "حضور الموظفين والورديات وتسجيل الدخول والخروج المرتبط بنقطة البيع وتحليلات الفروع وتتبع وقت الموظفين.",
+        "tabs": {
+          "dashboard": "لوحة التحكم",
+          "employees": "الموظفون",
+          "devices": "الأجهزة",
+          "reports": "التقارير",
+          "kiosk": "الكشك"
+        },
+        "metrics": {
+          "presentToday": "الحاضرون اليوم",
+          "absentToday": "الغائبون اليوم",
+          "lateEmployees": "المتأخرون",
+          "overtimeEmployees": "العمل الإضافي",
+          "totalWorkedHours": "إجمالي ساعات العمل",
+          "daysPresent": "أيام الحضور",
+          "lateDays": "أيام التأخير",
+          "overtimeDays": "أيام العمل الإضافي",
+          "workedHours": "ساعات العمل",
+          "workMinutes": "دقائق العمل",
+          "lateMinutes": "دقائق التأخير",
+          "earlyLeave": "انصراف مبكر"
+        },
+        "actions": {
+          "printExport": "طباعة / تصدير",
+          "newEmployee": "موظف جديد",
+          "createEmployee": "إنشاء موظف",
+          "updateEmployee": "تحديث الموظف",
+          "edit": "تعديل",
+          "deleteEmployee": "حذف الموظف",
+          "resetToday": "إعادة ضبط اليوم",
+          "resetTodayAttendance": "إعادة ضبط حضور اليوم",
+          "assignShift": "تعيين وردية",
+          "updateShift": "تحديث الوردية",
+          "openShift": "فتح الوردية",
+          "closeShift": "إغلاق الوردية",
+          "resetEmployeeDeviceLock": "إعادة ضبط جهاز الموظف",
+          "resetTodayDeviceLocks": "إعادة ضبط أجهزة اليوم",
+          "resetAllDeviceLocks": "إعادة ضبط كل الأجهزة",
+          "resetDeviceLocks": "إعادة ضبط الأجهزة",
+          "resetLock": "إعادة ضبط القفل",
+          "approve": "اعتماد",
+          "reject": "رفض",
+          "reset": "إعادة ضبط",
+          "refreshDevices": "تحديث الأجهزة"
+        },
+        "admin": {
+          "eyebrow": "أدوات الإدارة",
+          "title": "إدارة أجهزة الحضور",
+          "subtitle": "أدوات اختبار ودعم لمسح قيود أجهزة الحضور فقط. سجل الحضور لا يتغير.",
+          "viewDeviceApprovals": "عرض موافقات الأجهزة"
+        },
+        "dashboard": {
+          "todayChart": "مخطط اليوم",
+          "branchAttendanceMix": "مزيج حضور الفروع",
+          "presentLateOvertime": "حضور / تأخير / إضافي",
+          "dailySummary": "ملخص اليوم",
+          "posLinkHint": "ترتبط سجلات الحضور تلقائيا بنقطة البيع عند فتح الورديات من الكشك.",
+          "recentLogs": "آخر السجلات",
+          "attendanceList": "قائمة الحضور",
+          "filtersAutoApply": "يتم تطبيق فلاتر الفرع والتاريخ تلقائيا"
+        },
+        "employees": {
+          "employeeList": "قائمة الموظفين",
+          "employeesAndShifts": "الموظفون والورديات",
+          "employeeProfile": "ملف الموظف",
+          "createEmployee": "إنشاء موظف",
+          "editEmployee": "تعديل موظف",
+          "shiftAssignment": "تعيين الوردية"
+        },
+        "devices": {
+          "security": "أمان الأجهزة",
+          "approvals": "موافقات أجهزة الحضور",
+          "subtitle": "أول حضور QR صالح داخل نطاق GPS للفرع يربط الهاتف. الهواتف الجديدة تبقى محظورة حتى يتم اعتمادها أو إعادة ضبطها.",
+          "newPhonePolicy": "سياسة الهاتف الجديد",
+          "pendingApproval": "بانتظار الاعتماد",
+          "blockImmediately": "حظر فوري"
+        },
+        "reports": {
+          "employeeTrend": "اتجاه الموظف",
+          "workedMinutesByDay": "دقائق العمل حسب اليوم",
+          "branchTotals": "إجماليات الفروع",
+          "branchReport": "تقرير الفرع",
+          "employeeReport": "تقرير الموظف",
+          "workedValue": "{{value}} عمل",
+          "dateRange": "من {{start}} إلى {{end}}"
+        },
+        "kiosk": {
+          "mode": "وضع الكشك",
+          "openCloseShift": "فتح وإغلاق الوردية",
+          "subtitle": "أدوات حضور جاهزة لنقطة البيع. يمكن استخدام إجراءات الفتح والإغلاق في تدفق الدفع وربطها بالطلبات.",
+          "currentEmployee": "الموظف الحالي",
+          "linkedToPos": "مرتبط بنقطة البيع",
+          "shiftSnapshot": "لقطة الوردية"
+        },
+        "fields": {
+          "employee": "الموظف",
+          "employeeWithId": "موظف #{{id}}",
+          "name": "الاسم",
+          "fullName": "الاسم بالكامل",
+          "employeeCode": "كود الموظف",
+          "code": "الكود",
+          "branch": "الفرع",
+          "noBranch": "لا يوجد فرع",
+          "jobTitle": "المسمى الوظيفي",
+          "internalRole": "الدور الداخلي",
+          "email": "البريد الإلكتروني",
+          "phone": "الهاتف",
+          "nationalId": "الرقم القومي",
+          "salary": "الراتب",
+          "hireDate": "تاريخ التعيين",
+          "shift": "الوردية",
+          "shiftName": "اسم الوردية",
+          "startTime": "وقت البداية",
+          "endTime": "وقت النهاية",
+          "allowedLateMinutes": "دقائق التأخير المسموحة",
+          "overtimeAfterMinutes": "الإضافي بعد دقائق",
+          "workingDays": "أيام العمل",
+          "workingDaysHelper": "مفصولة بفواصل: Sun,Mon,Tue,Wed,Thu",
+          "checkIn": "تسجيل الحضور",
+          "checkOut": "تسجيل الانصراف",
+          "worked": "العمل",
+          "workedHours": "ساعات العمل",
+          "totalEmployees": "إجمالي الموظفين",
+          "today": "اليوم",
+          "actions": "الإجراءات",
+          "scope": "النطاق",
+          "noEmployeeCode": "لا يوجد كود موظف",
+          "notAvailable": "غير متاح",
+          "token": "الرمز",
+          "lastSeen": "آخر ظهور",
+          "dailyDate": "تاريخ اليوم",
+          "startDate": "تاريخ البداية",
+          "endDate": "تاريخ النهاية",
+          "date": "التاريخ"
+        },
+        "options": {
+          "loadingBranches": "جاري تحميل الفروع...",
+          "noBranches": "لا توجد فروع. أنشئ فرعا أولا.",
+          "selectBranch": "اختر الفرع",
+          "selectEmployee": "اختر الموظف",
+          "allBranches": "كل الفروع"
+        },
+        "status": {
+          "open": "مفتوح",
+          "closed": "مغلق",
+          "off": "متوقف",
+          "unknown": "غير معروف",
+          "present": "حاضر",
+          "late": "متأخر",
+          "absent": "غائب",
+          "overtime": "إضافي",
+          "checked_in": "تم تسجيل الحضور",
+          "active": "نشط",
+          "inactive": "غير نشط",
+          "pending": "معلق",
+          "approved": "معتمد",
+          "rejected": "مرفوض",
+          "locked": "مقفل",
+          "deviceLock": "قفل جهاز"
+        },
+        "empty": {
+          "noAttendanceLogs": "لا توجد سجلات حضور لليوم المحدد.",
+          "noEmployees": "لا يوجد موظفون.",
+          "noDevices": "لا توجد أجهزة حضور.",
+          "noBranchAttendance": "لا توجد بيانات حضور للفروع في الفترة المحددة.",
+          "noEmployeeReport": "لا توجد بيانات تقرير للموظف في الفترة المحددة.",
+          "selectEmployeeKiosk": "اختر موظفا لإدارة حضور الكشك."
+        },
+        "dialogs": {
+          "resetTodayDeviceLocksTitle": "إعادة ضبط أجهزة اليوم",
+          "resetTodayDeviceLocksBody": "سيتم حذف قيود أجهزة الحضور الخاصة باليوم الحالي لهذا الحساب.",
+          "resetTodayDeviceLocksValue": "كل الموظفين الذين لديهم قيود أجهزة اليوم",
+          "resetEmployeeDeviceLockTitle": "إعادة ضبط جهاز الموظف",
+          "resetEmployeeDeviceLockBody": "سيتم حذف قيود أجهزة الحضور الخاصة باليوم الحالي لهذا الموظف.",
+          "resetAllDeviceLocksTitle": "إعادة ضبط كل الأجهزة",
+          "resetAllDeviceLocksBody": "سيتم حذف كل قيود أجهزة الحضور لهذا الحساب.",
+          "resetAllDeviceLocksValue": "كل قيود أجهزة الحضور لهذا الحساب",
+          "deleteEmployeeTitle": "حذف الموظف",
+          "deleteEmployeeBody": "هل أنت متأكد أنك تريد حذف هذا الموظف؟",
+          "cannotBeUndone": "لا يمكن التراجع عن هذا الإجراء.",
+          "resetTodayAttendanceTitle": "إعادة ضبط حضور اليوم",
+          "resetTodayAttendanceBody": "يحذف هذا سجل حضور اليوم فقط لهذا الموظف حتى تعرض صفحة QR العامة تسجيل الحضور مرة أخرى.",
+          "clearDeviceLocks": "مسح قيود جهاز/جلسة اليوم أيضا",
+          "clearDeviceLocksHelp": "استخدم هذا فقط عند اختبار ربط الأجهزة أو قيود جلسات بوابة الموظف.",
+          "historyUnaffected": "سجل الحضور القديم لا يتأثر.",
+          "deviceLocks": "قيود أجهزة الحضور",
+          "deviceLocksWarning": "يمسح هذا قيود الجهاز وجلسات بوابة الموظف المطابقة. سجل الحضور لا يتغير."
+        },
+        "toasts": {
+          "employeeCreated": "تم إنشاء الموظف",
+          "employeeUpdated": "تم تحديث الموظف",
+          "employeeDeleted": "تم حذف الموظف",
+          "shiftSaved": "تم حفظ الوردية",
+          "shiftOpened": "تم فتح الوردية",
+          "shiftClosed": "تم إغلاق الوردية",
+          "deviceApproved": "تم اعتماد الجهاز",
+          "deviceRejected": "تم رفض الجهاز",
+          "deviceLockReset": "تمت إعادة ضبط قفل الجهاز. الصفوف المتأثرة: {{count}}",
+          "todayAttendanceReset": "تمت إعادة ضبط حضور اليوم. الصفوف المحذوفة: {{count}}",
+          "devicePolicyUpdated": "تم تحديث سياسة الأجهزة"
+        },
+        "errors": {
+          "loadData": "تعذر تحميل بيانات الحضور",
+          "dailyReport": "تعذر تحميل تقرير حضور اليوم",
+          "loadDevices": "تعذر تحميل أجهزة الحضور",
+          "employeeNameRequired": "اسم الموظف مطلوب",
+          "saveEmployee": "تعذر حفظ الموظف",
+          "deleteEmployee": "تعذر حذف الموظف",
+          "selectEmployee": "اختر موظفا أولا",
+          "shiftNameRequired": "اسم الوردية مطلوب",
+          "saveShift": "تعذر حفظ الوردية",
+          "openShift": "تعذر فتح الوردية",
+          "closeShift": "تعذر إغلاق الوردية",
+          "approveDevice": "تعذر اعتماد الجهاز",
+          "rejectDevice": "تعذر رفض الجهاز",
+          "resetEmployeeDevice": "تعذر إعادة ضبط جهاز الموظف",
+          "resetDeviceLock": "تعذر إعادة ضبط قفل الجهاز",
+          "resetDeviceLocks": "تعذر إعادة ضبط قيود الأجهزة",
+          "noDeviceLocks": "لم يتم العثور على قيود أجهزة لإعادة ضبطها.",
+          "resetRemainingRows": "لم تكتمل إعادة الضبط. الصفوف المتبقية لليوم: {{count}}",
+          "noTodayAttendanceRows": "لم يتم العثور على سجلات حضور لليوم لهذا الموظف.",
+          "resetTodayAttendance": "تعذر إعادة ضبط حضور اليوم",
+          "updateDevicePolicy": "تعذر تحديث سياسة الأجهزة"
+        }
+      },
+      "analytics": {
+        "eyebrow": "تحليلات الموظفين",
+        "title": "أداء المبيعات والعمولات",
+        "subtitle": "متابعة أداء الكاشير والعمولات وأفضل الموظفين وتحليلات الورديات في مساحة عمل واحدة.",
+        "loading": "جاري تحميل تحليلات الموظفين...",
+        "actions": {
+          "exportPdf": "تصدير PDF",
+          "exportCsv": "تصدير CSV"
+        },
+        "tabs": {
+          "overview": "نظرة عامة",
+          "sales": "أداء المبيعات",
+          "commissions": "العمولات",
+          "top": "أفضل الموظفين",
+          "shifts": "تحليلات الورديات"
+        },
+        "filters": {
+          "title": "فلاتر التحليلات",
+          "subtitle": "تقوم فلاتر التاريخ بتحديث بيانات تحليلات الموظفين تلقائيا.",
+          "range": "الفترة",
+          "startDate": "تاريخ البداية",
+          "endDate": "تاريخ النهاية"
+        },
+        "presets": {
+          "last30Days": "آخر 30 يوما",
+          "last7Days": "آخر 7 أيام",
+          "thisMonth": "هذا الشهر",
+          "thisYear": "هذا العام",
+          "custom": "مخصص"
+        },
+        "status": {
+          "fallbackActive": "بيانات احتياطية مفعلة",
+          "liveData": "تم تحميل البيانات الحية",
+          "refreshing": "جاري التحديث",
+          "fallbackMessage": "يتم عرض بيانات تحليلات موظفين احتياطية محلية.",
+          "active": "نشط",
+          "inactive": "غير نشط"
+        },
+        "toasts": {
+          "fallbackData": "يتم استخدام بيانات تحليلات موظفين احتياطية",
+          "exportPdfFailed": "تعذر تصدير PDF",
+          "exportCsvFailed": "تعذر تصدير CSV",
+          "printFailed": "تعذرت طباعة التقرير",
+          "ruleNameRequired": "اسم القاعدة مطلوب",
+          "ruleCreated": "تم إنشاء قاعدة العمولة",
+          "ruleCreateFailed": "تعذر إنشاء قاعدة العمولة"
+        },
+        "export": {
+          "companyName": "نظام ERP",
+          "title": "تقرير تحليلات الموظفين",
+          "subtitle": "أداء المبيعات والعمولات وتحليلات الورديات"
+        },
+        "metrics": {
+          "bestCashier": "أفضل كاشير",
+          "highestSales": "أعلى إجمالي مبيعات",
+          "highestRevenue": "أعلى إيراد",
+          "orders": "الطلبات: {{count}}",
+          "highestAverageOrder": "أعلى متوسط طلب",
+          "commissionLeaderboard": "ترتيب العمولات",
+          "totalEarnedCommission": "إجمالي العمولات المكتسبة",
+          "commissionRows": "سجلات العمولات",
+          "recordedEarnings": "أرباح مسجلة",
+          "ruleCount": "عدد القواعد",
+          "activeInactiveRules": "قواعد نشطة وغير نشطة",
+          "totalCommission": "إجمالي العمولة",
+          "fromCommissionRows": "من سجلات العمولات"
+        },
+        "charts": {
+          "revenueByEmployee": "الإيراد حسب الموظف",
+          "salesCommissionMix": "مزيج المبيعات والعمولات",
+          "shiftAnalytics": "تحليلات الورديات",
+          "shiftRevenueTrend": "اتجاه إيراد الورديات"
+        },
+        "sections": {
+          "salesPerformance": "أداء المبيعات",
+          "topPerformers": "أفضل الموظفين",
+          "shiftAnalytics": "تحليلات الورديات",
+          "branchPerformance": "أداء الفروع"
+        },
+        "table": {
+          "employee": "الموظف",
+          "role": "الدور",
+          "sales": "المبيعات",
+          "orders": "الطلبات",
+          "avgOrder": "متوسط الطلب",
+          "commission": "العمولة",
+          "refunds": "المرتجعات",
+          "invoice": "الفاتورة",
+          "sale": "البيع",
+          "shift": "الوردية",
+          "branch": "الفرع"
+        },
+        "roles": {
+          "staff": "موظف"
+        },
+        "commissions": {
+          "rules": "قواعد العمولات",
+          "configurableRules": "قواعد قابلة للإعداد",
+          "ruleName": "اسم القاعدة",
+          "value": "القيمة",
+          "scopeId": "معرف النطاق (اختياري)",
+          "scopeIdLabel": "معرف النطاق",
+          "priority": "الأولوية",
+          "appliesTo": "ينطبق على",
+          "addRule": "إضافة قاعدة",
+          "transactions": "حركات العمولات",
+          "scope": {
+            "global": "عام",
+            "product": "منتج",
+            "category": "تصنيف",
+            "employee": "موظف"
+          },
+          "ruleType": {
+            "percentage": "نسبة مئوية",
+            "fixed": "ثابت"
+          },
+          "apply": {
+            "sale": "بيع",
+            "item": "قطعة"
+          }
+        }
+      },
+      "payroll": {
+        "title": "???????",
+        "subtitle": "???? ??????? ????????? ????????? ???? ????????.",
+        "metrics": {
+          "netPay": "???? ??????",
+          "baseSalary": "?????? ???????",
+          "commissions": "????????",
+          "deductions": "????????",
+          "advances": "?????"
+        },
+        "buttons": {
+          "calculate": "???? ??????",
+          "finalize": "?????? ??????"
+        },
+        "labels": {
+          "employee": "??????",
+          "bonuses": "????????",
+          "month": "?????",
+          "amount": "??????",
+          "status": "??????",
+          "notes": "???????"
+        },
+        "empty": {
+          "noAdvances": "?? ???? ??? ???? ???? ??????."
+        }
+      },
+      "advances": {
+        "title": "??? ????????",
+        "subtitle": "?????? ????? ???????? ??????? ???????.",
+        "empty": {
+          "noAdvances": "?? ???? ???."
+        }
+      }
+    }
   },
   "sidebar": {
     "main": "الرئيسية",
@@ -53,7 +622,7 @@
     "brands": "العلامات التجارية",
     "manufacturers": "المصانع",
     "units": "الوحدات",
-    "variants": "الخيارات",
+    "variants": "المتغيرات",
     "barcodeLabels": "ملصقات الباركود",
     "orders": "الطلبات",
     "posPro": "نقطة البيع الاحترافية",
@@ -62,8 +631,11 @@
     "suppliers": "الموردون",
     "warehouses": "المخازن",
     "branches": "الفروع",
+    "payroll": "المرتبات",
+    "attendanceCenter": "مركز الحضور",
     "stockTransfers": "نقل المخزون",
     "accounting": "المحاسبة",
+    "expenses": "المصاريف",
     "journalEntries": "قيود اليومية",
     "loyalty": "الولاء",
     "employeeAnalytics": "تحليلات الموظفين",
@@ -77,7 +649,55 @@
     "roles": "الأدوار",
     "permissions": "الصلاحيات",
     "users": "المستخدمون",
-    "tenants": "المستأجرون"
+    "tenants": "المستأجرون",
+    "marketing": "التسويق",
+    "marketingDashboard": "لوحة التسويق",
+    "aiMarketingCenter": "مركز التسويق بالذكاء الاصطناعي",
+    "socialPosts": "منشورات التواصل",
+    "campaigns": "الحملات",
+    "coupons": "الكوبونات",
+    "templates": "القوالب",
+    "noMatchingModules": "لا توجد نتائج مطابقة",
+    "quickAccess": {
+      "pos": "نقطة البيع",
+      "orders": "الطلبات",
+      "product": "منتج",
+      "aiCenter": "مركز الذكاء",
+      "products": "المنتجات"
+    },
+    "subgroups": {
+      "aiMarketing": "التسويق بالذكاء الاصطناعي",
+      "aiSupport": "دعم الذكاء الاصطناعي",
+      "systemSettings": "إعدادات النظام"
+    },
+    "productsInventory": "المنتجات والمخزون",
+    "aiMarketing": "الذكاء والتسويق",
+    "systemSettings": "إعدادات النظام",
+    "notifications": "الإشعارات",
+    "websiteOrders": "طلبات الموقع",
+    "returns": "المرتجعات",
+    "advances": "السلف",
+    "currency": "العملة",
+    "preferences": "التفضيلات",
+    "settingsCenter": "مركز الإعدادات",
+    "websiteSettings": "إعدادات الموقع",
+    "aiInbox": "صندوق الذكاء",
+    "aiFollowUps": "متابعات الذكاء",
+    "aiChannels": "قنوات الذكاء",
+    "aiAgentAnalytics": "تحليلات وكيل الذكاء",
+    "aiKnowledgeBase": "قاعدة معرفة الذكاء",
+    "aiAgentSettings": "إعدادات وكيل الذكاء",
+    "groups": {
+      "main": "الرئيسية",
+      "sales": "المبيعات",
+      "productsInventory": "المنتجات والمخزون",
+      "purchasing": "المشتريات",
+      "employees": "الموظفون",
+      "finance": "المالية",
+      "aiMarketing": "الذكاء والتسويق",
+      "systemSettings": "إعدادات النظام"
+    },
+    "searchModules": "بحث في الوحدات..."
   },
   "language": {
     "label": "اللغة",

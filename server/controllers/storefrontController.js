@@ -1,5 +1,7 @@
-﻿import crypto from "node:crypto";
-import { unlink } from "node:fs/promises";
+import crypto from "node:crypto";
+import path from "node:path";
+import { access, readFile, unlink } from "node:fs/promises";
+import sharp from "sharp";
 import db from "../database/db.js";
 import { adjustVariantStock } from "../services/inventoryService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
@@ -14,21 +16,459 @@ import { ensureLoyaltySchema, getCustomerLoyaltySummary, resolveOrCreateCustomer
 import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils/phoneSearch.js";
 import { fetchProductClassificationGroupByKey, getClassificationFilterAliases } from "../services/productClassificationsService.js";
 import { generateProductOgImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, buildAbsolutePublicUrl } from "../services/productOgImageService.js";
+import { generateAiProductData } from "../services/aiProductDataService.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
 import { buildCacheKey, getOrSetCache, invalidateCachePattern } from "../services/cacheService.js";
+import { getWebsiteSettings } from "../services/liveActivityService.js";
+import { getSetting } from "../services/settingsService.js";
+import { normalizeSaleModeSettings } from "../services/saleModeService.js";
+import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
+import {
+  attachPublicOrderNumber,
+  displayPublicOrderNumber,
+} from "../utils/publicOrderNumber.js";
+import {
+  assignSequentialInvoiceNumber,
+  buildTemporaryInvoiceNumber,
+} from "../utils/invoiceNumber.js";
+import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
+import { normalizeOrderLifecycleStatus } from "../../shared/orderStatus.js";
 
 const DEFAULT_TENANT_ID = 1;
 const LOW_STOCK_LIMIT = 2;
+const isEnabledSetting = (value) => value === true || value === 1 || ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
+
+const getStorefrontOrderSettings = async () => {
+  const [
+    allowCod,
+    allowStorePickup,
+    defaultWebsiteStatus,
+    autoConfirmWebsiteOrders,
+    defaultShippingProvider,
+  ] = await Promise.all([
+    getSetting("orders.allow_cod", true),
+    getSetting("orders.allow_store_pickup", true),
+    getSetting("orders.default_website_order_status", "pending"),
+    getSetting("orders.auto_confirm_website_orders", false),
+    getSetting("orders.shipping_provider", "manual"),
+  ]);
+  return {
+    allowCod: isEnabledSetting(allowCod),
+    allowStorePickup: isEnabledSetting(allowStorePickup),
+    defaultWebsiteStatus: normalizeOrderLifecycleStatus(defaultWebsiteStatus, "pending"),
+    autoConfirmWebsiteOrders: isEnabledSetting(autoConfirmWebsiteOrders),
+    defaultShippingProvider: String(defaultShippingProvider || "manual").trim().toLowerCase() || "manual",
+  };
+};
+const VISUAL_SEARCH_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_SEARCH_MAX_BYTES || 8 * 1024 * 1024);
+const VISUAL_SEARCH_ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+const VISUAL_HASH_SIZE = 8;
 let storefrontSchemaReadyPromise = null;
+let storefrontSchemaReady = false;
+const storefrontTableColumnsCache = new Map();
+const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").toLowerCase());
+const STOREFRONT_PRICING_DEFAULTS = {
+  enable_fake_compare_price: true,
+  fake_compare_percent: 20,
+  fake_compare_rounding_mode: "none",
+};
+const PRODUCT_AUDIENCES = ["men", "women", "kids"];
+const STOREFRONT_SORT_ALIASES = new Map([
+  ["new", "newest"],
+  ["newest", "newest"],
+  ["latest", "newest"],
+  ["price_asc", "price_asc"],
+  ["price-asc", "price_asc"],
+  ["price_low", "price_asc"],
+  ["price-low", "price_asc"],
+  ["price_low_high", "price_asc"],
+  ["price_desc", "price_desc"],
+  ["price-desc", "price_desc"],
+  ["price_high", "price_desc"],
+  ["price-high", "price_desc"],
+  ["price_high_low", "price_desc"],
+  ["best_sellers", "best_sellers"],
+  ["best-sellers", "best_sellers"],
+  ["bestsellers", "best_sellers"],
+  ["best", "best_sellers"],
+  ["discount", "discount"],
+  ["sale", "discount"],
+]);
+const PRODUCT_AUDIENCE_ALIASES = new Map([
+  ["men", "men"],
+  ["man", "men"],
+  ["male", "men"],
+  ["mens", "men"],
+  ["رجال", "men"],
+  ["رجالي", "men"],
+  ["women", "women"],
+  ["woman", "women"],
+  ["female", "women"],
+  ["ladies", "women"],
+  ["lady", "women"],
+  ["نساء", "women"],
+  ["نسائي", "women"],
+  ["حريمي", "women"],
+  ["kids", "kids"],
+  ["kid", "kids"],
+  ["children", "kids"],
+  ["child", "kids"],
+  ["boys", "kids"],
+  ["girls", "kids"],
+  ["اطفال", "kids"],
+  ["أطفال", "kids"],
+  ["طفل", "kids"],
+]);
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const firstQueryValue = (value) => {
+  if (Array.isArray(value)) return firstQueryValue(value[0]);
+  if (value && typeof value === "object") return "";
+  return value;
+};
+
+const queryText = (value = "") => String(firstQueryValue(value) ?? "").trim();
+
+const queryFlagOn = (value) => {
+  const normalized = queryText(value).toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+};
+
+const queryPositiveInt = (value, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
+  const parsed = Number.parseInt(queryText(value), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+};
+
+const roundMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+
+const normalizeStorefrontSort = (value = "") => STOREFRONT_SORT_ALIASES.get(queryText(value).toLowerCase()) || "";
+
+const normalizeStorefrontScope = (value = "") => {
+  const scope = queryText(value).toLowerCase();
+  return ["", "product", "products", "catalog", "storefront"].includes(scope) ? scope || "product" : "product";
+};
+
+const normalizeStorefrontGroupingMode = (value = "") => {
+  const mode = queryText(value).toLowerCase().replace(/-/g, "_");
+  return ["", "color_cards", "colors", "default", "none"].includes(mode) ? mode || "color_cards" : "color_cards";
+};
+
+const storefrontRandomSeed = (req) =>
+  firstText(
+    queryText(req.query.random_seed),
+    queryText(req.query.randomSeed),
+    queryText(req.query.seed),
+    req.headers?.["x-storefront-random-seed"],
+    req.headers?.["x-random-seed"],
+    crypto.randomBytes(12).toString("hex")
+  );
+
+const seededRandom = (seed = "") => {
+  let state = crypto.createHash("sha256").update(String(seed || "storefront")).digest().readUInt32LE(0);
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const storefrontCardId = (product = {}) =>
+  `${product.card_id || product.id || ""}:${product.selected_variant_id || product.display_variant_id || ""}`;
+
+const storefrontProductGroupId = (product = {}) =>
+  String(product.parent_product_id || product.id || product.card_id || storefrontCardId(product));
+
+const deterministicShuffle = (cards = [], seed = "") => {
+  const rows = Array.isArray(cards) ? [...cards] : [];
+  const random = seededRandom(seed || crypto.randomBytes(12).toString("hex"));
+  for (let index = rows.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [rows[index], rows[swapIndex]] = [rows[swapIndex], rows[index]];
+  }
+  return rows;
+};
+
+const smartGroupedStorefrontShuffle = (cards = [], seed = "") => {
+  const groupsByProduct = new Map();
+  for (const card of Array.isArray(cards) ? cards : []) {
+    const groupId = storefrontProductGroupId(card);
+    if (!groupsByProduct.has(groupId)) {
+      groupsByProduct.set(groupId, { id: groupId, cards: [] });
+    }
+    groupsByProduct.get(groupId).cards.push(card);
+  }
+
+  const groups = deterministicShuffle(Array.from(groupsByProduct.values()), `${seed}:product-groups`)
+    .map((group) => ({
+      ...group,
+      cards: deterministicShuffle(group.cards, `${seed}:colors:${group.id}`),
+    }));
+  const random = seededRandom(`${seed}:interleave`);
+  const output = [];
+
+  for (let index = 0; index < groups.length; index += 1) {
+    const group = groups[index];
+    if (!group.cards.length) continue;
+
+    output.push(group.cards.shift());
+    while (group.cards.length) {
+      const gap = 1 + Math.floor(random() * 3);
+      let inserted = 0;
+      for (let lookAhead = 1; lookAhead < groups.length && inserted < gap; lookAhead += 1) {
+        const other = groups[(index + lookAhead) % groups.length];
+        if (!other || other.id === group.id || other.cards.length !== 1) continue;
+        output.push(other.cards.shift());
+        inserted += 1;
+      }
+      output.push(group.cards.shift());
+    }
+  }
+
+  for (const group of groups) {
+    while (group.cards.length) output.push(group.cards.shift());
+  }
+
+  return output;
+};
+
+const cardSortPrice = (product = {}) =>
+  toNumber(product.final_price || product.selling_price || product.price || product.sale_price || product.regular_price);
+
+const cardDiscount = (product = {}) => {
+  const price = cardSortPrice(product);
+  const compare = toNumber(product.compare_at_price || product.old_price || product.original_price || product.regular_price);
+  const amount = compare > price && price > 0 ? compare - price : 0;
+  return {
+    amount,
+    percent: compare > 0 ? amount / compare : 0,
+  };
+};
+
+const compareIds = (a = {}, b = {}) => String(a.card_id || a.id || "").localeCompare(String(b.card_id || b.id || ""), "en", { numeric: true });
+
+const sortStorefrontCards = (cards = [], sort = "", seed = "") => {
+  const rows = Array.isArray(cards) ? [...cards] : [];
+  if (sort === "newest") {
+    return rows.sort((a, b) =>
+      new Date(b.created_at || b.updated_at || 0).getTime() - new Date(a.created_at || a.updated_at || 0).getTime() ||
+      toNumber(b.parent_product_id || b.id) - toNumber(a.parent_product_id || a.id) ||
+      compareIds(a, b)
+    );
+  }
+  if (sort === "price_asc") return rows.sort((a, b) => cardSortPrice(a) - cardSortPrice(b) || compareIds(a, b));
+  if (sort === "price_desc") return rows.sort((a, b) => cardSortPrice(b) - cardSortPrice(a) || compareIds(a, b));
+  if (sort === "best_sellers") {
+    return rows.sort((a, b) =>
+      toNumber(b.sold_count) - toNumber(a.sold_count) ||
+      toNumber(b.total_stock) - toNumber(a.total_stock) ||
+      new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime() ||
+      compareIds(a, b)
+    );
+  }
+  if (sort === "discount") {
+    return rows.sort((a, b) => {
+      const discountA = cardDiscount(a);
+      const discountB = cardDiscount(b);
+      return discountB.percent - discountA.percent || discountB.amount - discountA.amount || compareIds(a, b);
+    });
+  }
+  return smartGroupedStorefrontShuffle(rows, seed);
+};
+
+const normalizeStorefrontPricingSettings = (settings = {}) => {
+  const percent = Math.max(0, Math.min(500, toNumber(settings.fake_compare_percent, STOREFRONT_PRICING_DEFAULTS.fake_compare_percent)));
+  const roundingMode = new Set(["none", "nearest_10", "nearest_50", "nearest_100"]).has(settings.fake_compare_rounding_mode)
+    ? settings.fake_compare_rounding_mode
+    : STOREFRONT_PRICING_DEFAULTS.fake_compare_rounding_mode;
+  return {
+    enable_fake_compare_price: settings.enable_fake_compare_price !== false,
+    fake_compare_percent: percent,
+    fake_compare_rounding_mode: roundingMode,
+    ...normalizeSaleModeSettings(settings),
+  };
+};
+
+const loadStorefrontPricingSettings = async (tenantId) =>
+  normalizeStorefrontPricingSettings(await getWebsiteSettings({ tenantId }));
+
+const roundComparePrice = (value, mode = "none") => {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  const step = mode === "nearest_10" ? 10 : mode === "nearest_50" ? 50 : mode === "nearest_100" ? 100 : 0;
+  return roundMoney(step > 0 ? Math.round(amount / step) * step : amount);
+};
+
+const saleModeEnabled = (settings = {}) =>
+  settings.sale_mode_enabled === true || settings.global_sale_enabled === true || settings.sale_prices_enabled === true;
+
+const resolveStorefrontActivePrice = ({ originalPrice, sellingPrice, salePrice, pricingSettings = STOREFRONT_PRICING_DEFAULTS }) => {
+  const original = roundMoney(originalPrice);
+  const selling = roundMoney(sellingPrice);
+  const sale = roundMoney(salePrice);
+  const enabled = saleModeEnabled(pricingSettings);
+  const activeSale = enabled && sale > 0;
+  const activePrice = activeSale ? sale : selling;
+  const compareAtPrice = original > activePrice && activePrice > 0 ? original : 0;
+  return {
+    activePrice,
+    compareAtPrice,
+    saleActive: activeSale && sale < selling,
+    saleModeOn: enabled,
+  };
+};
+
+const storefrontComparePriceFor = (regularPrice, product = {}, pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
+  const regular = roundMoney(regularPrice);
+  if (regular <= 0) return 0;
+  const customEnabled = product.use_custom_compare_price === true || String(product.use_custom_compare_price || "").toLowerCase() === "true";
+  const customCompare = roundMoney(product.custom_compare_price);
+  if (customEnabled && customCompare > regular) return customCompare;
+  if (!pricingSettings.enable_fake_compare_price) return 0;
+  const generated = regular * (1 + toNumber(pricingSettings.fake_compare_percent, 20) / 100);
+  const compare = roundComparePrice(generated, pricingSettings.fake_compare_rounding_mode);
+  return compare > regular ? compare : 0;
+};
+
 const toText = (value = "") => String(value || "").trim();
+const normalizeAudienceText = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+const normalizeAudienceValue = (value) => {
+  const normalized = normalizeAudienceText(value);
+  if (!normalized) return "";
+  const compact = normalized.replace(/\s+/g, "");
+  return PRODUCT_AUDIENCE_ALIASES.get(normalized) || PRODUCT_AUDIENCE_ALIASES.get(compact) || (PRODUCT_AUDIENCES.includes(normalized) ? normalized : "");
+};
+const flattenAudienceInput = (value) => {
+  if (Array.isArray(value)) return value.flatMap(flattenAudienceInput);
+  if (value === null || value === undefined) return [];
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return [];
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return flattenAudienceInput(parsed);
+    } catch {
+      // Accept comma-separated strings below.
+    }
+    return text.split(/[,\n|]+/);
+  }
+  return [value];
+};
+const normalizeProductAudiences = (...sources) => {
+  const seen = new Set();
+  for (const source of sources) {
+    for (const value of flattenAudienceInput(source)) {
+      const audience = normalizeAudienceValue(value);
+      if (audience) seen.add(audience);
+    }
+  }
+  return PRODUCT_AUDIENCES.filter((audience) => seen.has(audience));
+};
+const normalizeClassificationToken = (value = "") =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^a-z0-9_\u0600-\u06ff]+/g, "");
+
+const activeStorefrontClassificationSets = async () => {
+  const entries = [];
+  for (const key of ["product_type", "style", "grade"]) {
+    const group = await fetchProductClassificationGroupByKey(key);
+    const aliases = new Set();
+    (group?.options || []).forEach((option) => {
+      [option.value, option.label_ar, option.label_en, option.name_ar, option.name_en, option.english_name]
+        .map(normalizeClassificationToken)
+        .filter(Boolean)
+        .forEach((alias) => aliases.add(alias));
+    });
+    entries.push([key, aliases]);
+  }
+  return Object.fromEntries(entries);
+};
+
+const scrubInactiveClassifications = async (products = []) => {
+  const sets = await activeStorefrontClassificationSets();
+  return products.map((product = {}) => {
+    const next = { ...product, badge: "" };
+    if (!sets.product_type?.has(normalizeClassificationToken(next.product_type))) {
+      next.product_type = "";
+      next.productType = "";
+    }
+    if (!sets.style?.has(normalizeClassificationToken(next.style))) next.style = "";
+    if (!sets.grade?.has(normalizeClassificationToken(next.grade))) next.grade = "";
+    return next;
+  });
+};
+
+const getActiveClassificationFilterAliases = async (groupKey, value) => {
+  const raw = toText(value);
+  if (!raw) return [];
+  const group = await fetchProductClassificationGroupByKey(groupKey);
+  const rawToken = normalizeClassificationToken(raw);
+  const option = (group?.options || []).find((item) =>
+    [item.value, item.label_ar, item.label_en, item.name_ar, item.name_en, item.english_name]
+      .map(normalizeClassificationToken)
+      .filter(Boolean)
+      .includes(rawToken)
+  );
+  if (!option) return ["__no_active_classification_match__"];
+  return [option.value, option.label_ar, option.label_en, option.name_ar, option.name_en, option.english_name]
+    .map((item) => toText(item).toLowerCase())
+    .filter(Boolean);
+};
+const slugifyProductName = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 160);
+const decodeIdentifier = (value = "") => {
+  try {
+    return decodeURIComponent(String(value || ""));
+  } catch {
+    return String(value || "");
+  }
+};
+const productIdentifierCandidates = (value = "") => {
+  const raw = String(value || "").trim();
+  const decoded = decodeIdentifier(raw).trim();
+  const candidates = [raw, decoded];
+  if (decoded.includes("-")) {
+    candidates.push(decoded.replace(/\s*-\s*/g, "-").replace(/-+/g, "-").trim());
+  }
+  return [...new Set(candidates.filter(Boolean))];
+};
+const productLookupFields = ["slug", "canonical_slug", "id", "sku", "product_code", "barcode", "qr_token", "variant.sku", "variant.barcode", "variant.edition_slug"];
+const productLookupFilters = [
+  "LOWER(slug) = LOWER(identifier)",
+  "LOWER(canonical_slug) = LOWER(identifier)",
+  "generated slug from product name",
+  "generated slug from brand + product name",
+  "id = numeric identifier",
+  "LOWER(sku) = LOWER(identifier)",
+  "LOWER(product_code) = LOWER(identifier)",
+  "LOWER(barcode) = LOWER(identifier)",
+  "LOWER(qr_token) = LOWER(identifier)",
+  "variant sku/barcode/edition_slug",
+];
+const productGeneratedSlugSql = (fieldSql = "p.name") =>
+  `LOWER(TRIM(BOTH '-' FROM REGEXP_REPLACE(REGEXP_REPLACE(LOWER(COALESCE(${fieldSql}, '')), '[^a-z0-9]+', '-', 'g'), '-+', '-', 'g')))`;
 const publicToken = () => crypto.randomBytes(18).toString("hex");
-const orderNumber = () => `WEB-${Date.now()}-${Math.floor(Math.random() * 900 + 100)}`;
 const sortedQueryString = (query = {}) => {
   const params = new URLSearchParams();
   Object.keys(query || {}).sort().forEach((key) => {
@@ -69,6 +509,8 @@ const getProductLowStockSnapshot = async (clientOrPool, { productId, tenantId })
       ) AS image_url
     FROM products p
     LEFT JOIN product_variants v ON v.product_id = p.id
+      AND v.is_active IS DISTINCT FROM FALSE
+      AND v.deleted_at IS NULL
     WHERE p.id = $1
       AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)
     GROUP BY p.id, p.name, p.stock, p.image_url, p.image, p.photo_url, p.thumbnail_url
@@ -95,7 +537,14 @@ const parseJsonField = (value, fallback) => {
     return fallback;
   }
 };
-
+const checkoutValidationError = (message, field, details = {}, status = 400) => {
+  const error = new Error(message);
+  error.status = status;
+  error.field = field;
+  error.details = details;
+  error.expose = true;
+  return error;
+};
 const isValidShippingProofFile = (file) => {
   if (!file) return false;
   const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -117,6 +566,7 @@ const tenantFromRequest = (req) => {
 };
 
 const tableColumns = async (clientOrPool, tableName) => {
+  if (storefrontTableColumnsCache.has(tableName)) return storefrontTableColumnsCache.get(tableName);
   const result = await clientOrPool.query(
     `
     SELECT column_name
@@ -126,7 +576,9 @@ const tableColumns = async (clientOrPool, tableName) => {
     `,
     [tableName]
   );
-  return new Set(result.rows.map((row) => row.column_name));
+  const columns = new Set(result.rows.map((row) => row.column_name));
+  storefrontTableColumnsCache.set(tableName, columns);
+  return columns;
 };
 
 const attachDbContext = (error, context = {}) => {
@@ -161,10 +613,74 @@ const logCheckoutStep = (step, details = {}) => {
 const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS returned_quantity INTEGER NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS slug TEXT DEFAULT ''`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS canonical_slug TEXT DEFAULT ''`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS qr_token TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS product_code TEXT DEFAULT ''`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS regular_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS sale_reason VARCHAR(40) DEFAULT ''`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS sale_start_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS sale_end_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS use_custom_compare_price BOOLEAN NOT NULL DEFAULT FALSE`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS custom_compare_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+  await clientOrPool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'products' AND column_name = 'selling_price'
+      ) THEN
+        UPDATE products SET regular_price = selling_price WHERE COALESCE(regular_price, 0) = 0 AND COALESCE(selling_price, 0) > 0;
+      END IF;
+    END $$;
+  `);
+  await clientOrPool.query(`UPDATE products SET regular_price = price WHERE COALESCE(regular_price, 0) = 0 AND COALESCE(price, 0) > 0`);
+  await clientOrPool.query(`UPDATE products SET selling_price = price WHERE COALESCE(selling_price, 0) = 0 AND COALESCE(price, 0) > 0`);
+  await clientOrPool.query(`UPDATE products SET price = regular_price WHERE COALESCE(price, 0) = 0 AND COALESCE(regular_price, 0) > 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS edition_name TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS edition_slug TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS article_code TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS regular_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS sale_start_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS sale_end_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS cost_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await clientOrPool.query(`UPDATE product_variants SET regular_price = price WHERE COALESCE(regular_price, 0) = 0 AND COALESCE(price, 0) > 0`);
+  await clientOrPool.query(`UPDATE product_variants SET selling_price = price WHERE COALESCE(selling_price, 0) = 0 AND COALESCE(price, 0) > 0`);
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS product_audiences (
+      id BIGSERIAL PRIMARY KEY,
+      product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      audience VARCHAR(30) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(product_id, audience),
+      CHECK (audience IN ('men', 'women', 'kids'))
+    )
+  `);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_product_audiences_product_id ON product_audiences (product_id)`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_product_audiences_audience ON product_audiences (audience, product_id)`);
+  await clientOrPool.query(`
+    INSERT INTO product_audiences (product_id, audience)
+    SELECT p.id,
+      CASE
+        WHEN LOWER(TRIM(COALESCE(p.gender, ''))) IN ('men', 'man', 'male', 'mens', 'رجال', 'رجالي') THEN 'men'
+        WHEN LOWER(TRIM(COALESCE(p.gender, ''))) IN ('women', 'woman', 'female', 'ladies', 'lady', 'نساء', 'نسائي', 'حريمي') THEN 'women'
+        WHEN LOWER(TRIM(COALESCE(p.gender, ''))) IN ('kids', 'kid', 'children', 'child', 'boys', 'girls', 'اطفال', 'أطفال', 'طفل') THEN 'kids'
+        ELSE NULL
+      END
+    FROM products p
+    WHERE COALESCE(TRIM(p.gender), '') <> ''
+      AND LOWER(TRIM(COALESCE(p.gender, ''))) IN ('men', 'man', 'male', 'mens', 'رجال', 'رجالي', 'women', 'woman', 'female', 'ladies', 'lady', 'نساء', 'نسائي', 'حريمي', 'kids', 'kid', 'children', 'child', 'boys', 'girls', 'اطفال', 'أطفال', 'طفل')
+      AND NOT EXISTS (SELECT 1 FROM product_audiences pa WHERE pa.product_id = p.id)
+    ON CONFLICT (product_id, audience) DO NOTHING
+  `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS website_notifications ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customer_wishlist ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
@@ -176,6 +692,11 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS total_spent NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS total_orders INTEGER NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_updated_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS registration_source VARCHAR(80) NOT NULL DEFAULT ''`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS first_visit_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS last_visit_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS storefront_last_seen_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS is_storefront_customer BOOLEAN NOT NULL DEFAULT FALSE`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS is_trusted BOOLEAN DEFAULT false`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS cod_enabled BOOLEAN DEFAULT false`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS completed_orders INTEGER DEFAULT 0`);
@@ -196,10 +717,13 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_method VARCHAR(50)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_screenshot TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_reference TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS transfer_proof_status VARCHAR(50)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_by INTEGER NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_trust_counted_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cod_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS public_order_number VARCHAR(40)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS display_order_number VARCHAR(40)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider VARCHAR(80) NOT NULL DEFAULT 'manual'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(80) NOT NULL DEFAULT 'pending'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_id VARCHAR(160)`);
@@ -209,6 +733,8 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS expected_delivery_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS product_image TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS variant_image TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS image_url TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS size VARCHAR(100)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS color VARCHAR(100)`);
   await clientOrPool.query(`
@@ -251,6 +777,8 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_source_created ON orders (source, created_at DESC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_phone_created ON orders (customer_phone, created_at DESC)`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_public_order_number ON orders (public_order_number)`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_display_order_number ON orders (display_order_number)`);
   await clientOrPool.query(`
     CREATE INDEX IF NOT EXISTS idx_products_storefront_active_tenant_id
     ON products (tenant_id, id DESC)
@@ -268,6 +796,50 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`
     CREATE INDEX IF NOT EXISTS idx_product_variants_tenant_product_stock
     ON product_variants (tenant_id, product_id, stock, id)
+  `);
+  await clientOrPool.query(`
+    CREATE INDEX IF NOT EXISTS idx_product_variants_article_code_lower
+    ON product_variants (LOWER(TRIM(article_code)))
+    WHERE article_code IS NOT NULL AND TRIM(article_code) <> ''
+  `);
+  await clientOrPool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_storefront_products_qr_token
+    ON products (qr_token)
+    WHERE qr_token IS NOT NULL AND qr_token <> ''
+  `);
+  await clientOrPool.query(`
+    UPDATE products
+    SET qr_token = 'SHOP-PROD-' || id
+    WHERE qr_token IS NULL OR TRIM(qr_token) = ''
+  `);
+  await clientOrPool.query(`
+    UPDATE products
+    SET canonical_slug = COALESCE(
+      NULLIF(TRIM(canonical_slug), ''),
+      NULLIF(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(TRIM(COALESCE(name, ''))), '[^a-z0-9]+', '-', 'g'), '(^-+|-+$)', '', 'g'), ''),
+      'product-' || id
+    )
+    WHERE canonical_slug IS NULL OR TRIM(canonical_slug) = ''
+  `);
+  await clientOrPool.query(`
+    UPDATE products
+    SET slug = COALESCE(
+      NULLIF(TRIM(slug), ''),
+      NULLIF(TRIM(canonical_slug), ''),
+      NULLIF(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(TRIM(COALESCE(name, ''))), '[^a-z0-9]+', '-', 'g'), '(^-+|-+$)', '', 'g'), ''),
+      'product-' || id
+    )
+    WHERE slug IS NULL OR TRIM(slug) = ''
+  `);
+  await clientOrPool.query(`
+    CREATE INDEX IF NOT EXISTS idx_products_storefront_slug_lower
+    ON products (LOWER(TRIM(slug)))
+    WHERE slug IS NOT NULL AND TRIM(slug) <> ''
+  `);
+  await clientOrPool.query(`
+    CREATE INDEX IF NOT EXISTS idx_products_storefront_canonical_slug_lower
+    ON products (LOWER(TRIM(canonical_slug)))
+    WHERE canonical_slug IS NOT NULL AND TRIM(canonical_slug) <> ''
   `);
   await clientOrPool.query(`
     CREATE INDEX IF NOT EXISTS idx_customer_wishlist_tenant_phone_created
@@ -308,16 +880,38 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
 };
 
 export const ensureStorefrontSchema = async (clientOrPool = db) => {
+  if (storefrontSchemaReady) return;
   if (clientOrPool !== db) {
     return ensureStorefrontSchemaNow(clientOrPool);
   }
   if (!storefrontSchemaReadyPromise) {
-    storefrontSchemaReadyPromise = ensureStorefrontSchemaNow(db).catch((error) => {
-      storefrontSchemaReadyPromise = null;
-      throw error;
-    });
+    storefrontSchemaReadyPromise = (async () => {
+      await ensureStorefrontSchemaNow(db);
+      await warmStorefrontMetadataCache(db);
+    })()
+      .then(() => {
+        storefrontSchemaReady = true;
+      })
+      .catch((error) => {
+        storefrontSchemaReadyPromise = null;
+        throw error;
+      });
   }
   return storefrontSchemaReadyPromise;
+};
+
+export const warmStorefrontMetadataCache = async (clientOrPool = db) => {
+  await Promise.all([
+    tableColumns(clientOrPool, "products"),
+    tableColumns(clientOrPool, "product_variants"),
+    tableColumns(clientOrPool, "product_variant_images"),
+    tableColumns(clientOrPool, "purchases"),
+    tableColumns(clientOrPool, "purchase_items"),
+    tableColumns(clientOrPool, "customers"),
+    tableColumns(clientOrPool, "orders"),
+    tableColumns(clientOrPool, "order_items"),
+    tableColumns(clientOrPool, "website_notifications"),
+  ]);
 };
 
 const parseJsonArray = (value) => {
@@ -333,51 +927,97 @@ const parseJsonArray = (value) => {
 
 const firstText = (...values) => values.map((value) => toText(value)).find(Boolean) || "";
 
-const normalizeProduct = (row = {}) => {
+const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
   const galleryImages = parseJsonArray(row.gallery_images).filter(Boolean);
   const productImage = firstText(row.public_image_url, row.image_url, row.image, row.photo_url, row.thumbnail_url, galleryImages[0]);
+  const productCompareFields = {
+    use_custom_compare_price: row.use_custom_compare_price,
+    custom_compare_price: row.custom_compare_price,
+  };
+  const customOriginalPrice = productCompareFields.use_custom_compare_price === true || String(productCompareFields.use_custom_compare_price || "").toLowerCase() === "true"
+    ? roundMoney(productCompareFields.custom_compare_price)
+    : 0;
+  const rowOriginalPrice = roundMoney(row.original_price || row.base_price || row.list_price || row.compare_at_price || customOriginalPrice || row.regular_price);
+  const rowSellingPrice = roundMoney(row.selling_price || row.price || row.regular_price);
+  const rowSalePrice = roundMoney(row.sale_price ?? row.offer_price);
   const variants = parseJsonArray(row.variants).map((variant) => {
-    const variantPrice = toNumber(variant.price || row.price);
-    const variantSalePrice = toNumber(variant.sale_price || variant.price || row.sale_price || row.price);
+    const variantSellingPrice = roundMoney(variant.selling_price || variant.price || rowSellingPrice);
+    const variantOriginalCandidates = [
+      variant.original_price,
+      variant.base_price,
+      variant.list_price,
+      variant.regular_price,
+      rowOriginalPrice,
+      variant.compare_at_price,
+    ].map(roundMoney).filter((value) => value > 0);
+    const variantOriginalPrice = variantOriginalCandidates.find((value) => value > variantSellingPrice) || rowOriginalPrice || variantOriginalCandidates[0] || 0;
+    const variantSalePrice = roundMoney(variant.sale_price ?? rowSalePrice);
+    const resolvedPrice = resolveStorefrontActivePrice({
+      originalPrice: variantOriginalPrice,
+      sellingPrice: variantSellingPrice,
+      salePrice: variantSalePrice,
+      pricingSettings,
+    });
+    const currentPrice = resolvedPrice.activePrice;
+    const variantCompareAtPrice = resolvedPrice.compareAtPrice;
     return {
       ...variant,
       id: variant.id,
       edition_name: firstText(variant.edition_name),
       edition_slug: firstText(variant.edition_slug, slugifyEdition(variant.edition_name)),
       image_url: firstText(variant.image_url, productImage),
-      price: variantPrice,
-      sale_price: variantSalePrice || variantPrice,
+      original_price: variantOriginalPrice,
+      base_price: variantOriginalPrice,
+      list_price: variantOriginalPrice,
+      compare_base_price: variantOriginalPrice,
+      custom_compare_price: variantOriginalPrice,
+      selling_price: variantSellingPrice,
+      regular_price: variantOriginalPrice,
+      price: variantSellingPrice,
+      sale_price: variantSalePrice,
+      purchase_sale_price: roundMoney(variant.purchase_sale_price),
+      purchase_invoice_sale_price: roundMoney(variant.purchase_invoice_sale_price ?? variant.purchase_sale_price),
+      purchase_invoice_selling_price: roundMoney(variant.purchase_invoice_selling_price),
+      last_piece_sale_price: roundMoney(variant.last_piece_sale_price ?? variant.purchase_sale_price),
+      final_price: currentPrice,
+      sale_price_enabled: resolvedPrice.saleActive,
+      sale_prices_enabled: resolvedPrice.saleModeOn,
+      global_sale_enabled: resolvedPrice.saleModeOn,
+      sale_mode_enabled: resolvedPrice.saleModeOn,
+      sale_source: resolvedPrice.saleActive ? "product" : "regular",
+      sale_badge: resolvedPrice.saleActive ? (pricingSettings.sale_mode_label || variant.sale_reason || row.sale_reason || "Sale") : "",
+      sale_mode_applied: resolvedPrice.saleActive,
+      compare_at_price: variantCompareAtPrice,
+      old_price: variantCompareAtPrice,
       stock: Math.max(0, toNumber(variant.stock)),
     };
   });
   const totalStock = variants.length
-    ? variants.reduce((sum, variant) => sum + toNumber(variant.stock), 0)
-    : Math.max(0, toNumber(row.stock));
+    ? Math.max(variants.reduce((sum, variant) => sum + toNumber(variant.stock), 0), toNumber(row.variant_total_stock))
+    : Math.max(0, toNumber(row.stock), toNumber(row.variant_total_stock));
   const variantPriceOptions = variants
-    .filter((variant) => variant.price > 0 || variant.sale_price > 0)
-    .sort((a, b) => (b.stock > 0) - (a.stock > 0) || (a.sale_price || a.price) - (b.sale_price || b.price));
+    .filter((variant) => variant.price > 0 || variant.final_price > 0)
+    .sort((a, b) => (b.stock > 0) - (a.stock > 0) || (a.final_price || a.price) - (b.final_price || b.price));
   const bestVariantPrice = variantPriceOptions[0];
-  const rowPrice = toNumber(row.price);
-  const rowSalePrice = toNumber(row.sale_price);
-  const productPrice = rowPrice || bestVariantPrice?.price || rowSalePrice || bestVariantPrice?.sale_price || 0;
-  const productSalePrice = rowSalePrice || bestVariantPrice?.sale_price || productPrice;
-  const variantDeals = variants
-    .filter((variant) => variant.sale_price > 0 && variant.price > variant.sale_price)
-    .sort((a, b) => a.sale_price - b.sale_price);
-  const bestVariantDeal = variantDeals[0];
-  const salePrice = bestVariantDeal?.sale_price || productSalePrice || productPrice;
-  const price = bestVariantDeal?.price || productPrice || salePrice;
-  const discount = price > salePrice && salePrice > 0;
+  const originalPrice = rowOriginalPrice || bestVariantPrice?.original_price || 0;
+  const sellingPrice = rowSellingPrice || bestVariantPrice?.selling_price || bestVariantPrice?.price || 0;
+  const productResolvedPrice = resolveStorefrontActivePrice({ originalPrice, sellingPrice, salePrice: rowSalePrice, pricingSettings });
+  const currentPrice = bestVariantPrice?.final_price || productResolvedPrice.activePrice || sellingPrice;
+  const saleModeActive = productResolvedPrice.saleActive || Boolean(bestVariantPrice?.sale_mode_applied);
+  const compareAtPrice = bestVariantPrice?.compare_at_price || productResolvedPrice.compareAtPrice;
+  const discount = compareAtPrice > currentPrice && currentPrice > 0;
 
   const product = {
     id: row.id,
-    slug: `${row.id}-${encodeURIComponent(String(row.name || "product").replace(/\s+/g, "-"))}`,
+    slug: firstText(row.slug, row.canonical_slug, slugifyProductName(row.name), `${row.id}`),
     name: row.name || "",
     sku: row.sku || "",
     barcode: row.barcode || "",
-    category: row.category_name || row.product_type || "",
+    category: row.category_name || "",
     category_id: row.category_id || null,
     gender: row.gender || "",
+    audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
+    product_audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
     product_type: row.product_type || "",
     productType: row.product_type || "",
     style: row.style || "",
@@ -392,12 +1032,36 @@ const normalizeProduct = (row = {}) => {
     seo_description: row.seo_description || row.description_en || row.description_ar || row.description || "",
     seo_keywords: row.seo_keywords || "",
     canonical_slug: row.canonical_slug || "",
+    qr_token: row.qr_token || (row.id ? `SHOP-PROD-${row.id}` : ""),
     updated_at: row.updated_at || null,
     created_at: row.created_at || null,
-    price,
-    sale_price: salePrice || price,
-    old_price: discount ? price : 0,
+    regular_price: originalPrice,
+    original_price: originalPrice,
+    base_price: originalPrice,
+    list_price: originalPrice,
+    compare_base_price: originalPrice,
+    custom_compare_price: originalPrice,
+    selling_price: sellingPrice,
+    price: sellingPrice,
+    sale_price: rowSalePrice,
+    offer_price: rowSalePrice,
+    final_price: currentPrice,
+    sale_price_enabled: saleModeActive,
+    sale_prices_enabled: productResolvedPrice.saleModeOn,
+    global_sale_enabled: productResolvedPrice.saleModeOn,
+    sale_mode_enabled: productResolvedPrice.saleModeOn,
+    sale_source: saleModeActive ? "product" : "regular",
+    sale_mode_applied: saleModeActive,
+    sale_badge: saleModeActive ? (pricingSettings.sale_mode_label || row.sale_reason || "Sale") : "",
+    sale_reason: row.sale_reason || "",
+    sale_start_at: row.sale_start_at || null,
+    sale_end_at: row.sale_end_at || null,
+    compare_at_price: discount ? compareAtPrice : 0,
+    old_price: discount ? compareAtPrice : 0,
+    use_custom_compare_price: productCompareFields.use_custom_compare_price === true || String(productCompareFields.use_custom_compare_price || "").toLowerCase() === "true",
+    custom_compare_price: roundMoney(productCompareFields.custom_compare_price),
     total_stock: totalStock,
+    sold_count: toNumber(row.sold_count),
     badge: discount ? "عرض" : totalStock <= 1 ? "آخر قطعة" : totalStock <= LOW_STOCK_LIMIT ? "سريع النفاذ" : "جديد",
     sizes: [...new Set(variants.filter((v) => v.stock > 0 && v.size).map((v) => v.size))],
     colors: [...new Set(variants.filter((v) => v.stock > 0 && v.color).map((v) => v.color))],
@@ -416,7 +1080,7 @@ const productSeoDescription = (product = {}) => firstText(product.seo_descriptio
 
 const attachSocialMetadata = async (product = {}, req = null) => {
   const ogImage = await generateProductOgImage({ product, req });
-  const pageSlug = product.slug || `${product.id}-${encodeURIComponent(String(product.name || "product").replace(/\s+/g, "-"))}`;
+  const pageSlug = product.slug || product.canonical_slug || slugifyProductName(product.name) || product.id;
   return {
     ...product,
     og_image_url: ogImage.url,
@@ -458,8 +1122,17 @@ const catalogQuery = `
     c.name AS category_name,
     b.name AS brand_name,
     COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS public_image_url,
+    COALESCE((SELECT jsonb_agg(pa.audience ORDER BY pa.audience) FROM product_audiences pa WHERE pa.product_id = p.id), '[]'::jsonb) AS audiences,
+    COALESCE((
+      SELECT SUM(GREATEST(COALESCE(oi.quantity, 0) - COALESCE(oi.returned_quantity, 0), 0))
+      FROM order_items oi
+      LEFT JOIN orders o ON o.id = oi.order_id
+      WHERE oi.product_id = p.id
+        AND ($1::bigint IS NULL OR COALESCE(oi.tenant_id, o.tenant_id) = $1::bigint)
+        AND COALESCE(NULLIF(LOWER(TRIM(o.status)), ''), 'delivered') NOT IN ('cancelled', 'canceled', 'void', 'returned')
+    ), 0)::int AS sold_count,
     COALESCE(SUM(CASE WHEN pv.id IS NOT NULL THEN GREATEST(COALESCE(pv.stock, 0), 0) ELSE 0 END), 0) AS variant_total_stock,
-    COALESCE(BOOL_OR(pv.sale_price > 0 AND pv.sale_price < pv.price) FILTER (WHERE pv.id IS NOT NULL), FALSE) AS has_variant_discount,
+    COALESCE(BOOL_OR(pv.sale_price > 0 AND pv.sale_price < COALESCE(NULLIF(pv.selling_price, 0), NULLIF(pv.price, 0), pv.regular_price)) FILTER (WHERE pv.id IS NOT NULL), FALSE) AS has_variant_discount,
     COALESCE(
       jsonb_agg(
         DISTINCT jsonb_build_object(
@@ -472,8 +1145,19 @@ const catalogQuery = `
           'edition_name', pv.edition_name,
           'edition_slug', pv.edition_slug,
           'image_url', COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, ''), NULLIF(pv.photo_url, ''), NULLIF(pv.thumbnail_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), ''),
-          'price', pv.price,
+          'price', COALESCE(NULLIF(pv.selling_price, 0), pv.price),
+          'selling_price', COALESCE(NULLIF(pv.selling_price, 0), pv.price),
+          'regular_price', COALESCE(NULLIF(pv.regular_price, 0), pv.price),
+          'original_price', COALESCE(NULLIF(pv.regular_price, 0), NULLIF(p.regular_price, 0), pv.price),
+          'base_price', COALESCE(NULLIF(pv.regular_price, 0), NULLIF(p.regular_price, 0), pv.price),
+          'list_price', COALESCE(NULLIF(pv.regular_price, 0), NULLIF(p.regular_price, 0), pv.price),
+          'compare_base_price', COALESCE(NULLIF(p.custom_compare_price, 0), NULLIF(pv.regular_price, 0), NULLIF(p.regular_price, 0), pv.price),
+          'custom_compare_price', COALESCE(NULLIF(p.custom_compare_price, 0), NULLIF(pv.regular_price, 0), NULLIF(p.regular_price, 0), pv.price),
           'sale_price', pv.sale_price,
+          'sale_price_enabled', pv.sale_price_enabled,
+          'sale_start_at', pv.sale_start_at,
+          'sale_end_at', pv.sale_end_at,
+          'cost_price', pv.cost_price,
           'stock', pv.stock
         )
       ) FILTER (WHERE pv.id IS NOT NULL),
@@ -483,27 +1167,441 @@ const catalogQuery = `
   LEFT JOIN categories c ON c.id = p.category_id
   LEFT JOIN brands b ON b.id = p.brand_id
   LEFT JOIN product_variants pv ON pv.product_id = p.id
+    AND pv.is_active IS DISTINCT FROM FALSE
+    AND pv.deleted_at IS NULL
   WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
+    AND p.is_active IS DISTINCT FROM FALSE
     AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+`;
+
+const lookupAny = (fieldSql, identifierParam) => `EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE LOWER(TRIM(COALESCE(${fieldSql}, ''))) = LOWER(TRIM(lookup.value)))`;
+const lookupFirst = (fieldSql, identifierParam) => `LOWER(TRIM(COALESCE(${fieldSql}, ''))) = LOWER(TRIM((${identifierParam}::text[])[1]))`;
+const productIdentifierClause = (identifierParam = "$2") => `
+  AND (
+    ${lookupAny("p.slug", identifierParam)}
+    OR ${lookupAny("p.canonical_slug", identifierParam)}
+    OR EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE ${productGeneratedSlugSql("p.name")} = LOWER(TRIM(lookup.value)))
+    OR EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE ${productGeneratedSlugSql("CONCAT_WS(' ', b.name, p.name)")} = LOWER(TRIM(lookup.value)))
+    OR EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE TRIM(lookup.value) ~ '^[0-9]+$' AND TRIM(lookup.value)::bigint = p.id)
+    OR ${lookupAny("p.sku", identifierParam)}
+    OR ${lookupAny("p.product_code", identifierParam)}
+    OR ${lookupAny("p.barcode", identifierParam)}
+    OR ${lookupAny("p.qr_token", identifierParam)}
+    OR EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE substring(TRIM(lookup.value) from '^SHOP-PROD-([0-9]+)') IS NOT NULL AND substring(TRIM(lookup.value) from '^SHOP-PROD-([0-9]+)')::bigint = p.id)
+    OR EXISTS (
+      SELECT 1
+      FROM product_variants pv_lookup
+      WHERE pv_lookup.product_id = p.id
+        AND pv_lookup.is_active IS DISTINCT FROM FALSE
+        AND pv_lookup.deleted_at IS NULL
+        AND (
+          ${lookupAny("pv_lookup.sku", identifierParam)}
+          OR ${lookupAny("pv_lookup.barcode", identifierParam)}
+          OR ${lookupAny("pv_lookup.edition_slug", identifierParam)}
+        )
+    )
+  )
+`;
+
+const productIdentifierOrder = (identifierParam = "$2") => `
+  ORDER BY
+    CASE
+      WHEN ${lookupFirst("p.slug", identifierParam)} THEN 0
+      WHEN ${lookupAny("p.slug", identifierParam)} THEN 1
+      WHEN ${lookupFirst("p.canonical_slug", identifierParam)} THEN 2
+      WHEN ${lookupAny("p.canonical_slug", identifierParam)} THEN 3
+      WHEN EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE ${productGeneratedSlugSql("p.name")} = LOWER(TRIM(lookup.value))) THEN 4
+      WHEN EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE ${productGeneratedSlugSql("CONCAT_WS(' ', b.name, p.name)")} = LOWER(TRIM(lookup.value))) THEN 5
+      WHEN EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE TRIM(lookup.value) ~ '^[0-9]+$' AND TRIM(lookup.value)::bigint = p.id) THEN 6
+      WHEN ${lookupAny("p.sku", identifierParam)} THEN 7
+      WHEN ${lookupAny("p.product_code", identifierParam)} THEN 8
+      WHEN ${lookupAny("p.barcode", identifierParam)} THEN 9
+      WHEN ${lookupAny("p.qr_token", identifierParam)} THEN 10
+      ELSE 99
+    END,
+    p.id ASC
+`;
+
+const productAudienceFilterSql = (param = "$5") => `
+  (
+    COALESCE(array_length(${param}::text[], 1), 0) = 0
+    OR EXISTS (
+      SELECT 1
+      FROM product_audiences pa_filter
+      WHERE pa_filter.product_id = p.id
+        AND pa_filter.audience = ANY(${param}::text[])
+    )
+    OR (
+      NOT EXISTS (SELECT 1 FROM product_audiences pa_any WHERE pa_any.product_id = p.id)
+      AND LOWER(TRIM(COALESCE(p.gender, ''))) = ANY(${param}::text[])
+    )
+  )
+`;
+
+const productAudienceSearchSql = `
+  EXISTS (
+    SELECT 1
+    FROM product_audiences pa_search
+    WHERE pa_search.product_id = p.id
+      AND pa_search.audience LIKE '%' || $2 || '%'
+  )
 `;
 
 const queryProducts = (tenantId, q, category, filters, saleOnly, limit, offset) =>
   db.query(
     `
     ${catalogQuery}
-      AND ($2 = '' OR LOWER(CONCAT_WS(' ', p.name, p.sku, p.barcode, p.gender, p.product_type, p.style, c.name, b.name, pv.size, pv.color, pv.sku, pv.edition_name, pv.edition_slug)) LIKE '%' || $2 || '%')
-      AND ($3 = '' OR LOWER(CONCAT_WS(' ', c.name, p.gender, p.product_type, p.style)) LIKE '%' || $3 || '%')
-      AND ($4::boolean = FALSE OR (p.sale_price > 0 AND p.sale_price < p.price) OR (pv.sale_price > 0 AND pv.sale_price < pv.price))
-      AND (COALESCE(array_length($5::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.gender, ''))) = ANY($5::text[]))
+      AND ($2 = '' OR LOWER(CONCAT_WS(' ', p.name, p.sku, p.barcode, p.gender, p.product_type, p.style, c.name, b.name, pv.size, pv.color, pv.sku, pv.article_code, pv.edition_name, pv.edition_slug)) LIKE '%' || $2 || '%' OR ${productAudienceSearchSql})
+      AND ($3 = '' OR LOWER(CONCAT_WS(' ', c.name, p.gender, p.product_type, p.style)) LIKE '%' || $3 || '%' OR EXISTS (SELECT 1 FROM product_audiences pa_category WHERE pa_category.product_id = p.id AND pa_category.audience LIKE '%' || $3 || '%'))
+      AND (
+        $4::boolean = FALSE
+        OR (
+          p.sale_price > 0
+          AND p.sale_price < COALESCE(NULLIF(p.regular_price, 0), p.price)
+          AND (p.sale_start_at IS NULL OR p.sale_start_at <= NOW())
+          AND (p.sale_end_at IS NULL OR p.sale_end_at >= NOW())
+        )
+        OR (
+          pv.sale_price > 0
+          AND pv.sale_price < COALESCE(NULLIF(pv.selling_price, 0), NULLIF(pv.price, 0), pv.regular_price)
+          AND (pv.sale_start_at IS NULL OR pv.sale_start_at <= NOW())
+          AND (pv.sale_end_at IS NULL OR pv.sale_end_at >= NOW())
+        )
+      )
+      AND ${productAudienceFilterSql("$5")}
       AND (COALESCE(array_length($6::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($6::text[]))
       AND (COALESCE(array_length($7::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.style, ''))) = ANY($7::text[]))
       AND (COALESCE(array_length($8::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($8::text[]))
+      AND (
+        COALESCE(array_length($11::text[], 1), 0) = 0
+        OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($11::text[])
+        OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($11::text[])
+        OR LOWER(TRIM(COALESCE(p.style, ''))) = ANY($11::text[])
+      )
+      AND ($9 = '' OR EXISTS (
+        SELECT 1
+        FROM product_variants pv_size
+        WHERE pv_size.product_id = p.id
+          AND pv_size.is_active IS DISTINCT FROM FALSE
+          AND pv_size.deleted_at IS NULL
+          AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = LOWER(TRIM($9))
+          AND ($10::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
+      ))
+      AND ($10::boolean = FALSE OR COALESCE(p.stock, 0) > 0 OR EXISTS (
+        SELECT 1
+        FROM product_variants pv_stock
+        WHERE pv_stock.product_id = p.id
+          AND pv_stock.is_active IS DISTINCT FROM FALSE
+          AND pv_stock.deleted_at IS NULL
+          AND COALESCE(pv_stock.stock, 0) > 0
+      ))
     GROUP BY p.id, c.name, b.name
     ORDER BY p.id DESC
-    LIMIT $9 OFFSET $10
+    LIMIT $12 OFFSET $13
     `,
-    [tenantId, q, category, saleOnly, filters.gender, filters.productType, filters.style, filters.grade, limit, offset]
+    [tenantId, q, category, saleOnly, filters.gender, filters.productType, filters.style, filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset]
   );
+
+const queryProductsByIds = async (tenantId, productIds = [], pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
+  const ids = productIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+  if (!ids.length) return [];
+  let result = await db.query(
+    `${catalogQuery} AND p.id = ANY($2::bigint[]) GROUP BY p.id, c.name, b.name`,
+    [tenantId, ids]
+  );
+  if (!result.rows.length && tenantId !== null) {
+    result = await db.query(
+      `${catalogQuery} AND p.id = ANY($2::bigint[]) GROUP BY p.id, c.name, b.name`,
+      [null, ids]
+    );
+  }
+  const order = new Map(ids.map((id, index) => [String(id), index]));
+  return result.rows
+    .map((row) => normalizeProduct(row, pricingSettings))
+    .sort((a, b) => (order.get(String(a.id)) ?? 9999) - (order.get(String(b.id)) ?? 9999));
+};
+
+const normalizeVisualTerm = (value = "") =>
+  toText(value)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s_-]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const uniqueTerms = (values = []) => {
+  const terms = [];
+  const seen = new Set();
+  for (const value of values.flatMap((item) => Array.isArray(item) ? item : String(item || "").split(/[,،|]/))) {
+    const term = normalizeVisualTerm(value);
+    if (term.length < 2 || seen.has(term)) continue;
+    seen.add(term);
+    terms.push(term);
+  }
+  return terms.slice(0, 18);
+};
+
+const visualSearchColumns = async () => {
+  const columns = await tableColumns(db, "products");
+  const optional = [
+    "name_ar",
+    "name_en",
+    "description_ar",
+    "description_en",
+    "seo_keywords",
+    "meta_keywords",
+    "tags",
+    "meta_title",
+    "meta_title_ar",
+    "meta_title_en",
+    "seo_description",
+    "seo_description_ar",
+    "seo_description_en",
+  ].filter((column) => columns.has(column));
+  return [
+    "p.name",
+    "p.sku",
+    "p.barcode",
+    "p.description",
+    "p.gender",
+    "p.product_type",
+    "p.style",
+    "p.grade",
+    "c.name",
+    "b.name",
+    "pv.size",
+    "pv.color",
+    "pv.sku",
+    "pv.barcode",
+    "pv.edition_name",
+    "pv.edition_slug",
+    ...optional.map((column) => `p.${column}`),
+  ];
+};
+
+const queryVisualKeywordProductIds = async (tenantId, terms = [], limit = 8) => {
+  const keywords = uniqueTerms(terms);
+  if (!keywords.length) return [];
+  const fields = await visualSearchColumns();
+  const searchBlob = `LOWER(CONCAT_WS(' ', ${fields.join(", ")}))`;
+  const run = (scopeTenantId) => db.query(
+    `
+    SELECT p.id, COUNT(DISTINCT term.value)::int AS score
+    FROM products p
+    LEFT JOIN categories c ON c.id = p.category_id
+    LEFT JOIN brands b ON b.id = p.brand_id
+    LEFT JOIN product_variants pv ON pv.product_id = p.id
+      AND pv.is_active IS DISTINCT FROM FALSE
+      AND pv.deleted_at IS NULL
+    AND pv.is_active IS DISTINCT FROM FALSE
+    AND pv.deleted_at IS NULL
+    JOIN LATERAL unnest($2::text[]) AS term(value)
+      ON ${searchBlob} LIKE '%' || term.value || '%'
+    WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
+      AND p.is_active IS DISTINCT FROM FALSE
+      AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+    GROUP BY p.id
+    ORDER BY score DESC, p.id DESC
+    LIMIT $3
+    `,
+    [scopeTenantId, keywords, limit]
+  );
+  let result = await run(tenantId);
+  if (!result.rows.length && tenantId !== null) result = await run(null);
+  return result.rows.map((row) => row.id);
+};
+
+const imageUploadRoots = () => [
+  path.join(process.cwd(), "uploads"),
+  path.join(process.cwd(), "server", "uploads"),
+  path.join(process.cwd(), "..", "uploads"),
+].map((item) => path.resolve(item));
+
+const imageUrlToRelativeUploadPath = (imageUrl = "") => {
+  const raw = toText(imageUrl);
+  if (!raw || raw.startsWith("data:")) return "";
+  let pathname = raw;
+  try {
+    pathname = new URL(raw).pathname;
+  } catch {
+    // Relative upload paths are already valid pathnames.
+  }
+  pathname = decodeURIComponent(pathname).replace(/\\/g, "/");
+  if (pathname.startsWith("/uploads/")) return pathname.slice("/uploads/".length);
+  if (pathname.startsWith("uploads/")) return pathname.slice("uploads/".length);
+  if (pathname.startsWith("/products/")) return pathname.slice(1);
+  if (pathname.startsWith("products/")) return pathname;
+  return "";
+};
+
+const findLocalUploadFile = async (imageUrl = "") => {
+  const relative = imageUrlToRelativeUploadPath(imageUrl);
+  if (!relative) return "";
+  for (const root of imageUploadRoots()) {
+    const candidate = path.resolve(root, relative);
+    if (!candidate.startsWith(root)) continue;
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      // try next known upload root
+    }
+  }
+  return "";
+};
+
+const imageDataUrlToBuffer = (imageUrl = "") => {
+  const text = toText(imageUrl);
+  const match = text.match(/^data:image\/(?:png|jpe?g|webp);base64,(.+)$/i);
+  if (!match) return null;
+  try {
+    return Buffer.from(match[1], "base64");
+  } catch {
+    return null;
+  }
+};
+
+const loadCandidateImageBuffer = async (imageUrl = "") => {
+  const dataBuffer = imageDataUrlToBuffer(imageUrl);
+  if (dataBuffer?.length) return { buffer: dataBuffer, source: "data_url" };
+  const filePath = await findLocalUploadFile(imageUrl);
+  if (!filePath) return { buffer: null, source: "" };
+  return { buffer: await readFile(filePath), source: "upload_file" };
+};
+
+const imageSha256 = (buffer) => crypto.createHash("sha256").update(buffer).digest("hex");
+
+const imagePerceptualHash = async (input) => {
+  const pixels = await sharp(input)
+    .rotate()
+    .resize(VISUAL_HASH_SIZE, VISUAL_HASH_SIZE, { fit: "fill" })
+    .greyscale()
+    .raw()
+    .toBuffer();
+  const avg = pixels.reduce((sum, value) => sum + value, 0) / pixels.length;
+  return Array.from(pixels, (value) => (value >= avg ? "1" : "0")).join("");
+};
+
+const hashDistance = (a = "", b = "") => {
+  if (!a || !b || a.length !== b.length) return Number.POSITIVE_INFINITY;
+  let distance = 0;
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] !== b[index]) distance += 1;
+  }
+  return distance;
+};
+
+const collectProductImageUrls = (product = {}) => [
+  product.image_url,
+  product.product_image_url,
+  product.public_image_url,
+  ...(Array.isArray(product.gallery_images) ? product.gallery_images : []),
+  ...(Array.isArray(product.variants) ? product.variants.flatMap((variant) => [
+    variant.image_url,
+    variant.primary_image_url,
+    variant.variant_image_url,
+    variant.color_image_url,
+    ...(Array.isArray(variant.images) ? variant.images.map((image) => image?.image_url || image?.url) : []),
+  ]) : []),
+  ...(Array.isArray(product.colors) ? product.colors.flatMap((color) => [
+    color.image_url,
+    ...(Array.isArray(color.images) ? color.images.map((image) => image?.image_url || image?.url) : []),
+  ]) : []),
+].filter(Boolean);
+
+const queryVisualImageCandidates = async (tenantId, limit = 600) => {
+  const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+  let result = await db.query(
+    `${catalogQuery} GROUP BY p.id, c.name, b.name ORDER BY p.id DESC LIMIT $2`,
+    [tenantId, limit]
+  );
+  if (!result.rows.length && tenantId !== null) {
+    result = await db.query(
+      `${catalogQuery} GROUP BY p.id, c.name, b.name ORDER BY p.id DESC LIMIT $2`,
+      [null, limit]
+    );
+  }
+  const products = await hydrateProductsWithImages(result.rows.map((row) => normalizeProduct(row, pricingSettings)));
+  const rows = [];
+  const seen = new Set();
+  for (const product of products) {
+    for (const imageUrl of collectProductImageUrls(product)) {
+      const key = `${product.id}:${imageUrl}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({ product, imageUrl });
+    }
+  }
+  return rows;
+};
+
+const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 }) => {
+  const uploadedSha = imageSha256(imageBuffer);
+  const uploadedHash = await imagePerceptualHash(imageBuffer);
+  const candidates = await queryVisualImageCandidates(tenantId);
+  const scored = [];
+  const debug = {
+    tenant_id: tenantId,
+    candidate_product_image_count: candidates.length,
+    readable_candidate_image_count: 0,
+    data_url_candidate_count: 0,
+    upload_file_candidate_count: 0,
+    matched_candidate_count: 0,
+  };
+
+  for (const candidate of candidates) {
+    try {
+      const loaded = await loadCandidateImageBuffer(candidate.imageUrl);
+      if (!loaded.buffer?.length) continue;
+      debug.readable_candidate_image_count += 1;
+      if (loaded.source === "data_url") debug.data_url_candidate_count += 1;
+      if (loaded.source === "upload_file") debug.upload_file_candidate_count += 1;
+      const candidateBuffer = loaded.buffer;
+      const exact = imageSha256(candidateBuffer) === uploadedSha;
+      const distance = exact ? 0 : hashDistance(uploadedHash, await imagePerceptualHash(candidateBuffer));
+      if (exact || distance <= 10) {
+        debug.matched_candidate_count += 1;
+        scored.push({
+          productId: candidate.product.id,
+          score: exact ? 100 : Math.max(0, 86 - distance),
+          reason: exact ? "exact_sha256" : "perceptual_hash",
+        });
+      }
+    } catch {
+      // Ignore unreadable or unsupported stored images and continue matching.
+    }
+  }
+  console.log("[storefront-image-search] image candidates", debug);
+
+  const bestByProduct = new Map();
+  for (const item of scored) {
+    const key = String(item.productId);
+    const current = bestByProduct.get(key);
+    if (!current || item.score > current.score) bestByProduct.set(key, item);
+  }
+  return Array.from(bestByProduct.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+};
+
+const visualKeywordsFromAi = (aiResult = {}) => {
+  const suggestions = aiResult?.suggestions || {};
+  return uniqueTerms([
+    suggestions.name_en,
+    suggestions.name_ar,
+    suggestions.seo_keywords,
+    suggestions.suggested_product_type,
+    suggestions.suggested_category,
+    suggestions.gender,
+    suggestions.target_audience,
+    suggestions.brand_resemblance,
+    suggestions.detected_model,
+    suggestions.classification,
+    suggestions.silhouette,
+    suggestions.fashion_category,
+    suggestions.grade,
+    suggestions.dominant_colors,
+  ]);
+};
 
 const hydrateProductsWithImages = async (products = [], options = {}) => {
   const rows = Array.isArray(products) ? products : [];
@@ -532,7 +1630,29 @@ const hydrateProductsWithImages = async (products = [], options = {}) => {
           edition_slug: variant.edition_slug,
           image_url: imageUrl,
           price: variant.price,
+          regular_price: variant.regular_price,
+          base_price: variant.base_price,
+          list_price: variant.list_price,
+          compare_base_price: variant.compare_base_price,
+          custom_compare_price: variant.custom_compare_price,
           sale_price: variant.sale_price,
+          purchase_sale_price: variant.purchase_sale_price,
+          purchase_invoice_sale_price: variant.purchase_invoice_sale_price,
+          purchase_invoice_selling_price: variant.purchase_invoice_selling_price,
+          last_piece_sale_price: variant.last_piece_sale_price,
+          sale_price_enabled: variant.sale_price_enabled,
+          sale_prices_enabled: variant.sale_prices_enabled,
+          global_sale_enabled: variant.global_sale_enabled,
+          sale_mode_enabled: variant.sale_mode_enabled,
+          selling_price: variant.selling_price,
+          final_price: variant.final_price,
+          sale_source: variant.sale_source,
+          sale_mode_applied: variant.sale_mode_applied,
+          offer_price: variant.offer_price,
+          discount_price: variant.discount_price,
+          compare_at_price: variant.compare_at_price,
+          old_price: variant.old_price,
+          original_price: variant.original_price,
           stock: variant.stock,
           last_piece_category: variant.last_piece_category,
         };
@@ -561,11 +1681,22 @@ const hydrateProductsWithImages = async (products = [], options = {}) => {
 };
 
 const slimProductForList = (product = {}) => ({
+  card_id: product.card_id || product.id,
+  storefront_card_type: product.storefront_card_type || "product",
+  parent_product_id: product.parent_product_id || product.id,
+  display_variant_id: product.display_variant_id || product.matched_variant_id || null,
+  selected_variant_id: product.selected_variant_id || product.display_variant_id || product.matched_variant_id || null,
+  display_color: product.display_color || "",
+  display_color_key: product.display_color_key || "",
+  color: product.color || product.display_color || "",
+  color_key: product.color_key || product.display_color_key || "",
   id: product.id,
   slug: product.slug,
   name: product.name,
   category: product.category,
   gender: product.gender,
+  audiences: product.audiences,
+  product_audiences: product.product_audiences,
   product_type: product.product_type,
   productType: product.productType,
   style: product.style,
@@ -576,10 +1707,30 @@ const slimProductForList = (product = {}) => ({
   description: product.description,
   created_at: product.created_at,
   price: product.price,
+  regular_price: product.regular_price,
+  base_price: product.base_price,
+  list_price: product.list_price,
+  compare_base_price: product.compare_base_price,
+  custom_compare_price: product.custom_compare_price,
+  use_custom_compare_price: product.use_custom_compare_price,
   sale_price: product.sale_price,
+  selling_price: product.selling_price,
+  final_price: product.final_price,
+  offer_price: product.offer_price,
+  discount_price: product.discount_price,
+  sale_price_enabled: product.sale_price_enabled,
+  sale_prices_enabled: product.sale_prices_enabled,
+  global_sale_enabled: product.global_sale_enabled,
+  sale_mode_enabled: product.sale_mode_enabled,
+  sale_source: product.sale_source,
+  sale_badge: product.sale_badge,
+  sale_mode_applied: product.sale_mode_applied,
+  compare_at_price: product.compare_at_price,
   old_price: product.old_price,
+  original_price: product.original_price,
   total_stock: product.total_stock,
-  badge: product.badge,
+  sold_count: product.sold_count,
+  badge: "",
   sizes: product.sizes,
   colors: product.colors,
   variants: Array.isArray(product.variants) ? product.variants : [],
@@ -588,48 +1739,276 @@ const slimProductForList = (product = {}) => ({
   seo_title: product.seo_title,
 });
 
+const variantColorNameForCard = (variant = {}) => firstText(variant.color, variant.color_name, variant.colour, variant.name, "Default");
+
+const variantColorKeyForCard = (variant = {}) => {
+  const value = variantColorNameForCard(variant);
+  return toText(value).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || `variant-${variant.id || "default"}`;
+};
+
+const variantCardImage = (variant = {}, product = {}) =>
+  firstText(
+    variant.primary_image_url,
+    variant.variant_image_url,
+    variant.color_image_url,
+    variant.image_url,
+    variant.image,
+    product.product_image_url,
+    product.image_url,
+    Array.isArray(product.gallery_images) ? product.gallery_images[0] : ""
+  );
+
+const preferredVariantForColorCard = (variants = [], product = {}) =>
+  variants.find((variant) => toNumber(variant.stock) > 0 && variantCardImage(variant, product)) ||
+  variants.find((variant) => toNumber(variant.stock) > 0) ||
+  variants.find((variant) => variantCardImage(variant, product)) ||
+  variants[0] ||
+  null;
+
+const productColorDisplayName = (name = "", color = "") => {
+  const base = firstText(name);
+  const colorText = firstText(color);
+  if (!base || !colorText || colorText.toLowerCase() === "default") return base;
+  return `${base} - ${colorText}`;
+};
+
+const expandProductsToColorCards = (products = []) => {
+  const cards = [];
+  for (const product of Array.isArray(products) ? products : []) {
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    if (!variants.length) {
+      cards.push(product);
+      continue;
+    }
+
+    const groups = new Map();
+    for (const variant of variants) {
+      const key = variantColorKeyForCard(variant);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          color: variantColorNameForCard(variant),
+          variants: [],
+        });
+      }
+      groups.get(key).variants.push(variant);
+    }
+
+    for (const group of groups.values()) {
+      const selectedVariant = preferredVariantForColorCard(group.variants, product);
+      if (!selectedVariant) continue;
+      const groupStock = group.variants.reduce((sum, variant) => sum + Math.max(0, toNumber(variant.stock)), 0);
+      const groupSizes = [...new Set(group.variants.filter((variant) => toNumber(variant.stock) > 0 && variant.size).map((variant) => variant.size))];
+      const groupImage = variantCardImage(selectedVariant, product);
+      const sellingPrice = roundMoney(selectedVariant.selling_price || selectedVariant.price || product.selling_price || product.price);
+      const salePrice = roundMoney(selectedVariant.sale_price ?? product.sale_price);
+      const finalPrice = roundMoney(selectedVariant.final_price || product.final_price || sellingPrice);
+      const comparePrice = roundMoney(selectedVariant.compare_at_price || product.compare_at_price);
+      cards.push({
+        ...product,
+        card_id: `${product.id}:${group.key}`,
+        storefront_card_type: "color_variant",
+        parent_product_id: product.id,
+        display_variant_id: selectedVariant.id || null,
+        selected_variant_id: selectedVariant.id || null,
+        display_color: group.color,
+        display_color_key: group.key,
+        color: group.color,
+        color_key: group.key,
+        name: productColorDisplayName(product.name, group.color),
+        image_url: groupImage,
+        product_image_url: product.product_image_url || product.image_url || "",
+        gallery_images: [...new Set([groupImage, ...(Array.isArray(product.gallery_images) ? product.gallery_images : [])].filter(Boolean))],
+        variants: group.variants,
+        total_stock: groupStock,
+        low_stock: groupStock > 0 && groupStock <= LOW_STOCK_LIMIT,
+        sizes: groupSizes,
+        colors: group.color && group.color !== "Default" ? [group.color] : [],
+        selected_card_image_url: groupImage,
+        selling_price: sellingPrice,
+        price: sellingPrice,
+        final_price: finalPrice,
+        sale_price: salePrice,
+        original_price: selectedVariant.original_price || product.original_price,
+        base_price: selectedVariant.base_price || product.base_price,
+        list_price: selectedVariant.list_price || product.list_price,
+        compare_base_price: selectedVariant.compare_base_price || product.compare_base_price,
+        custom_compare_price: selectedVariant.custom_compare_price || product.custom_compare_price,
+        use_custom_compare_price: selectedVariant.use_custom_compare_price ?? product.use_custom_compare_price,
+        regular_price: selectedVariant.regular_price || product.regular_price,
+        compare_at_price: comparePrice,
+        old_price: comparePrice,
+        sale_price_enabled: selectedVariant.sale_price_enabled ?? product.sale_price_enabled,
+        sale_prices_enabled: selectedVariant.sale_prices_enabled ?? product.sale_prices_enabled,
+        global_sale_enabled: selectedVariant.global_sale_enabled ?? product.global_sale_enabled,
+        sale_mode_enabled: selectedVariant.sale_mode_enabled ?? product.sale_mode_enabled,
+        sale_source: selectedVariant.sale_source || product.sale_source,
+        sale_badge: selectedVariant.sale_badge || product.sale_badge,
+        sale_mode_applied: selectedVariant.sale_mode_applied ?? product.sale_mode_applied,
+      });
+      if (ERP_PERF_DEBUG) console.log("[storefront-color-card]", {
+        parent_product_id: product.id,
+        product_name: product.name,
+        color: group.color,
+        variant_count: group.variants.length,
+        selected_variant_id: selectedVariant.id || null,
+        card_id: `${product.id}:${group.key}`,
+      });
+    }
+  }
+  return cards;
+};
+
+const normalizeStorefrontProductsQuery = (query = {}) => ({
+  q: queryText(query.q).toLowerCase(),
+  category: queryText(query.category).toLowerCase(),
+  gender: queryText(query.gender),
+  productType: queryText(query.product_type || query.productType),
+  style: queryText(query.style),
+  grade: queryText(query.grade),
+  quality: queryText(query.quality),
+  size: queryText(query.size),
+  inStock: queryFlagOn(query.inStock || query.in_stock || query.stock),
+  saleOnly: queryFlagOn(query.sale),
+  sort: normalizeStorefrontSort(query.sort || query.order),
+  scope: normalizeStorefrontScope(query.scope || query._last_piece_scope),
+  groupingMode: normalizeStorefrontGroupingMode(query.grouping || query.grouping_mode || query.groupingMode || query._color_cards),
+  limit: queryPositiveInt(query.limit, 24, { min: 1, max: 80 }),
+  offset: queryPositiveInt(query.offset, 0, { min: 0, max: 100000 }),
+});
+
+const storefrontQualityAliases = (quality = "") => {
+  const normalized = queryText(quality).toLowerCase().replace(/[-\s]+/g, "_");
+  if (["mirror", "mirror_original", "original_mirror"].includes(normalized)) {
+    return ["mirror", "mirror_original", "mirror original", "original_mirror", "original mirror"];
+  }
+  if (["egyptian", "egypt", "local", "locally_made", "made_in_egypt"].includes(normalized)) {
+    return ["egyptian", "egypt", "local", "locally_made", "locally made", "made_in_egypt", "made in egypt"];
+  }
+  if (["vietnamese_import", "vietnamese", "vietnam", "import", "imported", "imported_vietnamese", "vietnam_import"].includes(normalized)) {
+    return ["vietnamese_import", "vietnamese import", "vietnamese", "vietnam", "import", "imported", "imported_vietnamese", "vietnam_import"];
+  }
+  if (!normalized || ["all", "الكل", "كل"].includes(normalized)) return [];
+  if (normalized === "mirror" || normalized === "ميرور") {
+    return ["mirror", "ميرور", "mirror original", "original mirror"];
+  }
+  if (normalized === "egyptian" || normalized === "مصري") {
+    return ["egyptian", "egypt", "مصري"];
+  }
+  if (["vietnamese_import", "vietnamese", "vietnam", "import", "مستورد", "فيتنامي", "مستورد_فيتنامي"].includes(normalized)) {
+    return ["vietnamese_import", "vietnamese import", "vietnamese", "vietnam", "import", "مستورد", "فيتنامي", "مستورد فيتنامي"];
+  }
+  return [normalized.replace(/_/g, " "), normalized];
+};
+
 export const listProducts = async (req, res) => {
+  const startedAt = Date.now();
   try {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
     await ensureStorefrontSchema();
     await ensureProductVariantImagesSchema();
     const tenantId = tenantFromRequest(req);
-    const cacheKey = storefrontCacheKey(tenantId, "products", req.query);
-    const payload = await getOrSetCache(cacheKey, 45, async () => {
-      const q = toText(req.query.q).toLowerCase();
-      const category = toText(req.query.category).toLowerCase();
-      const [gender, productType, style, grade] = await Promise.all([
-        getClassificationFilterAliases("gender", req.query.gender),
-        getClassificationFilterAliases("product_type", req.query.product_type || req.query.productType),
-        getClassificationFilterAliases("style", req.query.style),
-        getClassificationFilterAliases("grade", req.query.grade),
-      ]);
-      const saleOnly = String(req.query.sale || "") === "1";
-      const limit = Math.min(Math.max(Number(req.query.limit || 24), 1), 80);
-      const offset = Math.max(Number(req.query.offset || 0), 0);
-      let result = await queryProducts(tenantId, q, category, { gender, productType, style, grade }, saleOnly, limit, offset);
+    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+    const payload = await (async () => {
+      const normalizedQuery = normalizeStorefrontProductsQuery(req.query || {});
+      const { q, category, saleOnly, sort, limit, offset, scope, groupingMode, size, inStock } = normalizedQuery;
+      const genderAliases = await getClassificationFilterAliases("gender", normalizedQuery.gender);
+      const productType = await getActiveClassificationFilterAliases("product_type", normalizedQuery.productType);
+      const style = await getActiveClassificationFilterAliases("style", normalizedQuery.style);
+      const grade = await getActiveClassificationFilterAliases("grade", normalizedQuery.grade);
+      const quality = storefrontQualityAliases(normalizedQuery.quality);
+      const gender = normalizeProductAudiences(genderAliases, normalizedQuery.gender);
+      const effectiveSaleOnly = saleOnly && saleModeEnabled(pricingSettings) && !pricingSettings.enable_fake_compare_price;
+      const randomSeed = sort ? "" : storefrontRandomSeed(req);
+      if (ERP_PERF_DEBUG) console.log("[storefront-random-seed]", {
+        tenantId,
+        seed: randomSeed || "",
+        sort: sort || "",
+        source: randomSeed
+          ? (req.query.random_seed || req.query.randomSeed || req.query.seed || req.headers?.["x-storefront-random-seed"] || req.headers?.["x-random-seed"] ? "client" : "backend")
+          : "disabled",
+      });
+      const page = Math.floor(offset / limit) + 1;
+      const shouldOrderAfterExpansion = Boolean(sort || randomSeed);
+      const candidateLimit = shouldOrderAfterExpansion
+        ? Math.min(Math.max(limit + offset + 500, 1000), 5000)
+        : limit;
+      const queryOffset = shouldOrderAfterExpansion ? 0 : offset;
+      let result = await queryProducts(tenantId, q, category, { gender, productType, style, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
       let usedTenantFallback = false;
       if (!result.rows.length && tenantId !== null) {
-        const fallback = await queryProducts(null, q, category, { gender, productType, style, grade }, saleOnly, limit, offset);
+        const fallback = await queryProducts(null, q, category, { gender, productType, style, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
         if (fallback.rows.length) {
           result = fallback;
           usedTenantFallback = true;
         }
       }
-      let products = result.rows.map(normalizeProduct);
+      let products = result.rows.map((row) => normalizeProduct(row, pricingSettings));
       if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
-        const fallback = await queryProducts(null, q, category, { gender, productType, style, grade }, saleOnly, limit, offset);
-        const fallbackProducts = fallback.rows.map(normalizeProduct);
+        const fallback = await queryProducts(null, q, category, { gender, productType, style, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
+        const fallbackProducts = fallback.rows.map((row) => normalizeProduct(row, pricingSettings));
         if (fallbackProducts.some((product) => product.total_stock > 0)) {
           products = fallbackProducts;
           usedTenantFallback = true;
         }
       }
-      products = (await hydrateProductsWithImages(products, { compact: true })).map(slimProductForList);
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[storefront] products", { tenantId, usedTenantFallback, q, category, saleOnly, filters: { gender, productType, style, grade }, count: products.length });
+      const rawProductCount = products.length;
+      const hydratedProducts = await scrubInactiveClassifications(await hydrateProductsWithImages(products, { compact: true }));
+      const expandedProducts = groupingMode === "none" ? hydratedProducts : expandProductsToColorCards(hydratedProducts);
+      if (randomSeed) {
+        console.log("[storefront-shuffle-before]", expandedProducts.map((product) => storefrontCardId(product)));
       }
-      return { success: true, products };
-    });
+      const orderedExpandedProducts = shouldOrderAfterExpansion ? sortStorefrontCards(expandedProducts, sort, randomSeed) : expandedProducts;
+      if (randomSeed) {
+        console.log("[storefront-shuffle-after]", orderedExpandedProducts.map((product) => storefrontCardId(product)));
+      }
+      let pagedProducts = orderedExpandedProducts.slice(offset, offset + limit);
+      let usedOrderingFallback = false;
+      if (!pagedProducts.length && expandedProducts.length) {
+        const fallbackOffset = Math.min(offset, Math.max(0, expandedProducts.length - limit));
+        pagedProducts = orderedExpandedProducts.slice(fallbackOffset, fallbackOffset + limit);
+        usedOrderingFallback = true;
+      }
+      const total = expandedProducts.length;
+      const hasMore = offset + pagedProducts.length < total;
+      if (ERP_PERF_DEBUG) console.log("[storefront-color-expand-count]", {
+        total_raw_products: rawProductCount,
+        total_expanded_cards: expandedProducts.length,
+        expansion_delta: expandedProducts.length - rawProductCount,
+        returned_cards: pagedProducts.length,
+        sort: sort || "random",
+        random_seed: randomSeed || "",
+        limit,
+        offset,
+        page,
+        has_more: hasMore,
+        used_ordering_fallback: usedOrderingFallback,
+      });
+      products = pagedProducts.map(slimProductForList);
+      if (ERP_PERF_DEBUG) {
+        console.log("[storefront] products", { tenantId, usedTenantFallback, q, category, saleOnly, sort: sort || "random", scope, groupingMode, filters: { gender, productType, style, grade }, count: products.length, total, hasMore, usedOrderingFallback });
+      }
+      return {
+        success: true,
+        products,
+        items: products,
+        total,
+        total_count: total,
+        count: products.length,
+        hasMore,
+        has_more: hasMore,
+        page,
+        limit,
+        offset,
+        sort: sort || "",
+        scope,
+        grouping_mode: groupingMode,
+        random_seed: randomSeed || undefined,
+      };
+    })();
+    if (ERP_PERF_DEBUG) console.log("[erp-perf] storefront.products", { total_ms: Date.now() - startedAt, rows: payload.products?.length || 0, limit: payload.limit });
     res.json(payload);
   } catch (error) {
     console.error("[storefront] list products", error);
@@ -637,10 +2016,114 @@ export const listProducts = async (req, res) => {
   }
 };
 
+export const visualSearchProducts = async (req, res) => {
+  const file = req.file;
+  const tenantId = tenantFromRequest(req);
+  const emptyReason = { code: "", details: "" };
+  try {
+    await ensureStorefrontSchema();
+    await ensureProductVariantImagesSchema();
+
+    if (!file?.buffer?.length) {
+      emptyReason.code = "missing_file";
+      console.warn("[storefront-image-search] empty result reason", { tenantId, ...emptyReason });
+      return res.status(400).json({ success: false, message: "يرجى رفع صورة للبحث" });
+    }
+    if (!VISUAL_SEARCH_ALLOWED_TYPES.has(file.mimetype)) {
+      emptyReason.code = "unsupported_image_type";
+      emptyReason.details = file.mimetype || "";
+      console.warn("[storefront-image-search] empty result reason", { tenantId, ...emptyReason });
+      return res.status(400).json({ success: false, message: "نوع الصورة غير مدعوم. استخدم JPG أو PNG أو WEBP" });
+    }
+    if (Number(file.size || file.buffer.length) > VISUAL_SEARCH_MAX_BYTES) {
+      emptyReason.code = "image_too_large";
+      emptyReason.details = `${file.size || file.buffer.length}`;
+      console.warn("[storefront-image-search] empty result reason", { tenantId, ...emptyReason });
+      return res.status(413).json({ success: false, message: "حجم الصورة كبير. ارفع صورة أصغر" });
+    }
+
+    console.log("[storefront-image-search] uploaded image received", {
+      req_file_exists: Boolean(req.file),
+      tenant_id: tenantId,
+      filename: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size || file.buffer.length,
+    });
+
+    const imageMatches = await findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 8 });
+    let matchedIds = imageMatches.map((item) => item.productId);
+    let keywords = [];
+    let aiSource = "not_needed";
+
+    if (!matchedIds.length) {
+      const imageBase64 = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+      const aiResult = await generateAiProductData({
+        image_base64: imageBase64,
+        current: { source: "storefront_visual_search", filename: file.originalname || "" },
+      });
+      aiSource = aiResult?.source || "fallback";
+      keywords = visualKeywordsFromAi(aiResult);
+      console.log("[storefront-image-search] detected keywords/labels", { tenantId, source: aiSource, keywords });
+      matchedIds = await queryVisualKeywordProductIds(tenantId, keywords, 8);
+    } else {
+      console.log("[storefront-image-search] detected keywords/labels", {
+        tenantId,
+        source: "direct_image_similarity",
+        keywords,
+      });
+    }
+
+    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+    let products = await queryProductsByIds(tenantId, matchedIds, pricingSettings);
+    products = expandProductsToColorCards(await scrubInactiveClassifications(await hydrateProductsWithImages(products, { compact: true }))).map(slimProductForList);
+    const productsById = new Map();
+    products.forEach((product) => {
+      const key = String(product.parent_product_id || product.id);
+      if (!productsById.has(key)) productsById.set(key, []);
+      productsById.get(key).push(product);
+    });
+    products = matchedIds.flatMap((id) => productsById.get(String(id)) || []);
+
+    console.log("[storefront-image-search] matched product ids", {
+      tenant_id: tenantId,
+      candidate_product_count: matchedIds.length,
+      final_matched_result_count: products.length,
+      product_ids: products.map((product) => product.id),
+      direct_matches: imageMatches,
+    });
+
+    if (!products.length) {
+      emptyReason.code = keywords.length ? "no_keyword_matches" : "no_image_or_keyword_matches";
+      emptyReason.details = keywords.join(", ");
+      console.warn("[storefront-image-search] empty result reason", { tenantId, ...emptyReason });
+    }
+
+    res.json({
+      success: true,
+      products,
+      keywords,
+      message: products.length ? "" : "لم نجد منتج مطابق للصورة",
+      source: imageMatches.length ? "image_similarity" : aiSource,
+    });
+  } catch (error) {
+    console.error("[storefront-image-search] failed", {
+      req_file_exists: Boolean(req.file),
+      tenant_id: tenantId,
+      mimetype: file?.mimetype || "",
+      size: file?.size || file?.buffer?.length || 0,
+      message: error?.message || String(error),
+      stack: error?.stack,
+    });
+    res.status(500).json({
+      success: false,
+      message: "تعذر البحث بالصورة الآن",
+      ...(process.env.NODE_ENV !== "production" ? { error: error?.message || "visual_search_failed" } : {}),
+    });
+  }
+};
+
 const countActiveProductsByGender = async (tenantId, aliases = []) => {
-  const normalizedAliases = (Array.isArray(aliases) ? aliases : [])
-    .map((value) => toText(value).toLowerCase())
-    .filter(Boolean);
+  const normalizedAliases = normalizeProductAudiences(aliases);
   if (!normalizedAliases.length) return 0;
 
   const result = await db.query(
@@ -649,8 +2132,9 @@ const countActiveProductsByGender = async (tenantId, aliases = []) => {
     FROM products p
     LEFT JOIN product_variants pv ON pv.product_id = p.id
     WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
+      AND p.is_active IS DISTINCT FROM FALSE
       AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
-      AND LOWER(TRIM(COALESCE(p.gender, ''))) = ANY($2::text[])
+      AND ${productAudienceFilterSql("$2")}
       AND COALESCE(pv.stock, p.stock, 0) > 0
     `,
     [tenantId, normalizedAliases]
@@ -661,15 +2145,22 @@ const countActiveProductsByGender = async (tenantId, aliases = []) => {
 export const listGenderClassifications = async (req, res) => {
   try {
     const tenantId = tenantFromRequest(req);
-    const payload = await getOrSetCache(storefrontCacheKey(tenantId, "classifications:gender", req.query), 300, async () => {
+    const payload = await (async () => {
       const group = await fetchProductClassificationGroupByKey("gender", { includeInactive: false });
       const options = [];
+      const sourceOptions = group?.options?.length
+        ? group.options
+        : [
+            { id: "men", value: "men", label_en: "Men", label_ar: "Men", name_en: "Men", name_ar: "Men", icon: "", color: "", sort_order: 1, is_active: true },
+            { id: "women", value: "women", label_en: "Women", label_ar: "Women", name_en: "Women", name_ar: "Women", icon: "", color: "", sort_order: 2, is_active: true },
+            { id: "kids", value: "kids", label_en: "Kids", label_ar: "Kids", name_en: "Kids", name_ar: "Kids", icon: "", color: "", sort_order: 3, is_active: true },
+          ];
 
-      for (const option of group?.options || []) {
+      for (const option of sourceOptions) {
         const aliases = await getClassificationFilterAliases("gender", option.value);
-        let product_count = await countActiveProductsByGender(tenantId, aliases);
+        let product_count = await countActiveProductsByGender(tenantId, [...aliases, option.value, option.label_en, option.label_ar]);
         if (product_count === 0 && tenantId !== null) {
-          product_count = await countActiveProductsByGender(null, aliases);
+          product_count = await countActiveProductsByGender(null, [...aliases, option.value, option.label_en, option.label_ar]);
         }
         options.push({
           id: option.id,
@@ -688,7 +2179,7 @@ export const listGenderClassifications = async (req, res) => {
       }
 
       return { success: true, group: "gender", options };
-    });
+    })();
     res.json(payload);
   } catch (error) {
     console.error("[storefront] gender classifications", error);
@@ -705,63 +2196,258 @@ const lastPieceCategorySql = `
   END
 `;
 
+const numericJsonExpr = (jsonColumn, key) => `
+  CASE
+    WHEN ${jsonColumn} ? '${key}'
+      AND (${jsonColumn}->>'${key}') ~ '^[0-9]+(\\.[0-9]+)?$'
+    THEN (${jsonColumn}->>'${key}')::numeric
+    ELSE 0
+  END
+`;
+
+const buildPurchaseInvoiceSalePriceJoin = async () => {
+  const [purchaseColumns, purchaseItemColumns] = await Promise.all([
+    tableColumns(db, "purchases"),
+    tableColumns(db, "purchase_items"),
+  ]);
+  if (!purchaseItemColumns.size || !purchaseItemColumns.has("purchase_id")) {
+    return { join: "", select: "0" };
+  }
+
+  const saleCandidates = [];
+  if (purchaseItemColumns.has("sale_price")) saleCandidates.push("NULLIF(pi.sale_price, 0)");
+  if (purchaseItemColumns.has("metadata")) saleCandidates.push(`NULLIF(${numericJsonExpr("pi.metadata", "sale_price")}, 0)`);
+  const sellingCandidates = [];
+  if (purchaseItemColumns.has("selling_price")) sellingCandidates.push("NULLIF(pi.selling_price, 0)");
+  if (purchaseItemColumns.has("regular_price")) sellingCandidates.push("NULLIF(pi.regular_price, 0)");
+  if (purchaseItemColumns.has("metadata")) {
+    sellingCandidates.push(`NULLIF(${numericJsonExpr("pi.metadata", "selling_price")}, 0)`);
+    sellingCandidates.push(`NULLIF(${numericJsonExpr("pi.metadata", "regular_price")}, 0)`);
+  }
+  if (!saleCandidates.length && !sellingCandidates.length) {
+    return { join: "", selectSale: "COALESCE(NULLIF(pv.sale_price, 0), 0)", selectSelling: "COALESCE(NULLIF(pv.price, 0), 0)", selectLastPiece: "COALESCE(NULLIF(pv.sale_price, 0), NULLIF(pv.price, 0), 0)" };
+  }
+
+  const matchClauses = [];
+  if (purchaseItemColumns.has("variant_id")) matchClauses.push("pi.variant_id = pv.id");
+  if (purchaseItemColumns.has("product_id") && purchaseItemColumns.has("size")) {
+    matchClauses.push("(pi.product_id = p.id AND LOWER(TRIM(pi.size)) = LOWER(TRIM(pv.size)))");
+  }
+  if (!matchClauses.length) {
+    return { join: "", selectSale: "COALESCE(NULLIF(pv.sale_price, 0), 0)", selectSelling: "COALESCE(NULLIF(pv.price, 0), 0)", selectLastPiece: "COALESCE(NULLIF(pv.sale_price, 0), NULLIF(pv.price, 0), 0)" };
+  }
+
+  const tenantClause = purchaseItemColumns.has("tenant_id") ? "AND (pi.tenant_id = p.tenant_id OR pi.tenant_id IS NULL)" : "";
+  const purchaseTenantClause = purchaseColumns.has("tenant_id") ? "AND (pu.tenant_id = p.tenant_id OR pu.tenant_id IS NULL)" : "";
+  const purchaseStatusClause = purchaseColumns.has("status")
+    ? "AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')"
+    : "";
+  const purchaseDateExpr = purchaseColumns.has("created_at") ? "pu.created_at" : "pi.id";
+  const purchaseSaleExpr = saleCandidates.length ? `COALESCE(${saleCandidates.join(", ")}, 0)` : "0";
+  const purchaseSellingExpr = sellingCandidates.length ? `COALESCE(${sellingCandidates.join(", ")}, 0)` : "0";
+
+  return {
+    join: `
+      LEFT JOIN LATERAL (
+        SELECT
+          ${purchaseSaleExpr} AS purchase_sale_price,
+          ${purchaseSellingExpr} AS purchase_selling_price
+        FROM purchase_items pi
+        JOIN purchases pu ON pu.id = pi.purchase_id
+        WHERE (${matchClauses.join(" OR ")})
+          ${tenantClause}
+          ${purchaseTenantClause}
+          ${purchaseStatusClause}
+          AND (${purchaseSaleExpr} > 0 OR ${purchaseSellingExpr} > 0)
+        ORDER BY ${purchaseDateExpr} DESC NULLS LAST, pi.id DESC
+        LIMIT 1
+      ) last_purchase_price ON TRUE
+    `,
+    selectSale: "COALESCE(last_purchase_price.purchase_sale_price, NULLIF(pv.sale_price, 0), 0)",
+    selectSelling: "COALESCE(last_purchase_price.purchase_selling_price, NULLIF(pv.selling_price, 0), NULLIF(pv.price, 0), 0)",
+    selectLastPiece: "COALESCE(last_purchase_price.purchase_sale_price, NULLIF(pv.sale_price, 0), last_purchase_price.purchase_selling_price, NULLIF(pv.selling_price, 0), NULLIF(pv.price, 0), 0)",
+  };
+};
+
 const queryLastPieceProducts = async (tenantId, category, size, limit) => {
   const variantColumns = await tableColumns(db, "product_variants");
+  const purchaseSalePrice = await buildPurchaseInvoiceSalePriceJoin();
   const variantStatusClause = variantColumns.has("status")
     ? "AND COALESCE(NULLIF(LOWER(TRIM(pv.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')"
     : "";
 
   return db.query(
     `
-    WITH low_variants AS (
+    WITH active_variants AS (
       SELECT
         pv.*,
-        ${lastPieceCategorySql} AS last_piece_category
+        ${lastPieceCategorySql} AS last_piece_category,
+        ${purchaseSalePrice.selectSale} AS purchase_sale_price,
+        ${purchaseSalePrice.selectSale} AS purchase_invoice_sale_price,
+        ${purchaseSalePrice.selectSelling} AS purchase_invoice_selling_price,
+        ${purchaseSalePrice.selectLastPiece} AS last_piece_sale_price
       FROM product_variants pv
       JOIN products p ON p.id = pv.product_id
       LEFT JOIN categories c ON c.id = p.category_id
+      ${purchaseSalePrice.join}
       WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
+        AND p.is_active IS DISTINCT FROM FALSE
         AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
         ${variantStatusClause}
-        AND GREATEST(COALESCE(pv.stock, 0), 0) BETWEEN 1 AND 2
-        AND COALESCE(NULLIF(TRIM(pv.size), ''), '') <> ''
         AND ($2 = '' OR ${lastPieceCategorySql} = $2)
-        AND ($3 = '' OR LOWER(TRIM(pv.size)) = LOWER(TRIM($3)))
+    ),
+    product_stock AS (
+      SELECT
+        product_id,
+        COALESCE(SUM(GREATEST(COALESCE(stock, 0), 0)), 0)::int AS total_product_stock
+      FROM active_variants
+      GROUP BY product_id
+    ),
+    last_piece_products AS (
+      SELECT ps.*
+      FROM product_stock ps
+      WHERE ps.total_product_stock BETWEEN 1 AND 3
+        AND (
+          $3 = ''
+          OR EXISTS (
+            SELECT 1
+            FROM active_variants av
+            WHERE av.product_id = ps.product_id
+              AND GREATEST(COALESCE(av.stock, 0), 0) > 0
+              AND LOWER(TRIM(av.size)) = LOWER(TRIM($3))
+          )
+        )
     )
     SELECT
       p.*,
       c.name AS category_name,
       b.name AS brand_name,
       COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS public_image_url,
-      COALESCE(SUM(GREATEST(COALESCE(lv.stock, 0), 0)), 0) AS variant_total_stock,
-      COALESCE(BOOL_OR(lv.sale_price > 0 AND lv.sale_price < lv.price), FALSE) AS has_variant_discount,
+      lpp.total_product_stock AS variant_total_stock,
+      COALESCE(BOOL_OR(av.sale_price > 0 AND av.sale_price < av.price), FALSE) AS has_variant_discount,
       jsonb_agg(
-        DISTINCT jsonb_build_object(
-          'id', lv.id,
-          'product_id', lv.product_id,
-          'size', lv.size,
-          'color', lv.color,
-          'sku', lv.sku,
-          'barcode', lv.barcode,
-          'edition_name', lv.edition_name,
-          'edition_slug', lv.edition_slug,
-          'image_url', COALESCE(NULLIF(lv.image_url, ''), NULLIF(lv.image, ''), NULLIF(lv.photo_url, ''), NULLIF(lv.thumbnail_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), ''),
-          'price', lv.price,
-          'sale_price', lv.sale_price,
-          'stock', lv.stock,
-          'last_piece_category', lv.last_piece_category
+        jsonb_build_object(
+          'id', av.id,
+          'product_id', av.product_id,
+          'size', av.size,
+          'color', av.color,
+          'sku', av.sku,
+          'barcode', av.barcode,
+          'edition_name', av.edition_name,
+          'edition_slug', av.edition_slug,
+          'image_url', COALESCE(NULLIF(av.image_url, ''), NULLIF(av.image, ''), NULLIF(av.photo_url, ''), NULLIF(av.thumbnail_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), ''),
+          'price', COALESCE(NULLIF(av.selling_price, 0), av.price),
+          'selling_price', COALESCE(NULLIF(av.selling_price, 0), av.price),
+          'regular_price', COALESCE(NULLIF(av.regular_price, 0), av.price),
+          'original_price', COALESCE(NULLIF(av.regular_price, 0), NULLIF(p.regular_price, 0), av.price),
+          'base_price', COALESCE(NULLIF(av.regular_price, 0), NULLIF(p.regular_price, 0), av.price),
+          'list_price', COALESCE(NULLIF(av.regular_price, 0), NULLIF(p.regular_price, 0), av.price),
+          'compare_base_price', COALESCE(NULLIF(p.custom_compare_price, 0), NULLIF(av.regular_price, 0), NULLIF(p.regular_price, 0), av.price),
+          'custom_compare_price', COALESCE(NULLIF(p.custom_compare_price, 0), NULLIF(av.regular_price, 0), NULLIF(p.regular_price, 0), av.price),
+          'sale_price', av.sale_price,
+          'purchase_sale_price', av.purchase_sale_price,
+          'purchase_invoice_sale_price', av.purchase_invoice_sale_price,
+          'purchase_invoice_selling_price', av.purchase_invoice_selling_price,
+          'last_piece_sale_price', av.last_piece_sale_price,
+          'sale_price_enabled', av.sale_price_enabled,
+          'sale_start_at', av.sale_start_at,
+          'sale_end_at', av.sale_end_at,
+          'cost_price', av.cost_price,
+          'stock', av.stock,
+          'last_piece_category', av.last_piece_category
         )
-      ) AS variants
-    FROM low_variants lv
-    JOIN products p ON p.id = lv.product_id
+        ORDER BY av.stock ASC, av.size ASC, av.color ASC
+      ) FILTER (WHERE GREATEST(COALESCE(av.stock, 0), 0) > 0 AND COALESCE(NULLIF(TRIM(av.size), ''), '') <> '') AS variants
+    FROM last_piece_products lpp
+    JOIN products p ON p.id = lpp.product_id
+    JOIN active_variants av ON av.product_id = p.id
     LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN brands b ON b.id = p.brand_id
-    GROUP BY p.id, c.name, b.name
-    ORDER BY MIN(lv.stock) ASC, MAX(p.updated_at) DESC NULLS LAST, p.id DESC
+    GROUP BY p.id, c.name, b.name, lpp.total_product_stock
+    ORDER BY lpp.total_product_stock ASC, MIN(GREATEST(COALESCE(av.stock, 0), 0)) ASC, MAX(p.updated_at) DESC NULLS LAST, p.id DESC
     LIMIT $4
     `,
     [tenantId, toText(category), toText(size), limit]
   );
+};
+
+const queryLastPieceApiDebugStats = async (tenantId, category, size) => {
+  const variantColumns = await tableColumns(db, "product_variants");
+  const variantStatusClause = variantColumns.has("status")
+    ? "AND COALESCE(NULLIF(LOWER(TRIM(pv.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')"
+    : "";
+  const result = await db.query(
+    `
+    WITH active_variants AS (
+      SELECT
+        pv.product_id,
+        p.name AS product_name,
+        pv.size,
+        pv.color,
+        GREATEST(COALESCE(pv.stock, 0), 0) AS stock,
+        ${lastPieceCategorySql} AS last_piece_category
+      FROM product_variants pv
+      JOIN products p ON p.id = pv.product_id
+      LEFT JOIN categories c ON c.id = p.category_id
+      WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
+        AND p.is_active IS DISTINCT FROM FALSE
+        AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
+        ${variantStatusClause}
+        AND ($2 = '' OR ${lastPieceCategorySql} = $2)
+    ),
+    product_stock AS (
+      SELECT
+        product_id,
+        MAX(product_name) AS product_name,
+        MAX(last_piece_category) AS last_piece_category,
+        COALESCE(SUM(stock), 0)::int AS total_product_stock,
+        jsonb_agg(
+          jsonb_build_object('size', size, 'color', color, 'qty', stock)
+          ORDER BY stock ASC, size ASC, color ASC
+        ) FILTER (WHERE stock > 0) AS variants
+      FROM active_variants
+      GROUP BY product_id
+    ),
+    matching_products AS (
+      SELECT ps.*
+      FROM product_stock ps
+      WHERE ps.total_product_stock > 0
+        AND (
+          $3 = ''
+          OR EXISTS (
+            SELECT 1
+            FROM active_variants av
+            WHERE av.product_id = ps.product_id
+              AND av.stock > 0
+              AND LOWER(TRIM(av.size)) = LOWER(TRIM($3))
+          )
+        )
+    )
+    SELECT
+      COUNT(*) FILTER (WHERE total_product_stock BETWEEN 1 AND 3)::int AS eligible_product_count,
+      COUNT(*) FILTER (WHERE total_product_stock > 3)::int AS excluded_because_total_above3,
+      COALESCE(
+        jsonb_agg(
+          jsonb_build_object(
+            'id', product_id,
+            'name', product_name,
+            'category', last_piece_category,
+            'totalProductStock', total_product_stock,
+            'variants', variants
+          )
+          ORDER BY total_product_stock ASC, product_id DESC
+        ) FILTER (WHERE total_product_stock BETWEEN 1 AND 3),
+        '[]'::jsonb
+      ) AS sample_eligible_products
+    FROM matching_products
+    `,
+    [tenantId, toText(category), toText(size)]
+  );
+  return result.rows[0] || {};
 };
 
 export const listLastPieceProducts = async (req, res) => {
@@ -769,7 +2455,7 @@ export const listLastPieceProducts = async (req, res) => {
     await ensureStorefrontSchema();
     await ensureProductVariantImagesSchema();
     const tenantId = tenantFromRequest(req);
-    const payload = await getOrSetCache(storefrontCacheKey(tenantId, "last-piece", req.query), 30, async () => {
+    const payload = await (async () => {
       const category = toText(req.query.category);
       const size = toText(req.query.size);
       const limit = Math.min(Math.max(Number(req.query.limit || 80), 1), 120);
@@ -783,27 +2469,29 @@ export const listLastPieceProducts = async (req, res) => {
         }
       }
 
-      const products = await hydrateProductsWithImages(result.rows.map(normalizeProduct), { compact: true }).then((rows) => rows.map((product) => {
-        const lowVariants = (product.variants || []).filter((variant) => {
+      const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+      const products = await scrubInactiveClassifications(await hydrateProductsWithImages(result.rows.map((row) => normalizeProduct(row, pricingSettings)), { compact: true })).then((rows) => rows.map((product) => {
+        const availableVariants = (product.variants || []).filter((variant) => {
           const stock = toNumber(variant.stock);
-          return stock > 0 && stock <= 2;
-        });
-        const categoryLabel = firstText(lowVariants[0]?.last_piece_category, product.category);
+          return stock > 0;
+        }).sort((a, b) => toNumber(a.stock) - toNumber(b.stock));
+        const totalProductStock = toNumber(product.total_stock || product.variant_total_stock || product.stock);
+        const categoryLabel = firstText(availableVariants[0]?.last_piece_category, product.category);
         return {
           ...product,
           category: categoryLabel,
-          total_stock: lowVariants.reduce((sum, variant) => sum + toNumber(variant.stock), 0),
-          variants: lowVariants,
-          sizes: [...new Set(lowVariants.map((variant) => variant.size).filter(Boolean))],
-          colors: [...new Set(lowVariants.map((variant) => variant.color).filter(Boolean))],
+          total_stock: totalProductStock,
+          variants: availableVariants,
+          sizes: [...new Set(availableVariants.map((variant) => variant.size).filter(Boolean))],
+          colors: [...new Set(availableVariants.map((variant) => variant.color).filter(Boolean))],
           low_stock: true,
         };
-      }).filter((product) => product.variants.length).map(slimProductForList));
+      }).filter((product) => product.total_stock > 0 && product.total_stock <= 3 && product.variants.length).map(slimProductForList));
 
       const categories = ["رجالي", "حريمي", "أطفال"]
         .map((label) => ({
           label,
-          count: products.filter((product) => product.category === label).reduce((sum, product) => sum + product.variants.length, 0),
+          count: products.filter((product) => product.category === label).length,
         }))
         .filter((item) => item.count > 0);
       const sizes = [...new Set(
@@ -815,6 +2503,32 @@ export const listLastPieceProducts = async (req, res) => {
       if (process.env.NODE_ENV !== "production") {
         console.log("[storefront] last-piece", { tenantId, usedTenantFallback, category, size, products: products.length });
       }
+      products.slice(0, 10).forEach((product) => {
+        (product.variants || []).forEach((row) => {
+          console.log("[last-piece-db-price-trace]", {
+            product_id: row.product_id || product.id,
+            variant_id: row.id,
+            size: row.size,
+            color: row.color,
+            stock: row.stock,
+            raw_row_keys: Object.keys(row || {}),
+            raw_prices: {
+              row_sale_price: row.sale_price,
+              row_selling_price: row.selling_price,
+              row_retail_price: row.retail_price,
+              row_unit_sale_price: row.unit_sale_price,
+              row_purchase_sale_price: row.purchase_sale_price,
+              row_purchase_invoice_sale_price: row.purchase_invoice_sale_price,
+              row_purchase_invoice_selling_price: row.purchase_invoice_selling_price,
+              row_last_piece_sale_price: row.last_piece_sale_price,
+              row_final_price: row.final_price,
+              row_price: row.price,
+              row_regular_price: row.regular_price,
+            },
+          });
+        });
+      });
+
       return {
         success: true,
         categories,
@@ -828,11 +2542,68 @@ export const listLastPieceProducts = async (req, res) => {
           size_view_counts: "reserved",
         },
       };
-    });
+    })();
+    try {
+      const category = toText(req.query.category);
+      const size = toText(req.query.size);
+      const stats = await queryLastPieceApiDebugStats(tenantId, category, size);
+      console.log("[last-piece-api-debug]", {
+        categoryId: req.query.category_id || req.query.categoryId || null,
+        categoryName: category || null,
+        eligibleProductCount: Number(stats.eligible_product_count || payload.products?.length || 0),
+        excludedBecauseTotalAbove3: Number(stats.excluded_because_total_above3 || 0),
+        sampleEligibleProducts: (Array.isArray(stats.sample_eligible_products) ? stats.sample_eligible_products : []).slice(0, 5),
+      });
+    } catch (debugError) {
+      console.warn("[last-piece-api-debug] failed", debugError?.message || debugError);
+    }
     res.json(payload);
   } catch (error) {
     console.error("[storefront] last-piece", error);
     res.status(500).json({ success: false, message: "Failed to load last piece products" });
+  }
+};
+
+export const resolveProductLink = async (req, res) => {
+  try {
+    await ensureStorefrontSchema();
+    await ensureProductVariantImagesSchema();
+    const tenantId = tenantFromRequest(req);
+    const slugOrId = toText(req.params.slugOrId || req.params.identifier || "");
+    if (!slugOrId) return res.status(404).json({ success: false, resolvable: false, message: "Product not found" });
+    const identifiers = productIdentifierCandidates(slugOrId);
+    const query = `${catalogQuery} ${productIdentifierClause("$2")} GROUP BY p.id, c.name, b.name ${productIdentifierOrder("$2")} LIMIT 1`;
+    let result = await db.query(query, [tenantId, identifiers]);
+    if (!result.rows[0] && tenantId !== null) {
+      result = await db.query(query, [null, identifiers]);
+    }
+    if (!result.rows[0]) {
+      console.warn("[storefront] product resolve failed", {
+        identifier: slugOrId,
+        identifiers,
+        tenant_id: tenantId,
+        reason: "product_not_found",
+      });
+      return res.status(404).json({ success: false, resolvable: false, message: "Product not found" });
+    }
+    const product = normalizeProduct(result.rows[0], await loadStorefrontPricingSettings(tenantId));
+    const link = await resolveStorefrontProductLink({ tenantId, product });
+    console.log("[storefront] product resolve", {
+      identifier: slugOrId,
+      tenant_id: tenantId,
+      product_id: product.id,
+      slug: product.slug || "",
+      generated_url: link.product_url || "",
+      resolve_success: link.resolve_success,
+      fallback_used: link.fallback_used,
+    });
+    if (!link.resolve_success) {
+      return res.status(404).json({ success: false, resolvable: false, product, link, message: "Product link cannot resolve" });
+    }
+    return res.json({ success: true, resolvable: true, product, link });
+  } catch (error) {
+    console.error("[storefront] product resolve", error);
+    return res.status(500).json({ success: false, resolvable: false, message: "Failed to resolve product" });
   }
 };
 
@@ -841,16 +2612,135 @@ export const getProduct = async (req, res) => {
     await ensureStorefrontSchema();
     await ensureProductVariantImagesSchema();
     const tenantId = tenantFromRequest(req);
-    const id = String(req.params.id || "").split("-")[0];
-    let result = await db.query(`${catalogQuery} AND p.id = $2::bigint GROUP BY p.id, c.name, b.name LIMIT 1`, [tenantId, id]);
+    const identifier = toText(req.params.identifier || req.params.id || "");
+    if (!identifier) return res.status(404).json({ success: false, message: "Product not found" });
+    const identifiers = productIdentifierCandidates(identifier);
+    const query = `${catalogQuery} ${productIdentifierClause("$2")} GROUP BY p.id, c.name, b.name ${productIdentifierOrder("$2")} LIMIT 1`;
+    console.log("[storefront] product lookup", { identifier, identifiers, tenant_id: tenantId, filters: productLookupFilters });
+    let result = await db.query(query, [tenantId, identifiers]);
     if (!result.rows[0] && tenantId !== null) {
-      result = await db.query(`${catalogQuery} AND p.id = $2::bigint GROUP BY p.id, c.name, b.name LIMIT 1`, [null, id]);
+      result = await db.query(query, [null, identifiers]);
     }
-    if (!result.rows[0]) return res.status(404).json({ success: false, message: "Product not found" });
-    const [product] = await hydrateProductsWithImages([normalizeProduct(result.rows[0])]);
-    res.json({ success: true, product: await attachSocialMetadata(product, req) });
+    if (!result.rows[0]) {
+      console.warn("[storefront] product not found", {
+        identifier,
+        identifiers,
+        tenant_id: tenantId,
+        checked_fields: productLookupFields,
+        filters: productLookupFilters,
+      });
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+    console.log("[storefront] product matched", { identifier, matched_product_id: result.rows[0].id });
+    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+    const [product] = await scrubInactiveClassifications(await hydrateProductsWithImages([normalizeProduct(result.rows[0], pricingSettings)]));
+    const firstVariant = Array.isArray(product?.variants) ? product.variants[0] : null;
+    console.log("[storefront-price-debug]", {
+      identifier,
+      product_id: product?.id,
+      slug: product?.slug,
+      original_price: product?.original_price,
+      base_price: product?.base_price,
+      list_price: product?.list_price,
+      regular_price: product?.regular_price,
+      compare_at_price: product?.compare_at_price,
+      selling_price: product?.selling_price,
+      sale_price: product?.sale_price,
+      final_price: product?.final_price,
+      sale_mode_enabled: product?.sale_mode_enabled,
+      first_variant: firstVariant ? {
+        id: firstVariant.id,
+        original_price: firstVariant.original_price,
+        base_price: firstVariant.base_price,
+        list_price: firstVariant.list_price,
+        regular_price: firstVariant.regular_price,
+        compare_at_price: firstVariant.compare_at_price,
+        selling_price: firstVariant.selling_price,
+        sale_price: firstVariant.sale_price,
+        final_price: firstVariant.final_price,
+        sale_mode_enabled: firstVariant.sale_mode_enabled,
+      } : null,
+    });
+    const productPricePayload = {
+      id: product?.id,
+      slug: product?.slug,
+      original_price: product?.original_price,
+      base_price: product?.base_price,
+      regular_price: product?.regular_price,
+      list_price: product?.list_price,
+      compare_at_price: product?.compare_at_price,
+      compare_base_price: product?.compare_base_price,
+      custom_compare_price: product?.custom_compare_price,
+      use_custom_compare_price: product?.use_custom_compare_price,
+      selling_price: product?.selling_price,
+      sale_price: product?.sale_price,
+      selected_variant: firstVariant ? {
+        id: firstVariant.id,
+        original_price: firstVariant.original_price,
+        base_price: firstVariant.base_price,
+        regular_price: firstVariant.regular_price,
+        list_price: firstVariant.list_price,
+        compare_at_price: firstVariant.compare_at_price,
+        compare_base_price: firstVariant.compare_base_price,
+        custom_compare_price: firstVariant.custom_compare_price,
+        selling_price: firstVariant.selling_price,
+        sale_price: firstVariant.sale_price,
+      } : null,
+    };
+    console.log("[storefront-product-price-payload]", productPricePayload);
+    const responseProduct = await attachSocialMetadata(product, req);
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+    res.json({ success: true, product: responseProduct, price_debug: productPricePayload });
   } catch (error) {
     console.error("[storefront] product", error);
+    res.status(500).json({ success: false, message: "Failed to load product" });
+  }
+};
+
+export const getProductByToken = async (req, res) => {
+  try {
+    await ensureStorefrontSchema();
+    await ensureProductVariantImagesSchema();
+    const tenantId = tenantFromRequest(req);
+    const rawToken = toText(req.params.token || "");
+    const token = rawToken.includes("/") ? rawToken.split("/").filter(Boolean).pop() : rawToken;
+    if (!token) return res.status(404).json({ success: false, message: "Product not found" });
+    const identifiers = productIdentifierCandidates(token);
+    console.log("[storefront] product by token lookup", { identifier: token, identifiers, tenant_id: tenantId, filters: productLookupFilters });
+
+    const queryByTenant = (scopeTenantId) =>
+      db.query(
+        `
+        ${catalogQuery}
+          ${productIdentifierClause("$2")}
+        GROUP BY p.id, c.name, b.name
+        ${productIdentifierOrder("$2")}
+        LIMIT 1
+        `,
+        [scopeTenantId, identifiers]
+      );
+
+    let result = await queryByTenant(tenantId);
+    if (!result.rows[0] && tenantId !== null) result = await queryByTenant(null);
+    if (!result.rows[0]) {
+      console.warn("[storefront] product by token not found", {
+        identifier: token,
+        identifiers,
+        tenant_id: tenantId,
+        checked_fields: productLookupFields,
+        filters: productLookupFilters,
+      });
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+
+    console.log("[storefront] product by token matched", { identifier: token, matched_product_id: result.rows[0].id });
+    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+    const [product] = await scrubInactiveClassifications(await hydrateProductsWithImages([normalizeProduct(result.rows[0], pricingSettings)]));
+    res.json({ success: true, product: await attachSocialMetadata(product, req) });
+  } catch (error) {
+    console.error("[storefront] product by token", error);
     res.status(500).json({ success: false, message: "Failed to load product" });
   }
 };
@@ -885,6 +2775,7 @@ export const createWebsiteOrder = async (req, res) => {
   const client = await db.connect();
   let checkoutStep = "start";
   let checkoutQueryContext = {};
+  let receivedPayload = null;
   const markCheckoutStep = (step, details = {}) => {
     checkoutStep = step;
     checkoutQueryContext = { step, ...details };
@@ -895,11 +2786,63 @@ export const createWebsiteOrder = async (req, res) => {
   try {
     const tenantId = tenantFromRequest(req);
     await ensureStorefrontSchema(client);
-    const checkout = parseJsonField(req.body?.checkout, req.body || {});
+    const checkoutRaw = parseJsonField(req.body?.checkout, req.body || {});
     const items = parseJsonField(req.body?.items, Array.isArray(req.body?.items) ? req.body.items : []);
-    if (!items.length) return res.status(400).json({ success: false, message: "Cart is empty" });
+    const checkout = {
+      ...checkoutRaw,
+      full_name: toText(checkoutRaw.full_name || checkoutRaw.customer_name || checkoutRaw.name),
+      primary_phone: toText(checkoutRaw.primary_phone || checkoutRaw.customer_phone || checkoutRaw.phone),
+      governorate: toText(checkoutRaw.governorate || checkoutRaw.province),
+      city_area: toText(checkoutRaw.city_area || checkoutRaw.city || checkoutRaw.area),
+      detailed_address: toText(checkoutRaw.detailed_address || checkoutRaw.customer_address || checkoutRaw.address),
+      payment_method: toText(checkoutRaw.payment_method || checkoutRaw.payment_type || "shipping_confirmation"),
+      payment_type: toText(checkoutRaw.payment_type || checkoutRaw.payment_method || "shipping_confirmation"),
+      shipping_method: toText(checkoutRaw.shipping_method || checkoutRaw.shipping_provider),
+      shipping_provider: toText(checkoutRaw.shipping_provider || checkoutRaw.shipping_method),
+      shipping_payment_method: toText(checkoutRaw.shipping_payment_method || req.body?.shipping_payment_method),
+    };
+    receivedPayload = {
+      tenant_id: tenantId,
+      checkout,
+      rawCheckout: checkoutRaw,
+      items: Array.isArray(items)
+        ? items.map((item) => ({
+            product_id: item?.product_id || item?.productId || null,
+            variant_id: item?.variant_id || item?.variantId || null,
+            quantity: item?.quantity || null,
+            price: item?.price || null,
+            lineId: item?.lineId || null,
+          }))
+        : items,
+      delivery_fee: req.body?.delivery_fee ?? checkout.delivery_fee ?? null,
+      discount: req.body?.discount ?? checkout.discount ?? null,
+      proof: req.file
+        ? { fieldname: req.file.fieldname, originalname: req.file.originalname, mimetype: req.file.mimetype, size: req.file.size }
+        : null,
+      bodyKeys: Object.keys(req.body || {}),
+    };
+    const checkoutValidationResponse = async (status, message, field, details = {}) => {
+      console.warn("[storefront-checkout-validation]", {
+        status,
+        message,
+        field,
+        details,
+        receivedPayload,
+      });
+      return res.status(status).json({
+        success: false,
+        message,
+        field,
+        details,
+        receivedPayload,
+      });
+    };
+    if (!items.length) {
+      return checkoutValidationResponse(400, "Cart is empty", "items", { reason: "empty_cart" });
+    }
     if (!toText(checkout.full_name) || !toText(checkout.primary_phone) || !toText(checkout.governorate) || !toText(checkout.city_area) || !toText(checkout.detailed_address)) {
-      return res.status(400).json({ success: false, message: "Name, phone, governorate, city and address are required" });
+      const missingFields = ["full_name", "primary_phone", "governorate", "city_area", "detailed_address"].filter((field) => !toText(checkout[field]));
+      return checkoutValidationResponse(400, "Name, phone, governorate, city and address are required", missingFields[0] || null, { missing_fields: missingFields });
     }
 
     await client.query("BEGIN");
@@ -921,13 +2864,14 @@ export const createWebsiteOrder = async (req, res) => {
     markCheckoutStep("upsert customer", { table: "customers", phone: checkout.primary_phone });
     const customer = await resolveCustomer(client, tenantId, checkout, checkoutColumns.customers, runCheckoutQuery);
     markCheckoutStep("upsert customer:done", { table: "customers", customerId: customer?.id });
+    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
     let subtotal = 0;
     const normalizedItems = [];
 
     for (const item of items) {
       const variantId = Number(item.variant_id || item.variantId || 0);
       const quantity = Math.max(1, Number(item.quantity || 1));
-      if (!variantId) throw new Error("Select an available size and color");
+      if (!variantId) throw checkoutValidationError("Select an available size and color", "items.variant_id", { item });
       const variantTenantClause = checkoutColumns.variants.has("tenant_id")
         ? "AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)"
         : "";
@@ -938,10 +2882,25 @@ export const createWebsiteOrder = async (req, res) => {
       const variantResult = await runCheckoutQuery(
         client,
         `
-        SELECT pv.*, p.name AS product_name, p.image_url AS product_image, p.sale_price AS product_sale_price, p.price AS product_price
+        SELECT
+          pv.*,
+          p.name AS product_name,
+          COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
+          COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, ''), NULLIF(pv.photo_url, ''), NULLIF(pv.thumbnail_url, ''), '') AS variant_image,
+          p.category_id AS product_category_id,
+          p.brand_id AS product_brand_id,
+          p.cost_price AS product_cost_price,
+          COALESCE(NULLIF(p.regular_price, 0), p.price, 0) AS product_regular_price,
+          COALESCE(NULLIF(p.selling_price, 0), p.price, 0) AS product_selling_price,
+          p.sale_price AS product_sale_price,
+          p.sale_price_enabled AS product_sale_price_enabled,
+          p.sale_start_at AS product_sale_start_at,
+          p.sale_end_at AS product_sale_end_at
         FROM product_variants pv
         JOIN products p ON p.id = pv.product_id
         WHERE pv.id = $1
+          AND pv.is_active IS DISTINCT FROM FALSE
+          AND pv.deleted_at IS NULL
           ${variantTenantClause}
           ${productTenantClause}
         FOR UPDATE
@@ -950,9 +2909,24 @@ export const createWebsiteOrder = async (req, res) => {
         { table: "product_variants", operation: "select variant for update" }
       );
       const variant = variantResult.rows[0];
-      if (!variant) throw new Error("Selected variant is unavailable");
-      if (Number(variant.stock || 0) < quantity) throw new Error(`باقي ${variant.stock || 0} فقط من ${variant.product_name}`);
-      const price = toNumber(variant.sale_price || variant.price || variant.product_sale_price || variant.product_price);
+      if (!variant) throw checkoutValidationError("Selected variant is unavailable", "items.variant_id", { variant_id: variantId });
+      if (Number(variant.stock || 0) < quantity) {
+        throw checkoutValidationError(`Only ${variant.stock || 0} left from ${variant.product_name}`, "items.quantity", {
+          variant_id: variantId,
+          requested_quantity: quantity,
+          available_stock: Number(variant.stock || 0),
+          product_name: variant.product_name,
+        });
+      }
+      const originalPrice = roundMoney(variant.product_regular_price);
+      const sellingPrice = roundMoney(variant.selling_price || variant.price || variant.product_selling_price);
+      const resolvedPrice = resolveStorefrontActivePrice({
+        originalPrice,
+        sellingPrice,
+        salePrice: variant.sale_price || variant.product_sale_price,
+        pricingSettings,
+      });
+      const price = resolvedPrice.activePrice;
       subtotal += price * quantity;
       normalizedItems.push({
         product_id: variant.product_id,
@@ -963,39 +2937,91 @@ export const createWebsiteOrder = async (req, res) => {
         barcode: variant.barcode || "",
         color: variant.color || "",
         size: variant.size || "",
-        image_url: variant.image_url || variant.product_image || "",
+        image_url: variant.variant_image || variant.product_image || "",
+        product_image: variant.product_image || "",
+        variant_image: variant.variant_image || "",
         price,
         quantity,
       });
       markCheckoutStep("decrement stock:lock variant:done", { table: "product_variants", variantId, productId: variant.product_id, stockBefore: variant.stock });
     }
 
+    const orderSettings = await getStorefrontOrderSettings();
     const deliveryFee = toNumber(checkout.delivery_fee, toNumber(req.body?.delivery_fee, 60));
     const discount = toNumber(req.body?.discount || checkout.discount, 0);
     const total = Math.max(0, subtotal - discount + deliveryFee);
-    const requestedPaymentMethod = toText(checkout.payment_method || "shipping_confirmation").toLowerCase();
-    const paymentMethod = requestedPaymentMethod === "cod" || requestedPaymentMethod === "cash" ? "cod" : "shipping_confirmation";
-    if (paymentMethod === "cod" && !canUseCod(customer, checkout)) {
+    const requestedPaymentMethod = toText(checkout.payment_method || checkout.payment_type || "shipping_confirmation").toLowerCase();
+    const requestedPaymentType = toText(checkout.payment_type || checkout.payment_method || "shipping_confirmation").toLowerCase();
+    if (!["cod", "cash", "shipping_confirmation"].includes(requestedPaymentMethod)) {
       await client.query("ROLLBACK");
-      return res.status(403).json({ success: false, message: "الدفع عند الاستلام متاح للعملاء الحاليين ومحافظة دمياط فقط" });
+      return checkoutValidationResponse(400, "Unsupported payment method", "payment_method", { payment_method: requestedPaymentMethod });
+    }
+    if (!["cod", "cash", "shipping_confirmation"].includes(requestedPaymentType)) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(400, "Unsupported payment type", "payment_type", { payment_type: requestedPaymentType });
+    }
+    const paymentMethod = requestedPaymentMethod === "cod" || requestedPaymentMethod === "cash" ? "cod" : "shipping_confirmation";
+    const paymentType = requestedPaymentType === "cod" || requestedPaymentType === "cash" ? "cod" : "shipping_confirmation";
+    if (paymentType !== paymentMethod) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(400, "Payment type must match payment method", "payment_type", { payment_method: paymentMethod, payment_type: paymentType });
+    }
+    const requestedShippingPaymentMethod = toText(checkout.shipping_payment_method || req.body?.shipping_payment_method || "").toLowerCase();
+    const shippingPaymentMethod = paymentMethod === "shipping_confirmation"
+      ? (requestedShippingPaymentMethod === "vodafone_cash" ? "vodafone_cash" : "instapay")
+      : "";
+    const requestedShippingMethod = toText(checkout.shipping_method || checkout.shipping_provider || orderSettings.defaultShippingProvider).toLowerCase() || orderSettings.defaultShippingProvider;
+    const shippingMethod = shippingProviders[requestedShippingMethod] ? requestedShippingMethod : orderSettings.defaultShippingProvider;
+    if (paymentMethod === "shipping_confirmation" && !["instapay", "vodafone_cash"].includes(requestedShippingPaymentMethod)) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(400, "Choose a valid shipping payment method", "shipping_payment_method", {
+        shipping_payment_method: requestedShippingPaymentMethod,
+        allowed: ["instapay", "vodafone_cash"],
+      });
+    }
+    if (!shippingProviders[shippingMethod]) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(400, "Unsupported shipping method", "shipping_method", { shipping_method: shippingMethod });
+    }
+    if (shippingMethod === "store_pickup" && !orderSettings.allowStorePickup) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(403, "Store pickup is disabled", "shipping_method", { shipping_method: shippingMethod });
+    }
+    const requestedPaidAmount = toNumber(checkout.paid_amount, 0);
+    if (paymentMethod === "shipping_confirmation" && roundMoney(requestedPaidAmount) !== roundMoney(deliveryFee)) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(400, "Paid amount must equal shipping fee", "paid_amount", {
+        paid_amount: requestedPaidAmount,
+        delivery_fee: deliveryFee,
+      });
     }
     const shippingPaymentFile = req.file || null;
+    if (paymentMethod === "cod" && !orderSettings.allowCod) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(403, "Cash on delivery is disabled", "payment_method", { payment_method: paymentMethod });
+    }
+    if (paymentMethod === "cod" && !canUseCod(customer, checkout)) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(403, "Cash on delivery is available only for eligible customers or Damietta addresses", "payment_method", { payment_method: paymentMethod, governorate: checkout.governorate });
+    }
     if (paymentMethod === "shipping_confirmation" && !shippingPaymentFile) {
       await client.query("ROLLBACK");
-      return res.status(400).json({ success: false, message: "يرجى رفع صورة إثبات تحويل صالحة" });
+      return checkoutValidationResponse(400, "Upload a valid transfer proof image", "shipping_payment_screenshot", { payment_method: paymentMethod });
     }
     if (shippingPaymentFile && !isValidShippingProofFile(shippingPaymentFile)) {
       await removeUploadedFile(shippingPaymentFile.path);
       await client.query("ROLLBACK");
-      return res.status(400).json({ success: false, message: "يرجى رفع صورة إثبات تحويل صالحة" });
+      return checkoutValidationResponse(400, "Upload a valid transfer proof image", "shipping_payment_screenshot", { mimetype: shippingPaymentFile.mimetype, size: shippingPaymentFile.size });
     }
-    const paymentStatus = paymentMethod === "cod" ? "cod" : "awaiting_verification";
-    const orderStatus = paymentMethod === "cod" ? "pending" : "awaiting_verification";
+    const paymentStatus = paymentMethod === "cod" ? "cod" : "partially_paid";
+    const orderStatus = orderSettings.autoConfirmWebsiteOrders ? "confirmed" : orderSettings.defaultWebsiteStatus;
+    const transferProofStatus = paymentMethod === "cod" ? null : "pending";
     const codAmount = paymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
+    const paidAmount = paymentMethod === "cod" ? 0 : deliveryFee;
     const token = publicToken();
-    const invoiceNumber = orderNumber();
+    const invoiceNumber = buildTemporaryInvoiceNumber();
     markCheckoutStep("create order", { table: "orders", invoiceNumber, total, orderTenantScoped: checkoutColumns.orders.has("tenant_id") });
-    const order = await insertReturning(client, "orders", {
+    let order = await insertReturning(client, "orders", {
       tenant_id: tenantId,
       invoice_number: invoiceNumber,
       public_token: token,
@@ -1009,7 +3035,10 @@ export const createWebsiteOrder = async (req, res) => {
       status: orderStatus,
       payment_status: paymentStatus,
       payment_method: paymentMethod,
-      shipping_payment_method: toText(checkout.shipping_payment_method || req.body?.shipping_payment_method || ""),
+      payment_type: paymentMethod,
+      shipping_method: shippingMethod,
+      shipping_payment_method: shippingPaymentMethod,
+      transfer_proof_status: transferProofStatus,
       subtotal,
       discount_amount: discount,
       delivery_fee: deliveryFee,
@@ -1018,7 +3047,7 @@ export const createWebsiteOrder = async (req, res) => {
       total_amount: total,
       total_price: total,
       total,
-      paid_amount: 0,
+      paid_amount: paidAmount,
       cod_amount: codAmount,
       shipping_payment_screenshot: shippingPaymentFile ? `/uploads/payment-proofs/${shippingPaymentFile.filename}` : "",
       shipping_payment_reference: toText(checkout.shipping_payment_reference),
@@ -1029,15 +3058,17 @@ export const createWebsiteOrder = async (req, res) => {
       delivery_notes: checkout.delivery_notes || "",
       order_notes: checkout.order_notes || "",
       notes: checkout.order_notes || "",
-      shipping_provider: checkout.shipping_provider || "manual",
+      shipping_provider: shippingMethod,
       shipping_status: "pending",
     }, checkoutColumns.orders, { step: "create order" });
-    markCheckoutStep("create order:done", { table: "orders", orderId: order?.id, invoiceNumber: order?.invoice_number });
+    order = await assignSequentialInvoiceNumber(client, order);
+    order = attachPublicOrderNumber(order);
+    markCheckoutStep("create order:done", { table: "orders", orderId: order?.id, invoiceNumber: order?.invoice_number, publicOrderNumber: order?.public_order_number });
 
     const lowStockProductIds = new Set();
     for (const item of normalizedItems) {
       markCheckoutStep("create order items", { table: "order_items", orderId: order.id, variantId: item.variant_id });
-      await insertReturning(client, "order_items", {
+      const query = buildOrderItemInsertQuery({
         tenant_id: tenantId,
         order_id: order.id,
         product_id: item.product_id,
@@ -1051,10 +3082,30 @@ export const createWebsiteOrder = async (req, res) => {
         discount_amount: 0,
         tax_amount: 0,
         total_amount: item.price * item.quantity,
-        product_image: item.image_url,
+        image_url: item.image_url,
+        product_image: item.product_image,
+        variant_image: item.variant_image,
         size: item.size,
         color: item.color,
-      }, checkoutColumns.orderItems, { step: "create order items" });
+      }, {
+        availableColumns: checkoutColumns.orderItems,
+        returning: true,
+        filePath: "server/controllers/storefrontController.js",
+        routeName: "storefrontCheckout",
+        insertLabel: "storefrontCreateOrderItems",
+        sqlSnippetLabel: "storefront_order_items_insert",
+      });
+      try {
+        await client.query(query.sql, query.params);
+      } catch (error) {
+        throw enrichOrderItemsInsertError(error, {
+          routeName: "storefrontCheckout",
+          insertLabel: "storefrontCreateOrderItems",
+          columnsCount: query.columns.length,
+          paramsCount: query.params.length,
+          sqlSnippetLabel: "storefront_order_items_insert",
+        });
+      }
       markCheckoutStep("create order items:done", { table: "order_items", orderId: order.id, variantId: item.variant_id });
       markCheckoutStep("decrement stock", { table: "product_variants", orderId: order.id, variantId: item.variant_id, quantity: item.quantity });
       await adjustVariantStock(client, {
@@ -1065,7 +3116,7 @@ export const createWebsiteOrder = async (req, res) => {
         referenceType: "order",
         referenceId: order.id,
         reason: "Website order",
-        notes: `Website order #${order.invoice_number}`,
+        notes: `Website order #${order.public_order_number || order.invoice_number}`,
       });
       lowStockProductIds.add(item.product_id);
       markCheckoutStep("create inventory movement:done", { table: "inventory_movements", orderId: order.id, variantId: item.variant_id });
@@ -1090,7 +3141,7 @@ export const createWebsiteOrder = async (req, res) => {
         type: "order_confirmed",
         title: "تم تأكيد طلبك",
         body: "طلبك دخل مرحلة التجهيز الآن",
-        metadata: JSON.stringify({ order_id: order.id, invoice_number: order.invoice_number }),
+        metadata: JSON.stringify({ order_id: order.id, invoice_number: order.invoice_number, public_order_number: order.public_order_number }),
       }, checkoutColumns.notifications, { step: "create payment/shipping records if used" });
       markCheckoutStep("create payment/shipping records if used:done", { table: "website_notifications", orderId: order.id });
     }
@@ -1098,21 +3149,21 @@ export const createWebsiteOrder = async (req, res) => {
     invalidateStorefrontTenantCache(tenantId);
     createSystemNotification("website_order_created", {
       tenant_id: tenantId,
-      message: `طلب جديد ${order.invoice_number || order.id} من ${checkout.full_name}`,
+      message: `طلب جديد ${order.public_order_number || order.invoice_number || order.id} من ${checkout.full_name}`,
       action_url: `/orders/${order.id}`,
       entity_type: "order",
       entity_id: order.id,
-      metadata: { order_id: order.id, invoice_number: order.invoice_number, channel: "website" },
+      metadata: { order_id: order.id, invoice_number: order.invoice_number, public_order_number: order.public_order_number, channel: "website" },
       customer_notification_ready: true,
     }).catch((error) => console.warn("[notifications] website order skipped", error?.message || error));
     if (shippingPaymentFile) {
       createSystemNotification("payment_proof_uploaded", {
         tenant_id: tenantId,
-        message: `طلب ${order.invoice_number || order.id} يحتوي على صورة تحويل تحتاج مراجعة`,
+        message: `طلب ${order.public_order_number || order.invoice_number || order.id} يحتوي على صورة تحويل تحتاج مراجعة`,
         action_url: `/orders/${order.id}`,
         entity_type: "order",
         entity_id: order.id,
-        metadata: { order_id: order.id, invoice_number: order.invoice_number, proof: order.shipping_payment_screenshot },
+        metadata: { order_id: order.id, invoice_number: order.invoice_number, public_order_number: order.public_order_number, proof: order.shipping_payment_screenshot },
         customer_notification_ready: true,
       }).catch((error) => console.warn("[notifications] payment proof skipped", error?.message || error));
     }
@@ -1144,33 +3195,69 @@ export const createWebsiteOrder = async (req, res) => {
       message: error?.message,
       code: error?.code,
       detail: error?.detail,
+      field: error?.field || null,
+      details: error?.details || null,
+      receivedPayload,
       stack: error?.stack,
     });
-    res.status(400).json({ success: false, message: "حصلت مشكلة أثناء تأكيد الطلب. جرب تاني أو كلمنا على واتساب." });
+    const status = Number(error?.status || error?.statusCode || 400);
+    const message = error?.expose
+      ? error.message
+      : "Checkout failed while confirming the order. Try again or contact us on WhatsApp.";
+    res.status(status >= 400 && status < 500 ? status : 400).json({
+      success: false,
+      message,
+      field: error?.field || null,
+      details: error?.details || {
+        step: error?.checkoutDbContext?.step || checkoutStep,
+        table: error?.checkoutDbContext?.table || checkoutQueryContext.table || null,
+        code: error?.code || null,
+        detail: error?.detail || null,
+        routeName: error.routeName,
+        insertLabel: error.insertLabel,
+        columnsCount: error.columnsCount,
+        paramsCount: error.paramsCount,
+        sqlSnippetLabel: error.sqlSnippetLabel,
+      },
+      receivedPayload,
+    });
   } finally {
     client.release();
   }
 };
 
 const loadPublicOrder = async ({ tenantId, orderNumber: number, phone }) => {
+  const lookupNumber = toText(number);
+  const shortWebsiteMatch = lookupNumber.match(/^WEB-(\d{2,})$/i);
+  const legacyWebsiteSuffix = shortWebsiteMatch ? shortWebsiteMatch[1] : "";
   const result = await db.query(
     `
     SELECT *
     FROM orders
     WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
-      AND (invoice_number = $2 OR id::text = $2 OR public_token = $2)
+      AND (
+        invoice_number = $2
+        OR public_order_number = $2
+        OR display_order_number = $2
+        OR id::text = $2
+        OR $2 = ('WEB-' || id::text)
+        OR public_token = $2
+        OR ($4 <> '' AND invoice_number LIKE ('WEB-%-' || $4))
+      )
       AND ($3 = '' OR customer_phone = $3)
     LIMIT 1
     `,
-    [tenantId, toText(number), toText(phone)]
+    [tenantId, lookupNumber, toText(phone), legacyWebsiteSuffix]
   );
   const order = result.rows[0];
   if (!order) return null;
+  const publicOrder = attachPublicOrderNumber(order);
   const items = await db.query(`SELECT * FROM order_items WHERE order_id = $1 ORDER BY id ASC`, [order.id]);
-  return { order, items: items.rows };
+  return { order: publicOrder, items: items.rows };
 };
 
 export const trackOrder = async (req, res) => {
+  res.type("application/json; charset=utf-8");
   try {
     await ensureStorefrontSchema(db);
     const tenantId = tenantFromRequest(req);
@@ -1186,13 +3273,14 @@ export const trackOrder = async (req, res) => {
 };
 
 const buildOrderTimeline = (order = {}) => {
-  const status = String(order.status || "").toLowerCase();
-  const shipping = String(order.shipping_status || "").toLowerCase();
+  const status = normalizeOrderLifecycleStatus(order.status || "", "pending");
+  const shipping = normalizeOrderLifecycleStatus(order.shipping_status || "", "pending");
   return [
     { key: "received", label: "تم استلام الطلب", done: true },
-    { key: "review", label: "جاري المراجعة", done: !["cancelled", "canceled"].includes(status) },
-    { key: "packing", label: "جاري التجهيز", done: ["confirmed", "processing", "packed", "shipped", "delivered"].includes(status) || ["packed", "shipped", "delivered"].includes(shipping) },
-    { key: "shipping", label: "خرج للشحن", done: ["shipped", "in_transit", "out_for_delivery", "delivered"].includes(shipping) || ["shipped", "delivered"].includes(status) },
+    { key: "confirmed", label: "Confirmed", done: ["confirmed", "ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(status) || ["ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(shipping) },
+    { key: "ready_to_ship", label: "Ready to ship", done: ["ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(status) || ["ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(shipping) },
+    { key: "shipment_created", label: "Shipment created", done: ["shipment_created", "out_for_delivery", "delivered"].includes(shipping) || ["shipment_created", "out_for_delivery", "delivered"].includes(status) },
+    { key: "out_for_delivery", label: "Out for delivery", done: ["out_for_delivery", "delivered"].includes(shipping) || ["out_for_delivery", "delivered"].includes(status) },
     { key: "delivered", label: "تم التسليم", done: status === "delivered" || shipping === "delivered" },
   ];
 };
@@ -1237,7 +3325,14 @@ export const accountByPhone = async (req, res) => {
         p.id,
         p.name,
         COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, '')) AS image_url,
-        COALESCE(NULLIF(p.sale_price, 0), p.price, 0) AS price,
+        COALESCE(NULLIF(p.selling_price, 0), NULLIF(p.regular_price, 0), p.price, 0) AS price,
+        COALESCE(NULLIF(p.selling_price, 0), p.price, 0) AS selling_price,
+        COALESCE(NULLIF(p.regular_price, 0), 0) AS original_price,
+        COALESCE(NULLIF(p.regular_price, 0), 0) AS regular_price,
+        p.sale_price,
+        $3::boolean AS sale_prices_enabled,
+        $3::boolean AS global_sale_enabled,
+        $3::boolean AS sale_mode_enabled,
         cw.created_at
       FROM customer_wishlist cw
       JOIN products p ON p.id = cw.product_id
@@ -1245,7 +3340,7 @@ export const accountByPhone = async (req, res) => {
       ORDER BY cw.created_at DESC
       LIMIT 50
       `,
-      [tenantId, phone]
+      [tenantId, phone, saleModeEnabled(await loadStorefrontPricingSettings(tenantId))]
     );
     const recent = await db.query(
       `
@@ -1253,7 +3348,14 @@ export const accountByPhone = async (req, res) => {
         p.id,
         p.name,
         COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, '')) AS image_url,
-        COALESCE(NULLIF(p.sale_price, 0), p.price, 0) AS price,
+        COALESCE(NULLIF(p.selling_price, 0), NULLIF(p.regular_price, 0), p.price, 0) AS price,
+        COALESCE(NULLIF(p.selling_price, 0), p.price, 0) AS selling_price,
+        COALESCE(NULLIF(p.regular_price, 0), 0) AS original_price,
+        COALESCE(NULLIF(p.regular_price, 0), 0) AS regular_price,
+        p.sale_price,
+        $3::boolean AS sale_prices_enabled,
+        $3::boolean AS global_sale_enabled,
+        $3::boolean AS sale_mode_enabled,
         rv.viewed_at
       FROM recently_viewed_products rv
       JOIN products p ON p.id = rv.product_id
@@ -1261,7 +3363,7 @@ export const accountByPhone = async (req, res) => {
       ORDER BY rv.product_id, rv.viewed_at DESC
       LIMIT 20
       `,
-      [tenantId, phone]
+      [tenantId, phone, saleModeEnabled(await loadStorefrontPricingSettings(tenantId))]
     );
     const loyalty = customerId ? await getCustomerLoyaltySummary(db, customerId, tenantId) : null;
     const addresses = [
@@ -1274,7 +3376,7 @@ export const accountByPhone = async (req, res) => {
     res.json({
       success: true,
       customer: customer.rows[0] || null,
-      orders: orders.rows,
+      orders: orders.rows.map(attachPublicOrderNumber),
       loyalty,
       addresses,
       wishlist: wishlist.rows.map((row) => ({ product_id: row.id })),
@@ -1284,6 +3386,88 @@ export const accountByPhone = async (req, res) => {
   } catch (error) {
     console.error("[storefront] account", error);
     res.status(500).json({ success: false, message: "Failed to load account" });
+  }
+};
+
+export const latestShippingAddress = async (req, res) => {
+  try {
+    await ensureStorefrontSchema(db);
+    const tenantId = tenantFromRequest(req);
+    const phone = toText(req.query.phone || req.query.primary_phone || "");
+    const email = toText(req.query.email || req.query.customer_email || "").toLowerCase();
+    const phoneVariants = getPhoneSearchVariants(phone);
+    const fallbackEmail = phoneVariants.length ? "" : email;
+    if (!phoneVariants.length && !fallbackEmail) {
+      return res.json({ success: true, address: null });
+    }
+
+    const customerValues = [tenantId, phoneVariants, fallbackEmail || null];
+    const customerResult = await db.query(
+      `
+      SELECT id
+      FROM customers
+      WHERE tenant_id = $1
+        AND (
+          (cardinality($2::text[]) > 0 AND ${phoneSqlDigits("phone")} = ANY($2::text[]))
+          OR ($3::text IS NOT NULL AND LOWER(COALESCE(email, '')) = $3::text)
+        )
+      ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id DESC
+      LIMIT 20
+      `,
+      customerValues
+    );
+    const customerIds = customerResult.rows.map((row) => Number(row.id)).filter((value) => Number.isFinite(value) && value > 0);
+
+    const orderResult = await db.query(
+      `
+      SELECT
+        o.governorate,
+        o.city_area,
+        o.customer_address AS detailed_address,
+        o.landmark,
+        o.delivery_notes,
+        o.customer_name,
+        o.customer_phone,
+        o.created_at
+      FROM orders o
+      WHERE o.tenant_id = $1
+        AND (
+          (cardinality($2::bigint[]) > 0 AND o.customer_id = ANY($2::bigint[]))
+          OR (cardinality($3::text[]) > 0 AND ${phoneSqlDigits("o.customer_phone")} = ANY($3::text[]))
+        )
+        AND (
+          NULLIF(TRIM(COALESCE(o.governorate, '')), '') IS NOT NULL
+          OR NULLIF(TRIM(COALESCE(o.city_area, '')), '') IS NOT NULL
+          OR NULLIF(TRIM(COALESCE(o.customer_address, '')), '') IS NOT NULL
+        )
+      ORDER BY o.created_at DESC NULLS LAST, o.id DESC
+      LIMIT 1
+      `,
+      [tenantId, customerIds, phoneVariants]
+    );
+    const row = orderResult.rows[0] || null;
+    if (!row) return res.json({ success: true, address: null });
+
+    return res.json({
+      success: true,
+      address: {
+        governorate: row.governorate || "",
+        province: row.governorate || "",
+        city_area: row.city_area || "",
+        city: row.city_area || "",
+        area: row.city_area || "",
+        detailed_address: row.detailed_address || "",
+        address: row.detailed_address || "",
+        landmark: row.landmark || "",
+        delivery_notes: row.delivery_notes || "",
+        customer_name: row.customer_name || "",
+        phone: row.customer_phone || "",
+        created_at: row.created_at || null,
+      },
+    });
+  } catch (error) {
+    console.error("[storefront] latest shipping address", error);
+    return res.status(500).json({ success: false, message: "Failed to load latest shipping address" });
   }
 };
 
@@ -1377,17 +3561,29 @@ export const createShipment = async (req, res) => {
     const orderResult = await db.query(`SELECT * FROM orders WHERE id = $1 LIMIT 1`, [req.params.orderId]);
     const order = orderResult.rows[0];
     if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+    if (order.shipment_id || order.tracking_number) {
+      return res.status(409).json({
+        success: false,
+        message: "Shipment already exists for this order",
+        provider: order.shipping_provider || "manual",
+        shipping_status: normalizeOrderLifecycleStatus(order.shipping_status || "shipment_created", "shipment_created"),
+        shipment_id: order.shipment_id || null,
+        tracking_number: order.tracking_number || "",
+        tracking_url: order.tracking_url || "",
+      });
+    }
     const provider = getShippingProvider(req.body.provider || order.shipping_provider || "manual");
     const result = await provider.createShipment(order);
     if (result.success) {
+      const nextShippingStatus = normalizeOrderLifecycleStatus(result.shipping_status || "shipment_created", "shipment_created");
       await db.query(
         `UPDATE orders SET shipping_provider = $1, shipping_status = $2, shipment_id = $3, tracking_number = $4, tracking_url = $5, last_shipping_sync_at = NOW() WHERE id = $6`,
-        [result.provider, result.shipping_status, result.shipment_id, result.tracking_number, result.tracking_url, order.id]
+        [result.provider, nextShippingStatus, result.shipment_id, result.tracking_number, result.tracking_url, order.id]
       );
+      result.shipping_status = nextShippingStatus;
     }
     res.json(result);
   } catch {
     res.status(500).json({ success: false, message: "Failed to create shipment" });
   }
 };
-

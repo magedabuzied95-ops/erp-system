@@ -145,6 +145,10 @@ export const recordWalletTransaction = async (client, {
   if (afterBalance < 0) {
     const error = new Error("رصيد المحفظة غير كاف");
     error.status = 400;
+    error.code = "INSUFFICIENT_CUSTOMER_WALLET_BALANCE";
+    error.availableBalance = beforeBalance;
+    error.attemptedAmount = Math.abs(normalizedAmount);
+    error.shortageAmount = Math.max(0, Math.abs(normalizedAmount) - beforeBalance);
     throw error;
   }
 
@@ -234,6 +238,10 @@ export const applyWalletActivity = async (client, {
   if (requestedRedemption > currentBalance) {
     const error = new Error("رصيد المحفظة غير كاف");
     error.status = 400;
+    error.code = "INSUFFICIENT_CUSTOMER_WALLET_BALANCE";
+    error.availableBalance = currentBalance;
+    error.attemptedAmount = requestedRedemption;
+    error.shortageAmount = Math.max(0, requestedRedemption - currentBalance);
     throw error;
   }
   const redeemedAmount = requestedRedemption;

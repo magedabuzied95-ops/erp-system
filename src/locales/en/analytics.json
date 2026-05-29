@@ -47,6 +47,7 @@
   "labels": {
     "allBranches": "All branches",
     "allWarehouses": "All warehouses",
+    "fallbackToast": "Using analytics fallback data",
     "nA": "n/a",
     "vipCustomers": "VIP customers",
     "atRiskCustomers": "At-risk customers",

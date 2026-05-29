@@ -1,4 +1,5 @@
 import Select from "react-select";
+import { useTranslation } from "react-i18next";
 
 /* ======================================================
    SIZES
@@ -28,6 +29,7 @@ export default function ProductSizes({
   setSelectedSizes
 
 }) {
+  const { t } = useTranslation();
 
   /* =========================
      HANDLE SELECT
@@ -89,13 +91,13 @@ export default function ProductSizes({
           "
         >
 
-          Select Sizes
+          {t("products.sizes.selectSizes", "Select Sizes")}
 
         </h2>
 
         <p className="text-gray-400 mt-2">
 
-          Choose available shoe sizes
+          {t("products.sizes.chooseAvailable", "Choose available shoe sizes")}
 
         </p>
 
@@ -117,7 +119,7 @@ export default function ProductSizes({
 
         onChange={handleChange}
 
-        placeholder="Choose sizes..."
+        placeholder={t("products.sizes.choosePlaceholder", "Choose sizes...")}
 
         className="text-black"
 

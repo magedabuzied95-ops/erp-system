@@ -23,103 +23,93 @@ const filters = (req) => ({
 });
 
 const send = (res, data) => res.status(200).json({ success: true, data });
-const fail = (res, error) => {
-  console.error("[dashboard] controller error", error);
-  return res.status(500).json({ success: false, message: error.message || "Dashboard analytics failed" });
+const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").toLowerCase());
+const isPoolTimeout = (error = {}) =>
+  String(error?.message || "").toLowerCase().includes("timeout exceeded when trying to connect");
+
+const fail = (req, res, error) => {
+  console.error("[dashboard] route error", {
+    requestId: req.id,
+    route: req.originalUrl,
+    message: error.message,
+    code: error.code,
+    stack: error.stack,
+  });
+  return res.status(500).json({
+    success: false,
+    message: isPoolTimeout(error) ? "Database is busy. Please retry shortly." : error.message || "Dashboard analytics failed",
+    code: isPoolTimeout(error) ? "DB_POOL_TIMEOUT" : "DASHBOARD_ERROR",
+  });
 };
 
-export const overview = async (req, res) => {
+const route = (name, handler) => async (req, res) => {
+  const startedAt = Date.now();
+  if (ERP_PERF_DEBUG) console.log("[erp-perf] dashboard route start", {
+    requestId: req.id,
+    name,
+    url: req.originalUrl,
+    query: req.query,
+  });
+
   try {
-    return send(res, await getDashboardOverview({ tenantId: resolveTenantId(req), filters: filters(req) }));
+    const data = await handler(req);
+    if (ERP_PERF_DEBUG) console.log("[erp-perf] dashboard route end", {
+      requestId: req.id,
+      name,
+      durationMs: Date.now() - startedAt,
+    });
+    return send(res, data);
   } catch (error) {
-    return fail(res, error);
+    console.error("[dashboard] route thrown", {
+      requestId: req.id,
+      name,
+      durationMs: Date.now() - startedAt,
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+    return fail(req, res, error);
   }
 };
 
-export const salesTrend = async (req, res) => {
-  try {
-    return send(res, await getSalesTrend({ tenantId: resolveTenantId(req), days: req.query.days, filters: filters(req) }));
-  } catch (error) {
-    return fail(res, error);
-  }
-};
+export const overview = route("overview", (req) =>
+  getDashboardOverview({ tenantId: resolveTenantId(req), filters: filters(req) })
+);
 
-export const topProducts = async (req, res) => {
-  try {
-    return send(res, await getTopProducts({ tenantId: resolveTenantId(req), limit: req.query.limit, filters: filters(req) }));
-  } catch (error) {
-    return fail(res, error);
-  }
-};
+export const salesTrend = route("salesTrend", (req) =>
+  getSalesTrend({ tenantId: resolveTenantId(req), days: req.query.days, filters: filters(req) })
+);
 
-export const lowStock = async (req, res) => {
-  try {
-    return send(res, await getLowStock({ tenantId: resolveTenantId(req), limit: req.query.limit }));
-  } catch (error) {
-    return fail(res, error);
-  }
-};
+export const topProducts = route("topProducts", (req) =>
+  getTopProducts({ tenantId: resolveTenantId(req), limit: req.query.limit, filters: filters(req) })
+);
 
-export const liveActivity = async (req, res) => {
-  try {
-    return send(res, await getLiveActivity({ tenantId: resolveTenantId(req), limit: req.query.limit }));
-  } catch (error) {
-    return fail(res, error);
-  }
-};
+export const lowStock = route("lowStock", (req) =>
+  getLowStock({ tenantId: resolveTenantId(req), limit: req.query.limit })
+);
 
-export const branchPerformance = async (req, res) => {
-  try {
-    return send(res, await getBranchPerformance({ tenantId: resolveTenantId(req), filters: filters(req) }));
-  } catch (error) {
-    return fail(res, error);
-  }
-};
+export const liveActivity = route("liveActivity", (req) =>
+  getLiveActivity({ tenantId: resolveTenantId(req), limit: req.query.limit })
+);
 
-export const paymentAnalytics = async (req, res) => {
-  try {
-    return send(res, await getPaymentAnalytics({ tenantId: resolveTenantId(req), filters: filters(req) }));
-  } catch (error) {
-    return fail(res, error);
-  }
-};
+export const branchPerformance = route("branchPerformance", (req) =>
+  getBranchPerformance({ tenantId: resolveTenantId(req), filters: filters(req) })
+);
 
-export const hourlySales = async (req, res) => {
-  try {
-    return send(res, await getHourlySales({ tenantId: resolveTenantId(req), filters: filters(req) }));
-  } catch (error) {
-    return fail(res, error);
-  }
-};
+export const paymentAnalytics = route("paymentAnalytics", (req) =>
+  getPaymentAnalytics({ tenantId: resolveTenantId(req), filters: filters(req) })
+);
 
-export const marketing = async (req, res) => {
-  try {
-    return send(res, await getMarketingAnalytics({ tenantId: resolveTenantId(req), filters: filters(req) }));
-  } catch (error) {
-    return fail(res, error);
-  }
-};
+export const hourlySales = route("hourlySales", (req) =>
+  getHourlySales({ tenantId: resolveTenantId(req), filters: filters(req) })
+);
 
-export const posLive = async (req, res) => {
-  try {
-    return send(res, await getPosLive({ tenantId: resolveTenantId(req) }));
-  } catch (error) {
-    return fail(res, error);
-  }
-};
+export const marketing = route("marketing", (req) =>
+  getMarketingAnalytics({ tenantId: resolveTenantId(req), filters: filters(req) })
+);
 
-export const inventory = async (req, res) => {
-  try {
-    return send(res, await getInventoryIntelligence({ tenantId: resolveTenantId(req) }));
-  } catch (error) {
-    return fail(res, error);
-  }
-};
+export const posLive = route("posLive", (req) => getPosLive({ tenantId: resolveTenantId(req) }));
 
-export const aiInsights = async (req, res) => {
-  try {
-    return send(res, await getAiInsights({ tenantId: resolveTenantId(req) }));
-  } catch (error) {
-    return fail(res, error);
-  }
-};
+export const inventory = route("inventory", (req) => getInventoryIntelligence({ tenantId: resolveTenantId(req) }));
+
+export const aiInsights = route("aiInsights", (req) => getAiInsights({ tenantId: resolveTenantId(req) }));

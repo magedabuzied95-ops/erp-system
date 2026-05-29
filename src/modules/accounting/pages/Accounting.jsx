@@ -81,11 +81,16 @@ function Accounting() {
       }
       tabs={[
         { to: "/accounting", label: t("accounting.tabs.dashboard"), end: true },
+        { to: "/accounting/treasury", label: "Treasury" },
         { to: "/accounting/journal-entries", label: t("accounting.tabs.journal") },
         { to: "/accounting/accounts", label: t("accounting.tabs.accounts") },
+        { to: "/accounting/financial-accounts", label: t("accounting.tabs.financialAccounts") },
+        { to: "/accounting/payment-method-mappings", label: t("accounting.tabs.paymentMappings") },
         { to: "/accounting/reports", label: t("accounting.tabs.reports") },
         { to: "/accounting/profit-loss", label: t("accounting.tabs.profitLoss") },
         { to: "/accounting/taxes", label: t("accounting.tabs.taxes") },
+        { to: "/accounting/cost-fix", label: t("accounting.tabs.costFix") },
+        { to: "/accounting/audit-trail", label: t("accounting.tabs.auditTrail") },
       ]}
     >
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -159,6 +164,18 @@ function Accounting() {
             </Link>
             <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/products">
               {t("accounting.links.products")}
+            </Link>
+            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/cost-fix">
+              {t("accounting.links.costFix")}
+            </Link>
+            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/financial-accounts">
+              {t("accounting.links.financialAccounts")}
+            </Link>
+            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/payment-method-mappings">
+              {t("accounting.links.paymentMappings")}
+            </Link>
+            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/audit-trail">
+              {t("accounting.links.auditTrail")}
             </Link>
           </div>
         </div>

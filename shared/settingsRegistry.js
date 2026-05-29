@@ -1,0 +1,217 @@
+import { ORDER_LIFECYCLE_STATUSES, ORDER_STATUS_LABELS } from "./orderStatus.js";
+
+const label = (en, ar) => ({ en, ar });
+
+export const settingsCategories = [
+  { key: "general", label: label("General", "عام"), description: label("Company identity, locale, and operating defaults.", "هوية الشركة وإعدادات التشغيل الأساسية.") },
+  { key: "orders", label: label("Orders", "الطلبات"), description: label("Order lifecycle, invoices, shipping, and customer messages.", "دورة الطلبات والفواتير والشحن ورسائل العملاء.") },
+  { key: "storefront", label: label("Storefront", "المتجر"), description: label("Public store, SEO, catalog display, and future commerce pixels.", "المتجر العام والسيو وعرض الكتالوج والتكاملات القادمة.") },
+  { key: "pos", label: label("POS", "نقطة البيع"), description: label("Cashier defaults, discounts, receipt, and cart behavior.", "إعدادات الكاشير والخصومات والإيصال وسلة البيع.") },
+  { key: "inventory", label: label("Inventory", "المخزون"), description: label("Warehouse defaults, SKU rules, stock reservations, and variants.", "إعدادات المخازن والأكواد وحجز المخزون والمنتجات المتغيرة.") },
+  { key: "accounting", label: label("Accounting", "الحسابات"), description: label("Posting defaults, ledger accounts, tax, and VAT behavior.", "إعدادات القيود والحسابات والضرائب والقيمة المضافة.") },
+  { key: "employees", label: label("Employees", "الموظفون"), description: label("Attendance, payroll, commissions, and employee wallet settings.", "إعدادات الحضور والمرتبات والعمولات ومحفظة الموظف.") },
+  { key: "ai_channels", label: label("AI & Channels", "الذكاء والقنوات"), description: label("AI support behavior, handoff, channels, media, and webhooks.", "سلوك الذكاء والتحويل والقنوات والوسائط والويب هوك.") },
+  { key: "notifications", label: label("Notifications", "الإشعارات"), description: label("Alert types and delivery channels.", "أنواع التنبيهات وقنوات الإرسال.") },
+  { key: "security", label: label("Security & Users", "الأمان والمستخدمون"), description: label("Session, password, audit, permissions shortcuts, and future API tokens.", "الجلسات وكلمات المرور والتدقيق واختصارات الصلاحيات ومفاتيح API القادمة.") },
+];
+
+const option = (value, en, ar) => ({ value, label: label(en, ar) });
+
+const definitions = [
+  ["general.company_name", "general", "text", "", "Company name", "اسم الشركة", "Shown on invoices, storefront, and receipts.", "يظهر في الفواتير والمتجر والإيصالات.", { isPublic: true, usedBy: ["Invoices", "POS", "Storefront"] }],
+  ["general.company_logo_url", "general", "url", "", "Company logo", "شعار الشركة", "Public logo URL used by customer-facing views.", "رابط الشعار المستخدم في الواجهات العامة.", { isPublic: true, usedBy: ["Invoices", "Storefront"] }],
+  ["general.default_language", "general", "select", "ar", "Default language", "اللغة الافتراضية", "Default ERP language for new sessions.", "لغة النظام الافتراضية للجلسات الجديدة.", { options: [option("ar", "Arabic", "العربية"), option("en", "English", "الإنجليزية")], isPublic: true, usedBy: ["ERP", "Storefront"] }],
+  ["general.default_direction", "general", "select", "auto", "Default direction", "اتجاه العرض", "Controls RTL/LTR behavior when language is not explicit.", "يتحكم في RTL/LTR عند عدم تحديد اللغة.", { options: [option("auto", "Auto", "تلقائي"), option("rtl", "RTL", "يمين لليسار"), option("ltr", "LTR", "يسار لليمين")], isPublic: true, usedBy: ["ERP", "Storefront"] }],
+  ["general.default_currency", "general", "text", "EGP", "Default currency", "العملة الافتراضية", "Primary currency code.", "كود العملة الأساسي.", { validation: { maxLength: 8 }, isPublic: true, usedBy: ["POS", "Orders", "Accounting"] }],
+  ["general.currency_symbol", "general", "text", "ج.م", "Currency symbol", "رمز العملة", "Displayed beside money amounts.", "يعرض بجانب المبالغ.", { validation: { maxLength: 8 }, isPublic: true, usedBy: ["POS", "Payroll", "Storefront"] }],
+  ["general.number_format", "general", "select", "en-US", "Number format", "تنسيق الأرقام", "Locale used for numbers.", "اللغة المستخدمة لتنسيق الأرقام.", { options: [option("en-US", "English", "إنجليزي"), option("ar-EG", "Arabic Egypt", "عربي مصر")] }],
+  ["general.date_format", "general", "select", "yyyy-MM-dd", "Date format", "تنسيق التاريخ", "Preferred date format.", "تنسيق التاريخ المفضل.", { options: [option("yyyy-MM-dd", "2026-05-29", "2026-05-29"), option("dd/MM/yyyy", "29/05/2026", "29/05/2026")] }],
+  ["general.time_format", "general", "select", "24h", "Time format", "تنسيق الوقت", "Preferred time display.", "طريقة عرض الوقت.", { options: [option("24h", "24 hour", "24 ساعة"), option("12h", "12 hour", "12 ساعة")] }],
+  ["general.timezone", "general", "text", "Africa/Cairo", "Timezone", "المنطقة الزمنية", "Default business timezone.", "المنطقة الزمنية الافتراضية.", { isPublic: true, usedBy: ["Attendance", "Payroll", "Orders"] }],
+  ["general.default_country", "general", "text", "Egypt", "Default country", "الدولة الافتراضية", "Default customer and branch country.", "الدولة الافتراضية للعملاء والفروع."],
+  ["general.default_city", "general", "text", "Cairo", "Default city/governorate", "المدينة/المحافظة", "Default city for addresses.", "المدينة الافتراضية للعناوين."],
+  ["general.business_working_days", "general", "multiselect", ["sat", "sun", "mon", "tue", "wed", "thu"], "Business working days", "أيام العمل", "Used by attendance and fulfillment planning.", "تستخدم في الحضور وتجهيز الطلبات.", { options: [option("sat", "Saturday", "السبت"), option("sun", "Sunday", "الأحد"), option("mon", "Monday", "الإثنين"), option("tue", "Tuesday", "الثلاثاء"), option("wed", "Wednesday", "الأربعاء"), option("thu", "Thursday", "الخميس"), option("fri", "Friday", "الجمعة")] }],
+  ["general.business_hours", "general", "json", { start: "10:00", end: "22:00" }, "Business hours", "ساعات العمل", "JSON object with start and end times.", "كائن JSON يحتوي بداية ونهاية العمل."],
+  ["general.default_branch_id", "general", "text", "", "Default branch", "الفرع الافتراضي", "Default branch for operations without explicit branch.", "الفرع الافتراضي للعمليات بدون فرع محدد.", { usedBy: ["POS", "Orders", "Inventory"] }],
+  ["general.default_warehouse_id", "general", "text", "", "Default warehouse", "المخزن الافتراضي", "Default warehouse for stock operations.", "المخزن الافتراضي لحركات المخزون.", { usedBy: ["POS", "Orders", "Inventory"] }],
+  ["general.default_pos_treasury_account_id", "general", "text", "", "Default POS treasury account", "خزينة الكاشير الافتراضية", "Cash account used by POS when not overridden.", "حساب النقدية المستخدم في نقطة البيع عند عدم التحديد."],
+
+  ["orders.order_number_prefix", "orders", "text", "ORD", "Order number prefix", "بادئة رقم الطلب", "Prefix for generated order numbers.", "بادئة أرقام الطلبات."],
+  ["orders.invoice_number_prefix", "orders", "text", "INV", "Invoice number prefix", "بادئة رقم الفاتورة", "Prefix for invoice numbers.", "بادئة أرقام الفواتير."],
+  ["orders.auto_confirm_website_orders", "orders", "boolean", false, "Auto-confirm website orders", "تأكيد طلبات الموقع تلقائيا", "Move new website orders directly to confirmed.", "نقل طلبات الموقع الجديدة إلى مؤكد تلقائيا."],
+  ["orders.require_admin_approval_before_fulfillment", "orders", "boolean", true, "Require approval before fulfillment", "موافقة قبل التجهيز", "Prevents fulfillment before admin approval.", "يمنع التجهيز قبل موافقة الإدارة."],
+  ["orders.allow_cod", "orders", "boolean", true, "Allow COD", "السماح بالدفع عند الاستلام", "Enable cash on delivery for website orders.", "تفعيل الدفع عند الاستلام لطلبات الموقع.", { isPublic: true }],
+  ["orders.allow_store_pickup", "orders", "boolean", true, "Allow store pickup", "السماح بالاستلام من الفرع", "Enable pickup option on checkout.", "تفعيل خيار الاستلام من الفرع.", { isPublic: true }],
+  ["orders.default_website_order_status", "orders", "select", "pending", "Default website order status", "حالة طلب الموقع الافتراضية", "Initial status for website orders.", "الحالة الأولية لطلبات الموقع.", { options: ORDER_LIFECYCLE_STATUSES.map((status) => option(status, ORDER_STATUS_LABELS[status] || status, ORDER_STATUS_LABELS[status] || status)) }],
+  ["orders.default_pos_order_status", "orders", "select", "delivered", "Default POS order status", "حالة طلب الكاشير", "Status used after POS checkout.", "الحالة المستخدمة بعد البيع من الكاشير.", { options: ORDER_LIFECYCLE_STATUSES.map((status) => option(status, ORDER_STATUS_LABELS[status] || status, ORDER_STATUS_LABELS[status] || status)) }],
+  ["orders.reserve_stock_on_website_order", "orders", "boolean", true, "Reserve stock on website order", "حجز المخزون لطلبات الموقع", "Reserve stock as soon as a website order is created.", "حجز المخزون عند إنشاء طلب من الموقع."],
+  ["orders.reserve_stock_expiry_minutes", "orders", "number", 60, "Reserve stock expiry minutes", "مدة حجز المخزون بالدقائق", "Release reserved stock after this period.", "فك حجز المخزون بعد هذه المدة.", { validation: { min: 0 } }],
+  ["orders.cancel_unpaid_after_minutes", "orders", "number", 1440, "Cancel unpaid orders after minutes", "إلغاء غير المدفوع بعد دقائق", "Automatically cancel unpaid orders after this duration.", "إلغاء الطلبات غير المدفوعة بعد هذه المدة.", { validation: { min: 0 } }],
+  ["orders.return_exchange_window_days", "orders", "number", 14, "Return/exchange window days", "مدة الاسترجاع والاستبدال", "Allowed return and exchange period.", "مدة السماح بالاسترجاع والاستبدال.", { validation: { min: 0 } }],
+  ["orders.shipping_provider", "orders", "select", "manual", "Shipping provider", "شركة الشحن", "Default shipping provider.", "شركة الشحن الافتراضية.", { options: [option("manual", "Manual", "يدوي"), option("bosta", "Bosta", "بوسطة"), option("mylerz", "Mylerz", "مايلرز"), option("aramex", "Aramex", "أرامكس"), option("store_pickup", "Store pickup", "استلام من الفرع")], usedBy: ["Orders", "Shipping"] }],
+  ["orders.shipping_rule_engine_enabled", "orders", "boolean", false, "Shipping rule engine", "قواعد الشحن", "Enable automatic carrier and fee rules.", "تفعيل قواعد اختيار شركة الشحن والتكلفة."],
+  ["orders.shipping_auto_create_ready_to_ship", "orders", "boolean", false, "Auto-create shipment when ready", "إنشاء الشحنة عند جاهز للشحن", "Create shipment when order becomes ready_to_ship.", "إنشاء الشحنة عند انتقال الطلب إلى جاهز للشحن."],
+  ["orders.whatsapp_order_confirmation_template", "orders", "textarea", "تم استلام طلبك رقم {{order_number}}.", "WhatsApp order confirmation template", "رسالة تأكيد الطلب واتساب", "Template for order confirmation messages.", "قالب رسالة تأكيد الطلب."],
+  ["orders.whatsapp_shipping_update_template", "orders", "textarea", "طلبك {{order_number}} خرج للشحن.", "WhatsApp shipping update template", "رسالة تحديث الشحن واتساب", "Template for shipping updates.", "قالب تحديثات الشحن."],
+  ["orders.bosta_api_key", "orders", "secret", "", "Bosta API key", "مفتاح بوسطة", "Secret key for Bosta shipping.", "مفتاح سري لتكامل بوسطة.", { isSecret: true, usedBy: ["Shipping"] }],
+  ["orders.mylerz_api_key", "orders", "secret", "", "Mylerz API key", "مفتاح مايلرز", "Placeholder for Mylerz integration.", "عنصر جاهز لتكامل مايلرز لاحقا.", { isSecret: true, placeholder: true, usedBy: ["Shipping"] }],
+  ["orders.aramex_api_key", "orders", "secret", "", "Aramex API key", "مفتاح أرامكس", "Placeholder for Aramex integration.", "عنصر جاهز لتكامل أرامكس لاحقا.", { isSecret: true, placeholder: true, usedBy: ["Shipping"] }],
+
+  ["storefront.enabled", "storefront", "boolean", true, "Storefront enabled", "تفعيل المتجر", "Enable public storefront routes.", "تفعيل صفحات المتجر العامة.", { isPublic: true }],
+  ["storefront.public_url", "storefront", "url", "", "Public store URL", "رابط المتجر", "Base public URL for sharing product and order links.", "الرابط العام لمشاركة المنتجات والطلبات.", { isPublic: true, usedBy: ["Storefront", "AI"] }],
+  ["storefront.store_name", "storefront", "text", "", "Store name", "اسم المتجر", "Public store display name.", "اسم المتجر الظاهر للعملاء.", { isPublic: true }],
+  ["storefront.store_logo_url", "storefront", "url", "", "Store logo", "شعار المتجر", "Public store logo URL.", "رابط شعار المتجر.", { isPublic: true }],
+  ["storefront.favicon_url", "storefront", "url", "", "Favicon", "أيقونة المتجر", "Public browser favicon URL.", "رابط أيقونة المتجر في المتصفح.", { isPublic: true }],
+  ["storefront.homepage_hero", "storefront", "json", { title: "", subtitle: "", imageUrl: "" }, "Homepage hero settings", "واجهة الصفحة الرئيسية", "Hero title, subtitle, and image URL.", "العنوان والوصف وصورة واجهة الصفحة الرئيسية.", { isPublic: true }],
+  ["storefront.featured_collections", "storefront", "json", [], "Featured collections", "المجموعات المميزة", "Collection IDs or slugs displayed on home.", "معرفات أو روابط المجموعات الظاهرة في الرئيسية.", { isPublic: true }],
+  ["storefront.product_sorting_default", "storefront", "select", "newest", "Default product sorting", "ترتيب المنتجات", "Default catalog sorting.", "ترتيب المنتجات الافتراضي.", { options: [option("newest", "Newest", "الأحدث"), option("price_asc", "Price low to high", "السعر من الأقل"), option("price_desc", "Price high to low", "السعر من الأعلى"), option("popular", "Popular", "الأكثر مشاهدة")], isPublic: true }],
+  ["storefront.show_sold_out_products", "storefront", "boolean", true, "Show sold out products", "إظهار غير المتوفر", "Display out-of-stock products.", "عرض المنتجات غير المتوفرة.", { isPublic: true }],
+  ["storefront.show_low_stock_badge", "storefront", "boolean", true, "Show low stock badge", "إظهار قرب النفاد", "Show low stock label to customers.", "عرض علامة قرب النفاد للعملاء.", { isPublic: true }],
+  ["storefront.show_product_views", "storefront", "boolean", false, "Show product views", "إظهار مشاهدات المنتج", "Display product views publicly.", "عرض عدد المشاهدات للعملاء.", { isPublic: true }],
+  ["storefront.enable_wishlist", "storefront", "boolean", true, "Enable wishlist", "تفعيل المفضلة", "Allow customers to save products.", "السماح للعملاء بحفظ المنتجات.", { isPublic: true }],
+  ["storefront.enable_product_sharing", "storefront", "boolean", true, "Enable product sharing", "تفعيل مشاركة المنتج", "Show share controls on products.", "عرض أزرار مشاركة المنتجات.", { isPublic: true }],
+  ["storefront.enable_size_guide", "storefront", "boolean", true, "Enable size guide", "تفعيل دليل المقاسات", "Show size guide links.", "إظهار روابط دليل المقاسات.", { isPublic: true }],
+  ["storefront.seo_title", "storefront", "text", "", "SEO title", "عنوان SEO", "Default SEO title for storefront.", "عنوان SEO الافتراضي للمتجر.", { isPublic: true }],
+  ["storefront.seo_description", "storefront", "textarea", "", "SEO description", "وصف SEO", "Default SEO description.", "وصف SEO الافتراضي.", { isPublic: true }],
+  ["storefront.open_graph_image_url", "storefront", "url", "", "Open Graph image", "صورة المشاركة", "Default image used when the store is shared.", "الصورة الافتراضية عند مشاركة المتجر.", { isPublic: true }],
+  ["storefront.meta_pixel_id", "storefront", "text", "", "Meta Pixel ID", "معرف Meta Pixel", "Placeholder for Meta Pixel.", "عنصر جاهز لتكامل Meta Pixel.", { placeholder: true }],
+  ["storefront.facebook_catalog_id", "storefront", "text", "", "Facebook Catalog ID", "معرف كتالوج فيسبوك", "Placeholder for Facebook Catalog sync.", "عنصر جاهز لمزامنة كتالوج فيسبوك.", { placeholder: true }],
+  ["storefront.tiktok_pixel_id", "storefront", "text", "", "TikTok Pixel ID", "معرف TikTok Pixel", "Placeholder for TikTok Pixel.", "عنصر جاهز لتكامل TikTok Pixel.", { placeholder: true, isPublic: true }],
+  ["storefront.google_analytics_id", "storefront", "text", "", "Google Analytics ID", "معرف Google Analytics", "Placeholder for Google Analytics.", "عنصر جاهز لتكامل Google Analytics.", { placeholder: true, isPublic: true }],
+
+  ["pos.default_branch_id", "pos", "text", "", "Default branch", "الفرع الافتراضي", "POS branch fallback.", "فرع نقطة البيع الافتراضي."],
+  ["pos.default_warehouse_id", "pos", "text", "", "Default warehouse", "المخزن الافتراضي", "POS stock warehouse fallback.", "مخزن نقطة البيع الافتراضي."],
+  ["pos.default_cashier_treasury_id", "pos", "text", "", "Default cashier treasury", "خزينة الكاشير", "Default treasury for cash sales.", "الخزينة الافتراضية للمبيعات النقدية."],
+  ["pos.allow_discount", "pos", "boolean", true, "Allow discount", "السماح بالخصم", "Allow POS line/order discounts.", "السماح بخصومات نقطة البيع."],
+  ["pos.max_discount_percent", "pos", "number", 20, "Max discount percent", "أقصى نسبة خصم", "Maximum discount without override.", "أقصى خصم بدون موافقة.", { validation: { min: 0, max: 100 } }],
+  ["pos.manager_approval_discount_percent", "pos", "number", 10, "Manager approval above discount %", "موافقة المدير فوق نسبة خصم", "Require manager approval above this discount.", "تتطلب موافقة المدير فوق هذه النسبة.", { validation: { min: 0, max: 100 } }],
+  ["pos.allow_split_payments", "pos", "boolean", true, "Allow split payments", "تقسيم الدفع", "Allow multiple payment methods.", "السماح بأكثر من وسيلة دفع."],
+  ["pos.allow_customer_credit", "pos", "boolean", false, "Allow customer credit", "السماح بمديونية العميل", "Allow sale on customer credit.", "السماح بالبيع على حساب العميل."],
+  ["pos.allow_returns", "pos", "boolean", true, "Allow returns", "السماح بالمرتجعات", "Allow POS returns.", "السماح بمرتجعات نقطة البيع."],
+  ["pos.print_receipt_automatically", "pos", "boolean", false, "Print receipt automatically", "طباعة الإيصال تلقائيا", "Open print after checkout.", "فتح الطباعة بعد البيع."],
+  ["pos.receipt_template", "pos", "select", "compact", "Receipt template", "قالب الإيصال", "Receipt layout.", "شكل الإيصال.", { options: [option("compact", "Compact", "مختصر"), option("detailed", "Detailed", "تفصيلي")] }],
+  ["pos.barcode_scanner_behavior", "pos", "select", "add_to_cart", "Barcode scanner behavior", "سلوك قارئ الباركود", "What happens after scanning a barcode.", "ما يحدث بعد قراءة الباركود.", { options: [option("add_to_cart", "Add to cart", "إضافة للسلة"), option("open_product", "Open product", "فتح المنتج")] }],
+  ["pos.hold_cart_timeout_minutes", "pos", "number", 120, "Hold cart timeout", "مدة تعليق السلة", "Minutes before held carts expire.", "الدقائق قبل انتهاء السلة المعلقة.", { validation: { min: 0 } }],
+
+  ["inventory.default_warehouse_id", "inventory", "text", "", "Default warehouse", "المخزن الافتراضي", "Default inventory warehouse.", "المخزن الافتراضي للمخزون."],
+  ["inventory.low_stock_threshold", "inventory", "number", 5, "Low stock threshold", "حد المخزون المنخفض", "Default low stock alert threshold.", "حد تنبيه المخزون المنخفض.", { validation: { min: 0 } }],
+  ["inventory.auto_generate_sku", "inventory", "boolean", true, "Auto-generate SKU", "إنشاء SKU تلقائيا", "Generate SKU for new products.", "إنشاء كود SKU للمنتجات الجديدة."],
+  ["inventory.sku_pattern", "inventory", "text", "SKU-{category}-{seq}", "SKU pattern", "نمط SKU", "Pattern used for SKU generation.", "النمط المستخدم لإنشاء SKU."],
+  ["inventory.allow_negative_stock", "inventory", "boolean", false, "Allow negative stock", "السماح بالمخزون السالب", "Should remain off unless explicitly needed.", "يفضل أن يظل مغلقا إلا عند الحاجة."],
+  ["inventory.reserve_stock_behavior", "inventory", "select", "on_order", "Reserve stock behavior", "طريقة حجز المخزون", "When stock is reserved.", "متى يتم حجز المخزون.", { options: [option("off", "Off", "إيقاف"), option("on_order", "On order", "عند الطلب"), option("on_payment", "On payment", "عند الدفع")] }],
+  ["inventory.stock_transfer_approval_required", "inventory", "boolean", true, "Stock transfer approval required", "موافقة على تحويل المخزون", "Require approval before transfer completion.", "تتطلب موافقة قبل إتمام التحويل."],
+  ["inventory.purchase_receiving_behavior", "inventory", "select", "receive_to_default", "Purchase receiving behavior", "استلام المشتريات", "Default receiving destination.", "وجهة الاستلام الافتراضية.", { options: [option("receive_to_default", "Default warehouse", "المخزن الافتراضي"), option("ask_each_time", "Ask each time", "اسأل كل مرة")] }],
+  ["inventory.product_image_source_priority", "inventory", "select", "variant_first", "Product image source priority", "أولوية صورة المنتج", "Which image is preferred in catalog.", "الصورة المفضلة في الكتالوج.", { options: [option("variant_first", "Variant first", "المتغير أولا"), option("product_first", "Product first", "المنتج أولا")] }],
+  ["inventory.variant_naming_format", "inventory", "text", "{product} - {color} - {size}", "Variant naming format", "تنسيق اسم المتغير", "Format for displayed variant names.", "تنسيق عرض أسماء المتغيرات."],
+
+  ["accounting.default_cash_account_id", "accounting", "text", "", "Default cash account", "حساب النقدية", "Default ledger cash account.", "حساب النقدية الافتراضي."],
+  ["accounting.default_bank_account_id", "accounting", "text", "", "Default bank account", "حساب البنك", "Default ledger bank account.", "حساب البنك الافتراضي."],
+  ["accounting.default_sales_revenue_account_id", "accounting", "text", "", "Default sales revenue account", "حساب إيراد المبيعات", "Revenue account for sales posting.", "حساب إيرادات المبيعات."],
+  ["accounting.default_shipping_income_account_id", "accounting", "text", "", "Default shipping income account", "حساب دخل الشحن", "Income account for collected shipping.", "حساب دخل الشحن المحصل."],
+  ["accounting.default_shipping_expense_account_id", "accounting", "text", "", "Default shipping expense account", "حساب مصروف الشحن", "Expense account for carrier fees.", "حساب مصروف شركة الشحن."],
+  ["accounting.default_cogs_account_id", "accounting", "text", "", "Default COGS account", "حساب تكلفة البضاعة", "Cost of goods sold account.", "حساب تكلفة البضاعة المباعة."],
+  ["accounting.default_inventory_asset_account_id", "accounting", "text", "", "Default inventory asset account", "حساب أصل المخزون", "Inventory asset account.", "حساب أصل المخزون."],
+  ["accounting.default_customer_credit_account_id", "accounting", "text", "", "Default customer credit account", "حساب مديونية العملاء", "Customer receivable/credit account.", "حساب ذمم العملاء."],
+  ["accounting.default_supplier_payable_account_id", "accounting", "text", "", "Default supplier payable account", "حساب الموردين", "Supplier payable account.", "حساب ذمم الموردين."],
+  ["accounting.auto_post_pos_sales", "accounting", "boolean", false, "Auto-post POS sales", "ترحيل مبيعات الكاشير تلقائيا", "Create accounting entries for POS sales.", "إنشاء قيود محاسبية لمبيعات الكاشير."],
+  ["accounting.auto_post_website_orders", "accounting", "boolean", false, "Auto-post website orders", "ترحيل طلبات الموقع تلقائيا", "Create entries for website orders.", "إنشاء قيود لطلبات الموقع."],
+  ["accounting.auto_post_expenses", "accounting", "boolean", false, "Auto-post expenses", "ترحيل المصروفات تلقائيا", "Create entries when expenses are approved.", "إنشاء قيود عند اعتماد المصروفات."],
+  ["accounting.vat_enabled", "accounting", "boolean", false, "Tax/VAT enabled", "تفعيل الضريبة", "Enable tax/VAT calculations.", "تفعيل حسابات الضريبة."],
+  ["accounting.vat_rate_percent", "accounting", "number", 14, "VAT rate percent", "نسبة الضريبة", "Default VAT percent.", "نسبة الضريبة الافتراضية.", { validation: { min: 0, max: 100 } }],
+
+  ["employees.default_attendance_timezone", "employees", "text", "Africa/Cairo", "Default attendance timezone", "منطقة الحضور الزمنية", "Timezone used for attendance calculations.", "المنطقة الزمنية المستخدمة في الحضور."],
+  ["employees.default_shift_behavior", "employees", "select", "scheduled", "Default shift behavior", "نظام الشفت الافتراضي", "How missing shifts are handled.", "طريقة التعامل مع الشفتات غير المحددة.", { options: [option("scheduled", "Scheduled", "حسب الجدول"), option("flexible", "Flexible", "مرن")] }],
+  ["employees.grace_period_minutes", "employees", "number", 10, "Grace period minutes", "دقائق السماح", "Late grace period.", "فترة السماح للتأخير.", { validation: { min: 0 } }],
+  ["employees.late_deduction_rules", "employees", "json", [], "Late deduction rules", "قواعد خصم التأخير", "JSON rules for late deductions.", "قواعد JSON لخصم التأخير."],
+  ["employees.overtime_rules", "employees", "json", [], "Overtime rules", "قواعد الإضافي", "JSON rules for overtime.", "قواعد JSON للإضافي."],
+  ["employees.payroll_cycle", "employees", "select", "monthly", "Payroll cycle", "دورة المرتبات", "Payroll calculation period.", "فترة حساب المرتبات.", { options: [option("monthly", "Monthly", "شهري"), option("weekly", "Weekly", "أسبوعي")] }],
+  ["employees.commission_calculation_mode", "employees", "select", "paid_orders", "Commission calculation mode", "طريقة حساب العمولة", "Which sales count toward commissions.", "ما هي المبيعات التي تدخل في العمولة.", { options: [option("paid_orders", "Paid orders", "الطلبات المدفوعة"), option("completed_orders", "Completed orders", "الطلبات المكتملة")] }],
+  ["employees.advances_deduction_behavior", "employees", "select", "current_cycle", "Advances deduction behavior", "خصم السلف", "How advances are deducted from payroll.", "طريقة خصم السلف من المرتب.", { options: [option("current_cycle", "Current cycle", "الدورة الحالية"), option("manual", "Manual", "يدوي")] }],
+  ["employees.portal_enabled", "employees", "boolean", true, "Employee portal enabled", "تفعيل بوابة الموظف", "Allow employee wallet public-token access.", "السماح بدخول محفظة الموظف بالرابط العام."],
+  ["employees.qr_attendance_enabled", "employees", "boolean", true, "QR attendance enabled", "تفعيل حضور QR", "Allow QR attendance from employee wallet.", "السماح بالحضور من محفظة الموظف عبر QR."],
+  ["employees.qr_expiry_minutes", "employees", "number", 15, "QR expiry minutes", "انتهاء QR بالدقائق", "Branch QR token expiry duration.", "مدة انتهاء رمز QR للفرع.", { validation: { min: 1 } }],
+
+  ["ai_channels.ai_support_enabled", "ai_channels", "boolean", true, "AI Support enabled", "تفعيل دعم الذكاء", "Enable AI-assisted support features.", "تفعيل ميزات دعم الذكاء."],
+  ["ai_channels.ai_reply_mode", "ai_channels", "select", "suggest_only", "AI reply mode", "وضع رد الذكاء", "Controls how AI replies are used.", "يتحكم في استخدام ردود الذكاء.", { options: [option("off", "Off", "إيقاف"), option("suggest_only", "Suggest only", "اقتراح فقط"), option("auto_reply_after_approval", "Auto after approval", "تلقائي بعد الموافقة"), option("fully_automatic", "Fully automatic", "تلقائي كامل")] }],
+  ["ai_channels.human_takeover_behavior", "ai_channels", "select", "pause_ai", "Human takeover behavior", "سلوك تدخل الموظف", "What AI does after a human joins.", "ما يفعله الذكاء بعد تدخل موظف.", { options: [option("pause_ai", "Pause AI", "إيقاف الذكاء"), option("suggest_only", "Suggest only", "اقتراح فقط")] }],
+  ["ai_channels.auto_return_to_ai_minutes", "ai_channels", "number", 60, "Auto-return to AI minutes", "العودة للذكاء بعد دقائق", "Return conversation to AI after inactivity.", "إعادة المحادثة للذكاء بعد عدم النشاط.", { validation: { min: 0 } }],
+  ["ai_channels.product_recommendation_strictness", "ai_channels", "select", "stock_only", "Product recommendation strictness", "دقة اقتراح المنتجات", "Limits AI recommendations to valid products.", "تقييد اقتراحات الذكاء على منتجات صالحة.", { options: [option("stock_only", "In-stock only", "المتوفر فقط"), option("catalog_only", "Catalog only", "الكتالوج فقط"), option("relaxed", "Relaxed", "مرن")] }],
+  ["ai_channels.allowed_channels", "ai_channels", "multiselect", ["messenger", "instagram"], "Allowed channels", "القنوات المسموحة", "Channels AI can serve.", "القنوات التي يخدمها الذكاء.", { options: [option("messenger", "Messenger", "ماسنجر"), option("instagram", "Instagram", "إنستجرام"), option("whatsapp", "WhatsApp placeholder", "واتساب لاحقا")], placeholder: true }],
+  ["ai_channels.meta_integration_enabled", "ai_channels", "boolean", false, "Meta integration enabled", "تفعيل Meta", "Controls Meta channel integration.", "يتحكم في تكامل قنوات Meta."],
+  ["ai_channels.webhook_url_display", "ai_channels", "text", "", "Webhook URL display", "رابط Webhook", "Read-only display value for webhook setup.", "قيمة عرض لاستخدامها في إعداد webhook."],
+  ["ai_channels.storefront_product_link_base", "ai_channels", "url", "", "Storefront product link base", "رابط منتجات المتجر", "Base URL used in AI product replies.", "الرابط الأساسي لمنتجات المتجر في ردود الذكاء."],
+  ["ai_channels.cloudinary_cloud_name", "ai_channels", "text", "", "Cloudinary cloud name", "اسم Cloudinary", "Media cloud setting.", "إعداد وسائط Cloudinary."],
+  ["ai_channels.cloudinary_api_secret", "ai_channels", "secret", "", "Cloudinary API secret", "سر Cloudinary", "Secret media integration value.", "قيمة سرية لتكامل الوسائط.", { isSecret: true }],
+  ["ai_channels.ai_fallback_message", "ai_channels", "textarea", "سيتم تحويلك لفريق الدعم.", "AI fallback message", "رسالة تعذر الرد", "Shown when AI cannot answer.", "تظهر عند عدم قدرة الذكاء على الرد."],
+  ["ai_channels.handoff_message", "ai_channels", "textarea", "سيتم تحويل المحادثة لموظف.", "Handoff message", "رسالة التحويل", "Shown when handing off to a human.", "تظهر عند تحويل المحادثة لموظف."],
+
+  ["notifications.low_stock_alerts", "notifications", "boolean", true, "Low stock alerts", "تنبيهات المخزون المنخفض", "Notify when stock is low.", "تنبيه عند انخفاض المخزون."],
+  ["notifications.new_order_alerts", "notifications", "boolean", true, "New order alerts", "تنبيهات الطلبات الجديدة", "Notify admins about new orders.", "تنبيه الإدارة بالطلبات الجديدة."],
+  ["notifications.payment_alerts", "notifications", "boolean", true, "Payment alerts", "تنبيهات الدفع", "Notify on payment changes.", "تنبيه عند تغير حالة الدفع."],
+  ["notifications.shipping_status_alerts", "notifications", "boolean", true, "Shipping status alerts", "تنبيهات الشحن", "Notify on shipping status changes.", "تنبيه بتغير حالة الشحن."],
+  ["notifications.employee_request_alerts", "notifications", "boolean", true, "Employee request alerts", "تنبيهات طلبات الموظفين", "Notify admins about employee wallet requests.", "تنبيه الإدارة بطلبات محفظة الموظف."],
+  ["notifications.ai_hot_lead_alerts", "notifications", "boolean", true, "AI hot lead alerts", "تنبيهات العملاء المهمين", "Notify when AI detects a hot lead.", "تنبيه عند اكتشاف عميل مهم."],
+  ["notifications.admin_inbox_alerts", "notifications", "boolean", true, "Admin inbox alerts", "تنبيهات صندوق الإدارة", "Notify admin inbox events.", "تنبيه أحداث صندوق الإدارة."],
+  ["notifications.channels", "notifications", "multiselect", ["in_app"], "Notification channels", "قنوات الإشعارات", "Enabled delivery channels.", "قنوات إرسال الإشعارات.", { options: [option("in_app", "In-app", "داخل النظام"), option("email", "Email placeholder", "البريد لاحقا"), option("whatsapp", "WhatsApp placeholder", "واتساب لاحقا")], placeholder: true }],
+
+  ["security.roles_permissions_shortcut", "security", "text", "/settings/permissions", "Roles and permissions shortcut", "اختصار الصلاحيات", "Shortcut route for roles and permissions.", "مسار مختصر للصلاحيات."],
+  ["security.session_timeout_minutes", "security", "number", 480, "Session timeout minutes", "مدة الجلسة بالدقائق", "Session expiry duration.", "مدة انتهاء الجلسة.", { validation: { min: 5 } }],
+  ["security.require_strong_password", "security", "boolean", true, "Require strong password", "طلب كلمة مرور قوية", "Enforce stronger user passwords.", "فرض كلمات مرور أقوى."],
+  ["security.two_factor_enabled", "security", "boolean", false, "Two-factor placeholder", "التحقق الثنائي لاحقا", "Placeholder for future two-factor authentication.", "عنصر جاهز للتحقق الثنائي لاحقا.", { placeholder: true }],
+  ["security.audit_log_enabled", "security", "boolean", true, "Audit log enabled", "تفعيل سجل التدقيق", "Record sensitive admin activity.", "تسجيل نشاط الإدارة الحساس."],
+  ["security.sensitive_settings_require_admin_password", "security", "boolean", true, "Sensitive settings require admin password", "كلمة مرور للإعدادات الحساسة", "Require admin password before changing sensitive values.", "طلب كلمة مرور المدير قبل تغيير القيم الحساسة."],
+  ["security.api_tokens_management", "security", "json", [], "API tokens management placeholder", "مفاتيح API لاحقا", "Placeholder for API token management.", "عنصر جاهز لإدارة مفاتيح API لاحقا.", { placeholder: true, isSecret: true }],
+];
+
+export const settingsRegistry = definitions.map(([key, category, type, defaultValue, en, ar, descriptionEn, descriptionAr, extra = {}]) => ({
+  key,
+  category,
+  label: label(en, ar),
+  description: label(descriptionEn, descriptionAr),
+  type,
+  defaultValue,
+  isSecret: Boolean(extra.isSecret),
+  isPublic: Boolean(extra.isPublic),
+  validation: extra.validation || {},
+  usedBy: extra.usedBy || [],
+  options: extra.options || [],
+  placeholder: Boolean(extra.placeholder),
+}));
+
+export const settingsByKey = settingsRegistry.reduce((acc, setting) => {
+  acc[setting.key] = setting;
+  return acc;
+}, {});
+
+export const settingsByCategory = settingsRegistry.reduce((acc, setting) => {
+  if (!acc[setting.category]) acc[setting.category] = [];
+  acc[setting.category].push(setting);
+  return acc;
+}, {});
+
+export const normalizeSettingsCategory = (category) => {
+  const value = String(category || "").trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  const aliases = {
+    company: "general",
+    currency: "general",
+    currencies: "general",
+    localization: "general",
+    website: "storefront",
+    store: "storefront",
+    shop: "storefront",
+    ai: "ai_channels",
+    ai_settings: "ai_channels",
+    channels: "ai_channels",
+    ai_channels_settings: "ai_channels",
+    payroll: "employees",
+    staff: "employees",
+    sales_employees: "employees",
+    users: "security",
+    permissions: "security",
+    roles: "security",
+  };
+  if (aliases[value]) return aliases[value];
+  return settingsCategories.some((item) => item.key === value) ? value : "";
+};
+
+export const getSettingDefinition = (key) => settingsByKey[String(key || "").trim()] || null;

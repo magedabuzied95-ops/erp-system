@@ -1,0 +1,660 @@
+{
+  "common": {
+    "continueShopping": "متابعة التسوق",
+    "shopNow": "تسوق الآن",
+    "soon": "قريبًا",
+    "loading": "جاري التحميل...",
+    "choose": "اختار",
+    "close": "إغلاق",
+    "noResults": "لا توجد نتائج",
+    "search": "بحث",
+    "remove": "إزالة",
+    "viewAll": "عرض الكل",
+    "back": "رجوع",
+    "refreshPage": "تحديث الصفحة"
+  },
+  "toasts": {
+    "unsupportedImageType": "نوع الصورة غير مدعوم. استخدم JPG أو PNG أو WEBP.",
+    "aiReplyFailed": "حدثت مشكلة في الرد. جرّب مرة أخرى أو تواصل مع الدعم.",
+    "emptyImage": "الصورة فارغة. اختر صورة واضحة.",
+    "imageTooLarge": "حجم الصورة كبير. ارفع صورة أصغر.",
+    "addedToCart": "اختيار ممتاز. تمت الإضافة للسلة.",
+    "successMessages": [
+      "اختيار ممتاز",
+      "طلبك يتم تجهيزه الآن",
+      "اختيار قوي",
+      "سنجهزه لك بأسرع وقت"
+    ],
+    "profileSavedAndAdded": "تم حفظ بياناتك وإضافة المنتج للسلة.",
+    "profileSaved": "تم حفظ بياناتك.",
+    "variantUnavailable": "المقاس أو اللون غير متاح حاليًا.",
+    "priceUnavailable": "السعر غير متاح حاليًا.",
+    "voiceUnsupported": "البحث الصوتي غير مدعوم في هذا المتصفح.",
+    "productLinkCopied": "تم نسخ رابط المنتج.",
+    "completeRequiredData": "راجع البيانات المطلوبة لإكمال الطلب.",
+    "uploadTransferProof": "ارفع صورة إثبات التحويل أولًا.",
+    "invalidTransferProof": "صورة إثبات التحويل غير صالحة.",
+    "checkoutFailed": "حدثت مشكلة. جرّب مرة أخرى أو تواصل معنا على واتساب.",
+    "accountUnavailable": "لا يمكن فتح الحساب الآن.",
+    "reorderPartial": "تمت إضافة المتاح للسلة، وبعض الاختيارات غير متاحة حاليًا.",
+    "reorderAdded": "تمت إضافة الطلب للسلة مرة أخرى.",
+    "reorderUnavailable": "هذه المنتجات غير متاحة حاليًا. جرّب اختيارات أخرى.",
+    "copied": "تم النسخ.",
+    "sizeUnavailable": "هذا المقاس غير متاح حاليًا.",
+    "addFailed": "لا يمكن إضافة المنتج للسلة الآن."
+  },
+  "header": {
+    "tagline": "أحذية بريميوم",
+    "trackOrder": "تتبع الطلب",
+    "wishlist": "المفضلة",
+    "account": "الحساب",
+    "languageArabic": "العربية",
+    "menu": "القائمة",
+    "notifications": "الإشعارات",
+    "noNotifications": "لا توجد إشعارات حاليًا",
+    "announcements": {
+      "fastShipping": "شحن سريع داخل مصر",
+      "exchange": "استبدال خلال 14 يوم",
+      "cod": "الدفع عند الاستلام",
+      "premium": "منتجات Mirror Premium",
+      "todayDeals": "خصومات اليوم"
+    }
+  },
+  "nav": {
+    "home": "الصفحة الرئيسية",
+    "categories": "الأقسام",
+    "sale": "العروض",
+    "new": "جديد",
+    "men": "رجالي",
+    "women": "حريمي",
+    "kids": "أطفال",
+    "sizeGuide": "دليل المقاسات",
+    "returns": "سياسة الاستبدال",
+    "mobileNavigation": "تنقل المتجر على الموبايل"
+  },
+  "search": {
+    "aria": "البحث في المتجر",
+    "voice": "بحث صوتي",
+    "image": "بحث بالصورة",
+    "close": "إغلاق البحث",
+    "smartResults": "نتائج ذكية",
+    "searching": "جاري البحث...",
+    "searchFor": "ابحث عن",
+    "trendingTitle": "الأكثر بحثًا",
+    "recentTitle": "بحثت مؤخرًا",
+    "categories": "الأقسام",
+    "brands": "البراندات",
+    "styles": "ستايلات",
+    "resultCount": "{{count}} نتيجة",
+    "resultsFor": "نتائج البحث عن \"{{query}}\"",
+    "placeholders": [
+      "ابحث عن Jordan 4...",
+      "ابحث عن Sneakers...",
+      "ابحث بالمقاس 42...",
+      "ابحث باسم البراند...",
+      "ابحث بـ SKU..."
+    ],
+    "trending": [
+      "Jordan 4",
+      "Sneakers",
+      "مقاس 42",
+      "Mirror Original",
+      "Adidas",
+      "رجالي أسود"
+    ],
+    "fallbackSections": {
+      "categories": [
+        "رجالي",
+        "حريمي",
+        "أطفال",
+        "عروض",
+        "آخر قطعة"
+      ],
+      "brands": [
+        "Nike",
+        "Adidas",
+        "New Balance",
+        "Air Jordan"
+      ],
+      "styles": [
+        "Sneakers",
+        "Running",
+        "Lifestyle",
+        "Mirror Original"
+      ]
+    }
+  },
+  "aiSupport": {
+    "aria": "مساعد المتجر الذكي",
+    "title": "مساعد المتجر",
+    "subtitle": "إجابات من بيانات المتجر فقط",
+    "closeChat": "إغلاق المحادثة",
+    "uploadedImageAlt": "الصورة المرفوعة",
+    "suggestedProduct": "منتج مقترح",
+    "contactSupport": "تواصل مع الدعم",
+    "analyzingImage": "جاري تحليل الصورة...",
+    "checkingStore": "براجع بيانات المتجر...",
+    "openCamera": "فتح الكاميرا",
+    "camera": "كاميرا",
+    "chooseGalleryImage": "اختيار صورة من المعرض",
+    "gallery": "المعرض",
+    "inputPlaceholder": "اكتب سؤالك هنا...",
+    "openAssistant": "فتح مساعد التسوق",
+    "hint": "اسأل عن المقاس أو الموديل",
+    "askAssistant": "اسأل المساعد",
+    "launcherSubtitle": "أسعار ومقاسات وسياسات"
+  },
+  "customerCapture": {
+    "title": "احفظ سلتك واستمتع بتجربة أسرع",
+    "subtitle": "سجل رقمك لمتابعة الطلبات والحصول على نقاط الولاء",
+    "loyaltyHint": "احصل على نقاط هدية عند التسجيل",
+    "skipNow": "تخطي الآن",
+    "saveFailed": "تعذر حفظ بياناتك حاليًا. راجع الرقم وحاول مرة أخرى."
+  },
+  "form": {
+    "fullName": "الاسم بالكامل",
+    "fullNamePlaceholder": "اكتب اسمك بالكامل",
+    "mobileNumber": "رقم الموبايل",
+    "primaryPhone": "رقم الموبايل الأساسي",
+    "secondaryPhone": "رقم بديل اختياري",
+    "secondaryPhonePlaceholder": "رقم تواصل بديل"
+  },
+  "home": {
+    "trustPoints": [
+      "دفع آمن",
+      "تبديل سهل",
+      "صور حقيقية",
+      "شحن سريع"
+    ],
+    "heroFallbackSubtitle": "تصميم مختار من أحدث المنتجات المتاحة الآن.",
+    "newArrival": "وصل حديثًا",
+    "featuredStyle": "اختيار مميز",
+    "shopByCategory": "تسوق حسب القسم",
+    "shopByCategorySubtitle": "اختار بسرعة حسب الفئة أو النوع",
+    "bestsellers": "الأكثر مبيعًا",
+    "bestsellersSubtitle": "الأكثر مبيعًا هذا الأسبوع",
+    "saleSubtitle": "خصومات مختارة لفترة محدودة",
+    "newSubtitle": "وصل حديثًا للمخزون",
+    "productOfWeek": "منتج الأسبوع",
+    "productOfWeekEmpty": "المنتج المميز هيظهر هنا أول ما المخزون يتحدث.",
+    "featuredDescription": "اختيار الأسبوع المميز يأتي بصور أوضح، مقاسات ظاهرة، وتجربة شراء أسرع."
+  },
+  "visualSearch": {
+    "similarProducts": "المنتجات المشابهة",
+    "analyzing": "جاري تحليل الصورة والبحث عن أقرب المنتجات...",
+    "resultsFromImage": "نتائج مبنية على الصورة المرفوعة",
+    "noSimilarProduct": "لم نجد منتج مشابه",
+    "emptyHint": "جرّب صورة أوضح أو استخدم الكلمات المقترحة."
+  },
+  "products": {
+    "products": "المنتجات",
+    "allProducts": "كل المنتجات",
+    "productDetails": "تفاصيل المنتج",
+    "viewProduct": "عرض المنتج",
+    "sizes": "المقاسات",
+    "size": "مقاس",
+    "color": "لون",
+    "chooseColor": "اختار اللون",
+    "chooseSize": "اختار المقاس",
+    "selectOptions": "اختار اللون والمقاس",
+    "viewSizes": "شاهد المقاسات",
+    "sizesAvailable": "مقاسات متاحة",
+    "sizesInsideProduct": "المقاسات تظهر داخل المنتج",
+    "sizesWillAppear": "المقاسات ستظهر هنا",
+    "storeProduct": "منتج من المتجر",
+    "availableNow": "متاح الآن",
+    "unavailable": "غير متاح",
+    "limitedStock": "الكمية محدودة",
+    "availableLiveStock": "متاح الآن بمخزون حقيقي",
+    "checkAvailability": "تحقق من التوفر",
+    "customerFavorite": "اختيار العملاء المفضل",
+    "bestsellerThisWeek": "الأكثر مبيعًا هذا الأسبوع",
+    "limitedOffer": "عرض لفترة محدودة",
+    "newInStock": "وصل حديثًا للمخزون",
+    "lastAvailableSizes": "آخر المقاسات المتاحة",
+    "onlyLeft": "باقي {{count}} فقط",
+    "discountBadge": "-{{percent}}%",
+    "oneSize": "مقاس واحد",
+    "emptyRailTitle": "لسه بنجهز منتجات مميزة هنا",
+    "comingSoon": "وصل قريبًا",
+    "guidedIntro": "اختار على مزاجك",
+    "chooseProductType": "اختار نوع المنتج",
+    "suitableFor": "اختيارات مناسبة لـ {{label}}",
+    "chooseGenderFirst": "اختار النوع الأول",
+    "chooseTypeAndProductFirst": "اختار النوع ونوع المنتج الأول",
+    "changeType": "تغيير النوع",
+    "changeProductType": "تغيير نوع المنتج",
+    "chooseWearer": "اختار مين هيلبس",
+    "chooseWearerSubtitle": "بعد الاختيار هننقلك لنوع المنتج",
+    "chooseAndViewTypes": "اختار وشوف الأنواع",
+    "noTypesForCategory": "مفيش أنواع متاحة للقسم ده",
+    "goBackChooseAnother": "ارجع واختار نوع تاني",
+    "noProductsForSize": "مش لاقيين منتجات بالمقاس ده دلوقتي، جرّب مقاس تاني",
+    "pickDifferentSize": "اختار مقاس مختلف من الشريط فوق",
+    "tryDifferentProductType": "جرب نوع منتج تاني",
+    "limitedOffers": "عروض لفترة محدودة",
+    "shopEasily": "تسوق بسهولة",
+    "productCount": "{{count}} منتج",
+    "emptyTitle": "لا توجد منتجات",
+    "emptyText": "جرب بحث أو قسم مختلف",
+    "sizeWithValue": "مقاس {{size}}",
+    "steps": {
+      "gender": "1. النوع",
+      "product": "2. المنتج",
+      "sizes": "3. المقاسات"
+    },
+    "curatedDetails": "تفاصيل منتج مختار بعناية",
+    "verifiedReviews": "تقييمات موثقة",
+    "variantUnavailable": "المقاس أو اللون ده غير متاح حاليا",
+    "premiumMaterial": "خامة Premium",
+    "similarProducts": "منتجات مشابهة",
+    "youMayAlsoLike": "ربما يعجبك أيضا",
+    "savedProduct": "منتج محفوظ",
+    "openForDetails": "افتح المنتج للتفاصيل",
+    "checkingLiveStock": "بنراجع المخزون الحقيقي...",
+    "notFoundTitle": "المنتج غير موجود",
+    "notFoundText": "ارجع للمنتجات وجرب اختيار تاني"
+  },
+  "filters": {
+    "gender": "الجنس",
+    "productType": "نوع المنتج",
+    "type": "النوع",
+    "style": "الستايل",
+    "grade": "الجريد",
+    "sizeFilter": "فلتر المقاس",
+    "availableSize": "فلتر المقاس المتاح",
+    "showAllSizes": "عرض كل المقاسات",
+    "sizesAppearAfterType": "المقاسات هتظهر بعد اختيار نوع المنتج",
+    "curatedFilters": "فلاتر مختارة",
+    "quickPremium": "فلترة سريعة بتجربة Premium",
+    "clearFilters": "مسح الفلاتر",
+    "filters": "الفلاتر",
+    "closeFilters": "إغلاق الفلاتر",
+    "premiumFilters": "فلاتر Premium",
+    "chooseWhatFits": "اختار اللي يناسبك",
+    "applyFilters": "تطبيق الفلاتر"
+  },
+  "lastPiece": {
+    "title": "آخر قطعة"
+  },
+  "cart": {
+    "title": "السلة",
+    "addToCart": "إضافة للسلة",
+    "quickAdd": "إضافة سريعة",
+    "buyNow": "اشتري الآن",
+    "quantity": "الكمية",
+    "readyToShop": "جاهزة للتسوق",
+    "removeItem": "حذف المنتج",
+    "decreaseQuantity": "تقليل الكمية",
+    "increaseQuantity": "زيادة الكمية",
+    "emptyTitle": "السلة فاضية",
+    "emptyText": "اختار منتج الأول وبعدها كمل الدفع",
+    "emptyCheckoutText": "اختار منتج الأول وبعدها كمل الدفع",
+    "add": "أضف",
+    "buy": "اشتري",
+    "reserveProduct": "احجز المنتج",
+    "orderNow": "اطلب الآن"
+  },
+  "checkout": {
+    "actions": {
+      "continueToAddress": "المتابعة للعنوان",
+      "continueToPayment": "المتابعة للدفع",
+      "confirmOrder": "تأكيد الطلب",
+      "uploadProofAndConfirm": "ارفع إثبات التحويل وأكد الطلب",
+      "confirming": "جاري تأكيد طلبك...",
+      "completePurchase": "إتمام الشراء"
+    },
+    "payment": {
+      "cod": {
+        "title": "الدفع عند الاستلام",
+        "text": "ادفع قيمة الطلب كاملة عند الاستلام."
+      },
+      "shippingConfirmation": {
+        "title": "تأكيد الشحن",
+        "text": "ادفع رسوم الشحن الآن لتأكيد الطلب والباقي عند الاستلام."
+      }
+    },
+    "chooseGovernorate": "اختار المحافظة",
+    "codOnDelivery": "الباقي عند الاستلام",
+    "deliveryAddress": "عنوان التوصيل",
+    "discount": "الخصم",
+    "expectedDeliveryNotice": "التوصيل المتوقع خلال 2-5 أيام عمل.",
+    "orderSummary": "ملخص الطلب",
+    "paymentMethod": "طريقة الدفع",
+    "products": "المنتجات",
+    "remainingOnDelivery": "المتبقي عند الاستلام",
+    "shipping": "الشحن",
+    "shippingProvidersReady": "شركات الشحن جاهزة",
+    "total": "الإجمالي",
+    "unitPrice": "سعر الوحدة",
+    "eyebrow": "Checkout",
+    "title": "إكمال الطلب",
+    "subtitle": "تفاصيل واضحة، تأكيد سريع، وطلبك ينتقل مباشرة للتجهيز.",
+    "emptyCartTitle": "سلتك فارغة",
+    "emptyCartText": "اختر منتجًا أولًا ثم أكمل الدفع",
+    "addressNote": "اكتب العنوان الكامل حتى يصل إليك المندوب بسرعة",
+    "latestAddressApplied": "استخدمنا آخر عنوان شحن محفوظ لك. يمكنك تعديله.",
+    "governorate": "المحافظة",
+    "fullAddress": "العنوان الكامل",
+    "fullAddressPlaceholder": "الشارع، رقم العمارة، الدور، الشقة",
+    "landmark": "علامة مميزة",
+    "landmarkPlaceholder": "بالقرب من...",
+    "deliveryNotes": "ملاحظات التوصيل",
+    "deliveryNotesPlaceholder": "وقت مناسب أو ملاحظة للمندوب",
+    "codEligibilityNote": "الدفع عند الاستلام متاح فقط للعملاء العائدين وعناوين دمياط.",
+    "coupon": "كوبون خصم",
+    "couponPlaceholder": "إذا كان لديك كود خصم",
+    "orderNotes": "ملاحظات الطلب",
+    "orderNotesPlaceholder": "مقاس بديل أو ملاحظة خاصة",
+    "sections": {
+      "customer": "بيانات العميل",
+      "address": "عنوان التوصيل",
+      "payment": "طريقة الدفع"
+    },
+    "progress": {
+      "customer": "بياناتك",
+      "address": "العنوان",
+      "payment": "الدفع",
+      "confirmation": "التأكيد"
+    },
+    "trust": {
+      "safeData": "بياناتك آمنة",
+      "fastShipping": "شحن سريع",
+      "exchange": "استبدال خلال 14 يومًا",
+      "whatsapp": "دعم واتساب"
+    },
+    "transfer": {
+      "safeBankPayment": "دفع بنكي آمن",
+      "amountDueNow": "المبلغ المطلوب تحويله الآن",
+      "instructions": "حوّل رسوم الشحن فقط عبر InstaPay أو Vodafone Cash، ثم ارفع الإيصال لنراجع طلبك قبل التجهيز.",
+      "manualReview": "تتم مراجعة التحويل يدويًا",
+      "scanQr": "امسح QR للدفع",
+      "scanQrHint": "افتح تطبيق الدفع، امسح الكود، ثم ارفع الإيصال.",
+      "qrComingSoon": "QR قريبًا",
+      "useDirectDetails": "استخدم بيانات التحويل المباشرة دون انتظار.",
+      "steps": {
+        "transfer": "حوّل المبلغ المطلوب",
+        "upload": "ارفع صورة الإيصال",
+        "review": "نراجع ونؤكد"
+      },
+      "proofUploaded": "تم رفع صورة الإيصال",
+      "uploadPrompt": "اسحب الإيصال هنا أو اضغط للرفع",
+      "acceptedFormats": "PNG أو JPG أو WEBP من إيصال InstaPay أو Vodafone Cash",
+      "readyToSend": "جاهز للإرسال",
+      "replace": "استبدال",
+      "removeProof": "حذف إثبات الدفع",
+      "shippingDeducted": "يتم خصم رسوم الشحن من إجمالي الطلب.",
+      "protectiveReview": "تتم مراجعة التحويلات يدويًا لحماية الطلبات.",
+      "vodafoneWallet": "محفظة Vodafone",
+      "instantBankTransfer": "تحويل بنكي فوري",
+      "transferDetailsVia": "بيانات التحويل عبر {{label}}",
+      "amount": "المبلغ",
+      "noCardSharing": "لا تتم مشاركة بيانات البطاقة",
+      "copyPaymentDetails": "نسخ بيانات الدفع",
+      "openApp": "فتح التطبيق",
+      "proofPreviewAlt": "معاينة إثبات التحويل"
+    },
+    "chooseGovernorateFirst": "اختار المحافظة أولًا",
+    "cityAreaPlaceholder": "اختار أو ابحث عن المدينة / المنطقة",
+    "cityAreaManualPlaceholder": "اكتب المدينة أو المنطقة",
+    "estimatedShipping": "تقدير الشحن",
+    "finalCostNote": "التكلفة النهائية تظهر في صفحة الدفع حسب المحافظة.",
+    "finalShippingAtCheckout": "الشحن النهائي في الدفع"
+  },
+  "success": {
+    "awaitingVerificationSubtitle": "سنراجع إثبات التحويل ثم نبدأ تجهيز الطلب.",
+    "awaitingVerificationTitle": "طلبك في انتظار مراجعة الدفع",
+    "confirmedSubtitle": "تم تسجيل الطلب وسنبدأ التجهيز.",
+    "confirmedTitle": "تم تأكيد الطلب",
+    "orderRecorded": "تم تسجيل الطلب",
+    "recommendedProducts": "منتجات مقترحة",
+    "reviewNotice": "احتفظ برقم الطلب للمتابعة.",
+    "thanks": "شكرا لطلبك"
+  },
+  "orders": {
+    "timelineLabels": [
+      "تم استلام الطلب",
+      "جاري التجهيز",
+      "تم الشحن",
+      "في الطريق",
+      "تم التسليم"
+    ],
+    "orderNumber": "رقم الطلب",
+    "orderStatus": "حالة الطلب",
+    "expectedDelivery": "التوصيل المتوقع",
+    "expectedDeliveryWindow": "من 2 إلى 5 أيام عمل",
+    "addressSaved": "تم حفظ العنوان مع الطلب",
+    "tracking": "تتبع الطلب",
+    "trackOrder": "تتبع الطلب",
+    "orderDate": "تاريخ الطلب",
+    "itemsLoading": "سيظهر ملخص المنتجات هنا بعد تحميل تفاصيل الطلب.",
+    "itemsSummary": "ملخص المنتجات",
+    "orderDetails": "تفاصيل الطلب",
+    "reorder": "إعادة الطلب"
+  },
+  "customer": {
+    "customer": "العميل",
+    "dearCustomer": "عميلنا العزيز"
+  },
+  "support": {
+    "generalHelpMessage": "مرحبًا، أحتاج مساعدة في طلب من الموقع",
+    "orderHelpMessage": "مرحبًا، أحتاج مساعدة في الطلب {{orderNumber}}",
+    "whatsapp": "واتساب",
+    "whatsappUnavailable": "واتساب غير متاح الآن",
+    "needHelpWhatsapp": "تحتاج مساعدة؟ تواصل معنا على واتساب",
+    "sizeHelp": "محتاج مساعدة في المقاس؟",
+    "whatsappHelp": "مساعدة واتساب"
+  },
+  "shipping": {
+    "manual": "توصيل يدوي",
+    "provider": "شركة الشحن",
+    "trackingNumber": "رقم التتبع",
+    "status": "حالة الشحن"
+  },
+  "errors": {
+    "simpleProblem": "حدثت مشكلة بسيطة",
+    "tryAgainOrWhatsapp": "جرب مرة أخرى أو تواصل معنا على واتساب",
+    "cleanedTemporaryData": "نضفنا بيانات التصفح المؤقتة. جرب تحديث الصفحة."
+  },
+  "status": {
+    "awaiting_verification": "بانتظار مراجعة الدفع",
+    "pending": "تم استلام الطلب",
+    "confirmed": "تم استلام الطلب",
+    "processing": "جاري التجهيز",
+    "packed": "جاري التجهيز",
+    "shipped": "تم الشحن",
+    "in_transit": "في الطريق",
+    "out_for_delivery": "في الطريق",
+    "delivered": "تم التسليم",
+    "cancelled": "ملغي",
+    "canceled": "ملغي",
+    "unpaid": "غير مدفوع",
+    "paid": "مدفوع",
+    "partially_paid": "مدفوع جزئيًا",
+    "partial": "مدفوع جزئيًا",
+    "shipping_confirmation": "تأكيد الشحن",
+    "shipping_paid": "تم دفع الشحن",
+    "cod": "الدفع عند الاستلام",
+    "manual": "توصيل يدوي"
+  },
+  "invoice": {
+    "unavailable": "غير متاح",
+    "walkInCustomer": "عميل نقدي",
+    "source": "المصدر",
+    "orderNumber": "رقم الطلب",
+    "customer": "العميل",
+    "phone": "الموبايل",
+    "status": "الحالة",
+    "payment": "الدفع",
+    "product": "المنتج",
+    "variant": "المقاس / اللون",
+    "quantity": "الكمية",
+    "price": "السعر",
+    "total": "الإجمالي",
+    "notSpecified": "غير محدد",
+    "empty": "لا توجد عناصر في الفاتورة.",
+    "paymentMethods": {
+      "cod": "الدفع عند الاستلام",
+      "cash": "كاش",
+      "shipping_confirmation": "تأكيد الشحن",
+      "instapay": "Instapay",
+      "vodafone_cash": "Vodafone Cash"
+    }
+  },
+  "validation": {
+    "fullNameRequired": "اكتب اسمك بالكامل",
+    "phoneRequired": "رقم الموبايل مطلوب",
+    "invalidEgyptPhone": "اكتب رقم موبايل مصري صحيح، مثال 01012345678",
+    "governorateRequired": "اختر المحافظة",
+    "cityAreaRequired": "اختر المدينة أو المنطقة",
+    "cityAreaManualRequired": "اكتب المدينة أو المنطقة",
+    "addressRequired": "اكتب العنوان الكامل حتى يصل إليك المندوب بسرعة",
+    "paymentMethodRequired": "اختر طريقة الدفع",
+    "codUnavailable": "الدفع عند الاستلام غير متاح لهذا العميل",
+    "transferProofRequired": "ارفع صورة إثبات التحويل لتأكيد الطلب"
+  },
+  "tracking": {
+    "eyebrow": "طلبك في الطريق",
+    "title": "تتبع الطلب",
+    "subtitle": "اكتب رقم الطلب ورقم الموبايل، أو افتح رابط التتبع المباشر من رسالة التأكيد.",
+    "readyTitle": "جاهز للتحقق",
+    "readyText": "سيظهر رقم الطلب وحالة الشحن هنا بعد البحث.",
+    "notFoundTitle": "لم نتمكن من العثور على الطلب",
+    "notFoundText": "راجع رقم الطلب ورقم الموبايل، أو تواصل معنا على واتساب.",
+    "validation": {
+      "orderNumberRequired": "اكتب رقم الطلب أولًا"
+    }
+  },
+  "account": {
+    "eyebrow": "حساب خفيف بالموبايل",
+    "title": "حسابي",
+    "showMyData": "عرض بياناتي",
+    "myData": "بياناتي",
+    "enterPhoneHint": "اكتب رقمك لعرض الحساب",
+    "myOrders": "طلباتي",
+    "noOrders": "لا توجد طلبات بعد",
+    "myAddresses": "عناويني",
+    "addressesEmpty": "ستظهر هنا العناوين المستخدمة في الطلبات",
+    "wishlistEmpty": "احفظ المنتجات التي تعجبك هنا",
+    "recentlyViewed": "شوهد مؤخرًا",
+    "recentEmpty": "ستظهر هنا المنتجات التي شاهدتها مؤخرًا",
+    "loyaltyBalance": "رصيد الولاء",
+    "points": "نقطة",
+    "pointsToNextTier": "{{count}} نقطة للترقية إلى {{tier}}",
+    "topTierReached": "وصلت لأعلى مستوى"
+  },
+  "contact": {
+    "title": "تواصل معنا",
+    "phone": "الهاتف",
+    "whatsappHint": "اضغط زر الدعم من أي صفحة طلب.",
+    "address": "العنوان",
+    "addressPlaceholder": "مكان الفرع يظهر هنا.",
+    "workingHours": "مواعيد العمل",
+    "workingHoursValue": "يوميا من 12 ظهرا إلى 11 مساء."
+  },
+  "faq": {
+    "title": "الأسئلة الشائعة",
+    "deliveryTime": {
+      "question": "مدة التوصيل؟",
+      "answer": "غالبا من 2 إلى 5 أيام عمل حسب المحافظة وشركة الشحن."
+    },
+    "paymentMethods": {
+      "question": "طرق الدفع؟",
+      "answer": "الدفع عند الاستلام متاح، وبنية الدفع الإلكتروني جاهزة للإضافة."
+    },
+    "exchangeReturns": {
+      "question": "الاستبدال والاسترجاع؟",
+      "answer": "متاح خلال 14 يوم بالشروط المذكورة في السياسة."
+    },
+    "sizeHelp": {
+      "question": "مساعدة المقاس؟",
+      "answer": "استخدم دليل المقاسات أو كلمنا على واتساب."
+    },
+    "trackOrder": {
+      "question": "تتبع الطلب؟",
+      "answer": "من صفحة تتبع الطلب برقم الطلب والموبايل."
+    },
+    "shippingProviders": {
+      "question": "شركات الشحن؟",
+      "answer": "النظام جاهز لـ Bosta و Mylerz و Aramex والتوصيل اليدوي."
+    }
+  },
+  "recent": {
+    "lastTwenty": "آخر 20 منتج",
+    "emptyTitle": "لسه مفيش منتجات هنا"
+  },
+  "returns": {
+    "title": "سياسة الاستبدال والاسترجاع",
+    "noBags": "لا يسمح باستبدال أو استرجاع الشنط.",
+    "originalCondition": "يجب أن يكون المنتج بنفس حالته الأصلية."
+  },
+  "reviews": {
+    "title": "آراء العملاء",
+    "verifiedCustomer": "عميل موثق",
+    "items": {
+      "quality": "الخامة ممتازة والتوصيل سريع.",
+      "size": "المقاس مظبوط والدعم ساعدني.",
+      "experience": "تجربة سهلة والطلب وصل مرتب."
+    }
+  },
+  "sizeGuide": {
+    "eyebrow": "Shoe Fit Guide",
+    "title": "دليل المقاسات",
+    "subtitle": "القياسات تقريبية وقد تختلف قليلًا حسب شكل القدم، خامة الحذاء، وتصميم كل موديل. لو قدمك عريضة أو بين مقاسين اختار المقاس الأكبر.",
+    "centimeterMeasurement": "قياس القدم بالسنتيمتر",
+    "tableTitle": "جدول مقاسات الأحذية",
+    "mobileScrollHint": "مرر الجدول أفقيًا على الموبايل لمشاهدة كل الأعمدة.",
+    "euSize": "EU المقاس",
+    "footLength": "طول القدم",
+    "notesLabel": "ملاحظات",
+    "measurementMethod": "طريقة القياس",
+    "measurementIntro": "القياس الصحيح يساعدك تختار المقاس الأقرب من أول مرة. خليك واقف أثناء القياس لأن طول القدم يزيد قليلًا مع الوزن.",
+    "measurementCaption": "قِس طول القدم من الكعب حتى أطول إصبع للحصول على أدق مقاس.",
+    "illustrationAria": "رسم توضيحي لقياس طول القدم من الكعب حتى أطول إصبع",
+    "heel": "الكعب",
+    "longestToe": "أطول إصبع",
+    "lengthCm": "الطول بالسنتيمتر",
+    "notes": {
+      "39": "مناسب للأقدام الصغيرة نسبيًا",
+      "40": "اختيار شائع للكاجوال اليومي",
+      "41": "لو القدم عريضة اختار نصف مقاس أكبر إن وجد",
+      "42": "الأكثر طلبًا في الموديلات الرجالي",
+      "43": "مناسب للقدم المتوسطة إلى العريضة",
+      "44": "راجع شكل الموديل لو Slim Fit",
+      "45": "اختيار أفضل لو بين 44 و45"
+    },
+    "steps": {
+      "paper": {
+        "title": "قف على ورقة",
+        "text": "ثبت قدمك على ورقة فوق أرض مستوية وأنت واقف بكامل وزنك."
+      },
+      "mark": {
+        "title": "علّم الحدود",
+        "text": "حدد بداية الكعب ونهاية أطول صابع بالقلم بدون إمالة القدم."
+      },
+      "measure": {
+        "title": "قيس بالسنتيمتر",
+        "text": "استخدم مسطرة أو متر وقيس المسافة بين العلامتين بدقة."
+      },
+      "larger": {
+        "title": "اختار الأكبر",
+        "text": "كرر القياس للقدمين واختر المقاس حسب القدم الأكبر."
+      }
+    }
+  },
+  "wishlist": {
+    "subtitle": "اختياراتك المفضلة محفوظة هنا",
+    "priceDropAlert": "تنبيه انخفاض السعر",
+    "priceDropSoon": "قريبًا هنبلغك لما سعر منتج في المفضلة ينزل.",
+    "backInStockAlert": "تنبيه الرجوع للمخزون",
+    "backInStockSoon": "قريبًا هنبلغك لما مقاسك يرجع تاني.",
+    "emptyTitle": "المفضلة فاضية",
+    "emptyText": "احفظ المنتجات اللي عجبتك هنا"
+  },
+  "footer": {
+    "tagline": "تجربة تسوق بسيطة وسريعة متصلة بالمخزون الحقيقي.",
+    "links": "روابط",
+    "contact": "تواصل",
+    "followUs": "تابعنا"
+  }
+}

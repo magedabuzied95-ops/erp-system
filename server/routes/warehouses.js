@@ -10,6 +10,12 @@ import {
 
   createWarehouse,
 
+  updateWarehouse,
+
+  deleteWarehouse,
+
+  prepareWarehouseMerge,
+
   transferStock
 
 } from "../controllers/warehousesController.js";
@@ -40,6 +46,45 @@ router.post(
   permit("warehouses", "create"),
 
   createWarehouse
+);
+
+/* ======================================================
+   UPDATE WAREHOUSE
+====================================================== */
+
+router.patch(
+  "/:id",
+
+  protect,
+  permit("warehouses", "update"),
+
+  updateWarehouse
+);
+
+/* ======================================================
+   PREPARE WAREHOUSE MERGE
+====================================================== */
+
+router.post(
+  "/merge/prepare",
+
+  protect,
+  permit("warehouses", "delete"),
+
+  prepareWarehouseMerge
+);
+
+/* ======================================================
+   DELETE WAREHOUSE
+====================================================== */
+
+router.delete(
+  "/:id",
+
+  protect,
+  permit("warehouses", "delete"),
+
+  deleteWarehouse
 );
 
 /* ======================================================

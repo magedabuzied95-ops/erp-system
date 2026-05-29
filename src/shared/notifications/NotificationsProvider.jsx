@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import toast from "react-hot-toast";
-
+import { emitRealtimeFeedback } from "../../services/realtimeFeedbackService";
 import { subscribeRealtime } from "../realtime/socketStore";
 import {
   deleteNotificationById,
@@ -39,25 +38,6 @@ const sameNotification = (left = {}, right = {}) =>
 
 const sameNotifications = (left = [], right = []) =>
   left.length === right.length && left.every((item, index) => sameNotification(item, right[index]));
-
-const playSoftTone = () => {
-  if (typeof window === "undefined" || typeof AudioContext === "undefined") return;
-  try {
-    const context = new AudioContext();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = "sine";
-    oscillator.frequency.value = 660;
-    gain.gain.value = 0.025;
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.12);
-    window.setTimeout(() => context.close().catch(() => {}), 220);
-  } catch {
-    // optional sound can fail silently
-  }
-};
 
 export function NotificationsProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
@@ -133,8 +113,7 @@ export function NotificationsProvider({ children }) {
         return current;
       });
       if (existing) return;
-      toast(next.title || "New notification", { id: `notification-${next.id || next.type}` });
-      if (next.priority === "critical" || next.type === "website_order_created") playSoftTone();
+      emitRealtimeFeedback("notification:new", next);
     };
     const handleCount = (payload) => {
       if (typeof payload?.count === "number") {

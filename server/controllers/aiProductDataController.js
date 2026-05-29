@@ -13,11 +13,19 @@ const toAbsoluteImageUrl = (value = "", req) => {
 export const generateAiProductDataController = async (req, res) => {
   try {
     const payload = req.body || {};
+    const brandName = cleanText(payload.brand_name || payload.brandName || payload.brand);
     const result = await generateAiProductData({
       ...payload,
+      brand_id: payload.brand_id || payload.brandId || null,
+      brand_name: brandName,
       image_url: toAbsoluteImageUrl(payload.image_url, req),
       image_base64_optional: payload.image_base64_optional || payload.image_base64,
-      current: payload.current || {},
+      current: {
+        ...(payload.current || {}),
+        brand_id: payload.brand_id || payload.brandId || payload.current?.brand_id || payload.current?.brandId || "",
+        brand_name: brandName || cleanText(payload.current?.brand_name || payload.current?.brandName),
+        brand: brandName || cleanText(payload.current?.brand || payload.brand),
+      },
     });
 
     res.json({

@@ -1,0 +1,2352 @@
+import express from "express";
+
+import { protect } from "../middleware/authMiddleware.js";
+import permit from "../middleware/permissionMiddleware.js";
+import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { emitToRooms } from "../utils/socket.js";
+import { sendMetaInboxOutboundMessage } from "../services/metaIntegrationService.js";
+import { getAIEvents, pushAIEvent } from "../services/aiEventLogger.js";
+import { resolveIntent } from "../services/aiIntentResolver.js";
+import { buildProductContext, ensureProductLinkInReply } from "../services/aiProductContext.js";
+import {
+  getConversationMemory,
+  updateConversationMemory,
+} from "../services/aiConversationMemory.js";
+import { extractShoeSize } from "../services/aiMessageExtractors.js";
+import { guardAIReply } from "../services/aiSafetyGuard.js";
+import { detectEscalation } from "../services/aiEscalationDetector.js";
+import { buildHumanizedReply } from "../services/aiHumanizedReplies.js";
+import { isDuplicateMessage } from "../services/aiMessageDeduplication.js";
+import { getAISettings, getAIToneInstruction, updateAISettings, wasAISettingsPersisted } from "../services/aiSettingsService.js";
+import { buildSuggestedReplies } from "../services/aiSuggestedReplies.js";
+import {
+  getAIChannelSettings,
+  updateAIChannelSettings,
+} from "../services/aiChannelSettingsService.js";
+import { resolveAIStatus } from "../services/aiStatusResolver.js";
+import {
+  AI_AGENT_CHANNELS,
+  extractMetaWebhookMessages,
+  extractWhatsAppWebhookMessages,
+  getAiChannelsStatus,
+  getChannelSettings,
+  linkChannelConversationToCustomerProfile,
+  logChannelEvent,
+  normalizeOutgoingChannelReply,
+  resolveTenantIdForChannelAccount,
+  sendMetaPageReply,
+  sendWhatsAppCloudReply,
+  updateChannelSettings,
+  upsertChannelConversationMapping,
+  verifyMetaWebhookSignature,
+} from "../services/aiChannelAdapterService.js";
+import {
+  confirmAiOrder,
+  createAiOrderDraft,
+  listAiOrderDrafts,
+  searchAiOrderProducts,
+  updateAiOrderStatus,
+} from "../services/aiAgentOrderService.js";
+import {
+  buildAiSalesCloserPlan,
+  buildAiSalesCloserLookupKeys,
+  createAiStockReservation,
+  cancelAiFollowup,
+  completeAiFollowup,
+  generateAiInboxReply,
+  generateAiSuggestedReplies,
+  listAiFollowups,
+  loadAiInboxMessages,
+  loadAiInboxRecommendations,
+  loadAiInbox,
+  loadAiSalesAnalytics,
+  parseAiSalesCloserIntent,
+  sendAiFollowupManual,
+  snoozeAiFollowup,
+} from "../services/aiSalesAgentService.js";
+import {
+  appendManualAiSupportReply,
+  assignAiSupportConversation,
+  getAiSupportConversationState,
+  markAiSupportConversationEscalated,
+  updateAiSupportConversationState,
+} from "../services/aiSupportLogService.js";
+
+const router = express.Router();
+const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").toLowerCase());
+const perfLog = (...args) => {
+  if (ERP_PERF_DEBUG) console.log(...args);
+};
+
+router.use((req, res, next) => {
+  if (!ERP_PERF_DEBUG) return next();
+  const startedAt = Date.now();
+  res.on("finish", () => {
+    console.log("[erp-perf] ai-agent", {
+      method: req.method,
+      path: req.originalUrl || req.url,
+      status: res.statusCode,
+      total_ms: Date.now() - startedAt,
+    });
+  });
+  next();
+});
+
+const toTenantId = (req) => {
+  if (req.user) return isSuperAdminUser(req.user) ? Number(req.query?.tenant_id || req.body?.tenant_id || req.user?.tenant_id || 1) : getTenantId(req, req.user?.tenant_id);
+  const parsed = Number(req.body?.tenant_id || req.headers?.["x-tenant-id"]);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+};
+
+const sendError = (res, error, fallback = "AI order request failed") =>
+  res.status(error?.status || 500).json({
+    success: false,
+    message: error?.message || fallback,
+    code: error?.code || "",
+    routeName: error?.routeName,
+    insertLabel: error?.insertLabel,
+    columnsCount: error?.columnsCount,
+    paramsCount: error?.paramsCount,
+    sqlSnippetLabel: error?.sqlSnippetLabel,
+    product: error?.product || null,
+  });
+
+const userDisplayName = (user = {}) =>
+  String(user.name || user.full_name || user.username || user.email || user.role_name || user.role || "Staff").trim();
+
+const envText = (value = "") => String(value ?? "").trim();
+const decodeRouteId = (value = "") => {
+  const raw = envText(value);
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+};
+
+const whatsappEnabled = () => String(process.env.WHATSAPP_ENABLED || "false").toLowerCase() === "true";
+const channelEnvEnabled = (channel) => {
+  if (channel === AI_AGENT_CHANNELS.INSTAGRAM) return String(process.env.INSTAGRAM_ENABLED || "false").toLowerCase() === "true";
+  if (channel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) return String(process.env.FACEBOOK_MESSENGER_ENABLED || "false").toLowerCase() === "true";
+  return whatsappEnabled();
+};
+
+const resolveWhatsappTenantId = async (req, metadata = {}) => {
+  const explicit = Number(req.query?.tenant_id || req.body?.tenant_id || metadata?.tenant_id);
+  if (Number.isFinite(explicit) && explicit > 0) return Math.trunc(explicit);
+  const mapped = await resolveTenantIdForChannelAccount({
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    accountId: metadata?.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+  }).catch(() => null);
+  if (mapped) return mapped;
+  const parsed = Number(process.env.WHATSAPP_TENANT_ID || 1);
+  if (Number.isFinite(parsed) && parsed > 0) return Math.trunc(parsed);
+  return null;
+};
+
+const resolveMetaTenantId = async (req, accountId = "") => {
+  const explicit = Number(req.query?.tenant_id || req.body?.tenant_id);
+  if (Number.isFinite(explicit) && explicit > 0) return Math.trunc(explicit);
+  const mapped = await resolveTenantIdForChannelAccount({
+    channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+    accountId: accountId || process.env.META_PAGE_ID || process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID || "",
+  }).catch(() => null);
+  if (mapped) return mapped;
+  const parsed = Number(process.env.META_TENANT_ID || process.env.WHATSAPP_TENANT_ID || 1);
+  if (Number.isFinite(parsed) && parsed > 0) return Math.trunc(parsed);
+  return null;
+};
+
+const aiSupportBaseUrl = (req) =>
+  envText(process.env.INTERNAL_AI_SUPPORT_URL) || (process.env.PORT ? `http://127.0.0.1:${process.env.PORT}` : `${req.protocol || "http"}://${req.get("host")}`);
+
+const routeChannelMessageThroughAi = async ({ req, tenantId, message, channel }) => {
+  const globalSettings = await getAISettings();
+  const channelAISettings = await getAIChannelSettings(channel, channel);
+  const effectiveTone = channelAISettings.tone || globalSettings.tone || "casual";
+  const response = await fetch(`${aiSupportBaseUrl(req).replace(/\/+$/, "")}/api/ai-support/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-tenant-id": String(tenantId),
+    },
+    body: JSON.stringify({
+      tenant_id: tenantId,
+      message: message.message_text || "Customer sent an attachment",
+      session_id: message.external_conversation_id,
+      metadata: {
+        session_id: message.external_conversation_id,
+        customer_id: message.external_customer_id,
+        customer_phone: message.external_customer_id,
+        customer_name: message.customer_name,
+        channel,
+        external_conversation_id: message.external_conversation_id,
+        external_customer_id: message.external_customer_id,
+        ai_tone: effectiveTone,
+        ai_tone_instruction: getAIToneInstruction(effectiveTone),
+        attachments: message.attachments || [],
+        timestamp: message.timestamp,
+      },
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw Object.assign(new Error(payload?.message || "AI support flow failed"), { status: response.status, responseBody: payload });
+  }
+  return payload;
+};
+
+const shouldSendWhatsappReply = (payload = {}) =>
+  payload?.auto_response_paused !== true &&
+  !["human_takeover", "closed"].includes(String(payload?.conversation_status || payload?.detected_intent || "").toLowerCase());
+
+const escalateToHuman = async ({ tenantId, conversationId, channel, message, escalation } = {}) => {
+  const conversation = await markAiSupportConversationEscalated({
+    tenantId,
+    sessionId: conversationId,
+    reason: escalation?.reason || "CUSTOMER_RISK_OR_COMPLAINT",
+    keyword: escalation?.keyword || "",
+    source: "ai_escalation",
+  });
+  pushAIEvent({
+    type: "AI_ESCALATED_TO_HUMAN",
+    status: "warning",
+    conversationId,
+    platform: channel,
+    reason: escalation?.reason || "CUSTOMER_RISK_OR_COMPLAINT",
+    keyword: escalation?.keyword || "",
+  });
+  console.log("ai_escalated_to_human", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    channel,
+    reason: escalation?.reason || "",
+    keyword: escalation?.keyword || "",
+  });
+  return {
+    conversation,
+    result: {
+      channel,
+      external_customer_id: message?.external_customer_id || "",
+      conversation_id: conversationId,
+      sent: false,
+      reason: escalation?.reason || "CUSTOMER_RISK_OR_COMPLAINT",
+      keyword: escalation?.keyword || "",
+    },
+  };
+};
+
+const normalizeReturnedToAIConversation = (conversation = {}) => ({
+  ...conversation,
+  status: "ai_active",
+  conversation_status: "ai_active",
+  closed: false,
+  human_takeover: false,
+  ai_paused: false,
+  assigned_staff_id: null,
+  assigned_user_id: null,
+  assigned_user_name: "",
+  assigned_user: null,
+  takeover_started_at: null,
+  taken_over_at: null,
+  closed_at: null,
+  escalation_reason: null,
+  ai_escalation_reason: null,
+  last_escalation_keyword: null,
+  escalated_at: null,
+});
+
+const rememberProduct = (productContext = null) => {
+  if (!productContext) return null;
+  return {
+    id: productContext.id,
+    slug: productContext.slug,
+    name: productContext.name,
+    brand: productContext.brand || "",
+    model: productContext.model || "",
+    price: productContext.salePrice || productContext.price,
+    salePrice: productContext.salePrice,
+    imageUrl: productContext.imageUrl || "",
+    productUrl: productContext.productUrl || "",
+    inStock: productContext.inStock,
+    sizes: productContext.sizes || [],
+  };
+};
+
+const productImageAttachments = (productContext = null) =>
+  productContext?.imageUrl
+    ? [{ type: "image", url: productContext.imageUrl }]
+    : [];
+
+const logProductShareContext = ({ conversationId = "", platform = "", productContext = null, includeImage = false } = {}) => {
+  if (!productContext?.id) return;
+  if (productContext.productUrl) {
+    pushAIEvent({
+      type: "PRODUCT_LINK_ATTACHED",
+      status: "success",
+      conversationId,
+      platform,
+      productId: productContext.id,
+      productUrl: productContext.productUrl,
+    });
+  }
+  if (includeImage && productContext.imageUrl) {
+    pushAIEvent({
+      type: "PRODUCT_IMAGE_ATTACHED",
+      status: "success",
+      conversationId,
+      platform,
+      productId: productContext.id,
+    });
+  }
+};
+
+const commerceReplyForIntent = (intent = "", productContext = null, detectedSize = null) => {
+  if (productContext?.name) {
+    const price = productContext.salePrice || productContext.price;
+    const sizes = Array.isArray(productContext.sizes) ? productContext.sizes.map((size) => String(size)) : [];
+    if (detectedSize && sizes.length) {
+      return sizes.includes(String(detectedSize))
+        ? `أيوه  مقاس ${detectedSize} متاح حاليا في ${productContext.name}.`
+        : `للأسف مقاس ${detectedSize} مش ظاهر متاح حاليا في ${productContext.name}.`;
+    }
+    if (intent === "PRICE_INQUIRY" && price) {
+      return `سعر ${productContext.name} حاليا ${price} جنيه `;
+    }
+    if (intent === "AVAILABILITY_INQUIRY") {
+      return productContext.inStock
+        ? `أيوه  ${productContext.name} متوفر حاليا.`
+        : `للأسف ${productContext.name} غير متوفر حاليا.`;
+    }
+    if (intent === "SIZE_INQUIRY" && productContext.sizes?.length) {
+      return `المقاسات المتاحة حاليا لـ ${productContext.name}: ${productContext.sizes.join(", ")} `;
+    }
+  }
+  switch (intent) {
+    case "SIZE_INQUIRY":
+      return "أكيد  ابعتلي المقاس اللي بتلبسه عادة أو طول القدم وأنا أساعدك تختار المقاس المناسب.";
+    case "PRICE_INQUIRY":
+      return "أكيد  هقولك السعر الحالي والمتاح دلوقتي.";
+    case "AVAILABILITY_INQUIRY":
+      return "ثانية واحدة أتأكدلك من التوفر الحالي والمقاسات المتاحة ";
+    default:
+      return "";
+  }
+};
+
+const firstProductFromPayload = (payload = {}) => {
+  const candidates = [
+    payload?.product_context,
+    payload?.reply?.product_context,
+    payload?.channel_reply?.product_context,
+    ...(Array.isArray(payload?.suggested_products) ? payload.suggested_products : []),
+    ...(Array.isArray(payload?.reply?.suggested_products) ? payload.reply.suggested_products : []),
+    ...(Array.isArray(payload?.channel_reply?.suggested_products) ? payload.channel_reply.suggested_products : []),
+    ...(Array.isArray(payload?.visual_attachments)
+      ? payload.visual_attachments.flatMap((item) => Array.isArray(item?.items) ? item.items : [])
+      : []),
+    ...(Array.isArray(payload?.reply?.visual_attachments)
+      ? payload.reply.visual_attachments.flatMap((item) => Array.isArray(item?.items) ? item.items : [])
+      : []),
+  ];
+  return candidates.find((product) => product?.id || product?.product_id || product?.name || product?.title) || null;
+};
+
+const shouldAutoReplyToConversation = async ({ tenantId, conversationId, channel, settings = {}, payload = {} } = {}) => {
+  const state = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
+  const status = String(state?.status || payload?.conversation_status || "").toLowerCase();
+  const mode = envText(settings.auto_reply_mode || (settings.ai_replies_enabled === true ? "fully_automatic" : "off")).toLowerCase();
+  const globalSettings = await getAISettings();
+  const globalMode = envText(globalSettings.autoReplyMode || "suggest_only").toLowerCase();
+  const channelAISettings = await getAIChannelSettings(channel, channel);
+  const channelMode = envText(channelAISettings.aiMode || "suggest_only").toLowerCase();
+  const effectiveAutoReplyMode = globalMode !== "fully_automatic" ? globalMode : channelMode || "suggest_only";
+  const base = { tenant_id: tenantId, conversation_id: conversationId, channel, mode, global_mode: globalMode, channel_mode: channelMode, effective_mode: effectiveAutoReplyMode, status };
+  if (status === "human_takeover") {
+    pushAIEvent({
+      type: "HUMAN_TAKEOVER_ACTIVE",
+      status: "warning",
+      conversationId,
+      platform: channel,
+    });
+    console.log("ai_auto_reply_skipped_human_takeover", base);
+    return { ok: false, reason: "human_takeover", state, mode };
+  }
+  if (status === "closed" || payload?.auto_response_paused === true) {
+    console.log("ai_auto_reply_skipped_paused", { ...base, auto_response_paused: payload?.auto_response_paused === true });
+    return { ok: false, reason: "paused", state, mode };
+  }
+  if (globalMode === "off") {
+    pushAIEvent({
+      type: "AI_AUTO_REPLY_SKIPPED",
+      status: "warning",
+      conversationId,
+      platform: channel,
+      reason: "GLOBAL_OFF",
+    });
+    console.log("ai_auto_reply_skipped_global_mode", { ...base, reason: "GLOBAL_OFF" });
+    return { ok: false, reason: "GLOBAL_OFF", state, mode, channelSettings: channelAISettings };
+  }
+  if (globalMode !== "fully_automatic") {
+    pushAIEvent({
+      type: "AI_AUTO_REPLY_SKIPPED",
+      status: "warning",
+      conversationId,
+      platform: channel,
+      reason: "GLOBAL_SUGGEST_ONLY",
+    });
+    console.log("ai_auto_reply_skipped_global_mode", { ...base, reason: "GLOBAL_SUGGEST_ONLY" });
+    return { ok: false, reason: "GLOBAL_SUGGEST_ONLY", state, mode, channelSettings: channelAISettings };
+  }
+  if (channelMode === "off") {
+    pushAIEvent({
+      type: "AI_AUTO_REPLY_SKIPPED",
+      status: "warning",
+      conversationId,
+      platform: channel,
+      reason: "CHANNEL_OFF",
+    });
+    console.log("ai_auto_reply_skipped_channel_mode", { ...base, reason: "CHANNEL_OFF" });
+    return { ok: false, reason: "CHANNEL_OFF", state, mode, channelSettings: channelAISettings };
+  }
+  if (effectiveAutoReplyMode !== "fully_automatic") {
+    pushAIEvent({
+      type: "AI_AUTO_REPLY_SKIPPED",
+      status: "warning",
+      conversationId,
+      platform: channel,
+      reason: "CHANNEL_SUGGEST_ONLY",
+    });
+    console.log("ai_auto_reply_skipped_channel_mode", { ...base, reason: "CHANNEL_SUGGEST_ONLY" });
+    return { ok: false, reason: "CHANNEL_SUGGEST_ONLY", state, mode, channelSettings: channelAISettings };
+  }
+  if (settings.ai_replies_enabled !== true || mode !== "fully_automatic") {
+    pushAIEvent({
+      type: "AI_AUTO_REPLY_SKIPPED",
+      status: "warning",
+      conversationId,
+      platform: channel,
+      reason: mode === "off" ? "AUTO_REPLY_OFF" : "SUGGEST_ONLY",
+    });
+    console.log("ai_auto_reply_skipped_mode", { ...base, ai_replies_enabled: settings.ai_replies_enabled === true });
+    return { ok: false, reason: mode || "off", state, mode };
+  }
+  console.log("ai_auto_reply_triggered", base);
+  return { ok: true, reason: "fully_automatic", state, mode, channelSettings: channelAISettings };
+};
+
+const whatsappWebhookUrl = (req) =>
+  `${envText(process.env.PUBLIC_BACKEND_URL) || `${req.protocol || "http"}://${req.get("host")}`}/api/ai-agent/channels/whatsapp/webhook`;
+
+const metaWebhookUrl = (req) =>
+  `${envText(process.env.PUBLIC_BACKEND_URL) || `${req.protocol || "http"}://${req.get("host")}`}/api/ai-agent/channels/meta/webhook`;
+
+router.get("/test-sales-closer", (req, res) => {
+  res.json({
+    success: true,
+    mounted: true,
+    route: "GET /test-sales-closer",
+    expected_sales_closer: "GET /conversations/:conversationId/sales-closer",
+    prefix: req.baseUrl || "",
+    original_url: req.originalUrl || req.url,
+  });
+});
+
+router.get("/logs", protect, permit("settings", "view"), (req, res) => {
+  return res.json({
+    success: true,
+    logs: getAIEvents(),
+  });
+});
+
+router.post("/test-reply", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const channelId = envText(req.body?.channelId || req.body?.channel_id || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER);
+    const platform = envText(req.body?.platform || channelId);
+    const message = envText(req.body?.message);
+    const productId = Number(req.body?.productId || req.body?.product_id || 0);
+    const globalSettings = await getAISettings();
+    const channelSettings = await getAIChannelSettings(channelId, platform);
+    const intent = resolveIntent(message);
+    const detectedSize = extractShoeSize(message);
+    const escalation = detectEscalation(message);
+    const effectiveMode = globalSettings.autoReplyMode !== "fully_automatic"
+      ? globalSettings.autoReplyMode
+      : channelSettings.aiMode || "suggest_only";
+    const effectiveTone = channelSettings.tone || globalSettings.tone || "casual";
+    const testConversationId = `test:${channelId}`;
+    const memory = getConversationMemory(testConversationId) || getConversationMemory(channelId);
+    let productContext = null;
+    if (productId > 0) {
+      const products = await searchAiOrderProducts({
+        tenantId,
+        message: "",
+        metadata: { product_id: productId, matched_product_id: productId },
+      }).catch((error) => {
+        console.warn("ai_test_playground_product_lookup_failed", {
+          tenant_id: tenantId,
+          product_id: productId,
+          message: error?.message || "Product lookup failed",
+        });
+        return [];
+      });
+      const product = products.find((item) => Number(item.id || item.product_id) === productId) || products[0] || null;
+      productContext = product ? buildProductContext({
+        ...product,
+        price: product.product_price || product.price,
+        total_stock: product.total_stock,
+      }) : null;
+    }
+    const replyProductContext = productContext || buildProductContext(memory?.lastProduct);
+    const humanizedTestReply = buildHumanizedReply({
+      intent,
+      productContext: replyProductContext,
+      detectedSize,
+      conversationId: testConversationId,
+    });
+    const simulatedReply = humanizedTestReply || commerceReplyForIntent(intent, replyProductContext, detectedSize) ||
+      "تمام  أقدر أساعدك، ممكن تبعتلي اسم المنتج أو صورته؟";
+    const guarded = guardAIReply({
+      reply: simulatedReply,
+      intent,
+      productContext,
+      conversationMemory: memory,
+      detectedSize,
+    });
+    logProductShareContext({
+      conversationId: testConversationId,
+      platform,
+      productContext: replyProductContext,
+      includeImage: Boolean(replyProductContext?.imageUrl),
+    });
+    const result = {
+      intent,
+      effectiveMode,
+      effectiveTone,
+      productContext,
+      memory,
+      safetyReason: guarded.reason,
+      finalReply: ensureProductLinkInReply(guarded.reply, replyProductContext),
+      wouldSendAutomatically: effectiveMode === "fully_automatic" && guarded.allowed !== false,
+    };
+    pushAIEvent({
+      type: "AI_TEST_PLAYGROUND_RUN",
+      status: "success",
+      channelId,
+      intent,
+      safetyReason: guarded.reason,
+    });
+    return res.json({ success: true, result });
+  } catch (error) {
+    return sendError(res, error, "Failed to test AI reply");
+  }
+});
+
+const handleAISuggestedReplies = async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.body?.conversationId || req.body?.conversation_id);
+    const channelId = envText(req.body?.channelId || req.body?.channel_id || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER);
+    const platform = envText(req.body?.platform || channelId);
+    const message = envText(req.body?.message);
+    const productId = Number(req.body?.productId || req.body?.product_id || 0);
+    const globalSettings = await getAISettings();
+    const channelSettings = await getAIChannelSettings(channelId, platform);
+    const intent = resolveIntent(message);
+    const detectedSize = extractShoeSize(message);
+    const escalation = detectEscalation(message);
+    const effectiveMode = globalSettings.autoReplyMode !== "fully_automatic"
+      ? globalSettings.autoReplyMode
+      : channelSettings.aiMode || "suggest_only";
+    const effectiveTone = channelSettings.tone || globalSettings.tone || "casual";
+    const memory = getConversationMemory(conversationId) || getConversationMemory(channelId);
+    let productContext = null;
+
+    if (productId > 0) {
+      const products = await searchAiOrderProducts({
+        tenantId,
+        message: "",
+        metadata: { product_id: productId, matched_product_id: productId },
+      }).catch((error) => {
+        console.warn("ai_suggested_replies_product_lookup_failed", {
+          tenant_id: tenantId,
+          product_id: productId,
+          message: error?.message || "Product lookup failed",
+        });
+        return [];
+      });
+      const product = products.find((item) => Number(item.id || item.product_id) === productId) || products[0] || null;
+      productContext = product ? buildProductContext({
+        ...product,
+        price: product.product_price || product.price,
+        total_stock: product.total_stock,
+      }) : null;
+    }
+
+    const replyProductContext = productContext || buildProductContext(memory?.lastProduct);
+    const humanizedSuggestedReply = buildHumanizedReply({
+      intent,
+      productContext: replyProductContext,
+      detectedSize,
+      conversationId,
+    });
+    const baseReply = escalation.shouldEscalate
+      ? "واضح إن فيه مشكلة محتاجة متابعة من أحد أفراد الفريق. هحوّل المحادثة لموظف يساعدك فورًا "
+      : humanizedSuggestedReply || commerceReplyForIntent(intent, replyProductContext, detectedSize) ||
+      "تمام أقدر أساعدك، ممكن تبعتلي اسم المنتج أو صورته؟";
+    const guarded = guardAIReply({
+      reply: baseReply,
+      intent,
+      productContext,
+      conversationMemory: memory,
+      detectedSize,
+    });
+    logProductShareContext({
+      conversationId,
+      platform,
+      productContext: replyProductContext,
+      includeImage: Boolean(replyProductContext?.imageUrl),
+    });
+    if (!escalation.shouldEscalate && humanizedSuggestedReply) {
+      pushAIEvent({
+        type: "HUMANIZED_REPLY_USED",
+        status: "success",
+        conversationId,
+        platform,
+        intent,
+      });
+    }
+    const suggestions = buildSuggestedReplies(ensureProductLinkInReply(guarded.reply, replyProductContext), {
+      productContext: replyProductContext,
+      memory,
+    });
+
+    if (escalation.shouldEscalate) {
+      pushAIEvent({
+        type: "AI_ESCALATED_TO_HUMAN",
+        status: "warning",
+        conversationId,
+        platform,
+        reason: escalation.reason,
+        keyword: escalation.keyword,
+      });
+    }
+
+    pushAIEvent({
+      type: "AI_SUGGESTED_REPLIES_GENERATED",
+      status: "success",
+      conversationId,
+      count: suggestions.length,
+      intent,
+      escalationReason: escalation.reason || undefined,
+    });
+
+    return res.json({
+      success: true,
+      suggestions,
+      meta: {
+        intent,
+        effectiveMode,
+        effectiveTone,
+        safetyReason: guarded.reason,
+        productContext: replyProductContext,
+        escalated: escalation.shouldEscalate,
+        escalationReason: escalation.reason,
+        escalationKeyword: escalation.keyword,
+      },
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to generate suggested replies");
+  }
+};
+
+router.post("/suggested-replies", protect, permit("settings", "view"), handleAISuggestedReplies);
+router.post("/sugested-replies", protect, permit("settings", "view"), handleAISuggestedReplies);
+
+router.post("/orders/draft", async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await createAiOrderDraft({ ...req.body, tenant_id: tenantId });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to create AI order draft");
+  }
+});
+
+router.post("/orders/confirm", async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await confirmAiOrder({ ...req.body, tenant_id: tenantId, user_id: req.user?.id || null });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to confirm AI order");
+  }
+});
+
+router.get("/orders/drafts", protect, permit("orders", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const drafts = await listAiOrderDrafts({ tenantId, limit: req.query?.limit });
+    return res.json({ success: true, drafts });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI order drafts");
+  }
+});
+
+router.patch("/orders/:id/status", protect, permit("orders", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const order = await updateAiOrderStatus({ tenantId, orderId: Number(req.params.id), status: String(req.body?.status || "") });
+    if (!order) return res.status(404).json({ success: false, message: "AI order not found" });
+    return res.json({ success: true, order });
+  } catch (error) {
+    return sendError(res, error, "Failed to update AI order");
+  }
+});
+
+router.get("/channels/whatsapp/webhook", (req, res) => {
+  const mode = envText(req.query?.["hub.mode"]);
+  const token = envText(req.query?.["hub.verify_token"]);
+  const challenge = envText(req.query?.["hub.challenge"]);
+  const expected = envText(process.env.META_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN);
+  if (mode === "subscribe" && expected && token === expected) {
+    return res.status(200).send(challenge);
+  }
+  return res.status(403).send("Forbidden");
+});
+
+router.post("/channels/whatsapp/webhook", async (req, res) => {
+  try {
+    if (!whatsappEnabled()) {
+      console.warn("[ai-agent:whatsapp] webhook received while disabled");
+      return res.status(200).json({ success: true, disabled: true });
+    }
+    const signatureOk = verifyMetaWebhookSignature({
+      rawBody: req.rawBody,
+      signature: req.headers?.["x-hub-signature-256"],
+      appSecret: process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET,
+    });
+    if (!signatureOk) {
+      console.warn("[ai-agent:whatsapp] invalid webhook signature");
+      return res.status(403).json({ success: false, message: "Invalid signature" });
+    }
+    const hasStatuses = req.body?.entry?.some?.((entry) =>
+      entry?.changes?.some?.((change) => Array.isArray(change?.value?.statuses) && change.value.statuses.length > 0)
+    );
+    const metadata = req.body?.entry?.[0]?.changes?.[0]?.value?.metadata || {};
+    const tenantId = await resolveWhatsappTenantId(req, metadata);
+    if (!tenantId) return res.status(400).json({ success: false, message: "A valid tenant id is required" });
+    const messages = extractWhatsAppWebhookMessages({ body: req.body, tenantId });
+    if (!messages.length) {
+      return res.status(200).json({ success: true, ignored: hasStatuses ? "status_update" : "no_messages" });
+    }
+    const results = [];
+    for (const message of messages) {
+      if (!message.message_text && !message.attachments?.length) {
+        results.push({ external_customer_id: message.external_customer_id, ignored: "empty_message" });
+        continue;
+      }
+      await logChannelEvent({
+        tenantId,
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        direction: "inbound",
+        externalCustomerId: message.external_customer_id,
+        conversationId: message.external_conversation_id,
+        messagePreview: message.message_text || "[attachment]",
+        status: "received",
+        metadata: { attachment_count: message.attachments?.length || 0 },
+      }).catch(() => {});
+      await upsertChannelConversationMapping({
+        tenantId,
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        externalConversationId: message.external_conversation_id,
+        externalCustomerId: message.external_customer_id,
+        customerName: message.customer_name,
+        metadata: {
+          phone_number_id: metadata.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+          display_phone_number: metadata.display_phone_number || "",
+          channel: AI_AGENT_CHANNELS.WHATSAPP,
+        },
+        lastMessageAt: message.timestamp,
+      }).catch((error) => {
+        console.warn("[ai-agent:whatsapp] mapping upsert skipped", { tenantId, message: error?.message });
+      });
+      const escalation = detectEscalation(message.message_text || "");
+      if (escalation.shouldEscalate) {
+        const escalated = await escalateToHuman({
+          tenantId,
+          conversationId: message.external_conversation_id,
+          channel: AI_AGENT_CHANNELS.WHATSAPP,
+          message,
+          escalation,
+        });
+        results.push(escalated.result);
+        continue;
+      }
+      let aiPayload = null;
+      try {
+        aiPayload = await routeChannelMessageThroughAi({ req, tenantId, message, channel: AI_AGENT_CHANNELS.WHATSAPP });
+        await linkChannelConversationToCustomerProfile({
+          tenantId,
+          channel: AI_AGENT_CHANNELS.WHATSAPP,
+          externalConversationId: message.external_conversation_id,
+          externalCustomerId: message.external_customer_id,
+        }).catch((error) => {
+          console.warn("[ai-agent:whatsapp] profile mapping skipped", { tenantId, message: error?.message });
+        });
+      } catch (error) {
+        console.error("[ai-agent:whatsapp] AI flow failed", {
+          tenantId,
+          external_customer_id: message.external_customer_id,
+          message: error?.message,
+          status: error?.status,
+        });
+        results.push({ external_customer_id: message.external_customer_id, ai_error: error?.message || "AI flow failed" });
+        continue;
+      }
+      const channelSettings = await getChannelSettings({ tenantId, channel: AI_AGENT_CHANNELS.WHATSAPP }).catch(() => ({}));
+      const autoReplyMode = envText(channelSettings.auto_reply_mode || (channelSettings.ai_replies_enabled === true ? "fully_automatic" : "off")).toLowerCase();
+      if (channelSettings.ai_replies_enabled !== true || autoReplyMode !== "fully_automatic" || !shouldSendWhatsappReply(aiPayload)) {
+        results.push({
+          external_customer_id: message.external_customer_id,
+          conversation_id: message.external_conversation_id,
+          sent: false,
+          reason: channelSettings.ai_replies_enabled === true ? autoReplyMode || "ai_paused" : "channel_ai_replies_disabled",
+        });
+        continue;
+      }
+      const reply = aiPayload.channel_reply || normalizeOutgoingChannelReply({ channel: AI_AGENT_CHANNELS.WHATSAPP, response: aiPayload });
+      const productContext = buildProductContext(firstProductFromPayload(aiPayload));
+      const replyProductContext = productContext || buildProductContext(getConversationMemory(message.external_conversation_id)?.lastProduct);
+      const whatsappReplyText = ensureProductLinkInReply(reply.text || aiPayload.answer || "", replyProductContext);
+      const whatsappReply = {
+        ...reply,
+        text: whatsappReplyText,
+        visual_attachments: [
+          ...productImageAttachments(replyProductContext).map((attachment) => ({
+            type: "product_image",
+            image_url: attachment.url,
+            url: attachment.url,
+          })),
+          ...(Array.isArray(reply.visual_attachments) ? reply.visual_attachments : []),
+        ],
+      };
+      logProductShareContext({
+        conversationId: message.external_conversation_id,
+        platform: AI_AGENT_CHANNELS.WHATSAPP,
+        productContext: replyProductContext,
+        includeImage: Boolean(replyProductContext?.imageUrl),
+      });
+      try {
+        const sendResult = await sendWhatsAppCloudReply({
+          to: message.external_customer_id,
+          reply: whatsappReply,
+          messageText: whatsappReplyText,
+        });
+        results.push({
+          external_customer_id: message.external_customer_id,
+          conversation_id: message.external_conversation_id,
+          sent: sendResult.sent,
+        });
+        await logChannelEvent({
+          tenantId,
+          channel: AI_AGENT_CHANNELS.WHATSAPP,
+          direction: "outbound",
+          externalCustomerId: message.external_customer_id,
+          conversationId: message.external_conversation_id,
+          messagePreview: whatsappReplyText,
+          status: sendResult.sent ? "sent" : "not_sent",
+          metadata: { result_count: sendResult.results?.length || 0 },
+        }).catch(() => {});
+      } catch (error) {
+        console.error("[ai-agent:whatsapp] send failed", {
+          tenantId,
+          to: message.external_customer_id,
+          code: error?.code,
+          status: error?.status,
+          message: error?.message,
+        });
+        results.push({
+          external_customer_id: message.external_customer_id,
+          conversation_id: message.external_conversation_id,
+          sent: false,
+          send_error: error?.message || "WhatsApp send failed",
+        });
+        await logChannelEvent({
+          tenantId,
+          channel: AI_AGENT_CHANNELS.WHATSAPP,
+          direction: "outbound",
+          externalCustomerId: message.external_customer_id,
+          conversationId: message.external_conversation_id,
+          messagePreview: reply.text || aiPayload.answer || "",
+          status: "failed",
+          error: error?.message || "WhatsApp send failed",
+          metadata: { code: error?.code || "", status: error?.status || "" },
+        }).catch(() => {});
+      }
+    }
+    return res.status(200).json({ success: true, processed: results.length, results });
+  } catch (error) {
+    console.error("[ai-agent:whatsapp] webhook error", { message: error?.message, stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined });
+    return res.status(200).json({ success: false, message: "WhatsApp webhook handled with errors" });
+  }
+});
+
+router.get("/channels/meta/webhook", (req, res) => {
+  const mode = envText(req.query?.["hub.mode"]);
+  const token = envText(req.query?.["hub.verify_token"]);
+  const challenge = envText(req.query?.["hub.challenge"]);
+  const expected = envText(process.env.META_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN);
+  if (mode === "subscribe" && expected && token === expected) {
+    return res.status(200).send(challenge);
+  }
+  return res.status(403).send("Forbidden");
+});
+
+router.post("/channels/meta/webhook", async (req, res) => {
+  try {
+    const signatureOk = verifyMetaWebhookSignature({
+      rawBody: req.rawBody,
+      signature: req.headers?.["x-hub-signature-256"],
+      appSecret: process.env.META_APP_SECRET,
+    });
+    if (!signatureOk) {
+      console.warn("[ai-agent:meta] invalid webhook signature");
+      return res.status(403).json({ success: false, message: "Invalid signature" });
+    }
+    const hasOnlyEchoes = req.body?.entry?.some?.((entry) =>
+      entry?.messaging?.some?.((event) => event.read || event.delivery || event.message?.is_echo)
+    );
+    const accountId = req.body?.entry?.[0]?.id || req.body?.entry?.[0]?.messaging?.[0]?.recipient?.id || "";
+    const tenantId = await resolveMetaTenantId(req, accountId);
+    if (!tenantId) return res.status(400).json({ success: false, message: "A valid tenant id is required" });
+    const messages = extractMetaWebhookMessages({ body: req.body, tenantId })
+      .filter((message) => message.message_text || message.attachments?.length);
+    if (!messages.length) {
+      return res.status(200).json({ success: true, ignored: hasOnlyEchoes ? "read_delivery_or_echo" : "no_messages" });
+    }
+    const results = [];
+    for (const message of messages) {
+      const channel = message.channel;
+      const conversationId = message.external_conversation_id;
+      const customerMessage = message.message_text || "";
+      const messageId = envText(message.external_message_id || message.dedupe_key || "");
+      if (isDuplicateMessage(messageId)) {
+        pushAIEvent({
+          type: "DUPLICATE_MESSAGE_SKIPPED",
+          status: "warning",
+          conversationId,
+          platform: channel,
+          messageId,
+        });
+        results.push({
+          channel,
+          external_customer_id: message.external_customer_id,
+          conversation_id: conversationId,
+          sent: false,
+          duplicate: true,
+          reason: "duplicate_message",
+        });
+        continue;
+      }
+      const intent = resolveIntent(message.message_text || "");
+      const detectedSize = extractShoeSize(customerMessage);
+      updateConversationMemory(conversationId, {
+        lastIntent: intent,
+        ...(detectedSize ? { lastSize: detectedSize } : {}),
+      });
+      pushAIEvent({
+        type: "MESSAGE_RECEIVED",
+        status: "success",
+        conversationId,
+        platform: channel,
+      });
+      pushAIEvent({
+        type: "INTENT_DETECTED",
+        status: "success",
+        conversationId,
+        platform: channel,
+        intent,
+      });
+      pushAIEvent({
+        type: "CONVERSATION_MEMORY_UPDATED",
+        status: "success",
+        conversationId,
+        platform: channel,
+        memory: {
+          lastIntent: intent,
+          lastSize: detectedSize || undefined,
+        },
+      });
+      await logChannelEvent({
+        tenantId,
+        channel,
+        direction: "inbound",
+        externalCustomerId: message.external_customer_id,
+        conversationId,
+        messagePreview: message.message_text || "[attachment]",
+        status: "received",
+        metadata: { attachment_count: message.attachments?.length || 0, account_id: accountId },
+      }).catch(() => {});
+      await upsertChannelConversationMapping({
+        tenantId,
+        channel,
+        externalConversationId: conversationId,
+        externalCustomerId: message.external_customer_id,
+        customerName: message.customer_name,
+        metadata: {
+          page_id: process.env.META_PAGE_ID || accountId || "",
+          instagram_business_account_id: process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID || "",
+          account_id: accountId || "",
+          channel,
+        },
+        lastMessageAt: message.timestamp,
+      }).catch((error) => {
+        console.warn("[ai-agent:meta] mapping upsert skipped", { tenantId, channel, message: error?.message });
+      });
+      const escalation = detectEscalation(message.message_text || "");
+      if (escalation.shouldEscalate) {
+        const escalated = await escalateToHuman({
+          tenantId,
+          conversationId,
+          channel,
+          message,
+          escalation,
+        });
+        results.push(escalated.result);
+        continue;
+      }
+      const preState = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
+      if (preState?.status === "human_takeover") {
+        pushAIEvent({
+          type: "HUMAN_TAKEOVER_ACTIVE",
+          status: "warning",
+          conversationId: message.external_conversation_id,
+          platform: channel,
+        });
+        console.log("ai_auto_reply_skipped_human_takeover", {
+          tenant_id: tenantId,
+          conversation_id: message.external_conversation_id,
+          channel,
+          status: preState.status,
+          phase: "before_ai_generation",
+        });
+        results.push({
+          channel,
+          external_customer_id: message.external_customer_id,
+          conversation_id: message.external_conversation_id,
+          sent: false,
+          reason: "human_takeover",
+        });
+        continue;
+      }
+      if (preState?.status === "closed") {
+        console.log("ai_auto_reply_skipped_paused", {
+          tenant_id: tenantId,
+          conversation_id: message.external_conversation_id,
+          channel,
+          status: preState.status,
+          phase: "before_ai_generation",
+        });
+        results.push({
+          channel,
+          external_customer_id: message.external_customer_id,
+          conversation_id: message.external_conversation_id,
+          sent: false,
+          reason: "closed",
+        });
+        continue;
+      }
+      let aiPayload = null;
+      try {
+        aiPayload = await routeChannelMessageThroughAi({ req, tenantId, message, channel });
+        pushAIEvent({
+          type: "AI_REPLY_GENERATED",
+          status: "success",
+          conversationId: message.external_conversation_id,
+          platform: channel,
+        });
+        await linkChannelConversationToCustomerProfile({
+          tenantId,
+          channel,
+          externalConversationId: message.external_conversation_id,
+          externalCustomerId: message.external_customer_id,
+        }).catch((error) => {
+          console.warn("[ai-agent:meta] profile mapping skipped", { tenantId, channel, message: error?.message });
+        });
+      } catch (error) {
+        console.error("[ai-agent:meta] AI flow failed", {
+          tenantId,
+          channel,
+          external_customer_id: message.external_customer_id,
+          message: error?.message,
+          status: error?.status,
+        });
+        results.push({ channel, external_customer_id: message.external_customer_id, ai_error: error?.message || "AI flow failed" });
+        continue;
+      }
+      const channelSettings = await getChannelSettings({ tenantId, channel }).catch(() => ({}));
+      const autoReplyDecision = await shouldAutoReplyToConversation({
+        tenantId,
+        conversationId: message.external_conversation_id,
+        channel,
+        settings: channelSettings,
+        payload: aiPayload,
+      });
+      if (!autoReplyDecision.ok || !shouldSendWhatsappReply(aiPayload)) {
+        results.push({
+          channel,
+          external_customer_id: message.external_customer_id,
+          conversation_id: message.external_conversation_id,
+          sent: false,
+          reason: autoReplyDecision.reason,
+        });
+        continue;
+      }
+      const reply = aiPayload.channel_reply || normalizeOutgoingChannelReply({ channel, response: aiPayload });
+      const productContext = buildProductContext(firstProductFromPayload(aiPayload));
+      const conversationMemory = getConversationMemory(conversationId);
+      const replyProductContext = productContext || buildProductContext(conversationMemory?.lastProduct);
+      if (productContext) {
+        const lastProduct = rememberProduct(productContext);
+        updateConversationMemory(conversationId, { lastProduct });
+        pushAIEvent({
+          type: "PRODUCT_CONTEXT_ATTACHED",
+          status: "success",
+          conversationId,
+          platform: channel,
+          productId: productContext.id,
+          productName: productContext.name,
+        });
+        pushAIEvent({
+          type: "CONVERSATION_MEMORY_UPDATED",
+          status: "success",
+          conversationId,
+          platform: channel,
+          memory: {
+            lastIntent: intent,
+            lastSize: detectedSize || conversationMemory?.lastSize || undefined,
+            lastProduct: productContext.name,
+          },
+        });
+      }
+      const humanizedReply = buildHumanizedReply({
+        intent,
+        productContext: replyProductContext,
+        detectedSize,
+        conversationId,
+      });
+      const candidateReply = humanizedReply || commerceReplyForIntent(intent, replyProductContext, detectedSize) || reply.text || aiPayload.answer || "";
+      if (humanizedReply) {
+        pushAIEvent({
+          type: "HUMANIZED_REPLY_USED",
+          status: "success",
+          conversationId,
+          platform: channel,
+          intent,
+        });
+      }
+      const guarded = guardAIReply({
+        reply: candidateReply,
+        intent,
+        productContext,
+        conversationMemory,
+        detectedSize,
+      });
+      const replyText = ensureProductLinkInReply(guarded.reply, replyProductContext);
+      const outboundAttachments = productImageAttachments(replyProductContext);
+      logProductShareContext({
+        conversationId: message.external_conversation_id,
+        platform: channel,
+        productContext: replyProductContext,
+        includeImage: outboundAttachments.length > 0,
+      });
+      pushAIEvent({
+        type: "AI_SAFETY_GUARD",
+        status: guarded.reason === "OK" ? "success" : "warning",
+        conversationId,
+        platform: channel,
+        reason: guarded.reason,
+      });
+      try {
+        const sendResult = await sendMetaInboxOutboundMessage({
+          tenantId,
+          channel,
+          messageText: replyText,
+          recipientId: message.external_customer_id,
+          conversationId: message.external_conversation_id,
+          attachments: outboundAttachments,
+          productCards: reply.product_cards || aiPayload.suggested_products || [],
+        });
+        results.push({ channel, external_customer_id: message.external_customer_id, conversation_id: message.external_conversation_id, sent: sendResult.sent });
+        pushAIEvent({
+          type: "MESSAGE_SENT",
+          status: "success",
+          conversationId: message.external_conversation_id,
+          platform: channel,
+        });
+        console.log("ai_auto_reply_sent", {
+          tenant_id: tenantId,
+          conversation_id: message.external_conversation_id,
+          channel,
+          message_id: sendResult.message_id || "",
+        });
+        await logChannelEvent({
+          tenantId,
+          channel,
+          direction: "outbound",
+          externalCustomerId: message.external_customer_id,
+          conversationId: message.external_conversation_id,
+          messagePreview: replyText,
+          status: sendResult.sent ? "sent" : "not_sent",
+          metadata: { result_count: sendResult.results?.length || 0 },
+        }).catch(() => {});
+      } catch (error) {
+        console.error("[ai-agent:meta] send failed", {
+          tenantId,
+          channel,
+          to: message.external_customer_id,
+          code: error?.code,
+          status: error?.status,
+          message: error?.message,
+        });
+        results.push({ channel, external_customer_id: message.external_customer_id, conversation_id: message.external_conversation_id, sent: false, send_error: error?.message || "Meta send failed" });
+        pushAIEvent({
+          type: "MESSAGE_SEND_FAILED",
+          status: "error",
+          conversationId: message.external_conversation_id,
+          platform: channel,
+          error: error?.message || "Unknown error",
+        });
+        await logChannelEvent({
+          tenantId,
+          channel,
+          direction: "outbound",
+          externalCustomerId: message.external_customer_id,
+          conversationId: message.external_conversation_id,
+          messagePreview: replyText,
+          status: "failed",
+          error: error?.message || "Meta send failed",
+          metadata: { code: error?.code || "", status: error?.status || "" },
+        }).catch(() => {});
+      }
+    }
+    return res.status(200).json({ success: true, processed: results.length, results });
+  } catch (error) {
+    console.error("[ai-agent:meta] webhook error", { message: error?.message, stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined });
+    return res.status(200).json({ success: false, message: "Meta webhook handled with errors" });
+  }
+});
+
+router.get("/channels/status", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const status = await getAiChannelsStatus({ tenantId });
+    const globalSettings = await getAISettings();
+    const [whatsappAISettings, instagramAISettings, facebookAISettings] = await Promise.all([
+      getAIChannelSettings(AI_AGENT_CHANNELS.WHATSAPP, AI_AGENT_CHANNELS.WHATSAPP),
+      getAIChannelSettings(AI_AGENT_CHANNELS.INSTAGRAM, AI_AGENT_CHANNELS.INSTAGRAM),
+      getAIChannelSettings(AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, "facebook"),
+    ]);
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 500 }).catch(() => ({ conversations: [] }));
+    const hasHumanOverride = (channel) => (inbox.conversations || []).some((conversation) => {
+      const source = envText(conversation.channel || conversation.source || conversation.source_channel).toLowerCase();
+      return source === channel && conversation.conversation_status === "human_takeover";
+    });
+    const withResolvedStatus = (channel, data = {}, aiSettings = {}) => {
+      const effectiveMode = globalSettings.autoReplyMode !== "fully_automatic"
+        ? globalSettings.autoReplyMode
+        : aiSettings.aiMode || "suggest_only";
+      const effectiveTone = aiSettings.tone || globalSettings.tone || "casual";
+      const tokenValid = data.token_valid === true || (
+        data.page_access_token_configured === true &&
+        !["token_expired", "expired", "invalid", "revoked", "error"].includes(envText(data.token_status || data.token_health_status).toLowerCase())
+      ) || data.access_token_configured === true;
+      const webhookHealthy = data.webhook_healthy === true || data.live_operational === true || Boolean(data.last_webhook_received_at);
+      const connected = data.connected === true || data.live_operational === true || (data.effective_enabled === true && tokenValid && webhookHealthy);
+      return {
+        ...data,
+        aiChannelSettings: aiSettings,
+        effective_ai_mode: effectiveMode,
+        effective_tone: effectiveTone,
+        token_valid: tokenValid,
+        token_status: tokenValid ? "active" : data.token_status,
+        token_health_status: tokenValid ? "active" : data.token_health_status,
+        webhook_healthy: webhookHealthy,
+        connected,
+        aiStatus: resolveAIStatus({
+          connected,
+          aiEnabled: effectiveMode === "fully_automatic",
+          humanOverride: hasHumanOverride(channel),
+          webhookHealthy,
+          tokenValid,
+        }),
+      };
+    };
+    return res.json({
+      success: true,
+      channels: {
+        whatsapp: {
+          ...withResolvedStatus(AI_AGENT_CHANNELS.WHATSAPP, status[AI_AGENT_CHANNELS.WHATSAPP], whatsappAISettings),
+          webhook_url: whatsappWebhookUrl(req),
+          verify_test_ready: status[AI_AGENT_CHANNELS.WHATSAPP].verify_token_configured,
+        },
+        instagram: {
+          ...withResolvedStatus(AI_AGENT_CHANNELS.INSTAGRAM, status[AI_AGENT_CHANNELS.INSTAGRAM], instagramAISettings),
+          webhook_url: metaWebhookUrl(req),
+          verify_test_ready: status[AI_AGENT_CHANNELS.INSTAGRAM].verify_token_configured,
+        },
+        facebook_messenger: {
+          ...withResolvedStatus(AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, status[AI_AGENT_CHANNELS.FACEBOOK_MESSENGER], facebookAISettings),
+          webhook_url: metaWebhookUrl(req),
+          verify_test_ready: status[AI_AGENT_CHANNELS.FACEBOOK_MESSENGER].verify_token_configured,
+        },
+      },
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI channel status");
+  }
+});
+
+router.patch("/channels/:channel/settings", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const channel = req.params.channel === "facebook" ? AI_AGENT_CHANNELS.FACEBOOK_MESSENGER : req.params.channel;
+    const settings = await updateChannelSettings({
+      tenantId,
+      channel,
+      settings: {
+        ai_replies_enabled: req.body?.ai_replies_enabled === true || req.body?.enabled === true,
+        auto_reply_mode: req.body?.auto_reply_mode || req.body?.mode || "",
+      },
+    });
+    const status = await getAiChannelsStatus({ tenantId });
+    return res.json({ success: true, settings, channels: status });
+  } catch (error) {
+    return sendError(res, error, "Failed to update channel settings");
+  }
+});
+
+router.get("/channels/:channelId/settings", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const channelId = envText(req.params.channelId === "facebook" ? AI_AGENT_CHANNELS.FACEBOOK_MESSENGER : req.params.channelId);
+    const settings = await getAIChannelSettings(channelId, req.query?.platform || channelId);
+    return res.json({ success: true, settings });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI channel settings");
+  }
+});
+
+router.put("/channels/:channelId/settings", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const channelId = envText(req.params.channelId === "facebook" ? AI_AGENT_CHANNELS.FACEBOOK_MESSENGER : req.params.channelId);
+    const settings = await updateAIChannelSettings(channelId, req.body || {});
+    await updateChannelSettings({
+      tenantId,
+      channel: channelId,
+      settings: {
+        auto_reply_mode: settings.aiMode,
+        ai_replies_enabled: settings.aiMode === "fully_automatic",
+      },
+    }).catch((error) => {
+      console.warn("ai_channel_settings_legacy_sync_failed", {
+        tenant_id: tenantId,
+        channel: channelId,
+        message: error?.message || "Legacy channel settings sync failed",
+      });
+    });
+    const status = await getAiChannelsStatus({ tenantId });
+    return res.json({ success: true, settings, channels: status });
+  } catch (error) {
+    return sendError(res, error, "Failed to update AI channel settings");
+  }
+});
+
+router.patch("/channels/whatsapp/settings", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const settings = await updateChannelSettings({
+      tenantId,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      settings: {
+        ai_replies_enabled: req.body?.ai_replies_enabled === true || req.body?.enabled === true,
+        auto_reply_mode: req.body?.auto_reply_mode || req.body?.mode || "",
+      },
+    });
+    const status = await getAiChannelsStatus({ tenantId });
+    return res.json({ success: true, settings, whatsapp: { ...status[AI_AGENT_CHANNELS.WHATSAPP], webhook_url: whatsappWebhookUrl(req) } });
+  } catch (error) {
+    return sendError(res, error, "Failed to update WhatsApp channel settings");
+  }
+});
+
+router.post("/channels/whatsapp/test-send", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const to = envText(req.body?.to || req.body?.phone || req.body?.external_customer_id);
+  const message = envText(req.body?.message || "AI Agent WhatsApp test message.");
+  try {
+    if (!whatsappEnabled()) {
+      throw Object.assign(new Error("WhatsApp is disabled by WHATSAPP_ENABLED=false"), { status: 409, code: "WHATSAPP_DISABLED" });
+    }
+    const result = await sendWhatsAppCloudReply({
+      to,
+      reply: { text: message, visual_attachments: [], product_cards: [], suggested_quick_replies: [] },
+      messageText: message,
+    });
+    await logChannelEvent({
+      tenantId,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      direction: "outbound",
+      externalCustomerId: to,
+      conversationId: `whatsapp:${to}`,
+      messagePreview: message,
+      status: result.sent ? "test_sent" : "test_not_sent",
+      metadata: { test: true, result_count: result.results?.length || 0 },
+    }).catch(() => {});
+    return res.json({ success: true, sent: result.sent, result });
+  } catch (error) {
+    await logChannelEvent({
+      tenantId,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      direction: "outbound",
+      externalCustomerId: to,
+      conversationId: to ? `whatsapp:${to}` : "",
+      messagePreview: message,
+      status: "test_failed",
+      error: error?.message || "Test send failed",
+      metadata: { test: true, code: error?.code || "", status: error?.status || "" },
+    }).catch(() => {});
+    return sendError(res, error, "Failed to send WhatsApp test message");
+  }
+});
+
+router.post("/channels/:channel/test-send", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const channel = req.params.channel === "facebook" ? AI_AGENT_CHANNELS.FACEBOOK_MESSENGER : req.params.channel;
+  const to = envText(req.body?.to || req.body?.external_customer_id);
+  const message = envText(req.body?.message || "AI Agent channel test message.");
+  try {
+    if (channel === AI_AGENT_CHANNELS.WHATSAPP) {
+      const result = await sendWhatsAppCloudReply({ to, reply: { text: message }, messageText: message });
+      return res.json({ success: true, sent: result.sent, result });
+    }
+    if (![AI_AGENT_CHANNELS.INSTAGRAM, AI_AGENT_CHANNELS.FACEBOOK_MESSENGER].includes(channel)) {
+      throw Object.assign(new Error("Unsupported channel"), { status: 400 });
+    }
+    if (!channelEnvEnabled(channel)) {
+      throw Object.assign(new Error(`${channel} is disabled`), { status: 409, code: "META_CHANNEL_DISABLED" });
+    }
+    const result = await sendMetaPageReply({
+      channel,
+      to,
+      reply: { text: message, visual_attachments: [], product_cards: [], suggested_quick_replies: [] },
+      messageText: message,
+    });
+    await logChannelEvent({
+      tenantId,
+      channel,
+      direction: "outbound",
+      externalCustomerId: to,
+      conversationId: `${channel}:${to}`,
+      messagePreview: message,
+      status: result.sent ? "test_sent" : "test_not_sent",
+      metadata: { test: true, result_count: result.results?.length || 0 },
+    }).catch(() => {});
+    return res.json({ success: true, sent: result.sent, result });
+  } catch (error) {
+    await logChannelEvent({
+      tenantId,
+      channel,
+      direction: "outbound",
+      externalCustomerId: to,
+      conversationId: to ? `${channel}:${to}` : "",
+      messagePreview: message,
+      status: "test_failed",
+      error: error?.message || "Test send failed",
+      metadata: { test: true, code: error?.code || "", status: error?.status || "" },
+    }).catch(() => {});
+    return sendError(res, error, "Failed to send channel test message");
+  }
+});
+
+router.get("/inbox", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const inbox = await loadAiInbox({
+      tenantId,
+      filter: String(req.query?.filter || "all"),
+      search: String(req.query?.search || ""),
+      limit: req.query?.limit,
+      messageLimit: req.query?.message_limit,
+    });
+    return res.json({ success: true, ...inbox });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI inbox");
+  }
+});
+
+router.get("/conversations", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const inbox = await loadAiInbox({
+      tenantId,
+      filter: String(req.query?.filter || "all"),
+      search: String(req.query?.search || ""),
+      limit: req.query?.limit,
+      messageLimit: req.query?.message_limit,
+    });
+    return res.json({ success: true, ...inbox });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI inbox conversations");
+  }
+});
+
+router.get("/conversations/:conversationId/messages", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(req.params.conversationId);
+    const payload = await loadAiInboxMessages({
+      tenantId,
+      conversationId,
+      limit: req.query?.limit || 30,
+      before: req.query?.before || "",
+    });
+    return res.json({ success: true, conversation_id: conversationId, ...payload });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI inbox messages");
+  }
+});
+
+router.get("/conversations/:conversationId/recommendations", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const recommendations = await loadAiInboxRecommendations({
+      tenantId,
+      conversationId: req.params.conversationId,
+      limit: req.query?.limit,
+    });
+    return res.json({ success: true, ...recommendations });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI recommendations");
+  }
+});
+
+router.get("/conversations/:conversationId/sales-closer", protect, permit("settings", "view"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const rawRouteId = envText(req.params.conversationId);
+  const conversationId = decodeRouteId(rawRouteId);
+  const lookupKeys = buildAiSalesCloserLookupKeys(rawRouteId);
+  try {
+    perfLog("ai_sales_closer_request", {
+      tenant_id: tenantId,
+      raw_route_id: rawRouteId,
+      decoded_route_id: conversationId,
+      sales_closer_lookup_keys: lookupKeys,
+      original_url: req.originalUrl || req.url,
+    });
+    const plan = await buildAiSalesCloserPlan({
+      tenantId,
+      conversationId: rawRouteId,
+    });
+    console.log("ai_sales_closer_session_lookup", {
+      tenant_id: tenantId,
+      raw_route_id: rawRouteId,
+      decoded_route_id: conversationId,
+      sales_closer_lookup_keys: lookupKeys,
+      found: Boolean(plan.conversation),
+      matched_session_id: plan.conversation?.session_id || "",
+      matched_external_conversation_id: plan.conversation?.external_conversation_id || "",
+      matched_external_customer_id: plan.conversation?.external_customer_id ? "***" : "",
+      channel: plan.conversation?.channel || plan.conversation?.source || "",
+      products: plan.products?.length || 0,
+    });
+    console.log("ai_sales_closer_response", {
+      tenant_id: tenantId,
+      conversation_id: plan.conversation_id || conversationId,
+      lead: plan.lead?.label || "",
+      score: plan.lead?.score || 0,
+    });
+    return res.json({ success: true, ...plan });
+  } catch (error) {
+    console.error("ai_sales_closer_response", {
+      tenant_id: tenantId,
+      raw_route_id: rawRouteId,
+      decoded_route_id: conversationId,
+      sales_closer_lookup_keys: error?.lookup_keys || lookupKeys,
+      status: error?.status || 500,
+      code: error?.code || "",
+      message: error?.message || "Failed to load AI sales closer plan",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load AI sales closer plan",
+      code: error?.code || "",
+      raw_route_id: rawRouteId,
+      decoded_route_id: conversationId,
+      sales_closer_lookup_keys: error?.lookup_keys || lookupKeys,
+    });
+  }
+});
+
+const buildDraftOrderPaymentActions = ({ conversation = {}, order = {}, product = {} } = {}) => {
+  const orderNumber = envText(order.public_order_number || order.invoice_number || order.id);
+  const productName = envText(product.name || product.title || product.product_name || "selected product");
+  const amount = Number(order.total_amount || order.total_price || order.total || 0);
+  const invoicePath = order.id ? `/orders/${order.id}` : "";
+  return [
+    {
+      key: "send_payment_link",
+      label: "Send payment link",
+      message: `تمام، ده لينك الدفع للطلب ${orderNumber}: ${invoicePath}`,
+      enabled: Boolean(invoicePath),
+    },
+    {
+      key: "cash_on_delivery",
+      label: "Cash on delivery",
+      message: `تمام، ممكن الدفع عند الاستلام. هجهزلك ${productName}${amount ? ` بإجمالي ${amount} جنيه` : ""}.`,
+      enabled: true,
+    },
+    {
+      key: "whatsapp_checkout",
+      label: "WhatsApp checkout",
+      message: `أقدر أكمّل معاك على واتساب لتأكيد الطلب ${orderNumber}. ابعت رقم الموبايل والعنوان لو مناسب.`,
+      enabled: true,
+    },
+    {
+      key: "public_invoice",
+      label: "Public invoice",
+      message: `فاتورة الطلب ${orderNumber}: ${invoicePath}`,
+      enabled: Boolean(invoicePath),
+    },
+  ];
+};
+
+router.post("/conversations/:conversationId/create-draft-order", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = envText(req.params.conversationId);
+  try {
+    console.log("ai_sales_closer_draft_start", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      requested_product_id: req.body?.product_id || req.body?.product?.id || req.body?.product?.product_id || null,
+    });
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
+    const conversation = inbox.conversations.find((item) =>
+      item.session_id === conversationId ||
+      item.external_conversation_id === conversationId ||
+      item.external_customer_id === conversationId
+    );
+    if (!conversation) throw Object.assign(new Error("Conversation not found"), { status: 404 });
+    const recommendations = await loadAiInboxRecommendations({ tenantId, conversationId: conversation.session_id, limit: 8 });
+    const latestCustomerMessage = [...(conversation.messages || [])].reverse().find((message) => envText(message.customer_message || message.message_text))?.customer_message ||
+      conversation.latest_message_preview ||
+      conversation.last_message ||
+      "";
+    const requestedProductId = Number(req.body?.product_id || req.body?.product?.product_id || req.body?.product?.id || 0);
+    const selectedProduct =
+      (requestedProductId
+        ? recommendations.products.find((product) => Number(product.product_id || product.id) === requestedProductId)
+        : null) ||
+      req.body?.product ||
+      recommendations.products.find((product) => Number(product.total_stock ?? product.stock ?? 0) > 0) ||
+      recommendations.products[0] ||
+      null;
+    if (!selectedProduct) {
+      throw Object.assign(new Error("No matched product is available for this conversation yet."), {
+        status: 409,
+        code: "NO_MATCHED_PRODUCT",
+      });
+    }
+    const intent = parseAiSalesCloserIntent({
+      message: latestCustomerMessage,
+      products: recommendations.products,
+      conversation,
+    });
+    const productId = Number(selectedProduct.product_id || selectedProduct.id);
+    const orderProducts = await searchAiOrderProducts({
+      tenantId,
+      message: latestCustomerMessage || selectedProduct.name || selectedProduct.title,
+      metadata: {
+        product_id: productId,
+        matched_product_id: productId,
+        matched_product_name: selectedProduct.name || selectedProduct.title || "",
+      },
+    });
+    const orderProduct = orderProducts[0];
+    if (!orderProduct) {
+      throw Object.assign(new Error("Matched product could not be resolved in ERP inventory."), {
+        status: 409,
+        code: "ERP_PRODUCT_NOT_FOUND",
+      });
+    }
+    const result = await createAiOrderDraft({
+      tenant_id: tenantId,
+      conversation_id: conversation.session_id,
+      session_id: conversation.session_id,
+      channel: conversation.channel || conversation.source || "facebook_messenger",
+      customer_name: conversation.customer_name || conversation.first_name || "Meta customer",
+      customer_phone: req.body?.customer_phone || conversation.customer_profile?.phone || conversation.external_customer_id || "",
+      external_customer_id: conversation.external_customer_id || "",
+      original_customer_message: latestCustomerMessage,
+      message: latestCustomerMessage || selectedProduct.name || selectedProduct.title,
+      product: orderProduct,
+      quantity: req.body?.quantity || intent.quantity || 1,
+      size: req.body?.size || intent.size || "",
+      color: req.body?.color || intent.color || "",
+      allow_missing_phone: true,
+      metadata: {
+        source: "ai_inbox_sales_closer",
+        channel: conversation.channel || conversation.source || "",
+        external_customer_id: conversation.external_customer_id || "",
+        selected_product_id: productId,
+        selected_product_name: selectedProduct.name || selectedProduct.title || "",
+        sales_intent: intent,
+        allow_missing_phone: true,
+      },
+      notes: "AI Sales Closer draft from live Meta inbox",
+    });
+    let reservation = null;
+    if (req.body?.reserve !== false) {
+      reservation = await createAiStockReservation({
+        tenantId,
+        conversationId: conversation.session_id,
+        orderId: result.order?.id || null,
+        productId: result.product?.id || productId,
+        variantId: result.variant?.id || null,
+        quantity: req.body?.quantity || intent.quantity || 1,
+        minutes: req.body?.reserve_minutes || 20,
+        metadata: {
+          source: "ai_inbox_sales_closer",
+          order_number: result.order?.public_order_number || result.order?.invoice_number || "",
+          sales_intent: intent,
+        },
+      });
+    }
+    const paymentActions = buildDraftOrderPaymentActions({
+      conversation,
+      order: result.order || {},
+      product: result.product || selectedProduct,
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversation.session_id,
+      reason: "draft_order_created",
+      at: new Date().toISOString(),
+    });
+    console.log("ai_sales_closer_draft_success", {
+      tenant_id: tenantId,
+      conversation_id: conversation.session_id,
+      order_id: result.order?.id || null,
+      product_id: result.product?.id || productId,
+      variant_id: result.variant?.id || null,
+      reserved: Boolean(reservation),
+    });
+    return res.status(201).json({
+      success: true,
+      ...result,
+      conversation_id: conversation.session_id,
+      sales_intent: intent,
+      reservation,
+      payment_actions: paymentActions,
+    });
+  } catch (error) {
+    console.error("ai_sales_closer_draft_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      code: error?.code || "",
+      message: error?.message || "Failed to create sales closer draft",
+    });
+    return sendError(res, error, "Failed to create AI sales closer draft order");
+  }
+});
+
+router.post("/conversations/:conversationId/ai-reply", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await generateAiInboxReply({
+      tenantId,
+      conversationId: req.params.conversationId,
+      persist: req.body?.persist === true || req.body?.send === true,
+    });
+    return res.status(result.message ? 201 : 200).json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to generate AI reply");
+  }
+});
+
+router.post("/conversations/:conversationId/reply", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const message = await appendManualAiSupportReply({
+      tenantId,
+      sessionId: req.params.conversationId,
+      message: req.body?.message || req.body?.reply || "",
+      staffUserId: req.user?.id || null,
+      staffUserName: userDisplayName(req.user),
+    });
+    return res.status(201).json({ success: true, message, delivery_status: "internal_note" });
+  } catch (error) {
+    return sendError(res, error, "Failed to save AI inbox reply");
+  }
+});
+
+router.post("/conversations/:conversationId/send", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = envText(req.params.conversationId);
+  const messageText = envText(req.body?.message || req.body?.reply || req.body?.text);
+  let conversation = null;
+  try {
+    perfLog("ai_inbox_send_start", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      message_length: messageText.length,
+    });
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
+    conversation = inbox.conversations.find((item) =>
+      item.session_id === conversationId ||
+      item.external_conversation_id === conversationId ||
+      item.external_customer_id === conversationId
+    ) || null;
+    perfLog("ai_inbox_send_session_lookup", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      found: Boolean(conversation),
+      loaded_count: inbox.conversations.length,
+      matched_session_id: conversation?.session_id || "",
+      channel: conversation?.channel || conversation?.source || "",
+      recipient_id: conversation?.external_customer_id ? "***" : "",
+    });
+    if (!conversation) {
+      throw Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), {
+        status: 404,
+        code: "AI_INBOX_CONVERSATION_NOT_FOUND",
+      });
+    }
+    const channel = conversation.channel || conversation.source || "";
+    if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(channel)) {
+      throw Object.assign(new Error("Live sending is only available for Messenger and Instagram DM conversations."), {
+        status: 409,
+        code: "CHANNEL_SEND_UNAVAILABLE",
+      });
+    }
+    const recipientId = envText(conversation.external_customer_id || conversation.customer_id);
+    if (!recipientId) throw Object.assign(new Error("Conversation has no Meta recipient id."), { status: 409, code: "META_RECIPIENT_MISSING" });
+
+    const sendResult = await sendMetaInboxOutboundMessage({
+      tenantId,
+      channel,
+      recipientId,
+      messageText,
+      conversationId,
+    });
+    const message = await appendManualAiSupportReply({
+      tenantId,
+      sessionId: conversationId,
+      message: messageText,
+      staffUserId: req.user?.id || null,
+      staffUserName: userDisplayName(req.user),
+      source: channel,
+      channel,
+      deliveryStatus: "sent",
+      externalMessageId: sendResult.message_id || "",
+    });
+    await logChannelEvent({
+      tenantId,
+      channel,
+      direction: "outbound",
+      externalCustomerId: recipientId,
+      conversationId,
+      messagePreview: messageText,
+      status: "sent",
+      metadata: { meta_message_id: sendResult.message_id || "", config_id: sendResult.config_id || null, source: "ai_inbox_send" },
+    }).catch(() => {});
+    await upsertChannelConversationMapping({
+      tenantId,
+      channel,
+      externalConversationId: conversationId,
+      externalCustomerId: recipientId,
+      customerName: conversation.customer_name || "",
+      metadata: { channel, source: "ai_inbox_send" },
+      lastMessage: messageText,
+      lastMessageAt: new Date().toISOString(),
+    }).catch(() => {});
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: new Date().toISOString() });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
+    perfLog("ai_inbox_send_success", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      session_id: conversation.session_id || "",
+      channel,
+      message_id: sendResult.message_id || "",
+    });
+    pushAIEvent({
+      type: "MESSAGE_SENT",
+      status: "success",
+      conversationId,
+      platform: channel,
+    });
+    return res.status(200).json({ success: true, sent: true, delivery_status: "sent", message, meta: sendResult.meta || null });
+  } catch (error) {
+    pushAIEvent({
+      type: "MESSAGE_SEND_FAILED",
+      status: "error",
+      conversationId,
+      platform: conversation?.channel || conversation?.source || "",
+      error: error?.message || "Unknown error",
+    });
+    let failedMessage = null;
+    if (tenantId && conversationId && messageText) {
+      failedMessage = await appendManualAiSupportReply({
+        tenantId,
+        sessionId: conversationId,
+        message: messageText,
+        staffUserId: req.user?.id || null,
+        staffUserName: userDisplayName(req.user),
+        source: conversation?.channel || conversation?.source || "admin_console",
+        channel: conversation?.channel || conversation?.source || "",
+        deliveryStatus: "failed",
+        deliveryError: error?.message || "Meta send failed",
+      }).catch(() => null);
+      if (failedMessage) {
+        emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message: failedMessage, at: new Date().toISOString() });
+        emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
+      }
+    }
+    await logChannelEvent({
+      tenantId,
+      channel: conversation?.channel || conversation?.source || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      direction: "outbound",
+      externalCustomerId: conversation?.external_customer_id || "",
+      conversationId,
+      messagePreview: messageText,
+      status: "failed",
+      error: error?.message || "Meta send failed",
+      metadata: { code: error?.code || "", status: error?.status || "", source: "ai_inbox_send" },
+    }).catch(() => {});
+    console.error("ai_inbox_send_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      found: Boolean(conversation),
+      status: error?.status || 500,
+      code: error?.code || "",
+      message: error?.message || "Meta send failed",
+    });
+    return sendError(res, error, "Failed to send Meta message");
+  }
+});
+
+router.post("/conversations/:conversationId/takeover", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversation = await updateAiSupportConversationState({
+      tenantId,
+      sessionId: req.params.conversationId,
+      status: "human_takeover",
+      assignedUserId: req.body?.assigned_user_id ?? req.body?.assignedUserId ?? req.user?.id,
+      assignedUserName: req.body?.assigned_user_name || req.body?.assignedUserName || userDisplayName(req.user),
+      actorUserId: req.user?.id || null,
+    });
+    return res.json({ success: true, conversation });
+  } catch (error) {
+    return sendError(res, error, "Failed to take over conversation");
+  }
+});
+
+router.post("/conversations/:conversationId/return-to-ai", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = envText(req.params.conversationId);
+  try {
+    console.log("ai_return_to_ai_start", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      route: "conversations",
+    });
+    const previousState = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
+    const hadEscalation = Boolean(envText(previousState?.escalation_reason || previousState?.last_escalation_keyword) || previousState?.escalated_at);
+    const conversation = await updateAiSupportConversationState({
+      tenantId,
+      sessionId: conversationId,
+      status: "ai_active",
+      actorUserId: req.user?.id || null,
+    });
+    const returnedConversation = normalizeReturnedToAIConversation(conversation);
+    pushAIEvent({
+      type: "AI_RETURNED_FROM_HUMAN",
+      status: "success",
+      conversationId,
+    });
+    if (hadEscalation) {
+      pushAIEvent({
+        type: "AI_ESCALATION_CLEARED",
+        status: "success",
+        conversationId,
+      });
+    }
+    console.log("ai_return_to_ai_success", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      status: returnedConversation?.status || "",
+      escalation_cleared: hadEscalation,
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "return_to_ai",
+      at: new Date().toISOString(),
+    });
+    return res.json({ success: true, conversation: returnedConversation });
+  } catch (error) {
+    console.error("ai_return_to_ai_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      route: "conversations",
+      code: error?.code || "",
+      message: error?.message || "Failed to return conversation to AI",
+    });
+    return sendError(res, error, "Failed to return conversation to AI");
+  }
+});
+
+router.post("/conversations/:conversationId/reopen", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = envText(req.params.conversationId);
+  try {
+    console.log("ai_conversation_reopen_start", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      route: "conversations",
+    });
+    const conversation = await updateAiSupportConversationState({
+      tenantId,
+      sessionId: conversationId,
+      status: "ai_active",
+      assignedUserId: null,
+      assignedUserName: "",
+      actorUserId: req.user?.id || null,
+      source: "admin_console",
+      allowClosedReopen: true,
+    });
+    const reopenedConversation = normalizeReturnedToAIConversation(conversation);
+    pushAIEvent({
+      type: "AI_CONVERSATION_REOPENED",
+      status: "success",
+      conversationId,
+    });
+    console.log("ai_conversation_reopen_success", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      status: reopenedConversation?.status || "",
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "reopen_conversation",
+      at: new Date().toISOString(),
+    });
+    return res.json({ success: true, conversation: reopenedConversation });
+  } catch (error) {
+    console.error("ai_conversation_reopen_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      route: "conversations",
+      code: error?.code || "",
+      message: error?.message || "Failed to reopen conversation",
+    });
+    return sendError(res, error, "Failed to reopen conversation");
+  }
+});
+
+router.post("/inbox/:conversationId/takeover", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversation = await updateAiSupportConversationState({
+      tenantId,
+      sessionId: req.params.conversationId,
+      status: "human_takeover",
+      assignedUserId: req.body?.assigned_user_id ?? req.body?.assignedUserId ?? req.user?.id,
+      assignedUserName: req.body?.assigned_user_name || req.body?.assignedUserName || userDisplayName(req.user),
+      actorUserId: req.user?.id || null,
+    });
+    return res.json({ success: true, conversation });
+  } catch (error) {
+    return sendError(res, error, "Failed to take over conversation");
+  }
+});
+
+router.post("/inbox/:conversationId/return-to-ai", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = envText(req.params.conversationId);
+  try {
+    console.log("ai_return_to_ai_start", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      route: "inbox",
+    });
+    const previousState = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
+    const hadEscalation = Boolean(envText(previousState?.escalation_reason || previousState?.last_escalation_keyword) || previousState?.escalated_at);
+    const conversation = await updateAiSupportConversationState({
+      tenantId,
+      sessionId: conversationId,
+      status: "ai_active",
+      actorUserId: req.user?.id || null,
+    });
+    const returnedConversation = normalizeReturnedToAIConversation(conversation);
+    pushAIEvent({
+      type: "AI_RETURNED_FROM_HUMAN",
+      status: "success",
+      conversationId,
+    });
+    if (hadEscalation) {
+      pushAIEvent({
+        type: "AI_ESCALATION_CLEARED",
+        status: "success",
+        conversationId,
+      });
+    }
+    console.log("ai_return_to_ai_success", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      status: returnedConversation?.status || "",
+      escalation_cleared: hadEscalation,
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "return_to_ai",
+      at: new Date().toISOString(),
+    });
+    return res.json({ success: true, conversation: returnedConversation });
+  } catch (error) {
+    console.error("ai_return_to_ai_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      route: "inbox",
+      code: error?.code || "",
+      message: error?.message || "Failed to return conversation to AI",
+    });
+    return sendError(res, error, "Failed to return conversation to AI");
+  }
+});
+
+router.post("/inbox/:conversationId/reopen", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = envText(req.params.conversationId);
+  try {
+    console.log("ai_conversation_reopen_start", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      route: "inbox",
+    });
+    const conversation = await updateAiSupportConversationState({
+      tenantId,
+      sessionId: conversationId,
+      status: "ai_active",
+      assignedUserId: null,
+      assignedUserName: "",
+      actorUserId: req.user?.id || null,
+      source: "admin_console",
+      allowClosedReopen: true,
+    });
+    const reopenedConversation = normalizeReturnedToAIConversation(conversation);
+    pushAIEvent({
+      type: "AI_CONVERSATION_REOPENED",
+      status: "success",
+      conversationId,
+    });
+    console.log("ai_conversation_reopen_success", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      status: reopenedConversation?.status || "",
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "reopen_conversation",
+      at: new Date().toISOString(),
+    });
+    return res.json({ success: true, conversation: reopenedConversation });
+  } catch (error) {
+    console.error("ai_conversation_reopen_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      route: "inbox",
+      code: error?.code || "",
+      message: error?.message || "Failed to reopen conversation",
+    });
+    return sendError(res, error, "Failed to reopen conversation");
+  }
+});
+
+router.post("/inbox/:conversationId/reply", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const message = await appendManualAiSupportReply({
+      tenantId,
+      sessionId: req.params.conversationId,
+      message: req.body?.message || req.body?.reply || "",
+      staffUserId: req.user?.id || null,
+      staffUserName: userDisplayName(req.user),
+    });
+    return res.status(201).json({ success: true, message });
+  } catch (error) {
+    return sendError(res, error, "Failed to send manual reply");
+  }
+});
+
+router.post("/inbox/:conversationId/suggest-reply", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const suggestions = await generateAiSuggestedReplies({
+      tenantId,
+      conversationId: req.params.conversationId,
+      userId: req.user?.id || null,
+    });
+    return res.json({ success: true, ...suggestions });
+  } catch (error) {
+    return sendError(res, error, "Failed to generate suggested replies");
+  }
+});
+
+router.patch("/inbox/:conversationId/assign", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversation = await assignAiSupportConversation({
+      tenantId,
+      sessionId: req.params.conversationId,
+      assignedUserId: req.body?.assigned_user_id ?? req.body?.assignedUserId ?? null,
+      assignedUserName: req.body?.assigned_user_name || req.body?.assignedUserName || "",
+      actorUserId: req.user?.id || null,
+    });
+    return res.json({ success: true, conversation });
+  } catch (error) {
+    return sendError(res, error, "Failed to assign conversation");
+  }
+});
+
+router.patch("/inbox/:conversationId/close", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversation = await updateAiSupportConversationState({
+      tenantId,
+      sessionId: req.params.conversationId,
+      status: "closed",
+      actorUserId: req.user?.id || null,
+    });
+    return res.json({ success: true, conversation });
+  } catch (error) {
+    return sendError(res, error, "Failed to close conversation");
+  }
+});
+
+router.get("/followups", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const payload = await listAiFollowups({
+      tenantId,
+      status: String(req.query?.status || "all"),
+      limit: req.query?.limit,
+    });
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI follow-ups");
+  }
+});
+
+router.post("/followups/:id/send-manual", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await sendAiFollowupManual({
+      tenantId,
+      id: Number(req.params.id),
+      message: req.body?.message || "",
+      staffUserId: req.user?.id || null,
+      staffUserName: userDisplayName(req.user),
+      force: req.body?.force === true,
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to send AI follow-up manually");
+  }
+});
+
+router.patch("/followups/:id/snooze", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const followup = await snoozeAiFollowup({
+      tenantId,
+      id: Number(req.params.id),
+      minutes: req.body?.minutes,
+      snoozeUntil: req.body?.snooze_until || req.body?.snoozeUntil || "",
+      staffUserId: req.user?.id || null,
+    });
+    return res.json({ success: true, followup });
+  } catch (error) {
+    return sendError(res, error, "Failed to snooze AI follow-up");
+  }
+});
+
+router.patch("/followups/:id/cancel", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const followup = await cancelAiFollowup({
+      tenantId,
+      id: Number(req.params.id),
+      reason: req.body?.reason || "",
+      staffUserId: req.user?.id || null,
+    });
+    return res.json({ success: true, followup });
+  } catch (error) {
+    return sendError(res, error, "Failed to cancel AI follow-up");
+  }
+});
+
+router.patch("/followups/:id/done", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const followup = await completeAiFollowup({
+      tenantId,
+      id: Number(req.params.id),
+      staffUserId: req.user?.id || null,
+    });
+    return res.json({ success: true, followup });
+  } catch (error) {
+    return sendError(res, error, "Failed to mark AI follow-up done");
+  }
+});
+
+router.get("/settings", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const settings = await getAISettings();
+    return res.json({ success: true, settings, persisted: wasAISettingsPersisted() });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI agent settings");
+  }
+});
+
+router.put("/settings", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const settings = await updateAISettings(req.body?.settings || req.body || {});
+    return res.json({ success: true, settings, persisted: wasAISettingsPersisted() });
+  } catch (error) {
+    return sendError(res, error, "Failed to update AI agent settings");
+  }
+});
+
+router.get("/analytics", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const analytics = await loadAiSalesAnalytics({
+      tenantId,
+      fromDate: req.query?.from_date || req.query?.fromDate || "",
+      toDate: req.query?.to_date || req.query?.toDate || "",
+      branchId: req.query?.branch_id || req.query?.branchId || null,
+    });
+    return res.json({ success: true, analytics });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI sales analytics");
+  }
+});
+
+export default router;

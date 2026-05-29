@@ -1,54 +1,288 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import {
   AlertTriangle,
+  Banknote,
   CheckCircle2,
   Clock3,
+  ClipboardList,
+  Copy,
+  CreditCard,
   DollarSign,
+  Download,
   Eye,
-  MoreHorizontal,
+  FileText,
+  MapPin,
+  MessageCircle,
+  MoreVertical,
   PackageOpen,
-  ReceiptText,
+  Pencil,
+  Phone,
+  Printer,
   RotateCcw,
   Search,
-  ShoppingCart,
+  SplitSquareHorizontal,
+  Trash2,
+  Truck,
+  User,
+  Wallet,
+  X,
 } from "lucide-react";
 
 import toast from "react-hot-toast";
 import { socket } from "../../../socket";
 import { api } from "../../../shared/api/api";
+import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import OrdersShell from "../components/OrdersShell";
 import StatusBadge from "../components/StatusBadge";
+import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import {
   buildSearchText,
-  deriveKpis,
   formatCurrency,
   formatDateTime,
+  getReturnedOrders,
+  isReturnedOrRefundedOrder,
   mockOrders,
   normalizeOrder,
 } from "../lib/ordersStore";
 import {
   formatShippingPaymentMethodLabel,
   isInvalidShippingProofUrl,
+  resolveProductImageUrl,
   resolveShippingProofImageUrl,
 } from "../../../shared/lib/imageUrls";
+import { normalizeOrderLifecycleStatus } from "../../../../shared/orderStatus.js";
 
 const PAGE_SIZE = 10;
-const uniqueValues = (items) => Array.from(new Set(items.filter(Boolean)));
+const ORDERS_DEBUG = String(import.meta.env.VITE_ERP_PERF_DEBUG || "").trim().toLowerCase() === "true";
 const SOURCE_FILTERS = ["all", "pos", "website", "whatsapp", "instagram", "manual"];
+const WORKSPACES = [
+  { key: "table", labelKey: "orders.workspaces.table", icon: ClipboardList },
+  { key: "verification", labelKey: "orders.workspaces.verification", icon: CreditCard },
+  { key: "fulfillment", labelKey: "orders.workspaces.fulfillment", icon: Truck },
+  { key: "returns", labelKey: "orders.workspaces.returns", icon: RotateCcw },
+];
+
 const SOURCE_LABELS = {
-  pos: "POS",
-  website: "Website",
-  whatsapp: "WhatsApp",
-  instagram: "Instagram",
-  manual: "Manual",
+  pos: "orders.sources.pos",
+  website: "orders.sources.website",
+  whatsapp: "orders.sources.whatsapp",
+  instagram: "orders.sources.instagram",
+  manual: "orders.sources.manual",
+};
+
+const uniqueValues = (items) => Array.from(new Set(items.filter(Boolean)));
+const text = (value = "") => String(value ?? "").trim();
+const tt = (t, key, fallback, options) => {
+  const value = t(key, options);
+  return value === key ? fallback : value;
+};
+const lower = (value = "") => text(value).toLowerCase();
+const orderCode = (order = {}) => order.public_order_number || order.display_order_number || order.invoice_number || `#${order.id}`;
+const publicInvoiceCode = (order = {}) => text(order.invoice_number || order.public_order_number || order.display_order_number || order.public_token || order.id);
+const absoluteShareUrl = (value = "") => {
+  const raw = text(value);
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (typeof window === "undefined") return raw;
+  return new URL(raw.startsWith("/") ? raw : `/${raw}`, window.location.origin).toString();
+};
+const publicInvoiceUrl = (order = {}) => {
+  const existing = absoluteShareUrl(order.public_invoice_url || order.invoice_public_url || order.public_invoice_short_url || order.short_invoice_url);
+  if (existing) return existing;
+  const code = publicInvoiceCode(order);
+  if (!code) return "";
+  return absoluteShareUrl(`/invoice/${encodeURIComponent(code)}`);
+};
+const copyText = async (value = "") => {
+  const textValue = String(value || "");
+  if (!textValue) throw new Error("Nothing to copy");
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(textValue);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = textValue;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("Copy failed");
+};
+const getOrderSource = (order = {}) => lower(order.source || order.channel);
+const totalValue = (order = {}) => Number(order.total ?? order.total_amount ?? order.grand_total ?? order.final_total ?? order.total_price ?? 0);
+const firstPositiveNumber = (...values) => {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+  return 0;
+};
+
+const resolveOrderItemUnitPrice = (item = {}) => {
+  const candidates = [
+    item.unit_price,
+    item.unitPrice,
+    item.price,
+    item.sale_price,
+    item.salePrice,
+    item.selling_price,
+    item.sellingPrice,
+    item.product_price,
+    item.productPrice,
+    item.variant_price,
+    item.variantPrice,
+    item.line_unit_price,
+    item.lineUnitPrice,
+  ];
+
+  const numbers = candidates
+    .filter((v) => v !== null && v !== undefined && v !== "")
+    .map((v) => Number(v))
+    .filter((number) => Number.isFinite(number));
+  return numbers.find((number) => number > 0) ?? numbers[0] ?? 0;
+};
+
+const resolveOrderItemLineTotal = (item = {}) => {
+  const candidates = [
+    item.line_total,
+    item.lineTotal,
+    item.total,
+    item.subtotal,
+    item.item_total,
+    item.itemTotal,
+    item.total_amount,
+    item.totalAmount,
+  ];
+
+  const value = candidates.find((v) => v !== null && v !== undefined && v !== "");
+  const number = Number(value);
+
+  if (Number.isFinite(number) && number > 0) return number;
+
+  const qty = Number(item.quantity || item.qty || 1);
+  return resolveOrderItemUnitPrice(item) * (Number.isFinite(qty) ? qty : 1);
+};
+
+const normalizePreviewOrderItem = (item = {}, order = {}) => {
+  const rawQuantity = Number(item.quantity ?? item.qty ?? 1);
+  const quantity = Number.isFinite(rawQuantity) && rawQuantity > 0 ? rawQuantity : 1;
+  const rawImage = item.image_url || item.image || item.thumbnail || item.thumbnail_url || item.product_image || item.product_image_url || (Array.isArray(item.images) ? item.images[0] : "");
+  const orderItems = Array.isArray(order.items) ? order.items : [];
+  const orderTotal = firstPositiveNumber(order.total_amount, order.total, order.total_price, order.subtotal);
+  const resolvedSubtotal = resolveOrderItemLineTotal(item);
+  const fallbackSubtotal = !resolvedSubtotal && orderItems.length === 1 && orderTotal > 0 ? orderTotal : 0;
+  const subtotal = resolvedSubtotal || fallbackSubtotal;
+  const unitPrice = resolveOrderItemUnitPrice(item) || (subtotal && quantity ? subtotal / quantity : 0);
+  return {
+    ...item,
+    quantity,
+    unitPrice,
+    subtotal: subtotal || unitPrice * quantity,
+    imageUrl: rawImage ? resolveProductImageUrl(rawImage) : "",
+  };
+};
+const paymentStatusOf = (order = {}) => lower(order.payment_status || order.paymentStatus);
+const paymentMethodOf = (order = {}) => lower(order.payment_method || order.paymentMethod);
+const paidAmountOf = (order = {}) => Number(order.paid_amount ?? order.paidAmount ?? 0);
+const isExchangeOrder = (order = {}) => Boolean(order.exchange_mode || order.exchangeMode || Number(order.exchange_credit_amount ?? order.exchangeCreditAmount ?? 0) > 0);
+const exchangeCreditOf = (order = {}) => Number(order.exchange_credit_amount ?? order.exchangeCreditAmount ?? 0) || 0;
+const amountDueNowOf = (order = {}) => Number(order.amount_due_now ?? order.amountDueNow ?? order.paid_amount ?? order.paidAmount ?? 0) || 0;
+const isEditedPaymentOrder = (order = {}) =>
+  Number(order.edit_original_paid_amount ?? order.editOriginalPaidAmount ?? 0) > 0 ||
+  Number(order.edit_additional_paid_amount ?? order.editAdditionalPaidAmount ?? 0) > 0 ||
+  Number(order.edit_refund_or_credit_due ?? order.editRefundOrCreditDue ?? 0) > 0;
+const editOriginalPaidOf = (order = {}) => Number(order.edit_original_paid_amount ?? order.editOriginalPaidAmount ?? 0) || 0;
+const editAdditionalPaidOf = (order = {}) => Number(order.edit_additional_paid_amount ?? order.editAdditionalPaidAmount ?? 0) || 0;
+const editRefundDueOf = (order = {}) => Number(order.edit_refund_or_credit_due ?? order.editRefundOrCreditDue ?? 0) || 0;
+const shippingFeeOf = (order = {}) => Number(order.shipping_fee ?? order.delivery_fee ?? order.service_fee ?? 0);
+const isPartialPaymentStatus = (value = "") => ["partially_paid", "partially paid", "partial"].includes(lower(value));
+const isCodPaymentMethod = (order = {}) => ["cod", "cash_on_delivery", "cash on delivery"].includes(paymentMethodOf(order));
+const hasApprovedShippingProof = (order = {}) =>
+  lower(order.transfer_proof_status) === "approved" || Boolean(order.shipping_payment_verified_at);
+const remainingCodAmount = (order = {}) => {
+  const total = totalValue(order);
+  if (!total) return 0;
+  const paid = paidAmountOf(order);
+  if (paid > 0 && paid < total) return Math.max(0, total - paid);
+  const shipping = shippingFeeOf(order);
+  if (shipping > 0 && shipping < total && hasApprovedShippingProof(order)) return Math.max(0, total - shipping);
+  return 0;
+};
+const isCodShippingPartial = (order = {}) =>
+  isPartialPaymentStatus(order.payment_status || order.paymentStatus) ||
+  (isCodPaymentMethod(order) && remainingCodAmount(order) > 0);
+const paymentBadgeValue = (order = {}) =>
+  isCodShippingPartial(order) ? "Partially Paid" : order.paymentStatus || order.payment_status || "Unpaid";
+const firstValue = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+const numberValue = (...values) => {
+  const value = values.find((item) => item !== null && item !== undefined && item !== "");
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+const getCustomerPhone = (order = {}) => firstValue(order.customer_phone, order.phone, order.customer?.phone);
+const getPaidAmount = (order = {}) => numberValue(order.paid_amount, order.amount_paid, order.payment_paid_amount, order.total_paid, 0);
+const getItemsCount = (order = {}) => {
+  const direct = numberValue(order.total_quantity, order.total_items, order.item_count);
+  if (direct > 0) return direct;
+  return (Array.isArray(order.items) ? order.items : []).reduce((sum, item) => sum + Number(item.quantity || item.qty || 0), 0);
+};
+const getSellerName = (order = {}) =>
+  firstValue(order.sales_employee_name, order.seller_name, order.salesperson_name, order.assigned_seller_name);
+const statusOf = (order = {}) => normalizeOrderLifecycleStatus(order.status, "pending");
+const shippingStatusOf = (order = {}) => normalizeOrderLifecycleStatus(order.shipping_status || order.delivery_status, "pending");
+const isDeliveredOrder = (order = {}) => statusOf(order) === "delivered" || shippingStatusOf(order) === "delivered";
+
+const isAwaitingVerification = (order = {}) => {
+  const status = statusOf(order);
+  const paymentStatus = paymentStatusOf(order);
+  const transferProofStatus = lower(order.transfer_proof_status);
+  return paymentStatus === "awaiting_verification" || transferProofStatus === "pending";
+};
+
+const isCancelledOrder = (order = {}) => {
+  const status = statusOf(order);
+  const payment = paymentStatusOf(order);
+  return Boolean(order.cancelled_at || order.deleted_at) ||
+    ["cancelled"].includes(status) ||
+    ["rejected"].includes(payment);
+};
+
+const isClosedOrder = (order = {}) => isCancelledOrder(order) || isReturnedOrRefundedOrder(order);
+
+const isFulfillmentOrder = (order = {}) => {
+  if (isAwaitingVerification(order) || isClosedOrder(order)) return false;
+  const status = statusOf(order);
+  const shipping = shippingStatusOf(order);
+  return ["confirmed", "ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(status) ||
+    ["pending", "ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(shipping);
+};
+
+const isHighValue = (order = {}) => totalValue(order) >= 5000;
+
+const isDelayedPending = (order = {}) => {
+  const created = new Date(order.created_at || 0).getTime();
+  if (!created) return false;
+  const ageHours = (Date.now() - created) / 36e5;
+  return ageHours >= 36 && ["pending", "awaiting_verification"].includes(statusOf(order));
+};
+
+const getDateInputValue = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 const getAttributionLabel = (order = {}) => {
-  const source = String(order.attribution_type || order.marketing_source || "").toLowerCase();
-  const platform = String(order.marketing_platform || order.marketing_source || "").toLowerCase();
+  const source = lower(order.attribution_type || order.marketing_source);
+  const platform = lower(order.marketing_platform || order.marketing_source);
   if (source.includes("instagram") && source.includes("story")) return "Instagram Story";
   if (source.includes("story")) return "Story";
   if (platform === "facebook" || source.includes("facebook")) return "Facebook Post";
@@ -59,6 +293,139 @@ const getAttributionLabel = (order = {}) => {
   return "";
 };
 
+const isGuestCustomerName = (value = "") => /^guest[:#-]?\d*$/i.test(text(value)) || lower(value) === "guest";
+const getCustomerDisplayName = (order = {}, fallback = "Customer") =>
+  [order.customer_name, order.customer?.name, order.customer_full_name, order.customer_record_name, order.customer_phone]
+    .map((value) => text(value))
+    .find((value) => value && !isGuestCustomerName(value)) || fallback;
+const getSellerDisplayName = (order = {}) =>
+  getSellerName(order);
+
+const isArabicLanguage = (language = "") => String(language || "").toLowerCase().startsWith("ar");
+const localizedCopy = (language, ar, en) => (isArabicLanguage(language) ? ar : en);
+const paymentStatusLabels = (language) => ({
+  paid: localizedCopy(language, "\u0645\u062f\u0641\u0648\u0639", "Paid"),
+  partially_paid: localizedCopy(language, "\u062c\u0632\u0626\u064a", "Partial"),
+  pending: localizedCopy(language, "\u0645\u0639\u0644\u0642", "Pending"),
+  deferred: localizedCopy(language, "\u0622\u062c\u0644", "Deferred"),
+  refunded: localizedCopy(language, "\u0645\u0633\u062a\u0631\u062f", "Refunded"),
+  cod: "COD",
+});
+const paymentMethodLabels = (language) => ({
+  cash: localizedCopy(language, "\u0643\u0627\u0634", "Cash"),
+  card: localizedCopy(language, "\u0641\u064a\u0632\u0627", "Visa"),
+  wallet: localizedCopy(language, "\u0645\u062d\u0641\u0638\u0629", "Wallet"),
+  paymob: "Paymob",
+  split: localizedCopy(language, "\u0645\u062a\u0639\u062f\u062f", "Split"),
+  deferred: localizedCopy(language, "\u0622\u062c\u0644", "Credit"),
+  cod: "COD",
+});
+const paymentMethodIcon = {
+  cash: Banknote,
+  card: CreditCard,
+  wallet: Wallet,
+  paymob: CreditCard,
+  split: SplitSquareHorizontal,
+  deferred: Clock3,
+  cod: Truck,
+};
+const paymentMethodParts = (order = {}) => [
+  { key: "cash", value: numberValue(order.cash_amount, order.cashAmount) },
+  { key: "card", value: numberValue(order.card_amount, order.cardAmount) },
+  { key: "wallet", value: numberValue(order.wallet_payment_amount, order.wallet_amount, order.walletAmount) },
+].filter((item) => item.value > 0);
+const normalizePaymentStatusKey = (order = {}) => {
+  const raw = lower(order.payment_status || order.paymentStatus || order.status);
+  const method = lower(order.payment_method || order.paymentMethod);
+  const paid = getPaidAmount(order);
+  const total = totalValue(order);
+  if (["paid", "completed", "complete", "settled", "success", "succeeded"].includes(raw)) return "paid";
+  if (["partially_paid", "partially paid", "partial"].includes(raw) || (total > 0 && paid > 0 && paid < total)) return "partially_paid";
+  if (["pending", "unpaid", "awaiting_verification", "shipping_paid"].includes(raw)) return "pending";
+  if (["deferred", "credit", "on_credit", "postpaid"].includes(raw) || ["deferred", "credit"].includes(method)) return "deferred";
+  if (["refunded", "refund", "fully_refunded"].includes(raw)) return "refunded";
+  if (raw === "cod" || ["cod", "cash_on_delivery", "cash on delivery"].includes(method)) return "cod";
+  return paid > 0 ? "paid" : "pending";
+};
+const normalizePaymentMethodKey = (order = {}) => {
+  const parts = paymentMethodParts(order);
+  const raw = lower(order.payment_method || order.paymentMethod || order.payment_type || order.paymentType);
+  if (parts.length > 1 || ["split", "multiple", "mixed"].includes(raw)) return "split";
+  if (["cash", "cash_payment"].includes(raw) || parts[0]?.key === "cash") return "cash";
+  if (["visa", "card", "credit_card", "debit_card"].includes(raw) || parts[0]?.key === "card") return "card";
+  if (["wallet", "customer_wallet"].includes(raw) || parts[0]?.key === "wallet") return "wallet";
+  if (raw.includes("paymob") || raw.includes("terminal")) return "paymob";
+  if (["deferred", "credit", "on_credit", "postpaid"].includes(raw)) return "deferred";
+  if (["cod", "cash_on_delivery", "cash on delivery"].includes(raw)) return "cod";
+  return raw || "";
+};
+const getPaymentSummary = (order = {}, language = "en") => {
+  const statusKey = normalizePaymentStatusKey(order);
+  const methodKey = normalizePaymentMethodKey(order);
+  const statuses = paymentStatusLabels(language);
+  const methods = paymentMethodLabels(language);
+  const parts = paymentMethodParts(order);
+  const methodLabel = methodKey === "split" && parts.length
+    ? parts.map((part) => methods[part.key]).join(" + ")
+    : methods[methodKey] || text(order.payment_method || order.paymentMethod);
+  const statusLabel = statuses[statusKey] || text(order.payment_status || order.paymentStatus);
+  const label = methodLabel && statusKey !== "deferred" ? `${statusLabel} \u2022 ${methodLabel}` : statusLabel || methodLabel || "-";
+  return { statusKey, methodKey: methodKey || statusKey, label };
+};
+const isCriticalOrder = (order = {}) => {
+  const combined = [order.risk_level, order.risk_status, order.status, order.payment_status, order.transfer_proof_status]
+    .map(lower)
+    .join(" ");
+  return ["fraud", "dispute", "chargeback", "high_risk", "high risk"].some((term) => combined.includes(term));
+};
+
+const priorityFor = (order = {}) => {
+  if (isCriticalOrder(order)) return { label: "Critical", className: "border-rose-400/35 bg-rose-400/10 shadow-rose-950/20" };
+  if (isClosedOrder(order)) return { label: "Return/cancel", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+  if (isAwaitingVerification(order)) return { label: "Verify", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+  if (isDelayedPending(order)) return { label: "Delayed", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+  if (isHighValue(order)) return { label: "High value", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+  if (paymentStatusOf(order) === "cod") return { label: "COD", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+  return { label: "Normal", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+};
+
+const buildTimeline = (order = {}) => {
+  const items = [
+    { key: "created", label: "Order created", at: order.created_at, done: Boolean(order.created_at), tone: "emerald" },
+  ];
+  if (order.shipping_payment_screenshot) {
+    items.push({ key: "payment_uploaded", label: "Payment proof uploaded", at: order.created_at, done: true, tone: "amber" });
+  }
+  if (order.shipping_payment_verified_at) {
+    const rejected = paymentStatusOf(order) === "rejected" || lower(order.transfer_proof_status) === "rejected";
+    items.push({ key: "payment_verified", label: rejected ? "Payment rejected" : "Payment confirmed", at: order.shipping_payment_verified_at, done: true, tone: rejected ? "rose" : "emerald" });
+  }
+  if (["confirmed", "ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(statusOf(order))) {
+    items.push({ key: "confirmed", label: "Order confirmed", at: order.updated_at, done: true, tone: "blue" });
+  }
+  const shipping = shippingStatusOf(order);
+  if (["ready_to_ship"].includes(shipping) || ["ready_to_ship"].includes(statusOf(order))) {
+    items.push({ key: "ready_to_ship", label: "Ready to ship", at: order.updated_at, done: true, tone: "blue" });
+  }
+  if (["shipment_created", "out_for_delivery", "delivered"].includes(shipping) || ["shipment_created", "out_for_delivery", "delivered"].includes(statusOf(order))) {
+    items.push({ key: "shipment_created", label: "Shipment created", at: order.updated_at, done: true, tone: "blue" });
+  }
+  if (shipping === "delivered" || statusOf(order) === "delivered") {
+    items.push({ key: "delivered", label: "Delivered", at: order.updated_at, done: true, tone: "emerald" });
+  }
+  if (isClosedOrder(order)) {
+    const returnedOrRefunded = isReturnedOrRefundedOrder(order);
+    items.push({
+      key: "closed",
+      label: returnedOrRefunded ? "Returned/refunded" : "Cancelled",
+      at: order.cancelled_at || order.returned_at || order.deleted_at || order.updated_at,
+      done: true,
+      tone: "rose",
+    });
+  }
+  return items;
+};
+
 function OrdersDashboard() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -66,17 +433,29 @@ function OrdersDashboard() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [workspace, setWorkspace] = useState("table");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [channelFilter, setChannelFilter] = useState(() => searchParams.get("channel") || "all");
   const [branchFilter, setBranchFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState([]);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [editingOrder, setEditingOrder] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState(null);
+  const [permanentDeleteConfirm, setPermanentDeleteConfirm] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [cancellingOrder, setCancellingOrder] = useState(false);
+  const [archivingOrder, setArchivingOrder] = useState(false);
+  const [permanentDeleting, setPermanentDeleting] = useState(false);
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -96,98 +475,294 @@ function OrdersDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
-    loadOrders();
+    queueMicrotask(() => {
+      void loadOrders();
+    });
 
     const handleNewOrder = (newOrder) => {
       setOrders((prev) => [normalizeOrder(newOrder, { items: [] }), ...prev]);
-      toast.success(`${t("orders.title")} #${newOrder.id}`);
     };
 
     socket.on("new_order", handleNewOrder);
     return () => socket.off("new_order", handleNewOrder);
-  }, []);
+  }, [loadOrders]);
+
+  useEffect(() => {
+    const channel = searchParams.get("channel") || "all";
+    queueMicrotask(() => setChannelFilter(channel));
+  }, [searchParams]);
+
+  const verificationOrders = useMemo(() => orders.filter(isAwaitingVerification), [orders]);
+  const fulfillmentOrders = useMemo(() => orders.filter(isFulfillmentOrder), [orders]);
+  const returnsOrders = useMemo(() => getReturnedOrders(orders), [orders]);
+
+  const workspaceSource = useMemo(() => {
+    if (workspace === "verification") return verificationOrders;
+    if (workspace === "fulfillment") return fulfillmentOrders;
+    if (workspace === "returns") return returnsOrders;
+    return orders;
+  }, [workspace, orders, verificationOrders, fulfillmentOrders, returnsOrders]);
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return orders.filter((order) => {
+    return workspaceSource.filter((order) => {
       const matchesSearch = !query || buildSearchText(order).includes(query);
       const matchesStatus = statusFilter === "all" || order.status === statusFilter;
       const matchesPayment = paymentFilter === "all" || order.paymentStatus === paymentFilter;
-      const orderSource = String(order.source || order.channel || "").toLowerCase();
+      const orderSource = getOrderSource(order);
       const matchesChannel = channelFilter === "all" || orderSource === channelFilter;
       const matchesBranch = branchFilter === "all" || order.branch === branchFilter;
       const matchesDate = !dateFilter || String(order.created_at || "").slice(0, 10) === dateFilter;
-      return matchesSearch && matchesStatus && matchesPayment && matchesChannel && matchesBranch && matchesDate;
+      const matchesPriority =
+        priorityFilter === "all" ||
+        (priorityFilter === "awaiting_verification" && isAwaitingVerification(order)) ||
+        (priorityFilter === "cod" && paymentStatusOf(order) === "cod") ||
+        (priorityFilter === "pending" && statusOf(order) === "pending") ||
+        (priorityFilter === "high_value" && isHighValue(order)) ||
+        (priorityFilter === "delayed" && isDelayedPending(order));
+      return matchesSearch && matchesStatus && matchesPayment && matchesChannel && matchesBranch && matchesDate && matchesPriority;
     });
-  }, [orders, search, statusFilter, paymentFilter, channelFilter, branchFilter, dateFilter]);
+  }, [workspaceSource, search, statusFilter, paymentFilter, channelFilter, branchFilter, dateFilter, priorityFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const visibleOrders = filteredOrders.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const branchOptions = useMemo(() => uniqueValues(orders.map((order) => order.branch)), [orders]);
-  const kpis = deriveKpis(orders);
-  const verificationOrders = useMemo(
-    () => orders.filter((order) => order.status === "awaiting_verification" || order.paymentStatus === "awaiting_verification"),
-    [orders]
+  const selectedOrders = useMemo(() => orders.filter((order) => selectedIds.includes(order.id)), [orders, selectedIds]);
+  const selectedCount = selectedIds.length;
+  useEffect(() => {
+    if (!ORDERS_DEBUG || !selectedOrder) return;
+    console.log("SELECTED ORDER", selectedOrder);
+    console.log("ORDER ITEMS", selectedOrder?.items);
+    const itemRows = (Array.isArray(selectedOrder.items) ? selectedOrder.items : []).map((item) => ({
+      id: item.id,
+      product_name: item.product_name || item.name,
+      price: item.price,
+      sale_price: item.sale_price,
+      unit_price: item.unit_price,
+      total_amount: item.total_amount,
+      subtotal: item.subtotal,
+      line_total: item.line_total,
+      final_price: item.final_price,
+      variant_price: item.variant_price,
+      resolved_unit_price: resolveOrderItemUnitPrice(item),
+      resolved_line_total: resolveOrderItemLineTotal(item),
+    }));
+    console.table(itemRows);
+  }, [selectedOrder]);
+  const priorityCounts = useMemo(
+    () => ({
+      awaiting: verificationOrders.length,
+      pending: orders.filter((order) => statusOf(order) === "pending").length,
+      cod: orders.filter((order) => paymentStatusOf(order) === "cod").length,
+      high: orders.filter(isHighValue).length,
+      delayed: orders.filter(isDelayedPending).length,
+    }),
+    [orders, verificationOrders.length]
   );
 
-  useEffect(() => {
+  const updateFilter = (setter, value) => {
+    setter(value);
     setPage(1);
-  }, [search, statusFilter, paymentFilter, channelFilter, branchFilter, dateFilter]);
-
-  useEffect(() => {
-    const channel = searchParams.get("channel") || "all";
-    setChannelFilter(channel);
-  }, [searchParams]);
+  };
 
   const toggleSelected = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
-  const bulkSetStatus = (status) => {
-    setOrders((prev) =>
-      prev.map((order) => (selectedIds.includes(order.id) ? { ...order, status } : order))
-    );
-    toast.success(`${selectedIds.length} ${t("orders.bulk.selected")}`);
-    setSelectedIds([]);
+  const openOrder = async (order) => {
+    setSelectedOrder(order);
+    setOpenMenuId(null);
+    if (!order?.id) return;
+    try {
+      const data = await api.get(`/orders/${order.id}`);
+      const detailedOrder = normalizeOrder(data.order || data, {
+        items: Array.isArray(data.items) ? data.items : Array.isArray(data.order?.items) ? data.order.items : order.items || [],
+        total: data.order?.total ?? data.order?.total_amount ?? data.order?.total_price ?? order.total,
+      });
+      setSelectedOrder((current) => (String(current?.id) === String(order.id) ? detailedOrder : current));
+      setOrders((prev) => prev.map((row) => (String(row.id) === String(order.id) ? { ...row, ...detailedOrder } : row)));
+    } catch (err) {
+      if (ORDERS_DEBUG) console.log("[orders-dashboard] selected order details load failed", err);
+    }
   };
 
   const updateShippingPayment = async (orderId, action) => {
     try {
       const data = await api.post(`/orders/${orderId}/${action === "confirm" ? "confirm-payment" : "reject-payment"}`, {});
       setOrders((prev) => prev.map((order) => (String(order.id) === String(orderId) ? normalizeOrder(data.order || order, { items: order.items || [] }) : order)));
-      toast.success(action === "confirm" ? "Payment confirmed" : "Payment rejected");
+      toast.success(action === "confirm" ? t("orders.payment.confirmed") : t("orders.payment.rejected"));
     } catch (err) {
-      toast.error(err.message || "Failed to update payment");
+      toast.error(err.message || t("orders.payment.updateFailed"));
     }
   };
 
-  return (
-    <OrdersShell
-      title={t("orders.title")}
-      subtitle={t("orders.subtitle")}
-      actions={
-        <button
-          type="button"
-          onClick={() => navigate("/orders/returns")}
-          className="inline-flex items-center gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20"
-        >
-          <RotateCcw className="h-4 w-4" />
-          {t("orders.actions.createReturn")}
-        </button>
-      }
-    >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <KpiCard label={t("orders.kpis.totalOrders")} value={kpis.totalOrders} icon={<ShoppingCart className="h-5 w-5" />} />
-        <KpiCard label={t("orders.kpis.paid")} value={kpis.paid} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" />
-        <KpiCard label={t("orders.kpis.pending")} value={kpis.pending} icon={<Clock3 className="h-5 w-5" />} tone="amber" />
-        <KpiCard label={t("orders.kpis.returned")} value={kpis.returned} icon={<RotateCcw className="h-5 w-5" />} tone="rose" />
-        <KpiCard label={t("orders.kpis.revenue")} value={formatCurrency(kpis.revenue, i18n.language)} icon={<DollarSign className="h-5 w-5" />} tone="blue" />
-      </div>
+  const openEditOrder = (order) => {
+    if (!order?.id) return;
+    navigate(`/pos?editOrderId=${encodeURIComponent(order.id)}`);
+    setOpenMenuId(null);
+  };
 
+  const openCancelOrder = async (order) => {
+    const baseOrder = order;
+    setOpenMenuId(null);
+    if (!baseOrder?.id) return;
+    try {
+      const data = await api.get(`/orders/${baseOrder.id}`);
+      const detailedOrder = normalizeOrder(data.order || data, {
+        items: Array.isArray(data.items) ? data.items : Array.isArray(data.order?.items) ? data.order.items : baseOrder.items || [],
+        total: data.order?.total ?? data.order?.total_amount ?? data.order?.total_price ?? baseOrder.total,
+      });
+      setCancelTarget(detailedOrder);
+    } catch (err) {
+      setCancelTarget(baseOrder);
+      toast.error(err.responseBody?.message || err.message || t("orders.cancel.loadItemsFailed"));
+    }
+    setOpenMenuId(null);
+  };
+
+  const openArchiveOrder = (order) => {
+    setArchiveTarget(order);
+    setOpenMenuId(null);
+  };
+
+  const openPermanentDeleteOrder = (order) => {
+    setPermanentDeleteTarget(order);
+    setPermanentDeleteConfirm("");
+    setOpenMenuId(null);
+  };
+
+  const saveOrderEdit = async (payload) => {
+    if (!editingOrder?.id) return;
+    try {
+      setSavingEdit(true);
+      const data = await api.patch(`/orders/${editingOrder.id}`, payload);
+      const updatedOrder = normalizeOrder(data.order || editingOrder, {
+        items: Array.isArray(data.items) ? data.items : payload.items || editingOrder.items || [],
+        total: data.order?.total ?? data.order?.total_amount ?? data.order?.total_price,
+      });
+      setOrders((prev) => prev.map((order) => (String(order.id) === String(editingOrder.id) ? updatedOrder : order)));
+      setEditingOrder(null);
+      void loadOrders();
+      toast.success(t("orders.edit.updated"));
+    } catch (err) {
+      toast.error(err.message || t("orders.edit.updateFailed"));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const confirmCancelOrder = async () => {
+    if (!cancelTarget?.id) return;
+    try {
+      setCancellingOrder(true);
+      await api.delete(`/orders/${cancelTarget.id}`, { body: { reason: "Cancelled from orders dashboard" } });
+      setOrders((prev) => prev.filter((order) => String(order.id) !== String(cancelTarget.id)));
+      setSelectedIds([]);
+      if (selectedOrder && String(selectedOrder.id) === String(cancelTarget.id)) setSelectedOrder(null);
+      setCancelTarget(null);
+      void loadOrders();
+      toast.success(t("orders.cancel.success"));
+    } catch (err) {
+      toast.error(err.responseBody?.message || err.message || t("orders.cancel.failed"));
+    } finally {
+      setCancellingOrder(false);
+    }
+  };
+
+  const confirmArchiveOrder = async () => {
+    if (!archiveTarget?.id) return;
+    try {
+      setArchivingOrder(true);
+      await api.patch(`/orders/${archiveTarget.id}/archive`, { reason: "Archived from orders dashboard" });
+      setOrders((prev) => prev.filter((order) => String(order.id) !== String(archiveTarget.id)));
+      setSelectedIds([]);
+      if (selectedOrder && String(selectedOrder.id) === String(archiveTarget.id)) setSelectedOrder(null);
+      setArchiveTarget(null);
+      void loadOrders();
+      toast.success(t("orders.archive.success"));
+    } catch (err) {
+      toast.error(err.message || t("orders.archive.failed"));
+    } finally {
+      setArchivingOrder(false);
+    }
+  };
+
+  const confirmPermanentDeleteOrder = async () => {
+    if (!permanentDeleteTarget?.id) return;
+    const confirmation = permanentDeleteConfirm.trim();
+    if (confirmation !== "DELETE" && confirmation !== "حذف") {
+      toast.error(tt(t, "orders.permanentDelete.confirmRequired", "Type DELETE or حذف to confirm."));
+      return;
+    }
+    try {
+      setPermanentDeleting(true);
+      await api.delete(`/orders/${permanentDeleteTarget.id}/permanent`, { body: { confirmation } });
+      setOrders((prev) => prev.filter((order) => String(order.id) !== String(permanentDeleteTarget.id)));
+      setSelectedIds((prev) => prev.filter((id) => String(id) !== String(permanentDeleteTarget.id)));
+      if (selectedOrder && String(selectedOrder.id) === String(permanentDeleteTarget.id)) setSelectedOrder(null);
+      setPermanentDeleteTarget(null);
+      setPermanentDeleteConfirm("");
+      toast.success(tt(t, "orders.permanentDelete.success", "Invoice permanently deleted."));
+    } catch (err) {
+      toast.error(err.responseBody?.message || err.message || tt(t, "orders.permanentDelete.failed", "Failed to permanently delete invoice."));
+    } finally {
+      setPermanentDeleting(false);
+    }
+  };
+
+  const bulkSetStatus = (status) => {
+    if (!selectedCount) return;
+    setOrders((prev) => prev.map((order) => (selectedIds.includes(order.id) ? { ...order, status } : order)));
+    toast.success(`${selectedCount} ${t("orders.bulk.selected")}`);
+    setSelectedIds([]);
+  };
+
+  const exportSelected = () => {
+    const rows = selectedOrders.length ? selectedOrders : filteredOrders;
+    const csv = [
+      ["order", "customer", "phone", "status", "payment_status", "paid_amount", "total", "seller", "source", "created_at"].join(","),
+      ...rows.map((order) => [
+        orderCode(order),
+        order.customer_name || "",
+        getCustomerPhone(order),
+        order.status || "",
+        getPaymentSummary(order, i18n.language).label,
+        getPaidAmount(order),
+        totalValue(order),
+        getSellerName(order),
+        getOrderSource(order),
+        order.created_at || "",
+      ].map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")),
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `orders-export-${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const bulkWhatsapp = () => {
+    const first = selectedOrders[0];
+    const phone = getCustomerPhone(first);
+    if (!phone) {
+      toast.error(t("orders.bulk.selectPhoneFirst"));
+      return;
+    }
+    const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(first), status: first.status || "Pending" }));
+    window.open(`https://wa.me/${String(phone).replace(/\D/g, "")}?text=${message}`, "_blank", "noreferrer");
+  };
+
+  const activeWorkspace = WORKSPACES.find((item) => item.key === workspace) || WORKSPACES[0];
+  const ActiveWorkspaceIcon = activeWorkspace.icon;
+
+  return (
+    <OrdersShell header={null}>
       {error ? (
         <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
           <AlertTriangle className="mr-2 inline h-4 w-4" />
@@ -195,331 +770,1275 @@ function OrdersDashboard() {
         </div>
       ) : null}
 
-      {verificationOrders.length ? (
-        <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 shadow-2xl shadow-black/10">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-amber-300">Shipping Payments</div>
-              <h2 className="text-xl font-black text-white">Awaiting verification</h2>
-            </div>
-            <span className="rounded-2xl bg-amber-400/20 px-3 py-1 text-sm font-black text-amber-100">{verificationOrders.length}</span>
-          </div>
-          <div className="mt-4 grid gap-3 xl:grid-cols-2">
-            {verificationOrders.map((order) => (
-              (() => {
-                const proofUrl = resolveShippingProofImageUrl(order.shipping_payment_screenshot);
-                const proofInvalid = isInvalidShippingProofUrl(order.shipping_payment_screenshot);
-                return (
-              <div key={String(order.id)} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/80 p-4 md:grid-cols-[7rem_minmax(0,1fr)]">
-                <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-                  {proofInvalid ? (
-                    <div className="grid h-28 place-items-center px-3 text-center text-xs font-semibold text-rose-200">
-                      صورة إثبات التحويل غير صالحة
-                    </div>
-                  ) : proofUrl ? (
-                    <img src={proofUrl} alt="Payment proof" className="h-28 w-full object-cover" />
-                  ) : (
-                    <div className="grid h-28 place-items-center text-xs font-semibold text-zinc-500">No proof</div>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="font-black text-white">{order.invoice_number}</div>
-                      <div className="mt-1 text-sm text-zinc-400">{order.customer_name} - {order.customer_phone || "No phone"}</div>
-                    </div>
-                    <StatusBadge value={order.paymentStatus} />
-                  </div>
-                  <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-3">
-                    <span>Method: <b className="text-white">{formatShippingPaymentMethodLabel(order.shipping_payment_method || order.payment_method)}</b></span>
-                    <span>Shipping: <b className="text-white">{formatCurrency(order.shipping_fee || order.delivery_fee || 0)}</b></span>
-                    <span>Ref: <b className="text-white">{order.shipping_payment_reference || "n/a"}</b></span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-2xl bg-emerald-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">
-                      Confirm Payment
-                    </button>
-                    <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-2xl bg-rose-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">
-                      Reject Payment
-                    </button>
-                    <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
-                      View details
-                    </button>
-                  </div>
-                </div>
-              </div>
-                );
-              })()
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <WorkspaceTabs t={t} value={workspace} onChange={(value) => { setWorkspace(value); setPage(1); }} counts={{ table: orders.length, verification: verificationOrders.length, fulfillment: fulfillmentOrders.length, returns: returnsOrders.length }} />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_repeat(5,12rem)]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t("orders.searchPlaceholder")}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
-              />
+      <div className={`grid gap-3 ${selectedOrder && workspace === "table" ? "xl:grid-cols-[minmax(0,1fr)_24rem]" : ""}`}>
+        <main className="min-w-0 rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-2xl shadow-black/10">
+          <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                <ActiveWorkspaceIcon className="h-3.5 w-3.5" />
+                {t(activeWorkspace.labelKey)}
+              </div>
+              <h2 className="mt-1 text-lg font-black text-white">{t("orders.dashboard.operationsWorkspace")}</h2>
             </div>
-            <Select value={statusFilter} onChange={setStatusFilter} options={["all", ...uniqueValues(orders.map((o) => o.status))]} label={t("orders.filters.status")} allLabel={t("orders.filters.all")} />
-            <Select value={paymentFilter} onChange={setPaymentFilter} options={["all", ...uniqueValues(orders.map((o) => o.paymentStatus))]} label={t("orders.filters.payment")} allLabel={t("orders.filters.all")} />
-            <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label="Source" allLabel={t("orders.filters.all")} labels={SOURCE_LABELS} />
-            {branchOptions.length > 1 ? (
-              <Select value={branchFilter} onChange={setBranchFilter} options={["all", ...branchOptions]} label={t("orders.filters.branch")} allLabel={t("orders.filters.all")} />
-            ) : null}
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+            <BulkActions
+              t={t}
+              selectedCount={selectedCount}
+              onConfirm={() => bulkSetStatus("Confirmed")}
+              onShip={() => bulkSetStatus("Shipped")}
+              onPrint={() => window.print()}
+              onExport={exportSelected}
+              onWhatsapp={bulkWhatsapp}
             />
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => bulkSetStatus("Confirmed")}
-              disabled={!selectedIds.length}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {t("orders.bulk.markConfirmed")}
-            </button>
-            <button
-              type="button"
-              onClick={() => bulkSetStatus("Shipped")}
-              disabled={!selectedIds.length}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {t("orders.bulk.markShipped")}
-            </button>
-            <button
-              type="button"
-              onClick={() => bulkSetStatus("Cancelled")}
-              disabled={!selectedIds.length}
-              className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-200 disabled:opacity-40"
-            >
-              {t("orders.bulk.cancelSelected")}
-            </button>
-            <div className="ml-auto text-sm text-zinc-400">{selectedIds.length} {t("orders.bulk.selected")}</div>
-          </div>
+          <PriorityStrip t={t} counts={priorityCounts} priorityFilter={priorityFilter} setPriorityFilter={(value) => updateFilter(setPriorityFilter, value)} />
+          <Filters
+            t={t}
+            orders={orders}
+            search={search}
+            setSearch={(value) => updateFilter(setSearch, value)}
+            statusFilter={statusFilter}
+            setStatusFilter={(value) => updateFilter(setStatusFilter, value)}
+            paymentFilter={paymentFilter}
+            setPaymentFilter={(value) => updateFilter(setPaymentFilter, value)}
+            channelFilter={channelFilter}
+            setChannelFilter={(value) => updateFilter(setChannelFilter, value)}
+            branchFilter={branchFilter}
+            setBranchFilter={(value) => updateFilter(setBranchFilter, value)}
+            dateFilter={dateFilter}
+            setDateFilter={(value) => updateFilter(setDateFilter, value)}
+            branchOptions={branchOptions}
+          />
 
-          <div className="mt-4 overflow-x-auto">
-            <div className="min-w-[1100px]">
-              <div className="grid grid-cols-[12%_18%_12%_12%_10%_10%_10%_12%_4%] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500">
-                <div>{t("orders.table.invoice")}</div>
-                <div>{t("orders.table.customer")}</div>
-                <div>{t("orders.table.status")}</div>
-                <div>{t("orders.table.payment")}</div>
-                <div>{t("orders.table.channel")}</div>
-                <div>{t("orders.table.branch")}</div>
-                <div>{t("orders.table.total")}</div>
-                <div>{t("orders.table.date")}</div>
-                <div></div>
-              </div>
+          {loading ? <TableSkeleton /> : null}
+          {!loading && workspace === "table" ? (
+            <TableView
+              t={t}
+              language={i18n.language}
+              orders={visibleOrders}
+              selectedIds={selectedIds}
+              toggleSelected={toggleSelected}
+              openOrder={openOrder}
+              editOrder={openEditOrder}
+              cancelOrder={openCancelOrder}
+              archiveOrder={openArchiveOrder}
+              permanentDeleteOrder={openPermanentDeleteOrder}
+              navigate={navigate}
+              openMenuId={openMenuId}
+              setOpenMenuId={setOpenMenuId}
+              activeOrderId={selectedOrder?.id}
+              empty={<EmptyState icon={PackageOpen} title={t("orders.empty.noOrders")} text={t("orders.empty.matchingFilters")} />}
+            />
+          ) : null}
+          {!loading && workspace === "verification" ? (
+            <VerificationQueue t={t} orders={filteredOrders} updateShippingPayment={updateShippingPayment} openOrder={openOrder} />
+          ) : null}
+          {!loading && workspace === "fulfillment" ? (
+            <FulfillmentBoard t={t} orders={filteredOrders} openOrder={openOrder} />
+          ) : null}
+          {!loading && workspace === "returns" ? (
+            <ReturnsView t={t} orders={filteredOrders} openOrder={openOrder} />
+          ) : null}
 
-              <div className="mt-2 space-y-2">
-                {loading ? (
-                  <TableSkeleton />
-                ) : visibleOrders.length === 0 ? (
-                  <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
-                    <PackageOpen className="mx-auto h-12 w-12 text-zinc-500" />
-                    <h3 className="mt-4 text-xl font-black text-white">{t("orders.empty.title")}</h3>
-                    <p className="mt-2 text-sm text-zinc-400">{t("orders.empty.description")}</p>
-                  </div>
-                ) : (
-                  visibleOrders.map((order) => (
-                    <div
-                      key={String(order.id)}
-                      className={`grid grid-cols-[12%_18%_12%_12%_10%_10%_10%_12%_4%] items-center rounded-2xl border px-4 py-3 transition hover:border-blue-500/40 hover:bg-white/5 ${
-                        selectedIds.includes(order.id) ? "border-blue-500/30 bg-blue-500/10" : "border-white/10 bg-zinc-950/90"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <input type="checkbox" checked={selectedIds.includes(order.id)} onChange={() => toggleSelected(order.id)} />
-                        <div>
-                          <div className="font-bold text-white">{order.invoice_number}</div>
-                          <div className="text-xs text-zinc-500">#{order.id}</div>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-white">{order.customer_name}</div>
-                        <div className="text-xs text-zinc-500">{order.customer_phone || "No phone"}</div>
-                        {getAttributionLabel(order) ? (
-                          <div className="mt-2 inline-flex rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-200">
-                            {getAttributionLabel(order)}
-                          </div>
-                        ) : null}
-                        {String(order.source || order.channel || "").toLowerCase() === "website" ? (
-                          <div className="mt-2 inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
-                            Online Order
-                          </div>
-                        ) : null}
-                      </div>
-                      <StatusBadge value={order.status} />
-                      <StatusBadge value={order.paymentStatus} />
-                      <div className="text-sm text-zinc-300">{SOURCE_LABELS[String(order.source || order.channel || "").toLowerCase()] || order.source || order.channel}</div>
-                      <div className="text-sm text-zinc-300">{order.branch}</div>
-                      <div className="font-bold text-white">{formatCurrency(order.total)}</div>
-                      <div className="text-xs text-zinc-400">{formatDateTime(order.created_at)}</div>
-                      <div className="relative flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setOpenMenuId(openMenuId === order.id ? null : order.id)}
-                          className="rounded-xl border border-white/10 bg-white/5 p-2 text-white"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-                        {openMenuId === order.id ? (
-                          <div className="absolute right-0 top-11 z-20 w-48 rounded-2xl border border-white/10 bg-zinc-950 p-2 shadow-2xl">
-                            <MenuItem to={`/orders/${order.id}`} icon={<Eye className="h-4 w-4" />} label="View details" />
-                            <MenuItem to="/orders/returns" icon={<RotateCcw className="h-4 w-4" />} label={t("orders.actions.createReturn")} />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(order.invoice_number);
-                                toast.success(t("orders.actions.invoiceCopied"));
-                              }}
-                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-zinc-200 hover:bg-white/5"
-                            >
-                              <ReceiptText className="h-4 w-4" />
-                              {t("orders.actions.copyInvoice")}
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-zinc-400">
-              {t("orders.paging.showing")} {visibleOrders.length} {t("orders.paging.of")} {filteredOrders.length} {t("orders.paging.records")}
-            </div>
-            <div className="flex items-center gap-2">
-              <PagerButton onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} label={t("common.previous")} />
-              <span className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300">
-                {t("orders.paging.page")} {currentPage} / {totalPages}
-              </span>
-              <PagerButton onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} label={t("common.next")} />
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.summary.quick")}</div>
-              <h2 className="text-xl font-black text-white">{t("orders.summary.recentSignals")}</h2>
-            </div>
-          </div>
-          <div className="mt-4 space-y-3">
-            {orders.slice(0, 5).map((order) => (
-              <button
-                key={String(order.id)}
-                type="button"
-                onClick={() => navigate(`/orders/${order.id}`)}
-                className="w-full rounded-3xl border border-white/10 bg-white/5 p-4 text-left transition hover:bg-white/10"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-white">{order.customer_name}</div>
-                    <div className="mt-1 text-xs text-zinc-500">{order.invoice_number}</div>
-                  </div>
-                  <StatusBadge value={order.status} />
-                </div>
-                <div className="mt-3 flex items-center justify-between text-sm text-zinc-300">
-                  <span>{formatDateTime(order.created_at)}</span>
-                  <span className="font-bold text-white">{formatCurrency(order.total)}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+          {workspace === "table" && !loading ? (
+            <Pager currentPage={currentPage} totalPages={totalPages} visible={visibleOrders.length} total={filteredOrders.length} t={t} setPage={setPage} />
+          ) : null}
+        </main>
+        {selectedOrder && workspace === "table" ? (
+          <aside className="hidden min-w-0 xl:block">
+            <OrderPreviewPanel
+              t={t}
+              order={selectedOrder}
+              onClose={() => setSelectedOrder(null)}
+              updateShippingPayment={updateShippingPayment}
+              navigate={navigate}
+              editOrder={openEditOrder}
+              compact
+            />
+          </aside>
+        ) : null}
       </div>
+
+      <OrderDrawer t={t} order={selectedOrder} onClose={() => setSelectedOrder(null)} updateShippingPayment={updateShippingPayment} navigate={navigate} editOrder={openEditOrder} inlinePreview={workspace === "table"} />
+      <OrderEditModal t={t} order={editingOrder} saving={savingEdit} onClose={() => setEditingOrder(null)} onSave={saveOrderEdit} />
+      <CancelOrderModal t={t} order={cancelTarget} cancelling={cancellingOrder} onClose={() => setCancelTarget(null)} onConfirm={confirmCancelOrder} />
+      <ArchiveOrderModal t={t} order={archiveTarget} archiving={archivingOrder} onClose={() => setArchiveTarget(null)} onConfirm={confirmArchiveOrder} />
+      <PermanentDeleteOrderModal
+        t={t}
+        order={permanentDeleteTarget}
+        value={permanentDeleteConfirm}
+        deleting={permanentDeleting}
+        onChange={setPermanentDeleteConfirm}
+        onClose={() => {
+          setPermanentDeleteTarget(null);
+          setPermanentDeleteConfirm("");
+        }}
+        onConfirm={confirmPermanentDeleteOrder}
+      />
     </OrdersShell>
   );
 }
 
-function KpiCard({ label, value, icon, tone = "zinc" }) {
-  const toneClasses = {
-    emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
-    amber: "border-amber-500/20 bg-amber-500/10 text-amber-300",
-    rose: "border-rose-500/20 bg-rose-500/10 text-rose-300",
-    blue: "border-blue-500/20 bg-blue-500/10 text-blue-300",
-    zinc: "border-white/10 bg-white/5 text-white",
-  };
-
+function WorkspaceTabs({ t, value, onChange, counts }) {
   return (
-    <div className={`rounded-3xl border p-4 shadow-xl ${toneClasses[tone]}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-          <div className="mt-2 text-2xl font-black text-white">{value}</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-3">{icon}</div>
-      </div>
+    <div className="grid gap-2 rounded-2xl border border-white/10 bg-zinc-950/80 p-1.5 shadow-xl shadow-black/10 sm:grid-cols-2 xl:grid-cols-4">
+      {WORKSPACES.map(({ key, labelKey, icon: Icon }) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${value === key ? "border-cyan-400/30 bg-white/10 text-white shadow-[0_0_20px_rgba(34,211,238,0.15)]" : "border-transparent text-zinc-300 hover:bg-white/5 hover:text-white"}`}
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="truncate text-sm font-black">{t(labelKey)}</span>
+          </span>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-black ${value === key ? "bg-cyan-400/15 text-cyan-100" : "bg-white/10 text-white"}`}>{counts[key] || 0}</span>
+        </button>
+      ))}
     </div>
   );
 }
 
-function Select({ value, onChange, options, label, allLabel = "All", labels = {} }) {
+function BulkActions({ t, selectedCount, onConfirm, onShip, onPrint, onExport, onWhatsapp }) {
   return (
-    <label className="block">
-      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-      >
-        {options.map((option) => (
-          <option key={String(option)} value={option} className="bg-zinc-950 text-white">
-            {option === "all" ? allLabel : labels[option] || option}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black text-zinc-200">{t("orders.bulk.selectedCount", { count: selectedCount })}</span>
+      <ActionButton disabled={!selectedCount} onClick={onConfirm} icon={<CheckCircle2 className="h-3.5 w-3.5" />} label={t("orders.bulk.confirm")} />
+      <ActionButton disabled={!selectedCount} onClick={onShip} icon={<Truck className="h-3.5 w-3.5" />} label={t("orders.bulk.ship")} />
+      <ActionButton disabled={!selectedCount} onClick={onPrint} icon={<Printer className="h-3.5 w-3.5" />} label={t("orders.bulk.print")} />
+      <ActionButton disabled={!selectedCount} onClick={onExport} icon={<Download className="h-3.5 w-3.5" />} label={t("orders.bulk.export")} />
+      <ActionButton disabled={!selectedCount} onClick={onWhatsapp} icon={<MessageCircle className="h-3.5 w-3.5" />} label={t("orders.bulk.whatsapp")} />
+      <ActionButton disabled title={t("orders.bulk.cancelRequiresBackend")} icon={<RotateCcw className="h-3.5 w-3.5" />} label={t("orders.bulk.cancel")} tone="rose" />
+    </div>
   );
 }
 
-function PagerButton({ onClick, disabled, label }) {
+function ActionButton({ disabled, onClick, icon, label, tone = "zinc", title }) {
+  const toneClass = tone === "rose" ? "border-rose-400/20 bg-rose-400/10 text-rose-200" : "border-white/10 bg-white/5 text-white";
   return (
     <button
       type="button"
-      onClick={onClick}
       disabled={disabled}
-      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+      title={disabled ? title || "" : title}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-bold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}
     >
+      {icon}
       {label}
     </button>
   );
 }
 
-function MenuItem({ to, icon, label }) {
+function PriorityStrip({ t, counts, priorityFilter, setPriorityFilter }) {
+  const items = [
+    ["awaiting_verification", t("orders.priority.awaitingVerification"), counts.awaiting, "amber"],
+    ["high_value", t("orders.priority.highValue"), counts.high, "gold"],
+    ["delayed", t("orders.priority.delayedPending"), counts.delayed, "rose"],
+    ["cod", t("orders.priority.cod"), counts.cod, "slate"],
+    ["pending", t("orders.priority.pending"), counts.pending, "blue"],
+  ];
   return (
-    <Link to={to} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-zinc-200 hover:bg-white/5">
+    <div className="mb-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+      {items.map(([key, label, value, tone]) => (
+        <PriorityMetric key={key} label={label} value={value} tone={tone} active={priorityFilter === key} onClick={() => setPriorityFilter(priorityFilter === key ? "all" : key)} />
+      ))}
+    </div>
+  );
+}
+
+function Filters(props) {
+  const {
+    t, orders, search, setSearch, statusFilter, setStatusFilter, paymentFilter, setPaymentFilter, channelFilter, setChannelFilter,
+    branchFilter, setBranchFilter, dateFilter, setDateFilter, branchOptions,
+  } = props;
+
+  return (
+    <>
+      <div className="grid gap-2.5 lg:grid-cols-2 xl:grid-cols-[minmax(22rem,2fr)_repeat(5,minmax(8.5rem,1fr))]">
+        <div className="relative">
+          <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("orders.searchPlaceholder")}
+            className="w-full rounded-xl border border-cyan-400/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-cyan-300/40"
+          />
+        </div>
+        <Select value={statusFilter} onChange={setStatusFilter} options={["all", ...uniqueValues(orders.map((o) => o.status))]} label={t("orders.filters.status")} allLabel={t("orders.filters.all")} />
+        <Select value={paymentFilter} onChange={setPaymentFilter} options={["all", ...uniqueValues(orders.map((o) => o.paymentStatus))]} label={t("orders.filters.payment")} allLabel={t("orders.filters.all")} />
+        <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label={t("orders.filters.source")} allLabel={t("orders.filters.all")} labels={SOURCE_LABELS} t={t} />
+        {branchOptions.length > 1 ? <Select value={branchFilter} onChange={setBranchFilter} options={["all", ...branchOptions]} label={t("orders.filters.branch")} allLabel={t("orders.filters.all")} /> : null}
+        <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+      </div>
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <QuickFilterButton active={dateFilter === getDateInputValue()} onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} label={t("orders.filters.today")} />
+      </div>
+    </>
+  );
+}
+
+function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder, editOrder, cancelOrder, archiveOrder, permanentDeleteOrder, navigate, openMenuId, setOpenMenuId, activeOrderId, empty }) {
+  useEffect(() => {
+    if (!ORDERS_DEBUG) return;
+    console.log("[orders-dashboard] table actions debug", {
+      ordersLength: orders.length,
+      actionsRendered: orders.map((order) => order.id),
+      permissionChecks: "row actions visible; backend permissions enforced on requests",
+    });
+  }, [orders]);
+
+  if (!orders.length) return empty;
+  return (
+    <div className="mt-3 max-h-[calc(100vh-23rem)] overflow-auto pb-1">
+      <div className="min-w-[1620px] overflow-visible">
+        <div className="sticky top-0 z-20 grid grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_7rem_10rem_7rem_7rem_8rem_6.5rem_6.5rem] rounded-xl border border-white/10 bg-zinc-950/85 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur-xl" dir="ltr">
+          <div className="flex justify-center py-1 text-center">{t("orders.table.actions")}</div>
+          <div>{t("orders.table.invoice")}</div>
+          <div>{t("orders.table.date")}</div>
+          <div>{t("orders.table.customer")}</div>
+          <div>{t("orders.table.customerPhone", isArabicLanguage(language) ? "\u0647\u0627\u062a\u0641 \u0627\u0644\u0639\u0645\u064a\u0644" : "Phone")}</div>
+          <div>{t("orders.table.items", isArabicLanguage(language) ? "\u0627\u0644\u0623\u0635\u0646\u0627\u0641" : "Items")}</div>
+          <div>{t("orders.table.status")}</div>
+          <div>{t("orders.table.paymentStatus", isArabicLanguage(language) ? "\u062d\u0627\u0644\u0629 \u0627\u0644\u062f\u0641\u0639" : "Payment Status")}</div>
+          <div>{t("orders.table.paidAmount", isArabicLanguage(language) ? "\u0627\u0644\u0645\u062f\u0641\u0648\u0639" : "Paid")}</div>
+          <div>{t("orders.table.total")}</div>
+          <div>{t("orders.table.seller", isArabicLanguage(language) ? "\u0627\u0644\u0628\u0627\u0626\u0639" : "Seller")}</div>
+          <div>{t("orders.table.channel")}</div>
+          <div>{t("orders.table.branch")}</div>
+        </div>
+        <div className="relative z-10 mt-1.5 space-y-1.5 overflow-visible">
+          {orders.map((order) => {
+            const priority = priorityFor(order);
+            if (ORDERS_DEBUG) console.log("[orders-dashboard] row actions rendered", { rowId: order.id, actionsRendered: true });
+            return (
+              <div
+                key={String(order.id)}
+                role="button"
+                tabIndex={0}
+                onClick={() => openOrder(order)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") openOrder(order);
+                }}
+                className={`relative z-0 grid cursor-pointer grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_7rem_10rem_7rem_7rem_8rem_6.5rem_6.5rem] items-center overflow-visible rounded-xl border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-cyan-400/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-cyan-950/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-cyan-400/35" : ""}`}
+                dir="ltr"
+              >
+                <RowMenu t={t} order={order} openOrder={openOrder} editOrder={editOrder} cancelOrder={cancelOrder} archiveOrder={archiveOrder} permanentDeleteOrder={permanentDeleteOrder} navigate={navigate} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
+                <div className="flex min-w-0 items-center gap-2 pr-3">
+                  <input className="h-4 w-4 shrink-0 accent-cyan-500" type="checkbox" checked={selectedIds.includes(order.id)} onClick={(event) => event.stopPropagation()} onChange={() => toggleSelected(order.id)} />
+                  <OrderCode order={order} />
+                </div>
+                <OrderDateTimeCell value={order.created_at} language={language} />
+                <CustomerCell t={t} order={order} />
+                <PhoneCell t={t} order={order} />
+                <ItemsCountCell order={order} />
+                <div className="min-w-0 pr-2"><StatusBadge value={order.status} /></div>
+                <PaymentStatusCell order={order} language={language} />
+                <PaidAmountCell order={order} />
+                <TotalCell t={t} order={order} />
+                <SellerCell order={order} />
+                <div className="truncate pr-3 text-xs font-medium text-zinc-300">{SOURCE_LABELS[getOrderSource(order)] ? t(SOURCE_LABELS[getOrderSource(order)]) : order.source || order.channel}</div>
+                <div className="truncate pr-3 text-xs font-medium text-zinc-300">{order.branch}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RowMenu({ t, order, openOrder, editOrder, cancelOrder, archiveOrder, permanentDeleteOrder, navigate, openMenuId, setOpenMenuId }) {
+  const cancelDisabled = isDeliveredOrder(order);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const isOpen = openMenuId === order.id;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const updatePosition = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const menuWidth = 256;
+      const viewportPadding = 12;
+      const left = Math.min(
+        Math.max(viewportPadding, rect.right - menuWidth),
+        window.innerWidth - menuWidth - viewportPadding
+      );
+      const top = Math.min(rect.bottom + 8, window.innerHeight - 340);
+      setMenuPosition({ top: Math.max(viewportPadding, top), left });
+      if (ORDERS_DEBUG) console.log("[orders-dashboard] dropdown open state", {
+        rowId: order.id,
+        open: true,
+        top: Math.max(viewportPadding, top),
+        left,
+      });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOpen, order.id]);
+
+  const closeMenu = () => setOpenMenuId(null);
+  useDismissableLayer({
+    enabled: isOpen,
+    refs: [menuRef, buttonRef],
+    onDismiss: closeMenu,
+  });
+
+  const runAction = (handler) => {
+    handler();
+    closeMenu();
+  };
+
+  const menu = isOpen && typeof document !== "undefined"
+    ? createPortal(
+        <>
+          <div
+            ref={menuRef}
+            className="fixed z-[9999] w-64 rounded-2xl border border-white/10 bg-zinc-950/95 p-2 text-white shadow-2xl shadow-black/40 backdrop-blur-xl"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+          >
+            <MenuButton icon={<Eye className="h-4 w-4" />} label={t("orders.actionsMenu.viewDetails")} onClick={() => runAction(() => openOrder(order))} />
+            <MenuButton icon={<Pencil className="h-4 w-4" />} label={t("orders.actionsMenu.editOrder")} onClick={() => runAction(() => editOrder(order))} />
+            <MenuButton
+              icon={<RotateCcw className="h-4 w-4" />}
+              label={t("orders.actionsMenu.cancelRestore")}
+              tone="rose"
+              disabled={cancelDisabled}
+              title={cancelDisabled ? t("orders.cancel.deliveredUseReturns") : ""}
+              onClick={() => runAction(() => cancelOrder(order))}
+            />
+            <MenuButton icon={<Trash2 className="h-4 w-4" />} label={t("orders.actionsMenu.archiveOrder")} onClick={() => runAction(() => archiveOrder(order))} />
+            <MenuButton icon={<FileText className="h-4 w-4" />} label={t("orders.actionsMenu.openDetailsPage")} onClick={() => runAction(() => navigate(`/orders/${order.id}`))} />
+            <MenuButton icon={<Copy className="h-4 w-4" />} label={t("orders.actionsMenu.copyInvoiceLink", "Copy Invoice Link")} onClick={() => runAction(() => {
+              copyText(publicInvoiceUrl(order))
+                .then(() => toast.success(t("orders.actionsMenu.invoiceLinkCopied", "Invoice link copied")))
+                .catch(() => toast.error(t("orders.actionsMenu.invoiceLinkCopyFailed", "Unable to copy invoice link")));
+            })} />
+            <div className="my-1 border-t border-white/10" />
+            <MenuButton
+              icon={<Trash2 className="h-4 w-4" />}
+              label={tt(t, "orders.actionsMenu.permanentDelete", "Permanent Delete")}
+              tone="rose"
+              onClick={() => runAction(() => permanentDeleteOrder(order))}
+            />
+          </div>
+        </>,
+        document.body
+      )
+    : null;
+
+  return (
+    <div className="z-30 flex h-full w-16 min-w-16 shrink-0 items-center justify-center overflow-visible" onClick={(event) => event.stopPropagation()}>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label={t("orders.actionsMenu.actionsFor", { order: orderCode(order) })}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={() => {
+          if (ORDERS_DEBUG) console.log("[orders-dashboard] action trigger clicked", { rowId: order.id, nextOpen: !isOpen });
+          setOpenMenuId(isOpen ? null : order.id);
+        }}
+        className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/90 shadow-lg shadow-black/10 ring-1 ring-white/[0.03] transition-all duration-200 ease-out hover:border-cyan-300/40 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/35"
+      >
+        <MoreVertical className="h-4 w-4 opacity-95" />
+      </button>
+      {menu}
+    </div>
+  );
+}
+
+function VerificationQueue({ t, orders, updateShippingPayment, openOrder }) {
+  if (!orders.length) return <EmptyState icon={CreditCard} title={t("orders.payment.noVerificationOrders")} text={t("orders.payment.noVerificationText")} />;
+  return (
+    <div className="mt-3 grid gap-3 xl:grid-cols-2">
+      {orders.map((order) => {
+        const proofUrl = resolveShippingProofImageUrl(order.shipping_payment_screenshot);
+        const proofInvalid = isInvalidShippingProofUrl(order.shipping_payment_screenshot);
+        return (
+          <div key={order.id} className="grid gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/10 p-3 shadow-xl shadow-amber-950/10 md:grid-cols-[7rem_minmax(0,1fr)]">
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+              {proofInvalid ? <div className="grid h-28 place-items-center px-3 text-center text-xs font-semibold text-rose-200">{t("orders.payment.invalidProof")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="h-28 w-full object-cover" /> : <div className="grid h-28 place-items-center text-xs font-semibold text-zinc-500">{t("orders.payment.noProof")}</div>}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <OrderCode order={order} />
+                  <div className="mt-2 truncate text-sm font-semibold text-white">{order.customer_name || t("orders.fallback.customer")}</div>
+                  <div className="mt-1 text-xs text-zinc-400">{formatShippingPaymentMethodLabel(order.shipping_payment_method || order.payment_method)} · {formatCurrency(order.shipping_fee || order.delivery_fee || 0)}</div>
+                </div>
+                <StatusBadge value={paymentBadgeValue(order)} />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.confirm")}</button>
+                <button type="button" disabled={proofInvalid} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-xl bg-rose-500 px-3 py-1.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{t("orders.payment.reject")}</button>
+                <button type="button" onClick={() => openOrder(order)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white">{t("orders.actionsMenu.view")}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FulfillmentBoard({ t, orders, openOrder }) {
+  const columns = [
+    ["confirmed", t("orders.fulfillment.confirmed")],
+    ["ready_to_ship", t("orders.fulfillment.packedReady")],
+    ["shipment_created", t("orders.fulfillment.shipped")],
+    ["delivered", t("orders.fulfillment.delivered")],
+  ];
+  const grouped = columns.map(([key, label]) => ({
+    key,
+    label,
+    orders: orders.filter((order) => {
+      const status = statusOf(order);
+      const shipping = shippingStatusOf(order);
+      if (key === "confirmed") return status === "confirmed" || shipping === "pending";
+      if (key === "ready_to_ship") return status === "ready_to_ship" || shipping === "ready_to_ship";
+      if (key === "shipment_created") return ["shipment_created", "out_for_delivery"].includes(status) || ["shipment_created", "out_for_delivery"].includes(shipping);
+      return status === "delivered" || shipping === "delivered";
+    }),
+  }));
+  if (!orders.length) return <EmptyState icon={Truck} title={t("orders.fulfillment.noOrders")} text={t("orders.fulfillment.noOrdersText")} />;
+  return (
+    <div className="mt-3 grid gap-3 xl:grid-cols-4">
+      {grouped.map((column) => (
+        <div key={column.key} className="min-h-48 rounded-2xl border border-white/10 bg-white/5 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-black text-white">{column.label}</h3>
+            <span className="rounded-full bg-black/20 px-2 py-0.5 text-xs font-black text-zinc-200">{column.orders.length}</span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {column.orders.map((order) => <CompactOrderCard key={order.id} t={t} order={order} onClick={() => openOrder(order)} />)}
+            {!column.orders.length ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-center text-xs font-semibold text-zinc-500">{t("orders.empty.empty")}</div> : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReturnsView({ t, orders, openOrder }) {
+  if (!orders.length) return <EmptyState icon={RotateCcw} title={t("orders.returns.noReturns")} text={t("orders.returns.noReturnsText")} />;
+  return (
+    <div className="mt-3 grid gap-2 xl:grid-cols-2">
+      {orders.map((order) => (
+        <button key={order.id} type="button" onClick={() => openOrder(order)} className="rounded-2xl border border-rose-400/25 bg-rose-400/10 p-3 text-left transition hover:bg-rose-400/15">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <OrderCode order={order} />
+              <div className="mt-2 truncate text-sm font-semibold text-white">{order.customer_name || t("orders.fallback.customer")}</div>
+              <div className="mt-1 text-xs text-zinc-400">{order.cancel_reason || order.notes || t("orders.returns.noReturnNote")}</div>
+            </div>
+            <StatusBadge value={order.status} />
+          </div>
+          <div className="mt-3 grid gap-2 text-xs text-zinc-300 sm:grid-cols-3">
+            <span>{t("orders.table.payment")}: <b className="text-white">{paymentBadgeValue(order)}</b></span>
+            <span>{t("orders.returns.stock")}: <b className="text-white">{order.stock_reverted_at || order.inventory_rollback_done ? t("orders.returns.returned") : t("orders.returns.notMarked")}</b></span>
+            <span>{t("orders.table.total")}: <b className="text-white">{formatCurrency(totalValue(order))}</b></span>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editOrder, inlinePreview = false }) {
+  if (!order) return null;
+  const items = Array.isArray(order.items) ? order.items : [];
+  const previewItems = items.map((item) => normalizePreviewOrderItem(item, order));
+  const timeline = buildTimeline(order);
+  const address = [order.governorate, order.city_area, order.customer_address, order.landmark].filter(Boolean).join(" - ");
+  const proofUrl = resolveShippingProofImageUrl(order.shipping_payment_screenshot);
+  const proofInvalid = isInvalidShippingProofUrl(order.shipping_payment_screenshot);
+  return (
+    <div className={`fixed inset-0 z-50 ${inlinePreview ? "xl:hidden" : ""}`}>
+      <button type="button" aria-label={t("orders.drawer.closeBackdrop")} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <section className="absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col overflow-hidden border-l border-white/10 bg-zinc-950 text-white shadow-2xl md:w-[42rem]">
+        <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
+          <div className="min-w-0">
+            <OrderCode order={order} />
+            <h2 className="mt-2 truncate text-2xl font-black">{getCustomerDisplayName(order, t("orders.fallback.customer"))}</h2>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <StatusBadge value={order.status} />
+              <StatusBadge value={paymentBadgeValue(order)} />
+              {isExchangeOrder(order) ? <ExchangeBadge order={order} /> : null}
+              {order.shipping_status ? <StatusBadge value={order.shipping_status} /> : null}
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
+            <X className="h-5 w-5" />
+          </button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <InfoTile icon={User} label={t("orders.drawer.customer")} value={getCustomerDisplayName(order, t("orders.fallback.walkInCustomer"))} />
+            <InfoTile icon={Phone} label={t("orders.drawer.phone")} value={order.customer_phone || t("orders.fallback.noPhone")} />
+            <InfoTile icon={User} label="Seller" value={getSellerDisplayName(order) || "n/a"} />
+            <InfoTile icon={CreditCard} label="Payment" value={`${order.payment_method || "n/a"} · ${paymentBadgeValue(order)}`} />
+            <InfoTile icon={Truck} label="Shipping" value={`${order.shipping_provider || "manual"} · ${order.shipping_status || "pending"}`} />
+            <InfoTile icon={DollarSign} label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
+            {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label="Invoice edit payment" value={`Original paid: ${formatCurrency(editOriginalPaidOf(order))} / Additional paid: ${formatCurrency(editAdditionalPaidOf(order))} / Final total: ${formatCurrency(totalValue(order))}`} /> : null}
+            <InfoTile icon={MapPin} label={t("orders.drawer.address")} value={address || t("orders.fallback.noAddress")} />
+          </div>
+
+          <Section title={t("orders.drawer.timeline")}>
+            <Timeline items={timeline} />
+          </Section>
+
+          <Section title={t("orders.drawer.items")}>
+            {previewItems.length ? previewItems.map((item) => (
+              <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-10 w-10 shrink-0 rounded-lg border border-white/10 object-cover" />
+                ) : null}
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-black">{item.product_name || item.name || t("orders.fallback.item")}</div>
+                  <div className="mt-1 text-xs text-zinc-400">{[item.color, item.size].filter(Boolean).join(" / ") || item.sku || "Variant"} · Qty {item.quantity || 0}</div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-sm font-black">{formatCurrency(item.subtotal)}</div>
+                  <div className="mt-0.5 text-[11px] font-semibold text-zinc-500">{formatCurrency(item.unitPrice)}</div>
+                </div>
+              </div>
+            )) : <EmptyState icon={PackageOpen} title={t("orders.drawer.noItemData")} text={t("orders.drawer.noItemDataText")} compact />}
+          </Section>
+
+          <Section title={t("orders.payment.proof")}>
+            {proofInvalid ? <div className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-100">{t("orders.payment.invalidProofUrl")}</div> : proofUrl ? <img src={proofUrl} alt={t("orders.payment.proofAlt")} className="max-h-64 w-full rounded-xl border border-white/10 object-cover" /> : <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-zinc-400">{t("orders.payment.noProofUploaded")}</div>}
+          </Section>
+
+          <Section title={t("orders.drawer.notes")}>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">{order.order_notes || order.delivery_notes || order.notes || t("orders.fallback.noNotes")}</div>
+          </Section>
+        </div>
+        <footer className="grid gap-2 border-t border-white/10 p-4 sm:grid-cols-3">
+          <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.actionsMenu.openDetailsPage")}</button>
+          <button type="button" onClick={() => editOrder?.(order)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.actionsMenu.editOrder")}</button>
+          <button type="button" onClick={() => {
+            if (!order.customer_phone) {
+              toast.error(t("orders.bulk.selectPhoneFirst"));
+              return;
+            }
+            const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(order), status: order.status || "Pending" }));
+            window.open(`https://wa.me/${String(order.customer_phone).replace(/\D/g, "")}?text=${message}`, "_blank", "noreferrer");
+          }} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">WhatsApp</button>
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-xl bg-rose-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
+          <button type="button" onClick={() => window.print()} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">{t("orders.bulk.print")}</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate, editOrder }) {
+  if (!order) return null;
+  const items = Array.isArray(order.items) ? order.items : [];
+  const previewItems = items.map((item) => normalizePreviewOrderItem(item, order));
+  const timeline = buildTimeline(order);
+  const address = [order.governorate, order.city_area, order.customer_address, order.landmark].filter(Boolean).join(" - ");
+  const sellerName = getSellerDisplayName(order);
+  const customerName = getCustomerDisplayName(order, t("orders.fallback.customer"));
+  const openWhatsapp = () => {
+    if (!order.customer_phone) {
+      toast.error(t("orders.bulk.selectPhoneFirst"));
+      return;
+    }
+    const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(order), status: order.status || "Pending" }));
+    window.open(`https://wa.me/${String(order.customer_phone).replace(/\D/g, "")}?text=${message}`, "_blank", "noreferrer");
+  };
+
+  return (
+    <section className="sticky top-3 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 text-white shadow-2xl shadow-black/20">
+      <header className="flex items-start justify-between gap-3 border-b border-white/10 p-3">
+        <div className="min-w-0">
+          <OrderCode order={order} />
+          <h2 className="mt-2 truncate text-lg font-black">{customerName}</h2>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <StatusBadge value={order.status} />
+            <StatusBadge value={paymentBadgeValue(order)} />
+            {isExchangeOrder(order) ? <ExchangeBadge order={order} compact /> : null}
+          </div>
+        </div>
+        <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
+          <X className="h-4 w-4" />
+        </button>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="grid gap-2">
+          <InfoTile icon={User} label={t("orders.drawer.customer")} value={customerName} />
+          <InfoTile icon={Phone} label={t("orders.drawer.phone")} value={order.customer_phone || t("orders.fallback.noPhone")} />
+          <InfoTile icon={User} label="Seller" value={sellerName || "n/a"} />
+          <InfoTile icon={CreditCard} label="Payment" value={`${order.payment_method || "n/a"} / ${paymentBadgeValue(order)}`} />
+          <InfoTile icon={DollarSign} label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
+          {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label="Invoice edit payment" value={`Original paid: ${formatCurrency(editOriginalPaidOf(order))} / Additional paid: ${formatCurrency(editAdditionalPaidOf(order))} / Final total: ${formatCurrency(totalValue(order))}`} /> : null}
+          <InfoTile icon={MapPin} label={t("orders.drawer.address")} value={address || t("orders.fallback.noAddress")} />
+        </div>
+
+        <Section title={t("orders.drawer.items")}>
+          {previewItems.length ? previewItems.map((item) => (
+            <div key={item.id || `${item.product_id}-${item.variant_id}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-2.5">
+              {item.imageUrl ? (
+                <img src={item.imageUrl} alt={item.product_name || item.name || t("orders.fallback.item")} className="h-9 w-9 shrink-0 rounded-lg border border-white/10 object-cover" />
+              ) : null}
+              <div className="min-w-0">
+                <div className="truncate text-sm font-black">{item.product_name || item.name || t("orders.fallback.item")}</div>
+                <div className="mt-1 text-xs text-zinc-400">{[item.color, item.size].filter(Boolean).join(" / ") || item.sku || "Variant"} / Qty {item.quantity || 0}</div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="text-sm font-black">{formatCurrency(item.subtotal)}</div>
+                <div className="mt-0.5 text-[11px] font-semibold text-zinc-500">{formatCurrency(item.unitPrice)}</div>
+              </div>
+            </div>
+          )) : <EmptyState icon={PackageOpen} title={t("orders.drawer.noItemData")} text={t("orders.drawer.noItemDataText")} compact />}
+        </Section>
+
+        <Section title={t("orders.drawer.timeline")}>
+          <Timeline items={timeline} />
+        </Section>
+
+        <Section title={t("orders.drawer.notes")}>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-zinc-300">{order.order_notes || order.delivery_notes || order.notes || t("orders.fallback.noNotes")}</div>
+        </Section>
+      </div>
+      <footer className="grid gap-2 border-t border-white/10 p-3">
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => navigate(`/orders/${order.id}`)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.actionsMenu.openDetailsPage")}</button>
+          <button type="button" onClick={() => editOrder?.(order)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.actionsMenu.editOrder")}</button>
+          <button type="button" onClick={openWhatsapp} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">WhatsApp</button>
+          <button type="button" onClick={() => window.print()} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold hover:bg-white/10">{t("orders.bulk.print")}</button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
+          <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "reject")} className="rounded-xl bg-rose-500 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.rejectPay")}</button>
+        </div>
+      </footer>
+    </section>
+  );
+}
+
+function OrderCode({ order }) {
+  return (
+    <div className="min-w-0">
+      <div className="inline-flex max-w-full items-center truncate rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-black tracking-wide text-white">
+        {orderCode(order)}
+      </div>
+      <div className="mt-0.5 truncate text-[10px] font-semibold text-zinc-500">#{order.id}</div>
+    </div>
+  );
+}
+
+function OrderDateTimeCell({ value, language }) {
+  if (!value) return <div className="truncate pr-3 text-xs font-bold text-zinc-500">-</div>;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return <div className="truncate pr-3 text-xs font-bold text-zinc-300" title={String(value)}>{String(value)}</div>;
+  }
+
+  const locale = isArabicLanguage(language) ? "ar-EG" : "en-US";
+  const dateLabel = new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+  const timeLabel = new Intl.DateTimeFormat(locale, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+
+  return (
+    <div className="min-w-0 pr-3 leading-tight" dir="auto" title={formatDateTime(value)}>
+      <div className="truncate text-xs font-black text-zinc-100">{dateLabel}</div>
+      <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-500">{timeLabel}</div>
+    </div>
+  );
+}
+
+function CustomerCell({ t, order }) {
+  const sourceLabel = SOURCE_LABELS[getOrderSource(order)] ? t(SOURCE_LABELS[getOrderSource(order)]) : order.source || order.channel || "";
+  const attribution = getAttributionLabel(order);
+  return (
+    <div className="min-w-0 pr-3">
+      <div className="truncate text-sm font-semibold text-white" title={getCustomerPhone(order)}>{getCustomerDisplayName(order, t("orders.fallback.customer"))}</div>
+      <div className="mt-1 flex max-w-full flex-wrap gap-1">
+        {sourceLabel ? <div className="inline-flex max-w-[8rem] truncate rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold text-zinc-200">{sourceLabel}</div> : null}
+        {attribution ? <div className="inline-flex max-w-[9rem] truncate rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold text-cyan-200">{attribution}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+function PhoneCell({ t, order }) {
+  const phone = getCustomerPhone(order);
+  if (!phone) return <div className="truncate pr-3 text-xs font-bold text-zinc-500">-</div>;
+
+  const copyOnDesktop = async (event) => {
+    event.stopPropagation();
+    const isMobile = typeof navigator !== "undefined" && (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+    if (isMobile) return;
+    event.preventDefault();
+    try {
+      await navigator.clipboard.writeText(phone);
+      toast.success(t("orders.details.phoneCopied"));
+    } catch {
+      toast.error(t("orders.details.copyPhoneFailed"));
+    }
+  };
+
+  return (
+    <a
+      href={`tel:${phone.replace(/[^\d+]/g, "")}`}
+      onClick={copyOnDesktop}
+      className="inline-flex min-w-0 max-w-full items-center gap-1.5 truncate pr-3 text-xs font-bold text-cyan-100 transition hover:text-cyan-50"
+      title={phone}
+    >
+      <Phone className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">{phone}</span>
+    </a>
+  );
+}
+
+function PaymentStatusCell({ order, language }) {
+  const summary = getPaymentSummary(order, language);
+  const Icon = paymentMethodIcon[summary.methodKey] || CreditCard;
+  const toneClass = {
+    paid: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
+    partially_paid: "border-amber-400/25 bg-amber-400/10 text-amber-100",
+    pending: "border-blue-400/20 bg-blue-400/10 text-blue-100",
+    deferred: "border-violet-400/20 bg-violet-400/10 text-violet-100",
+    refunded: "border-rose-400/25 bg-rose-400/10 text-rose-100",
+    cod: "border-slate-400/20 bg-slate-400/10 text-slate-100",
+  }[summary.statusKey] || "border-white/10 bg-white/5 text-zinc-100";
+
+  return (
+    <div className="min-w-0 pr-2">
+      <div className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-black ${toneClass}`} title={summary.label}>
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{summary.label}</span>
+      </div>
+    </div>
+  );
+}
+
+function ItemsCountCell({ order }) {
+  return (
+    <div className="min-w-0 pr-3">
+      <div className="inline-flex h-7 min-w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 text-xs font-black text-white">
+        {getItemsCount(order)}
+      </div>
+    </div>
+  );
+}
+
+function PaidAmountCell({ order }) {
+  const paid = getPaidAmount(order);
+  const total = totalValue(order);
+  const isPartial = total > 0 && paid > 0 && paid < total;
+  if (isEditedPaymentOrder(order)) {
+    return (
+      <div className="min-w-0 pr-3">
+        <div className="truncate text-[10px] font-bold text-zinc-300">
+          Original paid: <CurrencyText value={formatCurrency(editOriginalPaidOf(order))} />
+        </div>
+        <div className="truncate text-[10px] font-bold text-emerald-200">
+          Additional paid: <CurrencyText value={formatCurrency(editAdditionalPaidOf(order))} />
+        </div>
+        {editRefundDueOf(order) > 0 ? (
+          <div className="truncate text-[10px] font-bold text-amber-100">
+            Refund / credit: <CurrencyText value={formatCurrency(editRefundDueOf(order))} />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+  if (isExchangeOrder(order)) {
+    return (
+      <div className="min-w-0 pr-3">
+        <div className="inline-flex rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-amber-100">
+          Exchange
+        </div>
+        <div className="mt-0.5 truncate text-[10px] font-bold text-emerald-200">
+          Paid now: <CurrencyText value={formatCurrency(amountDueNowOf(order))} />
+        </div>
+        <div className="truncate text-[10px] font-bold text-amber-100">
+          Exchange credit: <CurrencyText value={formatCurrency(exchangeCreditOf(order))} />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="min-w-0 pr-3">
+      <div className={`truncate text-sm font-bold ${isPartial ? "text-amber-200" : paid > 0 ? "text-emerald-200" : "text-zinc-400"}`}>
+        <CurrencyText value={formatCurrency(paid)} />
+      </div>
+    </div>
+  );
+}
+
+function SellerCell({ order }) {
+  const seller = getSellerName(order);
+  return (
+    <div className="min-w-0 pr-3">
+      <div className="truncate text-xs font-semibold text-zinc-200" title={seller || "-"}>
+        {seller || "-"}
+      </div>
+    </div>
+  );
+}
+
+function TotalCell({ t, order }) {
+  const remaining = remainingCodAmount(order);
+  return (
+    <div className="min-w-0 pr-3">
+      <div className="truncate text-sm font-bold text-white"><CurrencyText value={formatCurrency(totalValue(order))} /></div>
+      {isExchangeOrder(order) ? (
+        <div className="mt-0.5 truncate text-[10px] font-black text-amber-100">
+          Total: <CurrencyText value={formatCurrency(totalValue(order))} />
+        </div>
+      ) : null}
+      {remaining > 0 ? (
+        <div className="mt-0.5 truncate text-[10px] font-black text-amber-200" title={t("orders.payment.remainingCodWithValue", { value: formatCurrency(remaining) })}>
+          {t("orders.payment.remainingCodWithValue", { value: formatCurrency(remaining) })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ExchangeBadge({ order, compact = false }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 font-black text-amber-100 ${
+        compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]"
+      }`}
+      title={`Paid now: ${formatCurrency(amountDueNowOf(order))} | Exchange credit: ${formatCurrency(exchangeCreditOf(order))} | Total: ${formatCurrency(totalValue(order))}`}
+    >
+      <RotateCcw className="h-3 w-3" />
+      Exchange
+    </span>
+  );
+}
+
+function CompactOrderCard({ t, order, onClick }) {
+  return (
+    <button type="button" onClick={onClick} className={`w-full rounded-xl border p-3 text-left transition hover:bg-white/10 ${priorityFor(order).className}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <OrderCode order={order} />
+          <div className="mt-2 truncate text-sm font-semibold text-white">{order.customer_name || t("orders.fallback.customer")}</div>
+        </div>
+        <StatusBadge value={order.status} />
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-400">
+        <span>{formatDateTime(order.created_at)}</span>
+        <b className="text-white">{formatCurrency(totalValue(order))}</b>
+      </div>
+    </button>
+  );
+}
+
+function Timeline({ items }) {
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <div key={item.key} className="grid grid-cols-[1rem_minmax(0,1fr)] gap-3">
+          <div className={`mt-1 h-3 w-3 rounded-full ${timelineDot(item.tone)}`} />
+          <div>
+            <div className="text-sm font-black text-white">{item.label}</div>
+            <div className="mt-0.5 text-xs text-zinc-500">{item.at ? formatDateTime(item.at) : "No timestamp available"}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InfoTile({ icon: Icon, label, value }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-zinc-500">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <div className="mt-2 break-words text-sm font-bold text-white"><CurrencyText value={value || "n/a"} /></div>
+    </div>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <section className="mt-5">
+      <h3 className="mb-2 text-sm font-black text-white">{title}</h3>
+      <div className="space-y-2">{children}</div>
+    </section>
+  );
+}
+
+function EmptyState({ icon: Icon, title, text: body, compact = false }) {
+  return (
+    <div className={`rounded-2xl border border-dashed border-white/10 bg-white/5 text-center ${compact ? "p-4" : "mt-3 p-10"}`}>
+      <Icon className="mx-auto h-10 w-10 text-zinc-500" />
+      <h3 className="mt-3 text-lg font-black text-white">{title}</h3>
+      <p className="mt-1 text-sm text-zinc-400">{body}</p>
+    </div>
+  );
+}
+
+function PriorityMetric({ label, value, tone, active, onClick }) {
+  const toneClasses = {
+    amber: "border-amber-400/25 bg-amber-400/10 text-amber-100",
+    blue: "border-blue-400/25 bg-blue-400/10 text-blue-100",
+    slate: "border-slate-400/20 bg-slate-400/10 text-slate-200",
+    rose: "border-rose-400/25 bg-rose-400/10 text-rose-100",
+    gold: "border-yellow-300/25 bg-yellow-300/10 text-yellow-100",
+  };
+
+  return (
+    <button type="button" onClick={onClick} className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left transition hover:bg-white/10 ${toneClasses[tone]} ${active ? "ring-1 ring-white/30" : ""}`}>
+      <span className="truncate text-xs font-semibold">{label}</span>
+      <span className="ml-3 rounded-full bg-black/20 px-2 py-0.5 text-xs font-black">{value}</span>
+    </button>
+  );
+}
+
+function QuickFilterButton({ active, onClick, label }) {
+  return (
+    <button type="button" onClick={onClick} className={`rounded-full border px-2.5 py-1 text-xs font-bold transition ${active ? "border-blue-300/30 bg-blue-400/15 text-blue-100" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}>
+      {label}
+    </button>
+  );
+}
+
+function Select({ value, onChange, options, label, allLabel = "All", labels = {}, t }) {
+  return (
+    <label className="block">
+      <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none">
+        {options.map((option) => {
+          const display = labels[option] && t ? t(labels[option]) : labels[option] || option;
+          return <option key={String(option)} value={option} className="bg-zinc-950 text-white">{option === "all" ? allLabel : display}</option>;
+        })}
+      </select>
+    </label>
+  );
+}
+
+function Pager({ currentPage, totalPages, visible, total, t, setPage }) {
+  return (
+    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="text-xs text-zinc-400">{t("orders.paging.showing")} {visible} {t("orders.paging.of")} {total} {t("orders.paging.records")}</div>
+      <div className="flex items-center gap-2">
+        <PagerButton onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} label={t("common.previous")} />
+        <span className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300">{t("orders.paging.page")} {currentPage} / {totalPages}</span>
+        <PagerButton onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} label={t("common.next")} />
+      </div>
+    </div>
+  );
+}
+
+function PagerButton({ onClick, disabled, label }) {
+  return <button type="button" onClick={onClick} disabled={disabled} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40">{label}</button>;
+}
+
+function MenuButton({ icon, label, onClick, tone = "zinc", disabled = false, title = "" }) {
+  const toneClass = tone === "rose" ? "text-rose-200 hover:bg-rose-500/10" : "text-zinc-200 hover:bg-white/5";
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} title={title} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm disabled:cursor-not-allowed disabled:opacity-45 ${toneClass}`}>
       {icon}
       {label}
-    </Link>
+    </button>
+  );
+}
+
+function OrderEditModal({ t, order, saving, onClose, onSave }) {
+  const [form, setForm] = useState(null);
+
+  useEffect(() => {
+    if (!order) {
+      setForm(null);
+      return;
+    }
+    setForm({
+      customer_name: order.customer_name || "",
+      customer_phone: order.customer_phone || "",
+      status: order.status || "Pending",
+      payment_status: order.payment_status || order.paymentStatus || "unpaid",
+      source: getOrderSource(order) || order.source || order.channel || "pos",
+      channel: getOrderSource(order) || order.channel || order.source || "pos",
+      branch_id: order.branch_id || "",
+      items: (Array.isArray(order.items) ? order.items : []).map((item) => ({
+        id: item.id,
+        product_id: item.product_id || item.productId || null,
+        variant_id: item.variant_id || item.variantId || null,
+        product_name: item.product_name || item.name || "",
+        variant_name: item.variant_name || [item.color, item.size].filter(Boolean).join(" / "),
+        sku: item.sku || "",
+        barcode: item.barcode || "",
+        color: item.color || "",
+        size: item.size || "",
+        quantity: Number(item.quantity || 0),
+        price: resolveOrderItemUnitPrice(item),
+        discount_amount: Number(item.discount_amount || 0),
+        tax_amount: Number(item.tax_amount || 0),
+      })),
+    });
+  }, [order]);
+
+  if (!order || !form) return null;
+
+  const updateField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const updateItem = (index, key, value) => {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, itemIndex) => (itemIndex === index ? { ...item, [key]: value } : item)),
+    }));
+  };
+  const submit = (event) => {
+    event.preventDefault();
+    const payload = {
+      ...form,
+      branch_id: form.branch_id || null,
+    };
+    if (form.items.length) {
+      payload.items = form.items.map((item) => {
+        const quantity = Math.max(0, Number(item.quantity || 0));
+        const price = Math.max(0, resolveOrderItemUnitPrice(item));
+        const discount = Math.max(0, Number(item.discount_amount || 0));
+        return {
+          ...item,
+          quantity,
+          price,
+          discount_amount: discount,
+          tax_amount: Number(item.tax_amount || 0),
+          total_amount: Math.max(0, price * quantity - discount),
+        };
+      });
+    }
+    onSave(payload);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60]">
+      <button type="button" aria-label={t("orders.edit.closeModal")} className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
+      <form onSubmit={submit} className="absolute left-1/2 top-1/2 flex max-h-[88vh] w-[min(58rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
+        <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.edit.title")}</div>
+            <h2 className="mt-1 text-xl font-black">{orderCode(order)}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10"><X className="h-5 w-5" /></button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <EditField label={t("orders.edit.customerName")} value={form.customer_name} onChange={(value) => updateField("customer_name", value)} />
+            <EditField label={t("orders.drawer.phone")} value={form.customer_phone} onChange={(value) => updateField("customer_phone", value)} />
+            <EditField label={t("orders.edit.branchId")} value={form.branch_id} onChange={(value) => updateField("branch_id", value)} />
+            <EditSelect label={t("orders.table.status")} value={form.status} onChange={(value) => updateField("status", value)} options={["Pending", "Confirmed", "Paid", "Shipped", "Delivered", "Cancelled", "Returned"]} />
+            <EditSelect label={t("orders.edit.paymentStatus")} value={form.payment_status} onChange={(value) => updateField("payment_status", value)} options={["unpaid", "pending", "awaiting_verification", "partially_paid", "paid", "cod", "rejected", "refunded"]} />
+            <EditSelect label={t("orders.edit.sourceChannel")} value={form.source} onChange={(value) => { updateField("source", value); updateField("channel", value); }} options={SOURCE_FILTERS.filter((item) => item !== "all")} labels={SOURCE_LABELS} t={t} />
+          </div>
+          <Section title={t("orders.drawer.items")}>
+            {form.items.length ? (
+              <div className="space-y-2">
+                {form.items.map((item, index) => (
+                  <div key={item.id || `${item.product_id}-${item.variant_id}-${index}`} className="grid gap-2 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-[minmax(0,1fr)_6rem_7rem]">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black">{item.product_name || t("orders.fallback.item")}</div>
+                      <div className="mt-1 truncate text-xs text-zinc-400">{[item.color, item.size, item.sku].filter(Boolean).join(" / ") || item.variant_name || t("orders.fallback.variant")}</div>
+                    </div>
+                    <EditField type="number" min="0" label={t("orders.drawer.qty")} value={item.quantity} onChange={(value) => updateItem(index, "quantity", value)} />
+                    <EditField type="number" min="0" step="0.01" label={t("orders.edit.price")} value={item.price} onChange={(value) => updateItem(index, "price", value)} />
+                  </div>
+                ))}
+              </div>
+            ) : <EmptyState icon={PackageOpen} title={t("orders.drawer.noItemData")} text={t("orders.edit.noItemDataText")} compact />}
+          </Section>
+        </div>
+        <footer className="flex flex-col-reverse gap-2 border-t border-white/10 p-4 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10">{t("common.cancel")}</button>
+          <button type="submit" disabled={saving} className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60">{saving ? t("orders.edit.saving") : t("orders.edit.saveOrder")}</button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
+function CancelOrderModal({ t, order, cancelling, onClose, onConfirm }) {
+  const selectedOrder = order;
+  const cancelLoading = cancelling;
+  const canSubmitCancelRestore =
+    Boolean(selectedOrder) &&
+    !cancelLoading;
+
+  if (ORDERS_DEBUG) console.log("[cancel-restore-debug]", {
+    selectedOrderId: selectedOrder?.id,
+    itemCount: Array.isArray(selectedOrder?.items) ? selectedOrder.items.length : 0,
+    cancelLoading,
+    canSubmitCancelRestore,
+  });
+
+  if (!selectedOrder) return null;
+  const items = Array.isArray(selectedOrder.items) ? selectedOrder.items : [];
+  const itemCount = items.length;
+  const totalUnits = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  return (
+    <div className="fixed inset-0 z-[60]">
+      <button type="button" aria-label={t("orders.cancel.closeModal")} className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
+      <section className="absolute left-1/2 top-1/2 w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-rose-400/25 bg-zinc-950 p-5 text-white shadow-2xl">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-rose-500/15 p-2 text-rose-200"><RotateCcw className="h-5 w-5" /></div>
+          <div className="min-w-0">
+            <h2 className="text-lg font-black">{t("orders.cancel.title")}</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">{t("orders.cancel.description")}</p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <ConfirmMetric label={t("orders.cancel.order")} value={orderCode(selectedOrder)} />
+          <ConfirmMetric label={t("orders.drawer.customer")} value={selectedOrder.customer_name || t("orders.fallback.customer")} />
+          <ConfirmMetric label={t("orders.table.total")} value={formatCurrency(totalValue(selectedOrder))} />
+          <ConfirmMetric label={t("orders.cancel.itemsUnits")} value={t("orders.cancel.itemsUnitsValue", { items: itemCount, units: totalUnits })} />
+        </div>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} disabled={cancelLoading} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!canSubmitCancelRestore}
+            className={`rounded-xl px-4 py-2 text-sm font-black text-white transition-all duration-200 ${canSubmitCancelRestore ? "bg-rose-500 shadow-lg shadow-rose-950/25 hover:bg-rose-400 hover:shadow-rose-500/20" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
+          >
+            {cancelLoading ? t("orders.cancel.cancelling") : t("orders.cancel.confirm")}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ArchiveOrderModal({ t, order, archiving, onClose, onConfirm }) {
+  if (!order) return null;
+  return (
+    <div className="fixed inset-0 z-[60]">
+      <button type="button" aria-label={t("orders.archive.closeModal")} className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
+      <section className="absolute left-1/2 top-1/2 w-[min(30rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-white/10 p-2 text-zinc-200"><Trash2 className="h-5 w-5" /></div>
+          <div className="min-w-0">
+            <h2 className="text-lg font-black">{t("orders.archive.title")}</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">{t("orders.archive.description", { order: orderCode(order) })}</p>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} disabled={archiving} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
+          <button type="button" onClick={onConfirm} disabled={archiving} className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-black text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60">{archiving ? t("orders.archive.archiving") : t("orders.archive.title")}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClose, onConfirm }) {
+  if (!order) return null;
+  const canConfirm = value.trim() === "DELETE" || value.trim() === "حذف";
+  return (
+    <div className="fixed inset-0 z-[60]">
+      <button type="button" aria-label={tt(t, "orders.permanentDelete.closeModal", "Close permanent delete modal")} className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
+      <section className="absolute left-1/2 top-1/2 w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-rose-400/35 bg-zinc-950 p-5 text-white shadow-2xl shadow-rose-950/20">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-rose-500/15 p-2 text-rose-200"><Trash2 className="h-5 w-5" /></div>
+          <div className="min-w-0">
+            <h2 className="text-lg font-black">{tt(t, "orders.permanentDelete.title", "Permanent Delete")}</h2>
+            <p className="mt-2 text-sm leading-6 text-rose-100">
+              {tt(t, "orders.permanentDelete.description", "This will permanently delete the invoice and cannot be undone.")}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-zinc-300">
+              {tt(t, "orders.permanentDelete.stockNote", "Related records will be removed and stock will be restored when it has not already been restored.")}
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <ConfirmMetric label={tt(t, "orders.cancel.order", "Order")} value={orderCode(order)} />
+          <ConfirmMetric label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
+        </div>
+        <label className="mt-5 block">
+          <div className="mb-1.5 text-xs font-black text-rose-100">{tt(t, "orders.permanentDelete.typeConfirm", "Type DELETE or حذف to confirm")}</div>
+          <input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            autoFocus
+            className="w-full rounded-xl border border-rose-400/30 bg-black/35 px-3 py-2.5 text-sm font-black text-white outline-none placeholder:text-zinc-600 focus:border-rose-300"
+            placeholder="DELETE"
+          />
+        </label>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} disabled={deleting} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-60">{t("common.close")}</button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!canConfirm || deleting}
+            className={`rounded-xl px-4 py-2 text-sm font-black text-white transition-all duration-200 ${canConfirm && !deleting ? "bg-rose-600 shadow-lg shadow-rose-950/25 hover:bg-rose-500" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
+          >
+            {deleting ? tt(t, "orders.permanentDelete.deleting", "Deleting...") : tt(t, "orders.permanentDelete.confirm", "Permanently Delete")}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ConfirmMetric({ label, value }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <div className="mt-1 break-words text-sm font-black text-white"><CurrencyText value={value} /></div>
+    </div>
+  );
+}
+
+function EditField({ label, value, onChange, type = "text", ...props }) {
+  return (
+    <label className="block">
+      <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <input {...props} type={type} value={value ?? ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" />
+    </label>
+  );
+}
+
+function EditSelect({ label, value, onChange, options, labels = {}, t }) {
+  return (
+    <label className="block">
+      <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <select value={value || ""} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none">
+        {options.map((option) => <option key={option} value={option} className="bg-zinc-950 text-white">{labels[option] && t ? t(labels[option]) : labels[option] || option}</option>)}
+      </select>
+    </label>
   );
 }
 
 function TableSkeleton() {
   return (
-    <div className="space-y-2">
-      {Array.from({ length: 6 }).map((_, index) => (
-        <div key={index} className="h-16 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
-      ))}
+    <div className="mt-3 space-y-2">
+      {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-2xl border border-white/10 bg-white/5" />)}
     </div>
   );
 }
+
+const timelineDot = (tone) => ({
+  amber: "bg-amber-300 shadow-[0_0_0_4px_rgba(251,191,36,0.12)]",
+  emerald: "bg-emerald-300 shadow-[0_0_0_4px_rgba(52,211,153,0.12)]",
+  rose: "bg-rose-300 shadow-[0_0_0_4px_rgba(251,113,133,0.12)]",
+  blue: "bg-blue-300 shadow-[0_0_0_4px_rgba(96,165,250,0.12)]",
+}[tone] || "bg-zinc-400");
 
 export default OrdersDashboard;

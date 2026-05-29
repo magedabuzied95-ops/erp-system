@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo } from "react";
 import { Link } from "react-router-dom";
 import {
   Activity,
@@ -43,9 +43,12 @@ import {
 } from "recharts";
 
 import { socket } from "../socket";
+import LiveActivityFeed from "../components/activity/LiveActivityFeed";
+import CommandCenterDashboard from "../components/dashboard/CommandCenterDashboard";
 import { api } from "../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../shared/auth/authStorage";
 import { formatCurrency } from "../shared/lib/currency";
+import { normalizeSaleModeSettings, resolveSaleModePrice } from "../shared/lib/saleMode";
 
 const emptyDashboard = {
   overview: null,
@@ -60,6 +63,8 @@ const emptyDashboard = {
   posLive: null,
   inventory: null,
   aiInsights: [],
+  saleMode: null,
+  saleModeAnalytics: null,
 };
 
 const widgetDefinitions = [
@@ -136,18 +141,18 @@ function Dashboard() {
   const user = getCurrentUser();
   const tenant = getCurrentTenant();
   const role = roleKey(getRole(user));
-  const [data, setData] = useState(emptyDashboard);
-  const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState(null);
-  const [onlineUsers, setOnlineUsers] = useState(0);
-  const [hidden, setHidden] = useState([]);
-  const [order, setOrder] = useState([]);
-  const [sizes, setSizes] = useState({});
-  const [branches, setBranches] = useState([]);
-  const [socketConnected, setSocketConnected] = useState(Boolean(socket?.connected));
-  const [filters, setFilters] = useState({ range: "today", date_from: "", date_to: "", branch_id: "all" });
+  const [data, setData] = React.useState(emptyDashboard);
+  const [loading, setLoading] = React.useState(true);
+  const [lastUpdated, setLastUpdated] = React.useState(null);
+  const [onlineUsers, setOnlineUsers] = React.useState(0);
+  const [hidden, setHidden] = React.useState([]);
+  const [order, setOrder] = React.useState([]);
+  const [sizes, setSizes] = React.useState({});
+  const [branches, setBranches] = React.useState([]);
+  const [socketConnected, setSocketConnected] = React.useState(Boolean(socket?.connected));
+  const [filters, setFilters] = React.useState({ range: "today", date_from: "", date_to: "", branch_id: "all" });
 
-  useEffect(() => {
+  React.useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(layoutStorageKey(user)) || "{}");
       setHidden(Array.isArray(saved.hidden) ? saved.hidden : []);
@@ -160,7 +165,7 @@ function Dashboard() {
     }
   }, [user?.id]);
 
-  const availableWidgets = useMemo(() => {
+  const availableWidgets = React.useMemo(() => {
     const allowed = widgetDefinitions.filter((widget) => widget.roles.includes(role) || role === "owner");
     const ordered = order.length
       ? [...allowed].sort((a, b) => {
@@ -174,7 +179,7 @@ function Dashboard() {
 
   const visibleWidgets = availableWidgets.filter((widget) => !hidden.includes(widget.id));
 
-  const persistLayout = useCallback((next) => {
+  const persistLayout = React.useCallback((next) => {
     const payload = {
       hidden: next.hidden ?? hidden,
       order: next.order ?? order,
@@ -183,7 +188,7 @@ function Dashboard() {
     localStorage.setItem(layoutStorageKey(user), JSON.stringify(payload));
   }, [hidden, order, sizes, user]);
 
-  const queryString = useMemo(() => {
+  const queryString = React.useMemo(() => {
     const params = new URLSearchParams();
     params.set("range", filters.range);
     if (filters.range === "custom") {
@@ -194,7 +199,7 @@ function Dashboard() {
     return `?${params.toString()}`;
   }, [filters]);
 
-  const loadDashboard = useCallback(async ({ silent = false } = {}) => {
+  const loadDashboard = React.useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
       const [
@@ -210,6 +215,8 @@ function Dashboard() {
         posLive,
         inventory,
         aiInsights,
+        websiteSettings,
+        productFeed,
       ] = await Promise.all([
         api.get(`/dashboard/overview${queryString}`),
         api.get(`/dashboard/sales-trend${queryString}`),
@@ -223,7 +230,33 @@ function Dashboard() {
         api.get("/dashboard/pos-live"),
         api.get("/dashboard/inventory"),
         api.get("/dashboard/ai-insights"),
+        api.get("/website/settings").catch(() => ({ settings: {} })),
+        api.get("/products/with-variants").catch(() => ({ products: [] })),
       ]);
+      const saleMode = normalizeSaleModeSettings(websiteSettings?.settings || {});
+      const products = normalizeArray(productFeed?.products ? productFeed.products : productFeed);
+      const saleModeAnalytics = products.reduce((acc, product) => {
+        const variants = Array.isArray(product.variants) && product.variants.length ? product.variants : [product];
+        variants.forEach((variant) => {
+          const regular = Number(variant.regular_price || variant.price || product.regular_price || product.price || 0);
+          const resolved = resolveSaleModePrice({
+            ...product,
+            ...variant,
+            id: product.id,
+            product_id: product.id,
+            regular_price: regular,
+            price: regular,
+            sale_price: variant.sale_price || product.sale_price,
+            sale_price_enabled: variant.sale_price_enabled ?? product.sale_price_enabled,
+            cost_price: variant.cost_price || product.cost_price,
+          }, saleMode);
+          if (saleMode.sale_mode_enabled && resolved.final_price > 0 && resolved.final_price < regular) {
+            acc.affectedProducts.add(String(product.id || product.product_id));
+            acc.estimatedDiscountImpact += regular - resolved.final_price;
+          }
+        });
+        return acc;
+      }, { affectedProducts: new Set(), estimatedDiscountImpact: 0 });
 
       setData({
         overview: normalizeObject(overview, null),
@@ -238,6 +271,11 @@ function Dashboard() {
         posLive: normalizeObject(posLive, null),
         inventory: normalizeObject(inventory, null),
         aiInsights: normalizeArray(aiInsights),
+        saleMode,
+        saleModeAnalytics: {
+          affectedProductsCount: saleModeAnalytics.affectedProducts.size,
+          estimatedDiscountImpact: saleModeAnalytics.estimatedDiscountImpact,
+        },
       });
       setLastUpdated(new Date());
     } finally {
@@ -245,11 +283,11 @@ function Dashboard() {
     }
   }, [queryString]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     api.get("/branches")
       .then((response) => {
         const payload = response?.data || response;
@@ -259,7 +297,7 @@ function Dashboard() {
       .catch(() => setBranches([]));
   }, []);
 
-  useEffect(() => {
+  React.useEffect(() => {
     let timer = null;
     const scheduleRefresh = () => {
       window.clearTimeout(timer);
@@ -338,6 +376,13 @@ function Dashboard() {
   const posStatus = hasPosActivity
     ? { value: "Active", tone: "emerald", pulse: true }
     : { value: "Ready", tone: "cyan", pulse: false };
+  const quickActions = [
+    { to: "/pos", icon: Store, label: "POS", primary: true },
+    { to: "/orders", icon: ReceiptText, label: "Orders" },
+    { to: "/products/add", icon: Plus, label: "Product" },
+    { to: "/products", icon: Boxes, label: "Products" },
+    { to: "/marketing/ai-center", icon: Brain, label: "AI Center" },
+  ];
 
   const toggleHidden = (id) => {
     const nextHidden = hidden.includes(id) ? hidden.filter((item) => item !== id) : [...hidden, id];
@@ -375,7 +420,12 @@ function Dashboard() {
             </h1>
             <div className="mt-1 text-xs font-semibold text-zinc-400">{tenant?.name || tenant?.companyName || "Workspace"}</div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-zinc-300">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-zinc-300 xl:justify-end">
+            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-white/[0.06] bg-black/20 p-1 shadow-lg shadow-black/10 backdrop-blur-xl">
+              {quickActions.map((action) => (
+                <QuickAction key={action.to} {...action} />
+              ))}
+            </div>
             <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-9 rounded-xl border border-white/[0.08] bg-zinc-950/65 px-3 text-xs font-bold text-white outline-none backdrop-blur-xl transition hover:border-white/15">
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>
@@ -407,13 +457,6 @@ function Dashboard() {
         </div>
       </div>
 
-      <section className="relative z-10 mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <QuickAction to="/pos" icon={Store} label="Open POS" />
-        <QuickAction to="/products/add" icon={Plus} label="Add Product" />
-        <QuickAction to="/purchases/create" icon={Package} label="Create Purchase" />
-        <QuickAction to="/orders" icon={ReceiptText} label="View Orders" />
-      </section>
-
       <section className="relative z-10 mt-4 grid gap-2 md:grid-cols-4">
         <TodayCard label="Productivity" value={productivityStats.map((item) => `${item.label} ${item.value}`).join(" / ")} />
         <TodayCard label="Live orders" value={number(overview.today?.orders)} pulse={Number(overview.today?.orders || 0) > 0} />
@@ -421,8 +464,33 @@ function Dashboard() {
         <TodayCard label="Last update" value={lastUpdated ? shortTime(lastUpdated) : "-"} />
       </section>
 
+      {data.saleMode?.sale_mode_enabled ? (
+        <section className="relative z-10 mt-4 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">Existing Sale Prices Active</div>
+              <div className="mt-1 text-lg font-black text-white">{data.saleMode.sale_mode_label || "Products with saved sale prices are now live."}</div>
+            </div>
+            <div className="grid gap-2 text-sm sm:grid-cols-2">
+              <TodayCard label="Affected products" value={number(data.saleModeAnalytics?.affectedProductsCount || 0)} pulse />
+              <TodayCard label="Est. discount impact" value={formatCurrency(data.saleModeAnalytics?.estimatedDiscountImpact || 0)} pulse />
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {!loading ? (
+        <CommandCenterDashboard
+          data={data}
+          overview={overview}
+          onlineUsers={onlineUsers}
+          socketConnected={socketConnected}
+          formatCurrency={formatCurrency}
+        />
+      ) : null}
+
       <section className="relative z-10 mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((kpi) => <KpiCard key={kpi.key} {...kpi} loading={loading} />)}
+        {kpis.map(({ key, ...cardProps }) => <KpiCard key={key} {...cardProps} loading={loading} />)}
       </section>
 
       {!loading && Number(overview.today?.orders || 0) === 0 && Number(overview.today?.sales || 0) === 0 ? <GettingStarted /> : null}
@@ -440,7 +508,7 @@ function Dashboard() {
               >
                 {loading ? <WidgetSkeleton /> : null}
                 {!loading && widget.id === "sales" ? <SalesAnalytics salesTrend={data.salesTrend} hourlySales={data.hourlySales} /> : null}
-                {!loading && widget.id === "activity" ? <ActivityFeed rows={data.liveActivity} /> : null}
+                {!loading && widget.id === "activity" ? <LiveActivityFeed initialEvents={data.liveActivity} /> : null}
                 {!loading && widget.id === "inventory" ? <InventoryIntelligence inventory={data.inventory} /> : null}
                 {!loading && widget.id === "pos" ? <PosLiveMonitor posLive={data.posLive} /> : null}
                 {!loading && widget.id === "ai" ? <AiInsights insights={data.aiInsights} /> : null}
@@ -486,8 +554,8 @@ function LivePulse({ active = true, tone = "emerald" }) {
 }
 
 function SessionTimer() {
-  const [seconds, setSeconds] = useState(0);
-  useEffect(() => {
+  const [seconds, setSeconds] = React.useState(0);
+  React.useEffect(() => {
     const timer = window.setInterval(() => setSeconds((value) => value + 1), 1000);
     return () => window.clearInterval(timer);
   }, []);
@@ -501,11 +569,18 @@ function SessionTimer() {
   );
 }
 
-function QuickAction({ to, icon: Icon, label }) {
+function QuickAction({ to, icon: Icon, label, primary = false }) {
   return (
-    <Link to={to} className="group flex h-11 items-center justify-between rounded-2xl border border-white/[0.06] bg-white/[0.045] px-4 text-sm font-black text-white shadow-lg shadow-black/10 backdrop-blur-xl transition duration-200 hover:-translate-y-1 hover:border-emerald-300/20 hover:bg-emerald-400/[0.08] hover:shadow-emerald-950/30">
-      <span className="inline-flex items-center gap-2"><Icon className="h-4 w-4 text-emerald-300" />{label}</span>
-      <ArrowUpRight className="h-4 w-4 text-zinc-500 transition group-hover:text-emerald-200" />
+    <Link
+      to={to}
+      className={`group inline-flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-[11px] font-black uppercase tracking-[0.08em] shadow-sm shadow-black/10 transition duration-150 hover:-translate-y-0.5 sm:px-3 ${
+        primary
+          ? "border-emerald-300/25 bg-emerald-400/15 text-emerald-50 hover:border-emerald-300/40 hover:bg-emerald-400/20"
+          : "border-white/[0.07] bg-white/[0.045] text-zinc-300 hover:border-white/15 hover:bg-white/[0.075] hover:text-white"
+      }`}
+    >
+      <Icon className={`h-3.5 w-3.5 ${primary ? "text-emerald-200" : "text-zinc-500 transition group-hover:text-emerald-200"}`} />
+      <span className="whitespace-nowrap">{label}</span>
     </Link>
   );
 }
@@ -707,7 +782,9 @@ function EmptyChart({ title, message }) {
   );
 }
 
-function ActivityFeed({ rows }) {
+// Kept only as a dashboard fallback during phased rollout of the premium feed.
+// eslint-disable-next-line no-unused-vars
+function LegacyDashboardActivityFeed({ rows }) {
   if (!(rows || []).length) {
     return <PremiumEmpty icon={Activity} title="No activity in this range" message="Orders, refunds, stock moves, customers, and shift events will appear here live." />;
   }

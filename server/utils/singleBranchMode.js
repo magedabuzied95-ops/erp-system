@@ -1,20 +1,28 @@
 import db from "../database/db.js";
+import { reconcileMoneyAccountUniqueness } from "../services/accountingService.js";
 
 export const SINGLE_BRANCH_NAME = "فرع البشبيشي";
 export const SINGLE_BRANCH_CODE = "BESHBISHI";
 
 let singleBranchReadyPromise = null;
+let singleBranchEnsured = false;
+let singleBranchResult = null;
+let singleBranchRuntimeWarningLogged = false;
 
 const q = (identifier) => `"${String(identifier).replaceAll('"', '""')}"`;
 
 const getBranchIdTables = async (clientOrPool) => {
   const result = await clientOrPool.query(
     `
-    SELECT table_schema, table_name
-    FROM information_schema.columns
-    WHERE table_schema = current_schema()
-      AND column_name = 'branch_id'
-      AND table_name <> 'branches'
+    SELECT c.table_schema, c.table_name
+    FROM information_schema.columns c
+    JOIN information_schema.tables t
+      ON t.table_schema = c.table_schema
+     AND t.table_name = c.table_name
+    WHERE c.table_schema = current_schema()
+      AND c.column_name = 'branch_id'
+      AND c.table_name <> 'branches'
+      AND t.table_type = 'BASE TABLE'
     ORDER BY table_name
     `
   );
@@ -22,7 +30,13 @@ const getBranchIdTables = async (clientOrPool) => {
   return result.rows;
 };
 
-export const ensureSingleBranchMode = async (clientOrPool = db) => {
+const warnRuntimeSingleBranchSchemaExecution = () => {
+  if (globalThis.__SCHEMA_STARTUP_RUNNING || singleBranchRuntimeWarningLogged) return;
+  singleBranchRuntimeWarningLogged = true;
+  console.warn("[schema-warning] runtime schema execution detected", { name: "singleBranchMode" });
+};
+
+const ensureSingleBranchModeNow = async (clientOrPool = db) => {
   await clientOrPool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS tenants (
@@ -67,12 +81,14 @@ export const ensureSingleBranchMode = async (clientOrPool = db) => {
       allowed_radius_meters INTEGER NOT NULL DEFAULT 100,
       qr_token TEXT UNIQUE DEFAULT gen_random_uuid()::text,
       attendance_qr_token TEXT UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+      attendance_public_code VARCHAR(32) UNIQUE,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS notes TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS attendance_public_code VARCHAR(32)`);
 
   const keeperResult = await clientOrPool.query(
     `
@@ -101,6 +117,16 @@ export const ensureSingleBranchMode = async (clientOrPool = db) => {
   if (!branchId) {
     throw new Error("Unable to resolve the single system branch");
   }
+
+  await clientOrPool.query(
+    `
+    UPDATE branches
+    SET attendance_public_code = COALESCE(NULLIF(TRIM(attendance_public_code), ''), 'b' || id)
+    WHERE attendance_public_code IS NULL
+       OR TRIM(attendance_public_code) = ''
+    `
+  );
+  await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_attendance_public_code ON branches (attendance_public_code)`);
 
   await clientOrPool.query(`
     DO $$
@@ -134,6 +160,7 @@ export const ensureSingleBranchMode = async (clientOrPool = db) => {
   );
 
   const branchTables = await getBranchIdTables(clientOrPool);
+  await reconcileMoneyAccountUniqueness(clientOrPool, { branchId });
   for (const { table_schema: schema, table_name: table } of branchTables) {
     await clientOrPool.query(
       `UPDATE ${q(schema)}.${q(table)} SET branch_id = $1 WHERE branch_id IS DISTINCT FROM $1`,
@@ -171,12 +198,16 @@ export const ensureSingleBranchMode = async (clientOrPool = db) => {
   for (const { table_schema: schema, table_name: table } of branchTables) {
     const triggerName = `trg_single_branch_${table}`.slice(0, 63);
     await clientOrPool.query(`DROP TRIGGER IF EXISTS ${q(triggerName)} ON ${q(schema)}.${q(table)}`);
-    await clientOrPool.query(`
-      CREATE TRIGGER ${q(triggerName)}
-      BEFORE INSERT OR UPDATE OF branch_id ON ${q(schema)}.${q(table)}
-      FOR EACH ROW
-      EXECUTE FUNCTION enforce_single_system_branch_id()
-    `);
+    try {
+      await clientOrPool.query(`
+        CREATE TRIGGER ${q(triggerName)}
+        BEFORE INSERT OR UPDATE OF branch_id ON ${q(schema)}.${q(table)}
+        FOR EACH ROW
+        EXECUTE FUNCTION enforce_single_system_branch_id()
+      `);
+    } catch (error) {
+      if (error?.code !== "42710") throw error;
+    }
   }
 
   return {
@@ -186,15 +217,25 @@ export const ensureSingleBranchMode = async (clientOrPool = db) => {
   };
 };
 
-export const ensureSingleBranchModeOnce = async () => {
+export const ensureSingleBranchMode = async (clientOrPool = db) => {
+  if (singleBranchEnsured) return singleBranchResult;
+  warnRuntimeSingleBranchSchemaExecution();
   if (!singleBranchReadyPromise) {
-    singleBranchReadyPromise = ensureSingleBranchMode().catch((error) => {
-      singleBranchReadyPromise = null;
-      throw error;
-    });
+    singleBranchReadyPromise = ensureSingleBranchModeNow(clientOrPool)
+      .then((result) => {
+        singleBranchEnsured = true;
+        singleBranchResult = result;
+        return result;
+      })
+      .catch((error) => {
+        singleBranchReadyPromise = null;
+        throw error;
+      });
   }
 
   return singleBranchReadyPromise;
 };
+
+export const ensureSingleBranchModeOnce = async () => ensureSingleBranchMode();
 
 export default ensureSingleBranchModeOnce;

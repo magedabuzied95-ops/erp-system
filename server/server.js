@@ -17,6 +17,7 @@ from "socket.io";
 import { fileURLToPath }
 from "url";
 import { normalizeSocketRoomKey, setIo } from "./utils/socket.js";
+import { isPerfDebugEnabled, runWithPerfContext, slowestPhaseFromTimings } from "./utils/perfDebug.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -27,6 +28,28 @@ require("dotenv").config({ path: require("path").join(__dirname, ".env"), quiet:
 console.log("[env] META_APP_ID loaded:", Boolean(process.env.META_APP_ID));
 console.log("[env] META_APP_SECRET loaded:", Boolean(process.env.META_APP_SECRET));
 console.log("[env] PUBLIC_BACKEND_URL:", process.env.PUBLIC_BACKEND_URL || "missing");
+console.log("[env] PUBLIC_APP_URL:", process.env.PUBLIC_APP_URL || "missing");
+const metaSetupStatus = {
+  META_APP_ID: process.env.META_APP_ID ? "present" : "missing",
+  META_APP_SECRET: process.env.META_APP_SECRET ? "present" : "missing",
+  META_REDIRECT_URI: process.env.META_REDIRECT_URI ? "present" : "missing",
+  META_VERIFY_TOKEN: process.env.META_VERIFY_TOKEN ? "present" : "missing",
+  redirect_uri: process.env.META_REDIRECT_URI || "missing",
+  frontend_url: process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || process.env.VITE_API_URL || "missing",
+};
+console.log("[meta-setup] status", metaSetupStatus);
+if (Object.values(metaSetupStatus).includes("missing")) {
+  console.warn("[meta-setup] Meta OAuth is not fully configured. Set missing env vars before testing Connect Meta.");
+}
+console.log("[env] OPENAI_API_KEY loaded:", Boolean(process.env.OPENAI_API_KEY));
+console.log("[env] AI support OpenAI config:", {
+  ai_support_enabled: process.env.AI_SUPPORT_ENABLED ?? "",
+  ai_support_vision_enabled: process.env.AI_SUPPORT_VISION_ENABLED ?? "",
+  text_model: process.env.AI_SUPPORT_MODEL || "gpt-4o-mini",
+  vision_model: process.env.OPENAI_VISION_MODEL || process.env.AI_SUPPORT_VISION_MODEL || process.env.AI_SUPPORT_MODEL || "gpt-4o-mini",
+  vision_fallback_model: process.env.OPENAI_VISION_FALLBACK_MODEL || "gpt-4o",
+  ai_support_enabled_false_disables_vision: false,
+});
 
 const resolveDbCheckInfo = () => {
   if (process.env.DATABASE_URL) {
@@ -186,6 +209,7 @@ const { default: authRoutes } = await import("./routes/auth.js");
 const { default: productsRoutes } = await import("./routes/products.js");
 const { default: ordersRoutes } = await import("./routes/orders.js");
 const { default: posRoutes } = await import("./routes/pos.js");
+const { default: paymobRoutes } = await import("./routes/paymob.js");
 const { default: inventoryRoutes } = await import("./routes/inventoryRoutes.js");
 const { default: uploadRoutes } = await import("./routes/uploadRoutes.js");
 const { default: variantRoutes } = await import("./routes/variantRoutes.js");
@@ -211,39 +235,76 @@ const { default: analyticsRoutes } = await import("./routes/analytics.js");
 const { default: reportsRoutes } = await import("./routes/reports.js");
 const { default: loyaltyRoutes } = await import("./routes/loyalty.js");
 const { default: employeeRoutes } = await import("./routes/employees.js");
+const { default: employeePenaltyRoutes } = await import("./routes/employeePenalties.js");
 const { default: salesEmployeesRoutes } = await import("./routes/salesEmployees.js");
 const { default: salesCommissionsRoutes } = await import("./routes/salesCommissions.js");
 const { default: attendanceRoutes } = await import("./routes/attendance.js");
+const { default: adminAttendanceRoutes } = await import("./routes/adminAttendance.js");
 const { default: shiftsRoutes } = await import("./routes/shifts.js");
 const { default: marketingRoutes } = await import("./routes/marketing.js");
+const { default: aiMarketingCenterRoutes } = await import("./routes/aiMarketingCenter.js");
 const { default: couponsRoutes } = await import("./routes/coupons.js");
 const { default: dashboardRoutes } = await import("./routes/dashboard.js");
 const { default: rolesRoutes } = await import("./routes/roles.js");
 const { default: notificationsRoutes } = await import("./routes/notifications.js");
 const { default: staffTasksRoutes } = await import("./routes/staffTasks.js");
-const { ensureProductSchema, ensureProductVariantSchema } = await import("./controllers/productsController.js");
+const { default: employeePortalRoutes } = await import("./routes/employeePortal.js");
+const { default: adminStaffTasksRoutes } = await import("./routes/adminStaffTasks.js");
+const { default: settingsRoutes } = await import("./routes/settings.js");
+const { ensureProductSchema, ensureProductVariantSchema, warmProductsMetadataCache } = await import("./controllers/productsController.js");
+const { ensureOrdersSchema } = await import("./controllers/ordersController.js");
 const { ensureProductClassificationSchema } = await import("./services/productClassificationsService.js");
+const { ensureProductVariantImagesSchema } = await import("./services/productVariantImagesService.js");
 const { ensureStorefrontSchema } = await import("./controllers/storefrontController.js");
+const { ensureVariantsInventorySchema } = await import("./routes/variantsInventory.js");
+const { warmDashboardMetadataCache } = await import("./services/dashboardAnalyticsService.js");
+const { ensureAttendanceSchema } = await import("./utils/attendanceSchema.js");
 const { ensureNotificationsSchema } = await import("./services/notificationsService.js");
 const { ensureWebsiteSettingsSchema } = await import("./services/liveActivityService.js");
-const { runDueStoryPublishes, registerMarketingJobHandlers } = await import("./controllers/marketingController.js");
+const { runDueStoryPublishes, registerMarketingJobHandlers, startAiMarketingAutomationRunner } = await import("./controllers/marketingController.js");
 const { registerBackgroundJobHandlers } = await import("./services/backgroundJobs.js");
 const { ensureMarketingSchema } = await import("./utils/marketingSchema.js");
 const { ensureCouponsSchema } = await import("./services/couponsService.js");
 const { ensureLoyaltySchema } = await import("./services/loyaltyService.js");
+const { ensureStorefrontCustomerSessionSchema } = await import("./services/storefrontCustomerSessionService.js");
 const { ensureDefaultTenantAndBackfillUsers } = await import("./utils/tenantBootstrap.js");
 const { ensureBranchSchema } = await import("./utils/branchSchema.js");
-const { ensureSingleBranchMode, ensureSingleBranchModeOnce } = await import("./utils/singleBranchMode.js");
+const { ensureSingleBranchModeOnce } = await import("./utils/singleBranchMode.js");
 const { default: db } = await import("./database/db.js");
 const { startMetaTokenRefreshScheduler } = await import("./services/metaTokenAutoRefreshService.js");
 const { startMarketingAnalyticsSyncScheduler } = await import("./services/marketingAnalyticsService.js");
 const { startMarketingAttributionSyncScheduler, resolveTrackedProductRedirect } = await import("./services/marketingAttributionService.js");
 const { default: aiRoutes } = await import("./routes/ai.js");
 const { default: aiV2Routes } = await import("./routes/aiV2.js");
+const { default: aiSupportRoutes } = await import("./routes/aiSupport.js");
+const { default: aiAgentOrderRoutes } = await import("./routes/aiAgentOrders.js");
+const { default: metaIntegrationRoutes, metaWebhookRoutes, handleMetaWebhookVerification, handleMetaWebhookSelfTest } = await import("./routes/metaIntegration.js");
+const { getMetaWebhookUrl, getPublicAppUrl } = await import("./utils/publicUrl.js");
 const { default: smartWarehouseRoutes } = await import("./routes/smartWarehouse.js");
-const { ensureSalesCommissionSchema } = await import("./services/salesCommissionService.js");
-const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks } = await import("./services/staffTasksService.js");
+const { ensureEmployeePenaltiesSchema, ensureSalesCommissionSchema } = await import("./services/salesCommissionService.js");
+const { ensureEmployeePayrollPortalSchema } = await import("./services/employeePayrollPortalService.js");
+const { ensureAiAgentOrderSchema } = await import("./services/aiAgentOrderService.js");
+const { ensureAiSalesAgentSchema } = await import("./services/aiSalesAgentService.js");
+const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
+const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
+const { ensureMetaIntegrationSchema } = await import("./services/metaIntegrationService.js");
+const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
+
+const collectRouterEndpoints = (router, prefix = "") => {
+  const endpoints = [];
+  const stack = Array.isArray(router?.stack) ? router.stack : [];
+  for (const layer of stack) {
+    if (!layer?.route?.path) continue;
+    const methods = Object.keys(layer.route.methods || {})
+      .filter((method) => layer.route.methods[method])
+      .map((method) => method.toUpperCase());
+    for (const method of methods) {
+      endpoints.push(`${method} ${prefix}${layer.route.path}`);
+    }
+  }
+  return endpoints;
+};
 
 /* =========================
    PATH FIX
@@ -274,6 +335,10 @@ app.use((req, res, next) => {
   req._startedAt = Date.now();
   req.id = req.headers["x-request-id"] || randomUUID();
   res.setHeader("X-Request-Id", req.id);
+  const context = {
+    requestId: req.id,
+    route: `${req.method} ${req.originalUrl || req.url || ""}`,
+  };
 
   let timedOut = false;
   const onTimeout = () => {
@@ -299,18 +364,29 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     if (timedOut) return;
     const durationMs = Date.now() - req._startedAt;
+    if (!isPerfDebugEnabled() && durationMs < SLOW_REQUEST_MS && res.statusCode < 500) return;
+    const slowest = slowestPhaseFromTimings({ total_ms: durationMs, handler_ms: durationMs });
     const level = durationMs >= SLOW_REQUEST_MS || res.statusCode >= 500 ? "warn" : "log";
-    console[level]("[api] request complete", {
+    console[level]("[erp-perf] api handler", {
       requestId: req.id,
+      endpoint: req.route?.path || req.path || req.originalUrl,
+      controller: req.baseUrl || "app",
+      action: `${req.method} ${req.path || req.originalUrl}`,
       method: req.method,
       url: req.originalUrl,
       status: res.statusCode,
+      duration_ms: durationMs,
       durationMs,
+      slowest_phase: slowest.name,
+      slowest_phase_ms: slowest.ms,
     });
   });
 
-  next();
+  runWithPerfContext(context, next);
 });
+
+app.get("/api/meta/webhook", handleMetaWebhookVerification);
+app.get("/api/meta/webhook-self-test", handleMetaWebhookSelfTest);
 
 app.use(express.json({
   limit: "20mb",
@@ -320,11 +396,29 @@ app.use(express.json({
 }));
 
 app.use((req, res, next) => {
-  console.log("[api] request start", {
+  const json = res.json.bind(res);
+  res.json = (body) => {
+    res.set("Content-Type", "application/json; charset=utf-8");
+    return json(body);
+  };
+  next();
+});
+
+app.use((req, res, next) => {
+  if (!isPerfDebugEnabled()) return next();
+  console.log("[erp-perf] api start", {
     requestId: req.id,
     method: req.method,
     url: req.originalUrl,
   });
+  next();
+});
+
+app.use((req, res, next) => {
+  const url = req.originalUrl || req.url || "";
+  if (url.includes("/api/marketing")) {
+    console.log("[marketing-route-hit]", req.method, url);
+  }
   next();
 });
 
@@ -345,11 +439,7 @@ app.get("/api/health", async (req, res) => {
 
 const resolveFrontendOrigin = (req) => {
   const envOrigin = String(
-    process.env.PUBLIC_FRONTEND_URL ||
-      process.env.VITE_PUBLIC_FRONTEND_URL ||
-      process.env.FRONTEND_URL ||
-      process.env.CLIENT_URL ||
-      process.env.APP_URL ||
+    process.env.PUBLIC_APP_URL ||
       ""
   ).trim().replace(/\/$/, "");
   if (envOrigin) return envOrigin;
@@ -417,6 +507,7 @@ app.use("/api/inventory", inventoryRoutes);
 app.use("/api/variants-inventory", variantsInventoryRoutes);
 app.use("/api/orders", ordersRoutes);
 app.use("/api/pos", posRoutes);
+app.use("/api/paymob", paymobRoutes);
 app.use("/api/public/invoices", publicInvoiceRoutes);
 app.use("/api/public/products", publicProductsRoutes);
 app.use("/api/storefront", storefrontRoutes);
@@ -431,7 +522,14 @@ app.use("/api/brands", brandsRoutes);
 app.use("/api/manufacturers", manufacturersRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/accounting", accountingRoutes);
-app.use("/api/expenses", expensesRoutes);
+app.use('/api/expenses', expensesRoutes);
+console.log("[routes] expenses mounted at /api/expenses");
+const registeredExpensesEndpoints = collectRouterEndpoints(expensesRoutes, "/api/expenses");
+console.log("[server] Expenses routes mounted", {
+  prefix: "/api/expenses",
+  routeCount: registeredExpensesEndpoints.length,
+  routes: registeredExpensesEndpoints,
+});
 app.use("/api/upload", uploadRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/warehouses", warehouseRoutes);
@@ -444,16 +542,47 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/loyalty", loyaltyRoutes);
 app.use("/api/employees", employeeRoutes);
+const registeredEmployeeEndpoints = collectRouterEndpoints(employeeRoutes, "/api/employees");
+console.log("[server] Employee routes mounted", {
+  prefix: "/api/employees",
+  routeCount: registeredEmployeeEndpoints.length,
+  hasPortalTokenRegenerate: registeredEmployeeEndpoints.includes("POST /api/employees/:employeeId/portal-token/regenerate"),
+  routes: registeredEmployeeEndpoints,
+});
+app.use("/api", employeePenaltyRoutes);
+console.log("[employee-penalties] routes mounted at /api", {
+  routes: collectRouterEndpoints(employeePenaltyRoutes, "/api"),
+});
 app.use("/api/sales-employees", salesEmployeesRoutes);
 app.use("/api/sales-commissions", salesCommissionsRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/admin/attendance", adminAttendanceRoutes);
+console.log("[attendance] today-attendance reset route enabled");
 app.use("/api/shifts", shiftsRoutes);
+app.use("/api/marketing/ai-center", aiMarketingCenterRoutes);
+const registeredAiMarketingCenterEndpoints = collectRouterEndpoints(aiMarketingCenterRoutes, "/api/marketing/ai-center");
+console.log("[ai-marketing-center] mounted at /api/marketing/ai-center");
+console.log("[server] AI Marketing Center routes mounted", {
+  prefix: "/api/marketing/ai-center",
+  routeCount: registeredAiMarketingCenterEndpoints.length,
+  routes: registeredAiMarketingCenterEndpoints,
+});
 app.use("/api/marketing", marketingRoutes);
+const registeredMarketingEndpoints = collectRouterEndpoints(marketingRoutes, "/api/marketing");
+console.log("Marketing routes mounted", {
+  prefix: "/api/marketing",
+  routeCount: registeredMarketingEndpoints.length,
+});
+console.log("[server] registered marketing endpoints", registeredMarketingEndpoints);
 app.use("/api/coupons", couponsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/roles", rolesRoutes);
 app.use("/api/notifications", notificationsRoutes);
+app.use("/api/settings", settingsRoutes);
 app.use("/api/staff-tasks", staffTasksRoutes);
+app.use("/api/employee/portal", employeePortalRoutes);
+app.use("/api/employee-portal", employeePortalRoutes);
+app.use("/api/admin/staff-tasks", adminStaffTasksRoutes);
 console.log("[routes] /api/roles mounted");
 console.log("[server] marketing automation routes mounted");
 
@@ -463,6 +592,51 @@ console.log("[server] marketing automation routes mounted");
 
 app.use("/api/ai", aiRoutes);
 app.use("/api/ai/v2", aiV2Routes);
+app.use("/api/ai-support", aiSupportRoutes);
+app.use("/api/ai-agent", aiAgentOrderRoutes);
+app.use("/api/ai-inbox", aiAgentOrderRoutes);
+const registeredAiAgentEndpoints = collectRouterEndpoints(aiAgentOrderRoutes, "/api/ai-agent");
+const registeredAiInboxEndpoints = collectRouterEndpoints(aiAgentOrderRoutes, "/api/ai-inbox");
+console.log("[server] AI Agent routes mounted", {
+  prefix: "/api/ai-agent",
+  routeCount: registeredAiAgentEndpoints.length,
+  hasSalesCloser: registeredAiAgentEndpoints.includes("GET /api/ai-agent/conversations/:conversationId/sales-closer"),
+  hasTestSalesCloser: registeredAiAgentEndpoints.includes("GET /api/ai-agent/test-sales-closer"),
+  hasLogs: registeredAiAgentEndpoints.includes("GET /api/ai-agent/logs"),
+  hasSuggestedReplies: registeredAiAgentEndpoints.includes("POST /api/ai-agent/suggested-replies"),
+  hasSuggestedRepliesTypoAlias: registeredAiAgentEndpoints.includes("POST /api/ai-agent/sugested-replies"),
+  hasInboxReopen: registeredAiAgentEndpoints.includes("POST /api/ai-agent/inbox/:conversationId/reopen"),
+  routes: registeredAiAgentEndpoints,
+});
+console.log("[server] AI Inbox routes mounted", {
+  prefix: "/api/ai-inbox",
+  routeCount: registeredAiInboxEndpoints.length,
+  hasSalesCloser: registeredAiInboxEndpoints.includes("GET /api/ai-inbox/conversations/:conversationId/sales-closer"),
+  hasTestSalesCloser: registeredAiInboxEndpoints.includes("GET /api/ai-inbox/test-sales-closer"),
+  routes: registeredAiInboxEndpoints,
+});
+app.use("/api/integrations/meta", metaIntegrationRoutes);
+app.use("/api/meta", metaWebhookRoutes);
+app.use("/api/meta", (req, res) => {
+  console.warn("[meta-webhook] route mismatch", {
+    method: req.method,
+    url: req.originalUrl || req.url,
+    expected_routes: ["GET /api/meta/webhook", "POST /api/meta/webhook", "GET /api/meta/webhook-self-test"],
+  });
+  res.status(404).json({ success: false, message: "Meta route not found" });
+});
+console.log("[server] AI Support routes mounted", {
+  prefix: "/api/ai-support",
+  routes: [
+    "GET /knowledge-base",
+    "PUT /knowledge-base",
+    "DELETE /knowledge-base",
+    "POST /chat",
+    "GET /history",
+    "GET /insights",
+    "DELETE /history/test",
+  ],
+});
 
 app.get("/test", (req, res) => {
   res.send("TEST WORKING");
@@ -524,6 +698,20 @@ app.use((err, req, res, next) => {
 const PORT = Number(process.env.PORT) || 8000;
 const HOST = process.env.HOST || "::";
 
+const runStartupDiagnostics = () => {
+  const publicAppUrl = getPublicAppUrl();
+  console.log("[startup] public url diagnostics", {
+    PUBLIC_APP_URL: process.env.PUBLIC_APP_URL || "missing",
+    PUBLIC_BACKEND_URL: process.env.PUBLIC_BACKEND_URL || "missing",
+    FRONTEND_URL: process.env.FRONTEND_URL || "missing",
+    detected_public_app_url: publicAppUrl || "missing",
+    expected_meta_webhook_url: getMetaWebhookUrl(),
+  });
+  if (!publicAppUrl) {
+    console.warn("[startup] PUBLIC_APP_URL is missing. Employee portal links and QR codes require a real HTTPS app URL in production.");
+  }
+};
+
 server.on("error", (error) => {
   console.error("[server] listen error", error);
   process.exit(1);
@@ -578,15 +766,17 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 server.listen(PORT, HOST, () => {
 
   console.log("[server] listening on host/port", { host: HOST, port: PORT });
-  console.log(`[server] running on http://127.0.0.1:${PORT}`);
   console.log("[server] socket.io ready");
   console.log("[server] AI system active (v1 + v2)");
+  runStartupDiagnostics();
 
   void (async () => {
+    globalThis.__SCHEMA_STARTUP_RUNNING = true;
     try {
       await db.query("SELECT 1");
       await ensureNotificationsSchema(db);
       await ensureWebsiteSettingsSchema(db);
+      await ensureSystemSettingsSchema(db);
       console.log("[server] database connected");
       await ensureDefaultTenantAndBackfillUsers();
       console.log("[server] default tenant bootstrap ensured");
@@ -597,25 +787,51 @@ server.listen(PORT, HOST, () => {
       console.log("[server] product schema ensured");
       await ensureProductVariantSchema();
       console.log("[server] product variant schema ensured");
+      await ensureProductVariantImagesSchema(db);
+      console.log("[server] product variant images schema ensured");
+      await warmProductsMetadataCache(db);
+      console.log("[server] products metadata cache warmed");
+      await ensureVariantsInventorySchema(db);
+      console.log("[server] variants inventory schema ensured");
+      await ensureOrdersSchema(db, null);
+      console.log("[server] orders schema ensured");
       await ensureProductClassificationSchema();
       console.log("[server] product classification schema ensured");
       await ensureStorefrontSchema();
       console.log("[server] storefront schema ensured");
+      await ensureStorefrontCustomerSessionSchema(db);
+      console.log("[server] storefront customer session schema ensured");
       await ensureMarketingSchema();
       console.log("[server] marketing schema ensured");
       await ensureCouponsSchema();
       await ensureLoyaltySchema(db);
+      await ensureAttendanceSchema(db);
+      console.log("[server] attendance schema ensured");
       await ensureSalesCommissionSchema(db);
       console.log("[server] sales commission schema ensured");
+      await ensureEmployeePenaltiesSchema(db);
+      console.log("[server] employee penalties schema ensured");
+      await ensureEmployeePayrollPortalSchema(db);
+      console.log("[server] employee payroll portal schema ensured");
       await ensureStaffTasksSchema(db);
-      await ensureSingleBranchMode();
+      await ensureAiSupportLogSchema(db);
+      await ensureAiSalesAgentSchema(db);
+      console.log("[server] AI sales agent schema ensured");
+      await ensureAiAgentOrderSchema(db);
+      console.log("[server] AI agent order schema ensured");
+      await ensureMetaIntegrationSchema(db);
+      await warmDashboardMetadataCache();
+      console.log("[server] dashboard metadata cache warmed");
+      await ensureSingleBranchModeOnce();
       console.log("[server] staff tasks schema ensured");
+      console.log("[server] AI support log schema ensured");
       console.log("[server] coupons schema ensured");
       registerBackgroundJobHandlers();
       registerMarketingJobHandlers();
       startMetaTokenRefreshScheduler();
       startMarketingAnalyticsSyncScheduler();
       startMarketingAttributionSyncScheduler();
+      startAiMarketingAutomationRunner();
       const safeRunDueStoryPublishes = () => {
         void runDueStoryPublishes().catch((error) => {
           console.error("[server] story publish error", error);
@@ -633,6 +849,9 @@ server.listen(PORT, HOST, () => {
         void reassignOverdueTasks({ tenantId: null }).catch((error) => {
           console.error("[server] staff task overdue reassignment error", error);
         });
+        void sendUpcomingTaskDueReminders({ tenantId: null }).catch((error) => {
+          console.error("[server] staff task due reminder error", error);
+        });
       }, 5 * 60 * 1000);
       backgroundIntervals.add(taskInterval);
       void assignDailyInventoryCountTasks({ tenantId: null, limit: 20 }).catch((error) => {
@@ -643,9 +862,12 @@ server.listen(PORT, HOST, () => {
       });
       console.log("[server] staff task schedulers started");
       console.log("[server] story scheduler started");
+      console.log("[schema] startup migration complete");
       console.log("[server] boot success");
     } catch (error) {
       console.error("[server] startup non-fatal schema error", error);
+    } finally {
+      globalThis.__SCHEMA_STARTUP_RUNNING = false;
     }
   })();
 

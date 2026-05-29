@@ -1,0 +1,135 @@
+{
+  "clean look": {
+    "aliases": ["حاجة clean", "clean fit", "clean", "clean outfit", "نضيف", "نضيفة", "هادي", "هادية", "quiet luxury"],
+    "styles": ["clean", "minimal", "smart casual", "classic"],
+    "occasions": ["daily", "outfit", "smart casual", "college"],
+    "colors": ["white", "beige", "black", "gray"],
+    "keywords": ["simple", "basic", "quiet luxury", "soft", "plain"],
+    "vibe_tags": ["clean", "premium", "minimal", "daily"],
+    "outfit_tags": ["white sneaker", "basic outfit", "smart casual"],
+    "aesthetic_tags": ["quiet luxury", "minimal"],
+    "response_hint": "لو عايز clean look فالأبيض السادة أو الموديلات الهادية بيبقوا جامدين جدا."
+  },
+  "minimal": {
+    "aliases": ["عايز حاجة minimal", "minimal", "مينيمال", "بسيط", "بسيطة", "حاجة هادية", "soft look"],
+    "styles": ["minimal", "clean", "classic"],
+    "occasions": ["daily", "outfit", "smart casual"],
+    "colors": ["white", "gray", "cream", "beige", "black"],
+    "keywords": ["simple", "soft", "plain", "basic"],
+    "vibe_tags": ["minimal", "clean", "daily"],
+    "outfit_tags": ["basic outfit", "quiet fit"],
+    "aesthetic_tags": ["minimal", "soft"],
+    "response_hint": "خليك في الحاجات الهادية والبسيطة، بتطلع شكل مرتب من غير مجهود."
+  },
+  "ستايل كوري": {
+    "aliases": ["korean style", "korean fit", "ستايل كوري", "لوك كوري", "كوري", "k-fashion", "soft korean"],
+    "styles": ["minimal", "fashion", "oversize", "clean", "low profile"],
+    "occasions": ["daily", "outfit", "college", "date"],
+    "colors": ["gray", "black", "cream", "white", "beige"],
+    "keywords": ["korean", "clean fit", "soft", "wide pants", "oversize"],
+    "vibe_tags": ["minimal", "oversized", "clean", "outfit"],
+    "outfit_tags": ["wide pants", "soft outfit", "oversize look"],
+    "aesthetic_tags": ["korean", "soft", "minimal"],
+    "response_hint": "خليك في الحاجات الـ minimal والهادية شوية، دي بتليق جدا على الستايل ده."
+  },
+  "streetwear": {
+    "aliases": ["streetwear", "street", "ستريت", "ستايل street", "حاجة street", "شارع", "تراب", "trap"],
+    "styles": ["streetwear", "chunky", "retro", "statement"],
+    "occasions": ["street", "outfit", "daily"],
+    "colors": ["black", "white", "gray", "red"],
+    "keywords": ["oversize", "travis", "jordan", "cargo", "hoodie"],
+    "vibe_tags": ["streetwear", "chunky", "trending", "outfit"],
+    "outfit_tags": ["cargo", "hoodie", "oversize look"],
+    "aesthetic_tags": ["streetwear", "trap", "hype"],
+    "response_hint": "لو رايح ستريت، دور على chunky أو Jordan/Dunk مع كارجو أو لبس واسع."
+  },
+  "travis": {
+    "aliases": ["عايز حاجة شبه Travis", "شبه travis", "travis", "ترافيس", "cactus jack", "brown street"],
+    "styles": ["streetwear", "chunky", "premium", "retro"],
+    "occasions": ["street", "outfit", "night out"],
+    "colors": ["brown", "black", "cream", "olive"],
+    "keywords": ["travis", "jordan", "earth tones", "streetwear", "oversize"],
+    "vibe_tags": ["streetwear", "premium", "trending", "chunky"],
+    "outfit_tags": ["cargo", "oversize look", "earth tone outfit"],
+    "aesthetic_tags": ["travis", "hype", "streetwear"],
+    "response_hint": "لو عايز حاجة شبه Travis يبقى ندور على ستريت غامق أو earthy ويفضل حاجة chunky."
+  },
+  "zara": {
+    "aliases": ["شبه Zara", "زي zara", "zara style", "زارا", "ستايل زارا", "smart zara"],
+    "styles": ["minimal", "smart casual", "premium", "clean"],
+    "occasions": ["outfit", "date", "smart casual", "night out"],
+    "colors": ["black", "white", "beige", "cream", "gray"],
+    "keywords": ["zara", "smart", "clean", "premium", "quiet"],
+    "vibe_tags": ["premium", "clean", "luxury", "outfit"],
+    "outfit_tags": ["smart casual", "date outfit", "clean outfit"],
+    "aesthetic_tags": ["zara", "quiet luxury", "minimal"],
+    "response_hint": "شبه Zara يبقى حاجة شيك ونضيفة، ألوانها هادية وتكمل لوك smart casual."
+  },
+  "university": {
+    "aliases": ["حاجة جامعة", "للجامعة", "كلية", "محاضرات", "college", "uni", "university", "حاجة يومية للجامعة"],
+    "styles": ["casual", "comfortable", "clean", "classic", "streetwear"],
+    "occasions": ["college", "daily", "walking"],
+    "colors": ["white", "black", "gray", "beige"],
+    "keywords": ["daily", "comfortable", "college", "walking", "easy"],
+    "vibe_tags": ["university", "daily", "comfortable", "clean"],
+    "outfit_tags": ["campus outfit", "daily outfit", "jeans"],
+    "aesthetic_tags": ["casual", "easy"],
+    "response_hint": "يبقى محتاج حاجة مريحة وتعيش معاك في اللبس اليومي."
+  },
+  "chic": {
+    "aliases": ["حاجة شيك", "شيك", "خروجة شيك", "date", "خروجات", "حاجة خروجات", "smart", "dressy"],
+    "styles": ["premium", "clean", "minimal", "smart casual"],
+    "occasions": ["night out", "date", "outfit", "smart casual"],
+    "colors": ["black", "white", "beige", "cream"],
+    "keywords": ["premium", "clean", "smart", "date", "night out"],
+    "vibe_tags": ["premium", "luxury", "clean", "outfit"],
+    "outfit_tags": ["date outfit", "smart casual", "night out"],
+    "aesthetic_tags": ["chic", "quiet luxury"],
+    "response_hint": "للخروجات الشيك اختار حاجة نضيفة ومش مزحمة، هتدي شكل أغلى في اللبس."
+  },
+  "daily": {
+    "aliases": ["حاجة daily", "daily", "يومي", "كل يوم", "مشاوير", "مريح", "مريحة", "everyday"],
+    "styles": ["casual", "comfortable", "classic", "clean", "sporty"],
+    "occasions": ["daily", "walking", "college", "travel"],
+    "colors": ["black", "white", "gray", "beige"],
+    "keywords": ["comfort", "walking", "easy", "everyday"],
+    "vibe_tags": ["daily", "comfortable", "clean"],
+    "outfit_tags": ["daily outfit", "jeans", "tracksuit"],
+    "aesthetic_tags": ["casual", "easy"],
+    "response_hint": "لليومي محتاج حاجة مريحة وسهلة تتلبس على أكتر من طقم."
+  },
+  "chunky": {
+    "aliases": ["حاجة chunky", "chunky", "ضخم", "تخين", "bulky", "dad shoe", "statement shoe"],
+    "styles": ["chunky", "streetwear", "sporty", "statement"],
+    "occasions": ["street", "outfit", "daily"],
+    "colors": ["white", "black", "gray", "silver"],
+    "keywords": ["chunky", "bulky", "statement", "oversize"],
+    "vibe_tags": ["chunky", "streetwear", "statement", "trending"],
+    "outfit_tags": ["wide pants", "cargo", "oversize look"],
+    "aesthetic_tags": ["chunky", "bold"],
+    "response_hint": "الـ chunky بيطلع جامد مع الواسع والكارجو وبيخلي اللوك باين."
+  },
+  "oversize": {
+    "aliases": ["حاجة على oversize", "oversize look", "oversized", "واسع", "لبس واسع", "مع كارجو", "wide pants"],
+    "styles": ["streetwear", "oversize", "chunky", "retro"],
+    "occasions": ["street", "outfit", "college", "daily"],
+    "colors": ["black", "white", "gray", "cream"],
+    "keywords": ["oversize", "wide", "cargo", "hoodie", "chunky"],
+    "vibe_tags": ["oversized", "streetwear", "chunky", "outfit"],
+    "outfit_tags": ["cargo", "wide pants", "hoodie"],
+    "aesthetic_tags": ["oversize", "streetwear"],
+    "response_hint": "مع الـ oversize اختار موديل حجمه ظاهر شوية عشان يوازن اللبس الواسع."
+  },
+  "trend": {
+    "aliases": ["عايز ترند", "ترند", "trending", "موضة", "الأكثر طلبا", "حاجة عاملة شغل"],
+    "styles": ["streetwear", "retro", "chunky", "premium", "clean"],
+    "occasions": ["outfit", "street", "daily"],
+    "colors": ["black", "white", "gray"],
+    "keywords": ["trend", "viral", "popular", "hype"],
+    "vibe_tags": ["trending", "streetwear", "outfit"],
+    "outfit_tags": ["trend outfit", "daily outfit"],
+    "aesthetic_tags": ["hype", "popular"],
+    "trendingOnly": true,
+    "response_hint": "لو عايز ترند، نطلعلك الحاجات اللي شكلها قوي ومطلوبة دلوقتي."
+  }
+}

@@ -1,9 +1,42 @@
+import { displayPublicOrderNumber } from "./publicOrderNumber.js";
+
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
 const firstText = (...values) => values.map((value) => String(value || "").trim()).find(Boolean) || "";
+const money = (value, currency = "EGP") => `${Number(value || 0).toFixed(2)} ${currency}`;
+
+const unwrapImageValue = (value) => {
+  if (!value) return "";
+  if (Array.isArray(value)) return unwrapImageValue(value[0]);
+  if (typeof value === "object") return value.image || value.image_url || value.url || value.path || value.secure_url || "";
+  return value;
+};
+
+const resolveInvoiceItemImage = (item = {}) => {
+  const variant = item.variant || item.product_variant || {};
+  const product = item.product || {};
+  return firstText(
+    unwrapImageValue(variant.image),
+    unwrapImageValue(variant.image_url),
+    unwrapImageValue(variant.images?.[0]),
+    unwrapImageValue(item.variant_image),
+    unwrapImageValue(item.variant_image_url),
+    unwrapImageValue(item.variant_images?.[0]),
+    unwrapImageValue(product.image),
+    unwrapImageValue(product.image_url),
+    unwrapImageValue(product.images?.[0]),
+    unwrapImageValue(item.product_image),
+    unwrapImageValue(item.product_image_url),
+    unwrapImageValue(item.product_images?.[0]),
+    unwrapImageValue(item.imageUrl),
+    unwrapImageValue(item.image_url),
+    unwrapImageValue(item.image),
+    unwrapImageValue(item.thumbnail),
+  );
+};
 
 export const normalizeOrderInvoiceData = (order = {}, explicitItems = [], options = {}) => {
   const rawItems = Array.isArray(explicitItems) && explicitItems.length
@@ -33,14 +66,14 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = [], option
       quantity,
       unitPrice,
       lineTotal: lineTotal || unitPrice * quantity,
-      imageUrl: firstText(item.product_image, item.image_url, item.image, item.variant_image_url),
+      imageUrl: resolveInvoiceItemImage(item),
     };
   });
   const subtotal = toNumber(order.subtotal ?? order.sub_total ?? order.totals?.subtotal, 0) || items.reduce((sum, item) => sum + item.lineTotal, 0);
 
   return {
     store: { name: firstText(options.storeName, order.store?.name, order.company_name, "ERP Store") },
-    invoiceNumber: firstText(order.invoice_number, order.invoiceNumber, order.order_number, order.id, "n/a"),
+    invoiceNumber: firstText(order.invoice_number, order.invoiceNumber, displayPublicOrderNumber(order), order.id, "n/a"),
     source: firstText(order.source, order.channel, options.source, "Website"),
     customer: {
       name: firstText(order.customer_name, order.customer?.name, options.customerName, "Walk-in Customer"),
@@ -51,6 +84,7 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = [], option
     paymentStatus: firstText(order.payment_status, order.paymentStatus, "Pending"),
     items,
     totals: { subtotal, discount, shipping, grandTotal: total || Math.max(0, subtotal + shipping - discount) },
+    currency: firstText(options.currency, order.currency, order.currency_code, order.store?.currency, "EGP"),
     publicUrl: firstText(order.public_invoice_url, order.invoice_public_url, options.publicUrl),
   };
 };
@@ -58,7 +92,7 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = [], option
 export const buildOrderInvoiceWhatsappText = (invoice) => [
   `*${invoice.store?.name || "ERP Store"}*`,
   "Invoice",
-  `Invoice: ${invoice.invoiceNumber || "n/a"}`,
+  `Order: ${invoice.invoiceNumber || "n/a"}`,
   `Source: ${invoice.source || "Website"}`,
   `Customer: ${invoice.customer?.name || "Walk-in Customer"}`,
   invoice.customer?.phone ? `Phone: ${invoice.customer.phone}` : "",
@@ -68,12 +102,12 @@ export const buildOrderInvoiceWhatsappText = (invoice) => [
   "Items:",
   ...invoice.items.map((item) => {
     const variant = [item.color, item.size].filter(Boolean).join(" / ");
-    return `- ${item.name}${variant ? ` (${variant})` : ""} x${item.quantity}: ${item.lineTotal.toFixed(2)} EGP`;
+    return `- ${item.name}${variant ? ` (${variant})` : ""} x${item.quantity}: ${money(item.lineTotal, invoice.currency)}`;
   }),
   "",
-  `Subtotal: ${Number(invoice.totals?.subtotal || 0).toFixed(2)} EGP`,
-  `Discount: ${Number(invoice.totals?.discount || 0).toFixed(2)} EGP`,
-  `Shipping: ${Number(invoice.totals?.shipping || 0).toFixed(2)} EGP`,
-  `Total: ${Number(invoice.totals?.grandTotal || 0).toFixed(2)} EGP`,
+  `Subtotal: ${money(invoice.totals?.subtotal, invoice.currency)}`,
+  `Discount: ${money(invoice.totals?.discount, invoice.currency)}`,
+  `Shipping: ${money(invoice.totals?.shipping, invoice.currency)}`,
+  `Total: ${money(invoice.totals?.grandTotal, invoice.currency)}`,
   invoice.publicUrl ? `Invoice link: ${invoice.publicUrl}` : "",
 ].filter(Boolean).join("\n");

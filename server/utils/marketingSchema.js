@@ -155,6 +155,472 @@ const statements = [
     ON marketing_posts (tenant_id, scheduled_at DESC);
   `,
   `
+  CREATE TABLE IF NOT EXISTS marketing_content_drafts (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
+    content_type VARCHAR(50) NOT NULL DEFAULT 'Feed Post',
+    tone VARCHAR(50) NOT NULL DEFAULT 'Luxury',
+    platforms JSONB NOT NULL DEFAULT '["facebook","instagram"]'::jsonb,
+    title TEXT NOT NULL DEFAULT '',
+    caption TEXT NOT NULL DEFAULT '',
+    hook TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL DEFAULT '',
+    hashtags TEXT NOT NULL DEFAULT '',
+    media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    scheduled_at TIMESTAMP NULL,
+    published_at TIMESTAMP NULL,
+    rejected_at TIMESTAMP NULL,
+    error_message TEXT NULL,
+    created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+    approved_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+    rejected_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+    ai_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS marketing_content_drafts
+    ADD COLUMN IF NOT EXISTS product_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS content_type VARCHAR(50) NOT NULL DEFAULT 'Feed Post',
+    ADD COLUMN IF NOT EXISTS tone VARCHAR(50) NOT NULL DEFAULT 'Luxury',
+    ADD COLUMN IF NOT EXISTS platforms JSONB NOT NULL DEFAULT '["facebook","instagram"]'::jsonb,
+    ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS caption TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS hook TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS body TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS hashtags TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS published_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS error_message TEXT NULL,
+    ADD COLUMN IF NOT EXISTS created_by BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS approved_by BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS rejected_by BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS ai_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_content_drafts_tenant_status
+    ON marketing_content_drafts (tenant_id, status, created_at DESC);
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_content_drafts_tenant_schedule
+    ON marketing_content_drafts (tenant_id, scheduled_at DESC);
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS marketing_automation_settings (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    weekly_generation_day INTEGER NOT NULL DEFAULT 1,
+    weekly_generation_time VARCHAR(5) NOT NULL DEFAULT '09:00',
+    default_platforms JSONB NOT NULL DEFAULT '["facebook","instagram"]'::jsonb,
+    default_intensity VARCHAR(20) NOT NULL DEFAULT 'balanced',
+    default_approval_mode VARCHAR(30) NOT NULL DEFAULT 'pending_approval',
+    auto_generate_next_week BOOLEAN NOT NULL DEFAULT TRUE,
+    auto_publish_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    auto_publish_requires_approval BOOLEAN NOT NULL DEFAULT TRUE,
+    auto_publish_platforms JSONB NOT NULL DEFAULT '["facebook","instagram"]'::jsonb,
+    auto_publish_window_start TIME NOT NULL DEFAULT '10:00',
+    auto_publish_window_end TIME NOT NULL DEFAULT '22:00',
+    max_auto_posts_per_day INTEGER NOT NULL DEFAULT 2,
+    auto_publish_failed_count INTEGER NOT NULL DEFAULT 0,
+    last_auto_publish_at TIMESTAMP NULL,
+    last_generated_at TIMESTAMP NULL,
+    next_run_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id)
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS marketing_automation_settings
+    ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS weekly_generation_day INTEGER NOT NULL DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS weekly_generation_time VARCHAR(5) NOT NULL DEFAULT '09:00',
+    ADD COLUMN IF NOT EXISTS default_platforms JSONB NOT NULL DEFAULT '["facebook","instagram"]'::jsonb,
+    ADD COLUMN IF NOT EXISTS default_intensity VARCHAR(20) NOT NULL DEFAULT 'balanced',
+    ADD COLUMN IF NOT EXISTS default_approval_mode VARCHAR(30) NOT NULL DEFAULT 'pending_approval',
+    ADD COLUMN IF NOT EXISTS auto_generate_next_week BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS auto_publish_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS auto_publish_requires_approval BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS auto_publish_platforms JSONB NOT NULL DEFAULT '["facebook","instagram"]'::jsonb,
+    ADD COLUMN IF NOT EXISTS auto_publish_window_start TIME NOT NULL DEFAULT '10:00',
+    ADD COLUMN IF NOT EXISTS auto_publish_window_end TIME NOT NULL DEFAULT '22:00',
+    ADD COLUMN IF NOT EXISTS max_auto_posts_per_day INTEGER NOT NULL DEFAULT 2,
+    ADD COLUMN IF NOT EXISTS auto_publish_failed_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS last_auto_publish_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS last_generated_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  `,
+  `
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_marketing_automation_settings_tenant
+    ON marketing_automation_settings (tenant_id);
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_automation_settings_next_run
+    ON marketing_automation_settings (enabled, next_run_at);
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS marketing_automation_logs (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    event_type VARCHAR(80) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'info',
+    message TEXT NOT NULL DEFAULT '',
+    draft_id BIGINT NULL REFERENCES marketing_content_drafts(id) ON DELETE SET NULL,
+    product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
+    platform VARCHAR(30) NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS marketing_automation_logs
+    ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS event_type VARCHAR(80) NOT NULL DEFAULT 'automation_event',
+    ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'info',
+    ADD COLUMN IF NOT EXISTS message TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS draft_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS product_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS platform VARCHAR(30) NULL,
+    ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_automation_logs_tenant_created
+    ON marketing_automation_logs (tenant_id, created_at DESC);
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_automation_logs_tenant_event
+    ON marketing_automation_logs (tenant_id, event_type, created_at DESC);
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_automation_logs_tenant_status
+    ON marketing_automation_logs (tenant_id, status, created_at DESC);
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS ai_marketing_settings (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    planning_mode VARCHAR(20) NOT NULL DEFAULT 'weekly',
+    stories_per_day INTEGER NOT NULL DEFAULT 20,
+    posts_per_day INTEGER NOT NULL DEFAULT 3,
+    auto_publish BOOLEAN NOT NULL DEFAULT FALSE,
+    require_approval BOOLEAN NOT NULL DEFAULT TRUE,
+    campaign_mode VARCHAR(20) NOT NULL DEFAULT 'balanced',
+    active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    daily_content_quotas JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id)
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS ai_marketing_settings
+    ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
+    ADD COLUMN IF NOT EXISTS planning_mode VARCHAR(20) NOT NULL DEFAULT 'weekly',
+    ADD COLUMN IF NOT EXISTS stories_per_day INTEGER NOT NULL DEFAULT 20,
+    ADD COLUMN IF NOT EXISTS posts_per_day INTEGER NOT NULL DEFAULT 3,
+    ADD COLUMN IF NOT EXISTS auto_publish BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS require_approval BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS campaign_mode VARCHAR(20) NOT NULL DEFAULT 'balanced',
+    ADD COLUMN IF NOT EXISTS active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS daily_content_quotas JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  `,
+  `
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_marketing_settings_tenant
+    ON ai_marketing_settings (tenant_id);
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS ai_marketing_content_queue (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    content_type VARCHAR(20) NOT NULL DEFAULT 'story',
+    strategy_type VARCHAR(60) NOT NULL DEFAULT 'random_discovery',
+    department_id BIGINT NULL,
+    department_name TEXT NOT NULL DEFAULT '',
+    segment_type VARCHAR(80) NOT NULL DEFAULT '',
+    segment_id BIGINT NULL,
+    segment_name TEXT NOT NULL DEFAULT '',
+    product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
+    variant_id BIGINT NULL REFERENCES product_variants(id) ON DELETE SET NULL,
+    title TEXT NOT NULL DEFAULT '',
+    caption TEXT NOT NULL DEFAULT '',
+    image_url TEXT NOT NULL DEFAULT '',
+    media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+    primary_image_url TEXT NOT NULL DEFAULT '',
+    variant_image_url TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL DEFAULT '',
+    size TEXT NOT NULL DEFAULT '',
+    product_url TEXT NOT NULL DEFAULT '',
+    design_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status VARCHAR(30) NOT NULL DEFAULT 'generated',
+    scheduled_at TIMESTAMP NULL,
+    published_at TIMESTAMP NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    error_message TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS ai_marketing_content_queue
+    ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
+    ADD COLUMN IF NOT EXISTS content_type VARCHAR(20) NOT NULL DEFAULT 'story',
+    ADD COLUMN IF NOT EXISTS strategy_type VARCHAR(60) NOT NULL DEFAULT 'random_discovery',
+    ADD COLUMN IF NOT EXISTS department_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS department_name TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS segment_type VARCHAR(80) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS segment_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS segment_name TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS product_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS variant_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS caption TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS primary_image_url TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS variant_image_url TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS size TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS product_url TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS design_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'generated',
+    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS published_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS error_message TEXT NULL,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_ai_marketing_queue_tenant_status
+    ON ai_marketing_content_queue (tenant_id, status, scheduled_at, created_at DESC);
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_ai_marketing_queue_tenant_product_day
+    ON ai_marketing_content_queue (tenant_id, product_id, created_at DESC);
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS ai_marketing_generation_runs (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    run_type VARCHAR(20) NOT NULL DEFAULT 'daily',
+    status VARCHAR(30) NOT NULL DEFAULT 'running',
+    requested_stories INTEGER NOT NULL DEFAULT 0,
+    requested_posts INTEGER NOT NULL DEFAULT 0,
+    generated_stories INTEGER NOT NULL DEFAULT 0,
+    generated_posts INTEGER NOT NULL DEFAULT 0,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at TIMESTAMP NULL
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS ai_marketing_generation_runs
+    ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
+    ADD COLUMN IF NOT EXISTS run_type VARCHAR(20) NOT NULL DEFAULT 'daily',
+    ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'running',
+    ADD COLUMN IF NOT EXISTS requested_stories INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS requested_posts INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS generated_stories INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS generated_posts INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS failed_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP NULL;
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_ai_marketing_runs_tenant_started
+    ON ai_marketing_generation_runs (tenant_id, started_at DESC);
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS marketing_brand_identity (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    brand_name TEXT NOT NULL DEFAULT '',
+    brand_tone TEXT NOT NULL DEFAULT '',
+    audience TEXT NOT NULL DEFAULT '',
+    language TEXT NOT NULL DEFAULT '',
+    dialect TEXT NOT NULL DEFAULT '',
+    primary_colors JSONB NOT NULL DEFAULT '[]'::jsonb,
+    forbidden_words JSONB NOT NULL DEFAULT '[]'::jsonb,
+    preferred_cta TEXT NOT NULL DEFAULT '',
+    hashtag_style TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id)
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS marketing_brand_identity
+    ADD COLUMN IF NOT EXISTS brand_name TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS brand_tone TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS dialect TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS primary_colors JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS forbidden_words JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS preferred_cta TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS hashtag_style TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  `,
+  `
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_marketing_brand_identity_tenant
+    ON marketing_brand_identity (tenant_id);
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS marketing_story_campaigns (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
+    campaign_type VARCHAR(50) NOT NULL DEFAULT 'new_arrival',
+    product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
+    title TEXT NOT NULL DEFAULT '',
+    tone VARCHAR(50) NOT NULL DEFAULT 'Luxury',
+    platform VARCHAR(30) NOT NULL DEFAULT 'instagram',
+    visual_style VARCHAR(50) NOT NULL DEFAULT 'Luxury',
+    cta_goal VARCHAR(50) NOT NULL DEFAULT 'Website',
+    story_count INTEGER NOT NULL DEFAULT 4,
+    stories_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    generated_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+    scheduled_at TIMESTAMP NULL,
+    published_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS marketing_story_campaigns
+    ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS campaign_type VARCHAR(50) NOT NULL DEFAULT 'new_arrival',
+    ADD COLUMN IF NOT EXISTS product_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS tone VARCHAR(50) NOT NULL DEFAULT 'Luxury',
+    ADD COLUMN IF NOT EXISTS platform VARCHAR(30) NOT NULL DEFAULT 'instagram',
+    ADD COLUMN IF NOT EXISTS visual_style VARCHAR(50) NOT NULL DEFAULT 'Luxury',
+    ADD COLUMN IF NOT EXISTS cta_goal VARCHAR(50) NOT NULL DEFAULT 'Website',
+    ADD COLUMN IF NOT EXISTS story_count INTEGER NOT NULL DEFAULT 4,
+    ADD COLUMN IF NOT EXISTS stories_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    ADD COLUMN IF NOT EXISTS generated_by BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS published_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_story_campaigns_tenant_status
+    ON marketing_story_campaigns (tenant_id, status, created_at DESC);
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_story_campaigns_tenant_product
+    ON marketing_story_campaigns (tenant_id, product_id, created_at DESC);
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS marketing_story_exports (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
+    story_campaign_id BIGINT NOT NULL REFERENCES marketing_story_campaigns(id) ON DELETE CASCADE,
+    template_id VARCHAR(80) NOT NULL DEFAULT '',
+    export_type VARCHAR(30) NOT NULL DEFAULT 'png',
+    file_count INTEGER NOT NULL DEFAULT 0,
+    filenames_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status VARCHAR(30) NOT NULL DEFAULT 'completed',
+    created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS marketing_story_exports
+    ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS story_campaign_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS template_id VARCHAR(80) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS export_type VARCHAR(30) NOT NULL DEFAULT 'png',
+    ADD COLUMN IF NOT EXISTS file_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS filenames_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'completed',
+    ADD COLUMN IF NOT EXISTS created_by BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_story_exports_campaign
+    ON marketing_story_exports (tenant_id, story_campaign_id, created_at DESC);
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS marketing_story_trigger_suggestions (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
+    trigger_type VARCHAR(60) NOT NULL,
+    product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
+    variant_id BIGINT NULL REFERENCES product_variants(id) ON DELETE SET NULL,
+    title TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT '',
+    priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+    signal_score INTEGER NOT NULL DEFAULT 0,
+    signal_snapshot_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    suggested_campaign_type VARCHAR(60) NOT NULL DEFAULT 'new_arrival',
+    suggested_story_count INTEGER NOT NULL DEFAULT 4,
+    suggested_visual_style VARCHAR(60) NOT NULL DEFAULT 'Luxury',
+    suggested_cta_goal VARCHAR(60) NOT NULL DEFAULT 'Website',
+    status VARCHAR(30) NOT NULL DEFAULT 'pending',
+    generated_campaign_id BIGINT NULL REFERENCES marketing_story_campaigns(id) ON DELETE SET NULL,
+    dismissed_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS marketing_story_trigger_suggestions
+    ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS trigger_type VARCHAR(60) NOT NULL DEFAULT 'new_arrival',
+    ADD COLUMN IF NOT EXISTS product_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS variant_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+    ADD COLUMN IF NOT EXISTS signal_score INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS signal_snapshot_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS suggested_campaign_type VARCHAR(60) NOT NULL DEFAULT 'new_arrival',
+    ADD COLUMN IF NOT EXISTS suggested_story_count INTEGER NOT NULL DEFAULT 4,
+    ADD COLUMN IF NOT EXISTS suggested_visual_style VARCHAR(60) NOT NULL DEFAULT 'Luxury',
+    ADD COLUMN IF NOT EXISTS suggested_cta_goal VARCHAR(60) NOT NULL DEFAULT 'Website',
+    ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'pending',
+    ADD COLUMN IF NOT EXISTS generated_campaign_id BIGINT NULL,
+    ADD COLUMN IF NOT EXISTS dismissed_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_story_triggers_tenant_status
+    ON marketing_story_trigger_suggestions (tenant_id, status, signal_score DESC, created_at DESC);
+  `,
+  `
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_marketing_story_triggers_active_unique
+    ON marketing_story_trigger_suggestions (tenant_id, trigger_type, COALESCE(product_id, 0), COALESCE(variant_id, 0))
+    WHERE status IN ('pending', 'generated');
+  `,
+  `
   CREATE TABLE IF NOT EXISTS marketing_post_analytics (
     id BIGSERIAL PRIMARY KEY,
     post_id BIGINT NOT NULL REFERENCES marketing_posts(id) ON DELETE CASCADE,

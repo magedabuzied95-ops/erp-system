@@ -22,9 +22,10 @@ import {
 
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
+import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import FlowShell from "../components/FlowShell";
 import StatusBadge from "../components/StatusBadge";
-import { formatCurrency, formatDateTime, getLocalPurchases, normalizeSupplier, seedSuppliers } from "../lib/flowStore";
+import { formatCurrency, formatDateTime, formatPurchaseCode, getLocalPurchases, normalizeSupplier, seedSuppliers } from "../lib/flowStore";
 
 const PAGE_SIZE = 10;
 const emptyForm = {
@@ -73,6 +74,12 @@ function SuppliersDashboard() {
   const [formError, setFormError] = useState("");
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
+
+  useDismissableLayer({
+    enabled: Boolean(openMenuId),
+    ignoreSelectors: ["[data-supplier-actions='true']"],
+    onDismiss: () => setOpenMenuId(null),
+  });
 
   const loadSuppliers = async () => {
     try {
@@ -186,7 +193,7 @@ function SuppliersDashboard() {
     event.preventDefault();
     const cleanName = String(form.name || "").trim();
     if (!cleanName) {
-      setFormError("اسم المورد مطلوب / Supplier name is required");
+      setFormError(t("purchases.suppliersDashboard.supplierNameRequired"));
       return;
     }
 
@@ -205,12 +212,12 @@ function SuppliersDashboard() {
           return [normalized, ...prev];
         });
       }
-      toast.success(modalSupplier ? "Supplier updated" : "Supplier created");
+      toast.success(t(modalSupplier ? "purchases.suppliersDashboard.supplierUpdated" : "purchases.suppliersDashboard.supplierCreated"));
       setModalSupplier(undefined);
       await loadSuppliers();
     } catch (err) {
       console.error(err);
-      const message = err?.responseBody?.message || err?.message || "Supplier could not be saved";
+      const message = err?.responseBody?.message || err?.message || t("purchases.suppliersDashboard.supplierSaveFailed");
       setFormError(message);
       toast.error(message);
     } finally {
@@ -220,16 +227,16 @@ function SuppliersDashboard() {
 
   const deleteSupplier = async (supplier) => {
     setOpenMenuId(null);
-    const ok = window.confirm(`Delete supplier ${supplier.name}?`);
+    const ok = window.confirm(t("purchases.suppliersDashboard.confirmDeleteSupplier", { name: supplier.name }));
     if (!ok) return;
     try {
       await api.delete(`/suppliers/${supplier.id}`);
       setSuppliers((prev) => prev.filter((item) => String(item.id) !== String(supplier.id)));
       if (String(profile?.id) === String(supplier.id)) setProfile(null);
-      toast.success("Supplier deleted");
+      toast.success(t("purchases.suppliersDashboard.supplierDeleted"));
     } catch (err) {
       console.error(err);
-      toast.error(err?.responseBody?.message || "Supplier could not be deleted");
+      toast.error(err?.responseBody?.message || t("purchases.suppliersDashboard.supplierDeleteFailed"));
     }
   };
 
@@ -242,7 +249,7 @@ function SuppliersDashboard() {
       setProfile({ ...supplier, ...(response?.data || response?.supplier || {}) });
     } catch (err) {
       console.error(err);
-      toast.error("Supplier profile could not be refreshed");
+      toast.error(t("purchases.suppliersDashboard.profileRefreshFailed"));
     } finally {
       setProfileLoading(false);
     }
@@ -260,11 +267,11 @@ function SuppliersDashboard() {
           </Link>
           <button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-200 transition hover:border-emerald-300/60 hover:bg-emerald-400/20">
             <Plus className="h-4 w-4" />
-            Add Supplier
+            {t("purchases.suppliersDashboard.addSupplier")}
           </button>
           <button type="button" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
             <Download className="h-4 w-4" />
-            Import Suppliers
+            {t("purchases.suppliersDashboard.importSuppliers")}
           </button>
         </>
       }
@@ -279,8 +286,8 @@ function SuppliersDashboard() {
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Kpi label={t("suppliers.kpis.suppliers")} value={totals.suppliers} />
         <Kpi label={t("suppliers.kpis.active")} value={totals.active} tone="emerald" />
-        <Kpi label="Current Balance" value={formatCurrency(totals.balance)} tone="amber" />
-        <Kpi label="Total Purchases" value={formatCurrency(totals.spend)} tone="blue" />
+        <Kpi label={t("purchases.suppliersDashboard.currentBalance")} value={formatCurrency(totals.balance)} tone="amber" />
+        <Kpi label={t("purchases.suppliersDashboard.totalPurchases")} value={formatCurrency(totals.spend)} tone="blue" />
       </div>
 
       {error ? (
@@ -293,29 +300,29 @@ function SuppliersDashboard() {
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_220px]">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute start-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="ابحث بالاسم / الهاتف / الكود"
-              className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
+              placeholder={t("purchases.suppliersDashboard.searchPlaceholder")}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pe-4 ps-11 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400/50"
             />
           </div>
-          <Select value={statusFilter} onChange={setStatusFilter} options={[["all", "All status"], ["active", "Active"], ["inactive", "Inactive"]]} />
-          <Select value={sort} onChange={setSort} options={[["newest", "Newest"], ["highest_balance", "Highest balance"], ["name", "Name A-Z"]]} />
+          <Select value={statusFilter} onChange={setStatusFilter} options={[["all", t("purchases.suppliersDashboard.allStatus")], ["active", t("purchases.statusLabels.active")], ["inactive", t("purchases.statusLabels.inactive")]]} />
+          <Select value={sort} onChange={setSort} options={[["newest", t("purchases.suppliersDashboard.newest")], ["highest_balance", t("purchases.suppliersDashboard.highestBalance")], ["name", t("purchases.suppliersDashboard.nameAz")]]} />
         </div>
 
         <div className="mt-4 overflow-x-auto">
           <div className="min-w-[1280px]">
             <div className="grid grid-cols-[12%_18%_12%_12%_12%_10%_10%_8%_6%] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.16em] text-zinc-500">
-              <div>Code</div>
-              <div>Supplier</div>
-              <div>Contact</div>
-              <div>WhatsApp</div>
-              <div>Total Purchases</div>
-              <div>Balance</div>
-              <div>Status</div>
-              <div>Last PO</div>
+              <div>{t("purchases.suppliersDashboard.code")}</div>
+              <div>{t("purchases.suppliersDashboard.supplier")}</div>
+              <div>{t("purchases.suppliersDashboard.contact")}</div>
+              <div>{t("purchases.suppliersDashboard.whatsapp")}</div>
+              <div>{t("purchases.suppliersDashboard.totalPurchases")}</div>
+              <div>{t("purchases.suppliersDashboard.balance")}</div>
+              <div>{t("purchases.suppliersDashboard.status")}</div>
+              <div>{t("purchases.suppliersDashboard.lastPo")}</div>
               <div></div>
             </div>
 
@@ -334,15 +341,15 @@ function SuppliersDashboard() {
                     <div className="font-mono text-sm font-semibold text-emerald-200">{supplier.supplier_code}</div>
                     <div>
                       <div className="font-semibold text-white">{supplier.name}</div>
-                      <div className="truncate text-xs text-zinc-500">{supplier.email || supplier.address || "No contact details"}</div>
+                      <div className="truncate text-xs text-zinc-500">{supplier.email || supplier.address || t("purchases.suppliersDashboard.noContactDetails")}</div>
                     </div>
-                    <div className="text-sm text-zinc-300">{supplier.contact_person || supplier.phone || "n/a"}</div>
-                    <div className="text-sm text-zinc-300">{supplier.whatsapp || supplier.phone || "n/a"}</div>
+                    <div className="text-sm text-zinc-300">{supplier.contact_person || supplier.phone || t("purchases.supplierDetails.notAvailable")}</div>
+                    <div className="text-sm text-zinc-300">{supplier.whatsapp || supplier.phone || t("purchases.supplierDetails.notAvailable")}</div>
                     <div className="font-bold text-white">{formatCurrency(supplier.totalPurchases || 0)}</div>
                     <div className="font-bold text-white">{formatCurrency(supplier.current_balance || 0)}</div>
                     <StatusBadge value={supplierStatusLabel(supplier.status)} />
-                    <div className="text-xs text-zinc-400">{supplier.lastPurchaseDate ? formatDateTime(supplier.lastPurchaseDate) : "n/a"}</div>
-                    <div className="relative flex justify-end" onClick={(event) => event.stopPropagation()}>
+                    <div className="text-xs text-zinc-400">{supplier.lastPurchaseDate ? formatDateTime(supplier.lastPurchaseDate) : t("purchases.supplierDetails.notAvailable")}</div>
+                    <div className="relative flex justify-end" data-supplier-actions="true" onClick={(event) => event.stopPropagation()}>
                       <button type="button" onClick={() => setOpenMenuId(openMenuId === supplier.id ? null : supplier.id)} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
@@ -365,14 +372,14 @@ function SuppliersDashboard() {
 
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-zinc-400">
-            Showing {visible.length} of {sorted.length} suppliers
+            {t("purchases.suppliersDashboard.showingSuppliers", { visible: visible.length, total: sorted.length })}
           </div>
           <div className="flex items-center gap-2">
-            <PagerButton onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} label="Prev" />
+            <PagerButton onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} label={t("purchases.suppliersDashboard.prev")} />
             <span className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300">
-              Page {currentPage} / {totalPages}
+              {t("purchases.suppliersDashboard.pageOf", { current: currentPage, total: totalPages })}
             </span>
-            <PagerButton onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} label="Next" />
+            <PagerButton onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} label={t("purchases.suppliersDashboard.next")} />
           </div>
         </div>
       </div>
@@ -430,11 +437,12 @@ function Select({ value, onChange, options }) {
 }
 
 function ActionMenu({ supplier, onView, onEdit, onDelete, onPurchase }) {
+  const { t } = useTranslation();
   const items = [
-    [Eye, "View", onView],
-    [Edit3, "Edit", onEdit],
-    [Trash2, "Delete", onDelete],
-    [FilePlus2, "Create Purchase Order", onPurchase],
+    [Eye, t("purchases.suppliersDashboard.view"), onView],
+    [Edit3, t("purchases.suppliersDashboard.edit"), onEdit],
+    [Trash2, t("purchases.suppliersDashboard.delete"), onDelete],
+    [FilePlus2, t("purchases.suppliersDashboard.createPurchaseOrder"), onPurchase],
   ];
   return (
     <div className="absolute right-0 top-11 z-20 w-56 rounded-2xl border border-white/10 bg-zinc-950 p-2 shadow-2xl shadow-black">
@@ -450,30 +458,32 @@ function ActionMenu({ supplier, onView, onEdit, onDelete, onPurchase }) {
 }
 
 function EmptyState({ onCreate }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
       <ShieldCheck className="mx-auto h-12 w-12 text-zinc-500" />
-      <h3 className="mt-4 text-xl font-black text-white">No suppliers found</h3>
-      <p className="mt-2 text-sm text-zinc-400">Create your first supplier or adjust the active filters.</p>
+      <h3 className="mt-4 text-xl font-black text-white">{t("purchases.suppliersDashboard.emptyTitle")}</h3>
+      <p className="mt-2 text-sm text-zinc-400">{t("purchases.suppliersDashboard.emptyDescription")}</p>
       <button type="button" onClick={onCreate} className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black">
         <Plus className="h-4 w-4" />
-        Add Supplier
+        {t("purchases.suppliersDashboard.addSupplier")}
       </button>
     </div>
   );
 }
 
 function SupplierModal({ supplier, form, setForm, error, saving, onClose, onSubmit }) {
+  const { t } = useTranslation();
   const setField = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/70 backdrop-blur-sm sm:items-stretch" dir="auto">
-      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close" />
+      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={t("purchases.suppliersDashboard.close")} />
       <form onSubmit={onSubmit} className="relative flex h-[92vh] w-full max-w-2xl animate-in slide-in-from-bottom-6 flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black sm:h-full sm:rounded-none sm:rounded-l-3xl">
         <div className="border-b border-white/10 bg-white/[0.03] p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Suppliers</div>
-              <h2 className="mt-1 text-2xl font-black text-white">{supplier ? "تعديل مورد / Edit Supplier" : "إضافة مورد / Add Supplier"}</h2>
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{t("purchases.tabs.suppliers")}</div>
+              <h2 className="mt-1 text-2xl font-black text-white">{supplier ? t("purchases.suppliersDashboard.editSupplier") : t("purchases.suppliersDashboard.addSupplier")}</h2>
             </div>
             <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
               <X className="h-5 w-5" />
@@ -484,33 +494,33 @@ function SupplierModal({ supplier, form, setForm, error, saving, onClose, onSubm
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
           {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</div> : null}
           <div className="grid gap-3 md:grid-cols-2">
-            <Field label="اسم المورد / Supplier Name *" value={form.name} onChange={(value) => setField("name", value)} />
-            <Field label="الشخص المسؤول / Contact Person" value={form.contact_person} onChange={(value) => setField("contact_person", value)} />
-            <Field label="الهاتف / Phone" value={form.phone} onChange={(value) => setField("phone", value)} />
-            <Field label="واتساب / WhatsApp" value={form.whatsapp} onChange={(value) => setField("whatsapp", value)} />
-            <Field label="البريد / Email" value={form.email} onChange={(value) => setField("email", value)} />
-            <Field label="الرقم الضريبي / Tax Number" value={form.tax_number} onChange={(value) => setField("tax_number", value)} />
-            <Field label="الرصيد الافتتاحي / Opening Balance" type="number" value={form.opening_balance} onChange={(value) => setField("opening_balance", Number(value || 0))} />
+            <Field label={t("purchases.suppliersDashboard.supplierNameRequiredLabel")} value={form.name} onChange={(value) => setField("name", value)} />
+            <Field label={t("purchases.suppliersDashboard.contactPerson")} value={form.contact_person} onChange={(value) => setField("contact_person", value)} />
+            <Field label={t("purchases.supplierDetails.phone")} value={form.phone} onChange={(value) => setField("phone", value)} />
+            <Field label={t("purchases.suppliersDashboard.whatsapp")} value={form.whatsapp} onChange={(value) => setField("whatsapp", value)} />
+            <Field label={t("purchases.supplierDetails.email")} value={form.email} onChange={(value) => setField("email", value)} />
+            <Field label={t("purchases.suppliersDashboard.taxNumber")} value={form.tax_number} onChange={(value) => setField("tax_number", value)} />
+            <Field label={t("purchases.supplierDetails.openingBalance")} type="number" value={form.opening_balance} onChange={(value) => setField("opening_balance", Number(value || 0))} />
             <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-              <span className="text-sm font-semibold text-white">نشط / Active</span>
+              <span className="text-sm font-semibold text-white">{t("purchases.statusLabels.active")}</span>
               <button type="button" onClick={() => setField("status", form.status === "active" ? "inactive" : "active")} className={`h-7 w-12 rounded-full p-1 transition ${form.status === "active" ? "bg-emerald-500" : "bg-zinc-700"}`}>
                 <span className={`block h-5 w-5 rounded-full bg-white transition ${form.status === "active" ? "translate-x-5" : ""}`} />
               </button>
             </label>
           </div>
-          <Field label="العنوان / Address" value={form.address} onChange={(value) => setField("address", value)} />
+          <Field label={t("purchases.supplierDetails.address")} value={form.address} onChange={(value) => setField("address", value)} />
           <label className="block">
-            <div className="mb-2 text-xs font-semibold text-zinc-400">ملاحظات / Notes</div>
+            <div className="mb-2 text-xs font-semibold text-zinc-400">{t("purchases.supplierDetails.notes")}</div>
             <textarea value={form.notes} onChange={(event) => setField("notes", event.target.value)} rows={4} className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/50" />
           </label>
         </div>
 
         <div className="grid gap-3 border-t border-white/10 bg-white/[0.03] p-5 sm:grid-cols-2">
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
-            Cancel
+            {t("common.cancel")}
           </button>
           <button type="submit" disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black disabled:opacity-50">
-            {saving ? "Saving..." : "Save Supplier"}
+            {saving ? t("purchases.details.saving") : t("purchases.suppliersDashboard.saveSupplier")}
           </button>
         </div>
       </form>
@@ -528,17 +538,18 @@ function Field({ label, value, onChange, type = "text" }) {
 }
 
 function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
+  const { t } = useTranslation();
   const history = toArray(supplier.purchase_history);
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/60 backdrop-blur-sm">
-      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close profile" />
+      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={t("purchases.suppliersDashboard.closeProfile")} />
       <aside className="relative flex h-full w-full max-w-xl flex-col overflow-hidden border-l border-white/10 bg-zinc-950 shadow-2xl shadow-black">
         <div className="border-b border-white/10 p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-mono text-sm text-emerald-300">{supplier.supplier_code}</div>
               <h2 className="mt-1 text-2xl font-black text-white">{supplier.name}</h2>
-              <p className="mt-1 text-sm text-zinc-400">{supplier.address || "No address"}</p>
+              <p className="mt-1 text-sm text-zinc-400">{supplier.address || t("purchases.supplierDetails.noAddress")}</p>
             </div>
             <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
               <X className="h-5 w-5" />
@@ -547,38 +558,38 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
               <Edit3 className="h-4 w-4" />
-              Edit
+              {t("purchases.suppliersDashboard.edit")}
             </button>
             <button type="button" onClick={onPurchase} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black">
               <FilePlus2 className="h-4 w-4" />
-              Purchase Order
+              {t("purchases.suppliersDashboard.purchaseOrder")}
             </button>
           </div>
         </div>
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
-          {loading ? <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">Refreshing supplier profile...</div> : null}
+          {loading ? <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">{t("purchases.suppliersDashboard.refreshingProfile")}</div> : null}
           <div className="grid gap-3 sm:grid-cols-3">
-            <MiniStat label="Current Balance" value={formatCurrency(supplier.current_balance || supplier.balance || 0)} icon={<Wallet className="h-4 w-4" />} />
-            <MiniStat label="Total Purchases" value={formatCurrency(supplier.total_purchases || supplier.totalPurchases || 0)} icon={<Building2 className="h-4 w-4" />} />
-            <MiniStat label="Orders" value={supplier.purchase_count || supplier.purchaseCount || history.length || 0} icon={<FilePlus2 className="h-4 w-4" />} />
+            <MiniStat label={t("purchases.suppliersDashboard.currentBalance")} value={formatCurrency(supplier.current_balance || supplier.balance || 0)} icon={<Wallet className="h-4 w-4" />} />
+            <MiniStat label={t("purchases.suppliersDashboard.totalPurchases")} value={formatCurrency(supplier.total_purchases || supplier.totalPurchases || 0)} icon={<Building2 className="h-4 w-4" />} />
+            <MiniStat label={t("purchases.suppliersDashboard.orders")} value={supplier.purchase_count || supplier.purchaseCount || history.length || 0} icon={<FilePlus2 className="h-4 w-4" />} />
           </div>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-            <h3 className="text-lg font-black text-white">Supplier Info</h3>
+            <h3 className="text-lg font-black text-white">{t("purchases.suppliersDashboard.supplierInfo")}</h3>
             <div className="mt-4 grid gap-3 text-sm text-zinc-300">
-              <Info icon={<Phone className="h-4 w-4" />} label="Phone" value={supplier.phone || "n/a"} />
-              <Info icon={<Phone className="h-4 w-4" />} label="WhatsApp" value={supplier.whatsapp || supplier.phone || "n/a"} />
-              <Info icon={<Mail className="h-4 w-4" />} label="Email" value={supplier.email || "n/a"} />
-              <Info icon={<Building2 className="h-4 w-4" />} label="Contact" value={supplier.contact_person || "n/a"} />
-              <Info icon={<ShieldCheck className="h-4 w-4" />} label="Tax Number" value={supplier.tax_number || "n/a"} />
+              <Info icon={<Phone className="h-4 w-4" />} label={t("purchases.supplierDetails.phone")} value={supplier.phone || t("purchases.supplierDetails.notAvailable")} />
+              <Info icon={<Phone className="h-4 w-4" />} label={t("purchases.suppliersDashboard.whatsapp")} value={supplier.whatsapp || supplier.phone || t("purchases.supplierDetails.notAvailable")} />
+              <Info icon={<Mail className="h-4 w-4" />} label={t("purchases.supplierDetails.email")} value={supplier.email || t("purchases.supplierDetails.notAvailable")} />
+              <Info icon={<Building2 className="h-4 w-4" />} label={t("purchases.suppliersDashboard.contact")} value={supplier.contact_person || t("purchases.supplierDetails.notAvailable")} />
+              <Info icon={<ShieldCheck className="h-4 w-4" />} label={t("purchases.suppliersDashboard.taxNumber")} value={supplier.tax_number || t("purchases.supplierDetails.notAvailable")} />
             </div>
           </div>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-            <h3 className="text-lg font-black text-white">Last Orders</h3>
+            <h3 className="text-lg font-black text-white">{t("purchases.suppliersDashboard.lastOrders")}</h3>
             <div className="mt-3 space-y-2">
               {history.length ? history.map((purchase) => (
                 <div key={purchase.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-zinc-950/80 p-3">
                   <div>
-                    <div className="font-semibold text-white">{purchase.purchase_number || `PUR-${purchase.id}`}</div>
+                    <div className="font-semibold text-white">{purchase.purchase_number || purchase.invoice_number || formatPurchaseCode(purchase.id)}</div>
                     <div className="text-xs text-zinc-500">{formatDateTime(purchase.created_at)}</div>
                   </div>
                   <div className="text-right">
@@ -586,12 +597,12 @@ function ProfileDrawer({ supplier, loading, onClose, onEdit, onPurchase }) {
                     <div className="text-xs text-zinc-500">{purchase.status || "draft"}</div>
                   </div>
                 </div>
-              )) : <div className="rounded-2xl border border-dashed border-white/10 p-5 text-center text-sm text-zinc-400">No purchase history yet.</div>}
+              )) : <div className="rounded-2xl border border-dashed border-white/10 p-5 text-center text-sm text-zinc-400">{t("purchases.suppliersDashboard.noPurchaseHistoryYet")}</div>}
             </div>
           </div>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-            <h3 className="text-lg font-black text-white">Notes</h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">{supplier.notes || "No notes recorded for this supplier."}</p>
+            <h3 className="text-lg font-black text-white">{t("purchases.supplierDetails.notes")}</h3>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">{supplier.notes || t("purchases.suppliersDashboard.noNotesRecorded")}</p>
           </div>
         </div>
       </aside>

@@ -338,7 +338,7 @@ const publishAllChannels = async ({ post, settings, accessToken }) => {
   return aggregate;
 };
 
-const publishInstagramPost = async ({ post, settings, accessToken }) => {
+export const publishInstagramPost = async ({ post, settings, accessToken }) => {
   const instagramAccountId = getInstagramAccountId(settings);
   const message = buildMessage(post);
   const imageUrls = getPostImageUrls(post);
@@ -527,7 +527,7 @@ const publishInstagramPost = async ({ post, settings, accessToken }) => {
   }
 };
 
-const publishFacebookPost = async ({ post, settings, accessToken }) => {
+export const publishFacebookPost = async ({ post, settings, accessToken }) => {
   const pageId = getPageId(settings);
   const message = buildMessage(post);
 

@@ -1,6 +1,4 @@
-import QRCode
-from "react-qr-code";
-
+import { lazy, Suspense } from "react";
 import {
 
   CalendarDays,
@@ -17,6 +15,8 @@ import {
 
 } from "lucide-react";
 
+const QRCode = lazy(() => import("react-qr-code"));
+
 function ThermalInvoice({
 
   cart,
@@ -28,6 +28,7 @@ function ThermalInvoice({
   paymentMethod,
 
   discount = 0,
+  invoiceNumber = "",
 
 
 }) {
@@ -37,7 +38,7 @@ function ThermalInvoice({
   ====================================================== */
 
   const invoiceId =
-    `INV-${Date.now()}`;
+    invoiceNumber || "INV-PENDING";
 
   /* ======================================================
      DATE
@@ -409,6 +410,7 @@ function ThermalInvoice({
 
         <div className="text-center">
 
+          <Suspense fallback={null}>
           <QRCode
 
             value={
@@ -431,6 +433,7 @@ function ThermalInvoice({
             size={130}
 
           />
+          </Suspense>
 
           <p className="text-xs mt-3 text-gray-500">
 

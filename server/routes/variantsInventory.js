@@ -5,12 +5,37 @@ import permit from "../middleware/permissionMiddleware.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 
 const router = express.Router();
+let variantsInventorySchemaPromise = null;
+let variantsInventorySchemaEnsured = false;
+
+export const ensureVariantsInventorySchema = async (clientOrPool = pool) => {
+  if (variantsInventorySchemaEnsured) return;
+  if (!variantsInventorySchemaPromise) {
+    variantsInventorySchemaPromise = (async () => {
+      await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_active_deleted ON product_variants (tenant_id, is_active, deleted_at, id DESC)`);
+    })()
+      .then(() => {
+        variantsInventorySchemaEnsured = true;
+      })
+      .catch((error) => {
+        variantsInventorySchemaPromise = null;
+        throw error;
+      });
+  }
+  await variantsInventorySchemaPromise;
+};
+
+const perfDebug = () => ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").toLowerCase());
+const clampLimit = (value, fallback = 20, max = 100) => Math.min(Math.max(Number(value) || fallback, 1), max);
 
 router.get("/", protect, permit("products", "view"), async (req, res) => {
+  const startedAt = Date.now();
   try {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    const limit = clampLimit(req.query.limit);
     const search = req.query.search || "";
     const offset = (page - 1) * limit;
 
@@ -32,6 +57,8 @@ router.get("/", protect, permit("products", "view"), async (req, res) => {
       FROM product_variants pv
       JOIN products p ON pv.product_id = p.id
       WHERE (p.name ILIKE $1 OR pv.sku ILIKE $1)
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
       ${tenantClause}
       ORDER BY pv.id DESC
       LIMIT $${params.length + 1}
@@ -46,12 +73,14 @@ router.get("/", protect, permit("products", "view"), async (req, res) => {
       FROM product_variants pv
       JOIN products p ON pv.product_id = p.id
       WHERE (p.name ILIKE $1 OR pv.sku ILIKE $1)
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
       ${tenantClause}
       `,
       params
     );
 
-    res.status(200).json({
+    const payload = {
       success: true,
       variants: variants.rows,
       pagination: {
@@ -60,7 +89,9 @@ router.get("/", protect, permit("products", "view"), async (req, res) => {
         limit,
         totalPages: Math.ceil(Number(total.rows[0].count) / limit),
       },
-    });
+    };
+    if (perfDebug()) console.log("[erp-perf] variants-inventory.list", { total_ms: Date.now() - startedAt, rows: variants.rowCount, limit });
+    res.status(200).json(payload);
   } catch (error) {
     console.log(error);
     res.status(500).json({
@@ -72,3 +103,4 @@ router.get("/", protect, permit("products", "view"), async (req, res) => {
 });
 
 export default router;
+

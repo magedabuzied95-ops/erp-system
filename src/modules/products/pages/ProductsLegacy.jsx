@@ -2,6 +2,7 @@ import {
   useEffect,
   useState
 } from "react";
+import { useTranslation } from "react-i18next";
 
 import { api }
 from "../../../shared/api/api";
@@ -15,6 +16,7 @@ import {
 } from "../services/productsApi";
 
 function Products() {
+  const { t } = useTranslation();
 
   /* ======================================================
      STATES
@@ -170,7 +172,7 @@ function Products() {
       ) {
 
         return alert(
-          "Fill all fields"
+          t("products.legacy.fillAllFields")
         );
       }
 
@@ -205,7 +207,7 @@ function Products() {
 
       const confirmDelete =
         window.confirm(
-          "Delete Variant?"
+          t("products.legacy.confirmDeleteVariant")
         );
 
       if (!confirmDelete)
@@ -309,7 +311,7 @@ function Products() {
       ) {
 
         return alert(
-          "Fill all fields"
+          t("products.legacy.fillAllFields")
         );
       }
 
@@ -338,7 +340,7 @@ function Products() {
                 })
               );
             } catch (error) {
-              variantErrors.push(error?.message || "Variant creation failed");
+              variantErrors.push(error?.message || t("products.legacy.variantCreationFailed"));
             }
           }
         }
@@ -359,11 +361,11 @@ function Products() {
 
         if (variantErrors.length > 0) {
           alert(
-            `${variantErrors.length} variant(s) failed. The remaining variants were saved.\n\n${variantErrors[0]}`
+            t("products.legacy.partialVariantFailure", { count: variantErrors.length, message: variantErrors[0] })
           );
         } else {
           alert(
-            "Variants created successfully"
+            t("products.legacy.variantsCreated")
           );
         }
 
@@ -372,7 +374,7 @@ function Products() {
         console.log(error);
 
         alert(
-          "Error creating variants"
+          t("products.legacy.errorCreatingVariants")
         );
       }
     };
@@ -428,7 +430,7 @@ function Products() {
           animate-pulse
           "
         >
-          Loading Products...
+          {t("products.loading")}
         </div>
 
       </div>
@@ -461,7 +463,7 @@ function Products() {
             dark:text-white
             "
           >
-            Products PRO 👟
+            {t("products.legacy.title")}
           </h1>
 
           <p
@@ -471,7 +473,7 @@ function Products() {
             text-lg
             "
           >
-            Enterprise product & variants management
+            {t("products.legacy.description")}
           </p>
 
         </div>
@@ -491,18 +493,18 @@ function Products() {
       >
 
         <KPI
-          title="Products"
+          title={t("products.stats.totalProducts")}
           value={totalProducts}
         />
 
         <KPI
-          title="Variants"
+          title={t("products.stats.variants")}
           value={totalVariants}
           color="text-blue-500"
         />
 
         <KPI
-          title="Low Stock"
+          title={t("products.stats.lowStock")}
           value={lowStock}
           color="text-red-500"
         />
@@ -520,7 +522,7 @@ function Products() {
         >
 
           <p className="opacity-90">
-            In Stock
+            {t("products.legacy.inStock")}
           </p>
 
           <h2
@@ -552,7 +554,7 @@ function Products() {
         <input
           type="text"
 
-          placeholder="Search by product / sku / color / size"
+          placeholder={t("products.legacy.searchPlaceholder")}
 
           value={search}
 
@@ -597,7 +599,7 @@ function Products() {
           dark:text-white
           "
         >
-          Create Product
+          {t("products.legacy.createProduct")}
         </h2>
 
         <div
@@ -611,7 +613,7 @@ function Products() {
           <input
             type="text"
 
-            placeholder="Product Name"
+            placeholder={t("products.form.productName")}
 
             value={name}
 
@@ -635,7 +637,7 @@ function Products() {
           <input
             type="text"
 
-            placeholder="Description"
+            placeholder={t("products.legacy.descriptionPlaceholder")}
 
             value={description}
 
@@ -673,7 +675,7 @@ function Products() {
           transition
           "
         >
-          Add Product
+          {t("products.legacy.addProduct")}
         </button>
 
       </div>
@@ -698,7 +700,7 @@ function Products() {
           dark:text-white
           "
         >
-          Create Variant
+          {t("products.legacy.createVariant")}
         </h2>
 
         {/* PRODUCT COLORS */}
@@ -744,7 +746,7 @@ function Products() {
           >
 
             <option value="">
-              Select Product
+              {t("products.variantPage.selectProduct")}
             </option>
 
             {products.map(
@@ -764,7 +766,7 @@ function Products() {
           <input
             type="text"
 
-            placeholder="SKU PREFIX"
+            placeholder={t("products.editor.skuPrefix")}
 
             value={variantSku}
 
@@ -788,7 +790,7 @@ function Products() {
           <input
             type="number"
 
-            placeholder="Stock"
+            placeholder={t("products.variantPage.stock")}
 
             value={variantQuantity}
 
@@ -812,7 +814,7 @@ function Products() {
           <input
             type="number"
 
-            placeholder="Price"
+            placeholder={t("products.variantPage.price")}
 
             value={variantPrice}
 
@@ -850,7 +852,7 @@ function Products() {
           transition
           "
         >
-          Create Variants
+          {t("products.legacy.createVariants")}
         </button>
 
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { AlertTriangle, Save, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
@@ -8,7 +9,31 @@ import { api } from "../../../shared/api/api";
 import OrdersShell from "../components/OrdersShell";
 import { addReturnRecord, formatCurrency, mockOrders, normalizeOrder } from "../lib/ordersStore";
 
+const resolveOrderItemUnitPrice = (item = {}) => {
+  const candidates = [
+    item.unit_price,
+    item.unitPrice,
+    item.price,
+    item.sale_price,
+    item.salePrice,
+    item.selling_price,
+    item.sellingPrice,
+    item.product_price,
+    item.productPrice,
+    item.variant_price,
+    item.variantPrice,
+    item.line_unit_price,
+    item.lineUnitPrice,
+  ];
+  const numbers = candidates
+    .filter((value) => value !== null && value !== undefined && value !== "")
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+  return numbers.find((value) => value > 0) ?? numbers[0] ?? 0;
+};
+
 function Returns() {
+  const { t } = useTranslation();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -35,8 +60,8 @@ function Returns() {
       const fallback = mockOrders();
       setOrders(fallback);
       setSelectedOrderId(String(fallback[0]?.id || ""));
-      setError("Orders endpoint unavailable. Return workflow is using local fallback data.");
-      toast.error("Using fallback return data");
+      setError(t("orders.returns.workflowFallback"));
+      toast.error(t("orders.returns.usingFallback"));
     } finally {
       setLoading(false);
     }
@@ -44,7 +69,7 @@ function Returns() {
 
   useEffect(() => {
     loadOrders();
-  }, []);
+  }, [t]);
 
   const selectedOrder = useMemo(
     () => orders.find((order) => String(order.id) === String(selectedOrderId)) || null,
@@ -56,7 +81,7 @@ function Returns() {
   useEffect(() => {
     const total = selectedItems.reduce((sum, item) => {
       const qty = Number(returnItems[item.id]?.quantity || 0);
-      return sum + qty * Number(item.price || 0);
+      return sum + qty * resolveOrderItemUnitPrice(item);
     }, 0);
     setRefundAmount(total);
   }, [returnItems, selectedItems]);
@@ -85,7 +110,7 @@ function Returns() {
 
   const submitReturn = async () => {
     if (!selectedOrder) {
-      toast.error("Select an order");
+      toast.error(t("orders.returns.selectOrder"));
       return;
     }
 
@@ -104,7 +129,7 @@ function Returns() {
           orderItemId: item.item.id,
           variantId: item.item.variant_id || item.item.variantId || null,
           quantity: Number(item.quantity || 0),
-          refund_amount: Number(item.quantity || 0) * Number(item.item.price || 0),
+          refund_amount: Number(item.quantity || 0) * resolveOrderItemUnitPrice(item.item),
         })),
       createdAt: new Date().toISOString(),
     };
@@ -112,26 +137,26 @@ function Returns() {
     try {
       await api.post("/orders/returns", payload);
       addReturnRecord(payload);
-      toast.success("Return saved");
+      toast.success(t("orders.returns.saved"));
       setStatus("Submitted");
     } catch (err) {
       console.log(err);
       addReturnRecord(payload);
-      toast.error("Backend returns endpoint unavailable. Saved locally.");
+      toast.error(t("orders.returns.backendUnavailable"));
       setStatus("Submitted");
     }
   };
 
   return (
     <OrdersShell
-      title="Returns Module"
-      subtitle="Create returns from orders, pick line items, control restock behavior, and record refund outcomes."
+      title={t("orders.returns.moduleTitle")}
+      subtitle={t("orders.returns.moduleSubtitle")}
       actions={
         <Link
           to="/orders"
           className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
         >
-          Back to orders
+          {t("orders.details.backToOrders")}
         </Link>
       }
     >
@@ -146,7 +171,7 @@ function Returns() {
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <label className="block">
-              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Order</div>
+              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.cancel.order")}</div>
               <select
                 value={selectedOrderId}
                 onChange={(e) => setSelectedOrderId(e.target.value)}
@@ -161,48 +186,48 @@ function Returns() {
               </select>
             </label>
             <label className="block">
-              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Return status</div>
+              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.returns.returnStatus")}</div>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
               >
-                <option>Draft</option>
-                <option>Submitted</option>
-                <option>Approved</option>
-                <option>Rejected</option>
-                <option>Refunded</option>
+                <option value="Draft">{t("orders.statusLabels.draft")}</option>
+                <option value="Submitted">{t("orders.statusLabels.submitted")}</option>
+                <option value="Approved">{t("orders.statusLabels.approved")}</option>
+                <option value="Rejected">{t("orders.statusLabels.rejected")}</option>
+                <option value="Refunded">{t("orders.statusLabels.refunded")}</option>
               </select>
             </label>
             <label className="block">
-              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Shipping provider</div>
+              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.shipping.provider")}</div>
               <input
                 value={shippingProvider}
                 onChange={(e) => setShippingProvider(e.target.value)}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-                placeholder="Provider placeholder"
+                placeholder={t("orders.returns.providerPlaceholder")}
               />
             </label>
             <label className="block">
-              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Tracking number</div>
+              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.shipping.trackingNumber")}</div>
               <input
                 value={trackingNumber}
                 onChange={(e) => setTrackingNumber(e.target.value)}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-                placeholder="Tracking placeholder"
+                placeholder={t("orders.returns.trackingPlaceholder")}
               />
             </label>
           </div>
 
           <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-black text-white">Returned items</h3>
-              <div className="text-sm text-zinc-400">{selectedOrder?.customer_name || "n/a"}</div>
+              <h3 className="text-lg font-black text-white">{t("orders.returns.returnedItems")}</h3>
+              <div className="text-sm text-zinc-400">{selectedOrder?.customer_name || t("orders.fallback.notAvailable")}</div>
             </div>
             <div className="mt-4 space-y-3">
               {selectedItems.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-sm text-zinc-400">
-                  No order items found. Live returns use the order detail endpoint when available.
+                  {t("orders.returns.noItemsFound")}
                 </div>
               ) : (
                 selectedItems.map((item, index) => {
@@ -218,20 +243,20 @@ function Returns() {
                             checked ? "bg-emerald-500 text-black" : "border border-white/10 bg-white/5 text-white"
                           }`}
                         >
-                          {checked ? "Included" : "Select"}
+                          {checked ? t("orders.returns.included") : t("orders.returns.select")}
                         </button>
                         <div className="flex-1">
                           <div className="font-semibold text-white">{item.product_name || item.name}</div>
                           <div className="mt-1 text-sm text-zinc-400">
-                            {item.color || "Default"} / {item.size || "One size"} • Qty {item.quantity}
+                            {item.color || t("orders.details.defaultVariant")} / {item.size || t("orders.details.oneSize")} - {t("orders.drawer.qty")} {item.quantity}
                           </div>
                         </div>
-                        <div className="text-sm font-semibold text-white">{formatCurrency((item.price || 0) * (item.quantity || 0))}</div>
+                        <div className="text-sm font-semibold text-white">{formatCurrency(resolveOrderItemUnitPrice(item) * (item.quantity || 0))}</div>
                       </div>
                       {checked ? (
                         <div className="mt-3 grid gap-3 md:grid-cols-3">
                           <label className="block">
-                            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Return qty</div>
+                            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.returns.returnQty")}</div>
                             <input
                               type="number"
                               min="1"
@@ -242,7 +267,7 @@ function Returns() {
                             />
                           </label>
                           <label className="block md:col-span-2">
-                            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Reason</div>
+                            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.returns.reason")}</div>
                             <input
                               value={returnItems[item.id]?.reason || reason}
                               onChange={(e) =>
@@ -255,7 +280,7 @@ function Returns() {
                                 }))
                               }
                               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-                              placeholder="Damaged, wrong size, customer changed mind..."
+                              placeholder={t("orders.returns.reasonPlaceholder")}
                             />
                           </label>
                         </div>
@@ -270,26 +295,26 @@ function Returns() {
 
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Return summary</h3>
+            <h3 className="text-xl font-black text-white">{t("orders.returns.returnSummary")}</h3>
             <div className="mt-4 grid gap-3">
-              <Info label="Order" value={selectedOrder?.invoice_number || "n/a"} />
-              <Info label="Customer" value={selectedOrder?.customer_name || "n/a"} />
-              <Info label="Refund amount" value={formatCurrency(refundAmount)} />
-              <Info label="Restock" value={restock ? "Yes" : "No"} />
-              <Info label="Status" value={status} />
+              <Info label={t("orders.cancel.order")} value={selectedOrder?.invoice_number || t("orders.fallback.notAvailable")} />
+              <Info label={t("orders.drawer.customer")} value={selectedOrder?.customer_name || t("orders.fallback.notAvailable")} />
+              <Info label={t("orders.returns.refundAmount")} value={formatCurrency(refundAmount)} />
+              <Info label={t("orders.returns.restock")} value={restock ? t("orders.returns.yes") : t("orders.returns.no")} />
+              <Info label={t("orders.table.status")} value={t(`orders.statusLabels.${String(status).toLowerCase()}`, status)} />
             </div>
             <label className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
-              <span>Restock returned items</span>
+              <span>{t("orders.returns.restockReturnedItems")}</span>
               <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} />
             </label>
             <label className="mt-3 block">
-              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Return reason</div>
+              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.returns.returnReason")}</div>
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={5}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none"
-                placeholder="Overall reason for the return..."
+                placeholder={t("orders.returns.overallReasonPlaceholder")}
               />
             </label>
             <button
@@ -298,17 +323,17 @@ function Returns() {
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black"
             >
               <Save className="h-4 w-4" />
-              Save return
+              {t("orders.returns.saveReturn")}
             </button>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Return checklist</h3>
+            <h3 className="text-xl font-black text-white">{t("orders.returns.returnChecklist")}</h3>
             <div className="mt-4 space-y-3 text-sm text-zinc-300">
-              <Checklist label="Customer confirms item condition" />
-              <Checklist label="Refund amount reviewed" />
-              <Checklist label="Restock policy applied" />
-              <Checklist label="Shipping and delivery notes captured" />
+              <Checklist label={t("orders.returns.checkItemCondition")} />
+              <Checklist label={t("orders.returns.checkRefundReviewed")} />
+              <Checklist label={t("orders.returns.checkRestockApplied")} />
+              <Checklist label={t("orders.returns.checkShippingCaptured")} />
             </div>
           </div>
         </div>

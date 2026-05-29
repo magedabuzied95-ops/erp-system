@@ -8,20 +8,211 @@ import { recordEmployeeAnalytics } from "../utils/employeeAnalytics.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
-import { ensureAccountingSchema, postSaleEntry, postReturnEntry, postWalletLiabilityEntry } from "../services/accountingService.js";
+import { ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty } from "../services/loyaltyService.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
 import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
+import { getSetting } from "../services/settingsService.js";
 import {
-  ensureSalesCommissionSchema,
   getSalesSettings,
   getSalespersonSnapshot,
   recordSalesCommissionForOrder,
 } from "../services/salesCommissionService.js";
+import {
+  assignSequentialInvoiceNumber,
+  buildDerivedInvoiceNumber,
+  buildTemporaryInvoiceNumber,
+} from "../utils/invoiceNumber.js";
+import { attachPublicOrderNumber } from "../utils/publicOrderNumber.js";
+import { buildBulkOrderItemInsertQuery, buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
+import { canOverridePosSeller, ensurePosUserShiftSchema, resolvePosBranch } from "./posController.js";
+import { normalizeOrderLifecycleStatus } from "../../shared/orderStatus.js";
 
-const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
+const POS_CHECKOUT_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.POS_CHECKOUT_DEBUG || "").trim().toLowerCase());
+const POS_DEBUG = POS_CHECKOUT_DEBUG || ["1", "true", "yes", "on"].includes(String(process.env.POS_DEBUG || "").trim().toLowerCase());
+const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").trim().toLowerCase());
+let ordersSchemaEnsurePromise = null;
+let ordersSchemaEnsured = false;
+let ordersRuntimeSchemaWarningLogged = false;
+const tableExistsCache = new Map();
+const tableColumnSetCache = new Map();
+
+const nowMs = () => Number(process.hrtime.bigint() / 1000000n);
+
+const createCheckoutTimings = () => {
+  const startedAt = nowMs();
+  const timings = { request_start_ms: 0 };
+  let last = startedAt;
+  return {
+    startedAt,
+    mark(label) {
+      const current = nowMs();
+      timings[label] = (timings[label] || 0) + current - last;
+      last = current;
+    },
+    add(label, duration) {
+      timings[label] = (timings[label] || 0) + duration;
+    },
+    summary(extra = {}) {
+      return { ...extra, ...timings, total_ms: nowMs() - startedAt };
+    },
+  };
+};
+
+const timedCheckout = async (timing, label, fn) => {
+  const startedAt = nowMs();
+  try {
+    return await fn();
+  } finally {
+    timing.add(label, nowMs() - startedAt);
+  }
+};
+
+const logCheckoutTiming = (summary) => {
+  if (!POS_CHECKOUT_DEBUG) return;
+  const phaseEntries = Object.entries(summary)
+    .filter(([key, value]) => key.endsWith("_ms") && key !== "total_ms" && Number.isFinite(Number(value)))
+    .sort((left, right) => Number(right[1]) - Number(left[1]));
+  const [slowestPhase = "", slowestMs = 0] = phaseEntries[0] || [];
+  const payload = { ...summary, slowest_phase: slowestPhase, slowest_phase_ms: slowestMs };
+  const totalMs = Number(summary.total_ms || 0);
+  if (totalMs > 1000) console.warn("[pos-checkout-slow]", payload);
+  else console.log("[pos-checkout-timing]", payload);
+};
+
+const addPosEditTiming = (req, label, duration) => {
+  if (!req) return;
+  if (!req._posEditTimings) req._posEditTimings = {};
+  req._posEditTimings[label] = (req._posEditTimings[label] || 0) + Number(duration || 0);
+};
+
+export const markPosEditTiming = (label) => (req, _res, next) => {
+  if (req?._posEditLastAt) addPosEditTiming(req, label, nowMs() - req._posEditLastAt);
+  req._posEditLastAt = nowMs();
+  next();
+};
+
+export const startPosEditTiming = (req, _res, next) => {
+  req._posEditStartedAt = nowMs();
+  req._posEditLastAt = req._posEditStartedAt;
+  req._posEditTimings = {};
+  next();
+};
+
+const timedPosEdit = async (req, label, fn) => {
+  const startedAt = nowMs();
+  try {
+    return await fn();
+  } finally {
+    addPosEditTiming(req, label, nowMs() - startedAt);
+  }
+};
+
+const logPosEditTiming = (req, extra = {}) => {
+  if (!POS_DEBUG) return;
+  const startedAt = req?._posEditStartedAt || nowMs();
+  console.log("[pos-edit-timing]", {
+    ...extra,
+    ...(req?._posEditTimings || {}),
+    total_ms: nowMs() - startedAt,
+  });
+};
+
+const assertInsertShape = ({ table, context, columns = [], placeholders = "", params = [] }) => {
+  const columnCount = columns.length;
+  const placeholderCount = (String(placeholders).match(/\$\d+/g) || []).length;
+  const paramCount = params.length;
+  if (!columnCount || columnCount !== placeholderCount || placeholderCount !== paramCount) {
+    const error = new Error(
+      `[${context || "sql"}] INSERT ${table || "table"} mismatch: columns=${columnCount}, placeholders=${placeholderCount}, params=${paramCount}`
+    );
+    error.code = "SQL_INSERT_SHAPE_MISMATCH";
+    throw error;
+  }
+};
+
+const normalizeMoneyPaymentMethod = (value) => {
+  const key = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (key === "vodafone") return "vodafone_cash";
+  if (key === "insta_pay") return "instapay";
+  if (["store_credit", "customer_credit", "credit_balance"].includes(key)) return "customer_wallet";
+  return key || "cash";
+};
+
+const parsePaymentBreakdownRows = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const resolveOrderTotalAmount = (order = {}) => {
+  const candidates = [
+    order.original_total,
+    order.total_amount,
+    order.total,
+    order.total_price,
+    order.grand_total,
+  ];
+  const resolved = candidates
+    .map((value) => Number(value))
+    .find((value) => Number.isFinite(value) && value > 0);
+  return Math.max(0, resolved || 0);
+};
+
+const sumCollectedPaymentBreakdown = (order = {}) => {
+  return parsePaymentBreakdownRows(order.payment_breakdown || order.payments).reduce((sum, payment) => {
+    if (!payment || typeof payment !== "object" || payment.edit_additional_payment) return sum;
+    const method = normalizeMoneyPaymentMethod(payment.method || payment.payment_method);
+    if (method === "exchange_credit" || method === "return_credit") return sum;
+    const amount = Number(payment.amount ?? payment.paid_amount ?? payment.value ?? 0);
+    return Number.isFinite(amount) && amount > 0 ? sum + amount : sum;
+  }, 0);
+};
+
+const resolveCollectedOrderAmount = (order = {}) => {
+  const candidates = [
+    order.original_paid_amount,
+    order.total_paid,
+    order.amount_paid,
+    order.payment_paid_amount,
+    order.paid_amount,
+  ];
+  const explicitAmount = candidates
+    .map((value) => Number(value))
+    .find((value) => Number.isFinite(value) && value > 0);
+  if (explicitAmount > 0) return Math.max(0, explicitAmount);
+
+  const breakdownAmount = sumCollectedPaymentBreakdown(order);
+  if (breakdownAmount > 0) return Math.max(0, breakdownAmount);
+
+  const status = String(order.payment_status || "").trim().toLowerCase();
+  const total = resolveOrderTotalAmount(order);
+  if (total > 0 && ["paid", "completed", "complete", "settled"].includes(status)) return total;
+  return 0;
+};
+
+const refundFinancialAccountFromOrder = (order = {}, refundMethod = "") => {
+  const method = normalizeMoneyPaymentMethod(refundMethod);
+  const breakdown = Array.isArray(order.payment_breakdown) ? order.payment_breakdown : [];
+  const aliases = method === "vodafone_cash" || method === "instapay" ? ["wallet", method] : [method];
+  const match = breakdown.find((item) => aliases.includes(normalizeMoneyPaymentMethod(item.method || item.payment_method)));
+  return match?.financial_account_id || match?.account_id || null;
+};
+
+const warnRuntimeSchemaExecution = (name) => {
+  if (globalThis.__SCHEMA_STARTUP_RUNNING || ordersRuntimeSchemaWarningLogged) return;
+  ordersRuntimeSchemaWarningLogged = true;
+  console.warn("[schema-warning] runtime schema execution detected", { name });
+};
+
+const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'open'`);
   await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS opened_by BIGINT`);
@@ -35,6 +226,8 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
 
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(100)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS public_order_number VARCHAR(40)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS display_order_number VARCHAR(40)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_name VARCHAR(255)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(80)`);
@@ -42,12 +235,17 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS branch_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cashier_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS sales_employee_id BIGINT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS seller_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cashier_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS seller_name VARCHAR(255)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cashier_name VARCHAR(255)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS salesperson_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS salesperson_name VARCHAR(255)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS salesperson_commission_type VARCHAR(20)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS salesperson_commission_value NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS salesperson_fixed_mode VARCHAR(30)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS salesperson_excluded_product_ids JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS salesperson_excluded_category_ids JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shift_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'pending'`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) NOT NULL DEFAULT 'unpaid'`);
@@ -55,6 +253,7 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_screenshot TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_reference TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS transfer_proof_status VARCHAR(50)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_at TIMESTAMP NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_by INTEGER NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_trust_counted_at TIMESTAMP NULL`);
@@ -67,6 +266,17 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS total NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS change_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS exchange_mode BOOLEAN NOT NULL DEFAULT FALSE`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS original_order_id BIGINT NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS exchange_credit_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS new_order_total NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS amount_due_now NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS exchange_difference NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS exchange_invoice_number VARCHAR(100)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS edit_original_paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS edit_additional_paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS edit_refund_or_credit_due NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS edit_payment_difference JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS notes TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS public_token TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS invoice_public_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
@@ -74,6 +284,13 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cancelled_by BIGINT NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS deleted_by BIGINT NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS delete_reason TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS stock_restored_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS stock_reverted_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS inventory_rollback_done BOOLEAN NOT NULL DEFAULT FALSE`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS returned_at TIMESTAMP NULL`);
   await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS is_trusted BOOLEAN DEFAULT false`);
   await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS cod_enabled BOOLEAN DEFAULT false`);
@@ -109,10 +326,35 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
   `);
   await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS refund_method VARCHAR(50)`);
   await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS exchange_difference NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS shift_id BIGINT NULL`);
+  await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS cashier_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL`);
   await client.query(`
     UPDATE orders
     SET invoice_number = 'INV-' || id::text
     WHERE invoice_number IS NULL OR invoice_number = ''
+  `);
+  await client.query(`
+    WITH duplicates AS (
+      SELECT
+        id,
+        ROW_NUMBER() OVER (
+          PARTITION BY COALESCE(tenant_id, 0), invoice_number
+          ORDER BY id
+        ) AS duplicate_rank
+      FROM orders
+      WHERE invoice_number IS NOT NULL
+        AND invoice_number <> ''
+    )
+    UPDATE orders o
+    SET invoice_number = 'INV-' || o.id::text || '-DUP'
+    FROM duplicates d
+    WHERE o.id = d.id
+      AND d.duplicate_rank > 1
+  `);
+  await client.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_unique_tenant_invoice_number
+    ON orders (COALESCE(tenant_id, 0), invoice_number)
+    WHERE invoice_number IS NOT NULL AND invoice_number <> ''
   `);
 
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'cash'`);
@@ -122,6 +364,17 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS attendance_log_id BIGINT NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS warehouse_id BIGINT NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS source VARCHAR(50) NOT NULL DEFAULT 'pos'`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_address TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS governorate VARCHAR(120)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS city_area VARCHAR(160)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS landmark TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS delivery_notes TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS order_notes TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider VARCHAR(80) NOT NULL DEFAULT 'manual'`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(80) NOT NULL DEFAULT 'pending'`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(160)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS courier_notes TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS marketing_source TEXT NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS marketing_platform TEXT NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS marketing_post_id TEXT NULL`);
@@ -132,6 +385,8 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS coupon_id BIGINT NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(80)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS coupon_discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_public_order_number ON orders (public_order_number)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_display_order_number ON orders (display_order_number)`);
 
   await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS product_id BIGINT`);
@@ -140,10 +395,17 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS sku VARCHAR(120)`);
   await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS barcode VARCHAR(120)`);
   await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS sale_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS line_total NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS price_source VARCHAR(50) NOT NULL DEFAULT 'stored'`);
   await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS returned_quantity INTEGER NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS image_url TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS product_image TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS variant_image TEXT`);
   await client.query(`
     DO $$
     BEGIN
@@ -184,6 +446,18 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
       new_total NUMERIC(12,2) NOT NULL DEFAULT 0,
       user_id BIGINT NULL,
       reason TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS activity_logs (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NULL,
+      action VARCHAR(120) NOT NULL,
+      entity VARCHAR(120) NOT NULL,
+      entity_id BIGINT NULL,
+      details JSONB NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -262,13 +536,23 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
   `);
 
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_tenant_id ON orders (tenant_id)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_id_tenant ON orders (id, tenant_id)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_pos_orders_shift_id ON orders (shift_id)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_pos_orders_seller_user_id ON orders (seller_user_id)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_pos_orders_cashier_user_id ON orders (cashier_user_id)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_channel_created ON orders (channel, created_at DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_tenant_created_id ON orders (tenant_id, created_at DESC, id DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_tenant_channel_created_id ON orders (tenant_id, channel, created_at DESC, id DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_tenant_source_created_id ON orders (tenant_id, source, created_at DESC, id DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_tenant_customer_created ON orders (tenant_id, customer_id, created_at DESC)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders (created_at DESC)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_tenant_created ON orders (tenant_id, created_at DESC)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_branch_created ON orders (branch_id, created_at DESC)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_invoice_number ON orders (invoice_number)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers (phone)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_attendance_tenant ON orders (attendance_log_id, tenant_id)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_orders_shift_tenant_created ON orders (tenant_id, shift_id, created_at DESC)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items (order_id)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_order_items_tenant_order ON order_items (tenant_id, order_id)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_order_items_order_id_id ON order_items (order_id, id)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_order_items_product_order ON order_items (product_id, order_id)`);
@@ -277,15 +561,87 @@ const ensurePosShiftOrderColumns = async (client, tenantId = null) => {
   await client.query(`CREATE INDEX IF NOT EXISTS idx_order_edit_audits_order ON order_edit_audits (order_id, created_at DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_transactions_tenant_id ON transactions (tenant_id)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_cashbox_tenant_id ON cashbox (tenant_id)`);
+  await client.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('inventory') IS NOT NULL
+        AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'inventory' AND column_name = 'product_id')
+        AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'inventory' AND column_name = 'variant_id')
+        AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'inventory' AND column_name = 'branch_id')
+      THEN
+        CREATE INDEX IF NOT EXISTS idx_inventory_product_variant_branch ON inventory (product_id, variant_id, branch_id);
+      END IF;
+      IF to_regclass('treasury_transactions') IS NOT NULL
+        AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'treasury_transactions' AND column_name = 'order_id')
+      THEN
+        CREATE INDEX IF NOT EXISTS idx_treasury_transactions_order_id ON treasury_transactions (order_id);
+      END IF;
+      IF to_regclass('payments') IS NOT NULL
+        AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'payments' AND column_name = 'order_id')
+      THEN
+        CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments (order_id);
+      END IF;
+    END $$;
+  `);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_commission_rules_tenant_id ON commission_rules (tenant_id, is_active, scope_type)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_employee_sales_tenant_id ON employee_sales (tenant_id, sales_employee_id, cashier_id, created_at DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_employee_commissions_tenant_id ON employee_commissions (tenant_id, employee_id, created_at DESC)`);
   await client.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT ''`);
+  await client.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS image TEXT DEFAULT ''`);
+  await client.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS gallery_images JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
-  await ensureSalesCommissionSchema(client);
+  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT ''`);
+  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS image TEXT DEFAULT ''`);
+  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS sku VARCHAR(120)`);
+  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS barcode VARCHAR(120)`);
+  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS color VARCHAR(100)`);
+  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS size VARCHAR(100)`);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS product_variant_images (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT,
+      product_id BIGINT,
+      variant_id BIGINT,
+      color_name VARCHAR(100),
+      image_url TEXT NOT NULL DEFAULT '',
+      is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await client.query(`ALTER TABLE IF EXISTS product_variant_images ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
+  await client.query(`ALTER TABLE IF EXISTS product_variant_images ADD COLUMN IF NOT EXISTS product_id BIGINT`);
+  await client.query(`ALTER TABLE IF EXISTS product_variant_images ADD COLUMN IF NOT EXISTS variant_id BIGINT`);
+  await client.query(`ALTER TABLE IF EXISTS product_variant_images ADD COLUMN IF NOT EXISTS color_name VARCHAR(100)`);
+  await client.query(`ALTER TABLE IF EXISTS product_variant_images ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT ''`);
+  await client.query(`ALTER TABLE IF EXISTS product_variant_images ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT FALSE`);
+  await client.query(`ALTER TABLE IF EXISTS product_variant_images ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`);
   await ensureSingleBranchMode(client);
 };
 
+export const ensureOrdersSchema = async (clientOrPool = db, tenantId = null) => {
+  if (ordersSchemaEnsured) return;
+  warnRuntimeSchemaExecution("orders");
+  if (!ordersSchemaEnsurePromise) {
+    ordersSchemaEnsurePromise = (async () => {
+      await ensurePosShiftOrderColumnsNow(clientOrPool, tenantId);
+      await warmOrdersSchemaCache(clientOrPool);
+    })()
+      .then(() => {
+        ordersSchemaEnsured = true;
+      })
+      .catch((error) => {
+        ordersSchemaEnsurePromise = null;
+        throw error;
+      });
+  }
+  await ordersSchemaEnsurePromise;
+};
+
+const ensurePosShiftOrderColumns = ensureOrdersSchema;
 const generatePublicToken = () => crypto.randomBytes(24).toString("hex");
 
 const toFiniteNumber = (value, fallback = 0) => {
@@ -295,10 +651,69 @@ const toFiniteNumber = (value, fallback = 0) => {
 
 const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && value !== "");
 
+const firstFiniteMoney = (...values) => {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") continue;
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return 0;
+};
+
+const firstPositiveMoney = (...values) => {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") continue;
+    const number = Number(value);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+  return 0;
+};
+
+const resolveInputUnitPrice = (item = {}, fallback = {}) => {
+  const itemPrice = firstPositiveMoney(
+    item.unit_price,
+    item.unitPrice,
+    item.price,
+    item.sale_price,
+    item.salePrice,
+    item.final_price,
+    item.finalPrice,
+    item.variant_price,
+    item.variantPrice,
+    item.selling_price,
+    item.sellingPrice,
+    item.product_price,
+    item.productPrice,
+    item.line_unit_price,
+    item.lineUnitPrice
+  );
+  if (itemPrice > 0) return itemPrice;
+  const fallbackPrice = firstPositiveMoney(
+    fallback.unit_price,
+    fallback.price,
+    fallback.sale_price,
+    fallback.selling_price,
+    fallback.regular_price,
+    fallback.product_price,
+    fallback.product_sale_price
+  );
+  if (fallbackPrice > 0) return fallbackPrice;
+  return firstFiniteMoney(item.unit_price, item.unitPrice, item.price, item.sale_price, item.salePrice, fallback.price, fallback.sale_price);
+};
+
+const resolveInputLineTotal = (item = {}, unitPrice = 0) => {
+  const explicit = firstPositiveMoney(item.line_total, item.lineTotal, item.total, item.subtotal, item.item_total, item.itemTotal, item.total_amount, item.totalAmount);
+  if (explicit > 0) return explicit;
+  const quantity = Math.max(1, Number(item.quantity || item.qty || 1) || 1);
+  const discount = Math.max(0, Number(item.discount_amount ?? item.discount ?? 0) || 0);
+  return Math.max(0, Number(unitPrice || 0) * quantity - discount);
+};
+
 const normalizeOrderItemPayload = (item = {}) => {
   const quantity = toFiniteNumber(firstValue(item.quantity, item.qty), 0);
-  const price = toFiniteNumber(firstValue(item.price, item.unit_price, item.sale_price), 0);
+  const price = resolveInputUnitPrice(item);
   const discountAmount = toFiniteNumber(firstValue(item.discount_amount, item.discountAmount), 0);
+  const lineTotal = resolveInputLineTotal(item, price);
   return {
     ...item,
     product_id: firstValue(item.product_id, item.productId) || null,
@@ -309,9 +724,11 @@ const normalizeOrderItemPayload = (item = {}) => {
     qty: quantity,
     price,
     unit_price: price,
-    sale_price: firstValue(item.sale_price, item.price, item.unit_price, price),
+    sale_price: price,
     discount_amount: discountAmount,
-    total_amount: Math.max(0, toFiniteNumber(firstValue(item.total_amount, item.totalAmount), price * quantity - discountAmount)),
+    line_total: lineTotal,
+    subtotal: lineTotal,
+    total_amount: lineTotal,
   };
 };
 
@@ -327,9 +744,13 @@ const normalizeCreateOrderPayload = (body = {}) => {
     channel: firstValue(body.channel, body.order_type, body.orderType, body.source) || "pos",
     branch_id: firstValue(body.branch_id, body.branchId) || null,
     warehouse_id: firstValue(body.warehouse_id, body.warehouseId) || null,
+    seller_user_id: firstValue(body.seller_user_id, body.sellerUserId) || null,
+    cashier_user_id: firstValue(body.cashier_user_id, body.cashierUserId, body.cashier_id, body.cashierId) || null,
     cashier_id: firstValue(body.cashier_id, body.cashierId) || null,
-    sales_employee_id: firstValue(body.sales_employee_id, body.salesEmployeeId) || null,
-    salesperson_id: firstValue(body.salesperson_id, body.salespersonId, body.sales_employee_id, body.salesEmployeeId) || null,
+    sales_employee_id: firstValue(body.sales_employee_id, body.salesEmployeeId, body.assigned_seller_id, body.assignedSellerId, body.seller_employee_id, body.sellerEmployeeId, body.seller_id, body.sellerId) || null,
+    salesperson_id: firstValue(body.salesperson_id, body.salespersonId, body.sales_employee_id, body.salesEmployeeId, body.assigned_seller_id, body.assignedSellerId, body.seller_employee_id, body.sellerEmployeeId, body.seller_id, body.sellerId) || null,
+    assigned_seller_id: firstValue(body.assigned_seller_id, body.assignedSellerId, body.sales_employee_id, body.salesEmployeeId, body.salesperson_id, body.salespersonId, body.seller_employee_id, body.sellerEmployeeId, body.seller_id, body.sellerId) || null,
+    seller_employee_id: firstValue(body.seller_employee_id, body.sellerEmployeeId, body.sales_employee_id, body.salesEmployeeId, body.salesperson_id, body.salespersonId, body.assigned_seller_id, body.assignedSellerId, body.seller_id, body.sellerId) || null,
     shift_id: firstValue(body.shift_id, body.shiftId) || null,
     attendance_log_id: firstValue(body.attendance_log_id, body.attendanceLogId) || null,
     subtotal: firstValue(body.subtotal, body.sub_total),
@@ -338,8 +759,70 @@ const normalizeCreateOrderPayload = (body = {}) => {
     service_fee: firstValue(body.service_fee, body.serviceFee, body.shipping_fee, body.shippingFee),
     paid_amount: firstValue(body.paid_amount, body.paidAmount),
     change_amount: firstValue(body.change_amount, body.changeAmount),
+    exchange_mode: body.exchange_mode ?? body.exchangeMode ?? false,
+    original_order_id: firstValue(body.original_order_id, body.originalOrderId) || null,
+    exchange_credit_amount: firstValue(body.exchange_credit_amount, body.exchangeCreditAmount),
+    new_order_total: firstValue(body.new_order_total, body.newOrderTotal),
+    amount_due_now: firstValue(body.amount_due_now, body.amountDueNow),
+    exchange_difference: firstValue(body.exchange_difference, body.exchangeDifference),
+    exchange_invoice_number: firstValue(body.exchange_invoice_number, body.exchangeInvoiceNumber),
     items: rawItems.map(normalizeOrderItemPayload),
   };
+};
+
+const normalizeReturnedOrderItems = (order = {}, rawItems = []) => {
+  const items = Array.isArray(rawItems) ? rawItems : [];
+  const orderTotal = firstPositiveMoney(order.total_amount, order.total, order.total_price, order.subtotal);
+  return items.map((item) => {
+    const quantity = Math.max(1, Number(item.quantity || item.qty || 1) || 1);
+    const storedUnitPrice = firstPositiveMoney(
+      item.unit_price,
+      item.unitPrice,
+      item.sale_price,
+      item.price,
+      item.stored_price,
+      item.selling_price,
+      item.line_unit_price
+    );
+    const storedLineTotal = firstPositiveMoney(item.line_total, item.lineTotal, item.total, item.subtotal, item.item_total, item.total_amount);
+    const catalogUnitPrice = firstPositiveMoney(
+      item.variant_price,
+      item.variant_sale_price,
+      item.product_price,
+      item.product_sale_price
+    );
+    let unitPrice = storedUnitPrice;
+    let lineTotal = storedLineTotal;
+    let priceSource = storedUnitPrice > 0 || storedLineTotal > 0 ? "stored" : "missing";
+
+    if (!(unitPrice > 0) && items.length === 1 && orderTotal > 0) {
+      unitPrice = orderTotal / quantity;
+      lineTotal = orderTotal;
+      priceSource = "order_total_fallback";
+    } else if (!(unitPrice > 0) && catalogUnitPrice > 0) {
+      unitPrice = catalogUnitPrice;
+      lineTotal = catalogUnitPrice * quantity;
+      priceSource = "variant_fallback";
+    }
+
+    if (!(lineTotal > 0) && unitPrice > 0) {
+      lineTotal = unitPrice * quantity;
+    }
+
+    return {
+      ...item,
+      quantity,
+      unit_price: unitPrice || 0,
+      unitPrice: unitPrice || 0,
+      price: unitPrice || 0,
+      sale_price: unitPrice || 0,
+      line_total: lineTotal || 0,
+      lineTotal: lineTotal || 0,
+      subtotal: lineTotal || 0,
+      item_total: lineTotal || 0,
+      price_source: priceSource,
+    };
+  });
 };
 
 const safeOrderLogPayload = (payload = {}) => ({
@@ -364,6 +847,10 @@ const resolveRequestOrigin = (req) => {
   const origin = String(req?.get?.("origin") || "").trim().replace(/\/$/, "");
   if (origin) return origin;
 
+  return resolveBackendRequestOrigin(req);
+};
+
+const resolveBackendRequestOrigin = (req) => {
   const forwardedProto = String(req?.get?.("x-forwarded-proto") || "").split(",")[0].trim();
   const forwardedHost = String(req?.get?.("x-forwarded-host") || "").split(",")[0].trim();
   const protocol = forwardedProto || req?.protocol || "http";
@@ -377,6 +864,67 @@ const resolveFrontendOrigin = (req) => {
   const envOrigin = String(process.env.FRONTEND_URL || process.env.CLIENT_URL || process.env.APP_URL || "").trim().replace(/\/$/, "");
   if (envOrigin) return envOrigin;
   return resolveRequestOrigin(req);
+};
+
+const resolvePublicAssetOrigin = (req) => {
+  const envOrigin = String(
+    process.env.PUBLIC_BACKEND_URL ||
+      process.env.PUBLIC_API_URL ||
+      process.env.BACKEND_URL ||
+      ""
+  ).trim().replace(/\/$/, "");
+  if (envOrigin) return envOrigin;
+  return resolveBackendRequestOrigin(req).replace(/\/$/, "");
+};
+
+const toPublicUploadUrl = (req, value) => {
+  const imageUrl = String(value || "").trim();
+  if (!imageUrl) return "";
+  if (/^(https?:|data:|blob:)/i.test(imageUrl)) return imageUrl;
+
+  const origin = resolvePublicAssetOrigin(req);
+  const cleanPath = imageUrl.replace(/^\/+/, "");
+  const uploadPath = cleanPath.startsWith("uploads/")
+    ? cleanPath
+    : cleanPath.startsWith("products/")
+      ? `uploads/${cleanPath}`
+      : cleanPath.startsWith("public/")
+        ? cleanPath
+        : `uploads/products/${cleanPath}`;
+
+  return origin ? `${origin}/${uploadPath}` : `/${uploadPath}`;
+};
+
+const decodePublicInvoiceIdentifier = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    return decodeURIComponent(raw).trim();
+  } catch {
+    return raw;
+  }
+};
+
+const publicInvoiceIdentifier = (invoice = {}) =>
+  String(
+    invoice.invoice_number ||
+      invoice.order_number ||
+      invoice.invoice_code ||
+      invoice.public_code ||
+      invoice.code ||
+      invoice.public_order_number ||
+      invoice.display_order_number ||
+      invoice.public_token ||
+      ""
+  ).trim();
+
+const logPublicInvoiceLookup = ({ requestedInvoice, matchedBy = null, invoiceId = null, found = false }) => {
+  console.log("[public-invoice-lookup]", {
+    requested_invoice: requestedInvoice || "",
+    matched_by: matchedBy || null,
+    invoice_id: invoiceId || null,
+    found: Boolean(found),
+  });
 };
 
 const buildPublicInvoiceUrl = (req, token) => {
@@ -400,18 +948,63 @@ const getGoogleReviewUrl = () =>
 
 const normalizeInvoiceMoney = (value) => Number(Number(value || 0).toFixed(2));
 
-const loadPublicInvoiceByToken = async (token) => {
-  const safeToken = String(token || "").trim();
-  if (!safeToken) return null;
+const loadPublicInvoiceByToken = async (token, req = null) => {
+  const requestedInvoice = decodePublicInvoiceIdentifier(token);
+  if (!requestedInvoice) {
+    logPublicInvoiceLookup({ requestedInvoice, found: false });
+    return null;
+  }
+
+  const orderColumns = await getTableColumnSet(db, "orders").catch((error) => {
+    console.error("[public-invoice-lookup] failed to inspect order columns", error?.message || error);
+    return new Set();
+  });
+
+  const lookupFields = [
+    "invoice_number",
+    "order_number",
+    "invoice_code",
+    "public_code",
+    "code",
+    "public_order_number",
+    "display_order_number",
+    "public_token",
+  ].filter((field) => orderColumns.has(field));
+
+  if (!lookupFields.length) {
+    logPublicInvoiceLookup({ requestedInvoice, found: false });
+    return null;
+  }
+
+  const optionalTextColumn = (field) =>
+    orderColumns.has(field) ? `o.${field}` : `NULL::text`;
+  const lookupConditions = lookupFields
+    .map((field) => `LOWER(TRIM(o.${field}::text)) = LOWER(TRIM($1::text))`)
+    .join(" OR\n        ");
+  const matchedByCase = lookupFields
+    .map((field) => `WHEN LOWER(TRIM(o.${field}::text)) = LOWER(TRIM($1::text)) THEN '${field}'`)
+    .join("\n        ");
+  const publicEnabledCondition = orderColumns.has("invoice_public_enabled")
+    ? "AND COALESCE(o.invoice_public_enabled, TRUE) = TRUE"
+    : "";
+  const invoicePriorityOrder = orderColumns.has("invoice_number")
+    ? "WHEN o.invoice_number IS NOT NULL AND LOWER(TRIM(o.invoice_number::text)) = LOWER(TRIM($1::text)) THEN 0"
+    : "WHEN FALSE THEN 0";
 
   const orderResult = await db.query(
     `
     SELECT
       o.id,
       o.tenant_id,
-      o.invoice_number,
-      o.public_token,
-      o.invoice_public_enabled,
+      ${optionalTextColumn("invoice_number")} AS invoice_number,
+      ${optionalTextColumn("order_number")} AS order_number,
+      ${optionalTextColumn("invoice_code")} AS invoice_code,
+      ${optionalTextColumn("public_code")} AS public_code,
+      ${optionalTextColumn("code")} AS code,
+      ${optionalTextColumn("public_order_number")} AS public_order_number,
+      ${optionalTextColumn("display_order_number")} AS display_order_number,
+      ${optionalTextColumn("public_token")} AS public_token,
+      ${orderColumns.has("invoice_public_enabled") ? "o.invoice_public_enabled" : "TRUE"} AS invoice_public_enabled,
       o.customer_id,
       o.customer_name AS order_customer_name,
       o.status,
@@ -425,31 +1018,108 @@ const loadPublicInvoiceByToken = async (token) => {
       o.total,
       o.paid_amount,
       o.payment_method,
+      ${orderColumns.has("exchange_mode") ? "COALESCE(o.exchange_mode, FALSE)" : "FALSE"} AS exchange_mode,
+      ${orderColumns.has("original_order_id") ? "o.original_order_id" : "NULL"} AS original_order_id,
+      ${orderColumns.has("exchange_credit_amount") ? "COALESCE(o.exchange_credit_amount, 0)" : "0"} AS exchange_credit_amount,
+      ${orderColumns.has("new_order_total") ? "COALESCE(o.new_order_total, o.total, 0)" : "COALESCE(o.total, 0)"} AS new_order_total,
+      ${orderColumns.has("amount_due_now") ? "COALESCE(o.amount_due_now, o.paid_amount, 0)" : "COALESCE(o.paid_amount, 0)"} AS amount_due_now,
+      ${orderColumns.has("exchange_difference") ? "COALESCE(o.exchange_difference, 0)" : "0"} AS exchange_difference,
+      ${orderColumns.has("exchange_invoice_number") ? "COALESCE(o.exchange_invoice_number, '')" : "''"} AS exchange_invoice_number,
       o.created_at,
+      b.name AS branch_name,
+      b.code AS branch_code,
+      b.address AS branch_address,
+      b.phone AS branch_phone,
       c.name AS customer_record_name,
-      c.phone AS customer_record_phone
+      c.phone AS customer_record_phone,
+      CASE
+        ${matchedByCase}
+        ELSE NULL
+      END AS public_lookup_matched_by
     FROM orders o
+    LEFT JOIN branches b ON b.id = o.branch_id
     LEFT JOIN customers c ON c.id = o.customer_id
-    WHERE o.public_token = $1
-      AND COALESCE(o.invoice_public_enabled, TRUE) = TRUE
+    WHERE (
+        ${lookupConditions}
+      )
+      ${publicEnabledCondition}
+    ORDER BY CASE
+      ${invoicePriorityOrder}
+      ELSE 1
+    END,
+    o.id DESC
     LIMIT 1
     `,
-    [safeToken]
+    [requestedInvoice]
   );
 
   const order = orderResult.rows[0] || null;
+  logPublicInvoiceLookup({
+    requestedInvoice,
+    matchedBy: order?.public_lookup_matched_by || null,
+    invoiceId: order?.id || null,
+    found: Boolean(order),
+  });
   if (!order) return null;
 
   const itemsResult = await db.query(
     `
     SELECT
+      oi.product_id,
+      oi.variant_id,
       oi.product_name,
       oi.variant_name,
       oi.quantity,
       oi.sale_price,
       oi.discount_amount,
-      oi.total_amount
+      oi.total_amount,
+      COALESCE(
+        NULLIF(oi.variant_image, ''),
+        NULLIF(pv.image_url, ''),
+        NULLIF(pvi.image_url, ''),
+        NULLIF(oi.product_image, ''),
+        NULLIF(oi.image_url, ''),
+        NULLIF(p.image_url, ''),
+        ''
+      ) AS image_url,
+      COALESCE(NULLIF(oi.product_image, ''), NULLIF(p.image_url, ''), '') AS product_image,
+      COALESCE(NULLIF(oi.variant_image, ''), NULLIF(pv.image_url, ''), NULLIF(pvi.image_url, ''), '') AS variant_image,
+      COALESCE(p.gallery_images, '[]'::jsonb) AS product_images,
+      COALESCE(pvi.images, '[]'::jsonb) AS variant_images,
+      jsonb_build_object(
+        'id', p.id,
+        'image', COALESCE(NULLIF(p.image_url, ''), ''),
+        'image_url', COALESCE(NULLIF(p.image_url, ''), ''),
+        'images', COALESCE(p.gallery_images, '[]'::jsonb)
+      ) AS product,
+      jsonb_build_object(
+        'id', pv.id,
+        'image', COALESCE(NULLIF(pv.image_url, ''), NULLIF(pvi.image_url, ''), ''),
+        'image_url', COALESCE(NULLIF(pv.image_url, ''), NULLIF(pvi.image_url, ''), ''),
+        'images', COALESCE(pvi.images, '[]'::jsonb),
+        'color', pv.color,
+        'size', pv.size
+      ) AS variant
     FROM order_items oi
+    LEFT JOIN product_variants pv ON oi.variant_id = pv.id
+    LEFT JOIN products p ON COALESCE(oi.product_id, pv.product_id) = p.id
+    LEFT JOIN LATERAL (
+      SELECT
+        (array_agg(image_url ORDER BY is_primary DESC, sort_order ASC, id ASC))[1] AS image_url,
+        COALESCE(jsonb_agg(image_url ORDER BY is_primary DESC, sort_order ASC, id ASC) FILTER (WHERE NULLIF(image_url, '') IS NOT NULL), '[]'::jsonb) AS images
+      FROM product_variant_images pvi
+      WHERE NULLIF(pvi.image_url, '') IS NOT NULL
+        AND (
+          pvi.variant_id = pv.id
+          OR (
+            pvi.product_id = p.id
+            AND (
+              NULLIF(pvi.color_name, '') IS NULL
+              OR LOWER(pvi.color_name) = LOWER(COALESCE(pv.color, ''))
+            )
+          )
+        )
+    ) pvi ON TRUE
     WHERE oi.order_id = $1
     ORDER BY oi.id ASC
     `,
@@ -458,21 +1128,49 @@ const loadPublicInvoiceByToken = async (token) => {
 
   const customerName = order.order_customer_name || order.customer_record_name || "Walk-in Customer";
   const customerPhone = order.customer_record_phone || "";
-  const publicInvoiceUrl = buildPublicInvoiceUrl(null, order.public_token);
-  const shortInvoiceUrl = buildShortPublicInvoiceUrl(null, order.public_token);
+  const identifier = publicInvoiceIdentifier(order);
+  const publicInvoiceUrl = buildPublicInvoiceUrl(req, identifier);
+  const shortInvoiceUrl = buildShortPublicInvoiceUrl(req, identifier);
+  const publicImageValue = (value) => {
+    if (!value) return "";
+    if (typeof value === "object") return toPublicUploadUrl(req, value.image || value.image_url || value.url || value.path || value.secure_url || "");
+    return toPublicUploadUrl(req, value);
+  };
+  const publicImageArray = (value) => (Array.isArray(value) ? value.map(publicImageValue).filter(Boolean) : []);
   const items = itemsResult.rows.map((item) => ({
+    product_id: item.product_id || item.product?.id || null,
+    variant_id: item.variant_id || item.variant?.id || null,
     name: item.product_name || "Item",
     variant: item.variant_name || "Default",
     quantity: Number(item.quantity || 0),
     price: normalizeInvoiceMoney(item.sale_price),
     discount: normalizeInvoiceMoney(item.discount_amount),
     total: normalizeInvoiceMoney(item.total_amount),
+    image_url: toPublicUploadUrl(req, item.image_url || ""),
+    product_image: toPublicUploadUrl(req, item.product_image || ""),
+    variant_image: toPublicUploadUrl(req, item.variant_image || ""),
+    product_images: publicImageArray(item.product_images),
+    variant_images: publicImageArray(item.variant_images),
+    product: {
+      ...(item.product || {}),
+      image: toPublicUploadUrl(req, item.product?.image || ""),
+      image_url: toPublicUploadUrl(req, item.product?.image_url || ""),
+      images: publicImageArray(item.product?.images),
+    },
+    variant: {
+      ...(item.variant || {}),
+      image: toPublicUploadUrl(req, item.variant?.image || ""),
+      image_url: toPublicUploadUrl(req, item.variant?.image_url || ""),
+      images: publicImageArray(item.variant?.images),
+    },
   }));
 
   return {
-    id: order.id,
-    order_id: order.id,
     invoice_number: order.invoice_number,
+    order_number: order.order_number || "",
+    invoice_code: order.invoice_code || "",
+    public_code: order.public_code || "",
+    code: order.code || "",
     public_token: order.public_token,
     public_invoice_url: publicInvoiceUrl,
     public_invoice_short_url: shortInvoiceUrl,
@@ -489,10 +1187,10 @@ const loadPublicInvoiceByToken = async (token) => {
       phone: process.env.STORE_PHONE || "",
       email: process.env.STORE_EMAIL || "",
       invoice_footer: process.env.INVOICE_FOOTER || "",
-      branch_name: "",
-      branch_code: "",
-      branch_address: "",
-      branch_phone: "",
+      branch_name: order.branch_name || "",
+      branch_code: order.branch_code || "",
+      branch_address: order.branch_address || "",
+      branch_phone: order.branch_phone || "",
     },
     customer: {
       name: customerName,
@@ -509,12 +1207,26 @@ const loadPublicInvoiceByToken = async (token) => {
       total: normalizeInvoiceMoney(order.total),
       paid: normalizeInvoiceMoney(order.paid_amount),
       payment_method: order.payment_method || "n/a",
+      exchange_mode: Boolean(order.exchange_mode),
+      original_order_id: order.original_order_id || null,
+      exchange_invoice_number: order.exchange_invoice_number || "",
+      new_items_total: normalizeInvoiceMoney(order.new_order_total || order.total),
+      exchange_credit: normalizeInvoiceMoney(order.exchange_credit_amount),
+      amount_paid_now: normalizeInvoiceMoney(order.amount_due_now || order.paid_amount),
+      exchange_difference: normalizeInvoiceMoney(order.exchange_difference),
     },
+    exchange: Boolean(order.exchange_mode) ? {
+      original_order_id: order.original_order_id || null,
+      invoice_number: order.exchange_invoice_number || "",
+      new_items_total: normalizeInvoiceMoney(order.new_order_total || order.total),
+      credit: normalizeInvoiceMoney(order.exchange_credit_amount),
+      paid_now: normalizeInvoiceMoney(order.amount_due_now || order.paid_amount),
+      remaining_customer_credit: Math.max(0, normalizeInvoiceMoney(order.exchange_credit_amount) - normalizeInvoiceMoney(order.new_order_total || order.total)),
+    } : null,
     status: order.status || "Pending",
     payment_status: order.payment_status || "unpaid",
   };
 };
-
 const buildPublicInvoicePdfBuffer = async (invoice) => {
   const [jspdfModule, autoTableModule] = await Promise.all([
     import("jspdf"),
@@ -605,36 +1317,75 @@ const buildPublicInvoicePdfBuffer = async (invoice) => {
   return Buffer.from(doc.output("arraybuffer"));
 };
 
-const resolveOpenPosShift = async (client, { tenantId, employeeId, attendanceLogId }) => {
-  const params = [employeeId || 0, tenantId];
-  const attendanceFilter = attendanceLogId ? "AND al.id = $3" : "AND al.attendance_date = CURRENT_DATE";
-  if (attendanceLogId) params.push(attendanceLogId);
+const resolveActiveUserPosShift = async (client, { tenantId, userId, branchId, shiftId }) => {
+  const shift = await getCurrentCashDrawerShift(client, { tenantId, userId, branchId });
+  if (shiftId && shift && String(shift.id) !== String(shiftId)) return null;
+  return shift;
+};
 
-  const result = await client.query(
+const validateSellerUser = async (client, { tenantId, sellerUserId, branchId }) => {
+  const userResult = await client.query(
     `
-    SELECT
-      al.id AS attendance_log_id,
-      al.employee_id,
-      al.check_in,
-      al.check_out,
-      e.branch_id,
-      e.full_name AS employee_name,
-      b.name AS branch_name
-    FROM attendance_logs al
-    JOIN employees e ON e.id = al.employee_id
-    LEFT JOIN branches b ON b.id = e.branch_id
-    WHERE al.employee_id = $1
-      AND ($2::bigint IS NULL OR al.tenant_id = $2::bigint)
-      ${attendanceFilter}
-    ORDER BY al.created_at DESC
+    SELECT id, name, email
+    FROM users
+    WHERE id = $1
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
     LIMIT 1
     `,
-    params
+    [sellerUserId, tenantId]
   );
+  const user = userResult.rows[0] || null;
+  if (!user) return null;
 
-  const shift = result.rows[0] || null;
-  if (!shift || shift.check_out) return null;
-  return shift;
+  const mappedCount = await client.query(
+    `
+    SELECT COUNT(*)::int AS count
+    FROM employees
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+      AND status = 'active'
+      AND branch_id IS NOT NULL
+      AND user_id IS NOT NULL
+    `,
+    [tenantId]
+  ).catch(() => ({ rows: [{ count: 0 }] }));
+
+  let employee = null;
+  if (branchId) {
+    const branchMatch = await client.query(
+      `
+      SELECT e.id AS employee_id, e.full_name AS employee_name, e.branch_id, e.user_id
+      FROM employees e
+      WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+        AND status = 'active'
+        AND is_deleted IS DISTINCT FROM TRUE
+        AND branch_id = $2
+        AND (
+          user_id = $3::bigint
+          OR LOWER(COALESCE(email, '')) = LOWER($4)
+        )
+      LIMIT 1
+      `,
+      [tenantId, branchId, sellerUserId, user.email || ""]
+    ).catch(() =>
+      client.query(
+        `
+        SELECT e.id AS employee_id, e.full_name AS employee_name, e.branch_id, e.user_id
+        FROM employees e
+        WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+          AND status = 'active'
+          AND is_deleted IS DISTINCT FROM TRUE
+          AND branch_id = $2
+          AND LOWER(COALESCE(email, '')) = LOWER($3)
+        LIMIT 1
+        `,
+        [tenantId, branchId, user.email || ""]
+      )
+    );
+    employee = branchMatch.rows[0] || null;
+    if (Number(mappedCount.rows[0]?.count || 0) > 0 && !employee) return null;
+  }
+
+  return { ...user, employee_id: employee?.employee_id || null, employee_name: employee?.employee_name || null, branch_id: employee?.branch_id || branchId || null };
 };
 
 const normalizeVariationMode = (value) => String(value || "full_variations").trim().toLowerCase();
@@ -691,6 +1442,7 @@ const adjustProductStock = async (client, data = {}) => {
     productId,
     variantId: null,
     branchId: data.branchId ?? null,
+    warehouseId: data.warehouseId ?? null,
     movementType: data.movementType ?? "sale",
     quantityBefore,
     quantityChange,
@@ -723,6 +1475,8 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
       FROM product_variants pv
       JOIN products p ON p.id = pv.product_id
       WHERE pv.id = $1
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
         AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
       `,
       [variantId, tenantId]
@@ -752,6 +1506,52 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
       stock: Number(variant.stock || 0),
       record: variant,
     };
+  }
+
+  const sku = String(item.sku || "").trim();
+  const barcode = String(item.barcode || "").trim();
+  const color = String(item.color || "").trim();
+  const size = String(item.size || "").trim();
+
+  if (productId && (sku || barcode || color || size)) {
+    const lookupResult = await client.query(
+      `
+      SELECT
+        pv.*,
+        p.category_id,
+        p.variation_mode,
+        p.name AS product_name
+      FROM product_variants pv
+      JOIN products p ON p.id = pv.product_id
+      WHERE pv.product_id = $1
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
+        AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
+        AND ($3::text = '' OR pv.sku = $3::text)
+        AND ($4::text = '' OR pv.barcode = $4::text)
+        AND ($5::text = '' OR LOWER(COALESCE(pv.color, '')) = LOWER($5::text))
+        AND ($6::text = '' OR LOWER(COALESCE(pv.size, '')) = LOWER($6::text))
+      ORDER BY
+        CASE WHEN $3::text <> '' AND pv.sku = $3::text THEN 0 ELSE 1 END,
+        CASE WHEN $4::text <> '' AND pv.barcode = $4::text THEN 0 ELSE 1 END,
+        pv.id ASC
+      LIMIT 1
+      `,
+      [productId, tenantId, sku, barcode, color, size]
+    );
+
+    const matchedVariant = lookupResult.rows[0] || null;
+    if (matchedVariant) {
+      return {
+        type: "variant",
+        productId: matchedVariant.product_id,
+        variantId: matchedVariant.id,
+        categoryId: matchedVariant.category_id || null,
+        costPrice: Number(matchedVariant.cost_price || 0),
+        stock: Number(matchedVariant.stock || 0),
+        record: matchedVariant,
+      };
+    }
   }
 
   const productResult = await client.query(
@@ -790,6 +1590,8 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
     FROM product_variants pv
     JOIN products p ON p.id = pv.product_id
     WHERE pv.product_id = $1
+      AND pv.is_active IS DISTINCT FROM FALSE
+      AND pv.deleted_at IS NULL
       AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
     ORDER BY pv.id ASC
     LIMIT 1
@@ -821,6 +1623,310 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
   };
 };
 
+const resolveOrderLinesStockBatch = async (client, { tenantId, items = [] } = {}) => {
+  const lineInputs = items.map((item, index) => {
+    const productId = item.product_id || item.productId ? Number(item.product_id || item.productId) : null;
+    const variantId = isRealId(item.variant_id ?? item.variantId) ? Number(item.variant_id ?? item.variantId) : null;
+    const requiresLegacyLookup = !variantId && (
+      String(item.sku || "").trim() ||
+      String(item.barcode || "").trim() ||
+      String(item.color || "").trim() ||
+      String(item.size || "").trim()
+    );
+    return { index, item, productId, variantId, quantity: Number(item.quantity || 0), requiresLegacyLookup };
+  });
+
+  if (lineInputs.some((line) => line.requiresLegacyLookup)) {
+    const fallback = new Map();
+    for (const line of lineInputs) {
+      fallback.set(String(line.index), await resolveOrderLineStock(client, { tenantId, item: line.item }));
+    }
+    return fallback;
+  }
+
+  const variantIds = [...new Set(lineInputs.map((line) => line.variantId).filter(Boolean))];
+  const productIds = [...new Set(lineInputs.filter((line) => !line.variantId).map((line) => line.productId).filter(Boolean))];
+  const variantById = new Map();
+  const productById = new Map();
+
+  if (variantIds.length) {
+    const variantResult = await client.query(
+      `
+      SELECT
+        pv.*,
+        p.category_id,
+        p.variation_mode,
+        p.name AS product_name
+      FROM product_variants pv
+      JOIN products p ON p.id = pv.product_id
+      WHERE pv.id = ANY($1::bigint[])
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
+        AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
+      FOR UPDATE OF pv
+      `,
+      [variantIds, tenantId]
+    );
+    variantResult.rows.forEach((row) => variantById.set(Number(row.id), row));
+  }
+
+  if (productIds.length) {
+    const productResult = await client.query(
+      `
+      SELECT id, category_id, variation_mode, stock, cost_price, price, sale_price, name
+      FROM products
+      WHERE id = ANY($1::bigint[])
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      FOR UPDATE
+      `,
+      [productIds, tenantId]
+    );
+    productResult.rows.forEach((row) => productById.set(Number(row.id), row));
+  }
+
+  const stockByLineKey = new Map();
+  const requiredByStockKey = new Map();
+
+  for (const line of lineInputs) {
+    let stockLine = null;
+    if (line.variantId) {
+      const variant = variantById.get(line.variantId);
+      if (!variant) {
+        const error = new Error("Variant not found");
+        error.status = 400;
+        throw error;
+      }
+      if (line.productId && String(variant.product_id) !== String(line.productId)) {
+        const error = new Error(`Variant ${line.variantId} was not found for product ${line.productId}. Check product_variants mapping.`);
+        error.status = 400;
+        throw error;
+      }
+      stockLine = {
+        type: "variant",
+        productId: variant.product_id,
+        variantId: variant.id,
+        categoryId: variant.category_id || null,
+        costPrice: Number(variant.cost_price || 0),
+        stock: Number(variant.stock || 0),
+        record: variant,
+      };
+    } else {
+      const product = productById.get(line.productId);
+      if (!product) {
+        const error = new Error(`Product not found for ${getOrderItemLabel(line.item)} (product_id=${line.productId || "n/a"})`);
+        error.status = 400;
+        throw error;
+      }
+      const productMode = normalizeVariationMode(product.variation_mode || line.item.variation_mode || line.item.variationMode);
+      if (isFullVariationMode(productMode)) {
+        return resolveOrderLinesStockBatchLegacy(client, { tenantId, items });
+      }
+      stockLine = {
+        type: "product",
+        productId: product.id,
+        variantId: null,
+        categoryId: product.category_id || null,
+        costPrice: Number(product.cost_price || 0),
+        stock: Number(product.stock || 0),
+        record: product,
+      };
+    }
+
+    const stockKey = `${stockLine.type}:${stockLine.variantId || stockLine.productId}`;
+    requiredByStockKey.set(stockKey, (requiredByStockKey.get(stockKey) || 0) + line.quantity);
+    stockByLineKey.set(String(line.index), stockLine);
+  }
+
+  for (const [stockKey, requiredQuantity] of requiredByStockKey.entries()) {
+    const line = [...stockByLineKey.values()].find((value) => `${value.type}:${value.variantId || value.productId}` === stockKey);
+    if (line && Number(line.stock || 0) < requiredQuantity) {
+      const error = new Error(`Not enough stock for ${stockKey}`);
+      error.status = 400;
+      throw error;
+    }
+  }
+
+  return stockByLineKey;
+};
+
+const resolveOrderLinesStockBatchLegacy = async (client, { tenantId, items = [] } = {}) => {
+  const stockByLineKey = new Map();
+  for (const [index, item] of items.entries()) {
+    stockByLineKey.set(String(index), await resolveOrderLineStock(client, { tenantId, item }));
+  }
+  return stockByLineKey;
+};
+
+const bulkInsertOrderItems = async (client, { tenantId, orderId, items = [], stockByLineKey, orderTotal = 0 }) => {
+  if (!items.length) return [];
+  const availableColumns = await getTableColumnSet(client, "order_items");
+  const insertItems = items.map((item, index) => {
+    const stockLine = stockByLineKey.get(String(index)) || {};
+    const quantity = Number(item.quantity || 0);
+    let unitPrice = resolveInputUnitPrice(item, stockLine.record || {});
+    let lineTotal = resolveInputLineTotal(item, unitPrice);
+    let priceSource = unitPrice > 0 ? "payload" : "missing";
+    if (!(unitPrice > 0) && items.length === 1 && Number(orderTotal || 0) > 0) {
+      unitPrice = Number(orderTotal) / Math.max(1, quantity || 1);
+      lineTotal = Number(orderTotal);
+      priceSource = "order_total_fallback";
+    } else if (unitPrice > 0 && !(Number(item.price || item.unit_price || item.sale_price || 0) > 0)) {
+      priceSource = "variant_fallback";
+    }
+    if (POS_DEBUG && !(unitPrice > 0) && Number(orderTotal || 0) > 0) {
+      console.warn("[pos-order-item-price-warning]", {
+        orderId,
+        product_id: item.product_id || stockLine.productId || null,
+        variant_id: item.variant_id || stockLine.variantId || null,
+        quantity,
+        orderTotal,
+      });
+    }
+    return {
+      ...item,
+      tenant_id: tenantId == null ? null : Number(tenantId),
+      order_id: Number(orderId),
+      variant_id: stockLine.variantId == null ? null : Number(stockLine.variantId),
+      product_id: Number(stockLine.productId || item.product_id || 0) || null,
+      quantity,
+      sale_price: unitPrice,
+      unit_price: unitPrice,
+      price: unitPrice,
+      tax_amount: 0,
+      total_amount: lineTotal,
+      line_total: lineTotal,
+      subtotal: lineTotal,
+      price_source: priceSource,
+    };
+  });
+  const query = buildBulkOrderItemInsertQuery(insertItems, {
+    availableColumns,
+    returning: true,
+    filePath: "server/controllers/ordersController.js",
+    routeName: "createOrder",
+    insertLabel: "bulkInsertOrderItems",
+    sqlSnippetLabel: "pos_order_items_bulk_insert",
+  });
+  let result;
+  try {
+    result = await client.query(query.sql, query.params);
+  } catch (error) {
+    throw enrichOrderItemsInsertError(error, {
+      routeName: "createOrder",
+      insertLabel: "bulkInsertOrderItems",
+      columnsCount: query.columns.length,
+      paramsCount: query.params.length,
+      sqlSnippetLabel: "pos_order_items_bulk_insert",
+    });
+  }
+  return result.rows;
+};
+
+const bulkApplyInventoryChanges = async (client, { tenantId, orderId, items = [], stockByLineKey, branchId, createdBy }) => {
+  const numericTenantId = tenantId == null ? null : Number(tenantId);
+  const numericOrderId = Number(orderId);
+  const numericBranchId = branchId == null || branchId === "" ? null : Number(branchId);
+  const numericCreatedBy = createdBy == null || createdBy === "" ? null : Number(createdBy);
+  const movementsByKey = new Map();
+  for (const [index, item] of items.entries()) {
+    const stockLine = stockByLineKey.get(String(index));
+    if (!stockLine) continue;
+    const key = `${stockLine.type}:${stockLine.variantId || stockLine.productId}`;
+    const current = movementsByKey.get(key) || {
+      ...stockLine,
+      quantity: 0,
+      quantityBefore: Number(stockLine.stock || 0),
+    };
+    current.quantity += Number(item.quantity || 0);
+    movementsByKey.set(key, current);
+  }
+
+  const movements = [...movementsByKey.values()].map((line) => ({
+    ...line,
+    quantityChange: -Math.abs(Number(line.quantity || 0)),
+    quantityAfter: Number(line.quantityBefore || 0) - Math.abs(Number(line.quantity || 0)),
+  }));
+  if (!movements.length) return;
+
+  const variantMovements = movements.filter((line) => line.type === "variant");
+  const productMovements = movements.filter((line) => line.type === "product");
+
+  if (variantMovements.length) {
+    await client.query(
+      `
+      UPDATE product_variants AS pv
+      SET stock = data.quantity_after,
+          updated_at = NOW()
+      FROM (
+        SELECT * FROM UNNEST($1::bigint[], $2::numeric[])
+          AS t(id, quantity_after)
+      ) AS data
+      WHERE pv.id = data.id
+        AND ($3::bigint IS NULL OR pv.tenant_id = $3::bigint OR pv.tenant_id IS NULL)
+      `,
+      [variantMovements.map((line) => Number(line.variantId)), variantMovements.map((line) => Number(line.quantityAfter)), numericTenantId]
+    );
+  }
+
+  if (productMovements.length) {
+    await client.query(
+      `
+      UPDATE products AS p
+      SET stock = data.quantity_after,
+          updated_at = NOW()
+      FROM (
+        SELECT * FROM UNNEST($1::bigint[], $2::numeric[])
+          AS t(id, quantity_after)
+      ) AS data
+      WHERE p.id = data.id
+        AND ($3::bigint IS NULL OR p.tenant_id = $3::bigint)
+      `,
+      [productMovements.map((line) => Number(line.productId)), productMovements.map((line) => Number(line.quantityAfter)), numericTenantId]
+    );
+  }
+
+  const movementValues = [];
+  const movementPlaceholders = movements.map((line) => {
+    const base = movementValues.length;
+    const quantityChange = Number(line.quantityChange || 0);
+    movementValues.push(
+      numericTenantId,
+      line.productId == null ? null : Number(line.productId),
+      line.variantId == null ? null : Number(line.variantId),
+      numericBranchId,
+      "sale",
+      quantityChange,
+      Number(line.quantityBefore || 0),
+      Number(line.quantityAfter || 0),
+      line.costPrice == null ? null : Number(line.costPrice),
+      Number(line.costPrice || 0) * Math.abs(quantityChange),
+      "order",
+      numericOrderId,
+      "POS sale",
+      `Sale from order ${numericOrderId}`,
+      numericCreatedBy
+    );
+    return `($${base + 1}::bigint,$${base + 2}::bigint,$${base + 3}::bigint,$${base + 4}::bigint,$${base + 5}::text,$${base + 6}::numeric,$${base + 7}::numeric,$${base + 8}::numeric,$${base + 9}::numeric,$${base + 10}::numeric,$${base + 11}::text,$${base + 12}::bigint,$${base + 13}::text,$${base + 14}::text,$${base + 14}::text,$${base + 15}::bigint)`;
+  });
+
+  await client.query(
+    `
+    INSERT INTO inventory_movements (
+      tenant_id, product_id, variant_id, branch_id, movement_type, quantity,
+      before_qty, after_qty, quantity_before, quantity_change, quantity_after,
+      unit_cost, total_cost, reference_type, reference_id, reason, notes, note, created_by
+    )
+    SELECT tenant_id::bigint, product_id::bigint, variant_id::bigint, branch_id::bigint, movement_type, quantity,
+      before_qty, after_qty, before_qty, quantity, after_qty,
+      unit_cost, total_cost, reference_type, reference_id::bigint, reason, notes, note, created_by::bigint
+    FROM (VALUES ${movementPlaceholders.join(",")})
+      AS t(tenant_id, product_id, variant_id, branch_id, movement_type, quantity,
+        before_qty, after_qty, unit_cost, total_cost, reference_type, reference_id, reason, notes, note, created_by)
+    `,
+    movementValues
+  );
+};
+
 const runPostOrderSideEffects = async ({
   tenantId,
   orderId,
@@ -836,6 +1942,18 @@ const runPostOrderSideEffects = async ({
   computedTotal,
   cogsTotal,
   resolvedBranchId,
+  order,
+  orderItemsForCommission = [],
+  resolvedCashierId = null,
+  resolvedSalesEmployeeId = null,
+  resolvedShiftId = null,
+  resolvedCustomerId = null,
+  receivedAmount = 0,
+  status = "pending",
+  paymentStatus = "unpaid",
+  skipLoyaltyEarning = false,
+  totalDiscount = 0,
+  computedSubtotal = 0,
   notes,
   req,
 }) => {
@@ -884,6 +2002,69 @@ const runPostOrderSideEffects = async ({
         notes: notes || "",
       });
     },
+    async () => {
+      await recordSalesCommissionForOrder(db, {
+        tenantId,
+        order,
+        items: orderItemsForCommission,
+        createdBy: req.user?.id || null,
+      });
+    },
+    async () => {
+      await recordEmployeeAnalytics(db, {
+        tenantId,
+        orderId,
+        orderItems: orderItemsForCommission,
+        cashierId: resolvedCashierId,
+        salesEmployeeId: resolvedSalesEmployeeId,
+        shiftId: resolvedShiftId,
+        branchId: resolvedBranchId,
+        paymentStatus,
+        userId: req.user?.id || null,
+      });
+    },
+    async () => {
+      if (skipLoyaltyEarning) return;
+      await processOrderLoyalty(db, {
+        tenantId,
+        orderId,
+        customerId: resolvedCustomerId || order?.customer_id,
+        orderTotal: computedTotal,
+        paidAmount: receivedAmount,
+        status,
+        paymentStatus,
+        redeemPoints: 0,
+        walletRedemptionAmount: 0,
+        skipEarning: false,
+        fullWalletRedemptionOnly: false,
+        userId: req.user?.id || null,
+      });
+    },
+    async () => {
+      const discountRatio = Number(computedSubtotal || 0) > 0 ? Number(totalDiscount || 0) / Number(computedSubtotal || 0) : 0;
+      if (discountRatio < 0.3) return;
+      await createSystemNotification("security_sensitive_action", {
+        tenant_id: tenantId,
+        branch_id: resolvedBranchId,
+        message: `خصم كبير على الطلب ${order.invoice_number || order.id}: ${Math.round(discountRatio * 100)}%`,
+        action_url: `/orders/${order.id}`,
+        entity_type: "order",
+        entity_id: order.id,
+        metadata: { order_id: order.id, discount_amount: totalDiscount, subtotal: computedSubtotal },
+      });
+    },
+    async () => {
+      io.emit("new_order", order);
+      io.emit("dashboard:activity", {
+        type: "order",
+        title: order.invoice_number || `Order #${order.id}`,
+        invoice_number: order.invoice_number,
+        amount: Number(order.total_amount || order.total || 0),
+        status: order.payment_status || order.status || "created",
+        created_at: order.created_at || new Date().toISOString(),
+      });
+      io.emit("refresh_dashboard");
+    },
   ];
 
   for (const effect of sideEffects) {
@@ -898,27 +2079,30 @@ const runPostOrderSideEffects = async ({
     }
   }
 };
-
 export const createOrder = async (req, res) => {
   let client = null;
   let transactionStarted = false;
   let orderCreateStep = "start";
+  const checkoutTiming = createCheckoutTimings();
   const markOrderStep = (step, details = {}) => {
     orderCreateStep = step;
-    console.log("[POS_CREATE_ORDER_STEP]", { step, ...details });
+    if (POS_CHECKOUT_DEBUG) console.log("[POS_CREATE_ORDER_STEP]", { step, ...details });
   };
 
   try {
     client = await db.connect();
     markOrderStep("db connected");
     await ensureAccountingSchema();
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const tenantId = Number(
+      isSuperAdminUser(req.user)
+        ? req.body?.tenant_id || req.query?.tenant_id || req.user?.tenant_id || req.user?.tenantId || 1
+        : req.user?.tenant_id || req.user?.tenantId || getTenantId(req, req.user?.tenant_id) || 1
+    ) || 1;
     const normalizedPayload = normalizeCreateOrderPayload(req.body || {});
     const {
       customer_name,
       customer_id,
       payment_method,
-      invoice_number,
       items,
       status,
       payment_status,
@@ -939,9 +2123,15 @@ export const createOrder = async (req, res) => {
       card_amount = 0,
       skip_loyalty_earning = false,
       full_wallet_redemption_only = false,
+      seller_user_id = null,
+      seller_name = "",
+      salesperson_name = "",
+      cashier_user_id = null,
       cashier_id = null,
       sales_employee_id = null,
       salesperson_id = null,
+      assigned_seller_id = null,
+      seller_employee_id = null,
       shift_id = null,
       attendance_log_id = null,
       marketing_source = null,
@@ -956,10 +2146,21 @@ export const createOrder = async (req, res) => {
       customer_phone = "",
       customer_email = "",
       branch_id = null,
+      financial_account_id = null,
+      cash_financial_account_id = null,
+      card_financial_account_id = null,
+      wallet_financial_account_id = null,
+      exchange_mode = false,
+      original_order_id = null,
+      exchange_credit_amount = 0,
+      new_order_total = 0,
+      amount_due_now = null,
+      exchange_difference = 0,
+      exchange_invoice_number = "",
     } = normalizedPayload;
     const itemsCount = Array.isArray(items) ? items.length : 0;
 
-    console.log("[POS_CREATE_ORDER_PAYLOAD]", safeOrderLogPayload(normalizedPayload));
+    if (POS_CHECKOUT_DEBUG) console.log("[POS_CREATE_ORDER_PAYLOAD]", safeOrderLogPayload(normalizedPayload));
 
     const resolvedCustomerName = String(customer_name || "").trim() || "Walk-in Customer";
 
@@ -985,16 +2186,22 @@ export const createOrder = async (req, res) => {
     const normalizedTaxRate = toFiniteNumber(tax_rate, 0);
     const orderItemsForCommission = [];
     const stockByLineKey = new Map();
-    const resolvedCashierId = cashier_id || req.user?.id || null;
-    const requestedSalespersonId = salesperson_id || sales_employee_id || null;
-    const resolvedSalesEmployeeId = requestedSalespersonId || null;
-    const resolvedShiftId = shift_id || null;
+    const resolvedCashierUserId = req.user?.id || null;
+    const requestedSellerUserId = seller_user_id || null;
+    const requestedSalesEmployeeId = sales_employee_id || salesperson_id || assigned_seller_id || seller_employee_id || null;
+    let resolvedSellerUserId = requestedSellerUserId || null;
+    const resolvedCashierId = resolvedCashierUserId;
+    let resolvedSalesEmployeeId = requestedSalesEmployeeId || null;
+    let resolvedShiftId = shift_id || null;
 
     markOrderStep("ensure schemas", { tenantId });
-    await ensureAttendanceSchema();
-    await ensurePosShiftOrderColumns(client, tenantId);
-    await ensureLoyaltySchema(db);
-    await ensureWalletSchema(client);
+    await timedCheckout(checkoutTiming, "schema_ms", async () => {
+      await ensureAttendanceSchema();
+      await ensurePosShiftOrderColumns(client, tenantId);
+      await ensurePosUserShiftSchema(client);
+      await ensureLoyaltySchema(db);
+      await ensureWalletSchema(client);
+    });
 
     await client.query("BEGIN");
     transactionStarted = true;
@@ -1004,25 +2211,38 @@ export const createOrder = async (req, res) => {
 
     markOrderStep("load sales settings");
     const settings = await getSalesSettings(client, tenantId);
-    const salespersonSnapshot = await getSalespersonSnapshot(client, {
-      tenantId,
-      salespersonId: requestedSalespersonId,
+    const defaultPosOrderStatus = normalizeOrderLifecycleStatus(
+      await getSetting("orders.default_pos_order_status", "delivered"),
+      "delivered"
+    );
+    const resolvedOrderStatus = normalizeOrderLifecycleStatus(status, defaultPosOrderStatus);
+
+    const posBranch = await resolvePosBranch(client, { ...req, body: { ...req.body, branch_id } });
+    const requestedBranchId = branch_id || posBranch?.id || null;
+
+    markOrderStep("resolve POS shift", { cashier_user_id: resolvedCashierUserId, shift_id, branch_id: requestedBranchId });
+    if (POS_CHECKOUT_DEBUG) console.log("[orders-pos-shift-resolve]", {
+      tenant_id: tenantId,
+      user_id: resolvedCashierUserId,
+      requested_branch_id: requestedBranchId,
+      requested_shift_id: resolvedShiftId,
+      source: "checkout",
     });
-
-    if (!settings.allow_sale_without_salesperson && !salespersonSnapshot) {
-      await client.query("ROLLBACK");
-      transactionStarted = false;
-      return res.status(400).json({
-        success: false,
-        message: "Select a salesperson before checkout",
-      });
-    }
-
-    markOrderStep("resolve POS shift", { cashier_id: resolvedCashierId, attendance_log_id });
-    const openShift = await resolveOpenPosShift(client, {
+    let openShift = await resolveActiveUserPosShift(client, {
       tenantId,
-      employeeId: resolvedCashierId,
-      attendanceLogId: attendance_log_id,
+      userId: resolvedCashierUserId,
+      branchId: requestedBranchId,
+      shiftId: resolvedShiftId,
+    });
+    if (POS_CHECKOUT_DEBUG) console.log("[orders-pos-shift-resolve]", {
+      tenant_id: tenantId,
+      user_id: resolvedCashierUserId,
+      requested_branch_id: requestedBranchId,
+      requested_shift_id: resolvedShiftId,
+      found_shift_id: openShift?.id || null,
+      found_branch_id: openShift?.branch_id || null,
+      status: openShift?.status || null,
+      matched: Boolean(openShift),
     });
 
     if (!openShift) {
@@ -1030,7 +2250,7 @@ export const createOrder = async (req, res) => {
       transactionStarted = false;
       return res.status(400).json({
         success: false,
-        message: "Open a POS shift before checkout",
+        message: "يجب فتح وردية قبل البيع",
       });
     }
 
@@ -1043,8 +2263,71 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    const resolvedBranchId = openShift.branch_id || branch_id || null;
-    const resolvedAttendanceLogId = openShift.attendance_log_id;
+    const resolvedBranchId = openShift.branch_id || requestedBranchId || null;
+    const resolvedAttendanceLogId = null;
+    resolvedShiftId = openShift.id || resolvedShiftId;
+
+    if (requestedSellerUserId && String(requestedSellerUserId) !== String(resolvedCashierUserId)) {
+      const canOverride = await canOverridePosSeller(client, resolvedCashierUserId);
+      if (!canOverride) {
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return res.status(403).json({
+          success: false,
+          message: "You cannot sell under another user",
+        });
+      }
+      resolvedSellerUserId = requestedSellerUserId;
+    }
+
+    let sellerUser = null;
+    if (requestedSellerUserId && String(requestedSellerUserId) !== String(resolvedCashierUserId)) {
+      sellerUser = await validateSellerUser(client, { tenantId, sellerUserId: resolvedSellerUserId, branchId: resolvedBranchId });
+    }
+    if (requestedSellerUserId && String(requestedSellerUserId) !== String(resolvedCashierUserId) && !sellerUser) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return res.status(400).json({
+        success: false,
+        message: "Selected seller user is not active in this branch",
+      });
+    }
+    resolvedSellerUserId = sellerUser?.id || requestedSellerUserId || null;
+    resolvedSalesEmployeeId = resolvedSalesEmployeeId || sellerUser?.employee_id || null;
+    const cashierName = req.user?.name || req.user?.email || "";
+    let sellerName = seller_name || salesperson_name || sellerUser?.employee_name || sellerUser?.name || sellerUser?.email || "";
+    const salespersonSnapshot = await getSalespersonSnapshot(client, {
+      tenantId,
+      salespersonId: resolvedSalesEmployeeId,
+      branchId: resolvedBranchId,
+    });
+    if (salespersonSnapshot?.salesperson_id) {
+      resolvedSalesEmployeeId = salespersonSnapshot.salesperson_id;
+      sellerName = sellerName || salespersonSnapshot.salesperson_name || "";
+    }
+    const persistedSellerName = sellerName || "";
+    const persistedSalespersonName = salespersonSnapshot?.salesperson_name || sellerName || null;
+    if (POS_CHECKOUT_DEBUG) console.log("[orders][seller-debug] persisted seller in order save", {
+      requestedSellerUserId,
+      requestedSalesEmployeeId,
+      resolvedSellerUserId,
+      resolvedSalesEmployeeId,
+      sellerName,
+      persistedSellerName,
+      persistedSalespersonName,
+      cashierName,
+      salespersonSnapshot,
+    });
+
+    if (!settings.allow_sale_without_salesperson && !resolvedSalesEmployeeId) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return res.status(400).json({
+        success: false,
+        message: "Select a salesperson for this branch before checkout",
+      });
+    }
+
     const linkedCustomer = await resolveOrCreateCustomerAccount(client, {
       tenantId,
       customerId: customer_id || null,
@@ -1056,31 +2339,26 @@ export const createOrder = async (req, res) => {
     const resolvedCustomerPhone = linkedCustomer?.phone || customer_phone || "";
 
     markOrderStep("validate stock", { itemsCount });
-    for (const [index, item] of items.entries()) {
+    const stockValidationError = await timedCheckout(checkoutTiming, "stock_validation_ms", async () => {
       try {
-        const stockLine = await resolveOrderLineStock(client, { tenantId, item });
-        stockByLineKey.set(String(index), stockLine);
-        if (stockLine.stock < item.quantity) {
-          await client.query("ROLLBACK");
-          transactionStarted = false;
-          return res.status(400).json({ message: `Not enough stock for ${getOrderItemLabel(item)}` });
-        }
+        const resolvedStock = await resolveOrderLinesStockBatch(client, { tenantId, items });
+        resolvedStock.forEach((stockLine, key) => stockByLineKey.set(key, stockLine));
       } catch (error) {
-        await client.query("ROLLBACK");
-        transactionStarted = false;
-        return res.status(error.status || 400).json({
-          success: false,
-          message: error.message || "Invalid order item",
-          item: {
-            name: getOrderItemLabel(item),
-            product_id: item.product_id || null,
-            variant_id: item.variant_id || null,
-            variation_mode: item.variation_mode || null,
+        return {
+          status: error.status || 400,
+          body: {
+            success: false,
+            message: error.message || "Invalid order item",
           },
-        });
+        };
       }
-
-      totalPrice += Number(item.price) * Number(item.quantity);
+      for (const item of items) totalPrice += Number(item.price) * Number(item.quantity);
+      return null;
+    });
+    if (stockValidationError) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return res.status(stockValidationError.status).json(stockValidationError.body);
     }
 
     const computedSubtotal = Number.isFinite(Number(subtotal)) ? Number(subtotal) : totalPrice;
@@ -1115,7 +2393,58 @@ export const createOrder = async (req, res) => {
       : Math.max(0, Number(coupon_discount_amount || 0));
     const totalDiscount = nonCouponDiscount + couponDiscountAmount;
     const computedTotal = Math.max(0, computedSubtotal - totalDiscount + totalServiceFee);
-    const receivedAmount = Number.isFinite(Number(paid_amount)) && Number(paid_amount) > 0 ? Number(paid_amount) : computedTotal;
+    const exchangeMode = exchange_mode === true || String(exchange_mode || "").toLowerCase() === "true";
+    const exchangeCreditAmount = Math.max(0, Number(exchange_credit_amount || 0) || 0);
+    const exchangeAppliedCredit = Math.min(exchangeCreditAmount, computedTotal);
+    const amountDueNow = exchangeMode
+      ? Math.max(0, Number.isFinite(Number(amount_due_now)) ? Number(amount_due_now) : computedTotal - exchangeAppliedCredit)
+      : computedTotal;
+    const exchangeDifferenceAmount = exchangeMode
+      ? Number(Number(exchange_difference || computedTotal - exchangeCreditAmount).toFixed(2))
+      : 0;
+    const receivedAmount = exchangeMode
+      ? Math.max(0, Number.isFinite(Number(paid_amount)) ? Number(paid_amount) : amountDueNow)
+      : Number.isFinite(Number(paid_amount)) && Number(paid_amount) > 0 ? Number(paid_amount) : computedTotal;
+    if (exchangeMode && Math.abs(receivedAmount - amountDueNow) > 0.009) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return res.status(400).json({
+        success: false,
+        message: "Exchange payment must equal amount due now",
+        exchange: {
+          new_order_total: computedTotal,
+          exchange_credit_amount: exchangeCreditAmount,
+          amount_due_now: amountDueNow,
+          paid_amount: receivedAmount,
+        },
+      });
+    }
+    if (exchangeMode && exchangeCreditAmount > computedTotal && !resolvedCustomerId) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return res.status(400).json({
+        success: false,
+        message: "Select a customer to keep remaining exchange credit",
+        exchange: {
+          remaining_customer_credit: Number((exchangeCreditAmount - computedTotal).toFixed(2)),
+        },
+      });
+    }
+    const normalizedSalePaymentMethod = normalizeMoneyPaymentMethod(payment_method || "cash");
+    const companyWalletPaymentMethods = ["wallet", "vodafone_cash", "vodafone", "instapay", "insta_pay"];
+    const customerWalletPaymentMethods = ["customer_wallet", "store_credit", "customer_credit", "credit_balance"];
+    const requestedWalletPaymentAmount = Math.max(0, Number(wallet_payment_amount ?? 0) || 0);
+    const requestedCustomerWalletAmount = Math.max(0, Number(wallet_amount ?? 0) || 0);
+    const companyWalletPaymentAmount = requestedWalletPaymentAmount > 0
+      ? requestedWalletPaymentAmount
+      : companyWalletPaymentMethods.includes(normalizedSalePaymentMethod)
+        ? (requestedCustomerWalletAmount > 0 ? requestedCustomerWalletAmount : receivedAmount)
+        : 0;
+    const customerWalletRedemptionAmount = customerWalletPaymentMethods.includes(normalizedSalePaymentMethod)
+      ? (requestedCustomerWalletAmount > 0 ? requestedCustomerWalletAmount : receivedAmount)
+      : normalizedSalePaymentMethod === "mixed" || normalizedSalePaymentMethod === "split"
+        ? requestedCustomerWalletAmount
+        : 0;
     const publicToken = generatePublicToken();
     const detectedAttribution = detectMarketingAttribution(req);
     const resolvedMarketingSource = marketing_source || detectedAttribution.marketing_source || null;
@@ -1125,15 +2454,17 @@ export const createOrder = async (req, res) => {
     const resolvedAttributionType = attribution_type || detectedAttribution.attribution_type || null;
     const resolvedMarketingTrackingCode = marketing_tracking_code || detectedAttribution.marketing_tracking_code || null;
     const resolvedMarketingSessionId = marketing_session_id || detectedAttribution.session_id || null;
+    const serverInvoiceNumber = buildTemporaryInvoiceNumber();
 
     markOrderStep("insert order", {
       customer_id: customer_id || null,
       itemsCount,
+      invoice_number: serverInvoiceNumber,
       payment_method: payment_method || "cash",
       payment_status: payment_status || "unpaid",
       totals: { subtotal: computedSubtotal, discount_amount: totalDiscount, tax_amount: totalTax, service_fee: totalServiceFee, total: computedTotal },
     });
-    const orderResult = await client.query(
+    const orderResult = await timedCheckout(checkoutTiming, "order_insert_ms", () => client.query(
       `
       INSERT INTO orders (
         tenant_id,
@@ -1149,6 +2480,10 @@ export const createOrder = async (req, res) => {
         cash_amount,
         card_amount,
         wallet_payment_amount,
+        seller_user_id,
+        cashier_user_id,
+        seller_name,
+        cashier_name,
         cashier_id,
         sales_employee_id,
         salesperson_id,
@@ -1157,6 +2492,7 @@ export const createOrder = async (req, res) => {
         salesperson_commission_value,
         salesperson_fixed_mode,
         salesperson_excluded_product_ids,
+        salesperson_excluded_category_ids,
         shift_id,
         attendance_log_id,
         marketing_source,
@@ -1184,7 +2520,7 @@ export const createOrder = async (req, res) => {
       )
       VALUES (
         $1,
-        COALESCE($2, 'INV-' || EXTRACT(EPOCH FROM NOW())::BIGINT || '-' || FLOOR(RANDOM()*1000)::INT),
+        $2,
         $3,
         COALESCE($4, TRUE),
         $5,
@@ -1201,39 +2537,44 @@ export const createOrder = async (req, res) => {
         $16,
         $17,
         $18,
-        COALESCE($19::numeric, 0),
+        $19,
         $20,
-        COALESCE($21::jsonb, '[]'::jsonb),
+        $21,
         $22,
-        $23,
+        COALESCE($23::numeric, 0),
         $24,
-        $25,
-        $26,
+        COALESCE($25::jsonb, '[]'::jsonb),
+        COALESCE($26::jsonb, '[]'::jsonb),
         $27,
         $28,
         $29,
         $30,
-        COALESCE($31, 'Pending'),
-        COALESCE($32, 'unpaid'),
-        COALESCE($33::numeric, 0),
-        COALESCE($34::numeric, 0),
-        COALESCE($35::numeric, 0),
-        COALESCE($36::numeric, 0),
-        $37,
-        $38,
-        $39,
-        $40,
-        $41,
+        $31,
+        $32,
+        $33,
+        $34,
+        $35,
+        COALESCE($36, 'pending'),
+        COALESCE($37, 'unpaid'),
+        COALESCE($38::numeric, 0),
+        COALESCE($39::numeric, 0),
+        COALESCE($40::numeric, 0),
+        COALESCE($41::numeric, 0),
         $42,
-        COALESCE($43::numeric, 0),
-        COALESCE($44::numeric, 0),
-        $45
+        $43,
+        $44,
+        $45,
+        $46,
+        $47,
+        COALESCE($48::numeric, 0),
+        COALESCE($49::numeric, 0),
+        $50
       )
       RETURNING *
       `,
       [
         tenantId,
-        invoice_number || null,
+        serverInvoiceNumber,
         publicToken,
         true,
         resolvedCustomerId,
@@ -1244,15 +2585,20 @@ export const createOrder = async (req, res) => {
         payment_method || "cash",
         cash_amount || (payment_method === "cash" ? receivedAmount : 0),
         card_amount || (payment_method === "card" ? receivedAmount : 0),
-        wallet_payment_amount ?? (payment_method === "wallet" ? receivedAmount : 0),
+        companyWalletPaymentAmount,
+        resolvedSellerUserId,
+        resolvedCashierUserId,
+        persistedSellerName,
+        cashierName,
         resolvedCashierId,
         resolvedSalesEmployeeId,
         salespersonSnapshot?.salesperson_id || null,
-        salespersonSnapshot?.salesperson_name || null,
+        persistedSalespersonName,
         salespersonSnapshot?.commission_type || null,
         salespersonSnapshot?.commission_value || 0,
         salespersonSnapshot?.fixed_mode || settings.fixed_commission_mode,
         JSON.stringify(salespersonSnapshot?.excluded_product_ids || []),
+        JSON.stringify(salespersonSnapshot?.excluded_category_ids || []),
         resolvedShiftId,
         resolvedAttendanceLogId,
         resolvedMarketingSource,
@@ -1262,7 +2608,7 @@ export const createOrder = async (req, res) => {
         resolvedAttributionType,
         resolvedMarketingTrackingCode,
         resolvedMarketingSessionId,
-        status || "Pending",
+        resolvedOrderStatus,
         payment_status || "unpaid",
         computedSubtotal,
         totalDiscount,
@@ -1275,65 +2621,127 @@ export const createOrder = async (req, res) => {
         safeCouponCode || null,
         couponDiscountAmount,
         receivedAmount,
-        change_amount || Math.max(0, receivedAmount - computedTotal),
+        change_amount || Math.max(0, receivedAmount - (exchangeMode ? amountDueNow : computedTotal)),
         notes || "",
       ]
-    );
+    ));
+    if (POS_CHECKOUT_DEBUG) console.log("[orders][seller-debug] order save row seller fields", {
+      order_id: orderResult.rows[0]?.id,
+      seller_id: orderResult.rows[0]?.sales_employee_id || orderResult.rows[0]?.salesperson_id || orderResult.rows[0]?.seller_user_id || null,
+      seller_user_id: orderResult.rows[0]?.seller_user_id || null,
+      sales_employee_id: orderResult.rows[0]?.sales_employee_id || null,
+      salesperson_id: orderResult.rows[0]?.salesperson_id || null,
+      seller_name: orderResult.rows[0]?.seller_name || "",
+      salesperson_name: orderResult.rows[0]?.salesperson_name || "",
+      cashier_name: orderResult.rows[0]?.cashier_name || "",
+    });
 
-    const order = orderResult.rows[0];
+    let order = orderResult.rows[0];
+    if (exchangeMode) {
+      const exchangeOrderResult = await client.query(
+        `
+        UPDATE orders
+        SET exchange_mode = TRUE,
+            original_order_id = $2,
+            exchange_credit_amount = $3,
+            new_order_total = $4,
+            amount_due_now = $5,
+            exchange_difference = $6,
+            exchange_invoice_number = $7
+        WHERE id = $1
+        RETURNING *
+        `,
+        [
+          order.id,
+          original_order_id || null,
+          exchangeCreditAmount,
+          Number(new_order_total || computedTotal || 0) || computedTotal,
+          amountDueNow,
+          exchangeDifferenceAmount,
+          exchange_invoice_number || "",
+        ]
+      );
+      order = exchangeOrderResult.rows[0] || order;
+    }
+    const paymentBreakdown = [
+      exchangeMode
+        ? {
+            method: "exchange_credit",
+            account_id: null,
+            amount: exchangeAppliedCredit,
+            original_order_id: original_order_id || null,
+            invoice_number: exchange_invoice_number || "",
+          }
+        : null,
+      {
+        method: "cash",
+        account_id: cash_financial_account_id || financial_account_id || null,
+        amount: Number(cash_amount || 0) > 0 ? Number(cash_amount || 0) : normalizedSalePaymentMethod === "cash" ? Number(receivedAmount || 0) : 0,
+      },
+      {
+        method: "card",
+        account_id: card_financial_account_id || financial_account_id || null,
+        amount: Number(card_amount || 0) > 0 ? Number(card_amount || 0) : normalizedSalePaymentMethod === "card" ? Number(receivedAmount || 0) : 0,
+      },
+      {
+        method: "wallet",
+        account_id: wallet_financial_account_id || financial_account_id || null,
+        amount: companyWalletPaymentAmount,
+      },
+      {
+        method: "customer_wallet",
+        account_id: null,
+        amount: customerWalletRedemptionAmount,
+      },
+    ].filter((payment) => payment && Number(payment.amount || 0) > 0);
+    if (!paymentBreakdown.length && Number(receivedAmount || 0) > 0 && !customerWalletPaymentMethods.includes(normalizedSalePaymentMethod)) {
+      paymentBreakdown.push({
+        method: normalizedSalePaymentMethod,
+        account_id: financial_account_id || null,
+        amount: Number(receivedAmount || 0),
+      });
+    }
+    const paymentBreakdownResult = await timedCheckout(checkoutTiming, "payment_breakdown_ms", () => client.query(
+      `
+      UPDATE orders
+      SET payment_breakdown = $2::jsonb
+      WHERE id = $1
+      RETURNING payment_breakdown
+      `,
+      [order.id, JSON.stringify(paymentBreakdown)]
+    ));
+    order.payment_breakdown = paymentBreakdownResult.rows[0]?.payment_breakdown || paymentBreakdown;
     order.public_token = order.public_token || publicToken;
-    const publicInvoiceUrl = buildPublicInvoiceUrl(req, order.public_token);
-    const publicInvoiceShortUrl = publicInvoiceUrl;
+    order = await timedCheckout(checkoutTiming, "invoice_generation_ms", () => assignSequentialInvoiceNumber(client, order));
+    order = attachPublicOrderNumber(order, order.channel || order.source || channel || "pos");
+    const { publicInvoiceUrl, publicInvoiceShortUrl } = await timedCheckout(checkoutTiming, "whatsapp_share_link_ms", async () => {
+      const invoiceShareIdentifier = publicInvoiceIdentifier(order);
+      const url = buildPublicInvoiceUrl(req, invoiceShareIdentifier);
+      return { publicInvoiceUrl: url, publicInvoiceShortUrl: url };
+    });
     order.public_invoice_url = publicInvoiceUrl;
     order.public_invoice_short_url = publicInvoiceShortUrl;
     order.invoice_public_url = publicInvoiceUrl;
     let employeeTracking = null;
     let loyaltyResult = null;
-    console.log("[checkout order]", order.id);
-    console.log("[public token]", order.public_token);
-    console.log("[public invoice url]", publicInvoiceUrl);
+    let exchangeWalletResult = null;
+    if (POS_CHECKOUT_DEBUG) {
+      console.log("[checkout order]", order.id);
+      console.log("[public token]", order.public_token);
+      console.log("[public invoice url]", publicInvoiceUrl);
+    }
 
     markOrderStep("insert order items", { order_id: order.id, itemsCount });
+    const orderItemRows = await timedCheckout(checkoutTiming, "order_items_insert_ms", () => bulkInsertOrderItems(client, {
+      tenantId,
+      orderId: order.id,
+      items,
+      stockByLineKey,
+      orderTotal: computedTotal,
+    }));
     for (const [index, item] of items.entries()) {
       const stockLine = stockByLineKey.get(String(index)) || {};
-      const orderItemResult = await client.query(
-        `
-        INSERT INTO order_items (
-          tenant_id,
-          order_id,
-          variant_id,
-          product_id,
-          product_name,
-          variant_name,
-          sku,
-          barcode,
-          quantity,
-          sale_price,
-          discount_amount,
-          tax_amount,
-          total_amount
-        )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-      RETURNING *
-        `,
-        [
-          tenantId,
-          order.id,
-          stockLine.variantId || null,
-          stockLine.productId || item.product_id || null,
-          item.product_name || "",
-          item.variant_name || "",
-          item.sku || "",
-          item.barcode || "",
-          item.quantity,
-          item.price,
-          item.discount_amount || 0,
-          0,
-          item.total_amount || Number(item.price) * Number(item.quantity),
-        ]
-      );
-
-      const orderItemRow = orderItemResult.rows[0] || {};
+      const orderItemRow = orderItemRows[index] || {};
       orderItemsForCommission.push({
         ...item,
         id: orderItemRow.id,
@@ -1344,39 +2752,16 @@ export const createOrder = async (req, res) => {
       });
 
       cogsTotal += Number(stockLine.costPrice || 0) * Number(item.quantity || 0);
-
-      markOrderStep("reduce stock", { order_id: order.id, line: index, stock_type: stockLine.type, product_id: stockLine.productId || null, variant_id: stockLine.variantId || null });
-      if (stockLine.type === "variant") {
-        await adjustVariantStock(client, {
-          tenantId,
-          variantId: stockLine.variantId,
-          quantityChange: Number(item.quantity || 0) * -1,
-          movementType: "sale",
-          referenceType: "order",
-          referenceId: order.id,
-          unitCost: stockLine.costPrice || null,
-          totalCost: Number(stockLine.costPrice || 0) * Number(item.quantity || 0),
-          reason: "POS sale",
-          notes: `Sale from order ${order.id}`,
-          createdBy: req.user?.id || null,
-          branchId: resolvedBranchId,
-        });
-      } else {
-        await adjustProductStock(client, {
-          tenantId,
-          productId: stockLine.productId,
-          quantityChange: Number(item.quantity || 0) * -1,
-          movementType: "sale",
-          referenceType: "order",
-          referenceId: order.id,
-          reason: "POS sale",
-          notes: `Sale from order ${order.id}`,
-          createdBy: req.user?.id || null,
-          branchId: resolvedBranchId,
-          item,
-        });
-      }
     }
+    markOrderStep("reduce stock", { order_id: order.id, itemsCount });
+    await timedCheckout(checkoutTiming, "inventory_movement_ms", () => bulkApplyInventoryChanges(client, {
+      tenantId,
+      orderId: order.id,
+      items,
+      stockByLineKey,
+      branchId: resolvedBranchId,
+      createdBy: req.user?.id || null,
+    }));
 
     let couponRedemption = null;
     if (safeCouponCode) {
@@ -1405,81 +2790,126 @@ export const createOrder = async (req, res) => {
     }
 
     markOrderStep("create payment transaction", { order_id: order.id, payment_method: payment_method || "cash", amount: receivedAmount });
-    await client.query(
-      `
-      INSERT INTO transactions (tenant_id, type, amount, payment_method, note, cashbox_id)
-      VALUES ($1,$2,$3,$4,$5,$6)
-      `,
-      [tenantId, "sale", receivedAmount, payment_method || "cash", `Order #${order.id}`, 1]
-    );
+    await timedCheckout(checkoutTiming, "payment_treasury_update_ms", async () => {
+      await client.query(
+        `
+        INSERT INTO transactions (tenant_id, type, amount, payment_method, note, cashbox_id)
+        VALUES ($1,$2,$3,$4,$5,$6)
+        `,
+        [tenantId, "sale", receivedAmount, payment_method || "cash", `Order #${order.id}`, 1]
+      );
 
-    await client.query(
-      `
-      UPDATE cashbox
-      SET balance = balance + $1
-      WHERE id = 1
-        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
-      `,
-      [receivedAmount, tenantId]
-    );
+      await client.query(
+        `
+        UPDATE cashbox
+        SET balance = balance + $1
+        WHERE id = 1
+          AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+        `,
+        [receivedAmount, tenantId]
+      );
+    });
 
-    try {
-      await recordSalesCommissionForOrder(client, {
+    const cashDrawerSaleAmount = Number(cash_amount || 0) > 0
+      ? Number(cash_amount || 0)
+      : String(payment_method || "cash").toLowerCase() === "cash"
+        ? Number(receivedAmount || 0)
+        : 0;
+    if (cashDrawerSaleAmount > 0) {
+      await timedCheckout(checkoutTiming, "payment_treasury_update_ms", () => recordCashDrawerEvent(client, {
         tenantId,
-        order,
-        items: orderItemsForCommission,
-        createdBy: req.user?.id || null,
-      });
-    } catch (salesCommissionError) {
-      console.error("[pos] salesperson commission failed", {
-        order_id: order.id,
-        message: salesCommissionError?.message,
-        stack: salesCommissionError?.stack,
-      });
-    }
-
-    try {
-      employeeTracking = await recordEmployeeAnalytics(client, {
-        tenantId,
-        orderId: order.id,
-        orderItems: orderItemsForCommission,
-        cashierId: resolvedCashierId,
-        salesEmployeeId: resolvedSalesEmployeeId,
-        shiftId: resolvedShiftId,
         branchId: resolvedBranchId,
-        paymentStatus: payment_status || "unpaid",
-        userId: req.user?.id || null,
-      });
-    } catch (employeeTrackingError) {
-      console.error("[pos] employee tracking failed", {
-        order_id: order.id,
-        message: employeeTrackingError?.message,
-        stack: employeeTrackingError?.stack,
-      });
-      employeeTracking = { recorded: false, error: employeeTrackingError?.message || "Employee tracking failed" };
+        createdBy: req.user?.id || null,
+        shiftId: resolvedShiftId,
+        eventType: "sale_cash",
+        sourceType: "order",
+        sourceId: order.id,
+        amount: cashDrawerSaleAmount,
+      }));
     }
 
-    try {
-      loyaltyResult = await processOrderLoyalty(client, {
+    const saleAccountEvents = [
+      {
+        amount: Number(cash_amount || 0) > 0 ? Number(cash_amount || 0) : normalizedSalePaymentMethod === "cash" ? Number(receivedAmount || 0) : 0,
+        paymentMethod: "cash",
+        financialAccountId: cash_financial_account_id || financial_account_id,
+      },
+      {
+        amount: Number(card_amount || 0) > 0 ? Number(card_amount || 0) : normalizedSalePaymentMethod === "card" ? Number(receivedAmount || 0) : 0,
+        paymentMethod: "card",
+        financialAccountId: card_financial_account_id || financial_account_id,
+      },
+      {
+        amount: companyWalletPaymentAmount,
+        paymentMethod: "wallet",
+        financialAccountId: wallet_financial_account_id || financial_account_id,
+      },
+    ];
+    if (!saleAccountEvents.some((event) => event.amount > 0) && Number(receivedAmount || 0) > 0 && !customerWalletPaymentMethods.includes(normalizedSalePaymentMethod)) {
+      saleAccountEvents.push({
+        amount: Number(receivedAmount || 0),
+        paymentMethod: normalizedSalePaymentMethod,
+        financialAccountId: financial_account_id,
+      });
+    }
+    for (const accountEvent of saleAccountEvents) {
+      if (accountEvent.amount <= 0) continue;
+      await timedCheckout(checkoutTiming, "payment_treasury_update_ms", () => recordFinancialAccountActivity(client, {
         tenantId,
-        orderId: order.id,
-        customerId: resolvedCustomerId || order.customer_id,
-        orderTotal: computedTotal,
-        paidAmount: receivedAmount,
-        status: status || "Pending",
-        paymentStatus: payment_status || "unpaid",
-        redeemPoints: loyalty_points_redeemed || 0,
-        walletRedemptionAmount: wallet_amount || 0,
-        skipEarning: Boolean(skip_loyalty_earning),
-        fullWalletRedemptionOnly: Boolean(full_wallet_redemption_only),
-        userId: req.user?.id || null,
-      });
-    } catch (loyaltyError) {
-      console.error("[pos] loyalty processing failed", {
-        order_id: order.id,
-        message: loyaltyError?.message,
-        stack: loyaltyError?.stack,
-      });
+        branchId: resolvedBranchId,
+        financialAccountId: accountEvent.financialAccountId,
+        paymentMethod: accountEvent.paymentMethod,
+        entryType: "sale",
+        direction: 1,
+        sourceType: "order",
+        sourceId: order.id,
+        amount: accountEvent.amount,
+        notes: `Order #${order.invoice_number || order.id}`,
+        createdBy: req.user?.id || null,
+      }));
+    }
+
+    const loyaltyMustBlockCheckout = customerWalletRedemptionAmount > 0 || Number(loyalty_points_redeemed || 0) > 0;
+    if (loyaltyMustBlockCheckout) {
+      try {
+        loyaltyResult = await timedCheckout(checkoutTiming, "loyalty_ms", () => processOrderLoyalty(client, {
+          tenantId,
+          orderId: order.id,
+          customerId: resolvedCustomerId || order.customer_id,
+          orderTotal: computedTotal,
+          paidAmount: receivedAmount,
+          status: resolvedOrderStatus,
+          paymentStatus: payment_status || "unpaid",
+          redeemPoints: loyalty_points_redeemed || 0,
+          walletRedemptionAmount: customerWalletRedemptionAmount,
+          skipEarning: Boolean(skip_loyalty_earning),
+          fullWalletRedemptionOnly: Boolean(full_wallet_redemption_only),
+          userId: req.user?.id || null,
+        }));
+      } catch (loyaltyError) {
+        console.error("[pos] loyalty processing failed", {
+          order_id: order.id,
+          message: loyaltyError?.message,
+          stack: loyaltyError?.stack,
+        });
+        loyaltyResult = {
+          earned: false,
+          redeemed: false,
+          pointsEarned: 0,
+          pointsRedeemed: 0,
+          availablePoints: 0,
+          walletBalance: 0,
+          cashbackAmount: 0,
+          walletRedeemedAmount: 0,
+          activities: [],
+          code: loyaltyError?.code || "",
+          attemptedAmount: loyaltyError?.attemptedAmount ?? customerWalletRedemptionAmount ?? 0,
+          availableBalance: loyaltyError?.availableBalance ?? 0,
+          shortageAmount: loyaltyError?.shortageAmount ?? Math.max(0, Number(customerWalletRedemptionAmount || 0)),
+          error: loyaltyError?.message || "Loyalty processing failed",
+        };
+      }
+    } else {
       loyaltyResult = {
         earned: false,
         redeemed: false,
@@ -1490,16 +2920,38 @@ export const createOrder = async (req, res) => {
         cashbackAmount: 0,
         walletRedeemedAmount: 0,
         activities: [],
-        error: loyaltyError?.message || "Loyalty processing failed",
+        deferred: true,
       };
     }
 
-    if (Number(wallet_amount || 0) > 0 && loyaltyResult?.error) {
+    if (customerWalletRedemptionAmount > 0 && loyaltyResult?.error) {
       await client.query("ROLLBACK");
       transactionStarted = false;
+      await logAccountingAudit(db, {
+        tenantId,
+        userId: req.user?.id || null,
+        action: "pos_checkout_blocked_insufficient_balance",
+        entityType: "pos_checkout",
+        metadata: {
+          attempted_amount: Number(loyaltyResult.attemptedAmount || customerWalletRedemptionAmount || 0),
+          available_balance: Number(loyaltyResult.availableBalance || 0),
+          shortage_amount: Number(loyaltyResult.shortageAmount || 0),
+          account: "customer_wallet",
+          customer_id: resolvedCustomerId || order.customer_id || null,
+          cashier: cashierName || req.user?.email || req.user?.id || null,
+          cashier_id: req.user?.id || null,
+          branch_id: resolvedBranchId || null,
+          timestamp: new Date().toISOString(),
+          reason: loyaltyResult.code || "wallet_payment_failed",
+        },
+      }).catch((auditError) => console.error("[pos] failed to audit blocked checkout", auditError?.message || auditError));
       return res.status(400).json({
         success: false,
         message: loyaltyResult.error || "Unable to apply wallet payment",
+        code: loyaltyResult.code || "WALLET_PAYMENT_FAILED",
+        attempted_amount: Number(loyaltyResult.attemptedAmount || customerWalletRedemptionAmount || 0),
+        available_balance: Number(loyaltyResult.availableBalance || 0),
+        shortage_amount: Number(loyaltyResult.shortageAmount || 0),
       });
     }
 
@@ -1532,7 +2984,22 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    await client.query("COMMIT");
+    const remainingExchangeCredit = exchangeMode ? Math.max(0, Number((exchangeCreditAmount - computedTotal).toFixed(2))) : 0;
+    if (remainingExchangeCredit > 0) {
+      exchangeWalletResult = await recordWalletTransaction(client, {
+        tenantId,
+        customerId: resolvedCustomerId || order.customer_id,
+        type: "exchange_credit",
+        amount: remainingExchangeCredit,
+        orderId: order.id,
+        referenceType: "exchange",
+        referenceId: order.id,
+        notes: `Remaining exchange credit from ${exchange_invoice_number || original_order_id || "original invoice"}`,
+        userId: req.user?.id || null,
+      });
+    }
+
+    await timedCheckout(checkoutTiming, "commit_ms", () => client.query("COMMIT"));
     transactionStarted = false;
 
     const sideEffectContext = {
@@ -1550,6 +3017,18 @@ export const createOrder = async (req, res) => {
       computedTotal,
       cogsTotal,
       resolvedBranchId,
+      order,
+      orderItemsForCommission,
+      resolvedCashierId,
+      resolvedSalesEmployeeId,
+      resolvedShiftId,
+      resolvedCustomerId,
+      receivedAmount,
+      status: resolvedOrderStatus,
+      paymentStatus: payment_status || "unpaid",
+      skipLoyaltyEarning: loyaltyMustBlockCheckout || Boolean(skip_loyalty_earning),
+      totalDiscount,
+      computedSubtotal,
       notes,
       req,
     };
@@ -1561,43 +3040,21 @@ export const createOrder = async (req, res) => {
       });
     });
 
-    const discountRatio = computedSubtotal > 0 ? Number(totalDiscount || 0) / computedSubtotal : 0;
-    if (discountRatio >= 0.3) {
-      createSystemNotification("security_sensitive_action", {
-        tenant_id: tenantId,
-        branch_id: resolvedBranchId,
-        message: `خصم كبير على الطلب ${order.invoice_number || order.id}: ${Math.round(discountRatio * 100)}%`,
-        action_url: `/orders/${order.id}`,
-        entity_type: "order",
-        entity_id: order.id,
-        metadata: { order_id: order.id, discount_amount: totalDiscount, subtotal: computedSubtotal },
-      }).catch((error) => console.warn("[notifications] security skipped", error?.message || error));
-    }
-
-    try {
-      io.emit("new_order", order);
-      io.emit("dashboard:activity", {
-        type: "order",
-        title: order.invoice_number || `Order #${order.id}`,
-        invoice_number: order.invoice_number,
-        amount: Number(order.total_amount || order.total || 0),
-        status: order.payment_status || order.status || "created",
-        created_at: order.created_at || new Date().toISOString(),
-      });
-      io.emit("refresh_dashboard");
-    } catch (socketError) {
-      console.error("[pos] socket emit failed", {
-        order_id: order.id,
-        message: socketError?.message,
-      });
-    }
-
-    return res.status(201).json({
+    checkoutTiming.add("notifications_ms", 0);
+    checkoutTiming.add("pdf_generation_ms", 0);
+    const responsePayload = {
       success: true,
       message: "Order created successfully",
       order,
       order_id: order.id,
       invoice_number: order.invoice_number,
+      total: Number(order.total_amount || order.total || computedTotal || 0),
+      customer: {
+        id: resolvedCustomerId || order.customer_id || null,
+        name: resolvedCustomerName,
+        phone: resolvedCustomerPhone || "",
+      },
+      payment_status: order.payment_status || payment_status || "unpaid",
       tax_amount: normalizedTaxAmount,
       tax_rate: normalizedTaxRate,
       public_token: order.public_token,
@@ -1615,11 +3072,18 @@ export const createOrder = async (req, res) => {
       wallet: {
         cashbackAmount: Number(loyaltyResult?.cashbackAmount || 0),
         redeemedAmount: Number(loyaltyResult?.walletRedeemedAmount || 0),
-        balance: Number(loyaltyResult?.walletBalance || 0),
+        balance: Number(exchangeWalletResult?.afterBalance ?? loyaltyResult?.walletBalance ?? 0),
+        exchangeCreditAmount: Number(exchangeWalletResult?.amount || 0),
       },
       activity: Array.isArray(loyaltyResult?.activities) ? loyaltyResult.activities : [],
       employeeTracking,
-    });
+      timings: POS_CHECKOUT_DEBUG ? checkoutTiming.summary({ order_id: order.id, items_count: itemsCount }) : undefined,
+    };
+    const responseStartedAt = nowMs();
+    const response = res.status(201).json(responsePayload);
+    checkoutTiming.add("response_send_ms", nowMs() - responseStartedAt);
+    logCheckoutTiming(checkoutTiming.summary({ order_id: order.id, items_count: itemsCount }));
+    return response;
   } catch (error) {
     if (transactionStarted) {
       try {
@@ -1638,11 +3102,26 @@ export const createOrder = async (req, res) => {
       column: error?.column,
       stack: error?.stack,
     });
+    if (POS_CHECKOUT_DEBUG) {
+      console.warn("[pos-checkout-error]", {
+        phase: orderCreateStep,
+        code: error?.code,
+        message: error?.message,
+        detail: error?.detail,
+        timings: checkoutTiming.summary({ failed: true, step: orderCreateStep }),
+      });
+    }
+    logCheckoutTiming(checkoutTiming.summary({ failed: true, step: orderCreateStep }));
     return res.status(500).json({
       success: false,
       message: "Order creation failed",
       detail: process.env.NODE_ENV !== "production" ? `${orderCreateStep}: ${error.message}` : undefined,
       code: process.env.NODE_ENV !== "production" ? error.code : undefined,
+      routeName: error.routeName,
+      insertLabel: error.insertLabel,
+      columnsCount: error.columnsCount,
+      paramsCount: error.paramsCount,
+      sqlSnippetLabel: error.sqlSnippetLabel,
     });
   } finally {
     if (client) {
@@ -1725,26 +3204,245 @@ export const getShiftReport = async (req, res) => {
   }
 };
 
-export const getOrders = async (req, res) => {
+const getPosRecentOrders = async (req, res) => {
+  const startedAt = nowMs();
+  const timings = {
+    orders_query_ms: 0,
+    items_query_ms: 0,
+    count_query_ms: 0,
+  };
+
   try {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-    await ensurePosShiftOrderColumns(db, tenantId);
+    const requestedLimit = Number(req.query.limit);
+    const requestedOffset = Number(req.query.offset);
+    const limit = Math.min(Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : 10), 100);
+    const offset = Math.max(0, Number.isFinite(requestedOffset) ? requestedOffset : 0);
+    const search = String(req.query.search || req.query.q || "").trim();
+
+    const [orderColumns, hasCustomersTable] = await Promise.all([
+      getTableColumnSet(db, "orders"),
+      tableExists(db, "customers"),
+    ]);
+    const customerColumns = hasCustomersTable ? await getTableColumnSet(db, "customers") : new Set();
+
+    const invoiceExpr = orderColumns.has("invoice_number") ? "o.invoice_number" : "'INV-' || o.id::text";
+    const totalExpr = orderColumns.has("total_amount")
+      ? "o.total_amount"
+      : orderColumns.has("total")
+        ? "o.total"
+        : orderColumns.has("total_price")
+          ? "o.total_price"
+          : "0";
+    const statusExpr = orderColumns.has("status") ? "o.status" : "''";
+    const paymentStatusExpr = orderColumns.has("payment_status") ? "o.payment_status" : "''";
+    const paymentMethodExpr = orderColumns.has("payment_method") ? "o.payment_method" : "''";
+    const createdExpr = orderColumns.has("created_at") ? "o.created_at" : "NOW()";
+    const returnedExpr = orderColumns.has("returned_at") ? "o.returned_at" : "NULL";
+    const deletedExpr = orderColumns.has("deleted_at") ? "o.deleted_at" : "NULL";
+    const orderCustomerNameExpr = orderColumns.has("customer_name") ? "o.customer_name" : "''";
+    const orderCustomerPhoneExpr = orderColumns.has("customer_phone") ? "o.customer_phone" : "''";
+    const posColumn = firstExistingColumn(orderColumns, ["channel", "source", "order_source", "type"]);
+    const customerNameColumn = firstExistingColumn(customerColumns, ["name", "full_name", "customer_name"]);
+    const customerPhoneColumn = firstExistingColumn(customerColumns, ["phone", "mobile", "customer_phone"]);
+    const customerJoin = hasCustomersTable && orderColumns.has("customer_id") && (customerNameColumn || customerPhoneColumn)
+      ? "LEFT JOIN customers c ON c.id = o.customer_id"
+      : "";
+    const customerRecordNameExpr = customerJoin && customerNameColumn ? `COALESCE(c.${customerNameColumn}, '')` : "''";
+    const customerRecordPhoneExpr = customerJoin && customerPhoneColumn ? `COALESCE(c.${customerPhoneColumn}, '')` : "''";
+
+    const params = [];
+    const addParam = (value) => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+    const where = [`${deletedExpr} IS NULL`];
+    if (tenantId !== null && orderColumns.has("tenant_id")) {
+      where.push(`o.tenant_id = ${addParam(tenantId)}::bigint`);
+    }
+    if (posColumn) {
+      where.push(`COALESCE(o.${posColumn}, 'pos') = 'pos'`);
+    }
+    if (search) {
+      const searchParam = addParam(`%${search.toLowerCase()}%`);
+      where.push(`(
+        LOWER(COALESCE(${invoiceExpr}, '')) LIKE ${searchParam}
+        OR LOWER(COALESCE(${orderCustomerNameExpr}, '')) LIKE ${searchParam}
+        OR LOWER(COALESCE(${orderCustomerPhoneExpr}, '')) LIKE ${searchParam}
+        OR LOWER(COALESCE(${customerRecordNameExpr}, '')) LIKE ${searchParam}
+        OR LOWER(COALESCE(${customerRecordPhoneExpr}, '')) LIKE ${searchParam}
+      )`);
+    }
+    const whereSql = `WHERE ${where.join(" AND ")}`;
+
+    const ordersStartedAt = nowMs();
+    const rowsResult = await db.query(
+      `
+      SELECT
+        o.id,
+        ${invoiceExpr} AS invoice_number,
+        COALESCE(${totalExpr}, 0) AS total,
+        COALESCE(${statusExpr}, '') AS status,
+        COALESCE(${paymentStatusExpr}, '') AS payment_status,
+        COALESCE(${paymentMethodExpr}, '') AS payment_method,
+        COALESCE(NULLIF(${orderCustomerNameExpr}, ''), NULLIF(${customerRecordNameExpr}, ''), NULLIF(${orderCustomerPhoneExpr}, ''), NULLIF(${customerRecordPhoneExpr}, ''), '') AS customer_name,
+        COALESCE(NULLIF(${orderCustomerPhoneExpr}, ''), NULLIF(${customerRecordPhoneExpr}, ''), '') AS customer_phone,
+        ${createdExpr} AS created_at,
+        ${returnedExpr} AS returned_at,
+        (
+          ${returnedExpr} IS NOT NULL
+          OR LOWER(COALESCE(${statusExpr}, '')) IN ('returned', 'refunded', 'partially_refunded')
+          OR LOWER(COALESCE(${paymentStatusExpr}, '')) IN ('refunded', 'partially_refunded')
+        ) AS is_returned,
+        (
+          LOWER(COALESCE(${statusExpr}, '')) IN ('refunded', 'partially_refunded')
+          OR LOWER(COALESCE(${paymentStatusExpr}, '')) IN ('refunded', 'partially_refunded')
+        ) AS is_refunded
+      FROM orders o
+      ${customerJoin}
+      ${whereSql}
+      ORDER BY ${createdExpr} DESC, o.id DESC
+      LIMIT ${addParam(limit)}
+      OFFSET ${addParam(offset)}
+      `,
+      params
+    );
+    timings.orders_query_ms = nowMs() - ordersStartedAt;
+
+    const countStartedAt = nowMs();
+    const countParams = params.slice(0, params.length - 2);
+    const countResult = await db.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM orders o
+      ${customerJoin}
+      ${whereSql}
+      `,
+      countParams
+    );
+    timings.count_query_ms = nowMs() - countStartedAt;
+
+    const total = Number(countResult.rows[0]?.total || 0);
+    const orders = rowsResult.rows.map((order) => ({
+      id: order.id,
+      invoice_number: order.invoice_number || `INV-${order.id}`,
+      total: Number(order.total || 0),
+      total_amount: Number(order.total || 0),
+      status: order.status || "",
+      payment_status: order.payment_status || "",
+      payment_method: order.payment_method || "",
+      customer_name: order.customer_name || "",
+      customer_phone: order.customer_phone || "",
+      created_at: order.created_at,
+      returned_at: order.returned_at || null,
+      is_returned: Boolean(order.is_returned),
+      is_refunded: Boolean(order.is_refunded),
+      refund_summary: Boolean(order.is_refunded) ? "refunded" : Boolean(order.is_returned) ? "returned" : "active",
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: orders,
+      orders,
+      pagination: {
+        limit,
+        offset,
+        total,
+        has_more: offset + orders.length < total,
+      },
+    });
+  } catch (error) {
+    console.error("[orders] POS recent mode error", error);
+    return res.status(500).json({ success: false, message: "Failed to load recent POS orders", error: error.message });
+  } finally {
+    if (ERP_PERF_DEBUG) {
+      console.log("[pos-recent-orders-timing]", {
+        ...timings,
+        total_ms: nowMs() - startedAt,
+      });
+    }
+  }
+};
+
+export const getOrders = async (req, res) => {
+  if (String(req.query.mode || "").trim().toLowerCase() === "pos_recent") {
+    return getPosRecentOrders(req, res);
+  }
+
+  try {
+    const startedAt = nowMs();
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
 
     const page = Math.max(1, Number(req.query.page) || 1);
     const requestedLimit = Number(req.query.limit);
     const limit = Math.min(Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : 250), 500);
     const offset = (page - 1) * limit;
     const params = tenantId === null ? [limit, offset] : [tenantId, limit, offset];
-    const tenantWhere = tenantId === null ? "" : "WHERE tenant_id = $1";
+    const tenantWhere = tenantId === null
+      ? "WHERE o.deleted_at IS NULL"
+      : "WHERE o.tenant_id = $1 AND o.deleted_at IS NULL";
     const limitParam = tenantId === null ? "$1" : "$2";
     const offsetParam = tenantId === null ? "$2" : "$3";
+    const [hasCustomersTable, hasSalesEmployeesTable, hasEmployeesTable] = await Promise.all([
+      tableExists(db, "customers"),
+      tableExists(db, "sales_employees"),
+      tableExists(db, "employees"),
+    ]);
+    const [customerColumns, salesEmployeeColumns, employeeColumns] = await Promise.all([
+      hasCustomersTable ? getTableColumnSet(db, "customers") : Promise.resolve(new Set()),
+      hasSalesEmployeesTable ? getTableColumnSet(db, "sales_employees") : Promise.resolve(new Set()),
+      hasEmployeesTable ? getTableColumnSet(db, "employees") : Promise.resolve(new Set()),
+    ]);
+    const customerPhoneColumn = firstExistingColumn(customerColumns, ["phone", "mobile", "customer_phone"]);
+    const customerJoin = hasCustomersTable && customerPhoneColumn
+      ? "LEFT JOIN customers c ON c.id = o.customer_id"
+      : "";
+    const customerRecordPhoneExpr = customerJoin ? `COALESCE(c.${customerPhoneColumn}, '')` : "''";
+    const assignedSellerIdExpr = "COALESCE(o.sales_employee_id, o.salesperson_id)";
+    const salesEmployeeNameColumn = firstExistingColumn(salesEmployeeColumns, ["name", "full_name", "employee_name"]);
+    const employeeNameColumn = firstExistingColumn(employeeColumns, ["full_name", "name", "employee_name"]);
+    const employeeDeletedFilter = employeeColumns.has("is_deleted") ? "AND seller_employee.is_deleted IS DISTINCT FROM TRUE" : "";
+    const employeeSellerJoin = hasEmployeesTable && employeeNameColumn
+      ? `
+        LEFT JOIN employees seller_employee ON seller_employee.id = ${assignedSellerIdExpr}
+          ${employeeDeletedFilter}
+      `
+      : "";
+    const salesEmployeeJoin = hasSalesEmployeesTable && salesEmployeeNameColumn
+      ? `
+        LEFT JOIN LATERAL (
+          SELECT se.${salesEmployeeNameColumn} AS name
+          FROM sales_employees se
+          WHERE se.id = ${assignedSellerIdExpr}
+             OR ${salesEmployeeColumns.has("employee_id") ? `se.employee_id = ${assignedSellerIdExpr}` : "FALSE"}
+          ORDER BY se.id ASC
+          LIMIT 1
+        ) se ON TRUE
+      `
+      : "";
+    const salesEmployeeExpr = salesEmployeeJoin ? "COALESCE(se.name, '')" : "''";
+    const employeeSellerExpr = employeeSellerJoin ? `COALESCE(seller_employee.${employeeNameColumn}, '')` : "''";
 
     const result = await db.query(
       `
-      SELECT *
-      FROM orders
+      SELECT
+        o.*,
+        COALESCE(NULLIF(o.customer_phone, ''), NULLIF(${customerRecordPhoneExpr}, ''), '') AS customer_phone,
+        COALESCE(NULLIF(o.customer_phone, ''), NULLIF(${customerRecordPhoneExpr}, ''), '') AS phone,
+        COALESCE(o.paid_amount, 0) AS paid_amount,
+        COALESCE(o.paid_amount, 0) AS amount_paid,
+        COALESCE(o.paid_amount, 0) AS payment_paid_amount,
+        COALESCE(o.paid_amount, 0) AS total_paid,
+        COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), '') AS sales_employee_name,
+        COALESCE(NULLIF(o.seller_name, ''), NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.salesperson_name, ''), '') AS seller_name,
+        COALESCE(NULLIF(o.salesperson_name, ''), NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), '') AS salesperson_name,
+        COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), '') AS assigned_seller_name
+      FROM orders o
+      ${customerJoin}
+      ${employeeSellerJoin}
+      ${salesEmployeeJoin}
       ${tenantWhere}
-      ORDER BY created_at DESC
+      ORDER BY o.created_at DESC
       LIMIT ${limitParam}
       OFFSET ${offsetParam}
       `,
@@ -1767,9 +3465,22 @@ export const getOrders = async (req, res) => {
           oi.barcode,
           COALESCE(pv.color, '') AS color,
           COALESCE(pv.size, '') AS size,
-          oi.quantity
+          CONCAT_WS(' / ', NULLIF(pv.color, ''), NULLIF(pv.size, '')) AS variant_label,
+          oi.quantity,
+          oi.sale_price AS unit_price,
+          oi.price AS stored_price,
+          oi.sale_price AS price,
+          oi.sale_price AS sale_price,
+          oi.total_amount AS line_total,
+          oi.total_amount AS subtotal,
+          oi.total_amount AS item_total,
+          pv.price AS variant_price,
+          pv.sale_price AS variant_sale_price,
+          p.price AS product_price,
+          p.sale_price AS product_sale_price
         FROM order_items oi
         LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+        LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
         WHERE oi.order_id = ANY($1::bigint[])
           AND ($2::bigint IS NULL OR oi.tenant_id = $2::bigint OR oi.tenant_id IS NULL)
         ORDER BY oi.order_id DESC, oi.id ASC
@@ -1785,21 +3496,50 @@ export const getOrders = async (req, res) => {
       }
     }
 
-    res.status(200).json(
-      result.rows.map((order) => ({
-        ...order,
-        items: itemsByOrder.get(String(order.id)) || [],
-      }))
-    );
+    const payload = result.rows.map((order) => {
+        const items = normalizeReturnedOrderItems(order, itemsByOrder.get(String(order.id)) || []);
+        const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+        return {
+          ...order,
+          total_quantity: totalQuantity,
+          total_items: totalQuantity,
+          item_count: totalQuantity,
+          items,
+        };
+      });
+    if (POS_DEBUG) console.log("[orders-list-timing]", { count: payload.length, total_ms: nowMs() - startedAt });
+    res.status(200).json(payload);
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Server Error" });
   }
 };
 
-const BLOCKED_OPERATION_STATUSES = new Set(["cancelled", "canceled", "refunded"]);
+const BLOCKED_OPERATION_STATUSES = new Set(["cancelled", "returned"]);
 
-const normalizeOrderStatus = (value = "") => String(value || "").trim().toLowerCase();
+const normalizeOrderStatus = (value = "") => normalizeOrderLifecycleStatus(value, "pending");
+const isDeliveredOrder = (order = {}) => {
+  const status = normalizeOrderStatus(order.status || order.payment_status);
+  const shippingStatus = normalizeOrderStatus(order.shipping_status);
+  return status === "delivered" || shippingStatus === "delivered";
+};
+
+const getUserBranchId = (user = {}) => {
+  const value = user.branch_id ?? user.branchId ?? user.default_branch_id ?? null;
+  const branchId = Number(value);
+  return Number.isFinite(branchId) && branchId > 0 ? branchId : null;
+};
+
+const assertOrderBranchScope = (req, order = {}) => {
+  if (isSuperAdminUser(req.user)) return;
+  const userBranchId = getUserBranchId(req.user);
+  if (!userBranchId || !order.branch_id) return;
+  if (String(userBranchId) !== String(order.branch_id)) {
+    const error = new Error("Order is outside your branch scope");
+    error.status = 403;
+    throw error;
+  }
+};
 
 const assertOrderEditable = (order) => {
   if (!order || BLOCKED_OPERATION_STATUSES.has(normalizeOrderStatus(order.status))) {
@@ -1811,7 +3551,7 @@ const assertOrderEditable = (order) => {
 
 const assertOrderReturnable = (order) => {
   const status = normalizeOrderStatus(order?.status || order?.payment_status);
-  if (!order || ["cancelled", "canceled", "refunded", "returned"].includes(status)) {
+  if (!order || ["cancelled", "returned"].includes(status)) {
     const error = new Error("لا يمكن إنشاء مرتجع لفاتورة ملغاة أو مرتجعة بالكامل");
     error.status = 400;
     throw error;
@@ -1821,7 +3561,7 @@ const assertOrderReturnable = (order) => {
 const markCustomerTrustedForCompletedOrder = async (client, order = {}) => {
   const status = normalizeOrderStatus(order?.status);
   const shippingStatus = normalizeOrderStatus(order?.shipping_status);
-  if (!["delivered", "completed"].includes(status) && !["delivered", "completed"].includes(shippingStatus)) return;
+  if (status !== "delivered" && shippingStatus !== "delivered") return;
   if (order.customer_trust_counted_at) return;
   const customerId = order.customer_id || null;
   const phone = String(order.customer_phone || "").trim();
@@ -1844,6 +3584,8 @@ const markCustomerTrustedForCompletedOrder = async (client, order = {}) => {
 };
 
 const getTableColumnSet = async (clientOrPool, tableName) => {
+  if (tableColumnSetCache.has(tableName)) return tableColumnSetCache.get(tableName);
+  warnRuntimeSchemaExecution(`information_schema.columns:${tableName}`);
   const result = await clientOrPool.query(
     `
     SELECT column_name
@@ -1853,10 +3595,14 @@ const getTableColumnSet = async (clientOrPool, tableName) => {
     `,
     [tableName]
   );
-  return new Set(result.rows.map((row) => row.column_name));
+  const columns = new Set(result.rows.map((row) => row.column_name));
+  tableColumnSetCache.set(tableName, columns);
+  return columns;
 };
 
 const tableExists = async (clientOrPool, tableName) => {
+  if (tableExistsCache.has(tableName)) return tableExistsCache.get(tableName);
+  warnRuntimeSchemaExecution(`information_schema.tables:${tableName}`);
   const result = await clientOrPool.query(
     `
     SELECT 1
@@ -1867,16 +3613,168 @@ const tableExists = async (clientOrPool, tableName) => {
     `,
     [tableName]
   );
-  return Boolean(result.rows[0]);
+  const exists = Boolean(result.rows[0]);
+  tableExistsCache.set(tableName, exists);
+  return exists;
+};
+
+export const warmOrdersSchemaCache = async (clientOrPool = db) => {
+  const tableNames = [
+    "orders",
+    "order_items",
+    "users",
+    "customers",
+    "product_variants",
+    "products",
+    "product_variant_images",
+    "sales_employees",
+    "employees",
+    "returns",
+    "return_items",
+    "payment_transactions",
+    "payment_transaction_events",
+    "wallet_transactions",
+    "loyalty_transactions",
+    "activity_logs",
+  ];
+  await Promise.all(tableNames.map((tableName) => tableExists(clientOrPool, tableName)));
+  await Promise.all(tableNames.map((tableName) => getTableColumnSet(clientOrPool, tableName)));
 };
 
 const firstExistingColumn = (columns, candidates = []) => candidates.find((column) => columns.has(column)) || null;
 
+const isHardDeleteAdmin = (user = {}) => {
+  if (isSuperAdminUser(user)) return true;
+  const role = String(user.role || user.role_name || user.type || "").trim().toLowerCase();
+  return ["admin", "super admin", "super_admin", "superadmin", "owner"].includes(role);
+};
+
+const hardDeleteConfirmed = (value = "") => {
+  const text = String(value || "").trim();
+  return text === "DELETE" || text === "حذف";
+};
+
+const deleteFromTableByPredicates = async (client, tableName, predicates = [], params = []) => {
+  if (!(await tableExists(client, tableName))) return 0;
+  const columns = await getTableColumnSet(client, tableName);
+  const clauses = predicates
+    .filter((predicate) => (predicate.columns || []).every((column) => columns.has(column)))
+    .map((predicate) => predicate.sql);
+  if (!clauses.length) return 0;
+  const result = await client.query(`DELETE FROM ${tableName} WHERE ${clauses.join(" OR ")}`, params);
+  return result.rowCount || 0;
+};
+
+const deleteReturnRowsForOrder = async (client, orderId) => {
+  if (!(await tableExists(client, "returns"))) return { return_items: 0, returns: 0 };
+  const returnColumns = await getTableColumnSet(client, "returns");
+  if (!returnColumns.has("order_id")) return { return_items: 0, returns: 0 };
+  const deleted = { return_items: 0, returns: 0 };
+
+  if (await tableExists(client, "return_items")) {
+    const itemColumns = await getTableColumnSet(client, "return_items");
+    if (itemColumns.has("return_id") && returnColumns.has("id")) {
+      const result = await client.query(
+        `DELETE FROM return_items WHERE return_id IN (SELECT id FROM returns WHERE order_id = $1)`,
+        [orderId]
+      );
+      deleted.return_items = result.rowCount || 0;
+    }
+  }
+
+  const result = await client.query(`DELETE FROM returns WHERE order_id = $1`, [orderId]);
+  deleted.returns = result.rowCount || 0;
+  return deleted;
+};
+
+const deleteOrderRelatedRows = async (client, orderId) => {
+  const deleted = {};
+  const addCount = (key, count) => {
+    deleted[key] = (deleted[key] || 0) + Number(count || 0);
+  };
+
+  const returnCounts = await deleteReturnRowsForOrder(client, orderId);
+  Object.entries(returnCounts).forEach(([key, count]) => addCount(key, count));
+
+  if (await tableExists(client, "payment_transactions")) {
+    const txColumns = await getTableColumnSet(client, "payment_transactions");
+    if (txColumns.has("order_id") && txColumns.has("id") && await tableExists(client, "payment_transaction_events")) {
+      const eventColumns = await getTableColumnSet(client, "payment_transaction_events");
+      if (eventColumns.has("transaction_id")) {
+        const result = await client.query(
+          `DELETE FROM payment_transaction_events WHERE transaction_id IN (SELECT id FROM payment_transactions WHERE order_id = $1)`,
+          [orderId]
+        );
+        addCount("payment_transaction_events", result.rowCount);
+      }
+    }
+  }
+
+  addCount("payment_transactions", await deleteFromTableByPredicates(client, "payment_transactions", [
+    { columns: ["order_id"], sql: "order_id = $1" },
+    { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order')" },
+  ], [orderId]));
+  addCount("wallet_transactions", await deleteFromTableByPredicates(client, "wallet_transactions", [
+    { columns: ["order_id"], sql: "order_id = $1" },
+    { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order', 'order_payment')" },
+  ], [orderId]));
+  addCount("loyalty_transactions", await deleteFromTableByPredicates(client, "loyalty_transactions", [
+    { columns: ["order_id"], sql: "order_id = $1" },
+    { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order')" },
+  ], [orderId]));
+  addCount("employee_commissions", await deleteFromTableByPredicates(client, "employee_commissions", [
+    { columns: ["order_id"], sql: "order_id = $1" },
+    { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order')" },
+  ], [orderId]));
+  addCount("employee_sales", await deleteFromTableByPredicates(client, "employee_sales", [
+    { columns: ["order_id"], sql: "order_id = $1" },
+    { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order')" },
+  ], [orderId]));
+  addCount("cash_drawer_shift_events", await deleteFromTableByPredicates(client, "cash_drawer_shift_events", [
+    { columns: ["order_id"], sql: "order_id = $1" },
+    { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
+    { columns: ["source_id", "source_type"], sql: "source_id = $1 AND LOWER(source_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
+  ], [orderId]));
+  addCount("financial_account_entries", await deleteFromTableByPredicates(client, "financial_account_entries", [
+    { columns: ["source_id", "source_type"], sql: "source_id = $1 AND LOWER(source_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
+  ], [orderId]));
+  addCount("journal_entries", await deleteFromTableByPredicates(client, "journal_entries", [
+    { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
+  ], [orderId]));
+  addCount("marketing_attribution_events", await deleteFromTableByPredicates(client, "marketing_attribution_events", [
+    { columns: ["order_id"], sql: "order_id = $1" },
+  ], [orderId]));
+  addCount("notifications", await deleteFromTableByPredicates(client, "notifications", [
+    { columns: ["entity_id", "entity_type"], sql: "entity_id = $1::text AND UPPER(entity_type) IN ('ORDER', 'INVOICE')" },
+    { columns: ["action_url"], sql: "action_url IN ('/orders/' || $1::text, '/invoices/' || $1::text)" },
+    { columns: ["metadata"], sql: "metadata->>'order_id' = $1::text" },
+  ], [orderId]));
+  addCount("website_notifications", await deleteFromTableByPredicates(client, "website_notifications", [
+    { columns: ["metadata"], sql: "metadata->>'order_id' = $1::text" },
+  ], [orderId]));
+  addCount("order_reprint_logs", await deleteFromTableByPredicates(client, "order_reprint_logs", [
+    { columns: ["order_id"], sql: "order_id = $1" },
+  ], [orderId]));
+  addCount("order_edit_audits", await deleteFromTableByPredicates(client, "order_edit_audits", [
+    { columns: ["order_id"], sql: "order_id = $1" },
+  ], [orderId]));
+  addCount("activity_logs", await deleteFromTableByPredicates(client, "activity_logs", [
+    { columns: ["entity", "entity_id"], sql: "entity_id = $1 AND UPPER(entity) IN ('ORDER', 'INVOICE')" },
+  ], [orderId]));
+  addCount("order_items", await deleteFromTableByPredicates(client, "order_items", [
+    { columns: ["order_id"], sql: "order_id = $1" },
+  ], [orderId]));
+
+  return deleted;
+};
+
 const normalizeOperationItem = (item = {}) => {
   const quantity = Math.max(0, Number(item.quantity || 0));
-  const price = Number(item.price ?? item.sale_price ?? item.unit_price ?? 0);
+  const price = resolveInputUnitPrice(item);
   const discount = Number(item.discount_amount ?? item.discount ?? 0);
+  const lineTotal = resolveInputLineTotal(item, price);
   return {
+    id: item.id || item.order_item_id || null,
     product_id: item.product_id || item.productId || null,
     product_name: item.product_name || item.name || "",
     variant_id: isRealId(item.variant_id ?? item.variantId) ? item.variant_id ?? item.variantId : null,
@@ -1884,27 +3782,79 @@ const normalizeOperationItem = (item = {}) => {
     variation_mode: item.variation_mode || item.variationMode || "full_variations",
     sku: item.sku || "",
     barcode: item.barcode || "",
+    color: item.color || "",
+    size: item.size || "",
     quantity,
     price,
     discount_amount: discount,
     tax_amount: Number(item.tax_amount || 0),
-    total_amount: Math.max(0, Number(item.total_amount ?? price * quantity - discount)),
+    line_total: lineTotal,
+    subtotal: lineTotal,
+    total_amount: lineTotal,
   };
 };
 
-const stockKeyForItem = (item = {}) =>
-  item.variant_id ? `variant:${item.variant_id}` : `product:${item.product_id || ""}`;
-
 const loadOrderWithItems = async (clientOrPool, { tenantId, orderId }) => {
+  const [hasSalesEmployeesTable, hasUsersTable, hasEmployeesTable] = await Promise.all([
+    tableExists(clientOrPool, "sales_employees"),
+    tableExists(clientOrPool, "users"),
+    tableExists(clientOrPool, "employees"),
+  ]);
+  const salesEmployeeColumns = hasSalesEmployeesTable ? await getTableColumnSet(clientOrPool, "sales_employees") : new Set();
+  const userColumns = hasUsersTable ? await getTableColumnSet(clientOrPool, "users") : new Set();
+  const employeeColumns = hasEmployeesTable ? await getTableColumnSet(clientOrPool, "employees") : new Set();
+  const salesEmployeeNameColumn = firstExistingColumn(salesEmployeeColumns, ["name", "full_name", "employee_name"]);
+  const employeeNameColumn = firstExistingColumn(employeeColumns, ["full_name", "name", "employee_name"]);
+  const userNameColumn = firstExistingColumn(userColumns, ["name", "full_name", "username", "email"]);
+  const assignedSellerIdExpr = "COALESCE(o.sales_employee_id, o.salesperson_id)";
+  const employeeDeletedFilter = employeeColumns.has("is_deleted") ? "AND seller_employee.is_deleted IS DISTINCT FROM TRUE" : "";
+  const employeeSellerJoin = hasEmployeesTable && employeeNameColumn
+    ? `
+      LEFT JOIN employees seller_employee ON seller_employee.id = ${assignedSellerIdExpr}
+        ${employeeDeletedFilter}
+    `
+    : "";
+  const salesEmployeeJoin = hasSalesEmployeesTable && salesEmployeeNameColumn
+    ? `
+      LEFT JOIN LATERAL (
+        SELECT se.${salesEmployeeNameColumn} AS name
+        FROM sales_employees se
+        WHERE se.id = ${assignedSellerIdExpr}
+           OR ${salesEmployeeColumns.has("employee_id") ? `se.employee_id = ${assignedSellerIdExpr}` : "FALSE"}
+        ORDER BY se.id ASC
+        LIMIT 1
+      ) se ON TRUE
+    `
+    : "";
+  const sellerUserJoin = hasUsersTable && userNameColumn
+    ? "LEFT JOIN users seller_user ON seller_user.id = o.seller_user_id"
+    : "";
+  const salesEmployeeExpr = salesEmployeeJoin ? "COALESCE(se.name, '')" : "''";
+  const employeeSellerExpr = employeeSellerJoin ? `COALESCE(seller_employee.${employeeNameColumn}, '')` : "''";
+  const sellerUserExpr = sellerUserJoin ? `COALESCE(seller_user.${userNameColumn}, '')` : "''";
   const orderResult = await clientOrPool.query(
     `
-    SELECT o.*, u.name AS cashier_name, c.name AS customer_record_name, c.phone AS customer_record_phone
+    SELECT
+      o.*,
+      u.name AS cashier_name,
+      c.name AS customer_record_name,
+      c.phone AS customer_record_phone,
+      COALESCE(o.sales_employee_id, o.salesperson_id, o.seller_user_id) AS seller_id,
+      ${assignedSellerIdExpr} AS assigned_seller_id,
+      COALESCE(NULLIF(o.seller_name, ''), NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.salesperson_name, ''), NULLIF(${sellerUserExpr}, ''), '') AS seller_name,
+      COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), '') AS sales_employee_name,
+      COALESCE(NULLIF(o.salesperson_name, ''), NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), '') AS salesperson_name,
+      COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), '') AS assigned_seller_name
     FROM orders o
     LEFT JOIN users u ON u.id = COALESCE(o.cashier_id, o.created_by)
     LEFT JOIN customers c ON c.id = o.customer_id
+    ${employeeSellerJoin}
+    ${salesEmployeeJoin}
+    ${sellerUserJoin}
     WHERE o.id = $1
       AND ($2::bigint IS NULL OR o.tenant_id = $2::bigint)
     LIMIT 1
+    ${typeof clientOrPool?.release === "function" ? "FOR UPDATE OF o" : ""}
     `,
     [orderId, tenantId]
   );
@@ -1916,13 +3866,58 @@ const loadOrderWithItems = async (clientOrPool, { tenantId, orderId }) => {
     SELECT
       oi.*,
       oi.sale_price AS price,
+      oi.sale_price AS unit_price,
+      oi.total_amount AS line_total,
       pv.size,
       pv.color,
-      pv.image_url,
+      COALESCE(
+        NULLIF(oi.image_url, ''),
+        NULLIF(oi.product_image, ''),
+        NULLIF(oi.variant_image, ''),
+        NULLIF(pv.image_url, ''),
+        NULLIF(pvi.image_url, ''),
+        NULLIF(p.image_url, ''),
+        ''
+      ) AS image_url,
+      COALESCE(NULLIF(oi.product_image, ''), NULLIF(p.image_url, ''), '') AS product_image,
+      COALESCE(NULLIF(oi.variant_image, ''), NULLIF(pv.image_url, ''), NULLIF(pvi.image_url, ''), '') AS variant_image,
+      COALESCE(p.gallery_images, '[]'::jsonb) AS product_images,
+      COALESCE(pvi.images, '[]'::jsonb) AS variant_images,
+      jsonb_build_object(
+        'id', p.id,
+        'image', COALESCE(NULLIF(p.image, ''), NULLIF(p.image_url, ''), ''),
+        'image_url', COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), ''),
+        'images', COALESCE(p.gallery_images, '[]'::jsonb)
+      ) AS product,
+      jsonb_build_object(
+        'id', pv.id,
+        'image', COALESCE(NULLIF(pv.image, ''), NULLIF(pv.image_url, ''), NULLIF(pvi.image_url, ''), ''),
+        'image_url', COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, ''), NULLIF(pvi.image_url, ''), ''),
+        'images', COALESCE(pvi.images, '[]'::jsonb),
+        'color', pv.color,
+        'size', pv.size
+      ) AS variant,
       COALESCE(p.name, oi.product_name) AS product_name
     FROM order_items oi
     LEFT JOIN product_variants pv ON oi.variant_id = pv.id
     LEFT JOIN products p ON COALESCE(oi.product_id, pv.product_id) = p.id
+    LEFT JOIN LATERAL (
+      SELECT
+        (array_agg(image_url ORDER BY is_primary DESC, sort_order ASC, id ASC))[1] AS image_url,
+        COALESCE(jsonb_agg(image_url ORDER BY is_primary DESC, sort_order ASC, id ASC) FILTER (WHERE NULLIF(image_url, '') IS NOT NULL), '[]'::jsonb) AS images
+      FROM product_variant_images pvi
+      WHERE NULLIF(pvi.image_url, '') IS NOT NULL
+        AND (
+          pvi.variant_id = pv.id
+          OR (
+            pvi.product_id = p.id
+            AND (
+              NULLIF(pvi.color_name, '') IS NULL
+              OR LOWER(pvi.color_name) = LOWER(COALESCE(pv.color, ''))
+            )
+          )
+        )
+    ) pvi ON TRUE
     WHERE oi.order_id = $1
       AND ($2::bigint IS NULL OR oi.tenant_id = $2::bigint OR oi.tenant_id IS NULL)
     ORDER BY oi.id ASC
@@ -1942,8 +3937,13 @@ const loadOrderWithItems = async (clientOrPool, { tenantId, orderId }) => {
 
 const applyStockDelta = async (client, { tenantId, order, stockLine, delta, movementType, reason, userId }) => {
   if (!stockLine || Number(delta || 0) === 0) return;
+  if (Number(stockLine.stock || 0) + Number(delta || 0) < 0) {
+    const error = new Error(`Not enough stock for ${getOrderItemLabel(stockLine.record || {})}`);
+    error.status = 400;
+    throw error;
+  }
   if (stockLine.type === "variant") {
-    await adjustVariantStock(client, {
+    return adjustVariantStock(client, {
       tenantId,
       variantId: stockLine.variantId,
       quantityChange: Number(delta),
@@ -1956,11 +3956,12 @@ const applyStockDelta = async (client, { tenantId, order, stockLine, delta, move
       notes: `${reason} #${order.invoice_number || order.id}`,
       createdBy: userId || null,
       branchId: order.branch_id || null,
+      warehouseId: order.warehouse_id || null,
     });
     return;
   }
 
-  await adjustProductStock(client, {
+  return adjustProductStock(client, {
     tenantId,
     productId: stockLine.productId,
     quantityChange: Number(delta),
@@ -1971,14 +3972,15 @@ const applyStockDelta = async (client, { tenantId, order, stockLine, delta, move
     notes: `${reason} #${order.invoice_number || order.id}`,
     createdBy: userId || null,
     branchId: order.branch_id || null,
+    warehouseId: order.warehouse_id || null,
     item: stockLine.record || {},
   });
 };
 
 export const getRecentPosOrders = async (req, res) => {
+  return getPosRecentOrders(req, res);
   try {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-    await ensurePosShiftOrderColumns(db, tenantId);
     const limit = Math.min(Math.max(Number(req.query.limit || 20), 1), 100);
 
     const [
@@ -1987,15 +3989,25 @@ export const getRecentPosOrders = async (req, res) => {
       hasUsersTable,
       hasCustomersTable,
       hasProductVariantsTable,
+      hasProductsTable,
+      hasProductVariantImagesTable,
+      hasSalesEmployeesTable,
+      hasEmployeesTable,
     ] = await Promise.all([
       getTableColumnSet(db, "orders"),
       getTableColumnSet(db, "order_items"),
       tableExists(db, "users"),
       tableExists(db, "customers"),
       tableExists(db, "product_variants"),
+      tableExists(db, "products"),
+      tableExists(db, "product_variant_images"),
+      tableExists(db, "sales_employees"),
+      tableExists(db, "employees"),
     ]);
     const userColumns = hasUsersTable ? await getTableColumnSet(db, "users") : new Set();
     const customerColumns = hasCustomersTable ? await getTableColumnSet(db, "customers") : new Set();
+    const salesEmployeeColumns = hasSalesEmployeesTable ? await getTableColumnSet(db, "sales_employees") : new Set();
+    const employeeColumns = hasEmployeesTable ? await getTableColumnSet(db, "employees") : new Set();
 
     const invoiceExpr = orderColumns.has("invoice_number") ? "o.invoice_number" : "'INV-' || o.id::text";
     const customerNameExpr = orderColumns.has("customer_name") ? "o.customer_name" : "''";
@@ -2022,6 +4034,48 @@ export const getRecentPosOrders = async (req, res) => {
     const cashierJoinColumn = firstExistingColumn(orderColumns, ["cashier_id", "created_by", "user_id", "seller_id"]);
     const cashierJoin = hasUsersTable && cashierNameColumn && cashierJoinColumn ? `LEFT JOIN users u ON u.id = o.${cashierJoinColumn}` : "";
     const cashierExpr = cashierJoin ? `COALESCE(u.${cashierNameColumn}, '')` : "''";
+    const sellerNameExpr = orderColumns.has("seller_name") ? "o.seller_name" : "''";
+    const salespersonNameExpr = orderColumns.has("salesperson_name") ? "o.salesperson_name" : "''";
+    const salesEmployeeIdColumns = ["sales_employee_id", "salesperson_id", "assigned_seller_id", "seller_employee_id"]
+      .filter((column) => orderColumns.has(column))
+      .map((column) => `o.${column}`);
+    const salesEmployeeIdExpr =
+      salesEmployeeIdColumns.length > 1
+        ? `COALESCE(${salesEmployeeIdColumns.join(", ")})`
+        : salesEmployeeIdColumns[0] || "NULL";
+    const sellerUserIdExpr = orderColumns.has("seller_user_id") ? "o.seller_user_id" : "NULL";
+    const salesEmployeeNameColumn = firstExistingColumn(salesEmployeeColumns, ["name", "full_name", "employee_name"]);
+    const employeeNameColumn = firstExistingColumn(employeeColumns, ["full_name", "name", "employee_name"]);
+    const employeeDeletedFilter = employeeColumns.has("is_deleted") ? "AND seller_employee.is_deleted IS DISTINCT FROM TRUE" : "";
+    const employeeSellerJoin = hasEmployeesTable && employeeNameColumn && salesEmployeeIdColumns.length > 0
+      ? `
+        LEFT JOIN employees seller_employee ON seller_employee.id = ${salesEmployeeIdExpr}
+          ${employeeDeletedFilter}
+      `
+      : "";
+    const salesEmployeeJoin = hasSalesEmployeesTable && salesEmployeeNameColumn && salesEmployeeIdColumns.length > 0
+      ? `
+        LEFT JOIN LATERAL (
+          SELECT se.${salesEmployeeNameColumn} AS name
+          FROM sales_employees se
+          WHERE se.id = ${salesEmployeeIdExpr}
+             OR ${salesEmployeeColumns.has("employee_id") ? `se.employee_id = ${salesEmployeeIdExpr}` : "FALSE"}
+          ORDER BY se.id ASC
+          LIMIT 1
+        ) se ON TRUE
+      `
+      : "";
+    const salesEmployeeExpr = salesEmployeeJoin ? "COALESCE(se.name, '')" : "''";
+    const employeeSellerExpr = employeeSellerJoin ? `COALESCE(seller_employee.${employeeNameColumn}, '')` : "''";
+    const salespersonUserJoin = hasUsersTable && cashierNameColumn && orderColumns.has("seller_user_id")
+      ? `LEFT JOIN users su ON su.id = ${sellerUserIdExpr}`
+      : "";
+    const salespersonUserExpr = salespersonUserJoin ? `COALESCE(su.${cashierNameColumn}, '')` : "''";
+    const sellerIdSources = [salesEmployeeIdExpr, sellerUserIdExpr].filter((expr) => expr !== "NULL");
+    const sellerIdExpr =
+      sellerIdSources.length > 1
+        ? `COALESCE(${sellerIdSources.join(", ")})`
+        : sellerIdSources[0] || "NULL";
 
     const customerNameColumn = firstExistingColumn(customerColumns, ["name", "full_name", "customer_name"]);
     const customerPhoneColumn = firstExistingColumn(customerColumns, ["phone", "mobile", "customer_phone"]);
@@ -2030,14 +4084,16 @@ export const getRecentPosOrders = async (req, res) => {
       : "";
     const customerRecordNameExpr = customerJoin && customerNameColumn ? `COALESCE(c.${customerNameColumn}, '')` : "''";
     const customerRecordPhoneExpr = customerJoin && customerPhoneColumn ? `COALESCE(c.${customerPhoneColumn}, '')` : "''";
+    const cleanedOrderCustomerNameExpr = `CASE WHEN LOWER(COALESCE(${customerNameExpr}, '')) ~ '^guest[:#-]?[0-9]*$' THEN '' ELSE COALESCE(${customerNameExpr}, '') END`;
 
     const result = await db.query(
       `
       SELECT
         o.id,
         ${invoiceExpr} AS invoice_number,
-        COALESCE(${customerNameExpr}, ${customerRecordNameExpr}, '') AS customer_name,
-        COALESCE(${customerPhoneExpr}, ${customerRecordPhoneExpr}, '') AS customer_phone,
+        COALESCE(NULLIF(${cleanedOrderCustomerNameExpr}, ''), NULLIF(${customerRecordNameExpr}, ''), NULLIF(${customerPhoneExpr}, ''), NULLIF(${customerRecordPhoneExpr}, ''), '') AS customer_name,
+        COALESCE(NULLIF(${customerPhoneExpr}, ''), NULLIF(${customerRecordPhoneExpr}, ''), '') AS customer_phone,
+        COALESCE(NULLIF(${customerRecordNameExpr}, ''), '') AS customer_full_name,
         COALESCE(${totalExpr}, 0) AS total_amount,
         COALESCE(${paymentExpr}, '') AS payment_method,
         COALESCE(${paymentStatusExpr}, '') AS payment_status,
@@ -2046,9 +4102,18 @@ export const getRecentPosOrders = async (req, res) => {
         ${updatedExpr} AS updated_at,
         ${cancelledExpr} AS cancelled_at,
         ${returnedExpr} AS returned_at,
-        ${cashierExpr} AS cashier_name
+        ${cashierExpr} AS cashier_name,
+        ${sellerIdExpr} AS seller_id,
+        ${salesEmployeeIdExpr} AS assigned_seller_id,
+        COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), '') AS sales_employee_name,
+        COALESCE(NULLIF(${sellerNameExpr}, ''), '') AS seller_name,
+        COALESCE(NULLIF(${salespersonNameExpr}, ''), '') AS salesperson_name,
+        COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(${sellerNameExpr}, ''), NULLIF(${salespersonNameExpr}, ''), NULLIF(${salespersonUserExpr}, ''), '') AS assigned_seller_name
       FROM orders o
       ${cashierJoin}
+      ${employeeSellerJoin}
+      ${salesEmployeeJoin}
+      ${salespersonUserJoin}
       ${customerJoin}
       WHERE 1 = 1
         ${posClause}
@@ -2073,9 +4138,55 @@ export const getRecentPosOrders = async (req, res) => {
     const variantJoin = hasProductVariantsTable && itemColumns.has("variant_id")
       ? "LEFT JOIN product_variants pv ON pv.id = oi.variant_id"
       : "";
+    const productJoinKey = itemColumns.has("product_id")
+      ? (variantJoin ? "COALESCE(oi.product_id, pv.product_id)" : "oi.product_id")
+      : "pv.product_id";
+    const productJoin = hasProductsTable && (itemColumns.has("product_id") || variantJoin)
+      ? `LEFT JOIN products p ON ${productJoinKey} = p.id`
+      : "";
+    const productVariantImageJoin = hasProductVariantImagesTable && productJoin
+      ? `
+        LEFT JOIN LATERAL (
+          SELECT
+            (array_agg(image_url ORDER BY is_primary DESC, sort_order ASC, id ASC))[1] AS image_url,
+            COALESCE(jsonb_agg(image_url ORDER BY is_primary DESC, sort_order ASC, id ASC) FILTER (WHERE NULLIF(image_url, '') IS NOT NULL), '[]'::jsonb) AS images
+          FROM product_variant_images pvi
+          WHERE NULLIF(pvi.image_url, '') IS NOT NULL
+            AND (
+              ${variantJoin ? "pvi.variant_id = pv.id OR" : ""}
+              (
+                pvi.product_id = p.id
+                AND (
+                  NULLIF(pvi.color_name, '') IS NULL
+                  ${variantJoin ? "OR LOWER(pvi.color_name) = LOWER(COALESCE(pv.color, ''))" : ""}
+                )
+              )
+            )
+        ) pvi ON TRUE
+      `
+      : "";
     const itemColorExpr = variantJoin ? "COALESCE(pv.color, '')" : "''";
     const itemSizeExpr = variantJoin ? "COALESCE(pv.size, '')" : "''";
-    const itemImageExpr = variantJoin ? "COALESCE(pv.image_url, '')" : "''";
+    const itemImageExpr = `COALESCE(${[
+      itemColumns.has("variant_image") ? "NULLIF(oi.variant_image, '')" : null,
+      variantJoin ? "NULLIF(pv.image_url, '')" : null,
+      productVariantImageJoin ? "NULLIF(pvi.image_url, '')" : null,
+      itemColumns.has("product_image") ? "NULLIF(oi.product_image, '')" : null,
+      itemColumns.has("image_url") ? "NULLIF(oi.image_url, '')" : null,
+      productJoin ? "NULLIF(p.image_url, '')" : null,
+      "''",
+    ].filter(Boolean).join(", ")})`;
+    const productImageExpr = `COALESCE(${[
+      itemColumns.has("product_image") ? "NULLIF(oi.product_image, '')" : null,
+      productJoin ? "NULLIF(p.image_url, '')" : null,
+      "''",
+    ].filter(Boolean).join(", ")})`;
+    const variantImageExpr = `COALESCE(${[
+      itemColumns.has("variant_image") ? "NULLIF(oi.variant_image, '')" : null,
+      variantJoin ? "NULLIF(pv.image_url, '')" : null,
+      productVariantImageJoin ? "NULLIF(pvi.image_url, '')" : null,
+      "''",
+    ].filter(Boolean).join(", ")})`;
 
     const itemsResult = canLoadItems
       ? await db.query(
@@ -2096,9 +4207,17 @@ export const getRecentPosOrders = async (req, res) => {
           ${itemTotalExpr} AS total_amount,
           ${itemColorExpr} AS color,
           ${itemSizeExpr} AS size,
-          ${itemImageExpr} AS image_url
+          ${itemImageExpr} AS image_url,
+          ${productImageExpr} AS product_image,
+          ${variantImageExpr} AS variant_image,
+          ${productJoin ? "COALESCE(p.gallery_images, '[]'::jsonb)" : "'[]'::jsonb"} AS product_images,
+          ${productVariantImageJoin ? "COALESCE(pvi.images, '[]'::jsonb)" : "'[]'::jsonb"} AS variant_images,
+          ${productJoin ? "jsonb_build_object('id', p.id, 'image', COALESCE(NULLIF(p.image, ''), NULLIF(p.image_url, ''), ''), 'image_url', COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), ''), 'images', COALESCE(p.gallery_images, '[]'::jsonb))" : "'{}'::jsonb"} AS product,
+          ${variantJoin ? `jsonb_build_object('id', pv.id, 'image', COALESCE(NULLIF(pv.image, ''), NULLIF(pv.image_url, ''), ${productVariantImageJoin ? "NULLIF(pvi.image_url, '')" : "NULL"}, ''), 'image_url', COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, ''), ${productVariantImageJoin ? "NULLIF(pvi.image_url, '')" : "NULL"}, ''), 'images', ${productVariantImageJoin ? "COALESCE(pvi.images, '[]'::jsonb)" : "'[]'::jsonb"}, 'color', pv.color, 'size', pv.size)` : "'{}'::jsonb"} AS variant
         FROM order_items oi
         ${variantJoin}
+        ${productJoin}
+        ${productVariantImageJoin}
         WHERE oi.order_id = ANY($1::bigint[])
           ${itemTenantClause}
         ORDER BY oi.id ASC
@@ -2115,7 +4234,7 @@ export const getRecentPosOrders = async (req, res) => {
 
     const orders = result.rows.map((order) => ({
       id: order.id,
-      invoice_number: order.invoice_number || `INV-${String(order.id).padStart(6, "0")}`,
+      invoice_number: order.invoice_number || `INV-${order.id}`,
       customer_name: order.customer_name || "",
       customer_phone: order.customer_phone || "",
       total_amount: Number(order.total_amount || 0),
@@ -2127,6 +4246,12 @@ export const getRecentPosOrders = async (req, res) => {
       cancelled_at: order.cancelled_at,
       returned_at: order.returned_at,
       cashier_name: order.cashier_name || "",
+      seller_id: order.seller_id || null,
+      assigned_seller_id: order.assigned_seller_id || null,
+      seller_name: order.seller_name || "",
+      sales_employee_name: order.sales_employee_name || "",
+      salesperson_name: order.salesperson_name || "",
+      assigned_seller_name: order.assigned_seller_name || "",
       items: itemsByOrder.get(String(order.id)) || [],
     }));
 
@@ -2181,12 +4306,23 @@ export const confirmShippingPayment = async (req, res) => {
       await client.query("ROLLBACK");
       return res.status(400).json({ success: false, message: "صورة إثبات التحويل غير صالحة" });
     }
+    const paymentMethod = String(currentOrder.payment_method || "").trim().toLowerCase();
+    const totalAmount = Number(currentOrder.total_amount ?? currentOrder.total ?? currentOrder.total_price ?? 0);
+    const shippingAmount = Number(currentOrder.shipping_fee ?? currentOrder.delivery_fee ?? currentOrder.service_fee ?? 0);
+    const existingPaidAmount = Number(currentOrder.paid_amount || 0);
+    const isCodShippingOnlyTransfer = ["cod", "cash_on_delivery", "cash on delivery"].includes(paymentMethod) && shippingAmount > 0 && totalAmount > shippingAmount;
+    const nextPaidAmount = isCodShippingOnlyTransfer
+      ? Math.min(totalAmount, Math.max(existingPaidAmount, shippingAmount))
+      : Math.max(totalAmount, existingPaidAmount);
+    const nextPaymentStatus = isCodShippingOnlyTransfer && nextPaidAmount < totalAmount ? "partially_paid" : "paid";
+
     const result = await client.query(
       `
       UPDATE orders
-      SET payment_status = 'paid',
+      SET payment_status = $4,
+          transfer_proof_status = 'approved',
           status = 'confirmed',
-          paid_amount = GREATEST(COALESCE(total_amount, total, total_price, 0), COALESCE(paid_amount, 0)),
+          paid_amount = $5,
           shipping_payment_verified_at = NOW(),
           shipping_payment_verified_by = $2,
           updated_at = NOW()
@@ -2194,7 +4330,7 @@ export const confirmShippingPayment = async (req, res) => {
         AND ($3::bigint IS NULL OR tenant_id = $3::bigint OR tenant_id IS NULL)
       RETURNING *
       `,
-      [req.params.id, req.user?.id || null, tenantId]
+      [req.params.id, req.user?.id || null, tenantId, nextPaymentStatus, nextPaidAmount]
     );
     await processOrderLoyalty(client, {
       tenantId,
@@ -2245,6 +4381,7 @@ export const rejectShippingPayment = async (req, res) => {
       `
       UPDATE orders
       SET payment_status = 'rejected',
+          transfer_proof_status = 'rejected',
           status = 'payment_rejected',
           shipping_payment_verified_at = NOW(),
           shipping_payment_verified_by = $2,
@@ -2270,6 +4407,43 @@ export const rejectShippingPayment = async (req, res) => {
   }
 };
 
+const restoreOrderInventory = async (client, { tenantId, order, items, movementType, reason, userId }) => {
+  if (order.inventory_rollback_done || order.stock_reverted_at || order.stock_restored_at) {
+    const error = new Error("Order stock has already been restored");
+    error.status = 409;
+    throw error;
+  }
+
+  const restoredItems = [];
+  for (const item of items.map(normalizeOperationItem)) {
+    const quantity = Number(item.quantity || 0);
+    if (quantity <= 0) continue;
+    const stockLine = await resolveOrderLineStock(client, { tenantId, item });
+    const adjustment = await applyStockDelta(client, {
+      tenantId,
+      order,
+      stockLine,
+      delta: quantity,
+      movementType,
+      reason,
+      userId,
+    });
+    restoredItems.push({
+      order_item_id: item.id || null,
+      product_id: stockLine.productId || item.product_id || null,
+      variant_id: stockLine.variantId || item.variant_id || null,
+      sku: item.sku || stockLine.record?.sku || "",
+      color: item.color || stockLine.record?.color || "",
+      size: item.size || stockLine.record?.size || "",
+      quantity,
+      stock_before: adjustment?.quantityBefore ?? stockLine.stock ?? null,
+      stock_after: adjustment?.quantityAfter ?? null,
+    });
+  }
+
+  return restoredItems;
+};
+
 export const editOrder = async (req, res) => {
   const client = await db.connect();
   try {
@@ -2282,7 +4456,102 @@ export const editOrder = async (req, res) => {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, message: "Order not found" });
     }
+    assertOrderBranchScope(req, loaded.order);
     assertOrderEditable(loaded.order);
+
+    if (!Object.prototype.hasOwnProperty.call(req.body || {}, "items")) {
+      const safePatch = {
+        customer_name: Object.prototype.hasOwnProperty.call(req.body, "customer_name") ? String(req.body.customer_name || "").trim() || "Walk-in Customer" : loaded.order.customer_name,
+        customer_phone: Object.prototype.hasOwnProperty.call(req.body, "customer_phone") ? String(req.body.customer_phone || "").trim() : loaded.order.customer_phone,
+        status: Object.prototype.hasOwnProperty.call(req.body, "status") ? String(req.body.status || "").trim() || loaded.order.status : loaded.order.status,
+        payment_status: Object.prototype.hasOwnProperty.call(req.body, "payment_status") ? String(req.body.payment_status || "").trim() || loaded.order.payment_status : loaded.order.payment_status,
+        source: Object.prototype.hasOwnProperty.call(req.body, "source") ? String(req.body.source || "").trim() || loaded.order.source || loaded.order.channel : loaded.order.source,
+        channel: Object.prototype.hasOwnProperty.call(req.body, "channel") ? String(req.body.channel || "").trim() || loaded.order.channel || loaded.order.source : loaded.order.channel,
+        branch_id: Object.prototype.hasOwnProperty.call(req.body, "branch_id") && req.body.branch_id !== "" ? req.body.branch_id : loaded.order.branch_id,
+        shipping_status: Object.prototype.hasOwnProperty.call(req.body, "shipping_status") ? String(req.body.shipping_status || "").trim() || loaded.order.shipping_status : loaded.order.shipping_status,
+        notes: Object.prototype.hasOwnProperty.call(req.body, "notes") ? String(req.body.notes || "").trim() : loaded.order.notes,
+        customer_address: Object.prototype.hasOwnProperty.call(req.body, "customer_address") ? String(req.body.customer_address || "").trim() : loaded.order.customer_address,
+        governorate: Object.prototype.hasOwnProperty.call(req.body, "governorate") ? String(req.body.governorate || "").trim() : loaded.order.governorate,
+        city_area: Object.prototype.hasOwnProperty.call(req.body, "city_area") ? String(req.body.city_area || "").trim() : loaded.order.city_area,
+        landmark: Object.prototype.hasOwnProperty.call(req.body, "landmark") ? String(req.body.landmark || "").trim() : loaded.order.landmark,
+        delivery_notes: Object.prototype.hasOwnProperty.call(req.body, "delivery_notes") ? String(req.body.delivery_notes || "").trim() : loaded.order.delivery_notes,
+        order_notes: Object.prototype.hasOwnProperty.call(req.body, "order_notes") ? String(req.body.order_notes || "").trim() : loaded.order.order_notes,
+        shipping_provider: Object.prototype.hasOwnProperty.call(req.body, "shipping_provider") ? String(req.body.shipping_provider || "").trim() || loaded.order.shipping_provider || "manual" : loaded.order.shipping_provider,
+        tracking_number: Object.prototype.hasOwnProperty.call(req.body, "tracking_number") ? String(req.body.tracking_number || "").trim() : loaded.order.tracking_number,
+        tracking_url: Object.prototype.hasOwnProperty.call(req.body, "tracking_url") ? String(req.body.tracking_url || "").trim() : loaded.order.tracking_url,
+        courier_notes: Object.prototype.hasOwnProperty.call(req.body, "courier_notes") ? String(req.body.courier_notes || "").trim() : loaded.order.courier_notes,
+      };
+      const orderResult = await client.query(
+        `
+        UPDATE orders
+        SET customer_name = $1,
+            customer_phone = $2,
+            status = $3,
+            payment_status = $4,
+            source = $5,
+            channel = $6,
+            branch_id = $7,
+            shipping_status = $8,
+            notes = $9,
+            customer_address = $10,
+            governorate = $11,
+            city_area = $12,
+            landmark = $13,
+            delivery_notes = $14,
+            order_notes = $15,
+            shipping_provider = $16,
+            tracking_number = $17,
+            tracking_url = $18,
+            courier_notes = $19,
+            updated_at = NOW()
+        WHERE id = $20
+          AND ($21::bigint IS NULL OR tenant_id = $21::bigint OR tenant_id IS NULL)
+        RETURNING *
+        `,
+        [
+          safePatch.customer_name,
+          safePatch.customer_phone,
+          safePatch.status,
+          safePatch.payment_status,
+          safePatch.source,
+          safePatch.channel,
+          safePatch.branch_id,
+          safePatch.shipping_status,
+          safePatch.notes,
+          safePatch.customer_address,
+          safePatch.governorate,
+          safePatch.city_area,
+          safePatch.landmark,
+          safePatch.delivery_notes,
+          safePatch.order_notes,
+          safePatch.shipping_provider,
+          safePatch.tracking_number,
+          safePatch.tracking_url,
+          safePatch.courier_notes,
+          loaded.order.id,
+          tenantId,
+        ]
+      );
+      await client.query(
+        `
+        INSERT INTO order_edit_audits (tenant_id, order_id, old_items, new_items, old_total, new_total, user_id, reason)
+        VALUES ($1,$2,$3::jsonb,$4::jsonb,$5,$6,$7,$8)
+        `,
+        [
+          tenantId,
+          loaded.order.id,
+          JSON.stringify({ order: loaded.order }),
+          JSON.stringify({ order: orderResult.rows[0] }),
+          Number(loaded.order.total_amount || loaded.order.total || 0),
+          Number(orderResult.rows[0].total_amount || orderResult.rows[0].total || 0),
+          req.user?.id || null,
+          req.body.reason || "Safe order field edit",
+        ]
+      );
+      await client.query("COMMIT");
+      const updated = await loadOrderWithItems(db, { tenantId, orderId: loaded.order.id });
+      return res.status(200).json({ success: true, message: "Order updated", order: orderResult.rows[0], items: updated?.items || [] });
+    }
 
     const oldItems = loaded.items.map(normalizeOperationItem);
     const newItems = (Array.isArray(req.body.items) ? req.body.items : []).map(normalizeOperationItem).filter((item) => item.quantity > 0);
@@ -2291,24 +4560,32 @@ export const editOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "لا يمكن حفظ فاتورة بدون منتجات" });
     }
 
-    const oldQty = new Map();
-    oldItems.forEach((item) => oldQty.set(stockKeyForItem(item), Number(oldQty.get(stockKeyForItem(item)) || 0) + Number(item.quantity || 0)));
-    const newQty = new Map();
-    newItems.forEach((item) => newQty.set(stockKeyForItem(item), Number(newQty.get(stockKeyForItem(item)) || 0) + Number(item.quantity || 0)));
-
-    const touchedKeys = new Set([...oldQty.keys(), ...newQty.keys()]);
-    for (const key of touchedKeys) {
-      const sample = newItems.find((item) => stockKeyForItem(item) === key) || oldItems.find((item) => stockKeyForItem(item) === key);
-      const deltaSold = Number(newQty.get(key) || 0) - Number(oldQty.get(key) || 0);
-      if (deltaSold === 0 || !sample) continue;
-      const stockLine = await resolveOrderLineStock(client, { tenantId, item: sample });
+    for (const item of oldItems) {
+      const quantity = Number(item.quantity || 0);
+      if (quantity <= 0) continue;
+      const stockLine = await resolveOrderLineStock(client, { tenantId, item });
       await applyStockDelta(client, {
         tenantId,
         order: loaded.order,
         stockLine,
-        delta: deltaSold * -1,
-        movementType: "order_edit",
-        reason: "POS invoice edit",
+        delta: quantity,
+        movementType: "order_edit_restore",
+        reason: "POS invoice edit restore old quantity",
+        userId: req.user?.id || null,
+      });
+    }
+
+    for (const item of newItems) {
+      const quantity = Number(item.quantity || 0);
+      if (quantity <= 0) continue;
+      const stockLine = await resolveOrderLineStock(client, { tenantId, item });
+      await applyStockDelta(client, {
+        tenantId,
+        order: loaded.order,
+        stockLine,
+        delta: quantity * -1,
+        movementType: "order_edit_deduct",
+        reason: "POS invoice edit deduct new quantity",
         userId: req.user?.id || null,
       });
     }
@@ -2318,7 +4595,63 @@ export const editOrder = async (req, res) => {
     const serviceValue = Number(req.body.service_fee ?? loaded.order.service_fee ?? 0);
     const taxValue = Number(req.body.tax_amount ?? 0);
     const totalValue = Math.max(0, subtotalValue - discountValue + serviceValue + taxValue);
-    const paidValue = Number(req.body.paid_amount ?? totalValue);
+    const loadedOriginalPaidAmount = resolveCollectedOrderAmount(loaded.order);
+    const requestedOriginalPaidAmount = Number(req.body.original_paid_amount);
+    const originalPaidAmount = Math.max(
+      0,
+      Number.isFinite(requestedOriginalPaidAmount) && requestedOriginalPaidAmount > 0
+        ? requestedOriginalPaidAmount
+        : loadedOriginalPaidAmount
+    );
+    const expectedAmountDueNow = Math.max(0, totalValue - originalPaidAmount);
+    const expectedRefundOrCreditDue = Math.max(0, originalPaidAmount - totalValue);
+    const requestedAmountDueNow = Number(req.body.amount_due_now);
+    const requestedRefundOrCreditDue = Number(req.body.refund_or_credit_due);
+    const amountDueNow = Math.max(
+      0,
+      Number.isFinite(requestedAmountDueNow) && Math.abs(requestedAmountDueNow - expectedAmountDueNow) <= 0.009
+        ? requestedAmountDueNow
+        : expectedAmountDueNow
+    );
+    const refundOrCreditDue = Math.max(
+      0,
+      Number.isFinite(requestedRefundOrCreditDue) && Math.abs(requestedRefundOrCreditDue - expectedRefundOrCreditDue) <= 0.009
+        ? requestedRefundOrCreditDue
+        : expectedRefundOrCreditDue
+    );
+    const additionalPaidAmount = Math.max(0, Number(req.body.paid_amount ?? amountDueNow) || 0);
+    if (additionalPaidAmount - amountDueNow > 0.009) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "Additional payment cannot exceed edit amount due now",
+        edit_payment_difference: {
+          original_paid_amount: originalPaidAmount,
+          new_total: totalValue,
+          amount_due_now: amountDueNow,
+          additional_paid_amount: additionalPaidAmount,
+          refund_or_credit_due: refundOrCreditDue,
+        },
+      });
+    }
+    const paidValue = Math.min(totalValue, originalPaidAmount + additionalPaidAmount);
+    const additionalPaymentBreakdown = Array.isArray(req.body.additional_payment_breakdown)
+      ? req.body.additional_payment_breakdown
+          .map((payment) => ({
+            ...payment,
+            method: normalizeMoneyPaymentMethod(payment.method || payment.payment_method || "cash"),
+            amount: Math.max(0, Number(payment.amount || 0) || 0),
+          }))
+          .filter((payment) => payment.amount > 0)
+      : [];
+    const existingPaymentBreakdown = Array.isArray(loaded.order.payment_breakdown) ? loaded.order.payment_breakdown : [];
+    const editPaymentBreakdown = [
+      ...existingPaymentBreakdown,
+      ...additionalPaymentBreakdown.map((payment) => ({
+        ...payment,
+        edit_additional_payment: true,
+      })),
+    ];
     const resolvedCustomerId = Object.prototype.hasOwnProperty.call(req.body, "customer_id")
       ? req.body.customer_id || null
       : loaded.order.customer_id || null;
@@ -2328,32 +4661,39 @@ export const editOrder = async (req, res) => {
       : loaded.order.customer_phone || "";
 
     await client.query(`DELETE FROM order_items WHERE order_id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)`, [loaded.order.id, tenantId]);
+    const orderItemAvailableColumns = await getTableColumnSet(client, "order_items");
     for (const item of newItems) {
       const stockLine = await resolveOrderLineStock(client, { tenantId, item });
-      await client.query(
-        `
-        INSERT INTO order_items (
-          tenant_id, order_id, variant_id, product_id, product_name, variant_name, sku, barcode,
-          quantity, sale_price, discount_amount, tax_amount, total_amount
-        )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-        `,
-        [
-          tenantId,
-          loaded.order.id,
-          stockLine.variantId || null,
-          stockLine.productId || item.product_id || null,
-          item.product_name || "",
-          item.variant_name || "",
-          item.sku || "",
-          item.barcode || "",
-          item.quantity,
-          item.price,
-          item.discount_amount || 0,
-          item.tax_amount || 0,
-          item.total_amount,
-        ]
-      );
+      const query = buildOrderItemInsertQuery({
+        ...item,
+        tenant_id: tenantId,
+        order_id: loaded.order.id,
+        variant_id: stockLine.variantId || null,
+        product_id: stockLine.productId || item.product_id || null,
+        sale_price: item.price,
+        unit_price: item.price,
+        price: item.price,
+        line_total: item.line_total || item.total_amount,
+        subtotal: item.subtotal || item.total_amount,
+        price_source: item.price > 0 ? "payload" : "missing",
+      }, {
+        availableColumns: orderItemAvailableColumns,
+        filePath: "server/controllers/ordersController.js",
+        routeName: "updatePosOrder",
+        insertLabel: "updatePosOrderItems",
+        sqlSnippetLabel: "pos_edit_order_items_insert",
+      });
+      try {
+        await client.query(query.sql, query.params);
+      } catch (error) {
+        throw enrichOrderItemsInsertError(error, {
+          routeName: "updatePosOrder",
+          insertLabel: "updatePosOrderItems",
+          columnsCount: query.columns.length,
+          paramsCount: query.params.length,
+          sqlSnippetLabel: "pos_edit_order_items_insert",
+        });
+      }
     }
 
     const orderResult = await client.query(
@@ -2367,14 +4707,22 @@ export const editOrder = async (req, res) => {
           total = $5,
           total_price = $5,
           paid_amount = $6,
-          change_amount = GREATEST($6 - $5, 0),
-          payment_method = COALESCE($7, payment_method),
-          payment_status = COALESCE($8, payment_status),
-          status = COALESCE($9, status),
+          change_amount = GREATEST($6::numeric - $5::numeric, 0),
+          payment_method = COALESCE($7::text, payment_method),
+          payment_status = COALESCE($8::text, payment_status),
+          status = COALESCE($9::text, status),
           customer_id = $10,
           customer_name = $11,
           customer_phone = $12,
-          notes = COALESCE($13, notes),
+          notes = COALESCE($13::text, notes),
+          source = COALESCE($15::text, source),
+          channel = COALESCE($16::text, channel),
+          branch_id = COALESCE($17::bigint, branch_id),
+          payment_breakdown = $18::jsonb,
+          edit_original_paid_amount = $19,
+          edit_additional_paid_amount = $20,
+          edit_refund_or_credit_due = $21,
+          edit_payment_difference = $22::jsonb,
           updated_at = NOW()
       WHERE id = $14
       RETURNING *
@@ -2394,6 +4742,22 @@ export const editOrder = async (req, res) => {
         resolvedCustomerPhone,
         req.body.reason || req.body.notes || null,
         loaded.order.id,
+        req.body.source || null,
+        req.body.channel || req.body.source || null,
+        req.body.branch_id || null,
+        JSON.stringify(editPaymentBreakdown),
+        originalPaidAmount,
+        additionalPaidAmount,
+        refundOrCreditDue,
+        JSON.stringify({
+          edit_order_id: loaded.order.id,
+          original_invoice_number: req.body.original_invoice_number || loaded.order.invoice_number || "",
+          original_paid_amount: originalPaidAmount,
+          new_total: totalValue,
+          amount_due_now: amountDueNow,
+          refund_or_credit_due: refundOrCreditDue,
+          additional_payment_breakdown: additionalPaymentBreakdown,
+        }),
       ]
     );
     await markCustomerTrustedForCompletedOrder(client, orderResult.rows[0]);
@@ -2464,7 +4828,15 @@ export const editOrder = async (req, res) => {
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("[orders] edit error", error);
-    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to edit order" });
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.message || "Failed to edit order",
+      routeName: error.routeName,
+      insertLabel: error.insertLabel,
+      columnsCount: error.columnsCount,
+      paramsCount: error.paramsCount,
+      sqlSnippetLabel: error.sqlSnippetLabel,
+    });
   } finally {
     client.release();
   }
@@ -2481,20 +4853,25 @@ export const cancelOrder = async (req, res) => {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, message: "Order not found" });
     }
+    assertOrderBranchScope(req, loaded.order);
     assertOrderEditable(loaded.order);
-
-    for (const item of loaded.items.map(normalizeOperationItem)) {
-      const stockLine = await resolveOrderLineStock(client, { tenantId, item });
-      await applyStockDelta(client, {
-        tenantId,
-        order: loaded.order,
-        stockLine,
-        delta: Number(item.quantity || 0),
-        movementType: "order_cancel",
-        reason: "POS invoice cancel",
-        userId: req.user?.id || null,
+    if (isDeliveredOrder(loaded.order)) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        success: false,
+        message: "This order is already delivered. Use the return/refund flow instead of cancel-and-restore.",
+        reason: "ORDER_ALREADY_DELIVERED",
       });
     }
+
+    await restoreOrderInventory(client, {
+      tenantId,
+      order: loaded.order,
+      items: loaded.items,
+      movementType: "order_cancel",
+      reason: "POS invoice cancel",
+      userId: req.user?.id || null,
+    });
 
     const updateResult = await client.query(
       `
@@ -2503,6 +4880,9 @@ export const cancelOrder = async (req, res) => {
           payment_status = 'cancelled',
           cancelled_at = NOW(),
           cancelled_by = $2,
+          stock_restored_at = COALESCE(stock_restored_at, NOW()),
+          stock_reverted_at = COALESCE(stock_reverted_at, NOW()),
+          inventory_rollback_done = TRUE,
           notes = CONCAT(COALESCE(notes, ''), CASE WHEN COALESCE(notes, '') = '' THEN '' ELSE E'\n' END, $3::text),
           updated_at = NOW()
       WHERE id = $1
@@ -2533,11 +4913,303 @@ export const cancelOrder = async (req, res) => {
       console.error("[orders] cancel accounting fallback", accountingError.message);
     }
 
+    await reverseMoneyTransactionsForReference(client, {
+      tenantId,
+      referenceType: "order",
+      referenceId: loaded.order.id,
+      transactionType: "pos_sale_payment",
+      reversalReferenceType: "order_cancel",
+      reversalReferenceId: loaded.order.id,
+      notes: req.body?.reason || "Order cancelled",
+      createdBy: req.user?.id || null,
+    });
+
     await client.query("COMMIT");
     return res.status(200).json({ success: true, message: "تم إلغاء الفاتورة وإرجاع المخزون", order: updateResult.rows[0] });
   } catch (error) {
     await client.query("ROLLBACK");
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to cancel order" });
+  } finally {
+    client.release();
+  }
+};
+
+export const deleteOrder = async (req, res) => {
+  const client = await db.connect();
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    await ensurePosShiftOrderColumns(client, tenantId);
+    await client.query("BEGIN");
+
+    const loaded = await loadOrderWithItems(client, { tenantId, orderId: req.params.id });
+    if (!loaded) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    if (loaded.order.deleted_at) {
+      await client.query("ROLLBACK");
+      const alreadyRestored = loaded.order.inventory_rollback_done || loaded.order.stock_reverted_at || loaded.order.stock_restored_at;
+      return res.status(409).json({
+        success: false,
+        message: alreadyRestored ? "Stock was already restored for this order." : "Order is already archived",
+      });
+    }
+    assertOrderBranchScope(req, loaded.order);
+
+    const status = normalizeOrderStatus(loaded.order.status || loaded.order.payment_status);
+    if (isDeliveredOrder(loaded.order)) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        success: false,
+        message: "This order is already delivered. Use the return/refund flow instead of cancel-and-restore.",
+        reason: "ORDER_ALREADY_DELIVERED",
+      });
+    }
+
+    const stockAlreadyRestored = Boolean(
+      loaded.order.inventory_rollback_done ||
+      loaded.order.stock_reverted_at ||
+      loaded.order.stock_restored_at ||
+      loaded.order.cancelled_at ||
+      ["cancelled", "returned"].includes(status)
+    );
+    const restoredItems = stockAlreadyRestored
+      ? []
+      : await restoreOrderInventory(client, {
+          tenantId,
+          order: loaded.order,
+          items: loaded.items,
+          movementType: "order_cancel",
+          reason: "Order cancelled from dashboard",
+          userId: req.user?.id || null,
+        });
+
+    const updateResult = await client.query(
+      `
+      UPDATE orders
+      SET status = 'cancelled',
+          payment_status = CASE WHEN COALESCE(payment_status, '') = '' THEN 'cancelled' ELSE payment_status END,
+          cancelled_at = COALESCE(cancelled_at, NOW()),
+          cancelled_by = COALESCE(cancelled_by, $2),
+          deleted_at = NOW(),
+          deleted_by = $2,
+          delete_reason = $3,
+          stock_restored_at = COALESCE(stock_restored_at, NOW()),
+          stock_reverted_at = COALESCE(stock_reverted_at, NOW()),
+          inventory_rollback_done = TRUE,
+          updated_at = NOW()
+      WHERE id = $1
+        AND ($4::bigint IS NULL OR tenant_id = $4::bigint OR tenant_id IS NULL)
+        AND deleted_at IS NULL
+      RETURNING *
+      `,
+      [loaded.order.id, req.user?.id || null, req.body?.reason || "Cancelled from orders dashboard", tenantId]
+    );
+
+    if (!updateResult.rows[0]) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ success: false, message: "Order was already deleted" });
+    }
+
+    await reverseOrderLoyalty(client, {
+      ...loaded.order,
+      ...updateResult.rows[0],
+      userId: req.user?.id || null,
+    });
+
+    await logActivity(
+      client,
+      req.user?.id || null,
+      "CANCEL_ORDER_RESTORE_STOCK",
+      "ORDER",
+      loaded.order.id,
+      {
+        order_code: loaded.order.public_order_number || loaded.order.display_order_number || loaded.order.invoice_number || String(loaded.order.id),
+        deleted_at: updateResult.rows[0].deleted_at,
+        restored_items: restoredItems,
+        stock_already_restored: stockAlreadyRestored,
+      }
+    );
+
+    await reverseMoneyTransactionsForReference(client, {
+      tenantId,
+      referenceType: "order",
+      referenceId: loaded.order.id,
+      transactionType: "pos_sale_payment",
+      reversalReferenceType: "order_delete",
+      reversalReferenceId: loaded.order.id,
+      notes: req.body?.reason || "Order deleted",
+      createdBy: req.user?.id || null,
+    });
+
+    await client.query("COMMIT");
+    return res.status(200).json({
+      success: true,
+      message: stockAlreadyRestored
+        ? "Order archived. Stock had already been restored."
+        : "Order cancelled and stock restored successfully.",
+      order: updateResult.rows[0],
+      restored_items: restoredItems,
+      stock_already_restored: stockAlreadyRestored,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[orders] delete error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to delete order" });
+  } finally {
+    client.release();
+  }
+};
+
+export const archiveOrder = async (req, res) => {
+  const client = await db.connect();
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    await ensurePosShiftOrderColumns(client, tenantId);
+    await client.query("BEGIN");
+
+    const loaded = await loadOrderWithItems(client, { tenantId, orderId: req.params.id });
+    if (!loaded) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    if (loaded.order.deleted_at) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ success: false, message: "Order is already archived" });
+    }
+    assertOrderBranchScope(req, loaded.order);
+
+    const updateResult = await client.query(
+      `
+      UPDATE orders
+      SET deleted_at = NOW(),
+          deleted_by = $2,
+          delete_reason = $3,
+          updated_at = NOW()
+      WHERE id = $1
+        AND ($4::bigint IS NULL OR tenant_id = $4::bigint OR tenant_id IS NULL)
+        AND deleted_at IS NULL
+      RETURNING *
+      `,
+      [loaded.order.id, req.user?.id || null, req.body?.reason || "Archived from orders dashboard", tenantId]
+    );
+
+    await logActivity(
+      client,
+      req.user?.id || null,
+      "ARCHIVE_ORDER",
+      "ORDER",
+      loaded.order.id,
+      {
+        order_code: loaded.order.public_order_number || loaded.order.display_order_number || loaded.order.invoice_number || String(loaded.order.id),
+        archived_at: updateResult.rows[0]?.deleted_at || null,
+        stock_restored: false,
+      }
+    );
+
+    await client.query("COMMIT");
+    return res.status(200).json({ success: true, message: "Order archived successfully.", order: updateResult.rows[0] });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[orders] archive error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to archive order" });
+  } finally {
+    client.release();
+  }
+};
+
+export const permanentDeleteOrder = async (req, res) => {
+  const client = await db.connect();
+  try {
+    if (!isHardDeleteAdmin(req.user)) {
+      return res.status(403).json({ success: false, message: "Permanent delete is restricted to administrators." });
+    }
+    if (!hardDeleteConfirmed(req.body?.confirmation || req.body?.confirm)) {
+      return res.status(400).json({ success: false, message: "Type DELETE or حذف to confirm permanent deletion." });
+    }
+
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    await ensurePosShiftOrderColumns(client, tenantId);
+    await client.query("BEGIN");
+
+    const loaded = await loadOrderWithItems(client, { tenantId, orderId: req.params.id });
+    if (!loaded) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "Order not found or already permanently deleted." });
+    }
+    assertOrderBranchScope(req, loaded.order);
+
+    const status = normalizeOrderStatus(loaded.order.status || loaded.order.payment_status);
+    const stockAlreadyRestored = Boolean(
+      loaded.order.inventory_rollback_done ||
+      loaded.order.stock_reverted_at ||
+      loaded.order.stock_restored_at ||
+      loaded.order.cancelled_at ||
+      loaded.order.returned_at ||
+      ["cancelled", "returned"].includes(status)
+    );
+    const netItems = loaded.items.map((item) => ({
+      ...item,
+      quantity: Math.max(0, Number(item.quantity || 0) - Number(item.returned_quantity || 0)),
+    }));
+    const restoredItems = stockAlreadyRestored
+      ? []
+      : await restoreOrderInventory(client, {
+          tenantId,
+          order: loaded.order,
+          items: netItems,
+          movementType: "order_hard_delete_restore",
+          reason: "Permanent invoice delete stock restore",
+          userId: req.user?.id || null,
+        });
+
+    const relatedDeleted = await deleteOrderRelatedRows(client, loaded.order.id);
+    const deleteResult = await client.query(
+      `
+      DELETE FROM orders
+      WHERE id = $1
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
+      RETURNING id, invoice_number, public_order_number, display_order_number, total_amount, total, deleted_at
+      `,
+      [loaded.order.id, tenantId]
+    );
+
+    if (!deleteResult.rows[0]) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ success: false, message: "Order was already permanently deleted." });
+    }
+
+    await logActivity(
+      client,
+      req.user?.id || null,
+      "PERMANENT_DELETE_ORDER",
+      "ORDER_HARD_DELETE",
+      loaded.order.id,
+      {
+        order_code: loaded.order.public_order_number || loaded.order.display_order_number || loaded.order.invoice_number || String(loaded.order.id),
+        invoice_number: loaded.order.invoice_number || null,
+        total_amount: Number(loaded.order.total_amount || loaded.order.total || 0),
+        deleted_by: req.user?.id || null,
+        deleted_at: new Date().toISOString(),
+        restored_items: restoredItems,
+        stock_already_restored: stockAlreadyRestored,
+        related_deleted: relatedDeleted,
+      }
+    );
+
+    await client.query("COMMIT");
+    return res.status(200).json({
+      success: true,
+      message: "Order permanently deleted.",
+      order_id: loaded.order.id,
+      restored_items: restoredItems,
+      stock_already_restored: stockAlreadyRestored,
+      related_deleted: relatedDeleted,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[orders] permanent delete error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to permanently delete order" });
   } finally {
     client.release();
   }
@@ -2605,19 +5277,39 @@ export const returnOrder = async (req, res) => {
       if (nextReturned < Number(item.quantity || 0)) projectedReturnedAll = false;
     }
 
-    const returnNumber = `RET-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const returnNumberBase = buildDerivedInvoiceNumber(loaded.order.invoice_number, "RET") || `RET-${loaded.order.id}`;
+    const temporaryReturnNumber = `${returnNumberBase}-${buildTemporaryInvoiceNumber()}`;
     const mode = String(req.body.mode || "partial").trim().toLowerCase();
     const refundMethod = String(req.body.refund_method || req.body.refundMethod || "cash").trim().toLowerCase();
     const reason = req.body.reason || (mode === "exchange" ? "استبدال" : "POS return");
     const returnResult = await client.query(
       `
-      INSERT INTO returns (tenant_id, order_id, return_number, status, reason, restock, refund_amount, created_by)
-      VALUES ($1,$2,$3,'completed',$4,true,$5,$6)
+      INSERT INTO returns (tenant_id, order_id, return_number, status, reason, restock, refund_amount, created_by, shift_id, cashier_user_id)
+      VALUES ($1,$2,$3,'completed',$4,true,$5,$6,$7,$8)
       RETURNING *
       `,
-      [tenantId, loaded.order.id, returnNumber, reason, Number(req.body.refund_amount || 0), req.user?.id || null]
+      [tenantId, loaded.order.id, temporaryReturnNumber, reason, Number(req.body.refund_amount || 0), req.user?.id || null, loaded.order.shift_id || null, req.user?.id || null]
     );
-    const returnRow = returnResult.rows[0];
+    let returnRow = returnResult.rows[0];
+    const finalReturnNumberResult = await client.query(
+      `
+      UPDATE returns
+      SET return_number = CASE
+        WHEN EXISTS (
+          SELECT 1 FROM returns existing
+          WHERE existing.id <> $1
+            AND COALESCE(existing.tenant_id, 0) = COALESCE($2::bigint, 0)
+            AND existing.return_number = $3
+        )
+        THEN $3 || '-' || $1::text
+        ELSE $3
+      END
+      WHERE id = $1
+      RETURNING *
+      `,
+      [returnRow.id, tenantId, returnNumberBase]
+    );
+    returnRow = finalReturnNumberResult.rows[0] || returnRow;
     let refundTotal = 0;
 
     for (const { original, quantity, refund } of validatedItems) {
@@ -2651,21 +5343,22 @@ export const returnOrder = async (req, res) => {
       returnRow.id,
     ]);
 
-    const status = projectedReturnedAll ? "refunded" : "partially_refunded";
+    const status = "returned";
+    const paymentStatus = projectedReturnedAll ? "refunded" : "partially_refunded";
     const updatedOrder = await client.query(
       `
       UPDATE orders
       SET status = $2,
-          payment_status = $2,
+          payment_status = $3,
           returned_at = NOW(),
           updated_at = NOW()
       WHERE id = $1
       RETURNING *
       `,
-      [loaded.order.id, status]
+      [loaded.order.id, status, paymentStatus]
     );
 
-    if (status === "refunded") {
+    if (paymentStatus === "refunded") {
       await reverseOrderLoyalty(client, {
         ...loaded.order,
         ...updatedOrder.rows[0],
@@ -2724,6 +5417,30 @@ export const returnOrder = async (req, res) => {
       } catch (accountingError) {
         console.error("[orders] return accounting fallback", accountingError.message);
       }
+
+      await recordCashDrawerEvent(client, {
+        tenantId,
+        branchId: loaded.order.branch_id || null,
+        createdBy: req.user?.id || null,
+        shiftId: loaded.order.shift_id || null,
+        eventType: "refund_cash",
+        sourceType: "return",
+        sourceId: returnRow.id,
+        amount: refundTotal || Number(req.body.refund_amount || 0),
+      });
+      await recordFinancialAccountActivity(client, {
+        tenantId,
+        branchId: loaded.order.branch_id || null,
+        financialAccountId: req.body.refund_financial_account_id || req.body.financial_account_id || req.body.refundFinancialAccountId || req.body.financialAccountId || refundFinancialAccountFromOrder(loaded.order, refundMethod) || null,
+        paymentMethod: refundMethod,
+        entryType: "refund",
+        direction: -1,
+        sourceType: "return",
+        sourceId: returnRow.id,
+        amount: refundTotal || Number(req.body.refund_amount || 0),
+        notes: `${reason}${mode === "exchange" ? ` / original invoice ${loaded.order.invoice_number || loaded.order.id}` : ""}`,
+        createdBy: req.user?.id || null,
+      });
     }
 
     await client.query("COMMIT");
@@ -2817,7 +5534,8 @@ export const createReturn = async (req, res) => {
       });
     }
 
-    const returnNumber = `RET-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const returnNumberBase = buildDerivedInvoiceNumber(orderResult.rows[0]?.invoice_number, "RET") || `RET-${orderId}`;
+    const temporaryReturnNumber = `${returnNumberBase}-${buildTemporaryInvoiceNumber()}`;
     const returnResult = await client.query(
       `
       INSERT INTO returns (
@@ -2828,24 +5546,47 @@ export const createReturn = async (req, res) => {
         reason,
         restock,
         refund_amount,
-        created_by
+        created_by,
+        shift_id,
+        cashier_user_id
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
       RETURNING *
       `,
       [
         tenantId,
         orderId,
-        returnNumber,
+        temporaryReturnNumber,
         status,
         reason,
         Boolean(restock),
         Number(refundAmount || 0),
         req.user?.id || null,
+        orderResult.rows[0]?.shift_id || null,
+        req.user?.id || null,
       ]
     );
 
-    const returnRow = returnResult.rows[0];
+    let returnRow = returnResult.rows[0];
+    const finalReturnNumberResult = await client.query(
+      `
+      UPDATE returns
+      SET return_number = CASE
+        WHEN EXISTS (
+          SELECT 1 FROM returns existing
+          WHERE existing.id <> $1
+            AND COALESCE(existing.tenant_id, 0) = COALESCE($2::bigint, 0)
+            AND existing.return_number = $3
+        )
+        THEN $3 || '-' || $1::text
+        ELSE $3
+      END
+      WHERE id = $1
+      RETURNING *
+      `,
+      [returnRow.id, tenantId, returnNumberBase]
+    );
+    returnRow = finalReturnNumberResult.rows[0] || returnRow;
 
     for (const item of items) {
       const orderItemId = item.order_item_id || item.orderItemId || item.id;
@@ -2917,12 +5658,36 @@ export const createReturn = async (req, res) => {
       tenantId,
       referenceType: "return",
       referenceId: returnRow.id,
-      description: `Return #${returnNumber}`,
+      description: `Return #${returnRow.return_number || returnNumberBase}`,
       amount: Number(refundAmount || 0),
       direction: restock ? "in" : "out",
       createdBy: req.user?.id || null,
       branchId: orderResult.rows[0]?.branch_id || null,
       notes: reason || "",
+    });
+
+    await recordCashDrawerEvent(client, {
+      tenantId,
+      branchId: orderResult.rows[0]?.branch_id || null,
+      createdBy: req.user?.id || null,
+      shiftId: orderResult.rows[0]?.shift_id || null,
+      eventType: "refund_cash",
+      sourceType: "return",
+      sourceId: returnRow.id,
+      amount: Number(refundAmount || 0),
+    });
+    await recordFinancialAccountActivity(client, {
+      tenantId,
+      branchId: orderResult.rows[0]?.branch_id || null,
+      financialAccountId: req.body.refund_financial_account_id || req.body.financial_account_id || req.body.refundFinancialAccountId || req.body.financialAccountId || refundFinancialAccountFromOrder(orderResult.rows[0], req.body.refund_method || req.body.refundMethod || "cash") || null,
+      paymentMethod: req.body.refund_method || req.body.refundMethod || "cash",
+      entryType: "refund",
+      direction: -1,
+      sourceType: "return",
+      sourceId: returnRow.id,
+      amount: Number(refundAmount || 0),
+      notes: reason || "",
+      createdBy: req.user?.id || null,
     });
 
     await client.query("COMMIT");
@@ -2950,14 +5715,54 @@ export const getSingleOrder = async (req, res) => {
   try {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const { id } = req.params;
-    await ensurePosShiftOrderColumns(db, tenantId);
+    const [hasSalesEmployeesTable, hasEmployeesTable] = await Promise.all([
+      tableExists(db, "sales_employees"),
+      tableExists(db, "employees"),
+    ]);
+    const salesEmployeeColumns = hasSalesEmployeesTable ? await getTableColumnSet(db, "sales_employees") : new Set();
+    const employeeColumns = hasEmployeesTable ? await getTableColumnSet(db, "employees") : new Set();
+    const salesEmployeeNameColumn = firstExistingColumn(salesEmployeeColumns, ["name", "full_name", "employee_name"]);
+    const employeeNameColumn = firstExistingColumn(employeeColumns, ["full_name", "name", "employee_name"]);
+    const assignedSellerIdExpr = "COALESCE(o.sales_employee_id, o.salesperson_id)";
+    const employeeDeletedFilter = employeeColumns.has("is_deleted") ? "AND seller_employee.is_deleted IS DISTINCT FROM TRUE" : "";
+    const employeeSellerJoin = hasEmployeesTable && employeeNameColumn
+      ? `
+        LEFT JOIN employees seller_employee ON seller_employee.id = ${assignedSellerIdExpr}
+          ${employeeDeletedFilter}
+      `
+      : "";
+    const salesEmployeeJoin = hasSalesEmployeesTable && salesEmployeeNameColumn
+      ? `
+        LEFT JOIN LATERAL (
+          SELECT se.${salesEmployeeNameColumn} AS name
+          FROM sales_employees se
+          WHERE se.id = ${assignedSellerIdExpr}
+             OR ${salesEmployeeColumns.has("employee_id") ? `se.employee_id = ${assignedSellerIdExpr}` : "FALSE"}
+          ORDER BY se.id ASC
+          LIMIT 1
+        ) se ON TRUE
+      `
+      : "";
+    const salesEmployeeExpr = salesEmployeeJoin ? "COALESCE(se.name, '')" : "''";
+    const employeeSellerExpr = employeeSellerJoin ? `COALESCE(seller_employee.${employeeNameColumn}, '')` : "''";
 
     const orderResult = await db.query(
       `
-      SELECT o.*, creator.name AS created_by_name, canceller.name AS cancelled_by_name
+      SELECT
+        o.*,
+        creator.name AS created_by_name,
+        canceller.name AS cancelled_by_name,
+        COALESCE(o.sales_employee_id, o.salesperson_id, o.seller_user_id) AS seller_id,
+        ${assignedSellerIdExpr} AS assigned_seller_id,
+        COALESCE(NULLIF(o.seller_name, ''), NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.salesperson_name, ''), '') AS seller_name,
+        COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), '') AS sales_employee_name,
+        COALESCE(NULLIF(o.salesperson_name, ''), NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), '') AS salesperson_name,
+        COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), '') AS assigned_seller_name
       FROM orders o
       LEFT JOIN users creator ON creator.id = COALESCE(o.cashier_id, o.created_by)
       LEFT JOIN users canceller ON canceller.id = o.cancelled_by
+      ${employeeSellerJoin}
+      ${salesEmployeeJoin}
       WHERE o.id = $1
         AND ($2::bigint IS NULL OR o.tenant_id = $2::bigint)
       `,
@@ -2972,13 +5777,69 @@ export const getSingleOrder = async (req, res) => {
       `
       SELECT
         order_items.*,
+        order_items.sale_price AS unit_price,
+        order_items.price AS stored_price,
+        order_items.sale_price AS price,
+        order_items.sale_price AS selling_price,
+        order_items.sale_price AS line_unit_price,
+        order_items.total_amount AS line_total,
+        order_items.total_amount AS subtotal,
+        order_items.total_amount AS item_total,
+        product_variants.price AS variant_price,
+        product_variants.sale_price AS variant_sale_price,
+        products.price AS product_price,
+        products.sale_price AS product_sale_price,
         product_variants.size,
         product_variants.color,
-        product_variants.image_url,
+        CONCAT_WS(' / ', NULLIF(product_variants.color, ''), NULLIF(product_variants.size, '')) AS variant_label,
+        COALESCE(
+          NULLIF(order_items.image_url, ''),
+          NULLIF(order_items.product_image, ''),
+          NULLIF(order_items.variant_image, ''),
+          NULLIF(product_variants.image_url, ''),
+          NULLIF(product_variant_image.image_url, ''),
+          NULLIF(products.image_url, ''),
+          ''
+        ) AS image_url,
+        COALESCE(NULLIF(order_items.product_image, ''), NULLIF(products.image_url, ''), '') AS product_image,
+        COALESCE(NULLIF(order_items.variant_image, ''), NULLIF(product_variants.image_url, ''), NULLIF(product_variant_image.image_url, ''), '') AS variant_image,
+        COALESCE(products.gallery_images, '[]'::jsonb) AS product_images,
+        COALESCE(product_variant_image.images, '[]'::jsonb) AS variant_images,
+        jsonb_build_object(
+          'id', products.id,
+          'image', COALESCE(NULLIF(products.image, ''), NULLIF(products.image_url, ''), ''),
+          'image_url', COALESCE(NULLIF(products.image_url, ''), NULLIF(products.image, ''), ''),
+          'images', COALESCE(products.gallery_images, '[]'::jsonb)
+        ) AS product,
+        jsonb_build_object(
+          'id', product_variants.id,
+          'image', COALESCE(NULLIF(product_variants.image, ''), NULLIF(product_variants.image_url, ''), NULLIF(product_variant_image.image_url, ''), ''),
+          'image_url', COALESCE(NULLIF(product_variants.image_url, ''), NULLIF(product_variants.image, ''), NULLIF(product_variant_image.image_url, ''), ''),
+          'images', COALESCE(product_variant_image.images, '[]'::jsonb),
+          'color', product_variants.color,
+          'size', product_variants.size
+        ) AS variant,
         COALESCE(products.name, order_items.product_name) AS product_name
       FROM order_items
       LEFT JOIN product_variants ON order_items.variant_id = product_variants.id
       LEFT JOIN products ON COALESCE(order_items.product_id, product_variants.product_id) = products.id
+      LEFT JOIN LATERAL (
+        SELECT
+          (array_agg(image_url ORDER BY is_primary DESC, sort_order ASC, id ASC))[1] AS image_url,
+          COALESCE(jsonb_agg(image_url ORDER BY is_primary DESC, sort_order ASC, id ASC) FILTER (WHERE NULLIF(image_url, '') IS NOT NULL), '[]'::jsonb) AS images
+        FROM product_variant_images pvi
+        WHERE NULLIF(pvi.image_url, '') IS NOT NULL
+          AND (
+            pvi.variant_id = product_variants.id
+            OR (
+              pvi.product_id = products.id
+              AND (
+                NULLIF(pvi.color_name, '') IS NULL
+                OR LOWER(pvi.color_name) = LOWER(COALESCE(product_variants.color, ''))
+              )
+            )
+          )
+      ) product_variant_image ON TRUE
       WHERE order_items.order_id = $1
         AND ($2::bigint IS NULL OR order_items.tenant_id = $2::bigint)
       `,
@@ -2986,6 +5847,21 @@ export const getSingleOrder = async (req, res) => {
     );
 
     const order = orderResult.rows[0];
+    if (POS_DEBUG) {
+      console.log("[orders][seller-debug] seller returned from invoice details API", {
+        order_id: order.id,
+        seller_id: order.seller_id || null,
+        sales_employee_id: order.sales_employee_id || null,
+        salesperson_id: order.salesperson_id || null,
+        assigned_seller_id: order.assigned_seller_id || null,
+        seller_name: order.seller_name || "",
+        sales_employee_name: order.sales_employee_name || "",
+        salesperson_name: order.salesperson_name || "",
+        assigned_seller_name: order.assigned_seller_name || "",
+        cashier_name: order.cashier_name || "",
+        created_by_name: order.created_by_name || "",
+      });
+    }
     const timeline = [
       {
         action: "created",
@@ -3050,17 +5926,169 @@ export const getSingleOrder = async (req, res) => {
 
     timeline.sort((a, b) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime());
 
-    return res.status(200).json({ order: { ...order, audit_timeline: timeline }, items: itemsResult.rows, audit_timeline: timeline });
+    const normalizedItems = normalizeReturnedOrderItems(order, itemsResult.rows);
+    return res.status(200).json({ order: { ...order, items: normalizedItems, audit_timeline: timeline }, items: normalizedItems, audit_timeline: timeline });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "Server Error" });
   }
 };
 
+export const getPosOrderSummary = getSingleOrder;
+
+export const getPosEditOrder = async (req, res) => {
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const orderId = Number(req.params.id || 0);
+    if (!Number.isFinite(orderId) || orderId <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid order id" });
+    }
+
+    const orderResult = await timedPosEdit(req, "order_query_ms", () => db.query(
+      `
+      SELECT
+        o.id,
+        o.tenant_id,
+        o.invoice_number,
+        o.public_order_number,
+        o.display_order_number,
+        o.customer_id,
+        COALESCE(o.customer_name, c.name, '') AS customer_name,
+        COALESCE(o.customer_phone, c.phone, '') AS customer_phone,
+        o.branch_id,
+        o.payment_method,
+        o.payment_status,
+        o.status,
+        o.paid_amount,
+        o.paid_amount AS total_paid,
+        o.paid_amount AS amount_paid,
+        o.amount_due_now,
+        o.payment_breakdown,
+        o.edit_original_paid_amount,
+        o.edit_additional_paid_amount,
+        o.edit_refund_or_credit_due,
+        o.edit_payment_difference,
+        o.cash_amount,
+        o.card_amount,
+        o.wallet_payment_amount,
+        o.discount_amount,
+        o.service_fee,
+        o.subtotal,
+        o.total_amount,
+        o.total,
+        o.sales_employee_id,
+        o.salesperson_id,
+        o.seller_user_id,
+        o.seller_name,
+        o.salesperson_name,
+        o.marketing_source,
+        o.marketing_platform,
+        o.marketing_post_id,
+        o.marketing_campaign,
+        o.attribution_type,
+        o.marketing_tracking_code,
+        o.marketing_session_id,
+        o.created_at,
+        o.updated_at
+      FROM orders o
+      LEFT JOIN customers c ON c.id = o.customer_id
+      WHERE o.id = $1
+        AND ($2::bigint IS NULL OR o.tenant_id = $2::bigint)
+      LIMIT 1
+      `,
+      [orderId, tenantId]
+    ));
+
+    const order = orderResult.rows[0] || null;
+    if (!order) {
+      logPosEditTiming(req, { order_id: orderId, found: false });
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    addPosEditTiming(req, "customer_query_ms", 0);
+    addPosEditTiming(req, "payment_query_ms", 0);
+
+    const itemsResult = await timedPosEdit(req, "order_items_query_ms", () => db.query(
+      `
+      SELECT
+        oi.id,
+        oi.order_id,
+        oi.product_id,
+        oi.variant_id,
+        COALESCE(p.name, oi.product_name, '') AS product_name,
+        oi.variant_name,
+        COALESCE(NULLIF(oi.sku, ''), NULLIF(pv.sku, ''), NULLIF(p.sku, ''), '') AS sku,
+        COALESCE(NULLIF(oi.barcode, ''), NULLIF(pv.barcode, ''), NULLIF(p.barcode, ''), '') AS barcode,
+        COALESCE(NULLIF(pv.color, ''), '') AS color,
+        COALESCE(NULLIF(pv.size, ''), '') AS size,
+        oi.quantity,
+        oi.sale_price AS price,
+        oi.sale_price AS unit_price,
+        oi.discount_amount,
+        oi.tax_amount,
+        oi.total_amount,
+        COALESCE(pv.stock, p.stock, 0) AS stock,
+        COALESCE(p.variation_mode, 'full_variations') AS variation_mode,
+        COALESCE(NULLIF(oi.image_url, ''), NULLIF(oi.product_image, ''), NULLIF(oi.variant_image, ''), NULLIF(pv.image_url, ''), NULLIF(p.image_url, ''), '') AS image_url
+      FROM order_items oi
+      LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+      LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
+      WHERE oi.order_id = $1
+        AND ($2::bigint IS NULL OR oi.tenant_id = $2::bigint OR oi.tenant_id IS NULL)
+      ORDER BY oi.id ASC
+      `,
+      [orderId, tenantId]
+    ));
+    addPosEditTiming(req, "inventory_variant_query_ms", req._posEditTimings?.order_items_query_ms || 0);
+
+    const items = itemsResult.rows.map((item) => ({
+      id: item.id,
+      order_item_id: item.id,
+      product_id: item.product_id,
+      variant_id: item.variant_id,
+      product_name: item.product_name,
+      name: item.product_name,
+      variant_name: item.variant_name,
+      sku: item.sku || "",
+      barcode: item.barcode || "",
+      color: item.color || "",
+      size: item.size || "",
+      quantity: Number(item.quantity || 0),
+      price: Number(item.price || 0),
+      unit_price: Number(item.unit_price || item.price || 0),
+      sale_price: Number(item.price || 0),
+      discount_amount: Number(item.discount_amount || 0),
+      tax_amount: Number(item.tax_amount || 0),
+      total_amount: Number(item.total_amount || 0),
+      stock: Number(item.stock || 0),
+      stock_quantity: Number(item.stock || 0),
+      variation_mode: item.variation_mode || "full_variations",
+      image_url: item.image_url || "",
+    }));
+
+    logPosEditTiming(req, { order_id: orderId, items_count: items.length, found: true });
+    return res.json({ success: true, order: { ...order, items }, items });
+  } catch (error) {
+    logPosEditTiming(req, {
+      order_id: req.params.id,
+      failed: true,
+      code: error?.code,
+      message: error?.message,
+    });
+    console.error("[pos-edit] failed", {
+      order_id: req.params.id,
+      code: error?.code,
+      message: error?.message,
+      stack: error?.stack,
+    });
+    return res.status(500).json({ success: false, message: "Failed to load order for POS edit" });
+  }
+};
+
 export const getPublicInvoiceByToken = async (req, res) => {
   try {
     console.log("[public invoice token]", req.params.token);
-    const invoice = await loadPublicInvoiceByToken(req.params.token);
+    const invoice = await loadPublicInvoiceByToken(req.params.token, req);
     if (!invoice) {
       return res.status(404).json({
         success: false,
@@ -3068,13 +6096,12 @@ export const getPublicInvoiceByToken = async (req, res) => {
       });
     }
 
-    console.log("[public invoice order]", invoice?.order_id || invoice?.id);
-    invoice.public_invoice_url = buildPublicInvoiceUrl(req, invoice.public_token);
-    invoice.public_invoice_short_url = buildShortPublicInvoiceUrl(req, invoice.public_token);
-    invoice.short_invoice_url = buildShortPublicInvoiceUrl(req, invoice.public_token);
+    console.log("[public invoice order]", invoice?.invoice_number || req.params.token);
+    const identifier = publicInvoiceIdentifier(invoice);
+    invoice.public_invoice_url = buildPublicInvoiceUrl(req, identifier);
+    invoice.public_invoice_short_url = buildShortPublicInvoiceUrl(req, identifier);
+    invoice.short_invoice_url = buildShortPublicInvoiceUrl(req, identifier);
     invoice.google_review_url = getGoogleReviewUrl();
-    invoice.id = invoice.id || invoice.order_id;
-    invoice.order_id = invoice.order_id || invoice.id;
 
     return res.status(200).json({
       success: true,
@@ -3092,7 +6119,7 @@ export const getPublicInvoiceByToken = async (req, res) => {
 export const getPublicInvoicePdfByToken = async (req, res) => {
   try {
     console.log("[public invoice token]", req.params.token);
-    const invoice = await loadPublicInvoiceByToken(req.params.token);
+    const invoice = await loadPublicInvoiceByToken(req.params.token, req);
     if (!invoice) {
       return res.status(404).json({
         success: false,
@@ -3100,10 +6127,11 @@ export const getPublicInvoicePdfByToken = async (req, res) => {
       });
     }
 
-    console.log("[public invoice order]", invoice?.order_id || invoice?.id);
-    invoice.public_invoice_url = buildPublicInvoiceUrl(req, invoice.public_token);
-    invoice.public_invoice_short_url = buildShortPublicInvoiceUrl(req, invoice.public_token);
-    invoice.short_invoice_url = buildShortPublicInvoiceUrl(req, invoice.public_token);
+    console.log("[public invoice order]", invoice?.invoice_number || req.params.token);
+    const identifier = publicInvoiceIdentifier(invoice);
+    invoice.public_invoice_url = buildPublicInvoiceUrl(req, identifier);
+    invoice.public_invoice_short_url = buildShortPublicInvoiceUrl(req, identifier);
+    invoice.short_invoice_url = buildShortPublicInvoiceUrl(req, identifier);
     invoice.google_review_url = getGoogleReviewUrl();
     const pdfBuffer = await buildPublicInvoicePdfBuffer(invoice);
     const safeInvoiceNumber = String(invoice.invoice_number || "invoice").replace(/[^\w.-]+/g, "_");

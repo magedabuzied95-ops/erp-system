@@ -8,9 +8,12 @@
     "logout": "Logout",
     "currency": "Currency",
     "loading": "Loading",
+    "saving": "Saving...",
+    "save": "Save",
     "cancel": "Cancel",
     "close": "Close",
     "open": "Open",
+    "back": "Back",
     "copy": "Copy",
     "refresh": "Refresh",
     "previous": "Previous",
@@ -33,19 +36,589 @@
     "download": "Download",
     "share": "Share",
     "all": "All",
+    "notAvailable": "Not available",
     "noResults": "No results found",
-    "noData": "No data available"
+    "noData": "No data available",
+    "aiChannels": {
+      "eyebrow": "AI support command center",
+      "title": "AI Channels Control Center",
+      "subtitle": "Monitor every AI customer channel, handoff queue, inbox signal, and response metric from one operational view.",
+      "refresh": "Refresh",
+      "settings": "Settings",
+      "status": {
+        "online": "Online",
+        "offline": "Offline",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "health": {
+        "status": "AI support status",
+        "active": "Active conversations",
+        "waiting": "Waiting for human takeover",
+        "avgResponse": "Average response time",
+        "resolvedToday": "Resolved by AI today"
+      },
+      "channels": {
+        "web_chat": "Website Chat",
+        "whatsapp": "WhatsApp",
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "facebook_messenger": "Facebook"
+      },
+      "connection": {
+        "connected": "Connected",
+        "local": "Available locally",
+        "setup": "Setup required",
+        "disconnected": "Not connected"
+      },
+      "note": {
+        "externalChannels": "External channels require API connection. Website chat can run locally first."
+      },
+      "card": {
+        "autoReply": "Auto-reply",
+        "messagesToday": "Messages today",
+        "lastSync": "Last sync",
+        "pending": "Pending conversations"
+      },
+      "actions": {
+        "manage": "Manage",
+        "configure": "Configure",
+        "viewInbox": "View inbox",
+        "test": "Test channel",
+        "openInbox": "Open inbox"
+      },
+      "inbox": {
+        "title": "Live Inbox Preview",
+        "subtitle": "Latest AI conversations across connected and local channels.",
+        "customer": "Customer",
+        "channel": "Channel",
+        "message": "Last message",
+        "intent": "Detected intent",
+        "aiStatus": "AI status",
+        "time": "Time"
+      },
+      "aiStatus": {
+        "replied": "Replied",
+        "needs_human": "Needs human",
+        "pending": "Pending"
+      },
+      "analytics": {
+        "title": "AI Analytics Snapshot",
+        "takeoverRate": "Human takeover rate",
+        "resolutionRate": "AI resolution rate",
+        "avgResponse": "Average response time",
+        "aiReplies": "AI replies",
+        "topIntents": "Top detected intents",
+        "sentiment": "Sentiment distribution"
+      },
+      "internal": {
+        "title": "Internal tests",
+        "customer": "Internal test"
+      },
+      "messageLabels": {
+        "imageSearch": "Image search request",
+        "productDiscovery": "Product discovery",
+        "general": "General message"
+      },
+      "intentLabels": {
+        "imageSearch": "Image search request",
+        "productDiscovery": "Product discovery",
+        "general": "General message",
+        "general message": "General message",
+        "greeting only": "Greeting",
+        "order": "Order",
+        "price": "Price question",
+        "discount": "Discount request",
+        "delivery": "Delivery question",
+        "exchange": "Exchange or return",
+        "complaint": "Complaint"
+      },
+      "sentimentLabels": {
+        "positive": "Positive",
+        "neutral": "Neutral",
+        "negative": "Negative"
+      },
+      "empty": {
+        "never": "Never",
+        "guest": "Guest customer",
+        "noPreview": "No message preview",
+        "unknownIntent": "Unknown",
+        "noConversationsTitle": "No AI conversations yet",
+        "noConversations": "No AI conversations yet. Connect a channel or enable website chat to start receiving messages.",
+        "noAnalytics": "No analytics data yet.",
+        "noSentiment": "No sentiment signals yet."
+      }
+    },
+    "employeeHub": {
+      "eyebrow": "Employee Hub",
+      "title": "Employees",
+      "subtitle": "Profiles, attendance, payroll, analytics, and reports in one operational workspace.",
+      "currentSection": "Current employee hub section: {{section}}",
+      "tabs": {
+        "overview": "Overview",
+        "employees": "Employees",
+        "attendance": "Attendance",
+        "payroll": "Payroll",
+        "analytics": "Analytics",
+        "salesPerformance": "Sales Performance",
+        "advances": "Advances",
+        "reports": "Reports"
+      },
+      "metrics": {
+        "people": "People",
+        "profiles": "Profiles",
+        "time": "Time",
+        "attendance": "Attendance",
+        "pay": "Pay",
+        "payroll": "Payroll",
+        "sales": "Sales",
+        "performance": "Performance"
+      },
+      "cards": {
+        "employees": {
+          "title": "Employees List",
+          "text": "Employee profiles, job titles, branch assignment, salary, contact information, status, and POS seller setup."
+        },
+        "attendance": {
+          "title": "Attendance & Shifts",
+          "text": "Check-in/out, QR and kiosk flows, shift assignment, late, absent, overtime, and device approvals."
+        },
+        "payroll": {
+          "title": "Payroll",
+          "text": "Base salary, commissions, bonuses, deductions, employee advances, and final salary calculation."
+        },
+        "salesPerformance": {
+          "title": "Sales Performance",
+          "text": "Sales by employee, commission rules, refund impact, top performers, and performance analytics."
+        },
+        "advances": {
+          "title": "Employee Advances",
+          "text": "Create advances, track outstanding balance, deduct from payroll, and review history."
+        },
+        "reports": {
+          "title": "Reports",
+          "text": "Payroll, attendance, commission, and employee performance reports from one place."
+        }
+      },
+      "reports": {
+        "title": "Employee Reports",
+        "subtitle": "All employee reporting is accessed from the relevant Employee Hub sections.",
+        "payroll": {
+          "label": "Payroll report",
+          "description": "Calculate final salary with commissions, bonuses, deductions, and advances."
+        },
+        "attendance": {
+          "label": "Attendance report",
+          "description": "Review daily attendance, late arrivals, absence, overtime, and worked hours."
+        },
+        "commission": {
+          "label": "Commission report",
+          "description": "Review commission rules, refunds impact, top performers, and sales performance."
+        },
+        "performance": {
+          "label": "Employee performance report",
+          "description": "Compare sales, shifts, branch performance, and employee scorecards."
+        }
+      },
+      "attendance": {
+        "eyebrow": "HR / Attendance",
+        "title": "Attendance & Shift Management",
+        "subtitle": "Production attendance, shifts, POS-linked check-in/out, branch analytics, and employee time tracking.",
+        "tabs": {
+          "dashboard": "Dashboard",
+          "employees": "Employees",
+          "devices": "Devices",
+          "reports": "Reports",
+          "kiosk": "Kiosk"
+        },
+        "metrics": {
+          "presentToday": "Present today",
+          "absentToday": "Absent today",
+          "lateEmployees": "Late employees",
+          "overtimeEmployees": "Overtime employees",
+          "totalWorkedHours": "Total worked hours",
+          "daysPresent": "Days present",
+          "lateDays": "Late days",
+          "overtimeDays": "Overtime days",
+          "workedHours": "Worked hours",
+          "workMinutes": "Work minutes",
+          "lateMinutes": "Late minutes",
+          "earlyLeave": "Early leave"
+        },
+        "actions": {
+          "printExport": "Print / Export",
+          "newEmployee": "New employee",
+          "createEmployee": "Create employee",
+          "updateEmployee": "Update employee",
+          "edit": "Edit",
+          "deleteEmployee": "Delete Employee",
+          "resetToday": "Reset today",
+          "resetTodayAttendance": "Reset today attendance",
+          "assignShift": "Assign shift",
+          "updateShift": "Update shift",
+          "openShift": "Open shift",
+          "closeShift": "Close shift",
+          "resetEmployeeDeviceLock": "Reset Employee Device Lock",
+          "resetTodayDeviceLocks": "Reset Today's Device Locks",
+          "resetAllDeviceLocks": "Reset All Device Locks",
+          "resetDeviceLocks": "Reset Device Locks",
+          "resetLock": "Reset Lock",
+          "approve": "Approve",
+          "reject": "Reject",
+          "reset": "Reset",
+          "refreshDevices": "Refresh devices"
+        },
+        "admin": {
+          "eyebrow": "Admin tools",
+          "title": "Attendance Device Management",
+          "subtitle": "Testing and support controls for clearing attendance device lock rows only. Attendance history remains unchanged.",
+          "viewDeviceApprovals": "View device approvals"
+        },
+        "dashboard": {
+          "todayChart": "Today's chart",
+          "branchAttendanceMix": "Branch attendance mix",
+          "presentLateOvertime": "Present / Late / Overtime",
+          "dailySummary": "Daily summary",
+          "posLinkHint": "Attendance logs automatically link to POS when shifts are opened from the kiosk.",
+          "recentLogs": "Recent logs",
+          "attendanceList": "Attendance list",
+          "filtersAutoApply": "Branch/date filters apply automatically"
+        },
+        "employees": {
+          "employeeList": "Employee list",
+          "employeesAndShifts": "Employees & shifts",
+          "employeeProfile": "Employee profile",
+          "createEmployee": "Create employee",
+          "editEmployee": "Edit employee",
+          "shiftAssignment": "Shift assignment"
+        },
+        "devices": {
+          "security": "Device security",
+          "approvals": "Attendance device approvals",
+          "subtitle": "First valid QR attendance inside branch GPS binds the phone. New phones stay blocked until approved or reset.",
+          "newPhonePolicy": "New phone policy",
+          "pendingApproval": "Pending approval",
+          "blockImmediately": "Block immediately"
+        },
+        "reports": {
+          "employeeTrend": "Employee trend",
+          "workedMinutesByDay": "Worked minutes by day",
+          "branchTotals": "Branch totals",
+          "branchReport": "Branch report",
+          "employeeReport": "Employee report",
+          "workedValue": "{{value}} worked",
+          "dateRange": "{{start}} to {{end}}"
+        },
+        "kiosk": {
+          "mode": "Kiosk mode",
+          "openCloseShift": "Open and close shift",
+          "subtitle": "POS-ready attendance controls. The open/close actions can be reused by the checkout flow and linked to orders.",
+          "currentEmployee": "Current employee",
+          "linkedToPos": "Linked to POS",
+          "shiftSnapshot": "Shift snapshot"
+        },
+        "fields": {
+          "employee": "Employee",
+          "employeeWithId": "Employee #{{id}}",
+          "name": "Name",
+          "fullName": "Full name",
+          "employeeCode": "Employee code",
+          "code": "Code",
+          "branch": "Branch",
+          "noBranch": "No branch",
+          "jobTitle": "Job title",
+          "internalRole": "Internal role",
+          "email": "Email",
+          "phone": "Phone",
+          "nationalId": "National ID",
+          "salary": "Salary",
+          "hireDate": "Hire date",
+          "shift": "Shift",
+          "shiftName": "Shift name",
+          "startTime": "Start time",
+          "endTime": "End time",
+          "allowedLateMinutes": "Allowed late minutes",
+          "overtimeAfterMinutes": "Overtime after minutes",
+          "workingDays": "Working days",
+          "workingDaysHelper": "Comma separated: Sun,Mon,Tue,Wed,Thu",
+          "checkIn": "Check-in",
+          "checkOut": "Check-out",
+          "worked": "Worked",
+          "workedHours": "Worked hours",
+          "totalEmployees": "Total employees",
+          "today": "Today",
+          "actions": "Actions",
+          "scope": "Scope",
+          "noEmployeeCode": "No employee code",
+          "notAvailable": "n/a",
+          "token": "Token",
+          "lastSeen": "Last seen",
+          "dailyDate": "Daily date",
+          "startDate": "Start date",
+          "endDate": "End date",
+          "date": "Date"
+        },
+        "options": {
+          "loadingBranches": "Loading branches...",
+          "noBranches": "No branches found. Create a branch first.",
+          "selectBranch": "Select branch",
+          "selectEmployee": "Select employee",
+          "allBranches": "All branches"
+        },
+        "status": {
+          "open": "Open",
+          "closed": "Closed",
+          "off": "Off",
+          "unknown": "Unknown",
+          "present": "Present",
+          "late": "Late",
+          "absent": "Absent",
+          "overtime": "Overtime",
+          "checked_in": "Checked in",
+          "active": "Active",
+          "inactive": "Inactive",
+          "pending": "Pending",
+          "approved": "Approved",
+          "rejected": "Rejected",
+          "locked": "Locked",
+          "deviceLock": "Device lock"
+        },
+        "empty": {
+          "noAttendanceLogs": "No attendance logs for the selected day.",
+          "noEmployees": "No employees found.",
+          "noDevices": "No attendance devices found.",
+          "noBranchAttendance": "No branch attendance data for the selected range.",
+          "noEmployeeReport": "No employee report data for the selected range.",
+          "selectEmployeeKiosk": "Select an employee to manage kiosk attendance."
+        },
+        "dialogs": {
+          "resetTodayDeviceLocksTitle": "Reset Today's Device Locks",
+          "resetTodayDeviceLocksBody": "This will remove today's attendance device locks for the current tenant.",
+          "resetTodayDeviceLocksValue": "All employees with device locks today",
+          "resetEmployeeDeviceLockTitle": "Reset Employee Device Lock",
+          "resetEmployeeDeviceLockBody": "This will remove today's attendance device locks for this employee.",
+          "resetAllDeviceLocksTitle": "Reset All Device Locks",
+          "resetAllDeviceLocksBody": "This will remove every attendance device lock for the current tenant.",
+          "resetAllDeviceLocksValue": "All attendance device locks for this tenant",
+          "deleteEmployeeTitle": "Delete Employee",
+          "deleteEmployeeBody": "Are you sure you want to delete this employee?",
+          "cannotBeUndone": "This action cannot be undone.",
+          "resetTodayAttendanceTitle": "Reset Today Attendance",
+          "resetTodayAttendanceBody": "This deletes only today's attendance log for this employee so the public QR page can offer Check In again.",
+          "clearDeviceLocks": "Also clear today's device lock/session rows",
+          "clearDeviceLocksHelp": "Use this only when testing device binding or employee portal session locks.",
+          "historyUnaffected": "Old attendance history is not affected.",
+          "deviceLocks": "Attendance Device Locks",
+          "deviceLocksWarning": "This clears matching device lock and employee portal session rows. Attendance history remains unchanged."
+        },
+        "toasts": {
+          "employeeCreated": "Employee created",
+          "employeeUpdated": "Employee updated",
+          "employeeDeleted": "Employee deleted",
+          "shiftSaved": "Shift saved",
+          "shiftOpened": "Shift opened",
+          "shiftClosed": "Shift closed",
+          "deviceApproved": "Device approved",
+          "deviceRejected": "Device rejected",
+          "deviceLockReset": "Device lock reset. Affected rows: {{count}}",
+          "todayAttendanceReset": "Today's attendance reset. Deleted rows: {{count}}",
+          "devicePolicyUpdated": "Device policy updated"
+        },
+        "errors": {
+          "loadData": "Failed to load attendance data",
+          "dailyReport": "Failed to fetch daily attendance report",
+          "loadDevices": "Failed to load attendance devices",
+          "employeeNameRequired": "Employee name is required",
+          "saveEmployee": "Failed to save employee",
+          "deleteEmployee": "Failed to delete employee",
+          "selectEmployee": "Select an employee first",
+          "shiftNameRequired": "Shift name is required",
+          "saveShift": "Failed to save shift",
+          "openShift": "Failed to open shift",
+          "closeShift": "Failed to close shift",
+          "approveDevice": "Failed to approve device",
+          "rejectDevice": "Failed to reject device",
+          "resetEmployeeDevice": "Failed to reset employee device",
+          "resetDeviceLock": "Failed to reset device lock",
+          "resetDeviceLocks": "Failed to reset device locks",
+          "noDeviceLocks": "No device lock rows were found to reset.",
+          "resetRemainingRows": "Reset did not complete. Remaining today's rows: {{count}}",
+          "noTodayAttendanceRows": "No today's attendance rows were found for this employee.",
+          "resetTodayAttendance": "Failed to reset today's attendance",
+          "updateDevicePolicy": "Failed to update device policy"
+        }
+      },
+      "analytics": {
+        "eyebrow": "Employee analytics",
+        "title": "Sales performance and commissions",
+        "subtitle": "Track cashier performance, commissions, top performers, and shift analytics in one workspace.",
+        "loading": "Loading employee analytics...",
+        "actions": {
+          "exportPdf": "Export PDF",
+          "exportCsv": "Export CSV"
+        },
+        "tabs": {
+          "overview": "Overview",
+          "sales": "Sales Performance",
+          "commissions": "Commissions",
+          "top": "Top Performers",
+          "shifts": "Shift Analytics"
+        },
+        "filters": {
+          "title": "Analytics filters",
+          "subtitle": "Date filters refetch the employee analytics backend automatically.",
+          "range": "Range",
+          "startDate": "Start date",
+          "endDate": "End date"
+        },
+        "presets": {
+          "last30Days": "30 Days",
+          "last7Days": "7 Days",
+          "thisMonth": "This Month",
+          "thisYear": "This Year",
+          "custom": "Custom"
+        },
+        "status": {
+          "fallbackActive": "Fallback active",
+          "liveData": "Live data loaded",
+          "refreshing": "Refreshing",
+          "fallbackMessage": "Showing local employee analytics fallback data.",
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "toasts": {
+          "fallbackData": "Using employee analytics fallback data",
+          "exportPdfFailed": "Unable to export PDF",
+          "exportCsvFailed": "Unable to export CSV",
+          "printFailed": "Unable to print report",
+          "ruleNameRequired": "Rule name is required",
+          "ruleCreated": "Commission rule created",
+          "ruleCreateFailed": "Unable to create commission rule"
+        },
+        "export": {
+          "companyName": "ERP System",
+          "title": "Employee Analytics Report",
+          "subtitle": "Sales performance, commissions, and shift analytics"
+        },
+        "metrics": {
+          "bestCashier": "Best cashier",
+          "highestSales": "Highest overall sales",
+          "highestRevenue": "Highest revenue",
+          "orders": "Orders: {{count}}",
+          "highestAverageOrder": "Highest average order",
+          "commissionLeaderboard": "Commission leaderboard",
+          "totalEarnedCommission": "Total earned commission",
+          "commissionRows": "Commission rows",
+          "recordedEarnings": "Recorded earnings",
+          "ruleCount": "Rule count",
+          "activeInactiveRules": "Active and inactive rules",
+          "totalCommission": "Total commission",
+          "fromCommissionRows": "From commission rows"
+        },
+        "charts": {
+          "revenueByEmployee": "Revenue by employee",
+          "salesCommissionMix": "Sales and commission mix",
+          "shiftAnalytics": "Shift analytics",
+          "shiftRevenueTrend": "Shift revenue trend"
+        },
+        "sections": {
+          "salesPerformance": "Sales performance",
+          "topPerformers": "Top performers",
+          "shiftAnalytics": "Shift analytics",
+          "branchPerformance": "Branch performance"
+        },
+        "table": {
+          "employee": "Employee",
+          "role": "Role",
+          "sales": "Sales",
+          "orders": "Orders",
+          "avgOrder": "Avg Order",
+          "commission": "Commission",
+          "refunds": "Refunds",
+          "invoice": "Invoice",
+          "sale": "Sale",
+          "shift": "Shift",
+          "branch": "Branch"
+        },
+        "roles": {
+          "staff": "Staff"
+        },
+        "commissions": {
+          "rules": "Commission rules",
+          "configurableRules": "Configurable rules",
+          "ruleName": "Rule name",
+          "value": "Value",
+          "scopeId": "Scope ID (optional)",
+          "scopeIdLabel": "Scope ID",
+          "priority": "Priority",
+          "appliesTo": "Applies to",
+          "addRule": "Add rule",
+          "transactions": "Commission transactions",
+          "scope": {
+            "global": "Global",
+            "product": "Product",
+            "category": "Category",
+            "employee": "Employee"
+          },
+          "ruleType": {
+            "percentage": "Percentage",
+            "fixed": "Fixed"
+          },
+          "apply": {
+            "sale": "Sale",
+            "item": "Item"
+          }
+        }
+      },
+      "payroll": {
+        "title": "Payroll",
+        "subtitle": "Calculate salaries, commissions, deductions, and employee advances.",
+        "metrics": {
+          "netPay": "Net pay",
+          "baseSalary": "Base salary",
+          "commissions": "Commissions",
+          "deductions": "Deductions",
+          "advances": "Advances"
+        },
+        "buttons": {
+          "calculate": "Calculate salary",
+          "finalize": "Finalize payroll"
+        },
+        "labels": {
+          "employee": "Employee",
+          "bonuses": "Bonuses",
+          "month": "Month",
+          "amount": "Amount",
+          "status": "Status",
+          "notes": "Notes"
+        },
+        "empty": {
+          "noAdvances": "No active advances for this payroll period."
+        }
+      },
+      "advances": {
+        "title": "Employee Advances",
+        "subtitle": "Track outstanding advances and payroll deductions.",
+        "empty": {
+          "noAdvances": "No advances found."
+        }
+      }
+    }
   },
   "sidebar": {
     "main": "Main",
     "products": "Products",
+    "productsInventory": "Products & Inventory",
     "sales": "Sales",
     "purchasing": "Purchasing",
     "inventory": "Inventory",
     "finance": "Finance",
+    "aiMarketing": "AI & Marketing",
+    "systemSettings": "System Settings",
     "hrAttendance": "HR / Attendance",
     "settings": "Settings",
     "dashboard": "Dashboard",
+    "notifications": "Notifications",
     "workspace": "Workspace",
     "allProducts": "All Products",
     "addProduct": "Add Product",
@@ -56,14 +629,20 @@
     "variants": "Variants",
     "barcodeLabels": "Barcode Labels",
     "orders": "Orders",
+    "websiteOrders": "Website Orders",
     "posPro": "POS PRO",
+    "returns": "Returns",
     "customers": "Customers",
     "purchases": "Purchases",
     "suppliers": "Suppliers",
     "warehouses": "Warehouses",
     "branches": "Branches",
+    "payroll": "Payroll",
+    "advances": "Advances",
+    "attendanceCenter": "Attendance Center",
     "stockTransfers": "Stock Transfers",
     "accounting": "Accounting",
+    "expenses": "Expenses",
     "journalEntries": "Journal Entries",
     "loyalty": "Loyalty",
     "employeeAnalytics": "Employee Analytics",
@@ -77,7 +656,48 @@
     "roles": "Roles",
     "permissions": "Permissions",
     "users": "Users",
-    "tenants": "Tenants"
+    "tenants": "Tenants",
+    "currency": "Currency",
+    "preferences": "Preferences",
+    "settingsCenter": "Settings Center",
+    "marketing": "Marketing",
+    "marketingDashboard": "Marketing Dashboard",
+    "aiMarketingCenter": "AI Marketing Center",
+    "socialPosts": "Social Posts",
+    "campaigns": "Campaigns",
+    "coupons": "Coupons",
+    "templates": "Templates",
+    "websiteSettings": "Website Settings",
+    "aiInbox": "AI Inbox",
+    "aiFollowUps": "AI Follow Ups",
+    "aiChannels": "AI Channels",
+    "aiAgentAnalytics": "AI Agent Analytics",
+    "aiKnowledgeBase": "AI Knowledge Base",
+    "aiAgentSettings": "AI Agent Settings",
+    "searchModules": "Search modules...",
+    "groups": {
+      "main": "Main",
+      "sales": "Sales",
+      "productsInventory": "Products & Inventory",
+      "purchasing": "Purchasing",
+      "employees": "Employees",
+      "finance": "Finance",
+      "aiMarketing": "AI & Marketing",
+      "systemSettings": "System Settings"
+    },
+    "noMatchingModules": "No matching modules found",
+    "quickAccess": {
+      "pos": "POS",
+      "orders": "Orders",
+      "product": "Product",
+      "aiCenter": "AI Center",
+      "products": "Products"
+    },
+    "subgroups": {
+      "aiMarketing": "AI Marketing",
+      "aiSupport": "AI Support",
+      "systemSettings": "System Settings"
+    }
   },
   "language": {
     "label": "Language",

@@ -40,9 +40,11 @@ const applyThemeVariables = (theme, accentId, density) => {
   root.dataset.accent = accent.id;
   root.dataset.density = densityValue;
   root.classList.add("theme-app");
+  root.classList.toggle("dark", theme.mode === "dark");
   root.style.colorScheme = theme.mode || "dark";
   if (body) {
     body.classList.add("theme-app");
+    body.classList.toggle("dark", theme.mode === "dark");
     body.dataset.theme = theme.id;
     body.dataset.accent = accent.id;
     body.dataset.density = densityValue;

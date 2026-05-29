@@ -1,0 +1,112 @@
+{
+  "Jordan 4 Black Cat": {
+    "aliases": ["بلاك كات", "جوردن فور", "جوردن ٤", "جوردن 4", "فورز", "black cat", "jordan 4", "j4"],
+    "styles": ["streetwear", "premium", "chunky", "dark"],
+    "occasions": ["daily", "outfit", "smart casual", "night out"],
+    "gender_fit": ["men", "unisex"],
+    "personality_lines": ["عامل شغل جامد اليومين دول", "شيك جدًا على اللبس", "من الحاجات اللي بتشد العين بصراحة"],
+    "selling_points": ["مريح في اللبس اليومي", "بيليق على أغلب الألوان", "خامته محترمة"],
+    "target_customer": ["streetwear", "oversize outfits", "premium casual"],
+    "priority_score": 95,
+    "is_trending": true
+  },
+  "Nike Shox": {
+    "aliases": ["شوكس", "شوز شوكس", "نايك شوكس", "nike shox", "shox"],
+    "styles": ["sporty", "streetwear", "statement", "chunky"],
+    "occasions": ["daily", "outfit", "gym", "street"],
+    "gender_fit": ["men", "unisex"],
+    "personality_lines": ["الشوكس راجع ترند تاني وبقوة", "ده عامل لوك مختلف ومش متكرر", "بيبان جامد جدًا مع الواسع والكارجو"],
+    "selling_points": ["مريح في المشي", "تفصيلته مميزة", "بيكمل اللوك الرياضي والستريت"],
+    "target_customer": ["sporty streetwear", "bold outfits", "retro trends"],
+    "priority_score": 92,
+    "is_trending": true
+  },
+  "Nike Air Force 1 White": {
+    "aliases": ["اير فورس", "اير فورس وان", "ايرفورس", "فورس ابيض", "air force", "air force 1", "af1"],
+    "styles": ["classic", "clean", "premium", "casual"],
+    "occasions": ["daily", "outfit", "smart casual", "college"],
+    "gender_fit": ["men", "women", "unisex"],
+    "personality_lines": ["ده أساسي في أي دولاب بصراحة", "الأبيض ده لايق جدًا على أغلب اللبس", "لوك نضيف ومش بيقدم"],
+    "selling_points": ["بيمشي مع جينز وكارجو وتراكسوت", "سهل يتلبس يومي", "شكله نضيف على الرجل"],
+    "target_customer": ["clean outfits", "daily wear", "smart casual"],
+    "priority_score": 90,
+    "is_trending": true
+  },
+  "Adidas Samba": {
+    "aliases": ["سامبا", "اديداس سامبا", "samba", "adidas samba"],
+    "styles": ["retro", "casual", "clean", "low profile"],
+    "occasions": ["daily", "outfit", "smart casual", "date"],
+    "gender_fit": ["men", "women", "unisex"],
+    "personality_lines": ["السامبا داخلة في لوكات كتير جدًا", "شيك من غير ما يبقى أوفر", "ده لايق جدًا على الجينز الواسع"],
+    "selling_points": ["خفيف في اللبس", "ستايله رايق وكلاسيك", "بيظبط الكاجوال والسمارت كاجوال"],
+    "target_customer": ["minimal outfits", "retro fashion", "smart casual"],
+    "priority_score": 88,
+    "is_trending": true
+  },
+  "Adidas Campus": {
+    "aliases": ["كامبس", "اديداس كامبس", "campus", "adidas campus"],
+    "styles": ["streetwear", "retro", "casual", "chunky"],
+    "occasions": ["daily", "outfit", "college", "street"],
+    "gender_fit": ["men", "women", "unisex"],
+    "personality_lines": ["الكامبس عامل شغل جامد مع اللبس الواسع", "شكله رايق ومش تقليدي", "ترند ومريح في نفس الوقت"],
+    "selling_points": ["خامة سويد شكلها شيك", "مناسب للبس اليومي", "بيطلع حلو مع الجينز والكارجو"],
+    "target_customer": ["oversize outfits", "streetwear", "retro casual"],
+    "priority_score": 86,
+    "is_trending": true
+  },
+  "Nike Dunk Low": {
+    "aliases": ["دانك", "دانك لو", "نايك دانك", "dunk", "dunk low", "nike dunk"],
+    "styles": ["streetwear", "casual", "colorful", "classic"],
+    "occasions": ["daily", "outfit", "college", "street"],
+    "gender_fit": ["men", "women", "unisex"],
+    "personality_lines": ["الدنك بيعمل لوك ستريت نضيف", "ده سهل يتظبط على كذا طقم", "موديل محبوب ومطلوب طول الوقت"],
+    "selling_points": ["ألوانه بتدي شكل جامد", "مريح في اليوم العادي", "بيليق على الجينز والتراكسوت"],
+    "target_customer": ["streetwear", "color matching", "daily casual"],
+    "priority_score": 84,
+    "is_trending": true
+  },
+  "Adidas Yeezy 350": {
+    "aliases": ["ييزي", "يزي", "yeezy", "yeezy 350", "اديداس ييزي"],
+    "styles": ["premium", "sporty", "minimal", "comfortable"],
+    "occasions": ["daily", "travel", "outfit", "walking"],
+    "gender_fit": ["men", "women", "unisex"],
+    "personality_lines": ["الييزي مريح وشيك في نفس الوقت", "ده لوك هادي بس غالي في شكله", "بيكمل الأطقم الكاجوال جدًا"],
+    "selling_points": ["خفيف ومريح", "بيليق على ألوان كتير", "مناسب للمشاوير الطويلة"],
+    "target_customer": ["comfort seekers", "premium casual", "minimal outfits"],
+    "priority_score": 82,
+    "is_trending": false
+  },
+  "New Balance 550": {
+    "aliases": ["نيو بالانس 550", "نيو بالانس", "550", "nb 550", "new balance 550"],
+    "styles": ["retro", "premium", "casual", "clean"],
+    "occasions": ["daily", "outfit", "smart casual", "college"],
+    "gender_fit": ["men", "women", "unisex"],
+    "personality_lines": ["النيو بالانس دي شيك من غير دوشة", "لوكها نضيف جدًا على اللبس الكاجوال", "اختيار محترم لو عايز حاجة مختلفة"],
+    "selling_points": ["مريح في اللبس", "بيمشي مع ألوان هادية", "ستايله راقي وكاجوال"],
+    "target_customer": ["clean outfits", "retro fashion", "premium casual"],
+    "priority_score": 80,
+    "is_trending": false
+  },
+  "Converse Chuck Taylor": {
+    "aliases": ["كونفرس", "تشاك تايلور", "all star", "converse", "chuck taylor"],
+    "styles": ["classic", "casual", "minimal", "streetwear"],
+    "occasions": ["daily", "college", "outfit"],
+    "gender_fit": ["men", "women", "unisex"],
+    "personality_lines": ["الكونفرس عمره ما بيبطل", "ده كلاسيك ولايق على أي لوك بسيط", "شكله خفيف ومريح للعين"],
+    "selling_points": ["سهل يتلبس يومي", "بيليق على الجينز", "اختيار بسيط وشيك"],
+    "target_customer": ["classic casual", "minimal outfits", "college wear"],
+    "priority_score": 72,
+    "is_trending": false
+  },
+  "Vans Old Skool": {
+    "aliases": ["فانز", "اولد سكول", "vans", "old skool", "vans old skool"],
+    "styles": ["classic", "streetwear", "casual", "skate"],
+    "occasions": ["daily", "college", "street", "outfit"],
+    "gender_fit": ["men", "women", "unisex"],
+    "personality_lines": ["الفانز ستايله ثابت ومش بيقدم", "ده لايق جدًا على اللبس الكاجوال", "موديل بسيط بس شكله جامد"],
+    "selling_points": ["خفيف وسهل", "بيمشي مع الجينز والشورت", "مناسب للخروجات اليومية"],
+    "target_customer": ["skate style", "casual outfits", "daily wear"],
+    "priority_score": 70,
+    "is_trending": false
+  }
+}

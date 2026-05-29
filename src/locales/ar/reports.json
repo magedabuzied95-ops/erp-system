@@ -1,47 +1,47 @@
 {
-  "title": "التقارير والتحليلات",
-  "subtitle": "لوحة ذكاء الأعمال",
-  "loading": "جارٍ تحميل التقارير...",
-  "walkIn": "عميل مباشر",
-  "payment": {
-    "cash": "نقدًا"
-  },
-  "buttons": {
-    "excel": "إكسل",
-    "csv": "CSV",
-    "pdf": "PDF"
-  },
-  "kpis": {
-    "revenue": "الإيرادات",
-    "orders": "الطلبات",
-    "averageOrder": "متوسط الطلب",
-    "paidOrders": "الطلبات المدفوعة"
-  },
-  "sections": {
-    "revenueAnalytics": "تحليلات الإيرادات",
-    "orderStatus": "حالة الطلبات",
-    "table": "جدول التقارير"
-  },
-  "table": {
-    "id": "المعرف",
-    "customer": "العميل",
-    "payment": "الدفع",
-    "status": "الحالة",
-    "total": "الإجمالي"
-  },
-  "charts": {
-    "revenue": "الإيرادات",
-    "averageOrder": "متوسط الطلب",
-    "paid": "مدفوع",
-    "pending": "قيد الانتظار"
-  },
-  "export": {
-    "sheetName": "التقارير"
-  },
-  "toasts": {
-    "loadFailed": "تعذر تحميل التقارير",
-    "excelExported": "تم تصدير إكسل",
-    "csvExported": "تم تصدير CSV",
-    "pdfExported": "تم تصدير PDF"
-  }
+    "title":  "التقارير والتحليلات",
+    "subtitle":  "لوحة ذكاء الأعمال",
+    "loading":  "جارٍ تحميل التقارير...",
+    "walkIn":  "عميل مباشر",
+    "payment":  {
+                    "cash":  "نقدًا"
+                },
+    "buttons":  {
+                    "excel":  "إكسل",
+                    "csv":  "CSV",
+                    "pdf":  "PDF"
+                },
+    "kpis":  {
+                 "revenue":  "الإيرادات",
+                 "orders":  "الطلبات",
+                 "averageOrder":  "متوسط الطلب",
+                 "paidOrders":  "الطلبات المدفوعة"
+             },
+    "sections":  {
+                     "revenueAnalytics":  "تحليلات الإيرادات",
+                     "orderStatus":  "حالة الطلبات",
+                     "table":  "جدول التقارير"
+                 },
+    "table":  {
+                  "id":  "المعرف",
+                  "customer":  "العميل",
+                  "payment":  "الدفع",
+                  "status":  "الحالة",
+                  "total":  "الإجمالي"
+              },
+    "charts":  {
+                   "revenue":  "الإيرادات",
+                   "averageOrder":  "متوسط الطلب",
+                   "paid":  "مدفوع",
+                   "pending":  "قيد الانتظار"
+               },
+    "export":  {
+                   "sheetName":  "التقارير"
+               },
+    "toasts":  {
+                   "loadFailed":  "تعذر تحميل التقارير",
+                   "excelExported":  "تم تصدير إكسل",
+                   "csvExported":  "تم تصدير CSV",
+                   "pdfExported":  "تم تصدير PDF"
+               }
 }

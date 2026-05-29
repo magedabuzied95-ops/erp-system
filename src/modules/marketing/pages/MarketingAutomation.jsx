@@ -21,6 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 import {
   createAutoReplyRule,
@@ -40,25 +41,25 @@ const defaultKeywords = ["بكام", "السعر", "سعر", "كام", "price", 
 const tonePresets = [
   {
     id: "friendly",
-    label: "Friendly",
+    labelKey: "marketing.automation.tones.friendly",
     public_reply_template: "تم الرد على حضرتك في الرسائل ❤️",
     private_reply_template: "أهلاً بحضرتك ❤️\nالموديل {{product_name}} سعره: {{price}} ج.م\n\nالمتاح حاليًا:\n{{variants}}\n\nتحب أأكد لحضرتك المقاس واللون؟",
   },
   {
     id: "luxury",
-    label: "Luxury",
+    labelKey: "marketing.automation.tones.luxury",
     public_reply_template: "بعتنالك التفاصيل في الرسائل ✨",
     private_reply_template: "أهلاً بحضرتك ✨\n{{product_name}} من {{brand}}\nالسعر: {{price}} ج.م\n\nالمتاح الآن:\n{{variants}}\n\nيسعدنا نجهز طلبك بأفضل اختيار مناسب.",
   },
   {
     id: "casual",
-    label: "Casual",
+    labelKey: "marketing.automation.tones.casual",
     public_reply_template: "بعتنالك السعر والتفاصيل DM 😊",
     private_reply_template: "هاي 👋\n{{product_name}} سعره {{price}} ج.م\n\nالمتاح:\n{{variants}}\n\nتحب انهي لون ومقاس؟",
   },
   {
     id: "fast",
-    label: "Fast sales",
+    labelKey: "marketing.automation.tones.fastSales",
     public_reply_template: "ردينا عليك في الرسائل، الحق المتاح 🔥",
     private_reply_template: "{{product_name}}\nالسعر: {{price}} ج.م\nالمتاح:\n{{variants}}\n\nابعت المقاس واللون ونأكدلك الطلب فورًا.",
   },
@@ -204,6 +205,7 @@ const ActionStatus = ({ icon: Icon, label, status }) => (
 );
 
 export default function MarketingAutomation() {
+  const { t } = useTranslation();
   const [loadingPrimary, setLoadingPrimary] = useState(true);
   const [loadingActivity, setLoadingActivity] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -230,7 +232,7 @@ export default function MarketingAutomation() {
   const publicPreview = useMemo(() => renderTemplate(deferredPublicTemplate, previewContext), [deferredPublicTemplate, previewContext]);
   const privatePreview = useMemo(() => renderTemplate(deferredPrivateTemplate, previewContext), [deferredPrivateTemplate, previewContext]);
   const webhookPayloadPreview = useMemo(() => {
-    if (!webhookStatus?.recent_payload_preview) return "No payload received yet.";
+    if (!webhookStatus?.recent_payload_preview) return t("marketing.automation.noPayload");
     try {
       return JSON.stringify(webhookStatus.recent_payload_preview, null, 2);
     } catch {
@@ -264,7 +266,7 @@ export default function MarketingAutomation() {
       if (!selectedRuleId) applyRule(loadedRules[0] || blankRule);
       if (!selectedProductId && loadedProducts[0]) setSelectedProductId(loadedProducts[0].id);
     } catch (error) {
-      toast.error(error?.message || "Failed to load inbox setup");
+      toast.error(error?.message || t("marketing.automation.loadSetupFailed"));
     } finally {
       setLoadingPrimary(false);
     }
@@ -282,7 +284,7 @@ export default function MarketingAutomation() {
       setConversations(loadedConversations);
       setWebhookStatus(loadedWebhookStatus);
     } catch (error) {
-      toast.error(error?.message || "Failed to load lead activity");
+      toast.error(error?.message || t("marketing.automation.loadActivityFailed"));
     } finally {
       setLoadingActivity(false);
     }
@@ -315,12 +317,12 @@ export default function MarketingAutomation() {
         keywords: form.keywords || [],
       };
       const saved = selectedRuleId ? await updateAutoReplyRule(selectedRuleId, payload) : await createAutoReplyRule(payload);
-      toast.success(selectedRuleId ? "Auto reply rule updated" : "Auto reply rule created");
+      toast.success(selectedRuleId ? t("marketing.automation.updated") : t("marketing.automation.created"));
       setSelectedRuleId(saved.id);
       await loadPrimary();
       void loadActivity();
     } catch (error) {
-      toast.error(error?.message || "Failed to save auto reply rule");
+      toast.error(error?.message || t("marketing.automation.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -343,10 +345,10 @@ export default function MarketingAutomation() {
         message: sampleComment,
         username: "Simulated Customer",
       });
-      toast.success("Simulated comment saved");
+      toast.success(t("marketing.automation.simulatedSaved"));
       await loadActivity();
     } catch (error) {
-      toast.error(error?.message || "Failed to simulate comment");
+      toast.error(error?.message || t("marketing.automation.simulateFailed"));
     } finally {
       setSimulating(false);
     }
@@ -360,23 +362,23 @@ export default function MarketingAutomation() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100">
                 <Bot className="h-3.5 w-3.5" />
-                Social selling inbox
+                {t("marketing.automation.eyebrow")}
               </div>
-              <h1 className="mt-3 text-2xl font-black tracking-tight md:text-3xl">Auto Replies CRM</h1>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">Rules, product-aware previews, smart intent matching, and lead activity in one commerce inbox.</p>
+              <h1 className="mt-3 text-2xl font-black tracking-tight md:text-3xl">{t("marketing.automation.title")}</h1>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.automation.subtitle")}</p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
                 <div className="text-xl font-black">{rules.length}</div>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Rules</div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.rules")}</div>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
                 <div className="text-xl font-black">{conversations.length}</div>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Leads</div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.leads")}</div>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
                 <div className="text-xl font-black">{events.length}</div>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Comments</div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.comments")}</div>
               </div>
             </div>
           </div>
@@ -386,8 +388,8 @@ export default function MarketingAutomation() {
           <aside className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-black">Rules</h2>
-                <p className="text-xs text-slate-400">Automation playbooks</p>
+                <h2 className="text-sm font-black">{t("marketing.automation.rules")}</h2>
+                <p className="text-xs text-slate-400">{t("marketing.automation.playbooks")}</p>
               </div>
               <button type="button" onClick={() => applyRule(blankRule)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
                 <Plus className="h-4 w-4" />
@@ -419,50 +421,50 @@ export default function MarketingAutomation() {
                   </div>
                 </button>
               ))}
-              {!rules.length && !loadingPrimary ? <div className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-slate-400">No rules yet.</div> : null}
+              {!rules.length && !loadingPrimary ? <div className="rounded-xl border border-dashed border-white/10 p-5 text-sm text-slate-400">{t("marketing.automation.noRules")}</div> : null}
             </div>
           </aside>
 
           <main className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 className="text-lg font-black">Rule editor</h2>
-                <p className="text-sm text-slate-400">Configure triggers, public response, and private DM flow.</p>
+                <h2 className="text-lg font-black">{t("marketing.automation.ruleEditor")}</h2>
+                <p className="text-sm text-slate-400">{t("marketing.automation.ruleEditorDescription")}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => setForm((current) => ({ ...current, enabled: !current.enabled }))} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-semibold">
                   {form.enabled ? <ToggleRight className="h-5 w-5 text-emerald-300" /> : <ToggleLeft className="h-5 w-5 text-slate-400" />}
-                  {form.enabled ? "Enabled" : "Paused"}
+                  {form.enabled ? t("marketing.automation.enabled") : t("marketing.campaigns.status.paused")}
                 </button>
                 <button type="button" onClick={() => { void loadPrimary(); void loadActivity(); }} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold">
                   <RefreshCw className="h-4 w-4" />
-                  Refresh
+                  {t("marketing.common.refresh")}
                 </button>
                 <button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
                   <Save className="h-4 w-4" />
-                  Save
+                  {t("marketing.common.save")}
                 </button>
               </div>
             </div>
 
             <div className="grid gap-3 lg:grid-cols-2">
               <label className="space-y-1.5 lg:col-span-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Rule name</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.fields.ruleName")}</span>
                 <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm outline-none transition focus:border-cyan-300/40" />
               </label>
               <label className="space-y-1.5">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Platform</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("marketing.social.platform")}</span>
                 <select value={form.platform} onChange={(event) => setForm((current) => ({ ...current, platform: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm outline-none">
-                  <option value="facebook">Facebook</option>
-                  <option value="instagram">Instagram</option>
+                  <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
+                  <option value="instagram">{t("marketing.social.platforms.instagram")}</option>
                 </select>
               </label>
               <label className="space-y-1.5">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Match mode</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.fields.matchMode")}</span>
                 <select value={form.match_mode} onChange={(event) => setForm((current) => ({ ...current, match_mode: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2.5 text-sm outline-none">
-                  <option value="any">Any keyword + smart intent</option>
-                  <option value="all">All keywords</option>
-                  <option value="exact">Exact comment</option>
+                  <option value="any">{t("marketing.automation.matchModes.anySmart")}</option>
+                  <option value="all">{t("marketing.automation.matchModes.all")}</option>
+                  <option value="exact">{t("marketing.automation.matchModes.exact")}</option>
                 </select>
               </label>
             </div>
@@ -470,8 +472,8 @@ export default function MarketingAutomation() {
             <section className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="flex items-center gap-2 text-sm font-bold"><Tag className="h-4 w-4 text-cyan-300" /> Keywords</div>
-                  <p className="text-xs text-slate-400">Paste Arabic or English comma-separated terms.</p>
+                  <div className="flex items-center gap-2 text-sm font-bold"><Tag className="h-4 w-4 text-cyan-300" /> {t("marketing.automation.fields.keywords")}</div>
+                  <p className="text-xs text-slate-400">{t("marketing.automation.keywordsHelp")}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {suggestedKeywords.map((keyword) => (
@@ -496,7 +498,7 @@ export default function MarketingAutomation() {
                     }
                   }}
                   onBlur={() => addKeywords(keywordDraft)}
-                  placeholder="Add keyword"
+                  placeholder={t("marketing.automation.placeholders.addKeyword")}
                   className="min-w-[150px] flex-1 bg-transparent px-2 py-1 text-sm outline-none placeholder:text-slate-500"
                 />
               </div>
@@ -504,10 +506,10 @@ export default function MarketingAutomation() {
 
             <section className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="text-sm font-bold">Public reply tone</div>
+                <div className="text-sm font-bold">{t("marketing.automation.publicReplyTone")}</div>
                 <div className="flex flex-wrap gap-2">
                   {tonePresets.map((preset) => (
-                    <button key={preset.id} type="button" onClick={() => applyTone(preset)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-cyan-300/40 hover:text-white">{preset.label}</button>
+                    <button key={preset.id} type="button" onClick={() => applyTone(preset)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-cyan-300/40 hover:text-white">{t(preset.labelKey)}</button>
                   ))}
                 </div>
               </div>
@@ -517,7 +519,7 @@ export default function MarketingAutomation() {
             <section className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="text-sm font-bold">Private DM template</div>
+                  <div className="text-sm font-bold">{t("marketing.automation.privateDmTemplate")}</div>
                   <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] text-slate-400">
                     {["{{product_name}}", "{{price}}", "{{variants}}", "{{brand}}", "{{store_name}}", "{{product_image}}"].map((item) => <span key={item} className="rounded-full bg-white/5 px-2 py-1">{item}</span>)}
                   </div>
@@ -526,7 +528,7 @@ export default function MarketingAutomation() {
                   {["like_comment", "reply_publicly", "send_private_reply"].map((key) => (
                     <label key={key} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5">
                       <input type="checkbox" checked={Boolean(form[key])} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.checked }))} />
-                      {key.replaceAll("_", " ")}
+                      {t(`marketing.automation.actions.${key}`)}
                     </label>
                   ))}
                 </div>
@@ -539,61 +541,61 @@ export default function MarketingAutomation() {
             <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-black">Meta webhook</h2>
-                  <p className="text-xs text-slate-400">{webhookStatus?.verify_token_configured && webhookStatus?.signature_validation_enabled ? "Ready for signed events" : "Setup incomplete"}</p>
+                  <h2 className="text-sm font-black">{t("marketing.automation.webhook.title")}</h2>
+                  <p className="text-xs text-slate-400">{webhookStatus?.verify_token_configured && webhookStatus?.signature_validation_enabled ? t("marketing.automation.webhook.ready") : t("marketing.automation.webhook.incomplete")}</p>
                 </div>
                 <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${webhookStatus?.verify_token_configured && webhookStatus?.signature_validation_enabled ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" : "border-amber-400/30 bg-amber-400/10 text-amber-100"}`}>
-                  {webhookStatus?.verify_token_configured && webhookStatus?.signature_validation_enabled ? "Connected" : "Pending"}
+                  {webhookStatus?.verify_token_configured && webhookStatus?.signature_validation_enabled ? t("marketing.settings.status.connected") : t("marketing.automation.pending")}
                 </span>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-xl border border-white/10 bg-slate-950/60 p-2">
-                  <div className="text-slate-400">Verify token</div>
+                  <div className="text-slate-400">{t("marketing.automation.webhook.verifyToken")}</div>
                   <div className={webhookStatus?.verify_token_configured ? "mt-1 font-bold text-emerald-200" : "mt-1 font-bold text-amber-200"}>
-                    {webhookStatus?.verify_token_configured ? "Configured" : "Missing"}
+                    {webhookStatus?.verify_token_configured ? t("marketing.automation.configured") : t("marketing.settings.status.missing")}
                   </div>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-slate-950/60 p-2">
-                  <div className="text-slate-400">Signature</div>
+                  <div className="text-slate-400">{t("marketing.automation.webhook.signature")}</div>
                   <div className={webhookStatus?.signature_validation_enabled ? "mt-1 font-bold text-emerald-200" : "mt-1 font-bold text-amber-200"}>
-                    {webhookStatus?.signature_validation_enabled ? "Enabled" : "Missing"}
+                    {webhookStatus?.signature_validation_enabled ? t("marketing.automation.enabled") : t("marketing.settings.status.missing")}
                   </div>
                 </div>
                 <div className="col-span-2 rounded-xl border border-white/10 bg-slate-950/60 p-2">
-                  <div className="text-slate-400">Last event</div>
-                  <div className="mt-1 font-bold text-slate-100">{webhookStatus?.last_event_at ? relativeTime(webhookStatus.last_event_at) : "No events"}</div>
+                  <div className="text-slate-400">{t("marketing.automation.webhook.lastEvent")}</div>
+                  <div className="mt-1 font-bold text-slate-100">{webhookStatus?.last_event_at ? relativeTime(webhookStatus.last_event_at) : t("marketing.automation.webhook.noEvents")}</div>
                 </div>
               </div>
 
               <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/60 p-2">
-                <div className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Webhook URL</div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.webhook.url")}</div>
                 <div className="flex items-center gap-2">
                   <code className="min-w-0 flex-1 truncate rounded-lg bg-black/30 px-2 py-1.5 text-xs text-cyan-100">{webhookStatus?.webhook_url || "/api/marketing/webhooks/meta"}</code>
                   <button
                     type="button"
                     onClick={() => {
                       void navigator.clipboard?.writeText(webhookStatus?.webhook_url || "/api/marketing/webhooks/meta");
-                      toast.success("Webhook URL copied");
+                      toast.success(t("marketing.automation.webhook.urlCopied"));
                     }}
                     className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs font-semibold"
                   >
-                    Copy
+                    {t("marketing.common.copy")}
                   </button>
                 </div>
               </div>
 
               <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/60 p-2">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Subscribe fields</div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.webhook.subscribeFields")}</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {(webhookStatus?.subscribed_fields || ["comments", "feed", "instagram_manage_comments"]).map((field) => (
+                  {(webhookStatus?.subscribed_fields || ["messages", "messaging_postbacks", "feed"]).map((field) => (
                     <span key={field} className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-100">{field}</span>
                   ))}
                 </div>
               </div>
 
               <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/70 p-2">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Recent payload</div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("marketing.automation.webhook.recentPayload")}</div>
                 <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-black/30 p-2 text-[11px] leading-5 text-slate-300">{webhookPayloadPreview}</pre>
               </div>
             </section>
@@ -601,8 +603,8 @@ export default function MarketingAutomation() {
             <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-black">Live preview</h2>
-                  <p className="text-xs text-slate-400">Product-aware customer response</p>
+                  <h2 className="text-sm font-black">{t("marketing.automation.preview.title")}</h2>
+                  <p className="text-xs text-slate-400">{t("marketing.automation.preview.subtitle")}</p>
                 </div>
                 <Sparkles className="h-5 w-5 text-cyan-300" />
               </div>
@@ -619,7 +621,7 @@ export default function MarketingAutomation() {
                     <div className="truncate text-sm font-bold">{previewContext.product_name}</div>
                     <div className="mt-1 text-lg font-black text-emerald-300">{previewContext.price} ج.م</div>
                     <div className={`mt-1 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${Number(previewContext.stock) > 0 ? "bg-emerald-400/10 text-emerald-200" : "bg-rose-400/10 text-rose-200"}`}>
-                      {Number(previewContext.stock) > 0 ? `${previewContext.stock} in stock` : "Out of stock"}
+                      {Number(previewContext.stock) > 0 ? t("marketing.automation.preview.inStock", { count: previewContext.stock }) : t("marketing.automation.preview.outOfStock")}
                     </div>
                   </div>
                 </div>
@@ -630,15 +632,15 @@ export default function MarketingAutomation() {
               </div>
 
               <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/70 p-3">
-                <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><MessageSquareReply className="h-4 w-4 text-cyan-300" /> Public comment</div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><MessageSquareReply className="h-4 w-4 text-cyan-300" /> {t("marketing.automation.preview.publicComment")}</div>
                 <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{publicPreview}</p>
               </div>
 
               <div className="mt-3 rounded-xl border border-emerald-400/20 bg-[#0b1411] p-3">
-                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-emerald-100"><MessageCircle className="h-4 w-4" /> WhatsApp-style DM</div>
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-emerald-100"><MessageCircle className="h-4 w-4" /> {t("marketing.automation.preview.whatsappDm")}</div>
                 <div className="ml-auto max-w-[92%] rounded-2xl rounded-tr-sm bg-emerald-500/20 px-3 py-2 text-sm leading-6 text-emerald-50 shadow-lg shadow-emerald-950/30">
                   <p className="whitespace-pre-wrap">{privatePreview}</p>
-                  <div className="mt-2 flex justify-end gap-1 text-[10px] text-emerald-200"><span>Now</span><Check className="h-3 w-3" /></div>
+                  <div className="mt-2 flex justify-end gap-1 text-[10px] text-emerald-200"><span>{t("marketing.social.preview.now")}</span><Check className="h-3 w-3" /></div>
                 </div>
               </div>
             </section>
@@ -646,24 +648,24 @@ export default function MarketingAutomation() {
             <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-2xl shadow-black/20">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-black">Smart intent test</h2>
-                  <p className="text-xs text-slate-400">Arabic dialect aware helper</p>
+                  <h2 className="text-sm font-black">{t("marketing.automation.intent.title")}</h2>
+                  <p className="text-xs text-slate-400">{t("marketing.automation.intent.subtitle")}</p>
                 </div>
                 <Zap className="h-4 w-4 text-amber-300" />
               </div>
               <input value={sampleComment} onChange={(event) => setSampleComment(event.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm outline-none" />
               <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
                 {[
-                  ["Price", intents.price],
-                  ["Availability", intents.availability],
-                  ["Variant", intents.variant],
+                  [t("marketing.automation.intent.price"), intents.price],
+                  [t("marketing.automation.intent.availability"), intents.availability],
+                  [t("marketing.automation.intent.variant"), intents.variant],
                 ].map(([label, active]) => (
                   <div key={label} className={`rounded-xl border px-2 py-2 ${active ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/5 text-slate-400"}`}>{label}</div>
                 ))}
               </div>
               <button type="button" onClick={simulateComment} disabled={simulating} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-sm font-semibold text-cyan-100 disabled:opacity-60">
                 <Send className="h-4 w-4" />
-                {simulating ? "Simulating..." : "Simulate comment"}
+                {simulating ? t("marketing.automation.simulating") : t("marketing.automation.simulateComment")}
               </button>
             </section>
           </aside>
@@ -672,7 +674,7 @@ export default function MarketingAutomation() {
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-black">Marketing leads</h2>
+              <h2 className="font-black">{t("marketing.automation.marketingLeads")}</h2>
               {loadingActivity ? <Clock3 className="h-4 w-4 animate-pulse text-slate-400" /> : null}
             </div>
             <div className="grid gap-3 md:grid-cols-2">
@@ -688,13 +690,13 @@ export default function MarketingAutomation() {
                           <div className="truncate text-sm font-bold">{lead.username || lead.user_platform_id}</div>
                           <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${leadScoreClass[score] || leadScoreClass.low}`}>{score}</span>
                         </div>
-                        <div className="mt-1 flex items-center gap-2 text-xs text-slate-400"><PlatformIcon platform={lead.platform} /> {lead.status || "new"} / {relativeTime(lead.updated_at)}</div>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-slate-400"><PlatformIcon platform={lead.platform} /> {lead.status || t("marketing.automation.status.new")} / {relativeTime(lead.updated_at)}</div>
                       </div>
                       <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/5">
                         {productImage ? <img src={productImage} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-500"><ImageIcon className="h-4 w-4" /></div>}
                       </div>
                     </div>
-                    <div className="mt-3 text-sm text-slate-100">{lead.product_name || "Manual follow-up"}</div>
+                    <div className="mt-3 text-sm text-slate-100">{lead.product_name || t("marketing.automation.manualFollowUp")}</div>
                     <div className="mt-1 line-clamp-2 text-xs text-slate-400">{lead.last_customer_message || lead.last_message}</div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {(lead.matched_keyword ? [lead.matched_keyword] : splitKeywords(lead.last_customer_message || lead.last_message).slice(0, 1)).map((keyword) => <span key={keyword} className="rounded-full bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-100">{keyword}</span>)}
@@ -702,14 +704,14 @@ export default function MarketingAutomation() {
                   </div>
                 );
               })}
-              {!conversations.length && !loadingActivity ? <div className="text-sm text-slate-400">No leads yet.</div> : null}
+              {!conversations.length && !loadingActivity ? <div className="text-sm text-slate-400">{t("marketing.automation.noLeads")}</div> : null}
             </div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-black">Recent comments</h2>
-              <button type="button" onClick={loadActivity} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">Reload</button>
+              <h2 className="font-black">{t("marketing.automation.recentComments")}</h2>
+              <button type="button" onClick={loadActivity} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">{t("marketing.automation.reload")}</button>
             </div>
             <div className="space-y-2">
               {events.slice(0, 8).map((event) => {
@@ -723,23 +725,23 @@ export default function MarketingAutomation() {
                   <div key={event.id} className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2 text-sm font-semibold"><PlatformIcon platform={event.platform} /> {event.username || event.user_platform_id || "Customer"}</div>
+                        <div className="flex items-center gap-2 text-sm font-semibold"><PlatformIcon platform={event.platform} /> {event.username || event.user_platform_id || t("marketing.automation.customer")}</div>
                         <p className="mt-1 text-sm leading-6 text-slate-100">{event.message}</p>
                       </div>
                       <span className={`shrink-0 rounded-full border px-2 py-1 text-[11px] ${event.status === "failed" ? "border-rose-400/30 bg-rose-400/10 text-rose-100" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"}`}>{event.status}</span>
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
-                      <span className={`rounded-full px-2 py-1 ${leadScoreClass[score] || leadScoreClass.low}`}>{score} score</span>
+                      <span className={`rounded-full px-2 py-1 ${leadScoreClass[score] || leadScoreClass.low}`}>{t("marketing.automation.score", { score })}</span>
                       {event.matched_keyword ? <span className="rounded-full bg-cyan-400/10 px-2 py-1 text-cyan-100">{event.matched_keyword}</span> : null}
-                      <ActionStatus icon={CheckCircle2} label="like" status={likedStatus} />
-                      <ActionStatus icon={CircleDot} label="public" status={publicReplyStatus} />
-                      <ActionStatus icon={Send} label="private" status={privateReplyStatus} />
+                      <ActionStatus icon={CheckCircle2} label={t("marketing.automation.actionLabels.like")} status={likedStatus} />
+                      <ActionStatus icon={CircleDot} label={t("marketing.automation.actionLabels.public")} status={publicReplyStatus} />
+                      <ActionStatus icon={Send} label={t("marketing.automation.actionLabels.private")} status={privateReplyStatus} />
                     </div>
                     {actionError ? <div className="mt-2 rounded-lg bg-rose-400/10 px-2 py-1.5 text-[11px] leading-5 text-rose-100">{actionError}</div> : null}
                   </div>
                 );
               })}
-              {!events.length && !loadingActivity ? <div className="text-sm text-slate-400">No comments processed yet.</div> : null}
+              {!events.length && !loadingActivity ? <div className="text-sm text-slate-400">{t("marketing.automation.noComments")}</div> : null}
             </div>
           </div>
         </section>

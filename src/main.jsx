@@ -4,6 +4,7 @@ import App from "./App.jsx";
 import "./i18n/i18n";
 
 import "./index.css";
+import { API_BASE_URL, API_ORIGIN, SOCKET_URL } from "./shared/constants/app";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
 import {
@@ -14,12 +15,74 @@ import {
    TOAST
 ====================================================== */
 
-import {
-  Toaster
-} from "react-hot-toast";
+import LocalizedToaster from "./shared/components/LocalizedToaster.jsx";
+
+const clearStaleApiOverrides = () => {
+  if (typeof window === "undefined") return;
+
+  const overrideKeyPattern = /(api|backend|baseurl|base_url|origin|socket|websocket|ws|host|cloudflare)/i;
+  const currentOrigin = window.location.origin;
+  const cloudflarePattern = /\.trycloudflare\.com/i;
+  const currentCloudflareHost = (() => {
+    try {
+      return new URL(currentOrigin).hostname.toLowerCase();
+    } catch {
+      return "";
+    }
+  })();
+
+  const shouldClearStorageEntry = (key = "", value = "") => {
+    const raw = String(value || "");
+    if (!overrideKeyPattern.test(key)) return false;
+
+    if (cloudflarePattern.test(raw)) {
+      if (!currentCloudflareHost.endsWith(".trycloudflare.com")) return true;
+      try {
+        return new URL(raw, currentOrigin).hostname.toLowerCase() !== currentCloudflareHost;
+      } catch {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  [window.localStorage, window.sessionStorage].forEach((storage) => {
+    if (!storage) return;
+
+    try {
+      for (let index = storage.length - 1; index >= 0; index -= 1) {
+        const key = storage.key(index);
+        if (!key) continue;
+
+        const value = storage.getItem(key) || "";
+        if (shouldClearStorageEntry(key, value)) {
+          storage.removeItem(key);
+        }
+      }
+    } catch {
+      // Storage can be unavailable in private or restricted browser contexts.
+    }
+  });
+};
+
+clearStaleApiOverrides();
+
+if (import.meta.env.DEV) {
+  console.debug("[runtime] resolved URLs", {
+    apiBaseUrl: API_BASE_URL,
+    apiOrigin: API_ORIGIN,
+    socketUrl: SOCKET_URL,
+    windowOrigin: typeof window !== "undefined" ? window.location.origin : "",
+  });
+}
 
 if (typeof document !== "undefined") {
-  document.documentElement.dataset.theme = localStorage.getItem("erp.theme") || "dark";
+  try {
+    document.documentElement.dataset.theme = localStorage.getItem("erp.theme") || "dark";
+  } catch {
+    document.documentElement.dataset.theme = "dark";
+  }
 }
 
 ReactDOM.createRoot(
@@ -41,33 +104,7 @@ ReactDOM.createRoot(
          TOASTER
       ====================================================== */}
 
-      <Toaster
-        position="top-right"
-        reverseOrder={false}
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: "var(--surface)",
-            color: "var(--text)",
-            border: "1px solid var(--border)",
-            borderRadius: "18px",
-            padding: "16px",
-            fontWeight: "700"
-          },
-          success: {
-            iconTheme: {
-              primary: "var(--success)",
-              secondary: "var(--text)"
-            }
-          },
-          error: {
-            iconTheme: {
-              primary: "var(--danger)",
-              secondary: "var(--text)"
-            }
-          }
-        }}
-      />
+      <LocalizedToaster />
 
     </BrowserRouter>
   </ThemeProvider>

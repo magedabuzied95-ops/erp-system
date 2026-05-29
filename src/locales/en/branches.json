@@ -39,6 +39,9 @@
     "address": "Address",
     "notes": "Notes",
     "defaultWarehouseId": "Default warehouse ID",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "attendanceRadius": "Attendance radius (meters)",
     "activeStatus": "Status"
   },
   "toasts": {
@@ -58,7 +61,10 @@
     "archiving": "Deleting...",
     "view": "View",
     "edit": "Edit",
-    "archiveShort": "Delete"
+    "archiveShort": "Delete",
+    "downloadQr": "Download QR",
+    "printQr": "Print QR",
+    "regenerateQr": "Regenerate QR"
   },
   "confirm": {
     "title": "Delete branch",
@@ -70,5 +76,23 @@
     "noAddress": "No address",
     "noNotes": "No notes",
     "notSet": "Not set"
+  },
+  "qr": {
+    "title": "Attendance QR",
+    "subtitle": "Employees scan this branch QR and enter their phone number or employee code.",
+    "publicUrl": "Public attendance URL",
+    "loading": "Loading QR...",
+    "loadFailed": "Failed to load attendance QR",
+    "regenerated": "Attendance QR regenerated",
+    "regenerateFailed": "Failed to regenerate attendance QR",
+    "branchBadge": "Branch attendance",
+    "generated": "Generated",
+    "note": "Regenerate this QR if it was shared outside the branch. Old printed copies stop working after regeneration.",
+    "previewError": "QR preview unavailable",
+    "steps": {
+      "scan": "Scan QR",
+      "identify": "Enter employee code or phone",
+      "action": "Check in or out"
+    }
   }
 }

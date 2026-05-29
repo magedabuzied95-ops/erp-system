@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Clock, Loader2, LogIn, LogOut, MapPin, UserRound } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
+import { getAttendanceDeviceFingerprint, getAttendanceDeviceToken } from "../attendanceDevice";
 
 const getCurrentPosition = () =>
   new Promise((resolve, reject) => {
@@ -59,7 +60,8 @@ const formatDateTime = (value) => {
 };
 
 export default function PublicBranchAttendance() {
-  const { token } = useParams();
+  const { token, branchKey } = useParams();
+  const attendanceKey = branchKey || token;
   const [branch, setBranch] = useState(null);
   const [identifier, setIdentifier] = useState("");
   const [employee, setEmployee] = useState(null);
@@ -79,7 +81,7 @@ export default function PublicBranchAttendance() {
       try {
         setLoading(true);
         setError("");
-        const payload = await api.get(`/attendance/public/branch/${encodeURIComponent(token)}`);
+        const payload = await api.get(`/attendance/branch-entry/${encodeURIComponent(attendanceKey)}`);
         if (!active) return;
         setBranch(payload?.data || payload);
       } catch (err) {
@@ -94,7 +96,7 @@ export default function PublicBranchAttendance() {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [attendanceKey]);
 
   const requestLocation = async () => {
     try {
@@ -128,9 +130,13 @@ export default function PublicBranchAttendance() {
   const allowedRadiusMeters = Number(branch?.attendance_radius_meters || 100);
   const isWithinRange = Number.isFinite(localDistanceMeters) ? localDistanceMeters <= allowedRadiusMeters : null;
   const attendanceState = employee?.attendance_state || null;
-  const canCheckIn = Boolean(attendanceState?.can_check_in);
-  const canCheckOut = Boolean(attendanceState?.can_check_out);
+  const allowedAction = employee?.allowed_action || (attendanceState?.completed ? null : attendanceState?.can_check_out ? "check_out" : attendanceState?.can_check_in ? "check_in" : null);
+  const deviceActionBlocked = Boolean(employee?.device_action_blocked || (employee?.device_approval_required && !allowedAction));
+  const deviceApprovalStatus = String(employee?.device_approval_status || "").toLowerCase();
+  const canCheckIn = !deviceActionBlocked && (employee?.can_check_in !== undefined ? Boolean(employee.can_check_in) : allowedAction === "check_in");
+  const canCheckOut = !deviceActionBlocked && (employee?.can_check_out !== undefined ? Boolean(employee.can_check_out) : allowedAction === "check_out");
   const attendanceCompleted = Boolean(attendanceState?.completed);
+  const deviceBlocked = deviceActionBlocked && ["pending", "approval_required", "invalid_token", "blocked"].includes(deviceApprovalStatus);
 
   const identifyEmployee = async (event) => {
     event.preventDefault();
@@ -140,8 +146,10 @@ export default function PublicBranchAttendance() {
       setIdentifying(true);
       setError("");
       setMessage("");
-      const payload = await api.post(`/attendance/public/branch/${encodeURIComponent(token)}/identify`, {
+      const payload = await api.post(`/attendance/public/branch/${encodeURIComponent(attendanceKey)}/identify`, {
         identifier: identifier.trim(),
+        device_token: getAttendanceDeviceToken(),
+        device_fingerprint: getAttendanceDeviceFingerprint(),
       });
       setEmployee(payload?.data || payload);
     } catch (err) {
@@ -161,24 +169,34 @@ export default function PublicBranchAttendance() {
       setMessage("");
       setServerGps(null);
 
-      const payload = await api.post(`/attendance/public/branch/${encodeURIComponent(token)}/actions`, {
+      const payload = await api.post(`/attendance/public/branch/${encodeURIComponent(attendanceKey)}/actions`, {
         employee_id: employee.employee_id,
         action_type: actionType,
+        attendance_date: attendanceState?.attendance_date || employee.attendance_date || employee.business_date,
+        business_date: attendanceState?.attendance_date || employee.business_date || employee.attendance_date,
+        device_token: getAttendanceDeviceToken(),
+        device_fingerprint: getAttendanceDeviceFingerprint(),
         ...(location || {}),
       });
       const data = payload?.data || {};
       setServerGps(data?.gps || null);
       if (data?.attendance_state) {
-        setEmployee((prev) => (prev ? { ...prev, attendance_state: data.attendance_state } : prev));
+        setEmployee((prev) => (prev ? { ...prev, ...data } : prev));
       }
       setMessage(`${payload?.message || "Attendance recorded"}${data.timestamp ? ` at ${formatDateTime(data.timestamp)}` : ""}`);
+      const portalUrl = payload?.portal_url || payload?.employee_portal?.url;
+      if (actionType === "check_in" && payload?.employee_portal?.auto_redirect !== false && portalUrl) {
+        setMessage("Check in recorded. Opening your tasks...");
+        window.location.assign(portalUrl);
+      }
     } catch (err) {
       setServerGps(err?.gps || err?.responseBody?.gps || null);
       const nextState = err?.attendance_state || err?.responseBody?.attendance_state;
-      if (nextState) {
-        setEmployee((prev) => (prev ? { ...prev, attendance_state: nextState } : prev));
+      const responseState = err?.responseBody || {};
+      if (nextState || responseState?.allowed_action !== undefined) {
+        setEmployee((prev) => (prev ? { ...prev, ...responseState, attendance_state: nextState || prev.attendance_state } : prev));
       }
-      setError(err?.message || "Failed to record attendance.");
+      setError(responseState?.device_action_blocked ? "" : responseState?.device_approval_message || err?.message || "Failed to record attendance.");
     } finally {
       setSubmittingAction("");
     }
@@ -286,12 +304,15 @@ export default function PublicBranchAttendance() {
 
               {attendanceState ? (
                 <div className="mt-4 rounded-2xl border border-emerald-200 bg-white/70 p-3 text-sm font-bold text-slate-700">
-                  {attendanceState.status === "not_started" ? "No attendance recorded today." : null}
-                  {attendanceState.status === "checked_in" ? "Checked in. Check out is available." : null}
-                  {attendanceCompleted ? "Attendance completed" : null}
+                  {deviceBlocked ? employee?.device_approval_message || "Device approval is required before check-in." : null}
+                  {!deviceBlocked && attendanceCompleted ? "Attendance completed" : null}
+                  {!deviceBlocked && !attendanceCompleted && allowedAction === "check_out" ? "Checked in. Check out is available." : null}
+                  {!deviceBlocked && !attendanceCompleted && allowedAction === "check_in" ? "No attendance recorded today." : null}
+                  {!deviceBlocked && !attendanceCompleted && !allowedAction ? "Attendance is not available right now." : null}
                 </div>
               ) : null}
 
+              {!deviceBlocked && !attendanceCompleted ? (
               <div className="mt-4 grid gap-3">
                 {canCheckIn ? (
                   <button
@@ -316,6 +337,7 @@ export default function PublicBranchAttendance() {
                   </button>
                 ) : null}
               </div>
+              ) : null}
 
               <div className="mt-3 flex items-start gap-2 text-xs font-semibold text-slate-600">
                 <MapPin className="mt-0.5 h-3.5 w-3.5" />

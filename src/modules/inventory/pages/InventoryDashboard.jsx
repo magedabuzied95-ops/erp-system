@@ -267,9 +267,14 @@ function InventoryDashboard() {
                 const totalStock = Number(alert.total_stock ?? alert.stock ?? 0);
                 const productName = alert.product_name || t("common.notAvailable");
                 const imageUrl = resolveImageUrl(alert.image_url);
+                const isProductTotalAlert = alert.low_stock_tracking_mode === "product_total" || alert.alert_scope === "product_total";
+                const activeSizesCount = Number(alert.active_sizes_count ?? 0);
+                const minimumSizesRequired = Number(alert.minimum_distinct_sizes_required ?? 0);
+                const productThreshold = Number(alert.product_low_stock_threshold ?? alert.threshold ?? 0);
+                const alertReason = alert.alert_reason || (Array.isArray(alert.alert_reasons) ? alert.alert_reasons.join(", ") : "");
                 return (
                   <div
-                    key={String(alert.product_id || alert.variant_id)}
+                    key={`${alert.alert_scope || "variant"}-${String(alert.product_id || "")}-${String(alert.variant_id || "")}`}
                     className="rounded-2xl border border-rose-400/25 bg-rose-500/10 p-3 shadow-[0_18px_38px_rgba(127,29,29,0.18)]"
                   >
                     <div className="flex gap-3">
@@ -287,24 +292,47 @@ function InventoryDashboard() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate text-base font-black text-white">آخر قطع متاحة</div>
+                            <div className="truncate text-base font-black text-white">
+                              {isProductTotalAlert ? productName : "Low stock variant"}
+                            </div>
                             <div className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-300">
-                              {totalStock === 1
-                                ? `متبقي قطعة واحدة فقط من ${productName}`
-                                : `متبقي قطعتين فقط من ${productName}`}
+                              {isProductTotalAlert
+                                ? `${alertReason || "Product total alert"}: ${totalStock} total stock, ${activeSizesCount} active size(s).`
+                                : `${productName}${alert.size ? ` / size ${alert.size}` : ""}${alert.color ? ` / ${alert.color}` : ""}`}
                             </div>
                           </div>
                           <span className="shrink-0 rounded-full border border-rose-300/30 bg-rose-400/15 px-2.5 py-1 text-[10px] font-black text-rose-100">
-                            عاجل
+                            {isProductTotalAlert ? alertReason || "Alert" : alert.badge_text || "Alert"}
                           </span>
                         </div>
-                        <div className="mt-3 flex items-center justify-between gap-3">
-                          <div className="text-sm font-black text-white">{totalStock} قطعة</div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-300">
+                          <div className="rounded-xl border border-white/10 bg-zinc-950/35 px-3 py-2">
+                            <span className="block text-zinc-500">Total stock</span>
+                            <span className="font-black text-white">{totalStock}</span>
+                          </div>
+                          <div className="rounded-xl border border-white/10 bg-zinc-950/35 px-3 py-2">
+                            <span className="block text-zinc-500">{isProductTotalAlert ? "Product threshold" : "Threshold"}</span>
+                            <span className="font-black text-white">{productThreshold}</span>
+                          </div>
+                          {isProductTotalAlert ? (
+                            <>
+                              <div className="rounded-xl border border-white/10 bg-zinc-950/35 px-3 py-2">
+                                <span className="block text-zinc-500">Active sizes</span>
+                                <span className="font-black text-white">{activeSizesCount}</span>
+                              </div>
+                              <div className="rounded-xl border border-white/10 bg-zinc-950/35 px-3 py-2">
+                                <span className="block text-zinc-500">Min active sizes</span>
+                                <span className="font-black text-white">{minimumSizesRequired}</span>
+                              </div>
+                            </>
+                          ) : null}
+                        </div>
+                        <div className="mt-3 flex justify-end">
                           <Link
                             to={`/inventory/adjustments?productId=${encodeURIComponent(alert.product_id || "")}`}
                             className="inline-flex items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-200 transition hover:bg-emerald-500/15"
                           >
-                            فتح المخزون
+                            Open inventory
                           </Link>
                         </div>
                       </div>
@@ -340,3 +368,4 @@ function Kpi({ label, value, tone = "zinc" }) {
 }
 
 export default InventoryDashboard;
+

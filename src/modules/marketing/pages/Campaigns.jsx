@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Megaphone, Pencil, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 import { createMarketingCampaign, deleteMarketingCampaign, getMarketingCampaigns, updateMarketingCampaign } from "../services/marketingApi";
 import CampaignModal from "../components/CampaignModal";
@@ -17,6 +18,7 @@ const Badge = ({ children, tone = "slate" }) => {
 };
 
 export default function Campaigns() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [campaigns, setCampaigns] = useState([]);
@@ -34,8 +36,8 @@ export default function Campaigns() {
       const data = await getMarketingCampaigns();
       setCampaigns(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err?.message || "Failed to load campaigns");
-      toast.error(err?.message || "Failed to load campaigns");
+      setError(err?.message || t("marketing.campaigns.loadFailed"));
+      toast.error(err?.message || t("marketing.campaigns.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -75,11 +77,11 @@ export default function Campaigns() {
       } else {
         await createMarketingCampaign(payload);
       }
-      toast.success("Campaign saved");
+      toast.success(t("marketing.campaigns.saved"));
       setEditorOpen(false);
       await load();
     } catch (err) {
-      toast.error(err?.message || "Failed to save campaign");
+      toast.error(err?.message || t("marketing.campaigns.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -87,13 +89,13 @@ export default function Campaigns() {
 
   const removeCampaign = async (id) => {
     if (!canDelete) return;
-    if (!window.confirm("Delete this campaign?")) return;
+    if (!window.confirm(t("marketing.campaigns.deleteConfirm"))) return;
     try {
       await deleteMarketingCampaign(id);
-      toast.success("Campaign deleted");
+      toast.success(t("marketing.campaigns.deleted"));
       await load();
     } catch (err) {
-      toast.error(err?.message || "Failed to delete campaign");
+      toast.error(err?.message || t("marketing.campaigns.deleteFailed"));
     }
   };
 
@@ -105,21 +107,21 @@ export default function Campaigns() {
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
                 <Megaphone className="h-3.5 w-3.5" />
-                Campaigns
+                {t("marketing.campaigns.eyebrow")}
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">Manage marketing campaigns</h1>
-              <p className="max-w-3xl text-sm leading-6 text-slate-300">Track promotional windows, budgets, and campaign state without leaving the ERP.</p>
+              <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.campaigns.title")}</h1>
+              <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.campaigns.subtitle")}</p>
             </div>
             <div className="flex gap-3">
               {canCreate ? (
                 <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-400">
                   <Plus className="h-4 w-4" />
-                  New campaign
+                  {t("marketing.campaigns.new")}
                 </button>
               ) : null}
               <button onClick={load} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
                 <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                Refresh
+                {t("common.refresh")}
               </button>
             </div>
           </div>
@@ -131,19 +133,19 @@ export default function Campaigns() {
           <div className="overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Name</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Status</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Budget</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Dates</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold text-right">Actions</th>
+                <tr className="text-start text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaigns.headers.name")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaigns.headers.status")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaigns.headers.budget")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.campaigns.headers.dates")}</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold text-end">{t("marketing.campaigns.headers.actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400">Loading campaigns...</td></tr>
+                  <tr><td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.campaigns.loading")}</td></tr>
                 ) : campaigns.length === 0 ? (
-                  <tr><td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400">No campaigns yet.</td></tr>
+                  <tr><td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-400">{t("marketing.campaigns.empty")}</td></tr>
                 ) : (
                   campaigns.map((campaign) => (
                     <tr key={String(campaign.id)} className="align-top">
@@ -160,14 +162,14 @@ export default function Campaigns() {
                         <div className="flex justify-end gap-2">
                           {canUpdate ? (
                             <button onClick={() => openEdit(campaign)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white">
-                              <Pencil className="mr-1 inline-block h-3.5 w-3.5" />
-                              Edit
+                              <Pencil className="me-1 inline-block h-3.5 w-3.5" />
+                              {t("common.edit")}
                             </button>
                           ) : null}
                           {canDelete ? (
                             <button onClick={() => removeCampaign(campaign.id)} className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
-                              <Trash2 className="mr-1 inline-block h-3.5 w-3.5" />
-                              Delete
+                              <Trash2 className="me-1 inline-block h-3.5 w-3.5" />
+                              {t("common.delete")}
                             </button>
                           ) : null}
                         </div>

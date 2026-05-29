@@ -1,14 +1,15 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   AlertTriangle,
   Box,
   PackageSearch,
-  Plus,
 } from "lucide-react";
 
 import { formatCurrency } from "../lib/posUtils";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { VirtualGrid } from "../../../shared/components/VirtualList";
 
 const failedProductImageUrls = new Set();
 
@@ -43,11 +44,35 @@ const getProductStock = (product = {}) => {
   );
 };
 
-const formatProductPrice = (product) => {
+const formatProductPrice = (product, t) => {
   const min = Number(product.min_price ?? product.base_price ?? product.sale_price ?? product.price ?? 0);
   const max = Number(product.max_price ?? min);
+  if (!(min > 0) && !(max > 0)) return t("pos.labels.priceRequired", "Price required");
   return max > min ? `${formatCurrency(min)} - ${formatCurrency(max)}` : formatCurrency(min);
 };
+
+const formatOriginalPrice = (product) => {
+  const min = Number(product.min_regular_price ?? product.original_price ?? product.regular_price ?? 0);
+  const max = Number(product.max_regular_price ?? min);
+  if (!(min > 0) || min <= Number(product.min_price ?? product.price ?? 0)) return "";
+  return max > min ? `${formatCurrency(min)} - ${formatCurrency(max)}` : formatCurrency(min);
+};
+
+function useProductGridColumns() {
+  const [width, setWidth] = useState(() => (typeof window === "undefined" ? 1280 : window.innerWidth));
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const update = () => setWidth(window.innerWidth);
+    update();
+    window.addEventListener("resize", update, { passive: true });
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  if (width < 640) return 2;
+  if (width >= 1536) return Math.max(2, Math.floor(width / 170));
+  return Math.max(2, Math.floor(width / 156));
+}
 
 function ProductGrid({
   loading,
@@ -55,14 +80,15 @@ function ProductGrid({
   products,
   search,
   onSelectProduct,
-  onQuickAdd,
 }) {
+  const { t } = useTranslation();
+  const columns = useProductGridColumns();
   if (loading) {
     return (
       <div className="flex h-[28rem] items-center justify-center rounded-3xl border border-[var(--border)] bg-[var(--surface)]">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[var(--primary-soft)] border-t-[var(--primary)]" />
-          <p className="mt-4 text-sm text-[var(--muted)]">Loading products...</p>
+          <p className="mt-4 text-sm text-[var(--muted)]">{t("pos.productGrid.loading")}</p>
         </div>
       </div>
     );
@@ -73,7 +99,7 @@ function ProductGrid({
       <div className="flex h-[28rem] items-center justify-center rounded-3xl border border-red-500/20 bg-red-500/5 p-8 text-center">
         <div>
           <AlertTriangle className="mx-auto h-10 w-10 text-red-300" />
-          <h3 className="mt-4 text-lg font-bold text-[var(--text)]">Product feed unavailable</h3>
+          <h3 className="mt-4 text-lg font-bold text-[var(--text)]">{t("pos.productGrid.feedUnavailable")}</h3>
           <p className="mt-2 max-w-xl text-sm text-[var(--muted)]">{error}</p>
         </div>
       </div>
@@ -87,33 +113,49 @@ function ProductGrid({
         <div>
           <PackageSearch className="mx-auto h-12 w-12 text-[var(--muted)]" />
           <h3 className="mt-4 text-xl font-black text-[var(--text)]">
-            {hasSearch ? "No matching products" : "No sellable products found"}
+            {hasSearch ? t("pos.productGrid.noMatching") : t("pos.productGrid.noSellable")}
           </h3>
           <p className="mt-2 text-sm text-[var(--muted)]">
             {hasSearch
-              ? "Try a different search, SKU, barcode, color, size, category, brand, or manufacturer."
-              : "The product feed loaded, but it did not return any sellable rows."}
+              ? t("pos.productGrid.tryDifferentSearch")
+              : t("pos.productGrid.emptyFeed")}
           </p>
         </div>
       </div>
     );
   }
 
+  const renderProduct = (product, _index, key) => (
+    <ProductCard
+      key={key}
+      product={product}
+      onSelectProduct={onSelectProduct}
+    />
+  );
+
+  if (products.length > 36) {
+    return (
+      <VirtualGrid
+        items={products}
+        columns={columns}
+        estimateRowHeight={190}
+        className="h-[calc(100vh-18rem)] min-h-[30rem] overflow-auto pr-1"
+        gridClassName="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(136px,1fr))] sm:gap-2.5 2xl:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]"
+        itemKey={(product) => String(product.product_id || product.id)}
+        renderItem={renderProduct}
+      />
+    );
+  }
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-      {products.map((product) => (
-        <ProductCard
-          key={String(product.product_id || product.id)}
-          product={product}
-          onSelectProduct={onSelectProduct}
-          onQuickAdd={onQuickAdd}
-        />
-      ))}
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(136px,1fr))] sm:gap-2.5 2xl:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
+      {products.map((product, index) => renderProduct(product, index, String(product.product_id || product.id)))}
     </div>
   );
 }
 
-const ProductCard = memo(function ProductCard({ product, onSelectProduct, onQuickAdd }) {
+const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
+  const { t } = useTranslation();
   const stock = getProductStock(product);
   const isOutOfStock = stock <= 0;
   const cover =
@@ -131,10 +173,9 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct, onQuic
       onSelectProduct(product);
     }
   }, [onSelectProduct, product]);
-  const handleQuickAdd = useCallback((event) => {
-    event.stopPropagation();
-    onQuickAdd(product);
-  }, [onQuickAdd, product]);
+  const originalPrice = formatOriginalPrice(product);
+  const saleBadge = product.sale_badge || (product.sale_source === "global" ? t("pos.productGrid.globalSale") : product.sale_source === "product" ? t("pos.productGrid.sale") : "");
+  const hasPrice = Number(product.min_price ?? product.base_price ?? product.sale_price ?? product.price ?? 0) > 0;
 
   return (
     <div
@@ -142,11 +183,11 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct, onQuic
       tabIndex={0}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
-      style={{ contentVisibility: "auto", containIntrinsicSize: "360px 420px" }}
-      className="group relative flex flex-col overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-left shadow-[0_24px_60px_rgba(0,0,0,0.45)] transition duration-300 hover:-translate-y-1 hover:border-white/20"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "132px 172px" }}
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-start shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition duration-200 hover:-translate-y-0.5 hover:border-white/20"
     >
-      <div className="relative p-4 pb-0">
-        <div className="relative h-60 overflow-hidden rounded-[28px] border border-white/70 bg-[#f8f8f8]">
+      <div className="relative p-1.5 pb-0">
+        <div className="relative h-20 overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 sm:h-24">
         {cover ? (
           <ProductImage
             src={cover}
@@ -154,43 +195,35 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct, onQuic
             alt={product.name}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-[#f8f8f8]">
-            <Box className="h-14 w-14 text-zinc-400" />
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300">
+            <Box className="h-10 w-10 text-zinc-400" />
           </div>
         )}
 
-          <div className="absolute right-3 top-3 rounded-full border border-white/80 bg-white/95 px-3 py-1.5 text-[11px] font-semibold text-emerald-600 shadow-sm">
-            <span className="inline-flex items-center gap-1.5">
-              <Box className="h-3.5 w-3.5 text-emerald-500" />
-              {isOutOfStock ? "Out of stock" : `${stock} in stock`}
+          <div className="absolute end-1.5 top-1.5 rounded-full border border-white/40 bg-zinc-950/80 px-1.5 py-0.5 text-[8px] font-black text-emerald-100 shadow-sm backdrop-blur">
+            <span className="inline-flex items-center gap-0.5">
+              <Box className="h-2.5 w-2.5 text-emerald-500" />
+              {isOutOfStock ? t("pos.labels.outOfStock") : t("pos.labels.inStock", { count: stock })}
             </span>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleQuickAdd}
-          disabled={isOutOfStock}
-          className="absolute right-7 top-7 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white opacity-0 shadow-lg backdrop-blur transition duration-200 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
-          aria-label={isOutOfStock ? "Out of stock" : "Quick add"}
-        >
-          <Plus className="h-5 w-5" />
-        </button>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 p-5 pt-4">
-        <div className="flex items-start justify-between gap-4">
-          <h3 className="min-w-0 flex-1 text-[1.08rem] font-semibold leading-tight text-white">
-            <span className="block truncate">{product.name}</span>
-          </h3>
+      <div className="flex flex-1 flex-col gap-1 p-1.5 pt-1.5 sm:p-2">
+        <h3 className="min-w-0 text-center text-[0.7rem] font-semibold leading-tight text-zinc-100 sm:text-[0.76rem]">
+          <span className="line-clamp-2 min-h-[1.75rem] sm:min-h-[1.9rem]">{product.name}</span>
+        </h3>
 
-          <div className="shrink-0 rounded-2xl border border-violet-500/25 bg-black/70 px-4 py-3 text-right shadow-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.35em] text-violet-300">
-              SALE
-            </div>
-            <div className="mt-1 text-base font-bold text-white">
-              {formatProductPrice(product)}
-            </div>
+        <div className={`mt-auto rounded-lg border px-2 py-1 text-center shadow-sm ${
+          hasPrice ? "border-violet-500/20 bg-black/55" : "border-amber-300/30 bg-amber-500/10"
+        }`}>
+          <div className={`truncate text-[7px] font-black uppercase tracking-[0.12em] ${hasPrice ? "text-violet-300" : "text-amber-200"}`}>
+            {saleBadge || t("pos.productGrid.price")}
+          </div>
+          {originalPrice ? <div className="text-[9px] font-bold leading-tight text-zinc-400 line-through decoration-zinc-300/70">{originalPrice}</div> : null}
+          <div className={`truncate text-[0.78rem] font-black leading-tight sm:text-[0.86rem] ${hasPrice ? "text-white" : "text-amber-100"}`}>
+            {formatProductPrice(product, t)}
           </div>
         </div>
       </div>
@@ -213,8 +246,8 @@ function ProductImage({ src, fallbackSrc, alt }) {
 
   if (!currentSrc || failed) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#f8f8f8]">
-        <Box className="h-14 w-14 text-zinc-400" />
+      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300">
+        <Box className="h-10 w-10 text-zinc-400" />
       </div>
     );
   }
@@ -227,7 +260,7 @@ function ProductImage({ src, fallbackSrc, alt }) {
       decoding="async"
       width="320"
       height="240"
-      className="h-full w-full object-contain p-5 transition duration-500 group-hover:scale-[1.03]"
+      className="h-full w-full object-contain p-1.5 transition duration-300 group-hover:scale-[1.03]"
       onError={() => {
         failedProductImageUrls.add(currentSrc);
         if (resolvedFallbackSrc && resolvedFallbackSrc !== currentSrc) {

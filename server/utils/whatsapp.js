@@ -1,4 +1,5 @@
 import { buildOrderInvoiceWhatsappText, normalizeOrderInvoiceData } from "./orderInvoice.js";
+import { displayPublicOrderNumber } from "./publicOrderNumber.js";
 
 const DEFAULT_PROVIDER = "web";
 
@@ -46,7 +47,7 @@ export const buildOrderStatusMessageTemplate = ({ invoiceNumber, customerName, s
   [
     `*${companyName}*`,
     `Order update`,
-    `Invoice: ${invoiceNumber || "n/a"}`,
+    `Order: ${displayPublicOrderNumber(invoiceNumber) || invoiceNumber || "n/a"}`,
     `Customer: ${customerName || "Walk-in Customer"}`,
     `Status: ${status || "Pending"}`,
     `Payment: ${paymentStatus || "Pending"}`,

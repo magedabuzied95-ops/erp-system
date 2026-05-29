@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import crypto from "node:crypto";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QRCodeSVG } from "qrcode.react";
@@ -6,11 +7,21 @@ import { isSuperAdminUser } from "../utils/requestScope.js";
 import { calculateAttendanceMetrics, formatMinutes, buildShiftSummaryNotification, buildAttendanceAlertNotification } from "../utils/attendanceCalculator.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { haversineDistanceMeters } from "../utils/geoDistance.js";
-import { handleBranchQrCheckInStaffTasks } from "../services/staffTasksService.js";
+import { createEmployeePortalSession, ensureStaffTasksSchema, getEmployeePortalSettings, handleBranchQrCheckInStaffTasks } from "../services/staffTasksService.js";
+import { ensureShiftResolutionSchema, resolveShiftForCheckIn } from "../services/attendanceShiftResolver.js";
+
+const expectedSqlParamCount = (text = "") =>
+  [...String(text || "").matchAll(/\$(\d+)/g)].reduce((max, match) => Math.max(max, Number(match[1]) || 0), 0);
+
+const normalizeSqlParams = (text, params = []) => {
+  if (!Array.isArray(params)) return [];
+  const expected = expectedSqlParamCount(text);
+  return params.length > expected ? params.slice(0, expected) : params;
+};
 
 const safeQuery = async (client, text, params = []) => {
   try {
-    return await client.query(text, params);
+    return await client.query(text, normalizeSqlParams(text, params));
   } catch (error) {
     console.warn("Attendance query failed:", error.message);
     return { rows: [] };
@@ -28,35 +39,703 @@ const getTenantScope = (req) => (isSuperAdminUser(req.user) ? null : resolveAuth
 
 const GPS_VERIFICATION_MODE = String(process.env.ATTENDANCE_GPS_VERIFICATION_MODE || "strict").toLowerCase() === "warning" ? "warning" : "strict";
 const ATTENDANCE_TIMEZONE = String(process.env.ATTENDANCE_TIMEZONE || process.env.APP_TIMEZONE || process.env.TZ || "Africa/Cairo").trim() || "Africa/Cairo";
+const analyticsDebugEnabled = () =>
+  ["1", "true", "yes", "on"].includes(String(process.env.ERP_ANALYTICS_DEBUG || "").toLowerCase());
+const DEFAULT_NEW_DEVICE_POLICY = ["block", "pending"].includes(String(process.env.ATTENDANCE_NEW_DEVICE_POLICY || "").toLowerCase())
+  ? String(process.env.ATTENDANCE_NEW_DEVICE_POLICY).toLowerCase()
+  : "pending";
+const ATTENDANCE_RATE_LIMIT_WINDOW_MS = Math.max(Number(process.env.ATTENDANCE_RATE_LIMIT_WINDOW_MS || 60_000), 10_000);
+const ATTENDANCE_RATE_LIMIT_MAX = Math.max(Number(process.env.ATTENDANCE_RATE_LIMIT_MAX || 12), 3);
+
+const attendanceRateLimit = new Map();
 
 const normalizeLookupValue = (value = "") => String(value || "").trim();
+const normalizeBranchEntryKey = (value = "") => {
+  const text = normalizeLookupValue(value);
+  if (!text) return "";
+  try {
+    const parsed = new URL(text);
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    return normalizeLookupValue(parts.at(-1) || text);
+  } catch {
+    const parts = text.split("/").filter(Boolean);
+    return normalizeLookupValue(parts.at(-1) || text);
+  }
+};
 const normalizePhoneDigits = (value = "") => String(value || "").replace(/\D/g, "");
+const normalizeDeviceToken = (value = "") => String(value || "").trim();
+const isValidDeviceToken = (value = "") => /^[A-Za-z0-9_-]{32,256}$/.test(String(value || ""));
+const DEVICE_ALREADY_USED_MESSAGE = "This device is already used by another employee today.";
 
 const getRequestIp = (req) => {
   const forwarded = String(req.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
   return forwarded || req.ip || req.socket?.remoteAddress || "";
 };
 
+const normalizeRequestIp = (value = "") => {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return "";
+  const withoutPort = text.startsWith("[")
+    ? text.replace(/^\[|\](?::\d+)?$/g, "")
+    : /^\d+\.\d+\.\d+\.\d+:\d+$/.test(text)
+      ? text.replace(/:\d+$/g, "")
+      : text;
+  const normalized = withoutPort.replace(/^::ffff:/, "");
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(normalized)) return normalized;
+  return normalized.split("%")[0];
+};
+
+const getAttendanceDeviceFingerprint = (body = {}) =>
+  normalizeDeviceToken(body?.device_fingerprint || body?.deviceFingerprint || body?.device_token || body?.deviceToken);
+
+const buildAttendanceDeviceContext = (req, { tenantId, branchId, attendanceDate }) => {
+  const deviceFingerprint = getAttendanceDeviceFingerprint(req.body || {});
+  const userAgent = String(req.get?.("user-agent") || "");
+  const ipAddress = normalizeRequestIp(getRequestIp(req));
+  const hashInput = [
+    "attendance-device-v1",
+    tenantId || "",
+    branchId || "",
+    attendanceDate || "",
+    userAgent,
+    ipAddress,
+  ].join("|");
+  const deviceKey = crypto.createHash("sha256").update(hashInput).digest("hex");
+
+  return {
+    deviceFingerprint,
+    deviceKey,
+    userAgent,
+    ipAddress,
+  };
+};
+
+const buildDeviceAlreadyUsedError = () => {
+  const error = new Error(DEVICE_ALREADY_USED_MESSAGE);
+  error.statusCode = 409;
+  error.code = "DEVICE_ALREADY_USED_TODAY";
+  return error;
+};
+
+const logAttendanceDeviceBindingDebug = (label, details = {}) => {
+  console.info(`[attendance:device-binding:${label}]`, {
+    employee_id: details.employeeId ?? null,
+    device_fingerprint: details.deviceContext?.deviceFingerprint || null,
+    device_key: details.deviceContext?.deviceKey || null,
+    business_date: details.attendanceDate || null,
+    branch_id: details.branchId ?? null,
+    matched_binding_employee_id: details.matchedEmployeeId ?? null,
+    blocked: Boolean(details.blocked),
+  });
+};
+
+const enforceAttendanceDeviceBinding = async (client, { tenantId, branchId, employeeId, attendanceDate, deviceContext }) => {
+  if (!tenantId || !branchId || !employeeId || !attendanceDate || !deviceContext?.deviceKey || !deviceContext?.deviceFingerprint) {
+    logAttendanceDeviceBindingDebug("skipped", { employeeId, branchId, attendanceDate, deviceContext, blocked: false });
+    return null;
+  }
+
+  const result = await client.query(
+    `
+    SELECT *
+    FROM attendance_device_bindings
+    WHERE tenant_id = $1
+      AND branch_id = $2
+      AND business_date = $3::date
+      AND device_key = $4
+      AND employee_id <> $5
+    LIMIT 1
+    FOR UPDATE
+    `,
+    [tenantId, branchId, attendanceDate, deviceContext.deviceKey, employeeId]
+  );
+
+  const existing = result.rows[0] || null;
+  logAttendanceDeviceBindingDebug("lookup", {
+    employeeId,
+    branchId,
+    attendanceDate,
+    deviceContext,
+    matchedEmployeeId: existing?.employee_id || null,
+    blocked: Boolean(existing),
+  });
+  if (existing) {
+    throw buildDeviceAlreadyUsedError();
+  }
+  return existing;
+};
+
+const upsertAttendanceDeviceBinding = async (client, { tenantId, branchId, employeeId, attendanceDate, deviceContext, attendanceLogId = null }) => {
+  if (!tenantId || !branchId || !employeeId || !attendanceDate || !deviceContext?.deviceKey || !deviceContext?.deviceFingerprint) {
+    logAttendanceDeviceBindingDebug("upsert-skipped", { employeeId, branchId, attendanceDate, deviceContext, blocked: false });
+    return null;
+  }
+
+  const result = await client.query(
+    `
+    INSERT INTO attendance_device_bindings (
+      tenant_id,
+      branch_id,
+      employee_id,
+      business_date,
+      device_key,
+      device_fingerprint,
+      user_agent,
+      ip_address,
+      first_attendance_log_id
+    )
+    VALUES ($1,$2,$3,$4::date,$5,$6,$7,$8,$9)
+    ON CONFLICT (tenant_id, branch_id, business_date, device_key) DO UPDATE
+    SET
+      employee_id = CASE
+        WHEN attendance_device_bindings.employee_id = EXCLUDED.employee_id THEN EXCLUDED.employee_id
+        ELSE attendance_device_bindings.employee_id
+      END,
+      device_fingerprint = COALESCE(attendance_device_bindings.device_fingerprint, EXCLUDED.device_fingerprint),
+      user_agent = COALESCE(NULLIF(EXCLUDED.user_agent, ''), attendance_device_bindings.user_agent),
+      ip_address = COALESCE(NULLIF(EXCLUDED.ip_address, ''), attendance_device_bindings.ip_address),
+      first_attendance_log_id = COALESCE(attendance_device_bindings.first_attendance_log_id, EXCLUDED.first_attendance_log_id),
+      updated_at = NOW()
+    RETURNING *
+    `,
+    [
+      tenantId,
+      branchId,
+      employeeId,
+      attendanceDate,
+      deviceContext.deviceKey,
+      deviceContext.deviceFingerprint || null,
+      deviceContext.userAgent || null,
+      deviceContext.ipAddress || null,
+      attendanceLogId || null,
+    ]
+  );
+
+  const binding = result.rows[0] || null;
+  logAttendanceDeviceBindingDebug("upsert", {
+    employeeId,
+    branchId,
+    attendanceDate,
+    deviceContext,
+    matchedEmployeeId: binding?.employee_id || null,
+    blocked: binding && String(binding.employee_id) !== String(employeeId),
+  });
+  if (binding && String(binding.employee_id) !== String(employeeId)) {
+    throw buildDeviceAlreadyUsedError();
+  }
+  return binding;
+};
+
+const enforceAttendanceRateLimit = (req, keyParts = []) => {
+  const now = Date.now();
+  const key = [getRequestIp(req), ...keyParts.map((part) => String(part || ""))].join(":");
+  const bucket = attendanceRateLimit.get(key) || { count: 0, resetAt: now + ATTENDANCE_RATE_LIMIT_WINDOW_MS };
+  if (bucket.resetAt <= now) {
+    bucket.count = 0;
+    bucket.resetAt = now + ATTENDANCE_RATE_LIMIT_WINDOW_MS;
+  }
+  bucket.count += 1;
+  attendanceRateLimit.set(key, bucket);
+  if (bucket.count <= ATTENDANCE_RATE_LIMIT_MAX) return;
+
+  const error = new Error("Too many attendance attempts. Please wait and try again.");
+  error.statusCode = 429;
+  throw error;
+};
+
+const logSuspiciousAttendanceActivity = async (client, req, { tenantId = null, employeeId = null, branchId = null, deviceToken = "", eventType, severity = "warning", details = {} }) => {
+  try {
+    await client.query(
+      `
+      INSERT INTO attendance_suspicious_activity_logs (
+        tenant_id,
+        employee_id,
+        branch_id,
+        device_token,
+        event_type,
+        severity,
+        details,
+        user_agent,
+        ip_address
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9)
+      `,
+      [
+        tenantId,
+        employeeId,
+        branchId,
+        deviceToken || null,
+        eventType,
+        severity,
+        JSON.stringify(details || {}),
+        String(req.get?.("user-agent") || ""),
+        getRequestIp(req),
+      ]
+    );
+  } catch (error) {
+    console.warn("[attendance] suspicious activity log skipped", error.message);
+  }
+};
+
+const getNewDevicePolicy = async (client, tenantId) => {
+  const result = await safeQuery(
+    client,
+    `
+    SELECT new_device_policy
+    FROM attendance_device_settings
+    WHERE tenant_id = $1
+    LIMIT 1
+    `,
+    [tenantId]
+  );
+  const policy = String(result.rows[0]?.new_device_policy || DEFAULT_NEW_DEVICE_POLICY).toLowerCase();
+  return policy === "block" ? "block" : "pending";
+};
+
+const getAttendanceRequireDeviceApproval = async (client, tenantId) => {
+  if (String(process.env.ATTENDANCE_REQUIRE_DEVICE_APPROVAL || "").toLowerCase() === "true") {
+    return true;
+  }
+
+  const result = await safeQuery(
+    client,
+    `
+    SELECT (
+      COALESCE(attendance_require_device_approval, FALSE)
+      OR COALESCE(require_device_approval, FALSE)
+    ) AS attendance_require_device_approval
+    FROM attendance_device_settings
+    WHERE tenant_id = $1
+    LIMIT 1
+    `,
+    [tenantId]
+  );
+  return result.rows[0]?.attendance_require_device_approval === true;
+};
+
+const resolveApprovedDevice = async (client, tenantId, employeeId) => {
+  const result = await client.query(
+    `
+    SELECT *
+    FROM employee_attendance_devices
+    WHERE tenant_id = $1
+      AND employee_id = $2
+      AND status = 'approved'
+    ORDER BY approved_at DESC NULLS LAST, created_at DESC
+    LIMIT 1
+    `,
+    [tenantId, employeeId]
+  );
+  return result.rows[0] || null;
+};
+
+const upsertPassiveAttendanceDevice = async (client, req, { tenantId, employeeId, deviceToken, status = "observed" }) => {
+  const userAgent = String(req.get?.("user-agent") || "");
+  const ipAddress = normalizeRequestIp(getRequestIp(req));
+  const deviceFingerprint = getAttendanceDeviceFingerprint(req.body || {});
+  const result = await client.query(
+    `
+    INSERT INTO employee_attendance_devices (
+      tenant_id,
+      employee_id,
+      device_token,
+      device_fingerprint,
+      user_agent,
+      ip_address,
+      status,
+      first_seen_at,
+      last_seen_at,
+      approved_at
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW(),CASE WHEN $7 = 'approved' THEN NOW() ELSE NULL END)
+    ON CONFLICT (tenant_id, device_token) DO UPDATE
+    SET
+      employee_id = CASE
+        WHEN employee_attendance_devices.employee_id = EXCLUDED.employee_id THEN EXCLUDED.employee_id
+        ELSE employee_attendance_devices.employee_id
+      END,
+      device_fingerprint = COALESCE(NULLIF(EXCLUDED.device_fingerprint, ''), employee_attendance_devices.device_fingerprint),
+      user_agent = COALESCE(NULLIF(EXCLUDED.user_agent, ''), employee_attendance_devices.user_agent),
+      ip_address = COALESCE(NULLIF(EXCLUDED.ip_address, ''), employee_attendance_devices.ip_address),
+      status = CASE
+        WHEN employee_attendance_devices.employee_id = EXCLUDED.employee_id
+          AND employee_attendance_devices.status IN ('pending', 'rejected', 'reset')
+          THEN EXCLUDED.status
+        ELSE employee_attendance_devices.status
+      END,
+      approved_at = CASE
+        WHEN employee_attendance_devices.employee_id = EXCLUDED.employee_id
+          AND EXCLUDED.status = 'approved'
+          THEN COALESCE(employee_attendance_devices.approved_at, NOW())
+        ELSE employee_attendance_devices.approved_at
+      END,
+      reset_at = CASE
+        WHEN employee_attendance_devices.employee_id = EXCLUDED.employee_id
+          THEN NULL
+        ELSE employee_attendance_devices.reset_at
+      END,
+      last_seen_at = NOW(),
+      updated_at = NOW()
+    RETURNING *
+    `,
+    [tenantId, employeeId, deviceToken, deviceFingerprint, userAgent, ipAddress, status]
+  );
+  return result.rows[0] || null;
+};
+
+const validateAttendanceDevice = async ({ client, req, tenantId, employeeId, branchId, deviceToken, gpsVerification, allowRegistration = false }) => {
+  if (!isValidDeviceToken(deviceToken)) {
+    await logSuspiciousAttendanceActivity(client, req, {
+      tenantId,
+      employeeId,
+      branchId,
+      deviceToken,
+      eventType: "invalid_device_token",
+      severity: "high",
+    });
+    const error = new Error("Valid device token is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const approvedDevice = await resolveApprovedDevice(client, tenantId, employeeId);
+  const requireDeviceApproval = await getAttendanceRequireDeviceApproval(client, tenantId);
+  if (!approvedDevice) {
+    if (!allowRegistration || gpsVerification?.withinRange !== true) {
+      await logSuspiciousAttendanceActivity(client, req, {
+        tenantId,
+        employeeId,
+        branchId,
+        deviceToken,
+        eventType: "first_device_registration_blocked",
+        severity: "high",
+        details: { gps: gpsVerification?.result || null },
+      });
+      const error = new Error("First device registration is allowed only inside the branch GPS radius");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const device = await upsertPassiveAttendanceDevice(client, req, {
+      tenantId,
+      employeeId,
+      deviceToken,
+      status: "approved",
+    });
+    if (String(device?.employee_id) !== String(employeeId) || device.status !== "approved") {
+      await logSuspiciousAttendanceActivity(client, req, {
+        tenantId,
+        employeeId,
+        branchId,
+        deviceToken,
+        eventType: "device_token_collision",
+        severity: "high",
+        details: { linked_employee_id: device.employee_id, status: device.status },
+      });
+      const error = new Error("This device token is already linked to another employee");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    return { device, status: "registered" };
+  }
+
+  if (approvedDevice.device_token === deviceToken) {
+    const updated = await upsertPassiveAttendanceDevice(client, req, {
+      tenantId,
+      employeeId,
+      deviceToken,
+      status: "approved",
+    });
+    return { device: updated || approvedDevice, status: "matched" };
+  }
+
+  if (!requireDeviceApproval) {
+    await logSuspiciousAttendanceActivity(client, req, {
+      tenantId,
+      employeeId,
+      branchId,
+      deviceToken,
+      eventType: "new_device_auto_registered",
+      severity: "warning",
+      details: { approved_device_id: approvedDevice.id, policy: "approval_disabled" },
+    });
+    const device = await upsertPassiveAttendanceDevice(client, req, {
+      tenantId,
+      employeeId,
+      deviceToken,
+      status: "observed",
+    });
+    return { device, status: "auto_registered" };
+  }
+
+  const policy = await getNewDevicePolicy(client, tenantId);
+  await logSuspiciousAttendanceActivity(client, req, {
+    tenantId,
+    employeeId,
+    branchId,
+    deviceToken,
+    eventType: policy === "pending" ? "new_device_pending" : "new_device_blocked",
+    severity: "high",
+    details: { approved_device_id: approvedDevice.id, policy },
+  });
+
+  if (policy === "pending") {
+    await upsertPassiveAttendanceDevice(client, req, {
+      tenantId,
+      employeeId,
+      deviceToken,
+      status: "pending",
+    });
+    const error = new Error("Device approval is required before check-in");
+    error.statusCode = 202;
+    error.pendingDevice = true;
+    throw error;
+  }
+
+  const error = new Error("Attendance is allowed only from the linked device");
+  error.statusCode = 403;
+  throw error;
+};
+
+const getAllowedActionFromEligibility = (eligibility = {}) => {
+  if (eligibility.completed) return null;
+  if (eligibility.can_check_out) return "check_out";
+  if (eligibility.can_check_in) return "check_in";
+  return null;
+};
+
+const inspectAttendanceDeviceApproval = async (client, { tenantId, employeeId, deviceToken, allowedAction }) => {
+  if (!allowedAction) {
+    return {
+      deviceApprovalRequired: false,
+      deviceApprovalStatus: "not_required",
+      deviceActionBlocked: false,
+      deviceApprovalMessage: "",
+      device: null,
+    };
+  }
+
+  const requireDeviceApproval = await getAttendanceRequireDeviceApproval(client, tenantId);
+  if (!isValidDeviceToken(deviceToken)) {
+    const blocksAction = requireDeviceApproval && allowedAction === "check_in";
+    return {
+      deviceApprovalRequired: blocksAction,
+      deviceApprovalStatus: "invalid_token",
+      deviceActionBlocked: blocksAction,
+      deviceApprovalMessage: blocksAction ? "Valid device approval is required before check in." : "",
+      device: null,
+    };
+  }
+
+  const approvedDevice = await resolveApprovedDevice(client, tenantId, employeeId);
+  if (!approvedDevice) {
+    return {
+      deviceApprovalRequired: false,
+      deviceApprovalStatus: "unregistered",
+      deviceActionBlocked: false,
+      deviceApprovalMessage: "",
+      device: null,
+    };
+  }
+
+  if (approvedDevice.device_token === deviceToken) {
+    return {
+      deviceApprovalRequired: false,
+      deviceApprovalStatus: "approved",
+      deviceActionBlocked: false,
+      deviceApprovalMessage: "",
+      device: approvedDevice,
+    };
+  }
+
+  const pendingResult = await safeQuery(
+    client,
+    `
+    SELECT *
+    FROM employee_attendance_devices
+    WHERE tenant_id = $1
+      AND employee_id = $2
+      AND device_token = $3
+    ORDER BY updated_at DESC, id DESC
+    LIMIT 1
+    `,
+    [tenantId, employeeId, deviceToken]
+  );
+  const pendingDevice = pendingResult.rows[0] || null;
+  const status = String(pendingDevice?.status || (requireDeviceApproval ? "pending" : "approval_not_required")).toLowerCase();
+
+  if (!requireDeviceApproval || allowedAction === "check_out") {
+    return {
+      deviceApprovalRequired: false,
+      deviceApprovalStatus: status,
+      deviceActionBlocked: false,
+      deviceApprovalMessage: "",
+      device: pendingDevice || approvedDevice,
+    };
+  }
+
+  return {
+    deviceApprovalRequired: true,
+    deviceApprovalStatus: status === "approved" ? "pending" : status,
+    deviceActionBlocked: true,
+    deviceApprovalMessage: "Device approval is required before check-in.",
+    device: pendingDevice || approvedDevice,
+  };
+};
+
+const buildPublicQrState = ({ eligibility = {}, deviceApproval = {} }) => {
+  const baseAllowedAction = getAllowedActionFromEligibility(eligibility);
+  const actionBlocked = Boolean(deviceApproval.deviceActionBlocked);
+  const allowedAction = actionBlocked ? null : baseAllowedAction;
+
+  return {
+    attendance_state: eligibility,
+    allowed_action: allowedAction,
+    can_check_in: allowedAction === "check_in",
+    can_check_out: allowedAction === "check_out",
+    device_approval_required: Boolean(deviceApproval.deviceApprovalRequired),
+    device_approval_status: deviceApproval.deviceApprovalStatus || "unknown",
+    device_action_blocked: actionBlocked,
+    device_approval_message: deviceApproval.deviceApprovalMessage || "",
+  };
+};
+
+const logPublicQrDecision = (label, { employee = {}, deviceContext = {}, deviceApproval = {}, eligibility = {}, allowedAction = null }) => {
+  console.info(`[attendance:${label}] decision`, {
+    employee_id: employee.id || employee.employee_id || null,
+    employee_code: employee.employee_code || null,
+    device_key: deviceContext.deviceKey || null,
+    device_approval_status: deviceApproval.deviceApprovalStatus || null,
+    device_approval_required: Boolean(deviceApproval.deviceApprovalRequired),
+    attendance_state: {
+      status: eligibility.status || null,
+      can_check_in: Boolean(eligibility.can_check_in),
+      can_check_out: Boolean(eligibility.can_check_out),
+      completed: Boolean(eligibility.completed),
+    },
+    allowed_action: allowedAction,
+  });
+};
+
 const buildPublicOrigin = (req) => {
   const envOrigin = String(
-    process.env.PUBLIC_FRONTEND_URL ||
-      process.env.VITE_PUBLIC_FRONTEND_URL ||
+    process.env.PUBLIC_APP_URL ||
+      process.env.VITE_PUBLIC_APP_URL ||
       process.env.FRONTEND_URL ||
+      process.env.PUBLIC_FRONTEND_URL ||
+      process.env.VITE_PUBLIC_FRONTEND_URL ||
       process.env.CLIENT_URL ||
       process.env.APP_URL ||
       ""
   ).trim().replace(/\/$/, "");
   if (envOrigin) return envOrigin;
-  const requestOrigin = String(req.get?.("origin") || "").trim().replace(/\/$/, "");
-  if (requestOrigin) return requestOrigin;
-  const forwardedProto = String(req.get?.("x-forwarded-proto") || "").split(",")[0].trim();
-  const forwardedHost = String(req.get?.("x-forwarded-host") || "").split(",")[0].trim();
-  const protocol = forwardedProto || req.protocol || "http";
-  const host = forwardedHost || req.get?.("host") || "";
-  return host ? `${protocol}://${host}` : "";
+
+  if (process.env.NODE_ENV === "development") {
+    const requestOrigin = String(req.get?.("origin") || "").trim().replace(/\/$/, "");
+    if (requestOrigin) return requestOrigin;
+    return "http://localhost:5173";
+  }
+
+  return "";
 };
 
-const buildAttendancePublicUrl = (req, token) => `${buildPublicOrigin(req)}/attendance/branch/${encodeURIComponent(token)}`;
+const buildAttendancePublicUrl = (req, branchKey) => `${buildPublicOrigin(req)}/a/${encodeURIComponent(branchKey)}`;
+const buildLegacyAttendancePublicUrl = (req, token) => `${buildPublicOrigin(req)}/attendance/branch/${encodeURIComponent(token)}`;
+const buildEmployeePortalUrl = (req, token) => `${buildPublicOrigin(req)}/employee/portal/${encodeURIComponent(token)}`;
+
+const resolvePublicAttendanceBranch = async (clientOrPool, branchKey, { tenantId = null, includeEmployeeId = null } = {}) => {
+  const key = normalizeBranchEntryKey(branchKey);
+  const numericKey = /^\d+$/.test(key) ? Number(key) : null;
+  if (!key) return null;
+
+  const result = await clientOrPool.query(
+    `
+    SELECT
+      b.id,
+      b.tenant_id,
+      b.name,
+      b.code,
+      b.is_active,
+      b.latitude,
+      b.longitude,
+      COALESCE(b.attendance_radius_meters, b.allowed_radius_meters, 100) AS attendance_radius_meters,
+      b.allowed_radius_meters,
+      b.attendance_public_code,
+      b.attendance_qr_token,
+      b.qr_token,
+      e.id AS employee_id,
+      e.full_name,
+      e.employee_code,
+      e.status AS employee_status
+    FROM branches b
+    LEFT JOIN employees e
+      ON e.tenant_id = b.tenant_id
+     AND ($4::bigint IS NOT NULL AND e.id = $4::bigint)
+     AND COALESCE(e.is_deleted, FALSE) = FALSE
+    WHERE (
+        ($2::bigint IS NOT NULL AND b.id = $2::bigint)
+        OR LOWER(COALESCE(b.attendance_public_code, '')) = LOWER($1)
+        OR b.attendance_qr_token = $1
+        OR b.qr_token = $1
+      )
+      AND ($3::bigint IS NULL OR b.tenant_id = $3::bigint)
+    ORDER BY
+      CASE
+        WHEN $2::bigint IS NOT NULL AND b.id = $2::bigint THEN 0
+        WHEN LOWER(COALESCE(b.attendance_public_code, '')) = LOWER($1) THEN 1
+        WHEN b.attendance_qr_token = $1 THEN 2
+        WHEN b.qr_token = $1 THEN 3
+        ELSE 4
+      END,
+      b.id ASC
+    LIMIT 1
+    `,
+    [key, numericKey, tenantId, includeEmployeeId]
+  );
+
+  return result.rows[0] || null;
+};
+
+const getRequestAttendanceDate = (req) =>
+  normalizeAttendanceDate(
+    req.body?.business_date ||
+      req.body?.businessDate ||
+      req.body?.attendance_date ||
+      req.body?.attendanceDate ||
+      req.query?.business_date ||
+      req.query?.businessDate ||
+      req.query?.attendance_date ||
+      req.query?.attendanceDate ||
+      req.query?.date
+  ) ||
+  getAttendanceDate();
+
+const createEmployeePortalResponse = async ({ clientOrPool = db, req, tenantId, branchId = null, employeeId, attendanceLogId = null }) => {
+  const portalSettings = await getEmployeePortalSettings(tenantId, clientOrPool);
+  const portalSession = await createEmployeePortalSession({
+    tenantId,
+    branchId,
+    employeeId,
+    attendanceLogId,
+  }, clientOrPool);
+
+  if (!portalSession?.token) {
+    throw new Error("Failed to create employee portal session");
+  }
+
+  const url = buildEmployeePortalUrl(req, portalSession.token);
+  return {
+    portal_url: url,
+    employee_portal: {
+      token: portalSession.token,
+      expires_at: portalSession.expires_at,
+      url,
+      auto_redirect: portalSettings?.auto_redirect_after_checkin !== false,
+      require_checkin_to_view_tasks: portalSettings?.require_checkin_to_view_tasks !== false,
+    },
+  };
+};
 
 const buildQrSvg = (value) => {
   const rawMarkup = renderToStaticMarkup(
@@ -116,7 +795,12 @@ const normalizeAttendanceDate = (value) => {
   return text.includes("T") ? getAttendanceDate(new Date(text)) : text.slice(0, 10);
 };
 
-const attendanceHasCheckout = (row = {}) => Boolean(row.check_out || row.check_out_at || String(row.status || "").toLowerCase() === "checked_out");
+const attendanceHasCheckout = (row = {}) => Boolean(row.check_out || row.check_out_at);
+const normalizeAttendanceStatus = (row = {}) => {
+  if (attendanceHasCheckout(row)) return "checked_out";
+  const status = String(row.status || "").toLowerCase();
+  return status && status !== "checked_out" && status !== "completed" ? status : "checked_in";
+};
 
 const summarizeAttendanceRow = (row = {}) => ({
   id: row.id || null,
@@ -208,8 +892,9 @@ const resolveAttendanceEligibility = async (client, { tenantId, employeeId, bran
     WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
       AND employee_id = $2
       AND attendance_date = $3::date
+      AND ($4::bigint IS NULL OR branch_id = $4::bigint)
     ORDER BY
-      CASE WHEN check_out IS NULL AND check_out_at IS NULL AND COALESCE(status, 'checked_in') <> 'checked_out' THEN 0 ELSE 1 END,
+      CASE WHEN check_out IS NULL AND check_out_at IS NULL THEN 0 ELSE 1 END,
       CASE WHEN branch_id = $4 THEN 0 ELSE 1 END,
       created_at DESC,
       id DESC
@@ -310,6 +995,7 @@ const parseJson = (value, fallback = []) => {
 const normalizeEmployee = (row = {}) => ({
   id: row.id,
   tenant_id: row.tenant_id,
+  user_id: row.user_id || null,
   branch_id: row.branch_id || null,
   branch_name: row.branch_name || "",
   employee_code: row.employee_code || "",
@@ -318,9 +1004,14 @@ const normalizeEmployee = (row = {}) => ({
   email: row.email || "",
   national_id: row.national_id || "",
   role: row.role || "",
+  job_title: row.job_title || "",
+  position: row.position || "",
   salary: Number(row.salary || 0),
   hire_date: row.hire_date || null,
   status: row.status || "active",
+  is_deleted: Boolean(row.is_deleted),
+  deleted_at: row.deleted_at || null,
+  deleted_by_user_id: row.deleted_by_user_id || null,
   created_at: row.created_at || null,
   updated_at: row.updated_at || null,
   current_shift: row.shift_id
@@ -329,11 +1020,21 @@ const normalizeEmployee = (row = {}) => ({
         shift_name: row.shift_name || "",
         start_time: row.start_time || "",
         end_time: row.end_time || "",
+        check_in_window_start: row.check_in_window_start || "",
+        check_in_window_end: row.check_in_window_end || "",
         allowed_late_minutes: Number(row.allowed_late_minutes || 0),
         overtime_after_minutes: Number(row.overtime_after_minutes || 0),
         working_days: parseJson(row.working_days, []),
       }
     : null,
+  attendance_device: {
+    id: row.device_id || null,
+    status: row.device_status || (row.device_id ? "approved" : "none"),
+    user_agent: row.device_user_agent || "",
+    first_seen_at: row.device_first_seen_at || null,
+    last_seen_at: row.device_last_seen_at || null,
+    pending_count: Number(row.pending_device_count || 0),
+  },
   today_attendance: row.attendance_log_id
     ? {
         id: row.attendance_log_id,
@@ -347,7 +1048,7 @@ const normalizeEmployee = (row = {}) => ({
         check_out_latitude: row.check_out_latitude ?? null,
         check_out_longitude: row.check_out_longitude ?? null,
         attendance_source: row.attendance_source || "",
-        status: row.status || "checked_in",
+        status: normalizeAttendanceStatus(row),
         work_minutes: Number(row.work_minutes || 0),
         late_minutes: Number(row.late_minutes || 0),
         early_leave_minutes: Number(row.early_leave_minutes || 0),
@@ -367,6 +1068,10 @@ const normalizeAttendance = (row = {}) => ({
   employee_code: row.employee_code || "",
   branch_name: row.branch_name || "",
   shift_name: row.shift_name || "",
+  selected_shift_id: row.selected_shift_id || row.shift_id || null,
+  resolved_shift_start_time: row.resolved_shift_start_time || row.start_time || "",
+  resolved_shift_end_time: row.resolved_shift_end_time || row.end_time || "",
+  shift_resolution_status: row.shift_resolution_status || "",
   attendance_date: row.attendance_date || null,
   check_in: row.check_in || row.check_in_at || null,
   check_out: row.check_out || row.check_out_at || null,
@@ -381,7 +1086,7 @@ const normalizeAttendance = (row = {}) => ({
   check_out_gps_distance_meters: row.check_out_gps_distance_meters === null || row.check_out_gps_distance_meters === undefined ? null : Number(row.check_out_gps_distance_meters),
   check_out_gps_verification_result: row.check_out_gps_verification_result || "",
   attendance_source: row.attendance_source || "manual",
-  status: row.status || (row.check_out || row.check_out_at ? "checked_out" : "checked_in"),
+  status: normalizeAttendanceStatus(row),
   work_minutes: Number(row.work_minutes || 0),
   late_minutes: Number(row.late_minutes || 0),
   early_leave_minutes: Number(row.early_leave_minutes || 0),
@@ -391,10 +1096,11 @@ const normalizeAttendance = (row = {}) => ({
 });
 
 const findLatestShift = async (client, employeeId, tenantId, shiftId = null) => {
+  await ensureShiftResolutionSchema(client);
   if (shiftId) {
     const row = await safeQuery(
       client,
-      `
+    `
       SELECT *
       FROM employee_shifts
       WHERE id = $1
@@ -414,7 +1120,7 @@ const findLatestShift = async (client, employeeId, tenantId, shiftId = null) => 
     FROM employee_shifts
     WHERE employee_id = $1
       AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
-    ORDER BY created_at DESC
+    ORDER BY start_time ASC, created_at DESC
     LIMIT 1
     `,
     [employeeId, tenantId]
@@ -447,6 +1153,7 @@ const resolveEmployeeForUser = async (tenantId, user = {}) => {
     FROM employees e
     LEFT JOIN branches b ON b.id = e.branch_id
     WHERE ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
+      AND COALESCE(e.is_deleted, FALSE) = FALSE
       AND (
         e.id = $2
         OR LOWER(COALESCE(e.email, '')) = LOWER(COALESCE($3, ''))
@@ -491,6 +1198,8 @@ const normalizeOpeningCandidate = (row = {}, recommendedEmployeeId = null) => ({
   phone: row.phone || "",
   email: row.email || "",
   role: row.role || "",
+  job_title: row.job_title || "",
+  position: row.position || "",
   status: row.employee_status || row.status || "active",
   last_opening_at: row.last_opening_at || null,
   total_openings: Number(row.total_openings || 0),
@@ -624,6 +1333,7 @@ const fetchOpeningCandidates = async (client, tenantId, options = {}) => {
     LEFT JOIN attendance_stats ast ON ast.employee_id = e.id
     LEFT JOIN today_attendance ta ON ta.employee_id = e.id
     WHERE ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
+      AND COALESCE(e.is_deleted, FALSE) = FALSE
       AND LOWER(COALESCE(e.status, 'active')) = 'active'
     ORDER BY
       CASE WHEN os.last_opening_at IS NULL THEN 0 ELSE 1 END,
@@ -667,6 +1377,7 @@ const validateOpeningEmployee = async (client, tenantId, employeeId) => {
     LEFT JOIN branches b ON b.id = e.branch_id
     WHERE e.id = $1
       AND ($2::bigint IS NULL OR e.tenant_id = $2::bigint)
+      AND COALESCE(e.is_deleted, FALSE) = FALSE
       AND LOWER(COALESCE(e.status, 'active')) = 'active'
     LIMIT 1
     `,
@@ -680,7 +1391,7 @@ export const getEmployees = async (req, res) => {
   try {
     await ensureAttendanceSchema();
     const tenantId = getTenantScope(req);
-    const attendanceDate = getAttendanceDate();
+    const attendanceDate = getRequestAttendanceDate(req);
     const search = String(req.query.search || "").trim().toLowerCase();
     const params = [tenantId, attendanceDate];
     const tenantPredicate = "($1::bigint IS NULL OR e.tenant_id = $1::bigint)";
@@ -719,7 +1430,13 @@ export const getEmployees = async (req, res) => {
         al.late_minutes,
         al.early_leave_minutes,
         al.overtime_minutes,
-        al.notes
+        al.notes,
+        ad.id AS device_id,
+        ad.status AS device_status,
+        ad.user_agent AS device_user_agent,
+        ad.first_seen_at AS device_first_seen_at,
+        ad.last_seen_at AS device_last_seen_at,
+        COALESCE(pd.pending_device_count, 0) AS pending_device_count
       FROM employees e
     LEFT JOIN branches w ON w.id = e.branch_id
       LEFT JOIN LATERAL (
@@ -739,7 +1456,24 @@ export const getEmployees = async (req, res) => {
         ORDER BY al.created_at DESC
         LIMIT 1
       ) al ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT *
+        FROM employee_attendance_devices ad
+        WHERE ad.employee_id = e.id
+          AND ad.status = 'approved'
+          AND ($1::bigint IS NULL OR ad.tenant_id = $1::bigint)
+        ORDER BY ad.approved_at DESC NULLS LAST, ad.created_at DESC
+        LIMIT 1
+      ) ad ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS pending_device_count
+        FROM employee_attendance_devices pd
+        WHERE pd.employee_id = e.id
+          AND pd.status = 'pending'
+          AND ($1::bigint IS NULL OR pd.tenant_id = $1::bigint)
+      ) pd ON TRUE
       WHERE ${tenantPredicate}
+      AND COALESCE(e.is_deleted, FALSE) = FALSE
       ${searchPredicate}
       ORDER BY e.id DESC
       `,
@@ -773,6 +1507,9 @@ export const createEmployee = async (req, res) => {
       email,
       national_id,
       role,
+      job_title,
+      jobTitle,
+      position,
       salary,
       hire_date,
       status,
@@ -786,6 +1523,8 @@ export const createEmployee = async (req, res) => {
     }
 
     const code = String(employee_code || `EMP-${Date.now()}`).trim();
+    const resolvedJobTitle = String(job_title ?? jobTitle ?? position ?? "").trim();
+    const resolvedPosition = String(position ?? job_title ?? jobTitle ?? "").trim();
     const created = await db.query(
       `
       INSERT INTO employees (
@@ -797,11 +1536,13 @@ export const createEmployee = async (req, res) => {
         email,
         national_id,
         role,
+        job_title,
+        position,
         salary,
         hire_date,
         status
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       RETURNING *
       `,
       [
@@ -813,6 +1554,8 @@ export const createEmployee = async (req, res) => {
         email || "",
         national_id || "",
         role || "",
+        resolvedJobTitle,
+        resolvedPosition,
         Number(salary || 0),
         hire_date || new Date().toISOString().slice(0, 10),
         status || "active",
@@ -847,11 +1590,16 @@ export const updateEmployee = async (req, res) => {
       email,
       national_id,
       role,
+      job_title,
+      jobTitle,
+      position,
       salary,
       hire_date,
       status,
     } = req.body || {};
 
+    const resolvedJobTitle = String(job_title ?? jobTitle ?? position ?? "").trim();
+    const resolvedPosition = String(position ?? job_title ?? jobTitle ?? "").trim();
     const updated = await db.query(
       `
       UPDATE employees
@@ -863,12 +1611,15 @@ export const updateEmployee = async (req, res) => {
         email = $5,
         national_id = $6,
         role = $7,
-        salary = $8,
-        hire_date = $9,
-        status = $10,
+        job_title = $8,
+        position = $9,
+        salary = $10,
+        hire_date = $11,
+        status = $12,
         updated_at = NOW()
-      WHERE id = $11
-        AND ($12::bigint IS NULL OR tenant_id = $12::bigint)
+      WHERE id = $13
+        AND ($14::bigint IS NULL OR tenant_id = $14::bigint)
+        AND COALESCE(is_deleted, FALSE) = FALSE
       RETURNING *
       `,
       [
@@ -879,6 +1630,8 @@ export const updateEmployee = async (req, res) => {
         email || "",
         national_id || "",
         role || "",
+        resolvedJobTitle,
+        resolvedPosition,
         Number(salary || 0),
         hire_date || new Date().toISOString().slice(0, 10),
         status || "active",
@@ -906,6 +1659,151 @@ export const updateEmployee = async (req, res) => {
       message: error.message || "Failed to update employee",
       error: error.message,
     });
+  }
+};
+
+const isAdminLikeRole = (value = "") => ["admin", "super_admin", "superadmin", "super admin", "platform_admin"].includes(String(value || "").trim().toLowerCase());
+
+const resolveEmployeeLinkedUser = async (client, tenantId, employee = {}) => {
+  const result = await safeQuery(
+    client,
+    `
+    SELECT u.*, r.name AS role_name
+    FROM users u
+    LEFT JOIN roles r ON r.id = u.role_id
+    WHERE ($1::bigint IS NULL OR u.tenant_id = $1::bigint)
+      AND (
+        u.id = $2
+        OR LOWER(COALESCE(u.email, '')) = LOWER(COALESCE($3, ''))
+        OR LOWER(COALESCE(u.name, '')) = LOWER(COALESCE($4, ''))
+      )
+    ORDER BY CASE WHEN u.id = $2 THEN 0 ELSE 1 END, u.id DESC
+    LIMIT 1
+    `,
+    [tenantId, employee.user_id || 0, employee.email || "", employee.full_name || ""]
+  );
+  return result.rows[0] || null;
+};
+
+const countActiveAdminUsers = async (client, tenantId) => {
+  const result = await safeQuery(
+    client,
+    `
+    SELECT COUNT(*)::int AS count
+    FROM users u
+    LEFT JOIN roles r ON r.id = u.role_id
+    WHERE ($1::bigint IS NULL OR u.tenant_id = $1::bigint)
+      AND COALESCE(u.is_active, TRUE) = TRUE
+      AND (
+        COALESCE(u.is_super_admin, FALSE) = TRUE
+        OR LOWER(COALESCE(u.role, '')) IN ('admin', 'super_admin', 'superadmin', 'super admin', 'platform_admin')
+        OR LOWER(COALESCE(r.name, '')) IN ('admin', 'super_admin', 'superadmin', 'super admin', 'platform_admin')
+      )
+    `,
+    [tenantId]
+  );
+  return Number(result.rows[0]?.count || 0);
+};
+
+export const deleteEmployee = async (req, res) => {
+  const client = await db.connect();
+  try {
+    await ensureAttendanceSchema();
+    await client.query("BEGIN");
+
+    const tenantId = getTenantScope(req);
+    const employeeId = Number(req.params.id || 0);
+    const actorUserId = getUserId(req);
+
+    if (!employeeId) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, message: "Employee is required" });
+    }
+
+    const employeeResult = await client.query(
+      `
+      SELECT *
+      FROM employees
+      WHERE id = $1
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+        AND COALESCE(is_deleted, FALSE) = FALSE
+      FOR UPDATE
+      `,
+      [employeeId, tenantId]
+    );
+    const employee = employeeResult.rows[0] || null;
+
+    if (!employee) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "Employee not found" });
+    }
+
+    const linkedUser = await resolveEmployeeLinkedUser(client, tenantId, employee);
+    const isCurrentUser =
+      actorUserId &&
+      (String(linkedUser?.id || "") === String(actorUserId) ||
+        String(employee.user_id || "") === String(actorUserId) ||
+        String(req.user?.employee_id || "") === String(employee.id));
+
+    if (isCurrentUser) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        success: false,
+        code: "CANNOT_DELETE_CURRENT_USER",
+        message: "You cannot delete the employee linked to your current user.",
+      });
+    }
+
+    const linkedUserIsAdmin =
+      linkedUser &&
+      (linkedUser.is_super_admin === true || isAdminLikeRole(linkedUser.role) || isAdminLikeRole(linkedUser.role_name));
+    if (linkedUserIsAdmin) {
+      const activeAdminCount = await countActiveAdminUsers(client, tenantId);
+      if (activeAdminCount <= 1) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          success: false,
+          code: "CANNOT_DELETE_LAST_ADMIN",
+          message: "You cannot delete the last active admin user.",
+        });
+      }
+    }
+
+    const updated = await client.query(
+      `
+      UPDATE employees
+      SET
+        status = 'deleted',
+        is_deleted = TRUE,
+        deleted_at = NOW(),
+        deleted_by_user_id = $3,
+        updated_at = NOW()
+      WHERE id = $1
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      RETURNING *
+      `,
+      [employeeId, tenantId, actorUserId || null]
+    );
+
+    await client.query("COMMIT");
+    return res.status(200).json({
+      success: true,
+      message: "Employee deleted",
+      data: normalizeEmployee(updated.rows[0]),
+      employee: normalizeEmployee(updated.rows[0]),
+      soft_deleted: true,
+      historical_relations_preserved: true,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.log("DELETE EMPLOYEE ERROR:", error);
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "Failed to delete employee",
+      error: error.message,
+    });
+  } finally {
+    client.release();
   }
 };
 
@@ -957,6 +1855,8 @@ export const createEmployeeShift = async (req, res) => {
       end_time,
       allowed_late_minutes = 0,
       overtime_after_minutes = 0,
+      check_in_window_start = null,
+      check_in_window_end = null,
       working_days = [],
     } = req.body || {};
 
@@ -975,11 +1875,13 @@ export const createEmployeeShift = async (req, res) => {
         shift_name,
         start_time,
         end_time,
+        check_in_window_start,
+        check_in_window_end,
         allowed_late_minutes,
         overtime_after_minutes,
         working_days
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
       RETURNING *
       `,
       [
@@ -988,6 +1890,8 @@ export const createEmployeeShift = async (req, res) => {
         String(shift_name).trim(),
         start_time,
         end_time,
+        check_in_window_start || start_time,
+        check_in_window_end || null,
         Number(allowed_late_minutes || 0),
         Number(overtime_after_minutes || 0),
         JSON.stringify(parseJson(working_days, [])),
@@ -1020,6 +1924,8 @@ export const updateEmployeeShift = async (req, res) => {
       end_time,
       allowed_late_minutes = 0,
       overtime_after_minutes = 0,
+      check_in_window_start = null,
+      check_in_window_end = null,
       working_days = [],
     } = req.body || {};
 
@@ -1030,18 +1936,22 @@ export const updateEmployeeShift = async (req, res) => {
         shift_name = $1,
         start_time = $2,
         end_time = $3,
-        allowed_late_minutes = $4,
-        overtime_after_minutes = $5,
-        working_days = $6::jsonb,
+        check_in_window_start = $4,
+        check_in_window_end = $5,
+        allowed_late_minutes = $6,
+        overtime_after_minutes = $7,
+        working_days = $8::jsonb,
         updated_at = NOW()
-      WHERE id = $7
-        AND ($8::bigint IS NULL OR tenant_id = $8::bigint)
+      WHERE id = $9
+        AND ($10::bigint IS NULL OR tenant_id = $10::bigint)
       RETURNING *
       `,
       [
         shift_name || "",
         start_time || "09:00",
         end_time || "17:00",
+        check_in_window_start || start_time || "09:00",
+        check_in_window_end || null,
         Number(allowed_late_minutes || 0),
         Number(overtime_after_minutes || 0),
         JSON.stringify(parseJson(working_days, [])),
@@ -1085,7 +1995,7 @@ export const checkIn = async (req, res) => {
     const attendanceSource = String(req.body?.attendance_source || req.body?.source || "manual").toLowerCase();
     const notes = req.body?.notes || "";
     const shiftId = req.body?.shift_id || req.body?.shiftId || null;
-    const attendanceDate = getAttendanceDate();
+    const attendanceDate = getRequestAttendanceDate(req);
 
     if (!tenantId) {
       await client.query("ROLLBACK");
@@ -1154,7 +2064,16 @@ export const checkIn = async (req, res) => {
       });
     }
 
-    const shift = await findLatestShift(client, employeeId, tenantId, shiftId);
+    const checkInAt = new Date();
+    const shiftResolution = await resolveShiftForCheckIn({
+      clientOrPool: client,
+      tenantId,
+      employeeId,
+      checkInAt,
+      requestedShiftId: shiftId,
+      timeZone: req.body?.timezone || req.body?.time_zone || ATTENDANCE_TIMEZONE,
+    });
+    const shift = shiftResolution.shift || await findLatestShift(client, employeeId, tenantId, shiftId);
 
     if (attendanceSource === "pos" && !attendanceBranchId) {
       await client.query("ROLLBACK");
@@ -1173,15 +2092,20 @@ export const checkIn = async (req, res) => {
         branch_id,
         attendance_date,
         check_in,
+        check_in_at,
         attendance_source,
         work_minutes,
         late_minutes,
         early_leave_minutes,
         overtime_minutes,
+        selected_shift_id,
+        resolved_shift_start_time,
+        resolved_shift_end_time,
+        shift_resolution_status,
         notes
       )
       VALUES (
-        $1,$2,$3,$4,$5::date,NOW(),$6,0,0,0,0,$7
+        $1,$2,$3,$4,$5::date,$6,$6,$7,0,$8,0,0,$9,$10,$11,$12,$13
       )
       RETURNING *
       `,
@@ -1191,7 +2115,13 @@ export const checkIn = async (req, res) => {
         shift?.id || null,
         attendanceBranchId,
         attendanceDate,
+        checkInAt,
         attendanceSource || "manual",
+        shiftResolution.lateMinutes || 0,
+        shift?.id || null,
+        shiftResolution.resolvedStartTime,
+        shiftResolution.resolvedEndTime,
+        shiftResolution.status,
         notes || "",
       ]
     );
@@ -1203,13 +2133,40 @@ export const checkIn = async (req, res) => {
       branch_name: employeeResult.rows[0].branch_name || "",
       shift_name: shift?.shift_name || "",
     };
+    const portalResponse = await createEmployeePortalResponse({
+      clientOrPool: client,
+      req,
+      tenantId,
+      branchId: attendanceBranchId,
+      employeeId,
+      attendanceLogId: created.rows[0]?.id || null,
+    });
 
     await client.query("COMMIT");
 
+    let staffTasks = null;
+    if (attendanceBranchId) {
+      try {
+        staffTasks = await handleBranchQrCheckInStaffTasks({
+          tenantId,
+          branchId: attendanceBranchId,
+          employeeId,
+          actionType: "check_in",
+          attendanceDate,
+          attendanceEventId: null,
+        });
+      } catch (taskError) {
+        console.warn("[attendance] manual check-in staff task integration skipped", taskError.message);
+      }
+    }
+
     return res.status(201).json({
       success: true,
+      portal_url: portalResponse.portal_url,
+      employee_portal: portalResponse.employee_portal,
       data: normalizeAttendance(responseRow),
       attendance: normalizeAttendance(responseRow),
+      staff_tasks: staffTasks,
       notificationPreview: buildAttendanceAlertNotification({
         employeeName: employeeResult.rows[0].full_name,
         attendanceDate: created.rows[0].attendance_date,
@@ -1244,7 +2201,7 @@ export const checkOut = async (req, res) => {
     const notes = req.body?.notes || "";
     const nextOpeningEmployeeIdRaw = req.body?.next_opening_employee_id || req.body?.nextOpeningEmployeeId || null;
     const nextOpeningEmployeeId = nextOpeningEmployeeIdRaw ? Number(nextOpeningEmployeeIdRaw) : null;
-    const attendanceDate = getAttendanceDate();
+    const attendanceDate = getRequestAttendanceDate(req);
 
     if (!tenantId) {
       await client.query("ROLLBACK");
@@ -1525,6 +2482,8 @@ export const getDailyReport = async (req, res) => {
         e.full_name,
         e.employee_code,
         e.role,
+        e.job_title,
+        e.position,
         COALESCE(b.name, '') AS branch_name,
         COALESCE(s.shift_name, '') AS shift_name,
         s.start_time,
@@ -1723,7 +2682,7 @@ export const getBranchReport = async (req, res) => {
       `
       SELECT
         COALESCE(al.branch_id, e.branch_id) AS branch_id,
-        COALESCE(w.name, 'Unassigned') AS branch_name,
+        COALESCE(w.name, 'No branch assigned') AS branch_name,
         COUNT(*) AS present_count,
         COUNT(*) FILTER (WHERE al.late_minutes > 0) AS late_count,
         COUNT(*) FILTER (WHERE al.overtime_minutes > 0) AS overtime_count,
@@ -1913,6 +2872,8 @@ export const getAttendanceToday = async (req, res) => {
         e.full_name,
         e.employee_code,
         e.role,
+        e.job_title,
+        e.position,
         COALESCE(w.name, '') AS branch_name
       FROM attendance_logs al
       LEFT JOIN employees e ON e.id = al.employee_id
@@ -2018,6 +2979,8 @@ export const getAttendanceReports = async (req, res) => {
         e.full_name AS employee_name,
         e.employee_code,
         e.role,
+        e.job_title,
+        e.position,
         COALESCE(w.name, '') AS branch_name
       FROM attendance_logs al
       LEFT JOIN employees e ON e.id = al.employee_id
@@ -2070,6 +3033,564 @@ export const getAttendanceReports = async (req, res) => {
       message: "Failed to fetch attendance reports",
       error: error.message,
     });
+  }
+};
+
+const centerDateKey = (value) => {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  return date.toISOString().slice(0, 10);
+};
+
+const centerEachDate = (start, end) => {
+  const startDate = new Date(`${centerDateKey(start)}T00:00:00Z`);
+  const endDate = new Date(`${centerDateKey(end)}T00:00:00Z`);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || startDate > endDate) return [];
+  const rows = [];
+  for (let cursor = new Date(startDate); cursor <= endDate; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    rows.push(cursor.toISOString().slice(0, 10));
+  }
+  return rows;
+};
+
+const centerNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const centerIsExpectedWeekday = (dateValue, workingDaysPerWeek = 6) => {
+  const date = new Date(`${centerDateKey(dateValue)}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.getUTCDay() < Math.max(1, Math.min(7, Math.round(centerNumber(workingDaysPerWeek, 6))));
+};
+
+const centerBuildFilters = (req) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const startDate = centerDateKey(req.query.startDate || req.query.start_date || req.query.from || req.query.date || today);
+  const endDate = centerDateKey(req.query.endDate || req.query.end_date || req.query.to || req.query.date || startDate);
+  return {
+    tenantId: getTenantScope(req),
+    startDate,
+    endDate,
+    branchId: String(req.query.branchId || req.query.branch_id || "").trim(),
+    employeeId: String(req.query.employeeId || req.query.employee_id || "").trim(),
+    status: String(req.query.status || "").trim().toLowerCase(),
+    source: String(req.query.source || req.query.attendance_source || "").trim().toLowerCase(),
+    search: String(req.query.search || "").trim().toLowerCase(),
+    lateOnly: ["1", "true", "yes"].includes(String(req.query.lateOnly || req.query.late_only || "").toLowerCase()),
+    missingOnly: ["1", "true", "yes"].includes(String(req.query.missingOnly || req.query.missing_hours_only || "").toLowerCase()),
+    payrollAffectedOnly: ["1", "true", "yes"].includes(String(req.query.payrollAffectedOnly || req.query.payroll_affected_only || "").toLowerCase()),
+  };
+};
+
+const centerSourceLabel = (value = "") => {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized === "qr") return "QR";
+  if (normalized === "qr_branch" || normalized === "branch_qr") return "QR Branch";
+  if (normalized === "imported" || normalized === "import") return "Imported";
+  return normalized ? "Manual" : "";
+};
+
+const loadAttendanceCenterRows = async (filters = {}, { qrOnly = false, includeGenerated = true } = {}) => {
+  const dates = centerEachDate(filters.startDate, filters.endDate).slice(0, 62);
+  const employeeParams = [filters.tenantId];
+  const employeeWhere = [
+    "($1::bigint IS NULL OR e.tenant_id = $1::bigint)",
+    "COALESCE(e.is_deleted, FALSE) = FALSE",
+    "LOWER(COALESCE(e.status, 'active')) = 'active'",
+  ];
+  if (filters.branchId) {
+    employeeParams.push(filters.branchId);
+    employeeWhere.push(`e.branch_id::text = $${employeeParams.length}::text`);
+  }
+  if (filters.employeeId) {
+    employeeParams.push(filters.employeeId);
+    employeeWhere.push(`e.id::text = $${employeeParams.length}::text`);
+  }
+  if (filters.search) {
+    employeeParams.push(`%${filters.search}%`);
+    employeeWhere.push(`(LOWER(COALESCE(e.full_name, '')) LIKE $${employeeParams.length} OR LOWER(COALESCE(e.employee_code, '')) LIKE $${employeeParams.length})`);
+  }
+
+  const employeeResult = await db.query(
+    `
+    SELECT e.id, e.tenant_id, e.branch_id, e.full_name, e.employee_code,
+      COALESCE(e.salary, 0)::numeric AS salary,
+      COALESCE(e.daily_work_hours, 8)::numeric AS daily_work_hours,
+      COALESCE(e.working_days_per_month, 26)::int AS working_days_per_month,
+      COALESCE(e.working_days_per_week, 6)::int AS working_days_per_week,
+      b.name AS branch_name
+    FROM employees e
+    LEFT JOIN branches b ON b.id = e.branch_id
+    WHERE ${employeeWhere.join(" AND ")}
+    ORDER BY b.name NULLS LAST, e.full_name
+    LIMIT 500
+    `,
+    employeeParams
+  );
+  const employees = employeeResult.rows;
+
+  const logParams = [filters.tenantId, filters.startDate, filters.endDate];
+  const logWhere = ["($1::bigint IS NULL OR al.tenant_id = $1::bigint)", "al.attendance_date BETWEEN $2::date AND $3::date"];
+  if (filters.branchId) {
+    logParams.push(filters.branchId);
+    logWhere.push(`COALESCE(al.branch_id, e.branch_id)::text = $${logParams.length}::text`);
+  }
+  if (filters.employeeId) {
+    logParams.push(filters.employeeId);
+    logWhere.push(`al.employee_id::text = $${logParams.length}::text`);
+  }
+  if (qrOnly) {
+    logParams.push(["qr", "qr_branch", "branch_qr"]);
+    logWhere.push(`LOWER(COALESCE(al.attendance_source, '')) = ANY($${logParams.length}::text[])`);
+  } else if (filters.source) {
+    logParams.push(filters.source === "qr_branch" ? ["qr_branch", "branch_qr"] : [filters.source]);
+    logWhere.push(`LOWER(COALESCE(al.attendance_source, '')) = ANY($${logParams.length}::text[])`);
+  }
+
+  const logResult = await db.query(
+    `
+    SELECT al.employee_id, COALESCE(al.branch_id, e.branch_id) AS branch_id, al.attendance_date,
+      MIN(COALESCE(al.check_in_at, al.check_in)) AS check_in_time,
+      MAX(COALESCE(al.check_out_at, al.check_out)) AS check_out_time,
+      MAX(GREATEST(
+        COALESCE(al.work_minutes, 0),
+        COALESCE(al.worked_hours, 0) * 60,
+        CASE
+          WHEN COALESCE(al.check_in_at, al.check_in) IS NOT NULL AND COALESCE(al.check_out_at, al.check_out) IS NOT NULL
+            THEN EXTRACT(EPOCH FROM (COALESCE(al.check_out_at, al.check_out) - COALESCE(al.check_in_at, al.check_in))) / 60
+          ELSE 0
+        END
+      ))::numeric AS worked_minutes,
+      MAX(COALESCE(al.late_minutes, 0))::numeric AS late_minutes,
+      MAX(COALESCE(al.early_leave_minutes, 0))::numeric AS early_leave_minutes,
+      MAX(COALESCE(al.overtime_minutes, 0))::numeric AS overtime_minutes,
+      STRING_AGG(DISTINCT COALESCE(al.attendance_source, 'manual'), ', ') AS attendance_source,
+      STRING_AGG(NULLIF(al.notes, ''), '; ') AS notes,
+      COUNT(*)::int AS records_count,
+      b.name AS branch_name
+    FROM attendance_logs al
+    LEFT JOIN employees e ON e.id = al.employee_id
+    LEFT JOIN branches b ON b.id = COALESCE(al.branch_id, e.branch_id)
+    WHERE ${logWhere.join(" AND ")}
+    GROUP BY al.employee_id, COALESCE(al.branch_id, e.branch_id), al.attendance_date, b.name
+    `,
+    logParams
+  );
+  const logsByKey = new Map(logResult.rows.map((row) => [`${row.employee_id}:${centerDateKey(row.attendance_date)}`, row]));
+
+  const leaveResult = await db.query(
+    `
+    SELECT 'leave' AS record_type, id, employee_id, leave_type, NULL::text AS vacation_type,
+      COALESCE(leave_date, start_date) AS start_date,
+      COALESCE(leave_date, end_date, start_date) AS end_date,
+      status, notes
+    FROM employee_leaves
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+      AND COALESCE(leave_date, start_date) <= $3::date
+      AND COALESCE(leave_date, end_date, start_date) >= $2::date
+    UNION ALL
+    SELECT 'vacation' AS record_type, id, employee_id, NULL::text AS leave_type, vacation_type,
+      COALESCE(vacation_date, start_date) AS start_date,
+      COALESCE(vacation_date, end_date, start_date) AS end_date,
+      status, notes
+    FROM employee_vacations
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+      AND COALESCE(vacation_date, start_date) <= $3::date
+      AND COALESCE(vacation_date, end_date, start_date) >= $2::date
+    `,
+    [filters.tenantId, filters.startDate, filters.endDate]
+  );
+  const approvedLeaveDates = new Map();
+  leaveResult.rows
+    .filter((row) => String(row.status || "").toLowerCase() === "approved")
+    .forEach((row) => {
+      centerEachDate(row.start_date, row.end_date).forEach((item) => approvedLeaveDates.set(`${row.employee_id}:${item}`, row));
+    });
+
+  const holidayResult = await db.query(
+    `
+    SELECT holiday_date, name
+    FROM holidays
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint OR tenant_id IS NULL)
+      AND holiday_date BETWEEN $2::date AND $3::date
+    `,
+    [filters.tenantId, filters.startDate, filters.endDate]
+  );
+  const holidays = new Map(holidayResult.rows.map((row) => [centerDateKey(row.holiday_date), row]));
+
+  const expectedDatesByEmployee = new Map();
+  employees.forEach((employee) => {
+    const candidates = dates.filter((date) =>
+      centerIsExpectedWeekday(date, employee.working_days_per_week) &&
+      !approvedLeaveDates.has(`${employee.id}:${date}`) &&
+      !holidays.has(date)
+    );
+    expectedDatesByEmployee.set(String(employee.id), new Set(candidates.slice(0, Math.min(centerNumber(employee.working_days_per_month, 26), candidates.length))));
+  });
+
+  const rows = [];
+  employees.forEach((employee) => {
+    dates.forEach((date) => {
+      const log = logsByKey.get(`${employee.id}:${date}`);
+      if (!includeGenerated && !log) return;
+      const leave = approvedLeaveDates.get(`${employee.id}:${date}`);
+      const holiday = holidays.get(date);
+      const weeklyExpected = centerIsExpectedWeekday(date, employee.working_days_per_week);
+      const expectedDate = expectedDatesByEmployee.get(String(employee.id))?.has(date);
+      const workedMinutes = centerNumber(log?.worked_minutes);
+      const dailyMinutes = Math.round(centerNumber(employee.daily_work_hours, 8) * 60);
+      const missingMinutes = log && expectedDate ? Math.max(0, dailyMinutes - workedMinutes) : 0;
+      const lateMinutes = centerNumber(log?.late_minutes);
+      const earlyLeaveMinutes = centerNumber(log?.early_leave_minutes);
+      let status = "present";
+      if (leave) status = "on_leave";
+      else if (holiday) status = "holiday";
+      else if (!weeklyExpected) status = "weekly_off";
+      else if (!expectedDate) status = "monthly_off";
+      else if (!log) status = "absent";
+      else if (lateMinutes > 0) status = "late";
+      else if (missingMinutes > 0) status = "missing_hours";
+      else if (earlyLeaveMinutes > 0) status = "early_leave";
+
+      const dailyRate = centerNumber(employee.salary) / Math.max(1, centerNumber(employee.working_days_per_month, 26));
+      const hourlyRate = dailyRate / Math.max(0.1, centerNumber(employee.daily_work_hours, 8));
+      const payrollImpact = status === "absent" ? dailyRate : (status === "missing_hours" ? (missingMinutes / 60) * hourlyRate : 0);
+      rows.push({
+        employee_id: employee.id,
+        employee_name: employee.full_name,
+        employee_code: employee.employee_code,
+        branch_id: log?.branch_id || employee.branch_id,
+        branch_name: log?.branch_name || employee.branch_name || "",
+        attendance_date: date,
+        check_in_time: log?.check_in_time || null,
+        check_out_time: log?.check_out_time || null,
+        worked_hours: Number((workedMinutes / 60).toFixed(2)),
+        status,
+        late_minutes: lateMinutes,
+        missing_hours: Number((missingMinutes / 60).toFixed(2)),
+        overtime_hours: Number((centerNumber(log?.overtime_minutes) / 60).toFixed(2)),
+        attendance_source: log?.attendance_source || "",
+        source_label: centerSourceLabel(log?.attendance_source),
+        payroll_impact: Number(payrollImpact.toFixed(2)),
+        notes: log?.notes || leave?.notes || holiday?.name || "",
+        records_count: centerNumber(log?.records_count),
+        daily_rate: Number(dailyRate.toFixed(2)),
+        hourly_rate: Number(hourlyRate.toFixed(2)),
+        expected_working_day: Boolean(expectedDate),
+        leave_type: leave ? (leave.leave_type || leave.vacation_type || "paid") : "",
+      });
+    });
+  });
+
+  return rows.filter((row) => {
+    if (filters.status && row.status !== filters.status) return false;
+    if (filters.lateOnly && row.late_minutes <= 0) return false;
+    if (filters.missingOnly && row.missing_hours <= 0) return false;
+    if (filters.payrollAffectedOnly && row.payroll_impact <= 0) return false;
+    return true;
+  });
+};
+
+const summarizeAttendanceCenter = (rows = []) => {
+  const presentRows = rows.filter((row) => row.check_in_time);
+  const expectedRows = rows.filter((row) => row.expected_working_day);
+  const qrRows = rows.filter((row) => ["qr", "qr_branch", "branch_qr"].some((source) => String(row.attendance_source || "").toLowerCase().includes(source)));
+  const workedTotal = presentRows.reduce((sum, row) => sum + centerNumber(row.worked_hours), 0);
+  return {
+    present_today: presentRows.length,
+    absent_today: rows.filter((row) => row.status === "absent").length,
+    late_employees: rows.filter((row) => row.status === "late").length,
+    missing_hours: Number(rows.reduce((sum, row) => sum + centerNumber(row.missing_hours), 0).toFixed(2)),
+    average_work_hours: Number((presentRows.length ? workedTotal / presentRows.length : 0).toFixed(2)),
+    attendance_rate: Number((expectedRows.length ? (presentRows.length / expectedRows.length) * 100 : 0).toFixed(2)),
+    qr_checkins_today: qrRows.length,
+    qr_checkouts_today: qrRows.filter((row) => row.check_out_time).length,
+  };
+};
+
+export const getAttendanceDashboard = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const filters = centerBuildFilters(req);
+    const rows = await loadAttendanceCenterRows(filters);
+    const trendMap = new Map();
+    const branchMap = new Map();
+    const employeeMap = new Map();
+    rows.forEach((row) => {
+      const trend = trendMap.get(row.attendance_date) || { date: row.attendance_date, present: 0, absent: 0, late: 0, missing_hours: 0 };
+      if (row.check_in_time) trend.present += 1;
+      if (row.status === "absent") trend.absent += 1;
+      if (row.status === "late") trend.late += 1;
+      trend.missing_hours += centerNumber(row.missing_hours);
+      trendMap.set(row.attendance_date, trend);
+
+      const branchKey = row.branch_id || "none";
+      const branch = branchMap.get(branchKey) || { branch_id: row.branch_id, branch_name: row.branch_name || "No branch assigned", present: 0, absent: 0, late: 0 };
+      if (row.check_in_time) branch.present += 1;
+      if (row.status === "absent") branch.absent += 1;
+      if (row.status === "late") branch.late += 1;
+      branchMap.set(branchKey, branch);
+
+      const employee = employeeMap.get(row.employee_id) || { employee_id: row.employee_id, employee_name: row.employee_name, present: 0, absent: 0, missing_hours: 0 };
+      if (row.check_in_time) employee.present += 1;
+      if (row.status === "absent") employee.absent += 1;
+      employee.missing_hours += centerNumber(row.missing_hours);
+      employeeMap.set(row.employee_id, employee);
+    });
+    const summary = summarizeAttendanceCenter(rows);
+    if (analyticsDebugEnabled()) console.info("[attendance-center]", {
+      endpoint: "dashboard",
+      filters: { branch_id: filters.branchId, employee_id: filters.employeeId, start_date: filters.startDate, end_date: filters.endDate },
+      rows: rows.length,
+      attendance_trend_points: trendMap.size,
+      branch_rows: branchMap.size,
+      employee_ranking_rows: employeeMap.size,
+      totals: summary,
+    });
+    return res.json({
+      success: true,
+      summary,
+      trends: {
+        attendance: [...trendMap.values()],
+        late_arrivals: [...trendMap.values()].map((row) => ({ date: row.date, late: row.late })),
+      },
+      branches: [...branchMap.values()],
+      employee_ranking: [...employeeMap.values()].sort((a, b) => b.present - a.present).slice(0, 10),
+    });
+  } catch (error) {
+    console.error("[attendance-center] dashboard error", error);
+    return res.status(500).json({ success: false, message: "Failed to load attendance dashboard", error: error.message });
+  }
+};
+
+export const getAttendanceList = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const filters = centerBuildFilters(req);
+    const rows = await loadAttendanceCenterRows(filters);
+    if (analyticsDebugEnabled()) console.info("[attendance-center]", {
+      endpoint: "list",
+      filters: { branch_id: filters.branchId, employee_id: filters.employeeId, status: filters.status, start_date: filters.startDate, end_date: filters.endDate },
+      rows: rows.length,
+      totals: summarizeAttendanceCenter(rows),
+    });
+    return res.json({ success: true, rows, attendance: rows, summary: summarizeAttendanceCenter(rows) });
+  } catch (error) {
+    console.error("[attendance-center] list error", error);
+    return res.status(500).json({ success: false, message: "Failed to load attendance list", error: error.message });
+  }
+};
+
+export const getAttendanceLive = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const filters = centerBuildFilters(req);
+    const params = [filters.tenantId];
+    const where = ["($1::bigint IS NULL OR al.tenant_id = $1::bigint)", "COALESCE(al.check_out_at, al.check_out) IS NULL"];
+    if (filters.branchId) {
+      params.push(filters.branchId);
+      where.push(`COALESCE(al.branch_id, e.branch_id)::text = $${params.length}::text`);
+    }
+    const result = await db.query(
+      `
+      SELECT al.id, al.employee_id, e.full_name AS employee_name, e.employee_code,
+        COALESCE(al.branch_id, e.branch_id) AS branch_id, b.name AS branch_name,
+        al.attendance_date, COALESCE(al.check_in_at, al.check_in) AS check_in_time,
+        al.attendance_source,
+        EXTRACT(EPOCH FROM (NOW() - COALESCE(al.check_in_at, al.check_in))) / 3600 AS current_worked_hours,
+        COALESCE(e.daily_work_hours, 8)::numeric AS daily_work_hours
+      FROM attendance_logs al
+      JOIN employees e ON e.id = al.employee_id
+      LEFT JOIN branches b ON b.id = COALESCE(al.branch_id, e.branch_id)
+      WHERE ${where.join(" AND ")}
+      ORDER BY COALESCE(al.check_in_at, al.check_in) DESC
+      LIMIT 100
+      `,
+      params
+    );
+    return res.json({ success: true, rows: result.rows.map((row) => ({
+      ...row,
+      current_worked_hours: Number(centerNumber(row.current_worked_hours).toFixed(2)),
+      progress_percent: Math.min(100, Math.round((centerNumber(row.current_worked_hours) / Math.max(1, centerNumber(row.daily_work_hours, 8))) * 100)),
+      status: "still_working",
+    })) });
+  } catch (error) {
+    console.error("[attendance-center] live error", error);
+    return res.status(500).json({ success: false, message: "Failed to load live attendance", error: error.message });
+  }
+};
+
+export const getAttendancePayrollImpact = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const filters = centerBuildFilters(req);
+    const rows = await loadAttendanceCenterRows(filters, { qrOnly: true });
+    let penaltiesByEmployee = new Map();
+    try {
+      const penaltyResult = await db.query(
+        `
+        SELECT employee_id, SUM(COALESCE(amount, 0))::numeric AS penalties
+        FROM employee_penalties
+        WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+          AND penalty_date BETWEEN $2::date AND $3::date
+          AND COALESCE(status, 'pending') <> 'cancelled'
+        GROUP BY employee_id
+        `,
+        [filters.tenantId, filters.startDate, filters.endDate]
+      );
+      penaltiesByEmployee = new Map(penaltyResult.rows.map((row) => [String(row.employee_id), centerNumber(row.penalties)]));
+    } catch {
+      penaltiesByEmployee = new Map();
+    }
+    const grouped = [...rows.reduce((map, row) => {
+      const bucket = map.get(row.employee_id) || {
+        employee_id: row.employee_id,
+        employee_name: row.employee_name,
+        branch_name: row.branch_name,
+        present_days: 0,
+        absence_days: 0,
+        missing_hours: 0,
+        late_count: 0,
+        attendance_deduction: 0,
+        daily_rate: row.daily_rate,
+        hourly_rate: row.hourly_rate,
+      };
+      if (row.check_in_time) bucket.present_days += 1;
+      if (row.status === "absent") bucket.absence_days += 1;
+      bucket.missing_hours += centerNumber(row.missing_hours);
+      if (row.late_minutes > 0) bucket.late_count += 1;
+      bucket.attendance_deduction += centerNumber(row.payroll_impact);
+      map.set(row.employee_id, bucket);
+      return map;
+    }, new Map()).values()].map((row) => {
+      const penalties = penaltiesByEmployee.get(String(row.employee_id)) || 0;
+      return {
+        ...row,
+        missing_hours: Number(row.missing_hours.toFixed(2)),
+        attendance_deduction: Number(row.attendance_deduction.toFixed(2)),
+        penalties: Number(penalties.toFixed(2)),
+        net_salary_impact: Number((row.attendance_deduction + penalties).toFixed(2)),
+        explanation: `Daily rate ${row.daily_rate}, hourly rate ${row.hourly_rate}, absence ${row.absence_days} days, missing ${row.missing_hours.toFixed(2)} hours.`,
+      };
+    });
+    if (analyticsDebugEnabled()) console.info("[payroll-impact]", {
+      filters: { branch_id: filters.branchId, employee_id: filters.employeeId, start_date: filters.startDate, end_date: filters.endDate },
+      qr_rows: rows.length,
+      employee_rows: grouped.length,
+      attendance_deduction_total: grouped.reduce((sum, row) => sum + centerNumber(row.attendance_deduction), 0),
+      penalties_total: grouped.reduce((sum, row) => sum + centerNumber(row.penalties), 0),
+    });
+    return res.json({ success: true, rows: grouped });
+  } catch (error) {
+    console.error("[attendance-center] payroll impact error", error);
+    return res.status(500).json({ success: false, message: "Failed to load payroll impact", error: error.message });
+  }
+};
+
+export const getAttendanceLeaves = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const filters = centerBuildFilters(req);
+    const result = await db.query(
+      `
+      SELECT 'leave' AS record_type, l.id, l.employee_id, e.full_name AS employee_name,
+        e.branch_id, b.name AS branch_name, l.leave_type, l.start_date, l.end_date,
+        l.leave_date, l.notes, l.status
+      FROM employee_leaves l
+      JOIN employees e ON e.id = l.employee_id
+      LEFT JOIN branches b ON b.id = e.branch_id
+      WHERE ($1::bigint IS NULL OR l.tenant_id = $1::bigint)
+        AND COALESCE(l.leave_date, l.start_date) <= $3::date
+        AND COALESCE(l.leave_date, l.end_date, l.start_date) >= $2::date
+        AND ($4::text = '' OR e.branch_id::text = $4::text)
+      UNION ALL
+      SELECT 'vacation' AS record_type, v.id, v.employee_id, e.full_name AS employee_name,
+        e.branch_id, b.name AS branch_name, v.vacation_type AS leave_type, v.start_date, v.end_date,
+        v.vacation_date AS leave_date, v.notes, v.status
+      FROM employee_vacations v
+      JOIN employees e ON e.id = v.employee_id
+      LEFT JOIN branches b ON b.id = e.branch_id
+      WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint)
+        AND COALESCE(v.vacation_date, v.start_date) <= $3::date
+        AND COALESCE(v.vacation_date, v.end_date, v.start_date) >= $2::date
+        AND ($4::text = '' OR e.branch_id::text = $4::text)
+      ORDER BY start_date DESC NULLS LAST, leave_date DESC NULLS LAST
+      `,
+      [filters.tenantId, filters.startDate, filters.endDate, filters.branchId]
+    );
+    return res.json({ success: true, rows: result.rows });
+  } catch (error) {
+    console.error("[attendance-center] leaves error", error);
+    return res.status(500).json({ success: false, message: "Failed to load leaves", error: error.message });
+  }
+};
+
+export const getAttendanceCenterReports = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const filters = centerBuildFilters(req);
+    const rows = await loadAttendanceCenterRows(filters);
+    return res.json({ success: true, summary: summarizeAttendanceCenter(rows), rows, generated_at: new Date().toISOString() });
+  } catch (error) {
+    console.error("[attendance-center] reports error", error);
+    return res.status(500).json({ success: false, message: "Failed to load attendance reports", error: error.message });
+  }
+};
+
+export const getAttendanceQrSessions = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const filters = centerBuildFilters(req);
+    const result = await db.query(
+      `
+      SELECT ev.id, ev.employee_id, e.full_name AS employee_name, ev.branch_id, b.name AS branch_name,
+        ev.action_type AS qr_type, ev.action_timestamp AS scan_time,
+        COALESCE(ev.device_fingerprint, ev.device_key, ev.device_token, '') AS device,
+        ev.source, ev.attendance_log_id,
+        CASE
+          WHEN al.check_in_at IS NOT NULL AND al.check_out_at IS NOT NULL
+            THEN EXTRACT(EPOCH FROM (al.check_out_at - al.check_in_at)) / 3600
+          ELSE NULL
+        END AS session_duration,
+        CASE WHEN duplicate_counts.scan_count > 1 THEN TRUE ELSE FALSE END AS duplicate_scan,
+        CASE WHEN ev.action_type = 'check_in' AND COALESCE(al.check_out_at, al.check_out) IS NULL THEN TRUE ELSE FALSE END AS missing_checkout,
+        COALESCE(suspicious.suspicious_count, 0)::int AS suspicious_count
+      FROM attendance_events ev
+      LEFT JOIN attendance_logs al ON al.id = ev.attendance_log_id
+      LEFT JOIN employees e ON e.id = ev.employee_id
+      LEFT JOIN branches b ON b.id = ev.branch_id
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS scan_count
+        FROM attendance_events ev2
+        WHERE ev2.employee_id = ev.employee_id
+          AND ev2.branch_id = ev.branch_id
+          AND ev2.action_type = ev.action_type
+          AND ABS(EXTRACT(EPOCH FROM (ev2.action_timestamp - ev.action_timestamp))) <= 60
+      ) duplicate_counts ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS suspicious_count
+        FROM attendance_suspicious_activity_logs sal
+        WHERE sal.employee_id = ev.employee_id
+          AND sal.branch_id = ev.branch_id
+          AND sal.created_at::date = ev.action_timestamp::date
+      ) suspicious ON TRUE
+      WHERE ($1::bigint IS NULL OR ev.tenant_id = $1::bigint)
+        AND ev.action_timestamp::date BETWEEN $2::date AND $3::date
+        AND ($4::text = '' OR ev.branch_id::text = $4::text)
+      ORDER BY ev.action_timestamp DESC
+      LIMIT 300
+      `,
+      [filters.tenantId, filters.startDate, filters.endDate, filters.branchId]
+    );
+    return res.json({ success: true, rows: result.rows.map((row) => ({
+      ...row,
+      session_duration: row.session_duration === null ? null : Number(centerNumber(row.session_duration).toFixed(2)),
+    })) });
+  } catch (error) {
+    console.error("[attendance-center] qr sessions error", error);
+    return res.status(500).json({ success: false, message: "Failed to load QR sessions", error: error.message });
   }
 };
 
@@ -2189,6 +3710,7 @@ export const getBranchAttendanceQr = async (req, res) => {
         tenant_id,
         name,
         code,
+        attendance_public_code,
         attendance_qr_token
       FROM branches
       WHERE id = $1
@@ -2206,7 +3728,9 @@ export const getBranchAttendanceQr = async (req, res) => {
       });
     }
 
-    const publicAttendanceUrl = buildAttendancePublicUrl(req, branch.attendance_qr_token);
+    const branchKey = branch.attendance_public_code || branch.id;
+    const publicAttendanceUrl = buildAttendancePublicUrl(req, branchKey);
+    const legacyPublicAttendanceUrl = buildLegacyAttendancePublicUrl(req, branch.attendance_qr_token);
     const { qrSvg, qrDataUrl } = buildQrDataUrl(publicAttendanceUrl);
     if (!qrDataUrl || !qrDataUrl.startsWith("data:image/svg+xml;base64,")) {
       throw new Error("QR data URL generation failed");
@@ -2231,6 +3755,7 @@ export const getBranchAttendanceQr = async (req, res) => {
       id: branch.id,
       name: branch.name || "",
       code: branch.code || "",
+      attendance_public_code: branch.attendance_public_code || "",
       tenant_id: branch.tenant_id,
     };
     const payload = {
@@ -2239,14 +3764,20 @@ export const getBranchAttendanceQr = async (req, res) => {
         branch_id: branch.id,
         branch_name: branch.name || "",
         branch_code: branch.code || "",
+        attendance_public_code: branch.attendance_public_code || "",
         branch: branchPayload,
         company_name: company.company_name || "",
         company_logo_url: company.logo_url || "",
         generated_at: generatedAt,
         generatedAt,
+        short_public_attendance_url: publicAttendanceUrl,
+        shortPublicAttendanceUrl: publicAttendanceUrl,
+        shortUrl: publicAttendanceUrl,
         public_attendance_url: publicAttendanceUrl,
         publicAttendanceUrl,
         publicUrl: publicAttendanceUrl,
+        legacy_public_attendance_url: legacyPublicAttendanceUrl,
+        legacyPublicAttendanceUrl,
         qrSvg,
         qrDataUrl,
         qrImage: qrDataUrl,
@@ -2256,6 +3787,7 @@ export const getBranchAttendanceQr = async (req, res) => {
     };
     console.log("[attendance] branch QR payload", {
       branchId: branch.id,
+      branchKey,
       publicUrl: publicAttendanceUrl,
       hasQrSvg: Boolean(qrSvg),
       qrDataUrlPrefix: qrDataUrl.slice(0, 32),
@@ -2275,26 +3807,8 @@ export const getBranchAttendanceQr = async (req, res) => {
 export const getPublicBranchAttendance = async (req, res) => {
   try {
     await ensureAttendanceSchema();
-    const token = normalizeLookupValue(req.params.token);
-
-    const result = await db.query(
-      `
-      SELECT
-        id,
-        tenant_id,
-        name,
-        is_active,
-        latitude,
-        longitude,
-        COALESCE(attendance_radius_meters, allowed_radius_meters, 100) AS attendance_radius_meters
-      FROM branches
-      WHERE attendance_qr_token = $1
-      LIMIT 1
-      `,
-      [token]
-    );
-
-    const branch = result.rows[0];
+    const branchKey = req.params.branchKey || req.params.token;
+    const branch = await resolvePublicAttendanceBranch(db, branchKey);
     if (!branch || branch.is_active === false) {
       return res.status(404).json({
         success: false,
@@ -2305,7 +3819,10 @@ export const getPublicBranchAttendance = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
+        branch_id: branch.id,
         branch_name: branch.name || "",
+        branch_code: branch.code || "",
+        attendance_public_code: branch.attendance_public_code || "",
         latitude: branch.latitude === null || branch.latitude === undefined ? null : Number(branch.latitude),
         longitude: branch.longitude === null || branch.longitude === undefined ? null : Number(branch.longitude),
         attendance_radius_meters: Number(branch.attendance_radius_meters || 100),
@@ -2324,14 +3841,24 @@ export const getPublicBranchAttendance = async (req, res) => {
 export const identifyPublicBranchEmployee = async (req, res) => {
   try {
     await ensureAttendanceSchema();
-    const token = normalizeLookupValue(req.params.token);
+    const branchKey = req.params.branchKey || req.params.token;
+    const token = normalizeBranchEntryKey(branchKey);
     const identifier = normalizeLookupValue(req.body?.identifier || req.body?.phone || req.body?.employee_code || req.body?.employeeCode);
     const identifierDigits = normalizePhoneDigits(identifier);
+    enforceAttendanceRateLimit(req, ["public-identify", token, identifierDigits || identifier]);
 
     if (!identifier) {
       return res.status(400).json({
         success: false,
         message: "Phone number or employee code is required",
+      });
+    }
+
+    const branch = await resolvePublicAttendanceBranch(db, branchKey);
+    if (!branch || branch.is_active === false) {
+      return res.status(404).json({
+        success: false,
+        message: "Attendance QR code is invalid or expired",
       });
     }
 
@@ -2343,22 +3870,21 @@ export const identifyPublicBranchEmployee = async (req, res) => {
         e.employee_code,
         e.phone,
         e.branch_id,
-        b.id AS qr_branch_id,
-        b.tenant_id,
-        b.name AS branch_name
-      FROM branches b
-      JOIN employees e ON e.tenant_id = b.tenant_id
-      WHERE b.attendance_qr_token = $1
-        AND b.is_active = TRUE
+        $1::bigint AS qr_branch_id,
+        $2::bigint AS tenant_id,
+        $3::text AS branch_name
+      FROM employees e
+      WHERE e.tenant_id = $2::bigint
+        AND COALESCE(e.is_deleted, FALSE) = FALSE
         AND LOWER(COALESCE(e.status, 'active')) = 'active'
         AND (
-          LOWER(COALESCE(e.employee_code, '')) = LOWER($2)
-          OR regexp_replace(COALESCE(e.phone, ''), '\\D', '', 'g') = $3
+          LOWER(COALESCE(e.employee_code, '')) = LOWER($4)
+          OR regexp_replace(COALESCE(e.phone, ''), '\\D', '', 'g') = $5
         )
-      ORDER BY CASE WHEN e.branch_id = b.id THEN 0 ELSE 1 END, e.id DESC
+      ORDER BY CASE WHEN e.branch_id = $1::bigint THEN 0 ELSE 1 END, e.id DESC
       LIMIT 1
       `,
-      [token, identifier, identifierDigits || "__no_phone_match__"]
+      [branch.id, branch.tenant_id, branch.name || "", identifier, identifierDigits || "__no_phone_match__"]
     );
 
     const employee = result.rows[0];
@@ -2368,8 +3894,13 @@ export const identifyPublicBranchEmployee = async (req, res) => {
         message: "Employee not found for this attendance QR",
       });
     }
+    console.info("[attendance:public-identify] resolved employee", {
+      employee_code: employee.employee_code || identifier,
+      employee_id: employee.id,
+      branch_id: employee.qr_branch_id,
+    });
 
-    const attendanceDate = getAttendanceDate();
+    const attendanceDate = getRequestAttendanceDate(req);
     const { eligibility } = await resolveAttendanceEligibility(db, {
       tenantId: employee.tenant_id,
       employeeId: employee.id,
@@ -2377,28 +3908,76 @@ export const identifyPublicBranchEmployee = async (req, res) => {
       attendanceDate,
       label: "public-identify",
     });
+    const deviceContext = buildAttendanceDeviceContext(req, {
+      tenantId: employee.tenant_id,
+      branchId: employee.qr_branch_id,
+      attendanceDate,
+    });
+    await enforceAttendanceDeviceBinding(db, {
+      tenantId: employee.tenant_id,
+      branchId: employee.qr_branch_id,
+      employeeId: employee.id,
+      attendanceDate,
+      deviceContext,
+    });
+    if (eligibility.attendance?.id) {
+      await upsertAttendanceDeviceBinding(db, {
+        tenantId: employee.tenant_id,
+        branchId: employee.qr_branch_id,
+        employeeId: employee.id,
+        attendanceDate,
+        deviceContext,
+        attendanceLogId: eligibility.attendance.id,
+      });
+    }
+    const baseAllowedAction = getAllowedActionFromEligibility(eligibility);
+    const deviceApproval = await inspectAttendanceDeviceApproval(db, {
+      tenantId: employee.tenant_id,
+      employeeId: employee.id,
+      deviceToken: normalizeDeviceToken(req.body?.device_token || req.body?.deviceToken),
+      allowedAction: baseAllowedAction,
+    });
+    const publicState = buildPublicQrState({ eligibility, deviceApproval });
+    logPublicQrDecision("public-identify", {
+      employee,
+      deviceContext,
+      deviceApproval,
+      eligibility,
+      allowedAction: publicState.allowed_action,
+    });
 
     return res.status(200).json({
       success: true,
+      ...publicState,
       data: {
         employee_id: employee.id,
         employee_name: employee.full_name || "",
         employee_code: employee.employee_code || "",
         branch_name: employee.branch_name || "",
-        attendance_state: eligibility,
+        business_date: attendanceDate,
+        attendance_date: attendanceDate,
+        ...publicState,
       },
     });
   } catch (error) {
     console.log("PUBLIC BRANCH EMPLOYEE IDENTIFY ERROR:", error);
-    return res.status(500).json({
+    if (error.code === "DEVICE_ALREADY_USED_TODAY") {
+      return res.status(409).json({
+        success: false,
+        code: error.code,
+        message: DEVICE_ALREADY_USED_MESSAGE,
+      });
+    }
+    return res.status(error.statusCode || 500).json({
       success: false,
-      message: "Failed to identify employee",
+      code: error.code,
+      message: error.message || "Failed to identify employee",
       error: error.message,
     });
   }
 };
 
-const createPublicAttendanceEvent = async ({ client, req, branch, employee, actionType, latitude, longitude, gpsVerification, attendanceDate, attendanceState }) => {
+const createPublicAttendanceEvent = async ({ client, req, branch, employee, actionType, latitude, longitude, gpsVerification, attendanceDate, attendanceState, attendanceDevice = null, deviceContext = null }) => {
   let attendanceLog;
   if (actionType === "check_in") {
     if (!attendanceState?.can_check_in) {
@@ -2410,12 +3989,22 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
       error.attendanceState = attendanceState;
       throw error;
     }
+    const checkInAt = new Date();
+    const shiftResolution = await resolveShiftForCheckIn({
+      clientOrPool: client,
+      tenantId: branch.tenant_id,
+      employeeId: employee.id,
+      checkInAt,
+      timeZone: req.body?.timezone || req.body?.time_zone || ATTENDANCE_TIMEZONE,
+    });
+    const selectedShift = shiftResolution.shift;
 
     const created = await client.query(
       `
       INSERT INTO attendance_logs (
         tenant_id,
         employee_id,
+        shift_id,
         branch_id,
         attendance_date,
         check_in,
@@ -2426,15 +4015,44 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
         check_in_gps_verification_result,
         attendance_source,
         status,
+        device_fingerprint,
+        device_key,
+        user_agent,
+        ip_address,
+        worked_hours,
         work_minutes,
         late_minutes,
         early_leave_minutes,
-        overtime_minutes
+        overtime_minutes,
+        selected_shift_id,
+        resolved_shift_start_time,
+        resolved_shift_end_time,
+        shift_resolution_status
       )
-      VALUES ($1,$2,$3,$4::date,NOW(),NOW(),$5,$6,$7,$8,'branch_qr','checked_in',0,0,0,0)
+      VALUES ($1,$2,$3,$4,$5::date,$6,$6,$7,$8,$9,$10,'qr_branch','checked_in',$11,$12,$13,$14,0,0,$15,0,0,$16,$17,$18,$19)
       RETURNING *
       `,
-      [branch.tenant_id, employee.id, branch.id, attendanceDate, latitude, longitude, gpsVerification.distanceMeters, gpsVerification.result]
+      [
+        branch.tenant_id,
+        employee.id,
+        selectedShift?.id || null,
+        branch.id,
+        attendanceDate,
+        checkInAt,
+        latitude,
+        longitude,
+        gpsVerification.distanceMeters,
+        gpsVerification.result,
+        deviceContext?.deviceFingerprint || null,
+        deviceContext?.deviceKey || null,
+        deviceContext?.userAgent || null,
+        deviceContext?.ipAddress || null,
+        shiftResolution.lateMinutes || 0,
+        selectedShift?.id || null,
+        shiftResolution.resolvedStartTime,
+        shiftResolution.resolvedEndTime,
+        shiftResolution.status,
+      ]
     );
     attendanceLog = created.rows[0];
   } else {
@@ -2463,14 +4081,31 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
         check_out_longitude = $3,
         check_out_gps_distance_meters = $4,
         check_out_gps_verification_result = $5,
-        attendance_source = 'branch_qr',
+        device_fingerprint = COALESCE(device_fingerprint, $8),
+        device_key = COALESCE(device_key, $9),
+        user_agent = COALESCE(user_agent, $10),
+        ip_address = COALESCE(ip_address, $11),
+        attendance_source = 'qr_branch',
         status = 'checked_out',
+        worked_hours = ROUND(($6::numeric / 60.0), 2),
         work_minutes = $6,
         updated_at = NOW()
       WHERE id = $7
       RETURNING *
       `,
-      [branch.id, latitude, longitude, gpsVerification.distanceMeters, gpsVerification.result, metrics.work_minutes, attendanceState.attendance.id]
+      [
+        branch.id,
+        latitude,
+        longitude,
+        gpsVerification.distanceMeters,
+        gpsVerification.result,
+        metrics.work_minutes,
+        attendanceState.attendance.id,
+        deviceContext?.deviceFingerprint || null,
+        deviceContext?.deviceKey || null,
+        deviceContext?.userAgent || null,
+        deviceContext?.ipAddress || null,
+      ]
     );
     attendanceLog = updated.rows[0];
   }
@@ -2489,9 +4124,13 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
       longitude,
       gps_distance_meters,
       gps_verification_result,
+      device_token,
+      device_id,
+      device_fingerprint,
+      device_key,
       source
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'branch_qr')
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'qr_branch')
     RETURNING *
     `,
     [
@@ -2506,6 +4145,10 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
       longitude,
       gpsVerification.distanceMeters,
       gpsVerification.result,
+      attendanceDevice?.device_token || null,
+      attendanceDevice?.id || null,
+      deviceContext?.deviceFingerprint || null,
+      deviceContext?.deviceKey || null,
     ]
   );
 
@@ -2522,11 +4165,14 @@ export const recordPublicBranchAttendance = async (req, res) => {
     await ensureAttendanceSchema();
     await client.query("BEGIN");
 
-    const token = normalizeLookupValue(req.params.token);
+    const branchKey = req.params.branchKey || req.params.token;
+    const token = normalizeBranchEntryKey(branchKey);
     const employeeId = Number(req.body?.employee_id || req.body?.employeeId || 0);
     const actionType = normalizeLookupValue(req.body?.action_type || req.body?.actionType || req.body?.action).toLowerCase();
     const latitude = parseOptionalCoordinate(req.body?.latitude);
     const longitude = parseOptionalCoordinate(req.body?.longitude);
+    const deviceToken = normalizeDeviceToken(req.body?.device_token || req.body?.deviceToken);
+    enforceAttendanceRateLimit(req, ["public-action", token, employeeId, deviceToken.slice(0, 16)]);
 
     if (!employeeId) {
       await client.query("ROLLBACK");
@@ -2544,35 +4190,20 @@ export const recordPublicBranchAttendance = async (req, res) => {
       });
     }
 
-    const result = await client.query(
-      `
-      SELECT
-        b.id,
-        b.tenant_id,
-        b.name,
-        b.is_active,
-        b.latitude,
-        b.longitude,
-        COALESCE(b.attendance_radius_meters, b.allowed_radius_meters, 100) AS attendance_radius_meters,
-        e.id AS employee_id,
-        e.full_name,
-        e.employee_code,
-        e.status AS employee_status
-      FROM branches b
-      JOIN employees e ON e.tenant_id = b.tenant_id
-      WHERE b.attendance_qr_token = $1
-        AND e.id = $2
-      LIMIT 1
-      `,
-      [token, employeeId]
-    );
-
-    const row = result.rows[0];
+    const row = await resolvePublicAttendanceBranch(client, branchKey, { includeEmployeeId: employeeId });
     if (!row || row.is_active === false) {
       await client.query("ROLLBACK");
       return res.status(404).json({
         success: false,
         message: "Attendance QR code is invalid or expired",
+      });
+    }
+
+    if (!row.employee_id) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found for this attendance QR",
       });
     }
 
@@ -2583,8 +4214,19 @@ export const recordPublicBranchAttendance = async (req, res) => {
         message: "Employee is not active",
       });
     }
+    console.info("[attendance:public-action] resolved employee", {
+      employee_code: row.employee_code || null,
+      employee_id: row.employee_id,
+      action_type: actionType,
+      branch_id: row.id,
+    });
 
-    const attendanceDate = getAttendanceDate();
+    const attendanceDate = getRequestAttendanceDate(req);
+    const deviceContext = buildAttendanceDeviceContext(req, {
+      tenantId: row.tenant_id,
+      branchId: row.id,
+      attendanceDate,
+    });
     await lockEmployeeAttendanceDay(client, row.tenant_id, row.employee_id);
     const { eligibility } = await resolveAttendanceEligibility(client, {
       tenantId: row.tenant_id,
@@ -2600,7 +4242,86 @@ export const recordPublicBranchAttendance = async (req, res) => {
       longitude,
       branch: row,
     });
-    enforceGpsVerification(gpsVerification);
+    try {
+      enforceGpsVerification(gpsVerification);
+    } catch (gpsError) {
+      gpsError.attendanceState = eligibility;
+      throw gpsError;
+    }
+
+    await enforceAttendanceDeviceBinding(client, {
+      tenantId: row.tenant_id,
+      branchId: row.id,
+      employeeId: row.employee_id,
+      attendanceDate,
+      deviceContext,
+    });
+
+    const baseAllowedAction = getAllowedActionFromEligibility(eligibility);
+    const deviceApproval = await inspectAttendanceDeviceApproval(client, {
+      tenantId: row.tenant_id,
+      employeeId: row.employee_id,
+      deviceToken,
+      allowedAction: baseAllowedAction,
+    });
+    logPublicQrDecision("public-action-before", {
+      employee: { id: row.employee_id, employee_code: row.employee_code },
+      deviceContext,
+      deviceApproval,
+      eligibility,
+      allowedAction: deviceApproval.deviceActionBlocked ? null : baseAllowedAction,
+    });
+
+    if (deviceApproval.deviceActionBlocked || actionType !== baseAllowedAction) {
+      await client.query("ROLLBACK");
+      const publicState = buildPublicQrState({ eligibility, deviceApproval });
+      return res.status(409).json({
+        success: false,
+        message: deviceApproval.deviceApprovalMessage || `Allowed action is ${baseAllowedAction || "none"}`,
+        ...publicState,
+        pending_device: deviceApproval.deviceApprovalStatus === "pending",
+      });
+    }
+
+    const validatedDevice = actionType === "check_in"
+      ? await validateAttendanceDevice({
+          client,
+          req,
+          tenantId: row.tenant_id,
+          employeeId: row.employee_id,
+          branchId: row.id,
+          deviceToken,
+          gpsVerification,
+          allowRegistration: true,
+        })
+      : {
+          device: deviceApproval.device,
+          status: deviceApproval.deviceApprovalStatus || "checkout_allowed",
+        };
+    const attendanceDevice = validatedDevice.device;
+    const deviceStatus = validatedDevice.status;
+
+    if (eligibility.completed && eligibility.attendance?.id) {
+      await upsertAttendanceDeviceBinding(client, {
+        tenantId: row.tenant_id,
+        branchId: row.id,
+        employeeId: row.employee_id,
+        attendanceDate,
+        deviceContext,
+        attendanceLogId: eligibility.attendance.id,
+      });
+      await client.query("COMMIT");
+      const publicState = buildPublicQrState({ eligibility, deviceApproval });
+      return res.status(409).json({
+        success: false,
+        message: "Attendance completed for today",
+        ...publicState,
+        device: {
+          id: attendanceDevice?.id || null,
+          status: deviceStatus,
+        },
+      });
+    }
 
     const { event, attendanceLog } = await createPublicAttendanceEvent({
       client,
@@ -2624,6 +4345,17 @@ export const recordPublicBranchAttendance = async (req, res) => {
       gpsVerification,
       attendanceDate,
       attendanceState: eligibility,
+      attendanceDevice,
+      deviceContext,
+    });
+
+    await upsertAttendanceDeviceBinding(client, {
+      tenantId: row.tenant_id,
+      branchId: row.id,
+      employeeId: row.employee_id,
+      attendanceDate,
+      deviceContext,
+      attendanceLogId: attendanceLog?.id || null,
     });
 
     const { eligibility: nextEligibility } = await resolveAttendanceEligibility(client, {
@@ -2633,6 +4365,32 @@ export const recordPublicBranchAttendance = async (req, res) => {
       attendanceDate,
       label: "public-action-after",
     });
+    const nextAllowedAction = getAllowedActionFromEligibility(nextEligibility);
+    const nextDeviceApproval = await inspectAttendanceDeviceApproval(client, {
+      tenantId: row.tenant_id,
+      employeeId: row.employee_id,
+      deviceToken,
+      allowedAction: nextAllowedAction,
+    });
+    const publicState = buildPublicQrState({ eligibility: nextEligibility, deviceApproval: nextDeviceApproval });
+    logPublicQrDecision("public-action-after", {
+      employee: { id: row.employee_id, employee_code: row.employee_code },
+      deviceContext,
+      deviceApproval: nextDeviceApproval,
+      eligibility: nextEligibility,
+      allowedAction: publicState.allowed_action,
+    });
+
+    const portalResponse = actionType === "check_in"
+      ? await createEmployeePortalResponse({
+          clientOrPool: client,
+          req,
+          tenantId: row.tenant_id,
+          branchId: row.id,
+          employeeId: row.employee_id,
+          attendanceLogId: attendanceLog?.id || null,
+        })
+      : { portal_url: null, employee_portal: null };
 
     await client.query("COMMIT");
 
@@ -2645,6 +4403,7 @@ export const recordPublicBranchAttendance = async (req, res) => {
           employeeId: row.employee_id,
           actionType,
           attendanceDate: attendanceLog?.attendance_date || new Date(),
+          attendanceEventId: event?.id || null,
         });
       } catch (taskError) {
         console.warn("[attendance] branch QR staff task integration skipped", taskError.message);
@@ -2659,7 +4418,10 @@ export const recordPublicBranchAttendance = async (req, res) => {
       success: true,
       action: actionType,
       message: actionType === "check_in" ? "Check in recorded" : "Check out recorded",
+      ...publicState,
       staff_tasks: staffTasks,
+      portal_url: portalResponse.portal_url,
+      employee_portal: portalResponse.employee_portal,
       data: {
         event_id: event.id,
         action_type: event.action_type,
@@ -2668,7 +4430,13 @@ export const recordPublicBranchAttendance = async (req, res) => {
         employee_name: row.full_name || "",
         employee_code: row.employee_code || "",
         branch_name: row.name || "",
-        attendance_state: nextEligibility,
+        ...publicState,
+        device: {
+          id: attendanceDevice?.id || null,
+          status: deviceStatus,
+          first_seen_at: attendanceDevice?.first_seen_at || null,
+          last_seen_at: attendanceDevice?.last_seen_at || null,
+        },
         gps: {
           verification_result: gpsVerification.result,
           verification_mode: gpsVerification.mode,
@@ -2687,11 +4455,30 @@ export const recordPublicBranchAttendance = async (req, res) => {
   } catch (error) {
     await client.query("ROLLBACK");
     console.log("PUBLIC BRANCH ATTENDANCE RECORD ERROR:", error);
+    if (error.code === "DEVICE_ALREADY_USED_TODAY") {
+      return res.status(409).json({
+        success: false,
+        code: error.code,
+        message: DEVICE_ALREADY_USED_MESSAGE,
+      });
+    }
     return res.status(error.statusCode || 500).json({
       success: false,
+      code: error.code,
       message: error.message || "Failed to record attendance",
       error: error.message,
-      attendance_state: error.attendanceState,
+      pending_device: Boolean(error.pendingDevice),
+      ...(error.attendanceState
+        ? buildPublicQrState({
+            eligibility: error.attendanceState,
+            deviceApproval: {
+              deviceApprovalRequired: Boolean(error.pendingDevice),
+              deviceApprovalStatus: error.pendingDevice ? "pending" : "unknown",
+              deviceActionBlocked: Boolean(error.pendingDevice),
+              deviceApprovalMessage: error.pendingDevice ? "Device approval is required before check-in." : "",
+            },
+          })
+        : {}),
       gps: error.gps
         ? {
             verification_result: error.gps.result,
@@ -2701,6 +4488,429 @@ export const recordPublicBranchAttendance = async (req, res) => {
             within_range: error.gps.withinRange,
           }
         : undefined,
+    });
+  } finally {
+    client.release();
+  }
+};
+
+const normalizeAttendanceDevice = (row = {}) => ({
+  id: row.id,
+  record_type: row.record_type || "approval",
+  tenant_id: row.tenant_id,
+  employee_id: row.employee_id,
+  employee_name: row.employee_name || row.full_name || "",
+  employee_code: row.employee_code || "",
+  branch_id: row.branch_id || null,
+  branch_name: row.branch_name || "",
+  business_date: row.business_date || null,
+  device_key: row.device_key || "",
+  device_token_tail: row.device_key
+    ? String(row.device_key).slice(-8)
+    : row.device_token
+      ? String(row.device_token).slice(-8)
+      : "",
+  device_fingerprint: row.device_fingerprint || "",
+  user_agent: row.user_agent || "",
+  ip_address: row.ip_address || "",
+  status: row.status || "",
+  first_seen_at: row.first_seen_at || null,
+  last_seen_at: row.last_seen_at || null,
+  approved_at: row.approved_at || null,
+  rejected_at: row.rejected_at || null,
+  reset_at: row.reset_at || null,
+});
+
+export const getAttendanceDevices = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const tenantId = getTenantScope(req);
+    const status = String(req.query.status || "").trim().toLowerCase();
+    const employeeId = Number(req.query.employee_id || req.query.employeeId || 0);
+    const params = [tenantId];
+    let statusPredicate = "AND d.status <> 'reset'";
+    let employeePredicate = "";
+
+    if (["approved", "pending", "rejected", "reset"].includes(status)) {
+      params.push(status);
+      statusPredicate = `AND d.status = $${params.length}`;
+    }
+    if (employeeId) {
+      params.push(employeeId);
+      employeePredicate = `AND d.employee_id = $${params.length}`;
+    }
+    const bindingParams = [tenantId];
+    let bindingEmployeePredicate = "";
+    if (employeeId) {
+      bindingParams.push(employeeId);
+      bindingEmployeePredicate = `AND b.employee_id = $${bindingParams.length}`;
+    }
+
+    const result = await db.query(
+      `
+      SELECT
+        d.*,
+        'approval' AS record_type,
+        NULL::date AS business_date,
+        NULL::text AS device_key,
+        NULL::text AS device_fingerprint,
+        e.full_name AS employee_name,
+        e.employee_code,
+        e.branch_id,
+        b.name AS branch_name
+      FROM employee_attendance_devices d
+      JOIN employees e ON e.id = d.employee_id
+      LEFT JOIN branches b ON b.id = e.branch_id
+      WHERE ($1::bigint IS NULL OR d.tenant_id = $1::bigint)
+        ${statusPredicate}
+        ${employeePredicate}
+      ORDER BY
+        CASE d.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,
+        d.last_seen_at DESC,
+        d.id DESC
+      LIMIT 300
+      `,
+      params
+    );
+    const bindings = await db.query(
+      `
+      SELECT
+        b.id,
+        'binding' AS record_type,
+        b.tenant_id,
+        b.employee_id,
+        e.full_name AS employee_name,
+        e.employee_code,
+        b.branch_id,
+        br.name AS branch_name,
+        b.business_date,
+        b.device_key,
+        b.device_fingerprint,
+        b.user_agent,
+        'locked' AS status,
+        b.created_at AS first_seen_at,
+        b.updated_at AS last_seen_at,
+        NULL::timestamp AS approved_at,
+        NULL::timestamp AS rejected_at,
+        NULL::timestamp AS reset_at
+      FROM attendance_device_bindings b
+      JOIN employees e ON e.id = b.employee_id
+      LEFT JOIN branches br ON br.id = b.branch_id
+      WHERE ($1::bigint IS NULL OR b.tenant_id = $1::bigint)
+        ${bindingEmployeePredicate}
+      ORDER BY b.business_date DESC, b.updated_at DESC, b.id DESC
+      LIMIT 300
+      `,
+      bindingParams
+    );
+    const rows = [...bindings.rows, ...result.rows].map(normalizeAttendanceDevice);
+
+    return res.status(200).json({
+      success: true,
+      data: rows,
+      devices: rows,
+    });
+  } catch (error) {
+    console.log("GET ATTENDANCE DEVICES ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch attendance devices",
+      error: error.message,
+    });
+  }
+};
+
+export const getAttendanceDeviceSettings = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const tenantId = getTenantScope(req) ?? resolveAuthenticatedTenantId(req) ?? 1;
+    const policy = await getNewDevicePolicy(db, tenantId);
+    const requireDeviceApproval = await getAttendanceRequireDeviceApproval(db, tenantId);
+    return res.status(200).json({
+      success: true,
+      data: {
+        new_device_policy: policy,
+        attendance_require_device_approval: requireDeviceApproval,
+        require_device_approval: requireDeviceApproval,
+      },
+      settings: {
+        new_device_policy: policy,
+        attendance_require_device_approval: requireDeviceApproval,
+        require_device_approval: requireDeviceApproval,
+      },
+    });
+  } catch (error) {
+    console.log("GET ATTENDANCE DEVICE SETTINGS ERROR:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch attendance device settings", error: error.message });
+  }
+};
+
+export const updateAttendanceDeviceSettings = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const tenantId = getTenantScope(req) ?? resolveAuthenticatedTenantId(req) ?? 1;
+    const requested = String(req.body?.new_device_policy || req.body?.newDevicePolicy || "").toLowerCase();
+    const policy = requested === "block" ? "block" : "pending";
+    const hasRequireDeviceApproval = Object.prototype.hasOwnProperty.call(req.body || {}, "require_device_approval")
+      || Object.prototype.hasOwnProperty.call(req.body || {}, "requireDeviceApproval")
+      || Object.prototype.hasOwnProperty.call(req.body || {}, "attendance_require_device_approval")
+      || Object.prototype.hasOwnProperty.call(req.body || {}, "attendanceRequireDeviceApproval");
+    const requireDeviceApproval = hasRequireDeviceApproval
+      ? req.body?.require_device_approval === true
+        || req.body?.requireDeviceApproval === true
+        || req.body?.attendance_require_device_approval === true
+        || req.body?.attendanceRequireDeviceApproval === true
+      : null;
+    const result = await db.query(
+      `
+      INSERT INTO attendance_device_settings (tenant_id, new_device_policy, attendance_require_device_approval, require_device_approval, updated_at)
+      VALUES ($1,$2,COALESCE($3::boolean, FALSE),COALESCE($3::boolean, FALSE),NOW())
+      ON CONFLICT (tenant_id) DO UPDATE
+      SET new_device_policy = EXCLUDED.new_device_policy,
+          attendance_require_device_approval = COALESCE($3::boolean, attendance_device_settings.attendance_require_device_approval),
+          require_device_approval = COALESCE($3::boolean, attendance_device_settings.require_device_approval),
+          updated_at = NOW()
+      RETURNING new_device_policy, attendance_require_device_approval, require_device_approval
+      `,
+      [tenantId, policy, requireDeviceApproval]
+    );
+    const settings = {
+      new_device_policy: result.rows[0]?.new_device_policy || policy,
+      attendance_require_device_approval: result.rows[0]?.attendance_require_device_approval === true || result.rows[0]?.require_device_approval === true,
+      require_device_approval: result.rows[0]?.attendance_require_device_approval === true || result.rows[0]?.require_device_approval === true,
+    };
+    return res.status(200).json({
+      success: true,
+      data: settings,
+      settings,
+    });
+  } catch (error) {
+    console.log("UPDATE ATTENDANCE DEVICE SETTINGS ERROR:", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to update attendance device settings", error: error.message });
+  }
+};
+
+export const approveAttendanceDevice = async (req, res) => {
+  const client = await db.connect();
+  try {
+    await ensureAttendanceSchema();
+    await client.query("BEGIN");
+    const tenantId = getTenantScope(req);
+    const deviceId = Number(req.params.id || 0);
+    const userId = getUserId(req);
+
+    const result = await client.query(
+      `
+      SELECT *
+      FROM employee_attendance_devices
+      WHERE id = $1
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      FOR UPDATE
+      `,
+      [deviceId, tenantId]
+    );
+    const device = result.rows[0];
+    if (!device) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "Device request not found" });
+    }
+
+    await client.query(
+      `
+      UPDATE employee_attendance_devices
+      SET status = 'reset',
+          reset_at = NOW(),
+          reset_by_user_id = $4,
+          updated_at = NOW()
+      WHERE tenant_id = $1
+        AND employee_id = $2
+        AND status = 'approved'
+        AND id <> $3
+      `,
+      [device.tenant_id, device.employee_id, device.id, userId]
+    );
+
+    const approved = await client.query(
+      `
+      UPDATE employee_attendance_devices
+      SET status = 'approved',
+          approved_at = NOW(),
+          approved_by_user_id = $2,
+          rejected_at = NULL,
+          rejected_by_user_id = NULL,
+          reset_at = NULL,
+          reset_by_user_id = NULL,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+      `,
+      [device.id, userId]
+    );
+
+    await client.query("COMMIT");
+    return res.status(200).json({ success: true, data: normalizeAttendanceDevice(approved.rows[0]), device: normalizeAttendanceDevice(approved.rows[0]) });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.log("APPROVE ATTENDANCE DEVICE ERROR:", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to approve device", error: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+export const rejectAttendanceDevice = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const tenantId = getTenantScope(req);
+    const deviceId = Number(req.params.id || 0);
+    const userId = getUserId(req);
+    const result = await db.query(
+      `
+      UPDATE employee_attendance_devices
+      SET status = 'rejected',
+          rejected_at = NOW(),
+          rejected_by_user_id = $2,
+          updated_at = NOW()
+      WHERE id = $1
+        AND ($3::bigint IS NULL OR tenant_id = $3::bigint)
+      RETURNING *
+      `,
+      [deviceId, userId, tenantId]
+    );
+    if (!result.rows[0]) {
+      return res.status(404).json({ success: false, message: "Device request not found" });
+    }
+    return res.status(200).json({ success: true, data: normalizeAttendanceDevice(result.rows[0]), device: normalizeAttendanceDevice(result.rows[0]) });
+  } catch (error) {
+    console.log("REJECT ATTENDANCE DEVICE ERROR:", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to reject device", error: error.message });
+  }
+};
+
+export const resetEmployeeAttendanceDevice = async (req, res) => {
+  const client = await db.connect();
+  try {
+    await ensureAttendanceSchema();
+    await ensureStaffTasksSchema(client);
+    await client.query("BEGIN");
+    const tenantId = getTenantScope(req);
+    const identifier = String(req.params.id || req.params.employeeId || "").trim();
+    const numericId = Number(identifier);
+    const userId = getUserId(req);
+    const employeeResult = await client.query(
+      `
+      SELECT id, employee_code
+      FROM employees
+      WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+        AND COALESCE(is_deleted, FALSE) = FALSE
+        AND (
+          employee_code = $2
+          OR ($3::bigint IS NOT NULL AND id = $3::bigint)
+        )
+      ORDER BY CASE WHEN employee_code = $2 THEN 0 ELSE 1 END, id DESC
+      LIMIT 1
+      `,
+      [tenantId, identifier, Number.isFinite(numericId) && numericId > 0 ? numericId : null]
+    );
+    const employee = employeeResult.rows[0] || null;
+    if (!employee) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "Employee not found" });
+    }
+    const employeeId = Number(employee.id);
+    const attendanceDate = getRequestAttendanceDate(req);
+    const resetQuery = async (sql, values) => {
+      console.log("[attendance-reset]", {
+        sql,
+        values,
+        valuesLength: values.length,
+      });
+      return client.query(sql, values);
+    };
+    const resetDevicesSql = `
+      UPDATE employee_attendance_devices
+      SET status = 'reset',
+          reset_at = NOW(),
+          reset_by_user_id = $3,
+          updated_at = NOW()
+      WHERE employee_id = $1
+        AND status IN ('approved', 'pending')
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      RETURNING *
+      `;
+    const devicesReset = await resetQuery(resetDevicesSql, [employeeId, tenantId, userId]);
+
+    const deleteSessionsSql = `
+      DELETE FROM employee_portal_sessions
+      WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+        AND employee_id = $2
+      RETURNING id
+      `;
+    const sessionsDeleted = await resetQuery(deleteSessionsSql, [tenantId, employeeId]);
+
+    const deleteBindingsSql = `
+      DELETE FROM attendance_device_bindings
+      WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+        AND employee_id = $2
+        AND business_date = $3::date
+      RETURNING id
+      `;
+    const bindingsDeleted = await resetQuery(deleteBindingsSql, [tenantId, employeeId, attendanceDate]);
+
+    const deleteLogsSql = `
+      DELETE FROM attendance_logs
+      WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+        AND employee_id = $2
+        AND attendance_date = $3::date
+      RETURNING id
+      `;
+    const logsDeleted = await resetQuery(deleteLogsSql, [tenantId, employeeId, attendanceDate]);
+    const deletedRows = {
+      attendance_logs: logsDeleted.rowCount,
+      attendance_device_bindings: bindingsDeleted.rowCount,
+      employee_portal_sessions: sessionsDeleted.rowCount,
+      employee_attendance_devices: devicesReset.rowCount,
+    };
+    const deletedCount = Object.values(deletedRows).reduce((sum, value) => sum + value, 0);
+    console.info("[attendance:reset-employee-device]", {
+      employee_code: employee.employee_code || null,
+      employee_id: employeeId,
+      attendance_date: attendanceDate,
+      deleted_rows: deletedRows,
+      deleted_count: deletedCount,
+      reset_count: devicesReset.rowCount,
+    });
+    if (deletedCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        success: false,
+        code: "NO_DEVICE_LOCK_ROWS",
+        message: "No device lock rows were found for this employee",
+        deletedCount: 0,
+        deleted_count: 0,
+        reset_count: devicesReset.rowCount,
+      });
+    }
+    await client.query("COMMIT");
+    return res.status(200).json({
+      success: true,
+      employee_id: employeeId,
+      employee_code: employee.employee_code || "",
+      deletedCount,
+      deleted_count: deletedCount,
+      deleted_rows: deletedRows,
+      reset_count: devicesReset.rowCount,
+      data: devicesReset.rows.map(normalizeAttendanceDevice),
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.log("RESET EMPLOYEE ATTENDANCE DEVICE ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to reset employee device",
+      error: {
+        code: "ATTENDANCE_RESET_FAILED",
+      },
     });
   } finally {
     client.release();
@@ -2727,6 +4937,8 @@ export const scanQrAttendance = async (req, res) => {
     const qrToken = String(req.body?.qrToken || req.body?.qr_token || "").trim();
     const latitude = parseOptionalCoordinate(req.body?.latitude);
     const longitude = parseOptionalCoordinate(req.body?.longitude);
+    const deviceToken = normalizeDeviceToken(req.body?.device_token || req.body?.deviceToken);
+    enforceAttendanceRateLimit(req, ["qr-scan", employee.id, qrToken, deviceToken.slice(0, 16)]);
 
     if (!qrToken) {
       await client.query("ROLLBACK");
@@ -2801,7 +5013,17 @@ export const scanQrAttendance = async (req, res) => {
     }
 
     const effectiveTenantId = branch.tenant_id || employee.tenant_id || tenantId;
-    const attendanceDate = getAttendanceDate();
+    console.info("[attendance:qr-scan] resolved employee", {
+      employee_code: employee.employee_code || null,
+      employee_id: employee.id,
+      branch_id: branch.id,
+    });
+    const attendanceDate = getRequestAttendanceDate(req);
+    const deviceContext = buildAttendanceDeviceContext(req, {
+      tenantId: effectiveTenantId,
+      branchId: branch.id,
+      attendanceDate,
+    });
     await lockEmployeeAttendanceDay(client, effectiveTenantId, employee.id);
     const { eligibility } = await resolveAttendanceEligibility(client, {
       tenantId: effectiveTenantId,
@@ -2810,6 +5032,25 @@ export const scanQrAttendance = async (req, res) => {
       attendanceDate,
       lock: true,
       label: "qr-scan-before",
+    });
+
+    await enforceAttendanceDeviceBinding(client, {
+      tenantId: effectiveTenantId,
+      branchId: branch.id,
+      employeeId: employee.id,
+      attendanceDate,
+      deviceContext,
+    });
+
+    const { device: attendanceDevice, status: deviceStatus } = await validateAttendanceDevice({
+      client,
+      req,
+      tenantId: effectiveTenantId,
+      employeeId: employee.id,
+      branchId: branch.id,
+      deviceToken,
+      gpsVerification,
+      allowRegistration: true,
     });
     const nowPayload = {
       tenant_id: effectiveTenantId,
@@ -2828,6 +5069,10 @@ export const scanQrAttendance = async (req, res) => {
       check_out_latitude: null,
       check_out_longitude: null,
       status: "checked_in",
+      device_fingerprint: deviceContext.deviceFingerprint || null,
+      device_key: deviceContext.deviceKey || null,
+      user_agent: deviceContext.userAgent || null,
+      ip_address: deviceContext.ipAddress || null,
     };
 
     if (eligibility.can_check_in) {
@@ -2850,13 +5095,18 @@ export const scanQrAttendance = async (req, res) => {
           check_out_longitude,
           attendance_source,
           status,
+          device_fingerprint,
+          device_key,
+          user_agent,
+          ip_address,
+          worked_hours,
           work_minutes,
           late_minutes,
           early_leave_minutes,
           overtime_minutes
         )
         VALUES (
-          $1,$2,$3,$4::date,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0,0,0,0
+          $1,$2,$3,$4::date,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,0,0,0,0,0
         )
         RETURNING *
         `,
@@ -2877,16 +5127,58 @@ export const scanQrAttendance = async (req, res) => {
           nowPayload.check_out_longitude,
           nowPayload.attendance_source,
           nowPayload.status,
+          nowPayload.device_fingerprint,
+          nowPayload.device_key,
+          nowPayload.user_agent,
+          nowPayload.ip_address,
         ]
       );
 
+      await upsertAttendanceDeviceBinding(client, {
+        tenantId: effectiveTenantId,
+        branchId: branch.id,
+        employeeId: employee.id,
+        attendanceDate,
+        deviceContext,
+        attendanceLogId: created.rows[0]?.id || null,
+      });
+
+      const portalResponse = await createEmployeePortalResponse({
+        clientOrPool: client,
+        req,
+        tenantId: effectiveTenantId,
+        branchId: branch.id,
+        employeeId: employee.id,
+        attendanceLogId: created.rows[0]?.id || null,
+      });
+
       await client.query("COMMIT");
+      let staffTasks = null;
+      try {
+        staffTasks = await handleBranchQrCheckInStaffTasks({
+          tenantId: effectiveTenantId,
+          branchId: branch.id,
+          employeeId: employee.id,
+          actionType: "check_in",
+          attendanceDate: created.rows[0]?.attendance_date || new Date(),
+          attendanceEventId: null,
+        });
+      } catch (taskError) {
+        console.warn("[attendance] authenticated QR staff task integration skipped", taskError.message);
+      }
       return res.status(201).json({
         success: true,
         action: "check_in",
         message: "Check in recorded",
+        staff_tasks: staffTasks,
+        portal_url: portalResponse.portal_url,
+        employee_portal: portalResponse.employee_portal,
         distanceMeters: Math.round(gpsVerification.distanceMeters),
         allowedRadiusMeters: gpsVerification.allowedRadiusMeters,
+        device: {
+          id: attendanceDevice?.id || null,
+          status: deviceStatus,
+        },
         data: normalizeAttendance({
           ...created.rows[0],
           full_name: employee.full_name,
@@ -2899,7 +5191,17 @@ export const scanQrAttendance = async (req, res) => {
     }
 
     if (eligibility.completed) {
-      await client.query("ROLLBACK");
+      if (eligibility.attendance?.id) {
+        await upsertAttendanceDeviceBinding(client, {
+          tenantId: effectiveTenantId,
+          branchId: branch.id,
+          employeeId: employee.id,
+          attendanceDate,
+          deviceContext,
+          attendanceLogId: eligibility.attendance.id,
+        });
+      }
+      await client.query("COMMIT");
       return res.status(409).json({
         success: false,
         message: "Attendance already completed for today. Additional scans are rejected after checkout.",
@@ -2935,14 +5237,39 @@ export const scanQrAttendance = async (req, res) => {
         check_out_longitude = $2,
         check_out_gps_distance_meters = $3,
         check_out_gps_verification_result = $4,
+        device_fingerprint = COALESCE(device_fingerprint, $7),
+        device_key = COALESCE(device_key, $8),
+        user_agent = COALESCE(user_agent, $9),
+        ip_address = COALESCE(ip_address, $10),
         status = 'checked_out',
+        worked_hours = ROUND(($5::numeric / 60.0), 2),
         work_minutes = $5,
         updated_at = NOW()
       WHERE id = $6
       RETURNING *
       `,
-      [latitude, longitude, gpsVerification.distanceMeters, gpsVerification.result, metrics.work_minutes, todayLog.id]
+      [
+        latitude,
+        longitude,
+        gpsVerification.distanceMeters,
+        gpsVerification.result,
+        metrics.work_minutes,
+        todayLog.id,
+        deviceContext.deviceFingerprint || null,
+        deviceContext.deviceKey || null,
+        deviceContext.userAgent || null,
+        deviceContext.ipAddress || null,
+      ]
     );
+
+    await upsertAttendanceDeviceBinding(client, {
+      tenantId: effectiveTenantId,
+      branchId: branch.id,
+      employeeId: employee.id,
+      attendanceDate,
+      deviceContext,
+      attendanceLogId: updated.rows[0]?.id || todayLog.id,
+    });
 
     await client.query("COMMIT");
 
@@ -2950,9 +5277,13 @@ export const scanQrAttendance = async (req, res) => {
       success: true,
       action: "check_out",
       message: "Check out recorded",
-      distanceMeters: Math.round(gpsVerification.distanceMeters),
-      allowedRadiusMeters: gpsVerification.allowedRadiusMeters,
-      data: normalizeAttendance({
+        distanceMeters: Math.round(gpsVerification.distanceMeters),
+        allowedRadiusMeters: gpsVerification.allowedRadiusMeters,
+        device: {
+          id: attendanceDevice?.id || null,
+          status: deviceStatus,
+        },
+        data: normalizeAttendance({
         ...updated.rows[0],
         full_name: employee.full_name,
         employee_code: employee.employee_code,
@@ -2962,10 +5293,19 @@ export const scanQrAttendance = async (req, res) => {
   } catch (error) {
     await client.query("ROLLBACK");
     console.log("[attendance] QR scan error:", error);
-    return res.status(500).json({
+    if (error.code === "DEVICE_ALREADY_USED_TODAY") {
+      return res.status(409).json({
+        success: false,
+        code: error.code,
+        message: DEVICE_ALREADY_USED_MESSAGE,
+      });
+    }
+    return res.status(error.statusCode || 500).json({
       success: false,
+      code: error.code,
       message: error.message || "Failed to record QR attendance",
       error: error.message,
+      pending_device: Boolean(error.pendingDevice),
     });
   } finally {
     client.release();

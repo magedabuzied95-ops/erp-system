@@ -1,4 +1,6 @@
 ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS department VARCHAR(120);
+ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS job_title VARCHAR(120);
+ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS position VARCHAR(120);
 ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -19,6 +21,9 @@ CREATE TABLE IF NOT EXISTS staff_task_templates (
   tenant_id BIGINT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
+  title_ar TEXT NULL,
+  description_ar TEXT NULL,
+  notes_ar TEXT NULL,
   task_type VARCHAR(80) NOT NULL DEFAULT 'general',
   department VARCHAR(120) NULL,
   role_key VARCHAR(120) NULL,
@@ -39,6 +44,9 @@ CREATE TABLE IF NOT EXISTS staff_task_assignments (
   template_id BIGINT NULL REFERENCES staff_task_templates(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
+  title_ar TEXT NULL,
+  description_ar TEXT NULL,
+  notes_ar TEXT NULL,
   task_type VARCHAR(80) NOT NULL DEFAULT 'general',
   source_module VARCHAR(80) NOT NULL DEFAULT 'operations',
   source_ref_type VARCHAR(120) NULL,
@@ -56,7 +64,10 @@ CREATE TABLE IF NOT EXISTS staff_task_assignments (
   status VARCHAR(40) NOT NULL DEFAULT 'pending',
   priority VARCHAR(20) NOT NULL DEFAULT 'medium',
   assigned_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  assigned_at TIMESTAMP NULL,
+  assignment_source VARCHAR(80) NULL,
+  assignment_event_id BIGINT NULL REFERENCES attendance_events(id) ON DELETE SET NULL,
+  auto_assign_mode VARCHAR(80) NULL,
   due_at TIMESTAMP NULL,
   started_at TIMESTAMP NULL,
   completed_at TIMESTAMP NULL,
@@ -133,10 +144,55 @@ CREATE TABLE IF NOT EXISTS staff_task_notification_queue (
 );
 
 ALTER TABLE IF EXISTS staff_task_notification_queue ADD COLUMN IF NOT EXISTS dedupe_key TEXT NULL;
+ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS title_ar TEXT;
+ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS description_ar TEXT;
+ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS notes_ar TEXT;
+ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS title_ar TEXT;
+ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS description_ar TEXT;
+ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS notes_ar TEXT;
 ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS source_ref_date DATE NULL;
+ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS auto_assign_mode VARCHAR(80) NULL;
+ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS assignment_source VARCHAR(80) NULL;
+ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS assignment_event_id BIGINT NULL REFERENCES attendance_events(id) ON DELETE SET NULL;
+ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS auto_assign_mode VARCHAR(80) NULL;
+ALTER TABLE IF EXISTS staff_task_assignments ALTER COLUMN assigned_at DROP NOT NULL;
 UPDATE staff_task_assignments
 SET source_ref_date = assigned_date
 WHERE source_ref_date IS NULL;
+
+UPDATE staff_task_templates
+SET title_ar = CASE title
+    WHEN 'Opening display walkthrough' THEN 'مراجعة عرض واجهة المحل'
+    WHEN 'Opening readiness checklist' THEN 'قائمة تجهيز افتتاح الفرع'
+    WHEN 'Mirror cleaning' THEN 'تنظيف مرايات العملاء'
+    WHEN 'Glass cleaning' THEN 'تنظيف الزجاج والكاونتر'
+    ELSE title_ar
+  END,
+  description_ar = CASE description
+    WHEN 'Review entrance displays and make sure top-selling items are visible and correctly arranged.' THEN 'راجع واجهة المحل وتأكد إن المنتجات الأكثر مبيعًا ظاهرة ومتنسقة بشكل صحيح.'
+    WHEN 'Confirm branch opening readiness, cash area, lights, and customer area before active sales.' THEN 'تأكد من جاهزية الفرع والكاونتر والإضاءة ومنطقة العملاء قبل بدء البيع.'
+    WHEN 'Clean customer mirrors and fitting area mirrors, then report any damaged fixtures.' THEN 'نضف مرايات العملاء ومنطقة القياس، وبلغ عن أي تلف في التجهيزات.'
+    WHEN 'Clean front glass, display glass, and counters without blocking customer movement.' THEN 'نضف زجاج الواجهة وفاترينات العرض والكاونتر من غير ما تعطل حركة العملاء.'
+    ELSE description_ar
+  END
+WHERE title_ar IS NULL OR title_ar = '' OR description_ar IS NULL OR description_ar = '';
+
+UPDATE staff_task_assignments
+SET title_ar = CASE title
+    WHEN 'Opening display walkthrough' THEN 'مراجعة عرض واجهة المحل'
+    WHEN 'Opening readiness checklist' THEN 'قائمة تجهيز افتتاح الفرع'
+    WHEN 'Mirror cleaning' THEN 'تنظيف مرايات العملاء'
+    WHEN 'Glass cleaning' THEN 'تنظيف الزجاج والكاونتر'
+    ELSE title_ar
+  END,
+  description_ar = CASE description
+    WHEN 'Review entrance displays and make sure top-selling items are visible and correctly arranged.' THEN 'راجع واجهة المحل وتأكد إن المنتجات الأكثر مبيعًا ظاهرة ومتنسقة بشكل صحيح.'
+    WHEN 'Confirm branch opening readiness, cash area, lights, and customer area before active sales.' THEN 'تأكد من جاهزية الفرع والكاونتر والإضاءة ومنطقة العملاء قبل بدء البيع.'
+    WHEN 'Clean customer mirrors and fitting area mirrors, then report any damaged fixtures.' THEN 'نضف مرايات العملاء ومنطقة القياس، وبلغ عن أي تلف في التجهيزات.'
+    WHEN 'Clean front glass, display glass, and counters without blocking customer movement.' THEN 'نضف زجاج الواجهة وفاترينات العرض والكاونتر من غير ما تعطل حركة العملاء.'
+    ELSE description_ar
+  END
+WHERE title_ar IS NULL OR title_ar = '' OR description_ar IS NULL OR description_ar = '';
 
 CREATE INDEX IF NOT EXISTS idx_staff_tasks_tenant_status_due ON staff_task_assignments (tenant_id, status, due_at);
 CREATE INDEX IF NOT EXISTS idx_staff_tasks_assignee_status ON staff_task_assignments (current_assignee_id, status, due_at);

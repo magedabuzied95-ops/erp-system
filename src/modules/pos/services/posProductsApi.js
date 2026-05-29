@@ -1,5 +1,6 @@
 import { getProductsWithVariants } from "../../products/services/productsApi";
 import { resolveProductImageUrl as resolvePosImageUrl } from "../../../shared/lib/imageUrls";
+import { resolveSaleModePrice } from "../../../shared/lib/saleMode";
 
 const unwrapArray = (payload) => {
   const value =
@@ -55,7 +56,7 @@ const pickClassificationText = (row = {}, sourceProduct = {}, snakeKey, camelKey
     sourceProduct.product?.[camelKey]
   );
 
-const normalizeVariant = (row = {}, sourceProduct = row) => {
+const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) => {
   const productId = getProductId(sourceProduct) ?? getProductId(row);
   const variantId = getVariantId(row) ?? (sourceProduct !== row ? row.id : null);
   const productName = getProductName(sourceProduct) || getProductName(row);
@@ -77,6 +78,18 @@ const normalizeVariant = (row = {}, sourceProduct = row) => {
       sourceProduct.barcode ??
       sourceProduct.product_barcode
   );
+  const articleCode = normalizeText(
+    row.article_code ??
+      row.articleCode ??
+      row.variant_article_code ??
+      row.variantArticleCode ??
+      row.model_code ??
+      row.modelCode ??
+      row.factory_model ??
+      row.factoryModel ??
+      row.factory_code ??
+      row.factoryCode
+  );
   const variantImageUrl = resolvePosImageUrl(
     row.variant_image_url ??
       row.variantImageUrl ??
@@ -93,14 +106,32 @@ const normalizeVariant = (row = {}, sourceProduct = row) => {
       sourceProduct.thumbnail_url
   );
   const imageUrl = variantImageUrl || finalImageUrl || productImageUrl;
-  const price = normalizeNumber(
-    row.sale_price ??
-      row.variant_sale_price ??
+  const regularPrice = normalizeNumber(
+    row.regular_price ??
+      row.variant_regular_price ??
       row.variant_price ??
       row.price ??
-      sourceProduct.sale_price ??
+      sourceProduct.regular_price ??
       sourceProduct.price
   );
+  const storedSalePrice = normalizeNumber(row.sale_price ?? row.variant_sale_price ?? sourceProduct.sale_price);
+  const resolvedPrice = resolveSaleModePrice(
+    {
+      ...sourceProduct,
+      ...row,
+      id: productId,
+      product_id: productId,
+      regular_price: regularPrice,
+      price: regularPrice,
+      sale_price: storedSalePrice,
+      sale_price_enabled: row.sale_price_enabled ?? sourceProduct.sale_price_enabled,
+      sale_start_at: row.sale_start_at ?? sourceProduct.sale_start_at,
+      sale_end_at: row.sale_end_at ?? sourceProduct.sale_end_at,
+      cost_price: row.cost_price ?? sourceProduct.cost_price,
+    },
+    saleModeSettings
+  );
+  const price = resolvedPrice.final_price || regularPrice;
   const stock = normalizeNumber(
     row.stock ??
       row.variant_stock ??
@@ -125,11 +156,18 @@ const normalizeVariant = (row = {}, sourceProduct = row) => {
     size,
     sku,
     barcode,
+    article_code: articleCode,
     image_url: imageUrl,
     product_image_url: productImageUrl,
     variant_image_url: variantImageUrl,
+    regular_price: regularPrice,
+    original_price: regularPrice,
     price,
     sale_price: price,
+    final_price: price,
+    sale_source: resolvedPrice.sale_source,
+    sale_badge: resolvedPrice.sale_badge,
+    sale_mode_applied: resolvedPrice.sale_mode_applied,
     stock: stockQuantity,
     stock_quantity: stockQuantity,
     available: stockQuantity > 0,
@@ -141,6 +179,8 @@ const normalizeVariant = (row = {}, sourceProduct = row) => {
     category: pickFirstText(row.category, row.category_name, sourceProduct.category, sourceProduct.category_name) || "Uncategorized",
     category_name: pickFirstText(row.category_name, row.category, sourceProduct.category_name, sourceProduct.category),
     category_path: pickFirstText(row.category_path, row.categoryPath, sourceProduct.category_path, sourceProduct.categoryPath),
+    audiences: Array.isArray(sourceProduct.audiences) ? sourceProduct.audiences : Array.isArray(sourceProduct.product_audiences) ? sourceProduct.product_audiences : [],
+    product_audiences: Array.isArray(sourceProduct.product_audiences) ? sourceProduct.product_audiences : Array.isArray(sourceProduct.audiences) ? sourceProduct.audiences : [],
     gender: pickClassificationText(row, sourceProduct, "gender", "gender"),
     product_type: pickClassificationText(row, sourceProduct, "product_type", "productType"),
     productType: pickClassificationText(row, sourceProduct, "product_type", "productType"),
@@ -174,8 +214,11 @@ const buildProductFromVariants = (productSeed, variants) => {
   );
   const firstVariantImage = variants.find((variant) => variant.image_url)?.image_url || "";
   const prices = variants.map((variant) => Number(variant.price || 0)).filter((price) => Number.isFinite(price));
+  const regularPrices = variants.map((variant) => Number(variant.regular_price || variant.original_price || variant.price || 0)).filter((price) => Number.isFinite(price));
   const minPrice = prices.length ? Math.min(...prices) : 0;
   const maxPrice = prices.length ? Math.max(...prices) : minPrice;
+  const minRegularPrice = regularPrices.length ? Math.min(...regularPrices) : minPrice;
+  const maxRegularPrice = regularPrices.length ? Math.max(...regularPrices) : minRegularPrice;
   const manufacturerId =
     productSeed.manufacturer_id ??
     productSeed.variant_manufacturer_id ??
@@ -201,6 +244,8 @@ const buildProductFromVariants = (productSeed, variants) => {
     category: pickFirstText(productSeed.category, productSeed.category_name, variants[0]?.category, variants[0]?.category_name) || "Uncategorized",
     category_name: pickFirstText(productSeed.category_name, productSeed.category, variants[0]?.category_name, variants[0]?.category),
     category_path: pickFirstText(productSeed.category_path, productSeed.categoryPath, variants[0]?.category_path),
+    audiences: Array.isArray(productSeed.audiences) ? productSeed.audiences : Array.isArray(productSeed.product_audiences) ? productSeed.product_audiences : [],
+    product_audiences: Array.isArray(productSeed.product_audiences) ? productSeed.product_audiences : Array.isArray(productSeed.audiences) ? productSeed.audiences : [],
     gender: pickClassificationText(productSeed, variants[0] || {}, "gender", "gender"),
     product_type: pickClassificationText(productSeed, variants[0] || {}, "product_type", "productType"),
     productType: pickClassificationText(productSeed, variants[0] || {}, "product_type", "productType"),
@@ -219,11 +264,19 @@ const buildProductFromVariants = (productSeed, variants) => {
     manufacturer_id: manufacturerId,
     product_image_url: productImageUrl,
     image_url: productImageUrl || firstVariantImage,
+    regular_price: minRegularPrice,
+    original_price: minRegularPrice,
     base_price: minPrice,
     price: minPrice,
     sale_price: minPrice,
+    final_price: minPrice,
     min_price: minPrice,
     max_price: maxPrice,
+    min_regular_price: minRegularPrice,
+    max_regular_price: maxRegularPrice,
+    sale_mode_applied: variants.some((variant) => variant.sale_mode_applied),
+    sale_source: variants.some((variant) => variant.sale_source === "product") ? "product" : variants.some((variant) => variant.sale_source === "global") ? "global" : "regular",
+    sale_badge: variants.find((variant) => variant.sale_badge)?.sale_badge || "",
     total_stock: variants.reduce((sum, variant) => sum + Number(variant.stock_quantity ?? variant.stock ?? 0), 0),
     stock: variants.reduce((sum, variant) => sum + Number(variant.stock_quantity ?? variant.stock ?? 0), 0),
     sku: variants.find((variant) => variant.sku)?.sku || normalizeText(productSeed.sku ?? productSeed.product_sku),
@@ -235,6 +288,13 @@ const buildProductFromVariants = (productSeed, variants) => {
 
 const preserveClassificationFields = (item, productSeed = {}) => {
   const firstVariant = Array.isArray(item?.variants) ? item.variants[0] || {} : {};
+  const audiences = Array.isArray(item?.audiences)
+    ? item.audiences
+    : Array.isArray(productSeed.audiences)
+      ? productSeed.audiences
+      : Array.isArray(productSeed.product_audiences)
+        ? productSeed.product_audiences
+        : [];
   const gender = pickFirstText(item?.gender, productSeed.gender, productSeed.product?.gender, firstVariant.gender);
   const productType = pickFirstText(
     item?.product_type,
@@ -261,6 +321,8 @@ const preserveClassificationFields = (item, productSeed = {}) => {
 
   return {
     ...item,
+    audiences,
+    product_audiences: audiences,
     gender,
     product_type: productType,
     productType,
@@ -269,7 +331,7 @@ const preserveClassificationFields = (item, productSeed = {}) => {
   };
 };
 
-export const normalizePosSellableProducts = (payload) => {
+export const normalizePosSellableProducts = (payload, saleModeSettings = {}) => {
   const rows = unwrapArray(payload);
   const grouped = new Map();
 
@@ -279,7 +341,7 @@ export const normalizePosSellableProducts = (payload) => {
 
     if (!isSimpleProduct && Array.isArray(product?.variants) && product.variants.length > 0) {
       product.variants.forEach((variant) => {
-        const normalized = normalizeVariant(variant, product);
+        const normalized = normalizeVariant(variant, product, saleModeSettings);
         const productId = String(normalized.product_id ?? getProductId(product));
         const current = grouped.get(productId) || { product, variants: [] };
         current.variants.push(normalized);
@@ -288,7 +350,7 @@ export const normalizePosSellableProducts = (payload) => {
       return;
     }
 
-    const normalized = normalizeVariant(product);
+    const normalized = normalizeVariant(product, product, saleModeSettings);
     const productId = String(normalized.product_id ?? getProductId(product));
     const current = grouped.get(productId) || { product, variants: [] };
     current.variants.push(normalized);

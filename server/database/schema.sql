@@ -148,13 +148,24 @@ CREATE TABLE IF NOT EXISTS products (
   barcode VARCHAR(120),
   edition_name TEXT NULL,
   edition_slug TEXT NULL,
+  slug TEXT DEFAULT '',
+  canonical_slug TEXT DEFAULT '',
+  qr_token TEXT,
   image_url TEXT,
   gallery_images JSONB NOT NULL DEFAULT '[]'::jsonb,
   variation_mode VARCHAR(30) NOT NULL DEFAULT 'full_variations',
   fixed_size_label VARCHAR(80) DEFAULT '',
   cost_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  selling_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  regular_price NUMERIC(12,2) NOT NULL DEFAULT 0,
   price NUMERIC(12,2) NOT NULL DEFAULT 0,
   sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  sale_reason VARCHAR(40) DEFAULT '',
+  sale_start_at TIMESTAMP NULL,
+  sale_end_at TIMESTAMP NULL,
+  use_custom_compare_price BOOLEAN NOT NULL DEFAULT FALSE,
+  custom_compare_price NUMERIC(12,2) NOT NULL DEFAULT 0,
   wholesale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
   tax_rate NUMERIC(8,2) NOT NULL DEFAULT 0,
   description TEXT,
@@ -164,7 +175,11 @@ CREATE TABLE IF NOT EXISTS products (
   grade VARCHAR(80) DEFAULT '',
   stock INTEGER NOT NULL DEFAULT 0,
   low_stock_alert INTEGER NOT NULL DEFAULT 0,
+  low_stock_tracking_mode VARCHAR(30) NOT NULL DEFAULT 'variant',
+  product_low_stock_threshold INTEGER NOT NULL DEFAULT 0,
+  minimum_distinct_sizes_required INTEGER NOT NULL DEFAULT 0,
   status VARCHAR(50) NOT NULL DEFAULT 'active',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -212,13 +227,18 @@ CREATE TABLE IF NOT EXISTS product_variants (
   size VARCHAR(100),
   sku VARCHAR(120),
   barcode VARCHAR(120),
+  article_code TEXT,
   image_url TEXT,
   cost_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  selling_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  regular_price NUMERIC(12,2) NOT NULL DEFAULT 0,
   price NUMERIC(12,2) NOT NULL DEFAULT 0,
   sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
   stock INTEGER NOT NULL DEFAULT 0,
   default_purchase_qty INTEGER NOT NULL DEFAULT 0,
   low_stock_alert INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  deleted_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -271,6 +291,7 @@ CREATE TABLE IF NOT EXISTS branches (
   allowed_radius_meters INTEGER NOT NULL DEFAULT 100,
   qr_token TEXT UNIQUE DEFAULT gen_random_uuid()::text,
   attendance_qr_token TEXT UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+  attendance_public_code VARCHAR(32) UNIQUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -396,16 +417,46 @@ CREATE INDEX IF NOT EXISTS idx_inventory_movements_created_at ON inventory_movem
 CREATE TABLE IF NOT EXISTS orders (
   id BIGSERIAL PRIMARY KEY,
   tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  invoice_number VARCHAR(100) NOT NULL DEFAULT ('INV-' || EXTRACT(EPOCH FROM NOW())::BIGINT || '-' || FLOOR(RANDOM() * 1000)::INT),
+  invoice_number VARCHAR(100) NOT NULL DEFAULT ('INV-PENDING-' || EXTRACT(EPOCH FROM NOW())::BIGINT || '-' || FLOOR(RANDOM() * 1000)::INT),
+  public_order_number VARCHAR(40),
+  display_order_number VARCHAR(40),
   customer_id BIGINT NULL REFERENCES customers(id) ON DELETE SET NULL,
   customer_name VARCHAR(255),
   channel VARCHAR(50) NOT NULL DEFAULT 'pos',
   cashier_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
   sales_employee_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  seller_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  cashier_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  seller_name VARCHAR(255),
+  cashier_name VARCHAR(255),
   shift_id BIGINT NULL REFERENCES cashbox(id) ON DELETE SET NULL,
   branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'pending',
   payment_status VARCHAR(50) NOT NULL DEFAULT 'unpaid',
+  transfer_proof_status VARCHAR(50),
+  deleted_at TIMESTAMP NULL,
+  cancelled_at TIMESTAMP NULL,
+  cancelled_by BIGINT NULL,
+  cancel_reason TEXT,
+  stock_reverted_at TIMESTAMP NULL,
+  inventory_rollback_done BOOLEAN NOT NULL DEFAULT FALSE,
+  customer_address TEXT,
+  governorate VARCHAR(120),
+  city_area VARCHAR(160),
+  landmark TEXT,
+  delivery_notes TEXT,
+  order_notes TEXT,
+  shipping_provider VARCHAR(80) NOT NULL DEFAULT 'manual',
+  shipping_status VARCHAR(80) NOT NULL DEFAULT 'pending',
+  tracking_number VARCHAR(160),
+  tracking_url TEXT,
+  courier_notes TEXT,
+  ai_agent_session_id TEXT,
+  ai_agent_conversation_id TEXT,
+  ai_agent_intent_hash TEXT,
+  ai_agent_status VARCHAR(50),
+  ai_agent_confidence NUMERIC(5,4),
+  ai_agent_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   subtotal NUMERIC(12,2) NOT NULL DEFAULT 0,
   discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
   tax_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -424,30 +475,131 @@ CREATE TABLE IF NOT EXISTS orders (
   UNIQUE (tenant_id, invoice_number)
 );
 
-CREATE OR REPLACE VIEW pos_orders AS
-SELECT
-  id,
-  tenant_id,
-  invoice_number,
-  customer_id,
-  customer_name,
-  channel,
-  branch_id,
-  status,
-  payment_status,
-  subtotal,
-  discount_amount,
-  tax_amount,
-  service_fee,
-  total_amount,
-  total_price,
-  paid_amount,
-  change_amount,
-  notes,
-  created_by,
-  created_at,
-  updated_at
-FROM orders;
+CREATE INDEX IF NOT EXISTS idx_orders_public_order_number ON orders (public_order_number);
+CREATE INDEX IF NOT EXISTS idx_orders_display_order_number ON orders (display_order_number);
+CREATE INDEX IF NOT EXISTS idx_orders_tenant_created ON orders (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_branch_created ON orders (branch_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_invoice_number ON orders (invoice_number);
+
+CREATE TABLE IF NOT EXISTS ai_agent_settings (
+  tenant_id BIGINT PRIMARY KEY,
+  settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ai_customer_profiles (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  first_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  preferred_size TEXT NOT NULL DEFAULT '',
+  preferred_colors JSONB NOT NULL DEFAULT '[]'::jsonb,
+  preferred_models JSONB NOT NULL DEFAULT '[]'::jsonb,
+  favorite_brands JSONB NOT NULL DEFAULT '[]'::jsonb,
+  budget_range JSONB NOT NULL DEFAULT '{}'::jsonb,
+  viewed_products JSONB NOT NULL DEFAULT '[]'::jsonb,
+  abandoned_products JSONB NOT NULL DEFAULT '[]'::jsonb,
+  order_history JSONB NOT NULL DEFAULT '[]'::jsonb,
+  support_history JSONB NOT NULL DEFAULT '[]'::jsonb,
+  city_area TEXT NOT NULL DEFAULT '',
+  conversation_summary TEXT NOT NULL DEFAULT '',
+  customer_sentiment TEXT NOT NULL DEFAULT 'neutral',
+  memory_score INTEGER NOT NULL DEFAULT 0,
+  last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (tenant_id, phone)
+);
+
+CREATE TABLE IF NOT EXISTS ai_customer_memories (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  profile_id BIGINT NULL REFERENCES ai_customer_profiles(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL DEFAULT '',
+  memory_type TEXT NOT NULL DEFAULT 'preference',
+  memory_key TEXT NOT NULL DEFAULT '',
+  memory_value JSONB NOT NULL DEFAULT '{}'::jsonb,
+  score INTEGER NOT NULL DEFAULT 0,
+  last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ai_customer_interactions (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  profile_id BIGINT NULL REFERENCES ai_customer_profiles(id) ON DELETE SET NULL,
+  session_id TEXT NOT NULL DEFAULT '',
+  source_channel TEXT NOT NULL DEFAULT 'web_chat',
+  message TEXT NOT NULL DEFAULT '',
+  ai_response TEXT NOT NULL DEFAULT '',
+  intent_type TEXT NOT NULL DEFAULT '',
+  detected_intent TEXT NOT NULL DEFAULT '',
+  sentiment TEXT NOT NULL DEFAULT 'neutral',
+  confidence NUMERIC(5,4) NOT NULL DEFAULT 0,
+  intent_confidence NUMERIC(5,2),
+  detected_language TEXT,
+  handoff_to_human BOOLEAN DEFAULT FALSE,
+  resolution_status TEXT DEFAULT 'open',
+  ai_response_time_ms INTEGER,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ai_followup_tasks (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  profile_id BIGINT NULL REFERENCES ai_customer_profiles(id) ON DELETE SET NULL,
+  session_id TEXT NOT NULL DEFAULT '',
+  source_channel TEXT NOT NULL DEFAULT 'web_chat',
+  trigger_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  scheduled_at TIMESTAMP NOT NULL,
+  last_sent_at TIMESTAMP NULL,
+  cooldown_until TIMESTAMP NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE IF EXISTS ai_conversations
+  ADD COLUMN IF NOT EXISTS detected_intent TEXT,
+  ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2),
+  ADD COLUMN IF NOT EXISTS sentiment TEXT,
+  ADD COLUMN IF NOT EXISTS detected_language TEXT,
+  ADD COLUMN IF NOT EXISTS handoff_to_human BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS resolution_status TEXT DEFAULT 'open',
+  ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER;
+
+ALTER TABLE IF EXISTS ai_support_sessions
+  ADD COLUMN IF NOT EXISTS detected_intent TEXT,
+  ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2),
+  ADD COLUMN IF NOT EXISTS sentiment TEXT,
+  ADD COLUMN IF NOT EXISTS detected_language TEXT,
+  ADD COLUMN IF NOT EXISTS handoff_to_human BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS resolution_status TEXT DEFAULT 'open',
+  ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER;
+
+ALTER TABLE IF EXISTS ai_support_messages
+  ADD COLUMN IF NOT EXISTS detected_intent TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2),
+  ADD COLUMN IF NOT EXISTS sentiment TEXT,
+  ADD COLUMN IF NOT EXISTS detected_language TEXT,
+  ADD COLUMN IF NOT EXISTS handoff_to_human BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS resolution_status TEXT DEFAULT 'open',
+  ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER;
+
+ALTER TABLE IF EXISTS ai_customer_interactions
+  ADD COLUMN IF NOT EXISTS detected_intent TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2),
+  ADD COLUMN IF NOT EXISTS detected_language TEXT,
+  ADD COLUMN IF NOT EXISTS handoff_to_human BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS resolution_status TEXT DEFAULT 'open',
+  ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER;
+
+UPDATE ai_customer_interactions
+SET detected_intent = intent_type
+WHERE COALESCE(detected_intent, '') = '' AND COALESCE(intent_type, '') <> '';
 
 ALTER TABLE IF EXISTS orders
   ADD COLUMN IF NOT EXISTS cashier_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL;
@@ -456,9 +608,23 @@ ALTER TABLE IF EXISTS orders
   ADD COLUMN IF NOT EXISTS sales_employee_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE IF EXISTS orders
+  ADD COLUMN IF NOT EXISTS seller_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE IF EXISTS orders
+  ADD COLUMN IF NOT EXISTS cashier_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE IF EXISTS orders
+  ADD COLUMN IF NOT EXISTS seller_name VARCHAR(255);
+
+ALTER TABLE IF EXISTS orders
+  ADD COLUMN IF NOT EXISTS cashier_name VARCHAR(255);
+
+ALTER TABLE IF EXISTS orders
   ADD COLUMN IF NOT EXISTS shift_id BIGINT NULL REFERENCES cashbox(id) ON DELETE SET NULL;
 
-CREATE OR REPLACE VIEW pos_orders AS
+DROP VIEW IF EXISTS pos_orders CASCADE;
+
+CREATE VIEW pos_orders AS
 SELECT
   id,
   tenant_id,
@@ -468,6 +634,10 @@ SELECT
   channel,
   cashier_id,
   sales_employee_id,
+  seller_user_id,
+  cashier_user_id,
+  seller_name,
+  cashier_name,
   shift_id,
   branch_id,
   status,
@@ -552,6 +722,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   sku VARCHAR(120),
   barcode VARCHAR(120),
   quantity INTEGER NOT NULL DEFAULT 1,
+  returned_quantity INTEGER NOT NULL DEFAULT 0,
   sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
   discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
   tax_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -561,12 +732,14 @@ CREATE TABLE IF NOT EXISTS order_items (
 CREATE TABLE IF NOT EXISTS returns (
   id BIGSERIAL PRIMARY KEY,
   tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  order_id BIGINT NOT NULL REFERENCES pos_orders(id) ON DELETE CASCADE,
+  order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   return_number VARCHAR(100) NOT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'pending',
   reason TEXT,
   restock BOOLEAN NOT NULL DEFAULT FALSE,
   refund_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  shift_id BIGINT NULL,
+  cashier_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
   created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -662,12 +835,58 @@ CREATE TABLE IF NOT EXISTS cashbox_movements (
   id BIGSERIAL PRIMARY KEY,
   tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   cashbox_id BIGINT NOT NULL REFERENCES cashbox(id) ON DELETE CASCADE,
+  shift_id BIGINT NULL,
+  user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
   movement_type VARCHAR(50) NOT NULL,
   amount NUMERIC(12,2) NOT NULL DEFAULT 0,
   note TEXT,
   created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS cash_drawer_shifts (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
+  financial_account_id BIGINT NULL,
+  opened_by BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  opened_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  closed_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  closed_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  opened_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  closed_at TIMESTAMP NULL,
+  opening_cash NUMERIC(12,2) NOT NULL DEFAULT 0,
+  expected_cash NUMERIC(12,2) NOT NULL DEFAULT 0,
+  actual_cash NUMERIC(12,2) NULL,
+  closing_cash NUMERIC(12,2) NULL,
+  difference NUMERIC(12,2) NOT NULL DEFAULT 0,
+  cash_difference NUMERIC(12,2) NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'open',
+  notes TEXT NOT NULL DEFAULT ''
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cash_drawer_one_open_shift
+  ON cash_drawer_shifts (tenant_id, branch_id, opened_by)
+  WHERE status = 'open';
+
+CREATE INDEX IF NOT EXISTS idx_pos_shifts_user_branch_status
+  ON cash_drawer_shifts (opened_by_user_id, branch_id, status);
+
+CREATE TABLE IF NOT EXISTS cash_drawer_shift_events (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  shift_id BIGINT NOT NULL REFERENCES cash_drawer_shifts(id) ON DELETE CASCADE,
+  event_type VARCHAR(50) NOT NULL,
+  source_type VARCHAR(100) NULL,
+  source_id BIGINT NULL,
+  amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_cash_drawer_events_shift
+  ON cash_drawer_shift_events (tenant_id, shift_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS journal_entries (
   id BIGSERIAL PRIMARY KEY,
@@ -785,6 +1004,47 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS payment_transactions (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
+  order_id BIGINT NULL REFERENCES orders(id) ON DELETE SET NULL,
+  provider VARCHAR(50) NOT NULL DEFAULT 'paymob',
+  provider_order_id TEXT,
+  terminal_id TEXT,
+  amount_cents BIGINT NOT NULL DEFAULT 0,
+  currency VARCHAR(10) NOT NULL DEFAULT 'EGP',
+  status VARCHAR(50) NOT NULL DEFAULT 'pending',
+  request_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  response_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  error_message TEXT,
+  transaction_reference TEXT,
+  confirmed_amount_cents BIGINT NOT NULL DEFAULT 0,
+  confirmed_at TIMESTAMP NULL,
+  confirmation_source TEXT,
+  confirmed_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_order ON payment_transactions (tenant_id, order_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_provider_order ON payment_transactions (provider, provider_order_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_transactions_reference ON payment_transactions (provider, transaction_reference) WHERE transaction_reference IS NOT NULL AND transaction_reference <> '';
+
+CREATE TABLE IF NOT EXISTS payment_transaction_events (
+  id BIGSERIAL PRIMARY KEY,
+  transaction_id BIGINT NULL REFERENCES payment_transactions(id) ON DELETE SET NULL,
+  provider VARCHAR(50) NOT NULL DEFAULT 'paymob',
+  provider_event_id TEXT,
+  event_type VARCHAR(80) NOT NULL DEFAULT 'payment_status',
+  status VARCHAR(50),
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_transaction_events_provider_event ON payment_transaction_events (provider, provider_event_id) WHERE provider_event_id IS NOT NULL AND provider_event_id <> '';
+
 CREATE TABLE IF NOT EXISTS ledger_entries (
   id BIGSERIAL PRIMARY KEY,
   tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -823,6 +1083,8 @@ CREATE TABLE IF NOT EXISTS employees (
   email VARCHAR(255),
   national_id VARCHAR(120),
   role VARCHAR(120),
+  job_title VARCHAR(120),
+  position VARCHAR(120),
   salary NUMERIC(12,2) NOT NULL DEFAULT 0,
   hire_date DATE NOT NULL DEFAULT CURRENT_DATE,
   status VARCHAR(50) NOT NULL DEFAULT 'active',
@@ -918,6 +1180,7 @@ CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_employee_date ON attendanc
 CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_branch_date ON attendance_logs (tenant_id, branch_id, attendance_date DESC);
 CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_shift_date ON attendance_logs (tenant_id, shift_id, attendance_date DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_attendance_qr_token ON branches (attendance_qr_token);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_attendance_public_code ON branches (attendance_public_code);
 CREATE INDEX IF NOT EXISTS idx_attendance_events_duplicate_window ON attendance_events (tenant_id, employee_id, branch_id, action_type, action_timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_attendance_events_branch_timestamp ON attendance_events (tenant_id, branch_id, action_timestamp DESC);
 
@@ -925,9 +1188,14 @@ CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users (tenant_id);
 CREATE INDEX IF NOT EXISTS idx_roles_tenant_id ON roles (tenant_id);
 CREATE INDEX IF NOT EXISTS idx_products_tenant_id ON products (tenant_id);
 CREATE INDEX IF NOT EXISTS idx_variants_tenant_id ON product_variants (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_orders_tenant_id ON pos_orders (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_product_variants_article_code_lower ON product_variants (LOWER(TRIM(article_code))) WHERE article_code IS NOT NULL AND TRIM(article_code) <> '';
+CREATE INDEX IF NOT EXISTS idx_orders_tenant_id ON orders (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pos_orders_shift_id ON orders (shift_id);
+CREATE INDEX IF NOT EXISTS idx_pos_orders_seller_user_id ON orders (seller_user_id);
+CREATE INDEX IF NOT EXISTS idx_pos_orders_cashier_user_id ON orders (cashier_user_id);
 CREATE INDEX IF NOT EXISTS idx_purchases_tenant_id ON purchases (tenant_id);
 CREATE INDEX IF NOT EXISTS idx_customers_tenant_id ON customers (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers (phone);
 CREATE INDEX IF NOT EXISTS idx_loyalty_rules_tenant_id ON loyalty_rules (tenant_id);
 CREATE INDEX IF NOT EXISTS idx_customer_loyalty_tenant_id ON customer_loyalty (tenant_id, customer_id);
 CREATE INDEX IF NOT EXISTS idx_loyalty_transactions_tenant_customer ON loyalty_transactions (tenant_id, customer_id, created_at DESC);
@@ -1110,6 +1378,137 @@ CREATE INDEX IF NOT EXISTS idx_marketing_attribution_events_tenant_created
 
 CREATE INDEX IF NOT EXISTS idx_marketing_attribution_events_event_type
   ON marketing_attribution_events (event_type, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_marketing_settings (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  planning_mode VARCHAR(20) NOT NULL DEFAULT 'weekly',
+  stories_per_day INTEGER NOT NULL DEFAULT 20,
+  posts_per_day INTEGER NOT NULL DEFAULT 3,
+  auto_publish BOOLEAN NOT NULL DEFAULT FALSE,
+  require_approval BOOLEAN NOT NULL DEFAULT TRUE,
+  campaign_mode VARCHAR(20) NOT NULL DEFAULT 'balanced',
+  active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  daily_content_quotas JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (tenant_id)
+);
+
+ALTER TABLE IF EXISTS ai_marketing_settings
+  ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
+  ADD COLUMN IF NOT EXISTS planning_mode VARCHAR(20) NOT NULL DEFAULT 'weekly',
+  ADD COLUMN IF NOT EXISTS stories_per_day INTEGER NOT NULL DEFAULT 20,
+  ADD COLUMN IF NOT EXISTS posts_per_day INTEGER NOT NULL DEFAULT 3,
+  ADD COLUMN IF NOT EXISTS auto_publish BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS require_approval BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS campaign_mode VARCHAR(20) NOT NULL DEFAULT 'balanced',
+  ADD COLUMN IF NOT EXISTS active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS daily_content_quotas JSONB NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_marketing_settings_tenant
+  ON ai_marketing_settings (tenant_id);
+
+CREATE TABLE IF NOT EXISTS ai_marketing_content_queue (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  content_type VARCHAR(20) NOT NULL DEFAULT 'story',
+  strategy_type VARCHAR(60) NOT NULL DEFAULT 'random_discovery',
+  department_id BIGINT NULL,
+  department_name TEXT NOT NULL DEFAULT '',
+  segment_type VARCHAR(80) NOT NULL DEFAULT '',
+  segment_id BIGINT NULL,
+  segment_name TEXT NOT NULL DEFAULT '',
+  product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
+  variant_id BIGINT NULL REFERENCES product_variants(id) ON DELETE SET NULL,
+  title TEXT NOT NULL DEFAULT '',
+  caption TEXT NOT NULL DEFAULT '',
+  image_url TEXT NOT NULL DEFAULT '',
+  media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+  primary_image_url TEXT NOT NULL DEFAULT '',
+  variant_image_url TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL DEFAULT '',
+  size TEXT NOT NULL DEFAULT '',
+  product_url TEXT NOT NULL DEFAULT '',
+  design_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status VARCHAR(30) NOT NULL DEFAULT 'generated',
+  scheduled_at TIMESTAMP NULL,
+  published_at TIMESTAMP NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  error_message TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE IF EXISTS ai_marketing_content_queue
+  ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
+  ADD COLUMN IF NOT EXISTS content_type VARCHAR(20) NOT NULL DEFAULT 'story',
+  ADD COLUMN IF NOT EXISTS strategy_type VARCHAR(60) NOT NULL DEFAULT 'random_discovery',
+  ADD COLUMN IF NOT EXISTS department_id BIGINT NULL,
+  ADD COLUMN IF NOT EXISTS department_name TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS segment_type VARCHAR(80) NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS segment_id BIGINT NULL,
+  ADD COLUMN IF NOT EXISTS segment_name TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS product_id BIGINT NULL,
+  ADD COLUMN IF NOT EXISTS variant_id BIGINT NULL,
+  ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS caption TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS primary_image_url TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS variant_image_url TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS size TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS product_url TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS design_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'generated',
+  ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP NULL,
+  ADD COLUMN IF NOT EXISTS published_at TIMESTAMP NULL,
+  ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS error_message TEXT NULL,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+CREATE INDEX IF NOT EXISTS idx_ai_marketing_queue_tenant_status
+  ON ai_marketing_content_queue (tenant_id, status, scheduled_at, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_ai_marketing_queue_tenant_product_day
+  ON ai_marketing_content_queue (tenant_id, product_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_marketing_generation_runs (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  run_type VARCHAR(20) NOT NULL DEFAULT 'daily',
+  status VARCHAR(30) NOT NULL DEFAULT 'running',
+  requested_stories INTEGER NOT NULL DEFAULT 0,
+  requested_posts INTEGER NOT NULL DEFAULT 0,
+  generated_stories INTEGER NOT NULL DEFAULT 0,
+  generated_posts INTEGER NOT NULL DEFAULT 0,
+  failed_count INTEGER NOT NULL DEFAULT 0,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  finished_at TIMESTAMP NULL
+);
+
+ALTER TABLE IF EXISTS ai_marketing_generation_runs
+  ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
+  ADD COLUMN IF NOT EXISTS run_type VARCHAR(20) NOT NULL DEFAULT 'daily',
+  ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'running',
+  ADD COLUMN IF NOT EXISTS requested_stories INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS requested_posts INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS generated_stories INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS generated_posts INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS failed_count INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP NULL;
+
+CREATE INDEX IF NOT EXISTS idx_ai_marketing_runs_tenant_started
+  ON ai_marketing_generation_runs (tenant_id, started_at DESC);
 
 ALTER TABLE IF EXISTS orders
   ADD COLUMN IF NOT EXISTS marketing_source TEXT NULL,

@@ -1,17 +1,329 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { Bell, CircleDollarSign, LogOut, Menu, Paintbrush, ShoppingBag, Store, X } from "lucide-react";
+import { Bell, ChevronDown, CircleDollarSign, LogOut, Menu, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Search, Settings2, ShoppingBag, Store, User, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { clearAuth, getCurrentTenant, getCurrentUser, getToken } from "../auth/authStorage";
 import { getVisibleSidebarSections } from "../../modules/permissions/lib/rbacStore";
-import { useTheme } from "../../theme/useTheme";
 import { translateSidebarSections } from "../../i18n/navigation";
+import NotificationSoundProvider from "../../components/feedback/NotificationSoundProvider";
+import AnimatedBadgeCounter from "../../components/feedback/AnimatedBadgeCounter";
+import SidebarPulseIndicator from "../../components/feedback/SidebarPulseIndicator";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 import { NotificationBoundary, NotificationsProvider, useNotifications } from "../notifications/index.js";
 import { useRealtimeConnection } from "../realtime/socketStore";
 
 const NotificationBell = lazy(() => import("../notifications/NotificationBell.jsx"));
+const SIDEBAR_GROUPS_STORAGE_KEY = "erp.sidebar.openGroups.v2";
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "erp.sidebar.collapsed";
+
+const ENTERPRISE_GROUPS = [
+  "Main",
+  "Sales",
+  "Products & Inventory",
+  "Purchasing",
+  "Employees",
+  "Finance",
+  "AI & Marketing",
+  "System Settings",
+];
+
+const GROUP_TITLE_KEYS = {
+  Main: "sidebar.groups.main",
+  Sales: "sidebar.groups.sales",
+  "Products & Inventory": "sidebar.groups.productsInventory",
+  Purchasing: "sidebar.groups.purchasing",
+  Employees: "sidebar.groups.employees",
+  Finance: "sidebar.groups.finance",
+  "AI & Marketing": "sidebar.groups.aiMarketing",
+  "System Settings": "sidebar.groups.systemSettings",
+};
+
+const HEADER_QUICK_ACTION_ROUTES = ["/orders", "/products/add", "/products", "/marketing/ai-center"];
+const QUICK_ACCESS_LABELS = {
+  "/orders": "sidebar.quickAccess.orders",
+  "/products/add": "sidebar.quickAccess.product",
+  "/marketing/ai-center": "sidebar.quickAccess.aiCenter",
+  "/products": "sidebar.quickAccess.products",
+};
+const SIDEBAR_SUBGROUP_TITLE_KEYS = {
+  "AI Marketing": "sidebar.subgroups.aiMarketing",
+  "AI Support": "sidebar.subgroups.aiSupport",
+  "System Settings": "sidebar.subgroups.systemSettings",
+};
+
+const SYSTEM_PREFERENCE_ROUTES = new Set(["/settings", "/settings/appearance", "/settings/company"]);
+const AI_MARKETING_ROUTES = new Set(["/marketing/ai-center", "/marketing/ai-center/videos", "/admin/ai-inbox", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics"]);
+const AI_SUPPORT_ROUTES = new Set(["/admin/ai-support-console", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"]);
+
+const sidebarSubgroupForItem = (groupTitle, item) => {
+  const to = String(item.to || "");
+  if (groupTitle === "Marketing" && AI_MARKETING_ROUTES.has(to)) return "AI Marketing";
+  if (groupTitle === "System") {
+    if (AI_SUPPORT_ROUTES.has(to)) return "AI Support";
+    if (SYSTEM_PREFERENCE_ROUTES.has(to) || to === "/settings/currencies" || to === "__profile") return "System Settings";
+  }
+  return "";
+};
+
+const readSidebarJson = (key, fallback) => {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const writeSidebarJson = (key, value) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage quota/access issues; navigation should keep working.
+  }
+};
+
+const splitRoute = (to = "") => {
+  const [pathname, search = ""] = String(to || "").split("?");
+  return { pathname, search };
+};
+
+const CONCRETE_SIDEBAR_PATHS = new Set([
+  "/products/add",
+  "/orders/returns",
+  "/employees/attendance",
+  "/employees/payroll",
+  "/employees/advances",
+  "/settings/users",
+  "/settings/permissions",
+  "/settings/currencies",
+  "/settings/company",
+  "/settings/appearance",
+]);
+
+const sidebarItemActive = (item, location) => {
+  const { pathname, search } = splitRoute(item.to);
+  if (search) return location.pathname === pathname && location.search === `?${search}`;
+  if (location.pathname === pathname && !location.search) return true;
+  if (CONCRETE_SIDEBAR_PATHS.has(location.pathname)) return false;
+  return location.pathname.startsWith(`${pathname}/`);
+};
+
+const ARABIC_DIACRITICS = /[\u064B-\u065F\u0670]/g;
+const normalizeSearchText = (value = "") =>
+  String(value || "")
+    .normalize("NFKD")
+    .replace(ARABIC_DIACRITICS, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .trim()
+    .toLowerCase();
+
+const levenshteinDistance = (a = "", b = "") => {
+  if (!a) return b.length;
+  if (!b) return a.length;
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let diagonal = previous[0];
+    previous[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const temp = previous[j];
+      previous[j] = a[i - 1] === b[j - 1]
+        ? diagonal
+        : Math.min(previous[j - 1] + 1, previous[j] + 1, diagonal + 1);
+      diagonal = temp;
+    }
+  }
+  return previous[b.length];
+};
+
+const isSubsequenceMatch = (needle = "", hay = "") => {
+  if (!needle) return true;
+  let index = 0;
+  for (const char of hay) {
+    if (char === needle[index]) index += 1;
+    if (index === needle.length) return true;
+  }
+  return false;
+};
+
+const sidebarSearchHaystack = (item, groupTitle = "") =>
+  normalizeSearchText([
+    item.title,
+    item.arabicTitle,
+    item.label,
+    item.sidebarLabel,
+    item.sourceLabel,
+    item.to,
+    item.route,
+    item.category,
+    item.permission,
+    ...(Array.isArray(item.keywords) ? item.keywords : [item.keywords]),
+    ...(Array.isArray(item.aliases) ? item.aliases : [item.aliases]),
+    groupTitle,
+  ].filter(Boolean).join(" "));
+
+const sidebarSearchTokens = (item, groupTitle = "") =>
+  sidebarSearchHaystack(item, groupTitle).split(/[\s/.,|:;?()[\]{}_-]+/).filter(Boolean);
+
+const sidebarItemMatchesSearch = (item, groupTitle, query) => {
+  if (!query) return true;
+  const haystack = sidebarSearchHaystack(item, groupTitle);
+  if (haystack.includes(query)) return true;
+  const tokens = sidebarSearchTokens(item, groupTitle);
+  if (tokens.some((token) => token.startsWith(query) || query.startsWith(token))) return true;
+  if (query.length >= 3 && tokens.some((token) => isSubsequenceMatch(query, token))) return true;
+  if (query.length >= 3 && tokens.some((token) => Math.max(query.length, token.length) <= 24 && levenshteinDistance(query, token) <= 1)) return true;
+  return false;
+};
+
+const groupForSidebarItem = (sectionTitle, item) => {
+  const to = String(item.to || "");
+
+  if (to === "/dashboard" || to === "/workspace" || to === "/notifications") return "Main";
+  if (to === "/pos" || to === "/orders" || to === "/orders?channel=website" || to === "/orders/returns" || to === "/customers") return "Sales";
+  if (to === "/products" || to === "/products/add" || to === "/inventory" || to === "/warehouses" || to === "/stock-transfers") return "Products & Inventory";
+  if (to === "/purchases" || to === "/suppliers") return "Purchasing";
+  if (to === "/employees" || to.startsWith("/employees/")) return "Employees";
+  if (to === "/accounting" || to === "/expenses" || to === "/reports") return "Finance";
+  if (to === "/marketing/ai-center" || to === "/admin/ai-inbox" || to === "/admin/ai-followups" || to === "/admin/ai-channels" || to === "/admin/ai-agent-analytics" || to === "/admin/ai-support-knowledge-base" || to === "/admin/ai-agent-settings") return "AI & Marketing";
+  if (to === "/branches" || to === "/settings/users" || to === "/admin/tenants" || to === "/settings/permissions" || to === "/settings/currencies" || to === "/settings/company" || to === "/settings") return "System Settings";
+
+  if (sectionTitle === "Main") return "Main";
+  if (sectionTitle === "Products" || sectionTitle === "Inventory") return "Products & Inventory";
+  if (sectionTitle === "Marketing") return "AI & Marketing";
+  if (sectionTitle === "Settings") return "System Settings";
+  if (sectionTitle === "Employees" || sectionTitle === "HR / Attendance") return "Employees";
+  if (sectionTitle === "Purchasing") return "Purchasing";
+  if (sectionTitle === "Finance") return "Finance";
+  if (sectionTitle === "Sales") return "Sales";
+
+  return "System Settings";
+};
+
+const buildEnterpriseSidebarGroups = (sections) => {
+  const groups = ENTERPRISE_GROUPS.map((title) => ({ title, items: [] }));
+  const byTitle = new Map(groups.map((group) => [group.title, group]));
+  const seen = new Set();
+
+  let canAccessSettings = false;
+  sections.forEach((section) => {
+    section.items.forEach((item) => {
+      if (item.to === "/settings" || item.to === "/settings/appearance" || item.to === "/settings/company") canAccessSettings = true;
+      const key = item.to || `${section.title}:${item.label}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const groupTitle = groupForSidebarItem(section.sourceTitle || section.title, item);
+      const sidebarLabel = item.to === "/settings/appearance"
+        ? "Theme"
+        : item.to === "/settings"
+          ? "Settings Center"
+        : item.to === "/settings/company"
+          ? "Preferences"
+          : undefined;
+      const sidebarIcon = item.to === "/settings/appearance"
+        ? Paintbrush
+        : item.to === "/settings"
+          ? Settings2
+        : item.to === "/settings/company"
+          ? Settings2
+          : item.icon;
+      byTitle.get(groupTitle)?.items.push({ ...item, icon: sidebarIcon, sidebarLabel, sourceSection: section.sourceTitle || section.title });
+    });
+  });
+
+  const systemGroup = byTitle.get("System");
+  if (systemGroup && canAccessSettings && !seen.has("/settings/currencies")) {
+    systemGroup.items.splice(1, 0, {
+      label: "Currency",
+      sourceLabel: "Currency",
+      to: "/settings/currencies",
+      permission: "settings.view",
+      icon: CircleDollarSign,
+      sourceSection: "Settings",
+    });
+  }
+  const routeOrders = {
+    Main: ["/dashboard", "/workspace", "/notifications"],
+    Sales: ["/pos", "/orders", "/orders?channel=website", "/orders/returns", "/customers"],
+    "Products & Inventory": ["/products", "/products/add", "/inventory", "/warehouses", "/stock-transfers"],
+    Purchasing: ["/purchases", "/suppliers"],
+    Employees: ["/employees", "/employees/attendance", "/employees/payroll", "/employees/advances"],
+    Finance: ["/accounting", "/expenses", "/reports"],
+    "AI & Marketing": ["/admin/ai-inbox", "/marketing/ai-center", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"],
+    "System Settings": ["/branches", "/settings/users", "/admin/tenants", "/settings/permissions", "/settings/currencies", "/settings/company", "/settings"],
+  };
+  groups.forEach((group) => {
+    const routeOrder = routeOrders[group.title] || [];
+    group.items.sort((a, b) => {
+      const aIndex = routeOrder.indexOf(a.to);
+      const bIndex = routeOrder.indexOf(b.to);
+      if (aIndex !== -1 || bIndex !== -1) return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+      return 0;
+    });
+  });
+
+  return groups.filter((group) => group.items.length > 0);
+};
+
+function SidebarNavItem({ item, location, collapsed = false, onNavigate }) {
+  const Icon = item.icon;
+  const active = sidebarItemActive(item, location);
+  const displayLabel = item.sidebarLabel || item.label;
+  return (
+    <NavLink
+      key={item.to}
+      to={item.to}
+      title={collapsed ? displayLabel : undefined}
+      aria-label={displayLabel}
+      onClick={onNavigate}
+      className={[
+        "group/nav relative flex min-h-9 items-center rounded-xl border text-sm font-semibold transition duration-200",
+        collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2",
+        active
+          ? "border-[var(--primary)]/45 bg-[var(--primary-soft)] text-[var(--primary)] shadow-sm"
+          : "border-transparent text-[var(--muted)] hover:border-[var(--border)] hover:bg-[var(--card)] hover:text-[var(--text)]",
+      ].join(" ")}
+    >
+      {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+      {collapsed ? null : <span className="min-w-0 flex-1 truncate text-start">{displayLabel}</span>}
+      <span className={collapsed ? "absolute end-1 top-1" : "ms-auto flex items-center gap-1.5"}>
+        <SidebarNotificationBadge item={item} />
+        <SidebarPulseIndicator item={item} />
+      </span>
+    </NavLink>
+  );
+}
+
+function HeaderQuickActionButton({ item, location, onNavigate }) {
+  const { t } = useTranslation();
+  const Icon = item.icon;
+  const active = sidebarItemActive(item, location);
+  const labelKey = QUICK_ACCESS_LABELS[item.to];
+  const label = labelKey ? t(labelKey) : item.sidebarLabel || item.label;
+  return (
+    <NavLink
+      to={item.to}
+      title={label}
+      aria-label={label}
+      onClick={onNavigate}
+      className={[
+        "group/header-quick inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200",
+        "bg-zinc-950/65 text-[var(--text)] shadow-[0_10px_24px_rgba(0,0,0,0.14)] backdrop-blur",
+        active
+          ? "border-[var(--primary)]/50 bg-[var(--primary-soft)] text-[var(--primary)] shadow-[0_0_24px_rgba(16,185,129,0.16)]"
+          : "border-white/10 hover:-translate-y-0.5 hover:border-[var(--primary)]/35 hover:bg-[var(--surface-soft)] hover:text-[var(--text)]",
+      ].join(" ")}
+    >
+      {Icon ? <Icon className="h-4 w-4 shrink-0 text-[var(--primary)] transition group-hover/header-quick:text-[var(--text)]" /> : null}
+      <span className="hidden xl:inline">{label}</span>
+    </NavLink>
+  );
+}
 
 function NotificationBellFallback() {
   return (
@@ -30,9 +342,7 @@ function SidebarNotificationBadge({ item }) {
   const { unreadCount } = useNotifications();
   if (item.to !== "/notifications" || unreadCount <= 0) return null;
   return (
-    <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
-      {unreadCount > 99 ? "99+" : unreadCount}
-    </span>
+    <AnimatedBadgeCounter value={unreadCount} className="ms-auto" />
   );
 }
 
@@ -55,8 +365,10 @@ function MainLayout() {
     () => getCurrentUser() || { name: "Admin", role: "Admin", permissions: ["*"] },
     []
   );
-  const { theme } = useTheme();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => Boolean(readSidebarJson(SIDEBAR_COLLAPSED_STORAGE_KEY, false)));
+  const [openGroups, setOpenGroups] = useState(() => readSidebarJson(SIDEBAR_GROUPS_STORAGE_KEY, {}));
+  const [sidebarSearch, setSidebarSearch] = useState("");
   const currentTenant = getCurrentTenant();
   const workspaceName = currentTenant?.companyName || currentTenant?.name || currentTenant?.slug || t("common.enterpriseDashboard");
 
@@ -80,7 +392,24 @@ function MainLayout() {
     return () => window.removeEventListener("erp:auth-expired", handleAuthExpired);
   }, [navigate]);
 
-  const sections = useMemo(() => translateSidebarSections(getVisibleSidebarSections(user), t), [user, t]);
+  const sections = useMemo(() => {
+    const rawSections = getVisibleSidebarSections(user);
+    const translatedSections = translateSidebarSections(rawSections, t);
+    return translatedSections.map((section, sectionIndex) => ({
+      ...section,
+      sourceTitle: rawSections[sectionIndex]?.title || section.title,
+      items: section.items.map((item, itemIndex) => ({
+        ...item,
+        sourceLabel: rawSections[sectionIndex]?.items?.[itemIndex]?.label || item.label,
+      })),
+    }));
+  }, [user, t]);
+  const groupedSections = useMemo(() => buildEnterpriseSidebarGroups(sections), [sections]);
+  const allSidebarItems = useMemo(() => groupedSections.flatMap((group) => group.items), [groupedSections]);
+  const headerQuickActionItems = useMemo(() => {
+    const byRoute = new Map(allSidebarItems.map((item) => [item.to, item]));
+    return HEADER_QUICK_ACTION_ROUTES.map((route) => byRoute.get(route)).filter(Boolean);
+  }, [allSidebarItems]);
   const resolvedDir = typeof i18n.dir === "function" ? i18n.dir(i18n.language) : "";
   const documentDir = typeof document !== "undefined" ? document.documentElement.dir : "";
   const dir = (resolvedDir || documentDir) === "rtl" ? "rtl" : "ltr";
@@ -88,6 +417,37 @@ function MainLayout() {
   const isPosActive = location.pathname === "/pos" || location.pathname.startsWith("/pos/");
   const isStoreActive = location.pathname === "/shop" || location.pathname.startsWith("/shop/");
   const posLabel = t("sidebar.posPro");
+  const searchQuery = normalizeSearchText(sidebarSearch);
+  const activeGroupTitle = useMemo(() => {
+    const activeGroup = groupedSections.find((group) => group.items.some((item) => sidebarItemActive(item, location)));
+    return activeGroup?.title || "";
+  }, [groupedSections, location]);
+  const visibleGroupedSections = useMemo(() => {
+    if (!searchQuery) return groupedSections;
+    return groupedSections
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => sidebarItemMatchesSearch(item, group.title, searchQuery)),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [groupedSections, searchQuery]);
+  const sidebarCompact = sidebarCollapsed && !mobileDrawerOpen;
+  const CollapseIcon = isRtl
+    ? sidebarCollapsed ? PanelRightOpen : PanelRightClose
+    : sidebarCollapsed ? PanelLeftOpen : PanelLeftClose;
+
+  useEffect(() => {
+    writeSidebarJson(SIDEBAR_COLLAPSED_STORAGE_KEY, sidebarCollapsed);
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    writeSidebarJson(SIDEBAR_GROUPS_STORAGE_KEY, openGroups);
+  }, [openGroups]);
+
+  useEffect(() => {
+    if (!activeGroupTitle) return;
+    setOpenGroups((current) => (current?.[activeGroupTitle] ? current : { ...current, [activeGroupTitle]: true }));
+  }, [activeGroupTitle]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -117,16 +477,21 @@ function MainLayout() {
 
   if (isPosActive) {
     return (
-      <div
-        dir={dir}
-        className="h-screen w-screen overflow-hidden bg-slate-950 text-[var(--text)]"
-      >
-        <Outlet />
-      </div>
+      <NotificationSoundProvider>
+        <NotificationsProvider>
+          <div
+            dir={dir}
+            className="h-screen w-screen overflow-hidden bg-slate-950 text-[var(--text)]"
+          >
+            <Outlet />
+          </div>
+        </NotificationsProvider>
+      </NotificationSoundProvider>
     );
   }
 
   return (
+    <NotificationSoundProvider>
     <NotificationsProvider>
     <div
       dir={dir}
@@ -143,9 +508,9 @@ function MainLayout() {
 
       <aside
         className={[
-          "sidebar-scroll fixed bottom-0 top-0 z-50 flex w-72 flex-col overflow-y-auto overflow-x-hidden bg-[var(--surface)] p-5 shadow-2xl transition-transform duration-300 lg:translate-x-0",
+          "sidebar-scroll fixed bottom-0 top-0 z-50 flex w-72 flex-col overflow-y-auto overflow-x-hidden bg-[var(--surface)] shadow-2xl transition-all duration-300 lg:translate-x-0",
+          sidebarCollapsed ? "lg:w-20 p-3 lg:p-3" : "p-4 lg:w-72 lg:p-4",
           mobileDrawerOpen ? "translate-x-0" : isRtl ? "translate-x-full" : "-translate-x-full",
-          "lg:block",
           isRtl
             ? "left-auto right-0 border-l border-[var(--border)]"
             : "left-0 right-auto border-r border-[var(--border)]",
@@ -166,78 +531,147 @@ function MainLayout() {
           </button>
         </div>
 
-        <div>
-          <div className="mb-6 rounded-3xl border border-[var(--border)] bg-[var(--card)] p-5">
-            <h1 className="text-3xl font-black tracking-tight text-[var(--text)]">ERP PRO</h1>
-            <p className="mt-2 text-sm text-[var(--muted)]">{t("common.enterpriseDashboard")}</p>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className={["mb-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm", sidebarCompact ? "hidden p-2 lg:block" : "p-3"].join(" ")}>
+            <div className={["flex items-center gap-2", sidebarCompact ? "justify-center" : "justify-between"].join(" ")}>
+              <div className="min-w-0">
+                <h1 className={["font-black tracking-tight text-[var(--text)]", sidebarCompact ? "text-center text-lg" : "text-2xl"].join(" ")}>ERP</h1>
+                {sidebarCompact ? null : <p className="mt-0.5 truncate text-xs text-[var(--muted)]">{t("common.enterpriseDashboard")}</p>}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed((value) => !value)}
+                className="hidden h-8 w-8 shrink-0 place-items-center rounded-xl border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] lg:grid"
+                title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                <CollapseIcon className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-6">
-            {sections.map((section) => (
-              <div key={section.title}>
-                <p className="mb-3 px-2 text-[11px] uppercase tracking-[0.24em] text-[var(--muted)]">{section.title}</p>
-                <div className="space-y-2">
-                  {section.items.map((item) => {
-                    const Icon = item.icon;
-                    const [itemPath, itemSearch] = String(item.to || "").split("?");
-                    const active = itemSearch
-                      ? location.pathname === itemPath && location.search === `?${itemSearch}`
-                      : (location.pathname === itemPath && !location.search) || location.pathname.startsWith(`${itemPath}/`);
-                    return (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        onClick={() => setMobileDrawerOpen(false)}
-                        className={[
-                          "flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition",
-                          active
-                            ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-lg"
-                            : "border-transparent text-[var(--muted)] hover:border-[var(--border)] hover:bg-[var(--card)] hover:text-[var(--text)]",
-                        ].join(" ")}
-                      >
-                        {Icon ? <Icon className="h-4 w-4" /> : null}
-                        <span>{item.label}</span>
-                        <SidebarNotificationBadge item={item} />
-                      </NavLink>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+          <div className={sidebarCompact ? "hidden lg:block" : ""}>
+            <label className="relative mb-3 block">
+              <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                value={sidebarSearch}
+                onChange={(event) => setSidebarSearch(event.target.value)}
+                placeholder={t("sidebar.searchModules")}
+                className="h-10 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] ps-9 pe-3 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:bg-[var(--surface-soft)]"
+              />
+            </label>
           </div>
+
+          <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pe-1" aria-label="Main navigation">
+            {visibleGroupedSections.length ? visibleGroupedSections.map((group) => {
+              const isOpen = Boolean(searchQuery || openGroups[group.title] || activeGroupTitle === group.title);
+              const groupLabel = t(GROUP_TITLE_KEYS[group.title] || group.title, group.title);
+              const activeInGroup = group.items.some((item) => sidebarItemActive(item, location));
+              const rootItems = [];
+              const nestedSections = [];
+              group.items.forEach((item) => {
+                const subgroupTitle = sidebarSubgroupForItem(group.title, item);
+                if (!subgroupTitle) {
+                  rootItems.push(item);
+                  return;
+                }
+                let nestedSection = nestedSections.find((section) => section.title === subgroupTitle);
+                if (!nestedSection) {
+                  nestedSection = { title: subgroupTitle, items: [] };
+                  nestedSections.push(nestedSection);
+                }
+                nestedSection.items.push(item);
+              });
+              return (
+                <div key={group.title} className="rounded-2xl">
+                  <button
+                    type="button"
+                    onClick={() => setOpenGroups((current) => ({ ...current, [group.title]: !current?.[group.title] }))}
+                    className={[
+                      "flex w-full items-center rounded-xl text-xs font-black uppercase tracking-[0.16em] transition",
+                      sidebarCompact ? "justify-center px-2 py-2" : "gap-2 px-2 py-2",
+                      activeInGroup ? "text-[var(--primary)]" : "text-[var(--muted)] hover:bg-[var(--card)] hover:text-[var(--text)]",
+                    ].join(" ")}
+                    title={sidebarCompact ? groupLabel : undefined}
+                    aria-expanded={isOpen}
+                  >
+                    {sidebarCompact ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : <span className="min-w-0 flex-1 truncate text-start">{groupLabel}</span>}
+                    {sidebarCompact ? null : <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />}
+                  </button>
+                  <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                    <div className="min-h-0 overflow-hidden">
+                      <div className="space-y-1 py-0.5">
+                        {rootItems.map((item) => (
+                          <SidebarNavItem key={item.to} item={item} location={location} collapsed={sidebarCompact} onNavigate={() => setMobileDrawerOpen(false)} />
+                        ))}
+                        {nestedSections.map((nestedSection) => {
+                          const nestedKey = `nested:${group.title}:${nestedSection.title}`;
+                          const nestedTitle = t(SIDEBAR_SUBGROUP_TITLE_KEYS[nestedSection.title] || nestedSection.title, nestedSection.title);
+                          const nestedOpen = Boolean(searchQuery || (openGroups[nestedKey] ?? true));
+                          const nestedActive = nestedSection.items.some((item) => sidebarItemActive(item, location));
+                          return (
+                            <div key={nestedKey} className={sidebarCompact ? "space-y-1" : "rounded-xl border border-[var(--border)]/70 bg-[var(--card)]/45 p-1"}>
+                              <button
+                                type="button"
+                                onClick={() => setOpenGroups((current) => ({ ...current, [nestedKey]: !nestedOpen }))}
+                                className={[
+                                  "flex w-full items-center rounded-lg text-[11px] font-black uppercase tracking-[0.14em] transition",
+                                  sidebarCompact ? "justify-center px-2 py-2" : "gap-2 px-2 py-1.5",
+                                  nestedActive ? "text-[var(--primary)]" : "text-[var(--muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]",
+                                ].join(" ")}
+                                title={sidebarCompact ? nestedTitle : undefined}
+                                aria-expanded={nestedOpen}
+                              >
+                                {sidebarCompact ? <span className="h-1 w-1 rounded-full bg-current" /> : <span className="min-w-0 flex-1 truncate text-start">{nestedTitle}</span>}
+                                {sidebarCompact ? null : <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${nestedOpen ? "rotate-180" : ""}`} />}
+                              </button>
+                              <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${nestedOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                                <div className="min-h-0 overflow-hidden">
+                                  {nestedSection.title === "System Settings" && !sidebarCompact ? (
+                                    <div className="mx-1 mb-1 rounded-lg border border-[var(--border)]/70 bg-[var(--surface)]/70 px-2 py-1.5">
+                                      <div className="flex min-w-0 items-center gap-2">
+                                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--primary-soft)] text-[var(--primary)]">
+                                          <User className="h-3.5 w-3.5" />
+                                        </span>
+                                        <div className="min-w-0">
+                                          <div className="truncate text-xs font-black text-[var(--text)]">{user?.name}</div>
+                                          <div className="truncate text-[10px] font-semibold capitalize text-[var(--muted)]">{String(user?.role || "admin")}</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                  <div className="space-y-1 py-1">
+                                    {nestedSection.items.map((item) => (
+                                      <SidebarNavItem key={item.to} item={item} location={location} collapsed={sidebarCompact} onNavigate={() => setMobileDrawerOpen(false)} />
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }) : (
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 text-sm font-semibold text-[var(--muted)]">
+                {t("sidebar.noMatchingModules", isRtl ? "لا توجد نتائج مطابقة" : "No matching modules found")}
+              </div>
+            )}
+          </nav>
         </div>
 
-        <div className="mt-6 space-y-3">
-          <div className="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4">
-            <p className="text-sm font-semibold text-[var(--text)]">{user?.name}</p>
-            <p className="mt-1 text-xs text-[var(--muted)] capitalize">{String(user?.role || "admin")}</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => navigate("/settings/appearance")}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface-soft)]"
-          >
-            <Paintbrush className="h-4 w-4" />
-            {theme?.name || t("common.appearance")}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate("/settings/currencies")}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface-soft)]"
-          >
-            <CircleDollarSign className="h-4 w-4" />
-            {t("common.currency")}
-          </button>
-
+        <div className="mt-2 border-t border-[var(--border)] pt-2">
           <button
             type="button"
             onClick={handleLogout}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--danger)] px-4 py-3 text-sm font-black text-white shadow-lg"
+            title={sidebarCompact ? t("common.logout") : undefined}
+            className={["flex w-full items-center justify-center rounded-xl bg-[var(--danger)] text-sm font-black text-white shadow-lg", sidebarCompact ? "h-10 px-2" : "gap-2 px-3 py-2"].join(" ")}
           >
             <LogOut className="h-4 w-4" />
-            {t("common.logout")}
+            {sidebarCompact ? null : t("common.logout")}
           </button>
         </div>
       </aside>
@@ -245,8 +679,8 @@ function MainLayout() {
       <main
         className={[
           "min-h-screen w-screen max-w-[100vw] min-w-0 overflow-x-hidden",
-          "lg:w-[calc(100%-18rem)]",
-          isRtl ? "lg:mr-72" : "lg:ml-72",
+          sidebarCollapsed ? "lg:w-[calc(100%-5rem)]" : "lg:w-[calc(100%-18rem)]",
+          isRtl ? (sidebarCollapsed ? "lg:mr-20" : "lg:mr-72") : (sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"),
         ].join(" ")}
       >
         <div className="flex min-h-screen w-full min-w-0 max-w-none flex-col overflow-x-hidden">
@@ -274,7 +708,7 @@ function MainLayout() {
                 </p>
               </div>
 
-              <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-2.5 lg:gap-3">
+              <div className="flex min-w-0 max-w-[calc(100vw-5rem)] items-center justify-end gap-2 overflow-x-auto sm:gap-2.5 lg:max-w-none lg:gap-3 lg:overflow-visible">
                 <button
                   type="button"
                   onClick={() => navigate("/shop")}
@@ -291,6 +725,14 @@ function MainLayout() {
                   <ShoppingBag className="h-4 w-4 text-emerald-300 transition group-hover:text-emerald-200" />
                   <span className="hidden sm:inline">Store</span>
                 </button>
+                {headerQuickActionItems.length ? (
+                  <div className="hidden min-w-0 max-w-[34vw] items-center gap-1.5 overflow-x-auto pe-1 lg:flex 2xl:max-w-none">
+                    {headerQuickActionItems.map((item) => (
+                      <HeaderQuickActionButton key={`header-quick-${item.to}`} item={item} location={location} />
+                    ))}
+                  </div>
+                ) : null}
+                <LanguageSwitcher compact className="shrink-0" />
                 <NotificationBoundary fallback={<NotificationBellFallback />}>
                   <Suspense fallback={<NotificationBellFallback />}>
                     <NotificationBell />
@@ -333,6 +775,7 @@ function MainLayout() {
       </main>
     </div>
     </NotificationsProvider>
+    </NotificationSoundProvider>
   );
 }
 

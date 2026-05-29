@@ -6,8 +6,8 @@ const manualProvider = {
     return {
       success: true,
       provider: "manual",
-      shipping_status: order.shipping_status || "manual_pending",
-      shipment_id: order.shipment_id || null,
+      shipping_status: "shipment_created",
+      shipment_id: order.shipment_id || `manual-${order.id || Date.now()}`,
       tracking_number: order.tracking_number || "",
       tracking_url: order.tracking_url || "",
       message: "Manual delivery is ready. Add tracking details when available.",
@@ -17,7 +17,7 @@ const manualProvider = {
     return {
       success: true,
       provider: "manual",
-      shipping_status: order.shipping_status || "manual_pending",
+      shipping_status: order.shipping_status || "shipment_created",
       tracking_number: order.tracking_number || "",
       tracking_url: order.tracking_url || "",
     };

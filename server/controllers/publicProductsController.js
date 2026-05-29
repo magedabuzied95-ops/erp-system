@@ -15,12 +15,41 @@ import {
 import { normalizeAttributionPlatform } from "../utils/marketingAttribution.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
 
+const normalizeAudienceValue = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["men", "man", "male", "mens", "رجال", "رجالي"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies", "lady", "نساء", "نسائي", "حريمي"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls", "اطفال", "أطفال", "طفل"].includes(normalized)) return "kids";
+  return "";
+};
+
+const normalizeProductAudiences = (...sources) => {
+  const seen = new Set();
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value === null || value === undefined) return;
+    String(value)
+      .split(/[,\n|]+/)
+      .map(normalizeAudienceValue)
+      .filter(Boolean)
+      .forEach((audience) => seen.add(audience));
+  };
+  sources.forEach(visit);
+  return ["men", "women", "kids"].filter((audience) => seen.has(audience));
+};
+
 const normalizeProductRow = (row = {}) => ({
   id: row.id,
   tenant_id: row.tenant_id || null,
   name: row.name || "",
   sku: row.sku || "",
+  product_code: row.product_code || "",
+  slug: row.slug || "",
   barcode: row.barcode || "",
+  qr_token: row.qr_token || "",
   image_url: row.image_url || "",
   public_image_url: row.public_image_url || row.image_url || "",
   description: row.description || "",
@@ -36,13 +65,49 @@ const normalizeProductRow = (row = {}) => ({
   sale_price: Number(row.sale_price || row.price || 0),
   cost_price: Number(row.cost_price || 0),
   stock: Number(row.stock || 0),
-  gender: row.gender || "",
+  gender: row.gender || normalizeProductAudiences(row.audiences, row.product_audiences)[0] || "",
+  audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
+  product_audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
   product_type: row.product_type || "",
   style: row.style || "",
   grade: row.grade || "",
 });
 
 const firstText = (...values) => values.map((value) => String(value || "").trim()).find(Boolean) || "";
+const slugifyProductName = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 160);
+const decodeIdentifier = (value = "") => {
+  try {
+    return decodeURIComponent(String(value || ""));
+  } catch {
+    return String(value || "");
+  }
+};
+const productIdentifierCandidates = (value = "") => {
+  const raw = String(value || "").trim();
+  const decoded = decodeIdentifier(raw).trim();
+  const candidates = [raw, decoded];
+  if (decoded.includes("-")) {
+    candidates.push(decoded.replace(/\s*-\s*/g, "-").replace(/-+/g, "-").trim());
+  }
+  return [...new Set(candidates.filter(Boolean))];
+};
+const productLookupFields = ["slug", "canonical_slug", "id", "sku", "product_code", "barcode", "qr_token", "variant.sku", "variant.barcode", "variant.edition_slug"];
+const productLookupFilters = [
+  "LOWER(slug) = LOWER(identifier)",
+  "LOWER(canonical_slug) = LOWER(identifier)",
+  "id = numeric identifier",
+  "LOWER(sku) = LOWER(identifier)",
+  "LOWER(product_code) = LOWER(identifier)",
+  "LOWER(barcode) = LOWER(identifier)",
+  "LOWER(qr_token) = LOWER(identifier)",
+  "variant sku/barcode/edition_slug",
+];
 
 const productSeoTitle = (product = {}) => firstText(product.meta_title, product.seo_title, product.name, "Product");
 const productSeoDescription = (product = {}) => firstText(product.seo_description, product.description_en, product.description_ar, product.description, product.name);
@@ -70,8 +135,126 @@ const withSocialMetadata = async (product = {}, req = null) => {
 };
 
 const ensurePublicProductEditionSchema = async () => {
+  await db.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS slug TEXT DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS canonical_slug TEXT DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS product_code TEXT DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS qr_token TEXT`);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS product_audiences (
+      id BIGSERIAL PRIMARY KEY,
+      product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      audience VARCHAR(30) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(product_id, audience),
+      CHECK (audience IN ('men', 'women', 'kids'))
+    )
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_product_audiences_product_id ON product_audiences (product_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_product_audiences_audience ON product_audiences (audience, product_id)`);
   await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS edition_name TEXT`);
   await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS edition_slug TEXT`);
+  await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+  await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
+  await db.query(`
+    UPDATE products
+    SET canonical_slug = COALESCE(
+      NULLIF(TRIM(canonical_slug), ''),
+      NULLIF(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(TRIM(COALESCE(name, ''))), '[^a-z0-9]+', '-', 'g'), '(^-+|-+$)', '', 'g'), ''),
+      'product-' || id
+    )
+    WHERE canonical_slug IS NULL OR TRIM(canonical_slug) = ''
+  `);
+  await db.query(`
+    UPDATE products
+    SET slug = COALESCE(
+      NULLIF(TRIM(slug), ''),
+      NULLIF(TRIM(canonical_slug), ''),
+      NULLIF(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(TRIM(COALESCE(name, ''))), '[^a-z0-9]+', '-', 'g'), '(^-+|-+$)', '', 'g'), ''),
+      'product-' || id
+    )
+    WHERE slug IS NULL OR TRIM(slug) = ''
+  `);
+};
+
+const lookupAny = (fieldSql, identifierParam) => `EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE LOWER(TRIM(COALESCE(${fieldSql}, ''))) = LOWER(TRIM(lookup.value)))`;
+const lookupFirst = (fieldSql, identifierParam) => `LOWER(TRIM(COALESCE(${fieldSql}, ''))) = LOWER(TRIM((${identifierParam}::text[])[1]))`;
+const publicProductIdentifierClause = (identifierParam = "$1") => `
+  (
+    ${lookupAny("p.slug", identifierParam)}
+    OR ${lookupAny("p.canonical_slug", identifierParam)}
+    OR EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE TRIM(lookup.value) ~ '^[0-9]+$' AND TRIM(lookup.value)::bigint = p.id)
+    OR ${lookupAny("p.sku", identifierParam)}
+    OR ${lookupAny("p.product_code", identifierParam)}
+    OR ${lookupAny("p.barcode", identifierParam)}
+    OR ${lookupAny("p.qr_token", identifierParam)}
+    OR EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE substring(TRIM(lookup.value) from '^SHOP-PROD-([0-9]+)') IS NOT NULL AND substring(TRIM(lookup.value) from '^SHOP-PROD-([0-9]+)')::bigint = p.id)
+    OR EXISTS (
+      SELECT 1
+      FROM product_variants pv_lookup
+      WHERE pv_lookup.product_id = p.id
+        AND pv_lookup.is_active IS DISTINCT FROM FALSE
+        AND pv_lookup.deleted_at IS NULL
+        AND (
+          ${lookupAny("pv_lookup.sku", identifierParam)}
+          OR ${lookupAny("pv_lookup.barcode", identifierParam)}
+          OR ${lookupAny("pv_lookup.edition_slug", identifierParam)}
+        )
+    )
+  )
+`;
+
+const publicProductVisibilityClause = `
+  COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+`;
+
+const publicProductIdentifierOrder = (identifierParam = "$1") => `
+  ORDER BY
+    CASE
+      WHEN ${lookupFirst("p.slug", identifierParam)} THEN 0
+      WHEN ${lookupAny("p.slug", identifierParam)} THEN 1
+      WHEN ${lookupFirst("p.canonical_slug", identifierParam)} THEN 2
+      WHEN ${lookupAny("p.canonical_slug", identifierParam)} THEN 3
+      WHEN EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE TRIM(lookup.value) ~ '^[0-9]+$' AND TRIM(lookup.value)::bigint = p.id) THEN 4
+      WHEN ${lookupAny("p.sku", identifierParam)} THEN 5
+      WHEN ${lookupAny("p.product_code", identifierParam)} THEN 6
+      WHEN ${lookupAny("p.barcode", identifierParam)} THEN 7
+      WHEN ${lookupAny("p.qr_token", identifierParam)} THEN 8
+      ELSE 9
+    END,
+    p.id ASC
+`;
+
+const loadPublicProductRow = async (identifier) => {
+  const identifiers = productIdentifierCandidates(identifier);
+  console.log("[public-products] product lookup", { identifier, identifiers, filters: productLookupFilters });
+  const result = await db.query(
+    `
+    SELECT
+      p.*,
+      COALESCE((SELECT jsonb_agg(pa.audience ORDER BY pa.audience) FROM product_audiences pa WHERE pa.product_id = p.id), '[]'::jsonb) AS audiences,
+      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, '')) AS public_image_url
+    FROM products p
+    WHERE ${publicProductVisibilityClause}
+      AND ${publicProductIdentifierClause("$1")}
+    ${publicProductIdentifierOrder("$1")}
+    LIMIT 1
+    `,
+    [identifiers]
+  );
+  if (result.rows[0]) {
+    console.log("[public-products] product matched", { identifier, matched_product_id: result.rows[0].id });
+  }
+  return result.rows[0] || null;
+};
+
+const logPublicProductNotFound = (req, identifier) => {
+  console.warn("[public-products] product not found", {
+    identifier,
+    identifiers: productIdentifierCandidates(identifier),
+    tenant_id: req.headers?.["x-tenant-id"] || req.query?.tenant_id || req.body?.tenant_id || null,
+    checked_fields: productLookupFields,
+    filters: productLookupFilters,
+  });
 };
 
 const deriveColorGroupsFromVariants = (variants = []) => {
@@ -95,20 +278,10 @@ export const getPublicProductById = async (req, res) => {
   try {
     await ensurePublicProductEditionSchema();
     await ensureProductVariantImagesSchema();
-    const result = await db.query(
-      `
-      SELECT
-        p.*,
-        COALESCE(NULLIF(p.image_url, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, '')) AS public_image_url
-      FROM products p
-      WHERE p.id = $1::bigint
-      LIMIT 1
-      `,
-      [req.params.id]
-    );
-
-    const product = result.rows[0];
+    const identifier = String(req.params.identifier || req.params.id || "").trim();
+    const product = identifier ? await loadPublicProductRow(identifier) : null;
     if (!product) {
+      logPublicProductNotFound(req, identifier);
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
@@ -130,6 +303,8 @@ export const getPublicProductById = async (req, res) => {
         edition_slug
       FROM product_variants
       WHERE product_id = $1::bigint
+        AND is_active IS DISTINCT FROM FALSE
+        AND deleted_at IS NULL
       ORDER BY id ASC
       `,
       [product.id]
@@ -158,7 +333,7 @@ export const getPublicProductById = async (req, res) => {
     const normalizedProduct = normalizeProductRow({ ...product, image_url: primaryImage, public_image_url: primaryImage });
     const publicProduct = await withSocialMetadata({
       ...normalizedProduct,
-      slug: `${normalizedProduct.id}-${encodeURIComponent(String(normalizedProduct.name || "product").replace(/\s+/g, "-"))}`,
+      slug: firstText(normalizedProduct.slug, normalizedProduct.canonical_slug, slugifyProductName(normalizedProduct.name), normalizedProduct.id),
       is_mirror: isMirrorProduct(normalizedProduct),
       seo_title: mirrorProductTitle(normalizedProduct, normalizedVariants[0]),
     }, req);
@@ -176,25 +351,13 @@ export const getPublicProductById = async (req, res) => {
 
 export const getPublicProductOgImage = async (req, res) => {
   try {
-    const result = await db.query(
-      `
-      SELECT
-        p.*,
-        COALESCE(NULLIF(p.image_url, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, '')) AS public_image_url
-      FROM products p
-      WHERE (
-          CASE WHEN split_part($1::text, '-', 1) ~ '^[0-9]+$'
-            THEN p.id = split_part($1::text, '-', 1)::bigint
-            ELSE FALSE
-          END
-        )
-        OR p.canonical_slug = $1::text
-      LIMIT 1
-      `,
-      [req.params.slug || req.params.id]
-    );
-    const row = result.rows[0];
-    if (!row) return res.status(404).json({ success: false, message: "Product not found" });
+    await ensurePublicProductEditionSchema();
+    const identifier = String(req.params.identifier || req.params.slug || req.params.id || "").trim();
+    const row = identifier ? await loadPublicProductRow(identifier) : null;
+    if (!row) {
+      logPublicProductNotFound(req, identifier);
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
     const product = normalizeProductRow(row);
     const ogImage = await generateProductOgImage({ product, req });
     res.setHeader("Content-Type", "image/jpeg");
@@ -208,29 +371,17 @@ export const getPublicProductOgImage = async (req, res) => {
 
 export const getPublicProductShareMetadata = async (req, res) => {
   try {
-    const result = await db.query(
-      `
-      SELECT
-        p.*,
-        COALESCE(NULLIF(p.image_url, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, '')) AS public_image_url
-      FROM products p
-      WHERE (
-          CASE WHEN split_part($1::text, '-', 1) ~ '^[0-9]+$'
-            THEN p.id = split_part($1::text, '-', 1)::bigint
-            ELSE FALSE
-          END
-        )
-        OR p.canonical_slug = $1::text
-      LIMIT 1
-      `,
-      [req.params.slug || req.params.id]
-    );
-    const row = result.rows[0];
-    if (!row) return res.status(404).json({ success: false, message: "Product not found" });
+    await ensurePublicProductEditionSchema();
+    const identifier = String(req.params.identifier || req.params.slug || req.params.id || "").trim();
+    const row = identifier ? await loadPublicProductRow(identifier) : null;
+    if (!row) {
+      logPublicProductNotFound(req, identifier);
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
     const normalizedProduct = normalizeProductRow(row);
     const product = await withSocialMetadata({
       ...normalizedProduct,
-      slug: `${normalizedProduct.id}-${encodeURIComponent(String(normalizedProduct.name || "product").replace(/\s+/g, "-"))}`,
+      slug: firstText(normalizedProduct.slug, normalizedProduct.canonical_slug, slugifyProductName(normalizedProduct.name), normalizedProduct.id),
       seo_title: mirrorProductTitle(normalizedProduct),
     }, req);
     res.json({ success: true, product, meta: product.social_meta });
@@ -273,3 +424,4 @@ export const logPublicMarketingEvent = async (req, res) => {
     res.status(500).json({ success: false, message: error.message || "Failed to log public event" });
   }
 };
+

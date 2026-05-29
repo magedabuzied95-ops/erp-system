@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   Bar,
@@ -24,12 +25,6 @@ import {
   printEmployeeReport,
 } from "../lib/employeeAnalyticsExport";
 import {
-  employeeCommissionMock,
-  employeePerformanceMock,
-  employeeRuleMock,
-  employeeSummaryMock,
-} from "../lib/employeeAnalyticsMockData";
-import {
   createCommissionRule,
   getCommissionRules,
   getCommissions,
@@ -40,11 +35,11 @@ import {
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 
 const PRESET_OPTIONS = [
-  { value: "30_days", label: "30 Days" },
-  { value: "7_days", label: "7 Days" },
-  { value: "this_month", label: "This Month" },
-  { value: "this_year", label: "This Year" },
-  { value: "custom", label: "Custom" },
+  { value: "30_days", labelKey: "last30Days" },
+  { value: "7_days", labelKey: "last7Days" },
+  { value: "this_month", labelKey: "thisMonth" },
+  { value: "this_year", labelKey: "thisYear" },
+  { value: "custom", labelKey: "custom" },
 ];
 
 const formatDate = (date) => {
@@ -80,9 +75,29 @@ const getPresetRange = (preset) => {
 };
 
 const getTone = (value, compare = 0) => (Number(value || 0) >= compare ? "emerald" : "amber");
+const localizedRuleValue = (t, group, value) => t(`common.employeeHub.analytics.commissions.${group}.${value || "global"}`);
+const EMPTY_SUMMARY = {
+  totalSales: 0,
+  totalOrders: 0,
+  totalCommission: 0,
+  bestCashier: "",
+  highestAverageOrder: null,
+};
 
-export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) {
-  const [activeTab, setActiveTab] = useState(defaultTab);
+export default function EmployeeAnalyticsWorkspace() {
+  const { t, i18n } = useTranslation();
+  const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
+  const direction = isRtl ? "rtl" : "ltr";
+  const unlinkedEmployeeLabel = t("common.employeeHub.analytics.labels.unlinkedEmployee", isRtl ? "موظف غير مرتبط" : "Unlinked employee");
+  const noShiftLabel = t("common.employeeHub.analytics.labels.noShiftAssigned", isRtl ? "بدون شيفت" : "No shift assigned");
+  const displayEmployeeName = (value) => {
+    const text = String(value || "").trim();
+    return !text || text === "Unknown Employee" || text === "Unlinked employee" ? unlinkedEmployeeLabel : text;
+  };
+  const displayShiftName = (value) => {
+    const text = String(value || "").trim();
+    return !text || text === "Unassigned Shift" || text === "No shift assigned" ? noShiftLabel : text;
+  };
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -93,7 +108,7 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
   const [commissions, setCommissions] = useState([]);
   const [rules, setRules] = useState([]);
   const [topPerformers, setTopPerformers] = useState([]);
-  const [summary, setSummary] = useState(employeeSummaryMock);
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [ruleDraft, setRuleDraft] = useState({
     name: "",
     scope_type: "global",
@@ -150,44 +165,30 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
         setShiftPerformance(safeArray(sales?.shiftPerformance || []));
         setBranchPerformance(safeArray(sales?.branchPerformance || []));
         setCommissions(commissionsRows);
-        setRules(rulesRows.length ? rulesRows : employeeRuleMock);
+        setRules(rulesRows);
         setTopPerformers(topRows.length ? topRows : salesRows.slice(0, 10));
         setSummary({
-          totalSales: sales?.summary?.totalSales ?? salesRows.reduce((acc, row) => acc + Number(row.total_sales || 0), 0) ?? employeeSummaryMock.totalSales,
-          totalOrders: sales?.summary?.totalOrders ?? salesRows.reduce((acc, row) => acc + Number(row.total_orders || 0), 0) ?? employeeSummaryMock.totalOrders,
-          totalCommission: sales?.summary?.totalCommission ?? commissionsRows.reduce((acc, row) => acc + Number(row.commission_amount || 0), 0) ?? employeeSummaryMock.totalCommission,
-          bestCashier: sales?.summary?.bestCashier || salesRows[0]?.employee_name || employeeSummaryMock.bestCashier,
-          highestAverageOrder: sales?.summary?.highestAverageOrder || employeeSummaryMock.highestAverageOrder,
+          totalSales: sales?.summary?.totalSales ?? salesRows.reduce((acc, row) => acc + Number(row.total_sales || 0), 0) ?? 0,
+          totalOrders: sales?.summary?.totalOrders ?? salesRows.reduce((acc, row) => acc + Number(row.total_orders || 0), 0) ?? 0,
+          totalCommission: sales?.summary?.totalCommission ?? commissionsRows.reduce((acc, row) => acc + Number(row.commission_amount || 0), 0) ?? 0,
+          bestCashier: sales?.summary?.bestCashier || salesRows[0]?.employee_name || "",
+          highestAverageOrder: sales?.summary?.highestAverageOrder || null,
         });
         setSource("live");
       } catch (loadError) {
         if (!active) return;
 
-        console.warn("Employee analytics fallback activated because the backend response was unavailable.", loadError);
-        setSalesPerformance(employeePerformanceMock);
-        setShiftPerformance(
-          employeePerformanceMock.map((item) => ({
-            shift_name: item.shift_name,
-            total_sales: item.total_sales,
-            total_orders: item.total_orders,
-            average_order_value: item.average_order_value,
-          }))
-        );
-        setBranchPerformance(
-          employeePerformanceMock.map((item) => ({
-            branch_name: item.branch_name,
-            total_sales: item.total_sales,
-            total_orders: item.total_orders,
-            average_order_value: item.average_order_value,
-          }))
-        );
-        setCommissions(employeeCommissionMock);
-        setRules(employeeRuleMock);
-        setTopPerformers(employeePerformanceMock);
-        setSummary(employeeSummaryMock);
-        setSource("fallback");
-        setError("Showing local employee analytics fallback data.");
-        toast.error("Using employee analytics fallback data");
+        console.warn("Employee analytics failed to load live data.", loadError);
+        setSalesPerformance([]);
+        setShiftPerformance([]);
+        setBranchPerformance([]);
+        setCommissions([]);
+        setRules([]);
+        setTopPerformers([]);
+        setSummary(EMPTY_SUMMARY);
+        setSource("error");
+        setError(t("common.employeeHub.analytics.status.unavailableMessage", "Employee analytics are unavailable. No placeholder data is shown."));
+        toast.error(t("common.employeeHub.analytics.toasts.unavailableData", "Unable to load employee analytics"));
       } finally {
         if (active) setLoading(false);
         if (active) setRefreshing(false);
@@ -211,12 +212,12 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
       rules,
       filters,
       meta: {
-        companyName: "ERP System",
-        title: "Employee Analytics Report",
-        subtitle: "Sales performance, commissions, and shift analytics",
+        companyName: t("common.employeeHub.analytics.export.companyName"),
+        title: t("common.employeeHub.analytics.export.title"),
+        subtitle: t("common.employeeHub.analytics.export.subtitle"),
       },
     }),
-    [summary, salesPerformance, commissions, topPerformers, shiftPerformance, branchPerformance, rules, filters]
+    [summary, salesPerformance, commissions, topPerformers, shiftPerformance, branchPerformance, rules, filters, t]
   );
 
   const handleExportPdf = async () => {
@@ -224,7 +225,7 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
       await downloadEmployeePdf(exportPayload);
     } catch (err) {
       console.warn("Employee analytics PDF export failed", err);
-      toast.error("Unable to export PDF");
+      toast.error(t("common.employeeHub.analytics.toasts.exportPdfFailed"));
     }
   };
 
@@ -233,7 +234,7 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
       downloadEmployeeCsv(exportPayload);
     } catch (err) {
       console.warn("Employee analytics CSV export failed", err);
-      toast.error("Unable to export CSV");
+      toast.error(t("common.employeeHub.analytics.toasts.exportCsvFailed"));
     }
   };
 
@@ -242,13 +243,13 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
       printEmployeeReport(exportPayload);
     } catch (err) {
       console.warn("Employee analytics print failed", err);
-      toast.error("Unable to print report");
+      toast.error(t("common.employeeHub.analytics.toasts.printFailed"));
     }
   };
 
   const handleCreateRule = async () => {
     if (!ruleDraft.name.trim()) {
-      toast.error("Rule name is required");
+      toast.error(t("common.employeeHub.analytics.toasts.ruleNameRequired"));
       return;
     }
 
@@ -273,10 +274,10 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
         priority: 10,
         is_active: true,
       });
-      toast.success("Commission rule created");
+      toast.success(t("common.employeeHub.analytics.toasts.ruleCreated"));
     } catch (err) {
       console.warn("Commission rule creation failed", err);
-      toast.error("Unable to create commission rule");
+      toast.error(t("common.employeeHub.analytics.toasts.ruleCreateFailed"));
     }
   };
 
@@ -285,32 +286,22 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
   };
 
   const chartData = salesPerformance.slice(0, 8).map((item) => ({
-    name: item.employee_name,
+    name: displayEmployeeName(item.employee_name),
     sales: Number(item.total_sales || 0),
     commission: Number(item.commission_earned || 0),
   }));
 
   const shiftChartData = shiftPerformance.slice(0, 8).map((item) => ({
-    name: item.shift_name,
+    name: displayShiftName(item.shift_name),
     sales: Number(item.total_sales || 0),
   }));
-
-  const tabs = [
-    { key: "overview", label: "Overview" },
-    { key: "sales", label: "Sales Performance" },
-    { key: "commissions", label: "Commissions" },
-    { key: "top", label: "Top Performers" },
-    { key: "shifts", label: "Shift Analytics" },
-  ];
-
-  const selectedTab = activeTab || "overview";
 
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center rounded-[32px] border border-white/10 bg-zinc-950/80">
         <div className="inline-flex items-center gap-3 rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-zinc-200">
           <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />
-          Loading employee analytics...
+          {t("common.employeeHub.analytics.loading")}
         </div>
       </div>
     );
@@ -318,29 +309,34 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
 
   return (
     <EmployeeAnalyticsShell
-      title="Sales performance and commissions"
-      subtitle="Track cashier performance, commissions, top performers, and shift analytics in one premium workspace."
-      activeTab={selectedTab}
-      onTabChange={setActiveTab}
+      title={t("common.employeeHub.analytics.title")}
+      subtitle={t("common.employeeHub.analytics.subtitle")}
+      eyebrow={t("common.employeeHub.analytics.eyebrow")}
+      actionLabels={{
+        refresh: t("common.refresh"),
+        exportPdf: t("common.employeeHub.analytics.actions.exportPdf"),
+        exportCsv: t("common.employeeHub.analytics.actions.exportCsv"),
+        print: t("common.print"),
+      }}
+      isRtl={isRtl}
       onRefresh={refresh}
       onExportPdf={handleExportPdf}
       onExportCsv={handleExportCsv}
       onPrint={handlePrint}
-      tabs={tabs}
     >
-      <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.16)]">
+      <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.16)]" dir={direction}>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <CalendarDays className="h-4 w-4 text-cyan-300" />
-              Analytics filters
+              {t("common.employeeHub.analytics.filters.title")}
             </div>
-            <p className="mt-1 text-xs text-zinc-500">Date filters refetch the employee analytics backend automatically.</p>
+            <p className="mt-1 text-xs text-zinc-500">{t("common.employeeHub.analytics.filters.subtitle")}</p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              Range
+              {t("common.employeeHub.analytics.filters.range")}
               <select
                 value={filters.datePreset}
                 onChange={(event) =>
@@ -354,14 +350,14 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
               >
                 {PRESET_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
-                    {option.label}
+                    {t(`common.employeeHub.analytics.presets.${option.labelKey}`)}
                   </option>
                 ))}
               </select>
             </label>
 
             <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              Start date
+              {t("common.employeeHub.analytics.filters.startDate")}
               <input
                 type="date"
                 value={filters.startDate}
@@ -378,7 +374,7 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
             </label>
 
             <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              End date
+              {t("common.employeeHub.analytics.filters.endDate")}
               <input
                 type="date"
                 value={filters.endDate}
@@ -397,29 +393,28 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${source === "fallback" ? "bg-amber-500/10 text-amber-200" : "bg-emerald-500/10 text-emerald-200"}`}>
-            {source === "fallback" ? "Fallback active" : "Live data loaded"}
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${source === "error" ? "bg-rose-500/10 text-rose-200" : "bg-emerald-500/10 text-emerald-200"}`}>
+            {source === "error" ? t("common.employeeHub.analytics.status.unavailable", "Unavailable") : t("common.employeeHub.analytics.status.liveData")}
           </span>
           {error ? <span className="rounded-full bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-200">{error}</span> : null}
-          {refreshing ? <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">Refreshing</span> : null}
+          {refreshing ? <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">{t("common.employeeHub.analytics.status.refreshing")}</span> : null}
         </div>
       </div>
 
-      {selectedTab === "overview" ? (
-        <div className="space-y-6">
+      <div className="space-y-6" id="analytics-overview">
           <div className="grid gap-4 xl:grid-cols-4">
-            <EmployeeMetricCard label="Best cashier" value={summary.bestCashier || "n/a"} hint="Highest overall sales" tone="emerald" />
-            <EmployeeMetricCard label="Highest revenue" value={formatCurrency(summary.totalSales)} hint={`Orders: ${summary.totalOrders || 0}`} tone="cyan" />
-            <EmployeeMetricCard label="Highest average order" value={formatCurrency(summary.highestAverageOrder?.average_order_value || 0)} hint={summary.highestAverageOrder?.employee_name || "n/a"} tone="amber" />
-            <EmployeeMetricCard label="Commission leaderboard" value={formatCurrency(summary.totalCommission)} hint="Total earned commission" tone="rose" />
+            <EmployeeMetricCard label={t("common.employeeHub.analytics.metrics.bestCashier")} value={summary.bestCashier || t("common.notAvailable")} hint={t("common.employeeHub.analytics.metrics.highestSales")} tone="emerald" isRtl={isRtl} />
+            <EmployeeMetricCard label={t("common.employeeHub.analytics.metrics.highestRevenue")} value={formatCurrency(summary.totalSales)} hint={t("common.employeeHub.analytics.metrics.orders", { count: summary.totalOrders || 0 })} tone="cyan" isRtl={isRtl} />
+            <EmployeeMetricCard label={t("common.employeeHub.analytics.metrics.highestAverageOrder")} value={formatCurrency(summary.highestAverageOrder?.average_order_value || 0)} hint={summary.highestAverageOrder?.employee_name || t("common.notAvailable")} tone="amber" isRtl={isRtl} />
+            <EmployeeMetricCard label={t("common.employeeHub.analytics.metrics.commissionLeaderboard")} value={formatCurrency(summary.totalCommission)} hint={t("common.employeeHub.analytics.metrics.totalEarnedCommission")} tone="rose" isRtl={isRtl} />
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">
             <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.22em] text-cyan-300">Revenue by employee</div>
-                  <h2 className="mt-2 text-xl font-black text-white">Sales and commission mix</h2>
+                  <div className={isRtl ? "text-xs font-bold text-cyan-300" : "text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.charts.revenueByEmployee")}</div>
+                  <h2 className="mt-2 text-xl font-black text-white">{t("common.employeeHub.analytics.charts.salesCommissionMix")}</h2>
                 </div>
                 <ShieldCheck className="h-5 w-5 text-cyan-300" />
               </div>
@@ -442,8 +437,8 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
             <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.22em] text-cyan-300">Shift analytics</div>
-                  <h2 className="mt-2 text-xl font-black text-white">Shift revenue trend</h2>
+                  <div className={isRtl ? "text-xs font-bold text-cyan-300" : "text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.charts.shiftAnalytics")}</div>
+                  <h2 className="mt-2 text-xl font-black text-white">{t("common.employeeHub.analytics.charts.shiftRevenueTrend")}</h2>
                 </div>
                 <Clock3 className="h-5 w-5 text-cyan-300" />
               </div>
@@ -462,33 +457,31 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
               </div>
             </div>
           </div>
-        </div>
-      ) : null}
+      </div>
 
-      {selectedTab === "sales" ? (
-        <section className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
+      <section id="analytics-sales" className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
             <Users className="h-4 w-4 text-emerald-300" />
-            Sales performance
+            {t("common.employeeHub.analytics.sections.salesPerformance")}
           </div>
           <div className="overflow-hidden rounded-3xl border border-white/10">
-            <table className="min-w-full text-left text-sm">
+            <table className={`min-w-full text-sm ${isRtl ? "text-right" : "text-left"}`}>
               <thead className="bg-white/5 text-zinc-400">
                 <tr>
-                  <th className="px-4 py-3">Employee</th>
-                  <th className="px-4 py-3">Role</th>
-                  <th className="px-4 py-3">Sales</th>
-                  <th className="px-4 py-3">Orders</th>
-                  <th className="px-4 py-3">Avg Order</th>
-                  <th className="px-4 py-3">Commission</th>
-                  <th className="px-4 py-3">Refunds</th>
+                  <th className="px-4 py-3">{t("common.employeeHub.analytics.table.employee")}</th>
+                  <th className="px-4 py-3">{t("common.employeeHub.analytics.table.role")}</th>
+                  <th className="px-4 py-3">{t("common.employeeHub.analytics.table.sales")}</th>
+                  <th className="px-4 py-3">{t("common.employeeHub.analytics.table.orders")}</th>
+                  <th className="px-4 py-3">{t("common.employeeHub.analytics.table.avgOrder")}</th>
+                  <th className="px-4 py-3">{t("common.employeeHub.analytics.table.commission")}</th>
+                  <th className="px-4 py-3">{t("common.employeeHub.analytics.table.refunds")}</th>
                 </tr>
               </thead>
               <tbody>
                 {salesPerformance.map((row) => (
                   <tr key={String(row.employee_id || row.employee_name)} className="border-t border-white/5">
-                    <td className="px-4 py-3 text-white">{row.employee_name}</td>
-                    <td className="px-4 py-3 text-zinc-300">{row.role_name || "Staff"}</td>
+                    <td className="px-4 py-3 text-white">{displayEmployeeName(row.employee_name)}</td>
+                    <td className="px-4 py-3 text-zinc-300">{row.role_name || t("common.employeeHub.analytics.roles.staff")}</td>
                     <td className="px-4 py-3 text-zinc-200">{formatCurrency(row.total_sales)}</td>
                     <td className="px-4 py-3 text-zinc-200">{row.total_orders || 0}</td>
                     <td className="px-4 py-3 text-zinc-200">{formatCurrency(row.average_order_value)}</td>
@@ -499,29 +492,27 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
               </tbody>
             </table>
           </div>
-        </section>
-      ) : null}
+      </section>
 
-      {selectedTab === "commissions" ? (
-        <section className="space-y-6">
+      <section id="analytics-commissions" className="space-y-6">
           <div className="grid gap-4 xl:grid-cols-3">
-            <EmployeeMetricCard label="Commission rows" value={commissions.length} hint="Recorded earnings" tone="cyan" />
-            <EmployeeMetricCard label="Rule count" value={rules.length} hint="Active and inactive rules" tone="amber" />
-            <EmployeeMetricCard label="Total commission" value={formatCurrency(summary.totalCommission)} hint="From commission rows" tone="emerald" />
+            <EmployeeMetricCard label={t("common.employeeHub.analytics.metrics.commissionRows")} value={commissions.length} hint={t("common.employeeHub.analytics.metrics.recordedEarnings")} tone="cyan" isRtl={isRtl} />
+            <EmployeeMetricCard label={t("common.employeeHub.analytics.metrics.ruleCount")} value={rules.length} hint={t("common.employeeHub.analytics.metrics.activeInactiveRules")} tone="amber" isRtl={isRtl} />
+            <EmployeeMetricCard label={t("common.employeeHub.analytics.metrics.totalCommission")} value={formatCurrency(summary.totalCommission)} hint={t("common.employeeHub.analytics.metrics.fromCommissionRows")} tone="emerald" isRtl={isRtl} />
           </div>
 
           <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <div className="text-xs uppercase tracking-[0.22em] text-cyan-300">Commission rules</div>
-                <h2 className="mt-2 text-xl font-black text-white">Configurable rules</h2>
+                <div className={isRtl ? "text-xs font-bold text-cyan-300" : "text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.commissions.rules")}</div>
+                <h2 className="mt-2 text-xl font-black text-white">{t("common.employeeHub.analytics.commissions.configurableRules")}</h2>
               </div>
             </div>
             <div className="mb-5 grid gap-3 rounded-3xl border border-white/10 bg-white/[0.04] p-4 xl:grid-cols-4">
               <input
                 value={ruleDraft.name}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, name: event.target.value }))}
-                placeholder="Rule name"
+                placeholder={t("common.employeeHub.analytics.commissions.ruleName")}
                 className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               />
               <select
@@ -529,18 +520,18 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, scope_type: event.target.value }))}
                 className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none"
               >
-                <option value="global">Global</option>
-                <option value="product">Product</option>
-                <option value="category">Category</option>
-                <option value="employee">Employee</option>
+                <option value="global">{t("common.employeeHub.analytics.commissions.scope.global")}</option>
+                <option value="product">{t("common.employeeHub.analytics.commissions.scope.product")}</option>
+                <option value="category">{t("common.employeeHub.analytics.commissions.scope.category")}</option>
+                <option value="employee">{t("common.employeeHub.analytics.commissions.scope.employee")}</option>
               </select>
               <select
                 value={ruleDraft.rule_type}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, rule_type: event.target.value }))}
                 className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none"
               >
-                <option value="percentage">Percentage</option>
-                <option value="fixed">Fixed</option>
+                <option value="percentage">{t("common.employeeHub.analytics.commissions.ruleType.percentage")}</option>
+                <option value="fixed">{t("common.employeeHub.analytics.commissions.ruleType.fixed")}</option>
               </select>
               <input
                 type="number"
@@ -548,13 +539,13 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
                 step="0.01"
                 value={ruleDraft.value}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, value: event.target.value }))}
-                placeholder="Value"
+                placeholder={t("common.employeeHub.analytics.commissions.value")}
                 className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               />
               <input
                 value={ruleDraft.scope_id}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, scope_id: event.target.value }))}
-                placeholder="Scope ID (optional)"
+                placeholder={t("common.employeeHub.analytics.commissions.scopeId")}
                 className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               />
               <input
@@ -563,7 +554,7 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
                 step="1"
                 value={ruleDraft.priority}
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, priority: event.target.value }))}
-                placeholder="Priority"
+                placeholder={t("common.employeeHub.analytics.commissions.priority")}
                 className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
               />
               <select
@@ -571,15 +562,15 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
                 onChange={(event) => setRuleDraft((prev) => ({ ...prev, apply_to: event.target.value }))}
                 className="rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none"
               >
-                <option value="sale">Sale</option>
-                <option value="item">Item</option>
+                <option value="sale">{t("common.employeeHub.analytics.commissions.apply.sale")}</option>
+                <option value="item">{t("common.employeeHub.analytics.commissions.apply.item")}</option>
               </select>
               <button
                 type="button"
                 onClick={handleCreateRule}
                 className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
               >
-                Add rule
+                {t("common.employeeHub.analytics.commissions.addRule")}
               </button>
             </div>
             <div className="grid gap-3 xl:grid-cols-2">
@@ -588,17 +579,17 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-base font-bold text-white">{rule.name}</div>
-                      <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{rule.scope_type} / {rule.rule_type}</div>
+                      <div className={isRtl ? "text-xs font-bold text-zinc-500" : "text-xs uppercase tracking-[0.18em] text-zinc-500"}>{localizedRuleValue(t, "scope", rule.scope_type)} / {localizedRuleValue(t, "ruleType", rule.rule_type)}</div>
                     </div>
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${rule.is_active ? "bg-emerald-500/10 text-emerald-200" : "bg-rose-500/10 text-rose-200"}`}>
-                      {rule.is_active ? "Active" : "Inactive"}
+                      {rule.is_active ? t("common.employeeHub.analytics.status.active") : t("common.employeeHub.analytics.status.inactive")}
                     </span>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-zinc-300">
-                    <div>Value: <span className="font-semibold text-white">{Number(rule.value || 0)}{rule.rule_type === "percentage" ? "%" : ""}</span></div>
-                    <div>Priority: <span className="font-semibold text-white">{rule.priority || 0}</span></div>
-                    <div>Applies to: <span className="font-semibold text-white">{rule.apply_to || "sale"}</span></div>
-                    <div>Scope ID: <span className="font-semibold text-white">{rule.scope_id || "global"}</span></div>
+                    <div>{t("common.employeeHub.analytics.commissions.value")}: <span className="font-semibold text-white">{Number(rule.value || 0)}{rule.rule_type === "percentage" ? "%" : ""}</span></div>
+                    <div>{t("common.employeeHub.analytics.commissions.priority")}: <span className="font-semibold text-white">{rule.priority || 0}</span></div>
+                    <div>{t("common.employeeHub.analytics.commissions.appliesTo")}: <span className="font-semibold text-white">{localizedRuleValue(t, "apply", rule.apply_to || "sale")}</span></div>
+                    <div>{t("common.employeeHub.analytics.commissions.scopeIdLabel")}: <span className="font-semibold text-white">{rule.scope_id || t("common.employeeHub.analytics.commissions.scope.global")}</span></div>
                   </div>
                 </div>
               ))}
@@ -606,76 +597,78 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
           </div>
 
           <div className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
-            <div className="mb-4 text-xs uppercase tracking-[0.22em] text-cyan-300">Commission transactions</div>
+            <div className={isRtl ? "mb-4 text-xs font-bold text-cyan-300" : "mb-4 text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.commissions.transactions")}</div>
             <div className="overflow-hidden rounded-3xl border border-white/10">
-              <table className="min-w-full text-left text-sm">
+              <table className={`min-w-full text-sm ${isRtl ? "text-right" : "text-left"}`}>
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
-                    <th className="px-4 py-3">Employee</th>
-                    <th className="px-4 py-3">Invoice</th>
-                    <th className="px-4 py-3">Sale</th>
-                    <th className="px-4 py-3">Commission</th>
-                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">{t("common.employeeHub.analytics.table.employee")}</th>
+                    <th className="px-4 py-3">{t("common.employeeHub.analytics.table.invoice")}</th>
+                    <th className="px-4 py-3">{t("common.employeeHub.analytics.table.sale")}</th>
+                    <th className="px-4 py-3">{t("common.employeeHub.analytics.table.commission")}</th>
+                    <th className="px-4 py-3">{t("common.status")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {commissions.map((row) => (
                     <tr key={String(row.id)} className="border-t border-white/5">
-                      <td className="px-4 py-3 text-white">{row.employee_name}</td>
-                      <td className="px-4 py-3 text-zinc-300">{row.invoice_number || "n/a"}</td>
+                      <td className="px-4 py-3 text-white">{displayEmployeeName(row.employee_name)}</td>
+                      <td className="px-4 py-3 text-zinc-300">{row.invoice_number || t("common.notAvailable")}</td>
                       <td className="px-4 py-3 text-zinc-200">{formatCurrency(row.sale_amount)}</td>
                       <td className="px-4 py-3 text-emerald-200">{formatCurrency(row.commission_amount)}</td>
-                      <td className="px-4 py-3 text-cyan-200">{row.status || "n/a"}</td>
+                      <td className="px-4 py-3 text-cyan-200">{row.status || t("common.notAvailable")}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
-        </section>
-      ) : null}
+      </section>
 
-      {selectedTab === "top" ? (
-        <section className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
+      <section id="analytics-top" className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
             <Crown className="h-4 w-4 text-amber-300" />
-            Top performers
+            {t("common.employeeHub.analytics.sections.topPerformers")}
           </div>
-          <div className="grid gap-4 xl:grid-cols-2">
+          {chartData.length === 0 && shiftChartData.length === 0 ? (
+            <div className="rounded-[28px] border border-dashed border-white/10 bg-zinc-950/70 p-8 text-sm font-semibold text-zinc-400">
+              {t("common.employeeHub.analytics.empty.noSalesData", "No sales data")}
+            </div>
+          ) : null}
+
+          <div className="grid gap-6 xl:grid-cols-2">
             {topPerformers.map((row, index) => (
               <div key={String(row.employee_id || row.employee_name)} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-white font-bold">{index + 1}. {row.employee_name}</div>
+                  <div className="text-white font-bold">{index + 1}. {displayEmployeeName(row.employee_name)}</div>
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(row.total_sales, 100000) === "emerald" ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"}`}>
                     {formatCurrency(row.total_sales)}
                   </span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-zinc-300">
-                  <div>Orders: <span className="font-semibold text-white">{row.total_orders || 0}</span></div>
-                  <div>Avg order: <span className="font-semibold text-white">{formatCurrency(row.average_order_value)}</span></div>
-                  <div>Commission: <span className="font-semibold text-cyan-200">{formatCurrency(row.commission_earned)}</span></div>
-                  <div>Shift: <span className="font-semibold text-white">{row.shift_name || "n/a"}</span></div>
+                  <div>{t("common.employeeHub.analytics.table.orders")}: <span className="font-semibold text-white">{row.total_orders || 0}</span></div>
+                  <div>{t("common.employeeHub.analytics.table.avgOrder")}: <span className="font-semibold text-white">{formatCurrency(row.average_order_value)}</span></div>
+                  <div>{t("common.employeeHub.analytics.table.commission")}: <span className="font-semibold text-cyan-200">{formatCurrency(row.commission_earned)}</span></div>
+                  <div>{t("common.employeeHub.analytics.table.shift")}: <span className="font-semibold text-white">{displayShiftName(row.shift_name)}</span></div>
                 </div>
               </div>
             ))}
           </div>
-        </section>
-      ) : null}
+      </section>
 
-      {selectedTab === "shifts" ? (
-        <section className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
+      <section id="analytics-shifts" className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
             <Building2 className="h-4 w-4 text-cyan-300" />
-            Shift analytics
+            {t("common.employeeHub.analytics.sections.shiftAnalytics")}
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             {shiftPerformance.map((row) => (
               <div key={String(row.shift_id || row.shift_name)} className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                <div className="text-white font-bold">{row.shift_name}</div>
+                <div className="text-white font-bold">{displayShiftName(row.shift_name)}</div>
                 <div className="mt-3 grid grid-cols-3 gap-3 text-sm text-zinc-300">
-                  <div>Sales<br /><span className="font-semibold text-white">{formatCurrency(row.total_sales)}</span></div>
-                  <div>Orders<br /><span className="font-semibold text-white">{row.total_orders || 0}</span></div>
-                  <div>Avg order<br /><span className="font-semibold text-white">{formatCurrency(row.average_order_value)}</span></div>
+                  <div>{t("common.employeeHub.analytics.table.sales")}<br /><span className="font-semibold text-white">{formatCurrency(row.total_sales)}</span></div>
+                  <div>{t("common.employeeHub.analytics.table.orders")}<br /><span className="font-semibold text-white">{row.total_orders || 0}</span></div>
+                  <div>{t("common.employeeHub.analytics.table.avgOrder")}<br /><span className="font-semibold text-white">{formatCurrency(row.average_order_value)}</span></div>
                 </div>
               </div>
             ))}
@@ -700,15 +693,15 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
           </div>
 
           <div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-3 text-xs uppercase tracking-[0.22em] text-cyan-300">Branch performance</div>
+            <div className={isRtl ? "mb-3 text-xs font-bold text-cyan-300" : "mb-3 text-xs uppercase tracking-[0.22em] text-cyan-300"}>{t("common.employeeHub.analytics.sections.branchPerformance")}</div>
             <div className="overflow-hidden rounded-3xl border border-white/10">
-              <table className="min-w-full text-left text-sm">
+              <table className={`min-w-full text-sm ${isRtl ? "text-right" : "text-left"}`}>
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
-                    <th className="px-4 py-3">Branch</th>
-                    <th className="px-4 py-3">Sales</th>
-                    <th className="px-4 py-3">Orders</th>
-                    <th className="px-4 py-3">Avg Order</th>
+                    <th className="px-4 py-3">{t("common.employeeHub.analytics.table.branch")}</th>
+                    <th className="px-4 py-3">{t("common.employeeHub.analytics.table.sales")}</th>
+                    <th className="px-4 py-3">{t("common.employeeHub.analytics.table.orders")}</th>
+                    <th className="px-4 py-3">{t("common.employeeHub.analytics.table.avgOrder")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -724,8 +717,7 @@ export default function EmployeeAnalyticsWorkspace({ defaultTab = "overview" }) 
               </table>
             </div>
           </div>
-        </section>
-      ) : null}
+      </section>
     </EmployeeAnalyticsShell>
   );
 }

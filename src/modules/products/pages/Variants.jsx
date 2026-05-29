@@ -26,7 +26,7 @@ const readFileAsDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
-const ChipEditor = ({ label, placeholder, value, onChange }) => {
+const ChipEditor = ({ label, placeholder, value, onChange, addLabel }) => {
   const [text, setText] = useState("");
 
   return (
@@ -58,7 +58,7 @@ const ChipEditor = ({ label, placeholder, value, onChange }) => {
           }}
           className="rounded-2xl bg-emerald-500 px-4 py-3 font-semibold text-white"
         >
-          Add
+          {addLabel}
         </button>
       </div>
     </div>
@@ -221,8 +221,20 @@ function Variants() {
               ))}
             </select>
 
-            <ChipEditor label="Colors" placeholder="Black, White, Blue" value={colors} onChange={setColors} />
-            <ChipEditor label="Sizes" placeholder="40, 41, 42" value={sizes} onChange={setSizes} />
+            <ChipEditor
+              label={t("products.variantPage.colors")}
+              placeholder={t("products.variantPage.colorsPlaceholder")}
+              value={colors}
+              onChange={setColors}
+              addLabel={t("products.variantPage.addChip")}
+            />
+            <ChipEditor
+              label={t("products.variantPage.sizes")}
+              placeholder={t("products.variantPage.sizesPlaceholder")}
+              value={sizes}
+              onChange={setSizes}
+              addLabel={t("products.variantPage.addChip")}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -261,7 +273,7 @@ function Variants() {
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white disabled:opacity-50"
               >
                 <CheckCircle2 size={18} />
-                {saving ? t("common.saving") : t("products.variantPage.saveVariants")}
+                {saving ? t("products.shared.saving") : t("products.variantPage.saveVariants")}
               </button>
             </div>
           </div>
@@ -279,12 +291,12 @@ function Variants() {
               <p className="mt-1 text-sm text-zinc-500">{t("products.variantPage.variantGridHelp")}</p>
             </div>
             <div className="relative min-w-0 max-w-sm flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+              <Search className="pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t("products.variantPage.searchExisting")}
-                className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 pl-11 pr-4 text-white outline-none placeholder:text-zinc-500"
+                className="w-full rounded-2xl border border-white/8 bg-white/5 py-3 ps-11 pe-4 text-white outline-none placeholder:text-zinc-500"
               />
             </div>
           </div>

@@ -1,29 +1,30 @@
-# Logs
-logs
-runtime-logs
-*.log
-*.err
-*.out
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+node_modules/
+server/node_modules/
 
-node_modules
-dist
-dist-ssr
-*.local
+dist/
+build/
+.vite/
+
 .env
-server/.env
+.env.*
+!.env.example
+!server/.env.example
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+*.log
+backend-log.txt
+meta-log.txt
+
+.codex*/
+.codex-*/
+.codex-screenshots/
+
+uploads/
+server/uploads/
+
+cloudflared.exe
+
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+Thumbs.db
+
+.vscode/
+.idea/

@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import db from "../database/db.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { ensureStaffTasksSchema } from "../services/staffTasksService.js";
+import { buildOrderItemInsertQuery } from "../utils/orderItemInsert.js";
 
 const API_BASE_URL = process.env.API_BASE_URL || "http://127.0.0.1:8000/api";
 
@@ -129,21 +130,34 @@ const setup = async () => {
     `,
     [tenantId, branchId]
   );
-  await db.query(
-    `
-    INSERT INTO order_items (tenant_id, order_id, product_id, variant_id, product_name, quantity, sale_price, total_amount)
-    VALUES ($1,$2,$3,$4,'Hot Product',15,100,1500)
-    `,
-    [tenantId, order.rows[0].id, product.rows[0].id, variant.rows[0].id]
-  );
+  const orderItemQuery = buildOrderItemInsertQuery({
+    tenant_id: tenantId,
+    order_id: order.rows[0].id,
+    product_id: product.rows[0].id,
+    variant_id: variant.rows[0].id,
+    product_name: "Hot Product",
+    quantity: 15,
+    sale_price: 100,
+    unit_price: 100,
+    price: 100,
+    total_amount: 1500,
+    line_total: 1500,
+    subtotal: 1500,
+  }, {
+    filePath: "server/scripts/verifyBranchQrStaffTasks.js",
+    routeName: "verifyBranchQrStaffTasks",
+    insertLabel: "verificationOrderItems",
+    sqlSnippetLabel: "branch_qr_verification_order_items_insert",
+  });
+  await db.query(orderItemQuery.sql, orderItemQuery.params);
 
   await db.query(
     `
     INSERT INTO staff_task_assignments (
-      tenant_id, title, description, task_type, source_module, source_ref_type, source_ref_id,
+      tenant_id, title, description, title_ar, description_ar, task_type, source_module, source_ref_type, source_ref_id,
       branch_id, assigned_employee_id, current_assignee_id, assigned_date, priority, auto_assigned, metadata
     )
-    VALUES ($1,'Pre-existing absent task','Should move to present staff','opening',$2,'daily_branch_slot',$3,$4,$5,$5,CURRENT_DATE,'medium',TRUE,$6::jsonb)
+    VALUES ($1,'مهمة موظف غائب موجودة مسبقًا','يجب نقلها إلى موظف حاضر','مهمة موظف غائب موجودة مسبقًا','يجب نقلها إلى موظف حاضر','opening',$2,'daily_branch_slot',$3,$4,$5,$5,CURRENT_DATE,'medium',TRUE,$6::jsonb)
     `,
     [
       tenantId,
@@ -191,7 +205,7 @@ const run = async () => {
   assert(first.response.status === 201, `employee #1 check-in failed: ${first.response.status} ${first.data.message || ""}`);
   let tasks = await countTasks(ctx);
   assert(tasks.some((task) => task.current_assignee_id === employeeOne.id && task.task_type === "opening"), "employee #1 did not receive opening tasks");
-  assert(tasks.some((task) => task.current_assignee_id === employeeOne.id && task.title === "Pre-existing absent task"), "missing employee task was not redistributed");
+  assert(tasks.some((task) => task.current_assignee_id === employeeOne.id && task.title === "مهمة موظف غائب موجودة مسبقًا"), "missing employee task was not redistributed");
 
   const firstDuplicate = await postJson(`/attendance/public/branch/${ctx.token}/actions`, {
     employee_id: employeeOne.id,
@@ -207,8 +221,8 @@ const run = async () => {
   });
   assert(second.response.status === 201, `employee #2 check-in failed: ${second.response.status} ${second.data.message || ""}`);
   tasks = await countTasks(ctx);
-  assert(tasks.some((task) => task.current_assignee_id === employeeTwo.id && /mirror/i.test(task.title)), "employee #2 did not receive mirror task");
-  assert(tasks.some((task) => task.current_assignee_id === employeeTwo.id && /glass/i.test(task.title)), "employee #2 did not receive glass task");
+  assert(tasks.some((task) => task.current_assignee_id === employeeTwo.id && /مرايات/.test(task.title_ar || task.title)), "employee #2 did not receive mirror task");
+  assert(tasks.some((task) => task.current_assignee_id === employeeTwo.id && /زجاج/.test(task.title_ar || task.title)), "employee #2 did not receive glass task");
   assert(tasks.some((task) => task.source_ref_type === "branch_hot_product_count"), "hot product stock count task was not created");
 
   const notifications = await db.query(

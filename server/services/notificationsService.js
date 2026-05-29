@@ -4,6 +4,8 @@ import { io } from "../utils/socket.js";
 const PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 const DEFAULT_LIMIT = 30;
 const DEDUPE_WINDOW_MINUTES = 10;
+let notificationsSchemaEnsurePromise = null;
+let notificationsSchemaEnsured = false;
 
 const text = (value = "") => String(value ?? "").trim();
 const nullableText = (value) => {
@@ -27,7 +29,7 @@ export const normalizeNotificationUserContext = (user = {}) => ({
   ) || user.is_super_admin === true,
 });
 
-export const ensureNotificationsSchema = async (clientOrPool = db) => {
+const runNotificationsSchemaEnsure = async (clientOrPool = db) => {
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS notifications (
       id BIGSERIAL PRIMARY KEY,
@@ -59,6 +61,24 @@ export const ensureNotificationsSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at DESC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_entity ON notifications (entity_type, entity_id)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_tenant_created ON notifications (tenant_id, created_at DESC)`);
+};
+
+export const ensureNotificationsSchema = async (clientOrPool = db) => {
+  if (notificationsSchemaEnsured) return;
+
+  if (!notificationsSchemaEnsurePromise) {
+    notificationsSchemaEnsurePromise = runNotificationsSchemaEnsure(clientOrPool)
+      .then(() => {
+        notificationsSchemaEnsured = true;
+        console.log("[notifications-schema] ensured");
+      })
+      .catch((error) => {
+        notificationsSchemaEnsurePromise = null;
+        throw error;
+      });
+  }
+
+  await notificationsSchemaEnsurePromise;
 };
 
 const normalizeNotification = (data = {}) => ({

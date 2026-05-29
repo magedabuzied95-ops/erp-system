@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 
 import { useNotifications } from "./useNotifications.js";
+import useDismissableLayer from "../hooks/useDismissableLayer";
+import AnimatedBadgeCounter from "../../components/feedback/AnimatedBadgeCounter";
+import RealtimeGlowWrapper from "../../components/feedback/RealtimeGlowWrapper";
 
 const groupOrder = ["Today", "Yesterday", "Earlier"];
 
@@ -28,6 +31,7 @@ const moduleLabels = {
   payments: "Payments",
   inventory: "Inventory",
   purchases: "Purchases",
+  employees: "Employees",
   security: "Security",
   system: "System",
 };
@@ -42,6 +46,7 @@ const typeIcon = {
   website_order_created: ShoppingCart,
   payment_proof_uploaded: CreditCard,
   purchase_confirmed: ReceiptText,
+  employee_portal_request: Inbox,
   security_sensitive_action: ShieldAlert,
 };
 
@@ -51,6 +56,7 @@ const categoryIcon = {
   payments: CreditCard,
   inventory: Package,
   purchases: ReceiptText,
+  employees: Inbox,
   security: ShieldAlert,
   system: Bell,
 };
@@ -68,6 +74,7 @@ const iconClass = {
   payments: "bg-cyan-50 text-cyan-700 ring-cyan-100 dark:bg-cyan-400/10 dark:text-cyan-200 dark:ring-cyan-300/15",
   inventory: "bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-300/15",
   purchases: "bg-blue-50 text-blue-700 ring-blue-100 dark:bg-blue-400/10 dark:text-blue-200 dark:ring-blue-300/15",
+  employees: "bg-sky-50 text-sky-700 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-200 dark:ring-sky-300/15",
   security: "bg-rose-50 text-rose-700 ring-rose-100 dark:bg-rose-400/10 dark:text-rose-200 dark:ring-rose-300/15",
   system: "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10",
 };
@@ -121,6 +128,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
   const handleAction = onOpen || onAction;
 
   return (
+    <RealtimeGlowWrapper channel={category} className="rounded-2xl">
     <article
       className={[
         "group relative overflow-hidden rounded-2xl border p-4 shadow-sm transition duration-200",
@@ -185,6 +193,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
         </div>
       </div>
     </article>
+    </RealtimeGlowWrapper>
   );
 }
 
@@ -214,23 +223,11 @@ export default function NotificationBell() {
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
 
-  useEffect(() => {
-    if (!open || typeof document === "undefined") return undefined;
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    const handlePointerDown = (event) => {
-      const target = event.target;
-      if (panelRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      document.removeEventListener("mousedown", handlePointerDown);
-    };
-  }, [open]);
+  useDismissableLayer({
+    enabled: open,
+    refs: [panelRef, triggerRef],
+    onDismiss: () => setOpen(false),
+  });
 
   useEffect(() => {
     if (open) refresh();
@@ -267,11 +264,7 @@ export default function NotificationBell() {
         aria-expanded={open}
       >
         <Bell className="h-5 w-5" />
-        {unreadCount > 0 ? (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white ring-2 ring-[var(--surface)]">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
-        ) : null}
+        <AnimatedBadgeCounter value={unreadCount} className="absolute -right-1 -top-1" />
       </button>
 
       {open ? (

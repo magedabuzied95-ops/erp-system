@@ -1,9 +1,40 @@
 import { api } from "../../../shared/api/api";
 
 const unwrapArray = (payload) =>
-  Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.posts) ? payload.posts : Array.isArray(payload) ? payload : [];
+  Array.isArray(payload?.data)
+    ? payload.data
+    : Array.isArray(payload?.posts)
+      ? payload.posts
+      : Array.isArray(payload?.campaigns)
+        ? payload.campaigns
+        : Array.isArray(payload?.suggestions)
+          ? payload.suggestions
+          : Array.isArray(payload)
+            ? payload
+            : [];
 
-const unwrapItem = (payload) => payload?.data ?? payload?.post ?? payload?.campaign ?? payload?.template ?? payload?.settings ?? payload ?? null;
+const unwrapItem = (payload) => payload?.campaign ?? payload?.data ?? payload?.post ?? payload?.template ?? payload?.settings ?? payload ?? null;
+
+const logMarketingApiError = (endpointName, endpoint, payload, error) => {
+  if (typeof console === "undefined") return;
+  console.error("[marketing-api] request failed", {
+    endpointName,
+    endpoint,
+    status: error?.status ?? error?.response?.status ?? null,
+    responseBody: error?.responseBody ?? error?.response?.data ?? null,
+    requestPayload: payload ?? null,
+    message: error?.message || "Request failed",
+  });
+};
+
+const withMarketingApiLogging = async (endpointName, endpoint, payload, callback) => {
+  try {
+    return await callback();
+  } catch (error) {
+    logMarketingApiError(endpointName, endpoint, payload, error);
+    throw error;
+  }
+};
 
 const unique = (items = []) => Array.from(new Set(items.map((item) => String(item || "").trim()).filter(Boolean)));
 
@@ -28,6 +59,100 @@ const imageFromGalleryItem = (item) => {
 };
 
 export const getMarketingDashboard = async (options = {}) => unwrapItem(await api.get("/marketing/dashboard", options));
+export const getAutonomousAiMarketingSettings = async () => unwrapItem(await api.get("/marketing/ai-center/settings"));
+export const updateAutonomousAiMarketingSettings = async (body) => unwrapItem(await api.patch("/marketing/ai-center/settings", body));
+export const getAutonomousAiMarketingOverview = async () => unwrapItem(await api.get("/marketing/ai-center/overview"));
+export const getAutonomousAiMarketingQueue = async (params = {}, options = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== "") query.set(key, value);
+  });
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const payload = await api.get(`/marketing/ai-center/queue${suffix}`, options);
+  return Array.isArray(payload?.queue) ? payload.queue : unwrapArray(payload);
+};
+export const generateAutonomousAiMarketingDaily = async () => api.post("/marketing/ai-center/generate/daily", {});
+export const generateAutonomousAiMarketingWeekly = async () => api.post("/marketing/ai-center/generate/weekly", {});
+export const generateAutonomousAiMarketingMonthly = async () => api.post("/marketing/ai-center/generate/monthly", {});
+export const generateAutonomousAiMarketingVideosDaily = async (body = {}) => api.post("/marketing/ai-center/videos/generate/daily", body);
+export const generateAutonomousAiMarketingVideosWeekly = async (body = {}) => api.post("/marketing/ai-center/videos/generate/weekly", body);
+export const generateAutonomousAiMarketingVideosMonthly = async (body = {}) => api.post("/marketing/ai-center/videos/generate/monthly", body);
+export const syncAutonomousAiMarketingInsights = async () => unwrapItem(await api.post("/marketing/ai-center/insights/sync", {}));
+export const approveAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/approve`, {}));
+export const publishAutonomousAiMarketingQueueItemNow = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/publish-now`, {}));
+export const deleteAutonomousAiMarketingQueueItem = async (id) => {
+  try {
+    const payload = await api.delete(`/marketing/ai-center/queue/${id}`, { suppressErrorStatuses: [404] });
+    return { status: 200, payload };
+  } catch (error) {
+    if (Number(error?.status) === 404) {
+      return { status: 404, payload: error.responseBody || null, stale: true };
+    }
+    throw error;
+  }
+};
+export const pauseAutonomousAiMarketing = async () => unwrapItem(await api.post("/marketing/ai-center/pause", {}));
+export const resumeAutonomousAiMarketing = async () => unwrapItem(await api.post("/marketing/ai-center/resume", {}));
+export const getAiMarketingSuggestions = async (options = {}) => unwrapArray(await api.get("/marketing/ai-center/suggestions", options));
+export const getAiMarketingDrafts = async (params = {}, options = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== "") query.set(key, value);
+  });
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return unwrapArray(await api.get(`/marketing/ai-center/drafts${suffix}`, options));
+};
+export const createAiMarketingDraft = async (body) => unwrapItem(await api.post("/marketing/ai-center/drafts", body));
+export const updateAiMarketingDraft = async (id, body) => unwrapItem(await api.patch(`/marketing/ai-center/drafts/${id}`, body));
+export const approveAiMarketingDraft = async (id) => unwrapItem(await api.post(`/marketing/ai-center/drafts/${id}/approve`, {}));
+export const rejectAiMarketingDraft = async (id) => unwrapItem(await api.post(`/marketing/ai-center/drafts/${id}/reject`, {}));
+export const scheduleAiMarketingDraft = async (id, body) => unwrapItem(await api.post(`/marketing/ai-center/drafts/${id}/schedule`, body));
+export const publishNowAiMarketingDraft = async (id) => unwrapItem(await api.post(`/marketing/ai-center/drafts/${id}/publish-now`, {}));
+export const generateAiMarketingWeeklyPack = async (body) => api.post("/marketing/ai-center/generate-weekly-pack", body);
+export const getAiMarketingAutomationSettings = async () => unwrapItem(await api.get("/marketing/ai-center/automation-settings"));
+export const getAiMarketingAutomationLogs = async (params = {}, options = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== "") query.set(key, value);
+  });
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return unwrapArray(await api.get(`/marketing/ai-center/automation-logs${suffix}`, options));
+};
+export const getAiMarketingBrandIdentity = async () => unwrapItem(await api.get("/marketing/ai-center/brand-identity"));
+export const updateAiMarketingBrandIdentity = async (body) => unwrapItem(await api.put("/marketing/ai-center/brand-identity", body));
+export const updateAiMarketingAutomationSettings = async (body) => unwrapItem(await api.put("/marketing/ai-center/automation-settings", body));
+export const runAiMarketingAutomationNow = async () => api.post("/marketing/ai-center/run-automation-now", {});
+export const runAiMarketingAutoPublishNow = async () => api.post("/marketing/ai-center/auto-publish/run-now", {});
+export const generateStoryCampaign = async (body) =>
+  withMarketingApiLogging("generateStoryCampaign", "POST /api/marketing/story-campaigns/generate", body, async () =>
+    unwrapItem(await api.post("/marketing/story-campaigns/generate", body, { debugLabel: "generateStoryCampaign" }))
+  );
+export const getStoryCampaigns = async (params = {}, options = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== "") query.set(key, value);
+  });
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return unwrapArray(await api.get(`/marketing/story-campaigns${suffix}`, options));
+};
+export const getStoryCampaign = async (id) => unwrapItem(await api.get(`/marketing/story-campaigns/${id}`));
+export const updateStoryCampaign = async (id, body) => unwrapItem(await api.patch(`/marketing/story-campaigns/${id}`, body));
+export const deleteStoryCampaign = async (id) => api.delete(`/marketing/story-campaigns/${id}`);
+export const createStoryCampaignExport = async (campaignId, body) => unwrapItem(await api.post(`/marketing/story-campaigns/${campaignId}/exports`, body));
+export const getStoryCampaignExports = async (campaignId) => unwrapArray(await api.get(`/marketing/story-campaigns/${campaignId}/exports`));
+export const getStoryTriggerSuggestions = async (options = {}) =>
+  withMarketingApiLogging("getStoryTriggerSuggestions", "GET /api/marketing/story-triggers/suggestions", null, async () =>
+    unwrapArray(await api.get("/marketing/story-triggers/suggestions", { ...options, debugLabel: "getStoryTriggerSuggestions" }))
+  );
+export const refreshStoryTriggerSuggestions = async () =>
+  withMarketingApiLogging("refreshStoryTriggerSuggestions", "POST /api/marketing/story-triggers/refresh", {}, async () =>
+    api.post("/marketing/story-triggers/refresh", {}, { debugLabel: "refreshStoryTriggerSuggestions" })
+  );
+export const generateStoryCampaignFromTrigger = async (id) =>
+  withMarketingApiLogging("generateStoryCampaignFromTrigger", `POST /api/marketing/story-triggers/${id}/generate-campaign`, {}, async () =>
+    unwrapItem(await api.post(`/marketing/story-triggers/${id}/generate-campaign`, {}, { debugLabel: "generateStoryCampaignFromTrigger" }))
+  );
+export const dismissStoryTriggerSuggestion = async (id) => unwrapItem(await api.patch(`/marketing/story-triggers/${id}/dismiss`, {}));
 
 export const getMarketingCampaigns = async (options = {}) => unwrapArray(await api.get("/marketing/campaigns", options));
 export const createMarketingCampaign = async (body) => unwrapItem(await api.post("/marketing/campaigns", body));
@@ -97,6 +222,18 @@ export const getMarketingSettings = async () => {
 export const updateMarketingSettings = async (body) => unwrapItem(await api.put("/marketing/settings", body));
 export const refreshMarketingMetaTokens = async (body = {}) => unwrapItem(await api.post("/marketing/settings/refresh-tokens", body));
 export const testMarketingAutoRefresh = async (body = {}) => api.post("/marketing/settings/test-auto-refresh", body);
+export const getMetaIntegrationStatus = async (options = {}) => api.get("/integrations/meta/status", options);
+export const getMetaHealth = async (options = {}) => unwrapItem(await api.get("/meta/health", options));
+export const getMetaCapabilities = async (options = {}) => unwrapItem(await api.get("/meta/capabilities", options));
+export const getMetaWebhookHealth = async (options = {}) => unwrapItem(await api.get("/meta/webhook-health", options));
+export const getMetaWebhookSelfTest = async (options = {}) => api.get("/meta/webhook-self-test", options);
+export const enableMetaWebhookSubscription = async (body = {}, options = {}) => api.post("/meta/webhook-enable", body, options);
+export const testMetaMessage = async (body = {}) => unwrapItem(await api.post("/meta/test-message", body));
+export const testMetaPublish = async (body = {}) => unwrapItem(await api.post("/meta/test-publish", body));
+export const getMetaSetupCheck = async (options = {}) => unwrapItem(await api.get("/meta/setup-check", options));
+export const startMetaOAuth = async () => unwrapItem(await api.get("/meta/oauth/start?mode=json"));
+export const getMetaOAuthPages = async (options = {}) => unwrapItem(await api.get("/meta/oauth/pages", options));
+export const selectMetaOAuthPage = async (body = {}) => unwrapItem(await api.post("/meta/oauth/select-page", body));
 export const getCommentDmRules = async (options = {}) => unwrapArray(await api.get("/marketing/comment-dm/rules", options));
 export const createCommentDmRule = async (body) => unwrapItem(await api.post("/marketing/comment-dm/rules", body));
 export const updateCommentDmRule = async (id, body) => unwrapItem(await api.put(`/marketing/comment-dm/rules/${id}`, body));

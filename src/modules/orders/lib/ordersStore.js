@@ -1,29 +1,16 @@
 export { formatCurrency } from "../../../shared/lib/currency";
+import { displayPublicOrderNumber } from "../../../shared/utils/publicOrderNumber";
+import {
+  ORDER_LIFECYCLE_STATUSES,
+  normalizeOrderLifecycleStatus,
+} from "../../../../shared/orderStatus.js";
 
 const ORDERS_META_KEY = "erp.orders.meta";
 const RETURNS_KEY = "erp.orders.returns";
 
-export const ORDER_STATUSES = [
-  "Pending",
-  "Confirmed",
-  "Paid",
-  "Partially Paid",
-  "Shipped",
-  "Delivered",
-  "Cancelled",
-  "Returned",
-  "Refunded",
-];
+export const ORDER_STATUSES = ORDER_LIFECYCLE_STATUSES;
 
-export const SHIPPING_STATUSES = [
-  "Pending",
-  "Packed",
-  "Shipped",
-  "In Transit",
-  "Out for Delivery",
-  "Delivered",
-  "Returned",
-];
+export const SHIPPING_STATUSES = ORDER_STATUSES;
 
 const safeWindow = () =>
   typeof window !== "undefined" ? window : null;
@@ -72,6 +59,53 @@ export const upsertOrderMeta = (orderId, patch) => {
   return next[String(orderId)];
 };
 
+const normalizePaymentStatusLabel = (value) => {
+  const normalized = String(value || "").toLowerCase();
+  if (["paid", "shipping_paid", "confirmed", "approved"].includes(normalized)) return "Paid";
+  if (["partially_paid", "partially paid", "partial"].includes(normalized)) return "Partially Paid";
+  if (normalized === "awaiting_verification") return "Awaiting Verification";
+  if (["refunded", "refund", "fully_refunded"].includes(normalized)) return "Refunded";
+  if (["partially_refunded", "partially refunded", "partial_refund"].includes(normalized)) return "Partially Refunded";
+  if (normalized === "rejected") return "Rejected";
+  if (normalized === "cod") return "COD";
+  if (normalized === "unpaid") return "Unpaid";
+  return value;
+};
+
+const normalizeComparable = (value = "") => String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+export const RETURNED_ORDER_STATUS_KEYS = [
+  "returned",
+  "refunded",
+  "fully_refunded",
+  "partially_refunded",
+  "partial_refund",
+  "return_completed",
+  "completed_return",
+  "return_requested",
+  "refund_requested",
+];
+
+export const isReturnedOrRefundedOrder = (order = {}) => {
+  const values = [
+    order.status,
+    order.payment_status,
+    order.paymentStatus,
+    order.return_status,
+    order.refund_status,
+    order.transfer_proof_status,
+  ].map(normalizeComparable);
+  const hasReturnStatus = values.some((value) => RETURNED_ORDER_STATUS_KEYS.includes(value));
+  const hasReturnTimestamp = Boolean(order.returned_at || order.refunded_at || order.refund_completed_at || order.return_completed_at);
+  const hasRefundAmount = Number(order.refund_amount || order.refunded_amount || order.total_refund_amount || 0) > 0;
+  const hasReturnedItems = Array.isArray(order.items) && order.items.some((item) => Number(item.returned_quantity || item.refunded_quantity || 0) > 0);
+  return hasReturnStatus || hasReturnTimestamp || hasRefundAmount || hasReturnedItems;
+};
+
+export const getReturnedOrders = (orders = []) => orders.filter(isReturnedOrRefundedOrder);
+
+export const getReturnedOrdersCount = (orders = []) => getReturnedOrders(orders).length;
+
 export const getReturns = () => readJson(RETURNS_KEY, []);
 
 export const addReturnRecord = (record) => {
@@ -83,12 +117,25 @@ export const addReturnRecord = (record) => {
 
 export const normalizeOrder = (order, details = {}) => {
   const meta = getOrderMeta(order.id);
-  const total = Number(order.total_price ?? order.total ?? details.total ?? 0);
-  const status = order.status || details.status || meta.status || "Pending";
+  const total = Number(order.total_price ?? order.total_amount ?? order.total ?? details.total ?? details.total_amount ?? 0);
+  const items = Array.isArray(details.items) ? details.items : Array.isArray(order.items) ? order.items : [];
+  const totalQuantity = Number(
+    order.total_quantity ??
+    order.total_items ??
+    order.item_count ??
+    details.total_quantity ??
+    details.total_items ??
+    details.item_count ??
+    items.reduce((sum, item) => sum + Number(item.quantity || item.qty || 0), 0)
+  );
+  const paidAmount = Number(order.paid_amount ?? order.amount_paid ?? order.payment_paid_amount ?? order.total_paid ?? details.paid_amount ?? details.amount_paid ?? 0);
+  const status = normalizeOrderLifecycleStatus(order.status || details.status || meta.status, "pending");
   const paymentStatus =
-    order.payment_status ||
-    meta.paymentStatus ||
-    (status === "Paid" ? "Paid" : status === "Partially Paid" ? "Partially Paid" : "Unpaid");
+    normalizePaymentStatusLabel(
+      order.payment_status ||
+      meta.paymentStatus ||
+      (status === "Paid" ? "Paid" : status === "Partially Paid" ? "Partially Paid" : "Unpaid")
+    );
 
   return {
     ...order,
@@ -97,7 +144,24 @@ export const normalizeOrder = (order, details = {}) => {
     status,
     paymentStatus,
     customer_name: order.customer_name || details.customer_name || meta.customer_name || "Walk-in Customer",
-    customer_phone: order.customer_phone || details.customer_phone || meta.customer_phone || "",
+    customer_phone: order.customer_phone || order.phone || order.customer?.phone || details.customer_phone || details.phone || meta.customer_phone || "",
+    phone: order.phone || order.customer_phone || order.customer?.phone || details.phone || details.customer_phone || "",
+    total_quantity: totalQuantity,
+    total_items: totalQuantity,
+    item_count: totalQuantity,
+    paid_amount: paidAmount,
+    amount_paid: paidAmount,
+    payment_paid_amount: paidAmount,
+    total_paid: paidAmount,
+    payment_method: order.payment_method || order.paymentMethod || meta.payment_method || "",
+    payment_type: order.payment_type || order.paymentType || "",
+    cash_amount: Number(order.cash_amount ?? order.cashAmount ?? details.cash_amount ?? 0),
+    card_amount: Number(order.card_amount ?? order.cardAmount ?? details.card_amount ?? 0),
+    wallet_payment_amount: Number(order.wallet_payment_amount ?? order.wallet_amount ?? order.walletAmount ?? details.wallet_payment_amount ?? 0),
+    sales_employee_name: order.sales_employee_name || details.sales_employee_name || "",
+    seller_name: order.seller_name || details.seller_name || "",
+    salesperson_name: order.salesperson_name || details.salesperson_name || "",
+    assigned_seller_name: order.assigned_seller_name || details.assigned_seller_name || "",
     channel: meta.channel || order.source || order.channel || "POS",
     source: meta.source || order.source || order.channel || "POS",
     customer_type: order.customer_type || meta.customer_type || "",
@@ -112,23 +176,25 @@ export const normalizeOrder = (order, details = {}) => {
     branch: meta.branch || order.branch || "Main",
     notes: meta.notes || order.notes || "",
     shipping_provider: meta.shipping_provider || order.shipping_provider || "",
-    shipping_status: meta.shipping_status || order.shipping_status || order.delivery_status || "Pending",
+    shipping_status: normalizeOrderLifecycleStatus(meta.shipping_status || order.shipping_status || order.delivery_status, "pending"),
     shipment_id: order.shipment_id || "",
     tracking_number: meta.tracking_number || order.tracking_number || "",
     tracking_url: order.tracking_url || "",
     courier_notes: order.courier_notes || "",
     shipping_fee: Number(meta.shipping_fee ?? order.shipping_fee ?? order.delivery_fee ?? 0),
-    payment_method: order.payment_method || meta.payment_method || "",
     shipping_payment_method: order.shipping_payment_method || meta.shipping_payment_method || "",
     shipping_payment_screenshot: order.shipping_payment_screenshot || "",
     shipping_payment_reference: order.shipping_payment_reference || "",
+    transfer_proof_status: order.transfer_proof_status || "",
     shipping_payment_verified_at: order.shipping_payment_verified_at || null,
     shipping_payment_verified_by: order.shipping_payment_verified_by || null,
     invoice_number:
       meta.invoice_number ||
       order.invoice_number ||
-      `INV-${String(order.id).padStart(6, "0")}`,
-    items: Array.isArray(details.items) ? details.items : Array.isArray(order.items) ? order.items : [],
+      `INV-${order.id}`,
+    public_order_number: displayPublicOrderNumber(order),
+    display_order_number: displayPublicOrderNumber(order),
+    items,
   };
 };
 
@@ -168,9 +234,7 @@ export const deriveKpis = (orders) => {
   const totalOrders = orders.length;
   const paid = orders.filter((order) => order.paymentStatus === "Paid").length;
   const pending = orders.filter((order) => order.status === "Pending").length;
-  const returned = orders.filter(
-    (order) => order.status === "Returned" || order.paymentStatus === "Refunded"
-  ).length;
+  const returned = getReturnedOrdersCount(orders);
   const revenue = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
 
   return { totalOrders, paid, pending, returned, revenue };
@@ -187,11 +251,20 @@ export const buildSearchText = (order) => {
 
   return [
     order.invoice_number,
+    order.public_order_number,
+    order.display_order_number,
     order.id,
     order.customer_name,
     order.customer_phone,
+    order.phone,
+    order.sales_employee_name,
+    order.seller_name,
+    order.salesperson_name,
+    order.assigned_seller_name,
     order.status,
     order.paymentStatus,
+    order.payment_status,
+    order.payment_method,
     order.channel,
     order.branch,
     itemText,
@@ -210,6 +283,10 @@ export const mockOrders = () => {
         customer_name: "Ayman Khaled",
         customer_phone: "+20 100 123 0001",
         total_price: 1420,
+        paid_amount: 1420,
+        payment_method: "cash",
+        cash_amount: 1420,
+        sales_employee_name: "POS Seller",
         status: "Paid",
         created_at: new Date(now - 1000 * 60 * 60 * 4).toISOString(),
       },
@@ -233,6 +310,12 @@ export const mockOrders = () => {
         customer_name: "Mona Saad",
         customer_phone: "+20 101 555 2200",
         total_price: 890,
+        paid_amount: 300,
+        payment_status: "partially_paid",
+        payment_method: "split",
+        cash_amount: 150,
+        card_amount: 150,
+        seller_name: "Floor Seller",
         status: "Pending",
         created_at: new Date(now - 1000 * 60 * 60 * 12).toISOString(),
       },
@@ -256,6 +339,10 @@ export const mockOrders = () => {
         customer_name: "Omar Hassan",
         customer_phone: "+20 102 777 7788",
         total_price: 2380,
+        paid_amount: 0,
+        payment_status: "deferred",
+        payment_method: "credit",
+        salesperson_name: "Credit Seller",
         status: "Shipped",
         created_at: new Date(now - 1000 * 60 * 60 * 24).toISOString(),
       },

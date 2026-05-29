@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { AlertTriangle, ArrowLeft, Phone, ReceiptText, Wallet } from "lucide-react";
 import toast from "react-hot-toast";
@@ -9,6 +10,7 @@ import StatusBadge from "../components/StatusBadge";
 import { formatCurrency, formatDateTime, getLocalPurchases, normalizeSupplier, seedSuppliers } from "../lib/flowStore";
 
 function SupplierDetails() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const [supplier, setSupplier] = useState(null);
@@ -27,8 +29,8 @@ function SupplierDetails() {
       console.log(err);
       const fallback = seedSuppliers().find((row) => String(row.id) === String(id));
       setSupplier(fallback ? normalizeSupplier(fallback) : null);
-      setError("Showing local fallback supplier data because the live endpoint is unavailable.");
-      toast.error("Using fallback supplier details");
+      setError(t("purchases.supplierDetails.fallbackError"));
+      toast.error(t("purchases.supplierDetails.fallbackToast"));
     } finally {
       setLoading(false);
     }
@@ -58,9 +60,9 @@ function SupplierDetails() {
 
   if (loading) {
     return (
-      <FlowShell title="Supplier Details" subtitle="Loading supplier information...">
+      <FlowShell title={t("purchases.supplierDetails.title")} subtitle={t("purchases.supplierDetails.loadingSubtitle")}>
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-10 text-center text-zinc-400">
-          Loading...
+          {t("purchases.supplierDetails.loading")}
         </div>
       </FlowShell>
     );
@@ -68,13 +70,13 @@ function SupplierDetails() {
 
   if (!supplier) {
     return (
-      <FlowShell title="Supplier Details" subtitle="Supplier record not found.">
+      <FlowShell title={t("purchases.supplierDetails.title")} subtitle={t("purchases.supplierDetails.notFoundSubtitle")}>
         <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-6 text-amber-100">
-          <AlertTriangle className="mr-2 inline h-4 w-4" />
-          Supplier not found.
+          <AlertTriangle className="me-2 inline h-4 w-4" />
+          {t("purchases.supplierDetails.notFound")}
           <div className="mt-4">
             <button type="button" onClick={() => navigate("/suppliers")} className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-black">
-              Back to suppliers
+              {t("purchases.supplierDetails.backToSuppliers")}
             </button>
           </div>
         </div>
@@ -87,27 +89,27 @@ function SupplierDetails() {
   return (
     <FlowShell
       title={supplier.name}
-      subtitle="Supplier ledger, contact info, debt balance, transaction history, and purchase history."
+      subtitle={t("purchases.supplierDetails.subtitle")}
       actions={
         <Link
           to="/suppliers"
           className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back
+          {t("purchases.supplierDetails.back")}
         </Link>
       }
       tabs={[
-        { to: "/purchases", label: "Purchases", end: true },
-        { to: "/purchases/create", label: "Create PO" },
-        { to: "/suppliers", label: "Suppliers", end: true },
-        { to: "/inventory", label: "Inventory" },
-        { to: "/warehouses", label: "Warehouses" },
+        { to: "/purchases", label: t("purchases.tabs.purchases"), end: true },
+        { to: "/purchases/create", label: t("purchases.tabs.createPo") },
+        { to: "/suppliers", label: t("purchases.tabs.suppliers"), end: true },
+        { to: "/inventory", label: t("purchases.tabs.inventory") },
+        { to: "/warehouses", label: t("purchases.tabs.warehouses") },
       ]}
     >
       {error ? (
         <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
-          <AlertTriangle className="mr-2 inline h-4 w-4" />
+          <AlertTriangle className="me-2 inline h-4 w-4" />
           {error}
         </div>
       ) : null}
@@ -117,27 +119,27 @@ function SupplierDetails() {
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Supplier profile</div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.supplierDetails.profile")}</div>
                 <h2 className="mt-2 text-2xl font-black text-white">{supplier.name}</h2>
-                <p className="mt-1 text-sm text-zinc-400">{supplier.address || "No address"}</p>
+                <p className="mt-1 text-sm text-zinc-400">{supplier.address || t("purchases.supplierDetails.noAddress")}</p>
               </div>
               <StatusBadge value={supplier.status} />
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Info label="Phone" value={supplier.phone || "n/a"} icon={<Phone className="h-4 w-4" />} />
-              <Info label="Email" value={supplier.email || "n/a"} />
-              <Info label="Debt / balance" value={formatCurrency(balance)} icon={<Wallet className="h-4 w-4" />} />
-              <Info label="Purchases" value={String(purchases.length)} icon={<ReceiptText className="h-4 w-4" />} />
+              <Info label={t("purchases.supplierDetails.phone")} value={supplier.phone || t("purchases.supplierDetails.notAvailable")} icon={<Phone className="h-4 w-4" />} />
+              <Info label={t("purchases.supplierDetails.email")} value={supplier.email || t("purchases.supplierDetails.notAvailable")} />
+              <Info label={t("purchases.supplierDetails.debtBalance")} value={formatCurrency(balance)} icon={<Wallet className="h-4 w-4" />} />
+              <Info label={t("purchases.supplierDetails.purchases")} value={String(purchases.length)} icon={<ReceiptText className="h-4 w-4" />} />
             </div>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Purchase history</h3>
+            <h3 className="text-xl font-black text-white">{t("purchases.supplierDetails.purchaseHistory")}</h3>
             <div className="mt-4 space-y-3">
               {purchases.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
-                  No purchase history available for this supplier.
+                  {t("purchases.supplierDetails.noPurchaseHistory")}
                 </div>
               ) : (
                 purchases.map((purchase) => (
@@ -149,7 +151,7 @@ function SupplierDetails() {
                       </div>
                       <StatusBadge value={purchase.status} />
                     </div>
-                    <div className="mt-3 text-sm text-zinc-300">{purchase.items?.length || 0} items</div>
+                    <div className="mt-3 text-sm text-zinc-300">{t("purchases.supplierDetails.itemsCount", { count: purchase.items?.length || 0 })}</div>
                     <div className="mt-1 font-bold text-white">{formatCurrency(purchase.total)}</div>
                   </div>
                 ))
@@ -158,7 +160,7 @@ function SupplierDetails() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Transactions history</h3>
+            <h3 className="text-xl font-black text-white">{t("purchases.supplierDetails.transactionsHistory")}</h3>
             <div className="mt-4 space-y-3">
               {[...ledger].map((entry) => (
                 <div key={String(entry.id)} className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -180,22 +182,22 @@ function SupplierDetails() {
 
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Ledger summary</h3>
+            <h3 className="text-xl font-black text-white">{t("purchases.supplierDetails.ledgerSummary")}</h3>
             <div className="mt-4 grid gap-3">
-              <Info label="Opening balance" value={formatCurrency(balance)} />
-              <Info label="Purchase count" value={String(purchases.length)} />
-              <Info label="Latest transaction" value={ledger[0] ? formatDateTime(ledger[0].created_at) : "n/a"} />
-              <Info label="Current status" value={supplier.status} />
+              <Info label={t("purchases.supplierDetails.openingBalance")} value={formatCurrency(balance)} />
+              <Info label={t("purchases.supplierDetails.purchaseCount")} value={String(purchases.length)} />
+              <Info label={t("purchases.supplierDetails.latestTransaction")} value={ledger[0] ? formatDateTime(ledger[0].created_at) : t("purchases.supplierDetails.notAvailable")} />
+              <Info label={t("purchases.supplierDetails.currentStatus")} value={supplier.status} />
             </div>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Contact info</h3>
+            <h3 className="text-xl font-black text-white">{t("purchases.supplierDetails.contactInfo")}</h3>
             <div className="mt-4 space-y-3 text-sm text-zinc-300">
-              <ContactRow label="Phone" value={supplier.phone} />
-              <ContactRow label="Email" value={supplier.email} />
-              <ContactRow label="Address" value={supplier.address} />
-              <ContactRow label="Notes" value={supplier.notes || "No notes"} />
+              <ContactRow label={t("purchases.supplierDetails.phone")} value={supplier.phone} emptyLabel={t("purchases.supplierDetails.notAvailable")} />
+              <ContactRow label={t("purchases.supplierDetails.email")} value={supplier.email} emptyLabel={t("purchases.supplierDetails.notAvailable")} />
+              <ContactRow label={t("purchases.supplierDetails.address")} value={supplier.address} emptyLabel={t("purchases.supplierDetails.notAvailable")} />
+              <ContactRow label={t("purchases.supplierDetails.notes")} value={supplier.notes} emptyLabel={t("purchases.supplierDetails.noNotes")} />
             </div>
           </div>
         </div>
@@ -216,11 +218,11 @@ function Info({ label, value, icon }) {
   );
 }
 
-function ContactRow({ label, value }) {
+function ContactRow({ label, value, emptyLabel }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-1 font-semibold text-white">{value || "n/a"}</div>
+      <div className="mt-1 font-semibold text-white">{value || emptyLabel}</div>
     </div>
   );
 }

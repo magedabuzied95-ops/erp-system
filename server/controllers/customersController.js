@@ -40,11 +40,24 @@ const normalizeCustomerRow = (row = {}) => ({
   whatsapp: row.whatsapp ?? "",
   email: row.email ?? "",
   address: row.address ?? "",
-  balance: Number(row.balance ?? row.wallet_balance ?? 0),
+  balance: Number(row.balance ?? row.wallet_balance ?? row.credit_balance ?? 0),
   notes: row.notes ?? "",
+  source: row.source ?? row.customer_source ?? row.lead_source ?? row.registration_source ?? "",
+  customer_source: row.customer_source ?? row.source ?? row.lead_source ?? row.registration_source ?? "",
+  lead_source: row.lead_source ?? row.customer_source ?? row.source ?? row.registration_source ?? "",
+  registration_source: row.registration_source ?? row.customer_source ?? row.lead_source ?? row.source ?? "",
+  marketing_source: row.marketing_source ?? "",
+  marketing_platform: row.marketing_platform ?? "",
+  attribution_type: row.attribution_type ?? "",
   created_at: row.created_at ?? null,
-  wallet_balance: Number(row.wallet_balance ?? row.balance ?? 0),
+  wallet_balance: Number(row.wallet_balance ?? row.balance ?? row.credit_balance ?? 0),
+  credit_balance: Number(row.credit_balance ?? row.wallet_balance ?? row.balance ?? 0),
   loyalty_points: Number(row.loyalty_points ?? 0),
+  loyalty_tier: row.loyalty_tier ?? row.tier ?? "Bronze",
+  total_orders: Number(row.total_orders ?? row.orders_count ?? row.invoices_count ?? 0),
+  orders_count: Number(row.orders_count ?? row.total_orders ?? row.invoices_count ?? 0),
+  invoices_count: Number(row.invoices_count ?? row.orders_count ?? row.total_orders ?? 0),
+  orders_count_query_source: row.orders_count_query_source || "customers.total_orders",
   status: row.status ?? "active",
   updated_at: row.updated_at ?? row.created_at ?? null,
 });
@@ -112,6 +125,13 @@ const getCustomerColumns = async () => {
           addressColumn: columns.includes("address") ? "address" : columns.includes("customer_address") ? "customer_address" : null,
           balanceColumn: columns.includes("balance") ? "balance" : null,
           notesColumn: columns.includes("notes") ? "notes" : null,
+          sourceColumn: columns.includes("source") ? "source" : null,
+          customerSourceColumn: columns.includes("customer_source") ? "customer_source" : null,
+          leadSourceColumn: columns.includes("lead_source") ? "lead_source" : null,
+          registrationSourceColumn: columns.includes("registration_source") ? "registration_source" : null,
+          marketingSourceColumn: columns.includes("marketing_source") ? "marketing_source" : null,
+          marketingPlatformColumn: columns.includes("marketing_platform") ? "marketing_platform" : null,
+          attributionTypeColumn: columns.includes("attribution_type") ? "attribution_type" : null,
           walletBalanceColumn: columns.includes("wallet_balance") ? "wallet_balance" : null,
           loyaltyPointsColumn: columns.includes("loyalty_points") ? "loyalty_points" : null,
           statusColumn: columns.includes("status") ? "status" : null,
@@ -144,8 +164,17 @@ const buildSelectSql = (columns) => {
       : "0";
   const notesExpr = columns.notesColumn ? columns.notesColumn : "NULL::text";
   const loyaltyExpr = columns.loyaltyPointsColumn ? columns.loyaltyPointsColumn : "0";
+  const loyaltyTierExpr = columns.allColumns?.has?.("loyalty_tier") ? "loyalty_tier" : "'Bronze'";
+  const totalOrdersExpr = columns.allColumns?.has?.("total_orders") ? "total_orders" : "0";
   const statusExpr = columns.statusColumn ? columns.statusColumn : "'active'";
   const updatedAtExpr = columns.updatedAtColumn ? columns.updatedAtColumn : "created_at";
+  const sourceExpr = columns.sourceColumn || columns.customerSourceColumn || columns.leadSourceColumn || columns.registrationSourceColumn || "''";
+  const customerSourceExpr = columns.customerSourceColumn || columns.sourceColumn || columns.leadSourceColumn || columns.registrationSourceColumn || "''";
+  const leadSourceExpr = columns.leadSourceColumn || columns.customerSourceColumn || columns.sourceColumn || columns.registrationSourceColumn || "''";
+  const registrationSourceExpr = columns.registrationSourceColumn || columns.customerSourceColumn || columns.leadSourceColumn || columns.sourceColumn || "''";
+  const marketingSourceExpr = columns.marketingSourceColumn || "''";
+  const marketingPlatformExpr = columns.marketingPlatformColumn || "''";
+  const attributionTypeExpr = columns.attributionTypeColumn || "''";
 
   return `
     SELECT
@@ -160,8 +189,18 @@ const buildSelectSql = (columns) => {
       ${balanceExpr} AS balance,
       ${notesExpr} AS notes,
       ${balanceExpr} AS wallet_balance,
+      ${balanceExpr} AS credit_balance,
       ${loyaltyExpr} AS loyalty_points,
+      ${loyaltyTierExpr} AS loyalty_tier,
+      ${totalOrdersExpr} AS total_orders,
       ${statusExpr} AS status,
+      ${sourceExpr} AS source,
+      ${customerSourceExpr} AS customer_source,
+      ${leadSourceExpr} AS lead_source,
+      ${registrationSourceExpr} AS registration_source,
+      ${marketingSourceExpr} AS marketing_source,
+      ${marketingPlatformExpr} AS marketing_platform,
+      ${attributionTypeExpr} AS attribution_type,
       created_at,
       ${updatedAtExpr} AS updated_at
     FROM customers
@@ -169,24 +208,27 @@ const buildSelectSql = (columns) => {
 };
 
 const buildCustomerSearch = (columns, search, params) => {
-  const cleanSearch = String(search || "").trim();
-  const searchPattern = `%${cleanSearch.toLowerCase()}%`;
+  const searchTerm = String(search || "").trim().toLowerCase();
+  const likeSearch = `%${searchTerm}%`;
   const phoneColumns = [columns.phoneColumn, columns.mobileColumn, columns.whatsappColumn].filter(Boolean);
-  const phoneVariants = getPhoneSearchVariants(cleanSearch);
+  const phoneVariants = getPhoneSearchVariants(searchTerm);
 
-  params.push(cleanSearch.toLowerCase());
-  const rawParam = `$${params.length}`;
-  params.push(searchPattern);
-  const textParam = `$${params.length}`;
-  const clauses = [`LOWER(${columns.nameColumn}) LIKE ${textParam}`];
+  params.push(searchTerm);
+  const rawParam = `CAST($${params.length} AS TEXT)`;
+  params.push(likeSearch);
+  const textParam = `CAST($${params.length} AS TEXT)`;
+  const clauses = [
+    `LOWER(COALESCE(${columns.nameColumn}::text, '')) = ${rawParam}`,
+    `LOWER(COALESCE(${columns.nameColumn}::text, '')) LIKE ${textParam}`,
+  ];
 
   for (const column of phoneColumns) {
-    clauses.push(`LOWER(COALESCE(${column}, '')) LIKE ${textParam}`);
+    clauses.push(`LOWER(COALESCE(${column}::text, '')) LIKE ${textParam}`);
   }
 
   const relevance = [
-    `WHEN LOWER(${columns.nameColumn}) = ${rawParam} THEN 0`,
-    `WHEN LOWER(${columns.nameColumn}) LIKE ${rawParam} || '%' THEN 3`,
+    `WHEN LOWER(COALESCE(${columns.nameColumn}::text, '')) = ${rawParam} THEN 0`,
+    `WHEN LOWER(COALESCE(${columns.nameColumn}::text, '')) LIKE ${rawParam} || '%' THEN 3`,
   ];
 
   if (phoneVariants.length > 0 && phoneColumns.length > 0) {
@@ -206,7 +248,7 @@ const buildCustomerSearch = (columns, search, params) => {
     relevance.push(`WHEN ${prefixPhone} THEN 2`, `WHEN ${containsPhone} THEN 4`);
   }
 
-  relevance.push(`WHEN LOWER(${columns.nameColumn}) LIKE ${textParam} THEN 5`);
+  relevance.push(`WHEN LOWER(COALESCE(${columns.nameColumn}::text, '')) LIKE ${textParam} THEN 5`);
 
   return {
     clause: `(${clauses.join(" OR ")})`,
@@ -232,6 +274,24 @@ const ensureCustomerSchema = async () => {
   }
   if (!columns.createdAtColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  }
+  if (!columns.customerSourceColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_source VARCHAR(80)`);
+  }
+  if (!columns.leadSourceColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS lead_source VARCHAR(80)`);
+  }
+  if (!columns.registrationSourceColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS registration_source VARCHAR(80)`);
+  }
+  if (!columns.marketingSourceColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_source VARCHAR(80)`);
+  }
+  if (!columns.marketingPlatformColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_platform VARCHAR(80)`);
+  }
+  if (!columns.attributionTypeColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS attribution_type VARCHAR(80)`);
   }
 
   if (missingStatements.length > 0) {
@@ -265,6 +325,61 @@ const getCustomerById = async (id, tenantId) => {
   );
 
   return result.rows[0] ? normalizeCustomerRow(result.rows[0]) : null;
+};
+
+const getUsableCustomerOrderCounts = async ({ customerIds = [], tenantId = null } = {}) => {
+  const ids = [...new Set((Array.isArray(customerIds) ? customerIds : []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))];
+  if (ids.length === 0 || !(await tableExists("orders"))) {
+    return { counts: new Map(), source: "orders.live_usable_completed_v1" };
+  }
+
+  const hasTenantId = await columnExists("orders", "tenant_id");
+  const hasDeletedAt = await columnExists("orders", "deleted_at");
+  const hasCancelledAt = await columnExists("orders", "cancelled_at");
+  const hasStatus = await columnExists("orders", "status");
+  const hasPaymentStatus = await columnExists("orders", "payment_status");
+  const hasPaidAmount = await columnExists("orders", "paid_amount");
+  const hasTotalAmount = await columnExists("orders", "total_amount");
+  const hasTotal = await columnExists("orders", "total");
+
+  const params = [ids];
+  const where = ["customer_id = ANY($1::bigint[])"];
+
+  if (hasTenantId) {
+    params.push(tenantId);
+    where.push(`($${params.length}::bigint IS NULL OR tenant_id = $${params.length}::bigint OR tenant_id IS NULL)`);
+  }
+  if (hasDeletedAt) where.push("deleted_at IS NULL");
+  if (hasCancelledAt) where.push("cancelled_at IS NULL");
+  if (hasStatus) {
+    where.push(`LOWER(COALESCE(status, '')) NOT IN ('cancelled','canceled','void','refunded','returned','deleted','archived')`);
+  }
+  if (hasPaymentStatus) {
+    where.push(`LOWER(COALESCE(payment_status, '')) NOT IN ('cancelled','canceled','void','refunded','returned','rejected','failed')`);
+  }
+
+  const statusPaidClause = hasStatus ? "LOWER(COALESCE(status, '')) IN ('completed','complete','delivered','done','paid')" : "FALSE";
+  const paymentPaidClause = hasPaymentStatus ? "LOWER(COALESCE(payment_status, '')) IN ('paid','completed','complete','settled')" : "FALSE";
+  const totalExpr = hasTotalAmount ? "COALESCE(total_amount, 0)" : hasTotal ? "COALESCE(total, 0)" : "0";
+  const paidExpr = hasPaidAmount ? "COALESCE(paid_amount, 0)" : "0";
+  const paidAmountClause = hasPaidAmount && (hasTotalAmount || hasTotal) ? `(${totalExpr}) > 0 AND (${paidExpr}) >= (${totalExpr})` : "FALSE";
+
+  where.push(`(${statusPaidClause} OR ${paymentPaidClause} OR ${paidAmountClause})`);
+
+  const result = await pool.query(
+    `
+    SELECT customer_id, COUNT(*)::int AS usable_orders_count
+    FROM orders
+    WHERE ${where.join(" AND ")}
+    GROUP BY customer_id
+    `,
+    params
+  );
+
+  return {
+    counts: new Map(result.rows.map((row) => [String(row.customer_id), Number(row.usable_orders_count || 0)])),
+    source: "orders.live_usable_completed_v1",
+  };
 };
 
 const getCustomerOrdersData = async (customerId, tenantId) => {
@@ -724,18 +839,28 @@ export const listCustomers = async (req, res) => {
       where.push(searchFilter.clause);
     }
     if (columns.tenantIdColumn && tenantId !== null) {
-      where.push(`tenant_id = $${params.length + 1}`);
+      where.push(`tenant_id = $${params.length + 1}::bigint`);
       params.push(tenantId);
     }
     const whereSql = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+    if (search) {
+      console.log("[customers-search]", {
+        tenant_id: tenantId,
+        search,
+        page,
+        limit,
+        where: whereSql,
+        param_count: params.length,
+      });
+    }
 
     const customers = await pool.query(
       `
       ${selectSql}
       ${whereSql}
       ORDER BY ${searchFilter ? `${searchFilter.orderSql},` : ""} id DESC
-      LIMIT $${params.length + 1}
-      OFFSET $${params.length + 2}
+      LIMIT $${params.length + 1}::int
+      OFFSET $${params.length + 2}::int
       `,
       [...params, limit, offset]
     );
@@ -749,9 +874,40 @@ export const listCustomers = async (req, res) => {
       params
     );
 
+    const normalizedRows = customers.rows.map(normalizeCustomerRow);
+    const { counts: usableOrderCounts, source: ordersCountSource } = await getUsableCustomerOrderCounts({
+      customerIds: normalizedRows.map((customer) => customer.id),
+      tenantId,
+    });
+    const data = normalizedRows.map((customer) => {
+      const invoicesCount = usableOrderCounts.get(String(customer.id)) ?? 0;
+      return {
+        ...customer,
+        total_orders: invoicesCount,
+        orders_count: invoicesCount,
+        invoices_count: invoicesCount,
+        orders_count_query_source: ordersCountSource,
+      };
+    });
+
+    if (search || data.some((customer) => Number(customer.loyalty_points || 0) > 0 && Number(customer.invoices_count || 0) === 0)) {
+      data.forEach((customer) => {
+        console.log("[pos-customer-summary]", {
+          customer_id: customer.id,
+          wallet_balance: customer.wallet_balance,
+          loyalty_points: customer.loyalty_points,
+          loyalty_tier: customer.loyalty_tier,
+          invoices_count: customer.invoices_count,
+          orders_count_query_source: customer.orders_count_query_source,
+          tenant_id: tenantId,
+          branch_id: req.query.branch_id || null,
+        });
+      });
+    }
+
     res.status(200).json({
       success: true,
-      data: customers.rows.map(normalizeCustomerRow),
+      data,
       pagination: {
         total: Number(total.rows[0].count),
         page,
@@ -774,12 +930,29 @@ export const createCustomer = async (req, res) => {
     const tenantId = getTenantId(req, req.user?.tenant_id);
     const columns = await ensureCustomerSchema();
     const selectSql = buildSelectSql(columns);
-    const { name, phone, email, address, notes } = req.body || {};
+    const {
+      name,
+      phone,
+      email,
+      address,
+      notes,
+      source,
+      customer_source,
+      lead_source,
+      registration_source,
+      marketing_source,
+      marketing_platform,
+      attribution_type,
+    } = req.body || {};
 
     const cleanName = String(name || "").trim();
     const cleanPhone = normalizePhoneValue(phone);
     const cleanEmail = String(email || "").trim();
     const cleanAddress = String(address || "").trim();
+    const cleanSource = String(customer_source || lead_source || registration_source || source || "").trim();
+    const cleanMarketingSource = String(marketing_source || "").trim();
+    const cleanMarketingPlatform = String(marketing_platform || "").trim();
+    const cleanAttributionType = String(attribution_type || cleanSource || "").trim();
 
     if (!cleanName) {
       return res.status(400).json({ success: false, message: "Customer name is required" });
@@ -853,6 +1026,42 @@ export const createCustomer = async (req, res) => {
     if (columns.notesColumn) {
       insertColumns.push(columns.notesColumn);
       insertValues.push(String(notes || "").trim() || null);
+      placeholders.push(`$${insertValues.length}`);
+    }
+
+    if (columns.customerSourceColumn) {
+      insertColumns.push(columns.customerSourceColumn);
+      insertValues.push(cleanSource || null);
+      placeholders.push(`$${insertValues.length}`);
+    }
+
+    if (columns.leadSourceColumn) {
+      insertColumns.push(columns.leadSourceColumn);
+      insertValues.push(cleanSource || null);
+      placeholders.push(`$${insertValues.length}`);
+    }
+
+    if (columns.registrationSourceColumn) {
+      insertColumns.push(columns.registrationSourceColumn);
+      insertValues.push(cleanSource || null);
+      placeholders.push(`$${insertValues.length}`);
+    }
+
+    if (columns.marketingSourceColumn) {
+      insertColumns.push(columns.marketingSourceColumn);
+      insertValues.push(cleanMarketingSource || cleanSource || null);
+      placeholders.push(`$${insertValues.length}`);
+    }
+
+    if (columns.marketingPlatformColumn) {
+      insertColumns.push(columns.marketingPlatformColumn);
+      insertValues.push(cleanMarketingPlatform || null);
+      placeholders.push(`$${insertValues.length}`);
+    }
+
+    if (columns.attributionTypeColumn) {
+      insertColumns.push(columns.attributionTypeColumn);
+      insertValues.push(cleanAttributionType || null);
       placeholders.push(`$${insertValues.length}`);
     }
 

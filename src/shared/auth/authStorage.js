@@ -91,12 +91,26 @@ export const setAuth = ({ token, user }) => {
 
   if (user) {
     const currentTenant = parseUser(localStorage.getItem(CURRENT_TENANT_KEY));
+    const userTenant = user.tenant && typeof user.tenant === "object" ? user.tenant : {};
+    const userCurrentTenant = user.currentTenant && typeof user.currentTenant === "object" ? user.currentTenant : {};
+    const resolvedTenantId =
+      user.tenant_id ||
+      user.tenantId ||
+      userTenant.id ||
+      userTenant.tenant_id ||
+      userCurrentTenant.id ||
+      userCurrentTenant.tenant_id ||
+      currentTenant?.id ||
+      currentTenant?.tenant_id ||
+      user.company_id ||
+      "";
     const normalizedUser = {
       ...user,
-      tenant_id: user.tenant_id || currentTenant?.id || user.company_id || "",
-      tenant_name: user.tenant_name || currentTenant?.name || user.company_name || "",
-      tenant_slug: user.tenant_slug || currentTenant?.slug || "",
-      company_name: user.company_name || currentTenant?.companyName || currentTenant?.name || "",
+      tenant_id: resolvedTenantId,
+      tenantId: user.tenantId || resolvedTenantId,
+      tenant_name: user.tenant_name || userTenant.name || currentTenant?.name || user.company_name || "",
+      tenant_slug: user.tenant_slug || userTenant.slug || currentTenant?.slug || "",
+      company_name: user.company_name || userTenant.companyName || userTenant.name || currentTenant?.companyName || currentTenant?.name || "",
       permissions: Array.isArray(user.permissions)
         ? user.permissions.map(normalizePermissionKey)
         : user.permissions

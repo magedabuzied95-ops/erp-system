@@ -1,5 +1,8 @@
 {
   "moduleEyebrow": "Accounting",
+  "shell": {
+    "eyebrow": "Accounting & Finance"
+  },
   "title": "Accounting Dashboard",
   "subtitle": "Core financial metrics built from journaled inventory, sales, purchases, and returns movements.",
   "liveData": "Live accounting data",
@@ -9,9 +12,96 @@
     "dashboard": "Dashboard",
     "journal": "Journal",
     "accounts": "Accounts",
+    "ledgers": "Ledgers",
     "reports": "Reports",
     "profitLoss": "P&L",
-    "compliance": "Compliance"
+    "compliance": "Compliance",
+    "taxes": "Taxes",
+    "financialAccounts": "Financial Accounts",
+    "paymentMappings": "Payment Mappings",
+    "costFix": "Cost Fix",
+    "auditTrail": "Audit Trail",
+    "cashDrawer": "Cash Drawer",
+    "expenses": "Expenses",
+    "income": "Income"
+  },
+  "common": {
+    "actions": {
+      "apply": "Apply",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "exportCsv": "Export CSV",
+      "exportExcel": "Export Excel",
+      "exportPdf": "Export PDF",
+      "refresh": "Refresh",
+      "retry": "Retry",
+      "search": "Search",
+      "view": "View",
+      "clear": "Clear",
+      "delete": "Delete",
+      "save": "Save"
+    },
+    "labels": {
+      "account": "Account",
+      "accountType": "Account type",
+      "active": "Active",
+      "amount": "Amount",
+      "balance": "Balance",
+      "branch": "Branch",
+      "branchId": "Branch ID",
+      "created": "Created",
+      "credit": "Credit",
+      "currency": "Currency",
+      "date": "Date",
+      "debit": "Debit",
+      "description": "Description",
+      "from": "From",
+      "name": "Name",
+      "notes": "Notes",
+      "opening": "Opening",
+      "reference": "Reference",
+      "source": "Source",
+      "to": "To",
+      "type": "Type",
+      "all": "All",
+      "category": "Category",
+      "createdAt": "Created at",
+      "createdBy": "Created by",
+      "inactive": "Inactive",
+      "loading": "Loading...",
+      "noNotes": "No notes",
+      "notAvailable": "n/a",
+      "status": "Status",
+      "title": "Title"
+    },
+    "metrics": {
+      "endingBalance": "Ending balance",
+      "totalCredit": "Total credit",
+      "totalDebit": "Total debit"
+    },
+    "placeholders": {
+      "branchId": "Branch ID"
+    },
+    "rows": {
+      "liveRows": "{{count}} live row",
+      "liveRows_plural": "{{count}} live rows",
+      "rows": "{{count}} row",
+      "rows_plural": "{{count}} rows"
+    }
+  },
+  "accountTypes": {
+    "asset": "Assets",
+    "bank": "Bank",
+    "card_settlement": "Card settlement",
+    "cash_drawer": "Cash drawer",
+    "digital_wallet": "Digital wallet",
+    "equity": "Equity",
+    "expense": "Expenses",
+    "ledger": "Ledger entries",
+    "liability": "Liabilities",
+    "revenue": "Revenue",
+    "safe": "Safe",
+    "wallet": "Wallet"
   },
   "kpis": {
     "revenue": "Revenue",
@@ -39,9 +129,516 @@
   "links": {
     "journal": "Review journal ledger",
     "inventory": "Inspect inventory movements",
-    "products": "Review products and variants"
+    "products": "Review products and variants",
+    "costFix": "Cost Fix Center",
+    "financialAccounts": "Financial Accounts",
+    "paymentMappings": "Payment Method Mappings",
+    "auditTrail": "Audit Trail"
+  },
+  "ledgers": {
+    "title": "Ledgers",
+    "subtitle": "Live transaction ledger from paid sales, expenses, purchases, payments, returns, and inventory adjustments.",
+    "filters": {
+      "allAccounts": "All accounts"
+    },
+    "errors": {
+      "loadFailed": "Unable to load ledgers."
+    },
+    "states": {
+      "loadingTitle": "Loading ledgers",
+      "loadingText": "Reading live transaction rows and recalculating running balances.",
+      "errorTitle": "Unable to load ledgers"
+    },
+    "table": {
+      "title": "Transaction ledger",
+      "empty": "No ledger rows for the selected filters."
+    }
+  },
+  "reports": {
+    "title": "Financial Reports",
+    "subtitle": "Profit and loss, revenue report, expense report, top customers, top products, and inventory valuation from live system data.",
+    "actions": {
+      "rebuildEntries": "Rebuild Entries",
+      "syncEntries": "Sync Accounting Entries"
+    },
+    "cards": {
+      "expensesByCategory": "Expenses by category",
+      "profitLossStatement": "Profit & Loss statement",
+      "topCustomers": "Top customers",
+      "topProducts": "Top products"
+    },
+    "empty": {
+      "noProfitLossActivity": "No profit and loss activity for the selected filters.",
+      "noRows": "No report rows.",
+      "noTrialBalanceRows": "No trial balance rows for the selected filters."
+    },
+    "errors": {
+      "loadFailed": "Unable to load financial reports.",
+      "syncFailed": "Unable to sync accounting entries"
+    },
+    "fallbacks": {
+      "uncategorized": "Uncategorized",
+      "unknownProduct": "Unknown Product",
+      "walkInCustomer": "Walk-in Customer"
+    },
+    "hints": {
+      "inventoryValuation": "Current stock x cost",
+      "operatingExpense": "Operating expense",
+      "orders": "{{count}} order",
+      "orders_plural": "{{count}} orders",
+      "paidOrders": "{{count}} paid order",
+      "paidOrders_plural": "{{count}} paid orders",
+      "units": "{{count}} unit",
+      "units_plural": "{{count}} units"
+    },
+    "metrics": {
+      "assets": "Assets",
+      "cogs": "COGS",
+      "difference": "Difference",
+      "discounts": "Discounts",
+      "equity": "Equity",
+      "expenseReport": "Expense report",
+      "grossProfit": "Gross Profit",
+      "grossSales": "Gross Sales",
+      "inventoryValuation": "Inventory valuation",
+      "liabilities": "Liabilities",
+      "netProfit": "Net Profit",
+      "netSales": "Net Sales",
+      "profit": "Profit",
+      "returns": "Returns",
+      "revenueReport": "Revenue report",
+      "totalExpenses": "Total Expenses"
+    },
+    "states": {
+      "balanceSheetDifference": "Assets differ from liabilities plus equity by {{amount}}.",
+      "balanceSheetUnbalanced": "Balance Sheet is not balanced",
+      "errorTitle": "Unable to load financial reports",
+      "loadingText": "Reading paid sales, expenses, returns, COGS, and inventory cost valuation.",
+      "loadingTitle": "Loading financial reports",
+      "trialBalanceDifference": "Debit and credit differ by {{amount}}.",
+      "trialBalanceUnbalanced": "Trial Balance is not balanced"
+    },
+    "syncModal": {
+      "body": "This will rebuild generated accounting entries from historical sales, purchases, expenses, and returns. Manual entries will not be deleted.",
+      "title": "Sync Accounting Entries"
+    },
+    "tabs": {
+      "balanceSheet": "Balance Sheet",
+      "overview": "Overview",
+      "profitLoss": "P&L",
+      "trialBalance": "Trial Balance"
+    },
+    "toasts": {
+      "syncSuccess": "Accounting entries synced. Created {{created}}, deleted {{deleted}}, skipped {{skipped}}.",
+      "syncWarnings": "Warnings: {{warnings}}"
+    }
+  },
+  "financialAccounts": {
+    "title": "Financial Accounts",
+    "subtitle": "Manage cash drawers, safes, banks, wallets, digital wallets, and card settlement accounts.",
+    "actions": {
+      "newAccount": "New Account",
+      "postTransfer": "Post transfer",
+      "saveAccount": "Save account",
+      "transfer": "Transfer"
+    },
+    "empty": {
+      "noAccounts": "No financial accounts found.",
+      "noTransactions": "No transactions loaded.",
+      "noTransfers": "No transfers yet."
+    },
+    "errors": {
+      "historyFailed": "Unable to load account history",
+      "loadFailed": "Unable to load financial accounts",
+      "nameRequired": "Account name is required.",
+      "saveFailed": "Unable to save financial account",
+      "transferFailed": "Unable to post transfer",
+      "transferRequired": "Choose both accounts and enter an amount."
+    },
+    "filters": {
+      "allTypes": "All types",
+      "anyBranch": "Any branch"
+    },
+    "history": {
+      "selectAccount": "Select an account",
+      "title": "Transaction history"
+    },
+    "labels": {
+      "allBranches": "All branches",
+      "balanceShort": "Bal.",
+      "branchNumber": "Branch #{{id}}",
+      "negativeBalance": "Negative balance"
+    },
+    "metrics": {
+      "accounts": "Accounts",
+      "combinedBalance": "Combined balance",
+      "transfers": "Transfers"
+    },
+    "modals": {
+      "createTitle": "Create Financial Account",
+      "editTitle": "Edit Financial Account",
+      "transferTitle": "Transfer Between Accounts"
+    },
+    "placeholders": {
+      "chooseAccount": "Choose account"
+    },
+    "toasts": {
+      "saved": "Financial account saved.",
+      "transferPosted": "Transfer posted."
+    },
+    "transfers": {
+      "title": "Transfers"
+    }
   },
   "toasts": {
     "loadFailed": "Unable to load accounting dashboard"
+  },
+  "auditTrail": {
+    "title": "Accounting Audit Trail",
+    "subtitle": "Sensitive accounting actions, cost corrections, sync runs, exports, and historical overrides by tenant and user.",
+    "permissionSubtitle": "Admin access or accounting manager permission is required.",
+    "noAccess": "You do not have access to accounting audit logs.",
+    "eventsTitle": "Audit events",
+    "recentEntries": "{{count}} recent entry",
+    "recentEntries_plural": "{{count}} recent entries",
+    "labels": {
+      "action": "Action",
+      "after": "After",
+      "before": "Before",
+      "entity": "Entity",
+      "metadata": "Metadata",
+      "user": "User",
+      "userId": "User ID"
+    },
+    "placeholders": {
+      "anyAction": "Any action",
+      "anyEntity": "Any entity",
+      "anyUser": "Any user",
+      "search": "Search action, user, entity, or metadata"
+    },
+    "states": {
+      "emptyText": "Try a broader date range or clear filters.",
+      "emptyTitle": "No audit logs found",
+      "loadingText": "Reading accounting events for this tenant.",
+      "loadingTitle": "Loading audit logs"
+    },
+    "fallbacks": {
+      "noEntityId": "No entity id",
+      "noUser": "No user",
+      "system": "System",
+      "userNumber": "User #{{id}}"
+    },
+    "errors": {
+      "loadFailed": "Unable to load accounting audit logs"
+    }
+  },
+  "cashDrawer": {
+    "title": "Cash Drawer",
+    "subtitle": "Open cashier shifts, track cash sales and payouts, reconcile counted cash, and review closing differences.",
+    "actions": {
+      "addMovement": "Add movement",
+      "applyFilters": "Apply filters",
+      "closeShift": "Close Shift",
+      "openShift": "Open Shift"
+    },
+    "currentShift": "Current shift",
+    "manualMovement": "Manual cash movement",
+    "shiftEvents": "Shift events",
+    "eventsCount": "{{count}} event",
+    "eventsCount_plural": "{{count}} events",
+    "metrics": {
+      "cashSales": "Cash sales",
+      "expectedCash": "Expected cash",
+      "openingCash": "Opening cash",
+      "refundsExpenses": "Refunds & expenses",
+      "shiftDuration": "Shift duration"
+    },
+    "labels": {
+      "actual": "Actual",
+      "actualCountedCash": "Actual counted cash",
+      "cashier": "Cashier",
+      "closedAt": "Closed At",
+      "differencePreview": "Difference preview",
+      "events": "Events",
+      "expected": "Expected",
+      "openedAt": "Opened At"
+    },
+    "movement": {
+      "cashIn": "Cash in",
+      "cashOut": "Cash out"
+    },
+    "status": {
+      "closed": "Closed",
+      "open": "Open",
+      "opened": "Opened"
+    },
+    "placeholders": {
+      "any": "Any"
+    },
+    "modals": {
+      "closeTitle": "Close Cash Drawer Shift",
+      "openTitle": "Open Cash Drawer Shift"
+    },
+    "empty": {
+      "noEvents": "No shift events yet.",
+      "noOpenShift": "No open cash drawer shift for the selected branch.",
+      "noShifts": "No cash drawer shifts found."
+    },
+    "warnings": {
+      "addClosingNote": "Large difference. Add a closing note before saving.",
+      "largeDifference": "Large cash difference detected. Review the event list and closing notes before posting the shift."
+    },
+    "errors": {
+      "amountPositive": "Amount must be greater than zero.",
+      "branchRequired": "Branch ID is required.",
+      "closeFailed": "Unable to close shift",
+      "loadFailed": "Unable to load cash drawer",
+      "movementFailed": "Unable to record cash movement",
+      "openFailed": "Unable to open shift",
+      "openShiftFirst": "Open a shift before recording cash movement."
+    },
+    "toasts": {
+      "closed": "Cash drawer shift closed.",
+      "movementRecorded": "Cash movement recorded.",
+      "opened": "Cash drawer shift opened."
+    }
+  },
+  "costFix": {
+    "title": "Cost Fix Center",
+    "subtitle": "Find sold products and variants with zero catalog cost, update costs, then rebuild Accounting entries so COGS and profit reports use the corrected values.",
+    "permissionSubtitle": "Admin access is required to update product and variant costs.",
+    "noAccess": "Only admins can open the Accounting Cost Fix Center.",
+    "savedNotice": "Costs were saved. Run Sync Accounting Entries again to rebuild COGS and profit reports.",
+    "catalogTitle": "Catalog cost fixes",
+    "catalogSubtitle": "Resolvable products and variants can be fixed by updating catalog cost.",
+    "historicalTitle": "Historical unresolved line fixes",
+    "historicalSubtitle": "Sold order item snapshots without catalog links can receive a manual COGS override without linking them to products.",
+    "actions": {
+      "applySuggested": "Apply suggested costs",
+      "saveAll": "Save all",
+      "saveAllOverrides": "Save all overrides",
+      "saveAndSync": "Save & Re-sync Accounting",
+      "saveOverride": "Save override"
+    },
+    "metrics": {
+      "affectedOrderLines": "Affected order lines",
+      "missingCostRows": "Missing cost rows",
+      "suggestedCogsValue": "Suggested COGS value"
+    },
+    "labels": {
+      "affectedLines": "Affected Lines",
+      "baseProduct": "Base product",
+      "currentCost": "Current Cost",
+      "currentOverride": "Current Override",
+      "itemSnapshot": "Item snapshot",
+      "lastAvg": "Last {{last}} | Avg {{avg}}",
+      "newCost": "New Cost",
+      "noSku": "No SKU",
+      "noTarget": "No target",
+      "order": "Order",
+      "product": "Product",
+      "productNumber": "Product #{{id}}",
+      "reason": "Reason",
+      "soldQty": "Sold Qty",
+      "suggestedCost": "Suggested Cost",
+      "unitCost": "Unit Cost",
+      "unresolvedHistoricalLine": "Unresolved historical line",
+      "variantNumber": "Variant #{{id}}",
+      "variantSku": "Variant / SKU"
+    },
+    "placeholders": {
+      "historicalReason": "Historical missing catalog link"
+    },
+    "states": {
+      "loadingHistoricalText": "Reading unresolved paid order items.",
+      "loadingHistoricalTitle": "Loading historical lines",
+      "loadingMissingText": "Scanning paid sold lines and catalog costs.",
+      "loadingMissingTitle": "Loading missing cost items",
+      "noCatalogText": "No paid sold rows currently have a resolvable zero-cost product or variant.",
+      "noCatalogTitle": "No catalog cost fixes",
+      "noHistoricalText": "Every missing-cost sold row currently has a catalog target or an override.",
+      "noHistoricalTitle": "No unresolved historical lines"
+    },
+    "errors": {
+      "costPositive": "Enter a cost greater than zero before saving.",
+      "loadFailed": "Unable to load missing cost items",
+      "overrideCostPositive": "Enter a unit cost greater than zero before saving overrides.",
+      "overrideSaveFailed": "Unable to save historical cost overrides",
+      "saveFailed": "Unable to save cost updates"
+    },
+    "toasts": {
+      "costSaved": "Saved {{count}} cost update(s).",
+      "overrideSaved": "Saved {{count}} historical cost override(s).",
+      "suggestedApplied": "Suggested costs applied to editable inputs."
+    }
+  },
+  "journal": {
+    "title": "Journal Entries",
+    "subtitle": "Balanced accounting ledger with filters, reference search, and journal detail review.",
+    "ledgerTitle": "Ledger",
+    "ledgerSubtitle": "Search by reference, filter by type, and inspect each balanced entry.",
+    "detailTitle": "Journal detail",
+    "balanceHint": "Debits and credits are stored as balanced journal lines only.",
+    "showingEntries": "Showing {{shown}} of {{total}} entries",
+    "actions": {
+      "closeDrawer": "Close drawer"
+    },
+    "errors": {
+      "detailFailed": "Unable to load journal entry details",
+      "loadFailed": "Unable to load journal entries",
+      "loadFailedWithPeriod": "Unable to load journal entries."
+    },
+    "fallbacks": {
+      "journalEntry": "Journal entry"
+    },
+    "labels": {
+      "creditTotal": "Credit total",
+      "debitTotal": "Debit total",
+      "lines": "Lines"
+    },
+    "metrics": {
+      "balanced": "Balanced",
+      "credits": "Credits",
+      "debits": "Debits",
+      "entries": "Entries"
+    },
+    "placeholders": {
+      "search": "Search by reference, account, description, or notes..."
+    },
+    "referenceTypes": {
+      "all": "All references",
+      "inventory": "Inventory",
+      "manualAdjustment": "Manual adjustment",
+      "order": "Sale",
+      "purchase": "Purchase",
+      "return": "Return"
+    },
+    "states": {
+      "emptyRows": "No journal entries found.",
+      "loadingDetail": "Loading entry details...",
+      "loadingRows": "Loading journal entries..."
+    }
+  },
+  "paymentMappings": {
+    "title": "Payment Method Mappings",
+    "subtitle": "Route cash, card, bank transfer, wallet, and COD payments to the right financial accounts automatically.",
+    "missingDefaults": "Missing default mappings",
+    "mappingsTitle": "Mappings",
+    "mappingsSubtitle": "Branch mappings override tenant defaults.",
+    "rulesCount": "{{count}} rule",
+    "rulesCount_plural": "{{count}} rules",
+    "actions": {
+      "newMapping": "New Mapping",
+      "quickSetup": "Quick Setup",
+      "saveMapping": "Save mapping"
+    },
+    "empty": {
+      "noMappings": "No payment mappings configured."
+    },
+    "errors": {
+      "chooseAccount": "Choose a financial account.",
+      "createAccountFirst": "Create an active {{method}} account first.",
+      "deleteFailed": "Unable to delete payment mapping",
+      "loadFailed": "Unable to load payment mappings",
+      "quickSetupFailed": "Unable to apply quick setup",
+      "saveFailed": "Unable to save payment mapping"
+    },
+    "labels": {
+      "actions": "Actions",
+      "default": "Default",
+      "financialAccount": "Financial account",
+      "override": "Override",
+      "paymentMethod": "Payment method",
+      "tenantDefault": "Tenant default"
+    },
+    "modals": {
+      "createTitle": "Create Payment Mapping",
+      "editTitle": "Edit Payment Mapping"
+    },
+    "placeholders": {
+      "tenantDefault": "Blank for tenant default"
+    },
+    "toasts": {
+      "deleted": "Payment mapping deleted.",
+      "quickSetup": "Quick setup applied.",
+      "saved": "Payment mapping saved."
+    }
+  },
+  "profitLoss": {
+    "title": "Profit & Loss",
+    "subtitle": "Live sales, discounts, returns, cost of goods sold, expenses, and net profit.",
+    "empty": {
+      "noExpenseRows": "No expense rows."
+    },
+    "errors": {
+      "loadFailed": "Unable to load profit and loss report."
+    },
+    "states": {
+      "errorTitle": "Unable to load P&L",
+      "loadingText": "Reading paid sales, returns, COGS, and expense categories.",
+      "loadingTitle": "Loading P&L"
+    }
+  },
+  "revenues": {
+    "title": "Income Module",
+    "subtitle": "Track other income entries, income categories, and income history without depending on a dedicated backend income service.",
+    "createTitle": "Create income entry",
+    "categoriesTitle": "Income categories",
+    "historyTitle": "Income history",
+    "labels": {
+      "paymentMethod": "Payment method"
+    },
+    "metrics": {
+      "categories": "Categories",
+      "entries": "Entries",
+      "incomeTotal": "Income total",
+      "otherIncome": "Other income"
+    },
+    "categories": {
+      "Delivery income": "Delivery income",
+      "Interest": "Interest",
+      "Other income": "Other income",
+      "Service income": "Service income"
+    },
+    "methods": {
+      "Bank transfer": "Bank transfer",
+      "Card": "Card",
+      "Cash": "Cash",
+      "Wallet": "Wallet"
+    },
+    "placeholders": {
+      "notes": "Reference, project, source of income...",
+      "title": "Consulting fee, service fee..."
+    },
+    "empty": {
+      "noAnalytics": "No income analytics yet.",
+      "noEntries": "No income entries recorded."
+    },
+    "toasts": {
+      "fallback": "Backend income endpoint unavailable. Saved locally.",
+      "required": "Title and amount are required",
+      "saved": "Income saved"
+    }
+  },
+  "compliance": {
+    "title": "Compliance",
+    "subtitle": "Finance overview placeholder with enterprise reporting hooks and future compliance integration.",
+    "actions": {
+      "reports": "Compliance reports"
+    },
+    "cards": {
+      "notesText": "This screen is intentionally read-only until live compliance endpoints are added.",
+      "notesTitle": "Compliance notes",
+      "settingsText": "Configure reporting, withholding, and jurisdiction-specific rules once the backend compliance service is available.",
+      "settingsTitle": "Compliance settings"
+    },
+    "metrics": {
+      "expenseBase": "Expense base",
+      "revenueBase": "Revenue base",
+      "status": "Compliance status"
+    },
+    "status": {
+      "placeholder": "Placeholder"
+    }
   }
 }

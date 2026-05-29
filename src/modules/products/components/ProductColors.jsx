@@ -1,4 +1,5 @@
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 import Select from "react-select";
 
@@ -91,6 +92,7 @@ export default function ProductColors({
   setColors
 
 }) {
+  const { t } = useTranslation();
 
   /* =========================
      ADD COLOR
@@ -231,7 +233,7 @@ export default function ProductColors({
       });
 
     setColors(updated);
-    toast.success("Image removed");
+    toast.success(t("products.images.removed", "Image removed"));
   };
 
   /* =========================
@@ -300,17 +302,9 @@ export default function ProductColors({
           font-black
           text-white
           "
-        >
+        >{t("products.colors.title", "Product Colors")}</h2>
 
-          Product Colors
-
-        </h2>
-
-        <p className="text-gray-400 mt-2">
-
-          Add colors, images and sizes
-
-        </p>
+        <p className="text-gray-400 mt-2">{t("products.colors.description", "Add colors, images and sizes")}</p>
 
       </div>
 
@@ -325,11 +319,7 @@ export default function ProductColors({
           font-black
           mb-5
           "
-        >
-
-          Quick Colors
-
-        </h3>
+        >{t("products.colors.quickColors", "Quick Colors")}</h3>
 
         <div
           className="
@@ -527,7 +517,7 @@ export default function ProductColors({
                       "
                     >
 
-                      {color.sizes.length} Sizes
+                      {t("products.colors.sizeCount", "{{count}} Sizes", { count: color.sizes.length })}
 
                     </span>
 
@@ -543,7 +533,7 @@ export default function ProductColors({
                       "
                     >
 
-                      {color.images.length} Images
+                      {t("products.colors.imageCount", "{{count}} Images", { count: color.images.length })}
 
                     </span>
 
@@ -598,7 +588,7 @@ export default function ProductColors({
                 "
               >
 
-                Sizes For {color.name}
+                {t("products.colors.sizesFor", "Sizes for {{name}}", { name: color.name })}
 
               </h4>
 
@@ -630,7 +620,7 @@ export default function ProductColors({
                   )
                 }
 
-                placeholder="Choose sizes..."
+                placeholder={t("products.sizes.choosePlaceholder", "Choose sizes...")}
 
                 className="text-black"
 
@@ -776,17 +766,9 @@ export default function ProductColors({
                   mt-5
                   text-lg
                   "
-                >
+                >{t("products.images.uploadImages", "Upload Images")}</p>
 
-                  Upload Images
-
-                </p>
-
-                <p className="text-gray-400 mt-2">
-
-                  Multiple images supported
-
-                </p>
+                <p className="text-gray-400 mt-2">{t("products.images.multipleSupported", "Multiple images supported")}</p>
 
                 <input
 

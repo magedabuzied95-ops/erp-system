@@ -45,7 +45,7 @@ const buildMetaWebhookStatusDefaults = () => {
     webhook_url: publicBackendUrl ? `${publicBackendUrl}/api/marketing/webhooks/meta` : "/api/marketing/webhooks/meta",
     connected: Boolean(verifyTokenConfigured && signatureValidationEnabled),
     app_secret_configured: signatureValidationEnabled,
-    subscribed_fields: ["comments", "feed", "instagram_manage_comments"],
+    subscribed_fields: ["messages", "messaging_postbacks", "feed"],
   };
 };
 

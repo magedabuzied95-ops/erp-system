@@ -7,8 +7,14 @@ const CORE_PERMISSIONS = [
   ["suppliers", "view"],
   ["suppliers", "create"],
   ["warehouses", "view"],
+  ["warehouses", "create"],
+  ["warehouses", "update"],
+  ["warehouses", "delete"],
+  ["warehouses", "transfer"],
   ["purchases", "view"],
   ["purchases", "create"],
+  ["purchases", "edit"],
+  ["purchases", "delete"],
   ["products", "view"],
   ["branches", "view"],
   ["notifications", "view"],
@@ -17,8 +23,30 @@ const CORE_PERMISSIONS = [
   ["staff_tasks", "create"],
   ["staff_tasks", "update"],
   ["staff_tasks", "manage"],
+  ["employees", "view"],
+  ["employees", "delete"],
   ["reports", "view"],
   ["reports", "export"],
+  ["expenses", "view"],
+  ["expenses", "create"],
+  ["expenses", "edit"],
+  ["expenses", "delete"],
+  ["expenses", "approve"],
+  ["expenses", "pay"],
+  ["expenses", "reports"],
+  ["expenses.advances", "view"],
+  ["expenses.advances", "create"],
+  ["expenses.advances", "deduct"],
+  ["pos.expenses", "create"],
+  ["pos.expenses", "view_shift_total"],
+  ["money_accounts", "view"],
+  ["money_accounts", "manage"],
+  ["money_transactions", "view"],
+  ["money_transactions", "adjust"],
+  ["money_transfers", "create"],
+  ["treasury.dashboard", "view"],
+  ["settings", "view"],
+  ["settings", "edit"],
 ];
 
 let corePermissionsReadyPromise = null;
@@ -93,6 +121,23 @@ const ensureCorePermissions = async () => {
           )
         `,
         CORE_PERMISSIONS.flat()
+      );
+
+      await db.query(
+        `
+        INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id
+        FROM roles r
+        CROSS JOIN permissions p
+        WHERE LOWER(REPLACE(COALESCE(r.name, ''), '_', ' ')) IN ('cashier', 'sales agent', 'manager')
+          AND (p.module, p.action) IN (('pos.expenses', 'create'), ('pos.expenses', 'view_shift_total'))
+          AND NOT EXISTS (
+            SELECT 1
+            FROM role_permissions rp
+            WHERE rp.role_id = r.id
+              AND rp.permission_id = p.id
+          )
+        `
       );
     })().catch((error) => {
       corePermissionsReadyPromise = null;
@@ -485,13 +530,31 @@ const permit = (
       next();
 
     } catch (error) {
+      console.error("[permission] check failed", {
+        requestId: req.id,
+        moduleName,
+        action,
+        userId: req.user?.id,
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+      });
+
+      if (moduleName === "notifications" && action === "view") {
+        req.permissionUnavailable = {
+          moduleName,
+          action,
+          message: error.message,
+        };
+        return next();
+      }
 
       return res.status(500).json({
 
         success: false,
 
         message:
-          "Permission Error",
+          "Permission check failed",
 
         error:
           error.message

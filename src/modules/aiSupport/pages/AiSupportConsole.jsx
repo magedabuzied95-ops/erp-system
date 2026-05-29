@@ -9,8 +9,11 @@ import {
   Play,
   RefreshCw,
   ShieldAlert,
+  ShoppingCart,
   Sparkles,
   Trash2,
+  UserCheck,
+  XCircle,
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
@@ -148,6 +151,25 @@ const resolveTenantContext = (tenantApi = null) => {
 const isValidTenantId = (value) => Boolean(normalizeTenantId(value));
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
+
+const EMPTY_INSIGHTS = {
+  handoff_count: 0,
+  top_questions: [],
+  top_product_terms: [],
+  top_requested_sizes: [],
+  top_requested_colors: [],
+  most_suggested_products: [],
+  most_clicked_products: [],
+  pending_aliases: [],
+  fallback_questions: [],
+};
+
+const normalizeInsights = (value) => ({
+  ...EMPTY_INSIGHTS,
+  ...(value && typeof value === "object" ? value : {}),
+  handoff_count: value?.handoff_count ?? value?.human_handoff_count ?? 0,
+  most_clicked_products: asArray(value?.most_clicked_products || value?.most_clicked_suggested_products),
+});
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -296,6 +318,9 @@ export default function AiSupportConsole() {
   const [insights, setInsights] = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsError, setInsightsError] = useState("");
+  const [orderDrafts, setOrderDrafts] = useState([]);
+  const [orderDraftsLoading, setOrderDraftsLoading] = useState(false);
+  const [orderDraftsError, setOrderDraftsError] = useState("");
 
   const loadHistory = useCallback(async () => {
     if (!authHydrated) return;
@@ -334,11 +359,34 @@ export default function AiSupportConsole() {
         params: { tenant_id: requestTenantId, limit: 10 },
         headers: { "x-tenant-id": requestTenantId },
       });
-      setInsights(payload?.insights || null);
+      setInsights(normalizeInsights(payload?.insights));
     } catch (err) {
-      setInsightsError(err?.message || "Failed to load AI support insights");
+      console.warn("[ai-support-console] insights load failed", err);
+      setInsightsError("");
+      setInsights(EMPTY_INSIGHTS);
     } finally {
       setInsightsLoading(false);
+    }
+  }, [authHydrated, tenantApi]);
+
+  const loadOrderDrafts = useCallback(async () => {
+    if (!authHydrated) return;
+    const currentTenantContext = resolveTenantContext(tenantApi);
+    setTenantContext(currentTenantContext);
+    const requestTenantId = currentTenantContext.tenantId;
+    if (!isValidTenantId(requestTenantId)) return;
+    setOrderDraftsLoading(true);
+    setOrderDraftsError("");
+    try {
+      const payload = await api.get("/ai-agent/orders/drafts", {
+        params: { tenant_id: requestTenantId, limit: 50 },
+        headers: { "x-tenant-id": requestTenantId },
+      });
+      setOrderDrafts(asArray(payload?.drafts));
+    } catch (err) {
+      setOrderDraftsError(err?.message || "Failed to load AI order drafts");
+    } finally {
+      setOrderDraftsLoading(false);
     }
   }, [authHydrated, tenantApi]);
 
@@ -349,6 +397,10 @@ export default function AiSupportConsole() {
   useEffect(() => {
     loadInsights();
   }, [loadInsights]);
+
+  useEffect(() => {
+    loadOrderDrafts();
+  }, [loadOrderDrafts]);
 
   useEffect(() => {
     setTenantContext(resolveTenantContext(tenantApi));
@@ -423,11 +475,40 @@ export default function AiSupportConsole() {
       setResponse(payload);
       loadHistory();
       loadInsights();
+      loadOrderDrafts();
     } catch (err) {
       setError(err?.message || "AI support request failed");
       setResponse(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateOrderDraft = async (draft, action) => {
+    const currentTenantContext = resolveTenantContext(tenantApi);
+    const requestTenantId = currentTenantContext.tenantId;
+    if (!isValidTenantId(requestTenantId) || !draft?.id) return;
+    setOrderDraftsLoading(true);
+    setOrderDraftsError("");
+    try {
+      if (action === "confirm") {
+        await api.post(
+          "/ai-agent/orders/confirm",
+          { tenant_id: requestTenantId, order_id: draft.id },
+          { headers: { "x-tenant-id": requestTenantId } }
+        );
+      } else {
+        await api.patch(
+          `/ai-agent/orders/${draft.id}/status`,
+          { tenant_id: requestTenantId, status: action },
+          { headers: { "x-tenant-id": requestTenantId } }
+        );
+      }
+      await loadOrderDrafts();
+    } catch (err) {
+      setOrderDraftsError(err?.message || "Failed to update AI order");
+    } finally {
+      setOrderDraftsLoading(false);
     }
   };
 
@@ -662,6 +743,85 @@ export default function AiSupportConsole() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
+                  <ShoppingCart className="h-4 w-4" />
+                  AI Order Drafts
+                </div>
+                <p className="mt-2 text-sm text-slate-400">Customer orders started by AI chat, WhatsApp, Instagram, or Facebook inbox.</p>
+              </div>
+              <button
+                type="button"
+                onClick={loadOrderDrafts}
+                disabled={orderDraftsLoading}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.055] px-3 text-sm font-black text-white transition hover:bg-white/[0.09] disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${orderDraftsLoading ? "animate-spin" : ""}`} />
+                Refresh drafts
+              </button>
+            </div>
+
+            {orderDraftsError ? (
+              <div className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{orderDraftsError}</div>
+            ) : null}
+
+            <div className="mt-5 grid gap-3">
+              {orderDraftsLoading && !orderDrafts.length ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-sm text-slate-400">Loading AI order drafts...</div>
+              ) : orderDrafts.length ? orderDrafts.map((draft) => {
+                const items = asArray(draft.items);
+                const metadata = draft.ai_agent_metadata || {};
+                const firstItem = items[0] || {};
+                return (
+                  <div key={draft.id} className="rounded-2xl border border-white/10 bg-slate-950/65 p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-lg font-black text-white">{draft.invoice_number || `AI-${draft.id}`}</div>
+                          <Pill tone={draft.ai_agent_status === "confirmed" ? "emerald" : draft.ai_agent_status === "human_handoff" ? "amber" : draft.ai_agent_status === "cancelled" ? "rose" : "cyan"}>
+                            {draft.ai_agent_status || draft.status}
+                          </Pill>
+                          <Pill tone="cyan">{Number(draft.ai_agent_confidence || 0).toFixed(2)}</Pill>
+                        </div>
+                        <div className="mt-2 grid gap-2 text-sm text-slate-300 md:grid-cols-2">
+                          <span><b className="text-white">Customer:</b> {draft.customer_name || "n/a"} - {draft.customer_phone || "n/a"}</span>
+                          <span><b className="text-white">Area:</b> {[draft.governorate, draft.city_area].filter(Boolean).join(" / ") || "n/a"}</span>
+                          <span><b className="text-white">Product:</b> {firstItem.product_name || metadata.matched_product_id || "n/a"}</span>
+                          <span><b className="text-white">Variant:</b> {firstItem.variant_name || metadata.matched_variant_id || "n/a"} x {firstItem.quantity || 1}</span>
+                          <span><b className="text-white">Total:</b> {draft.total_amount || draft.total || firstItem.total_amount || 0}</span>
+                          <span><b className="text-white">Conversation:</b> {draft.ai_agent_conversation_id || "n/a"}</span>
+                        </div>
+                        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-xs leading-5 text-slate-400">
+                          {metadata.original_customer_message || metadata.transcript || "No transcript saved."}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <button type="button" onClick={() => updateOrderDraft(draft, "confirm")} disabled={orderDraftsLoading || draft.ai_agent_status !== "ai_draft"} className="inline-flex h-10 items-center gap-2 rounded-2xl bg-emerald-400 px-3 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">
+                          <UserCheck className="h-4 w-4" />
+                          Confirm Order
+                        </button>
+                        <button type="button" onClick={() => { window.location.href = `/orders/${draft.id}`; }} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.055] px-3 text-sm font-black text-white">
+                          Edit Details
+                        </button>
+                        <button type="button" onClick={() => updateOrderDraft(draft, "human_handoff")} disabled={orderDraftsLoading || draft.ai_agent_status === "confirmed"} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 text-sm font-black text-amber-100 disabled:cursor-not-allowed disabled:opacity-50">
+                          Assign to human
+                        </button>
+                        <button type="button" onClick={() => updateOrderDraft(draft, "cancelled")} disabled={orderDraftsLoading || draft.ai_agent_status === "confirmed"} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-3 text-sm font-black text-rose-100 disabled:cursor-not-allowed disabled:opacity-50">
+                          <XCircle className="h-4 w-4" />
+                          Reject / Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">No AI order drafts yet.</div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
                   <PackageSearch className="h-4 w-4" />
                   AI support insights
                 </div>
@@ -685,14 +845,14 @@ export default function AiSupportConsole() {
             <div className="mt-5 grid gap-3 lg:grid-cols-4">
               <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4">
                 <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-100/70">Human handoffs</div>
-                <div className="mt-2 text-3xl font-black text-white">{insights?.human_handoff_count ?? 0}</div>
+                <div className="mt-2 text-3xl font-black text-white">{insights?.handoff_count ?? 0}</div>
               </div>
               <InsightList title="Top AI questions" items={insights?.top_questions} labelKey="question" />
               <InsightList title="Top product terms" items={insights?.top_product_terms} labelKey="term" />
               <InsightList title="Top requested sizes" items={insights?.top_requested_sizes} labelKey="size" />
               <InsightList title="Top requested colors" items={insights?.top_requested_colors} labelKey="color" />
               <InsightList title="Most suggested products" items={insights?.most_suggested_products} labelKey="name" />
-              <InsightList title="Most clicked AI products" items={insights?.most_clicked_suggested_products} labelKey="name" />
+              <InsightList title="Most clicked AI products" items={insights?.most_clicked_products} labelKey="name" />
               <InsightList title="Pending aliases" items={insights?.pending_aliases} labelKey="alias" />
             </div>
 

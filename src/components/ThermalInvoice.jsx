@@ -30,6 +30,7 @@ function ThermalInvoice({
   paymentMethod,
 
   discount = 0,
+  invoiceNumber = "",
 
 
 }) {
@@ -39,7 +40,7 @@ function ThermalInvoice({
   ====================================================== */
 
   const invoiceId =
-    `INV-${Date.now()}`;
+    invoiceNumber || "INV-PENDING";
 
   /* ======================================================
      DATE
