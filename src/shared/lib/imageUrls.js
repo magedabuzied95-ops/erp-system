@@ -67,7 +67,7 @@ export const resolveProductImageUrl = (value) => {
 
 export const isInvalidShippingProofUrl = (value) => {
   const proofUrl = String(value || "").trim();
-  if (!proofUrl) return true;
+  if (!proofUrl) return false;
   if (proofUrl.startsWith("data:image")) return true;
   if (proofUrl.startsWith("blob:")) return true;
   return false;
@@ -76,7 +76,56 @@ export const isInvalidShippingProofUrl = (value) => {
 export const resolveShippingProofImageUrl = (value) => {
   const proofUrl = String(value || "").trim();
   if (isInvalidShippingProofUrl(proofUrl)) return "";
-  return resolveProductImageUrl(proofUrl);
+  if (!proofUrl) return "";
+  if (proofUrl.startsWith("data:") || proofUrl.startsWith("blob:")) return proofUrl;
+  if (/^https?:\/\//i.test(proofUrl)) return normalizeReachableUrl(proofUrl);
+  if (/^\/\/(?!\/*uploads(?:\/|$))/i.test(proofUrl) && typeof window !== "undefined") {
+    return normalizeReachableUrl(`${window.location.protocol}${proofUrl}`);
+  }
+
+  const baseUrl = getBackendAssetBaseUrl();
+  const joinAssetUrl = (path) => `${baseUrl}/${trimSlashes(path)}`;
+  if (proofUrl.startsWith("/uploads/")) return joinAssetUrl(proofUrl);
+  if (proofUrl.startsWith("uploads/")) return joinAssetUrl(proofUrl);
+  if (proofUrl.startsWith("payment-proofs/")) return joinAssetUrl(`/uploads/${proofUrl}`);
+  if (proofUrl.startsWith("/payment-proofs/")) return joinAssetUrl(`/uploads${proofUrl}`);
+  if (proofUrl.startsWith("/")) return joinAssetUrl(proofUrl);
+  return joinAssetUrl(`/uploads/payment-proofs/${proofUrl}`);
+};
+
+export const getShippingProofRawValue = (order = {}) => {
+  const direct = [
+    order.shipping_payment_screenshot,
+    order.payment_proof_url,
+    order.shipping_proof_url,
+    order.proof_image_url,
+    order.payment_screenshot_url,
+    order.payment_screenshot,
+    order.shipping_payment_proof_url,
+  ].find((value) => String(value || "").trim());
+  if (direct) return String(direct).trim();
+
+  const metadata = order.metadata || order.meta || {};
+  if (metadata && typeof metadata === "object") {
+    const metaValue = [
+      metadata.shipping_payment_screenshot,
+      metadata.payment_proof_url,
+      metadata.shipping_proof_url,
+      metadata.proof_image_url,
+      metadata.payment_screenshot_url,
+      metadata.proof,
+    ].find((value) => String(value || "").trim());
+    if (metaValue) return String(metaValue).trim();
+  }
+
+  const attachments = Array.isArray(order.attachments) ? order.attachments : [];
+  const attachment = attachments.find((item) => {
+    const type = String(item?.type || item?.kind || item?.name || item?.label || "").toLowerCase();
+    const url = String(item?.url || item?.path || item?.image_url || item?.href || "").trim();
+    return url && (type.includes("proof") || type.includes("payment") || type.includes("shipping") || type.includes("screenshot"));
+  }) || attachments.find((item) => String(item?.url || item?.path || item?.image_url || item?.href || "").trim());
+
+  return attachment ? String(attachment.url || attachment.path || attachment.image_url || attachment.href || "").trim() : "";
 };
 
 export const formatShippingPaymentMethodLabel = (value) => {

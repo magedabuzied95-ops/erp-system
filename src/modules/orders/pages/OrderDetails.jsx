@@ -26,6 +26,7 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import {
   formatShippingPaymentMethodLabel,
+  getShippingProofRawValue,
   isInvalidShippingProofUrl,
   resolveShippingProofImageUrl,
 } from "../../../shared/lib/imageUrls";
@@ -324,6 +325,7 @@ function OrderDetails() {
   });
   const [shippingTab, setShippingTab] = useState("shipment");
   const [paymentProofModalOpen, setPaymentProofModalOpen] = useState(false);
+  const [paymentProofImageFailed, setPaymentProofImageFailed] = useState(false);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
   const [packingChecklist, setPackingChecklist] = useState(emptyPackingChecklist);
 
@@ -385,13 +387,13 @@ function OrderDetails() {
     paymentStatusValue === "rejected" ||
     orderStatusValue === "payment_rejected" ||
     transferProofStatusValue === "rejected";
+  const shippingProofValue = getShippingProofRawValue(order || {});
   const paymentReviewVisible =
     isAwaitingPaymentVerification ||
     isShippingPaid ||
     isPaymentRejected ||
-    Boolean(order?.shipping_payment_screenshot);
-  const shippingProofValue = String(order?.shipping_payment_screenshot || "").trim();
-  const shippingProofInvalid = isInvalidShippingProofUrl(shippingProofValue);
+    Boolean(shippingProofValue);
+  const shippingProofInvalid = Boolean(shippingProofValue) && isInvalidShippingProofUrl(shippingProofValue);
   const paymentProofUrl = shippingProofInvalid ? "" : resolveShippingProofImageUrl(shippingProofValue);
   const canReviewShippingProof = Boolean(paymentProofUrl);
   const paymentSummaryStatus = (() => {
@@ -433,6 +435,10 @@ function OrderDetails() {
   const normalizedCustomerPhone = normalizePhoneNumber(customerPhone);
   const canContactCustomer = isValidWhatsappPhone(normalizedCustomerPhone);
   const packingCompleteCount = PACKING_CHECKLIST_ITEMS.filter((item) => packingChecklist[item.key]).length;
+
+  useEffect(() => {
+    setPaymentProofImageFailed(false);
+  }, [paymentProofUrl]);
 
   const saveLocalMeta = (patch) => {
     upsertOrderMeta(id, patch);
@@ -999,9 +1005,12 @@ function OrderDetails() {
               <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/70">
                 {shippingProofInvalid ? (
                   <div className="grid min-h-64 place-items-center px-4 py-10 text-center text-sm font-semibold text-rose-200">
-                    {t("orders.payment.invalidProof")}
+                    <div>
+                      <div>{t("orders.payment.invalidProof")}</div>
+                      <div className="mt-3 max-w-full break-all rounded-xl border border-rose-400/20 bg-black/30 p-3 text-xs font-mono text-rose-100">{shippingProofValue}</div>
+                    </div>
                   </div>
-                ) : paymentProofUrl ? (
+                ) : paymentProofUrl && !paymentProofImageFailed ? (
                   <div className="p-4">
                     <button
                       type="button"
@@ -1012,6 +1021,7 @@ function OrderDetails() {
                         src={paymentProofUrl}
                         alt={t("orders.details.shippingPaymentProof")}
                         className="max-h-44 w-full object-contain bg-black/30 transition group-hover:opacity-90"
+                        onError={() => setPaymentProofImageFailed(true)}
                       />
                     </button>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -1031,6 +1041,13 @@ function OrderDetails() {
                         <ExternalLink className="h-4 w-4" />
                         {t("orders.details.openFullImage")}
                       </button>
+                    </div>
+                  </div>
+                ) : paymentProofUrl && paymentProofImageFailed ? (
+                  <div className="grid min-h-64 place-items-center px-4 py-10 text-center text-sm font-semibold text-rose-200">
+                    <div>
+                      <div>{t("orders.payment.invalidProofUrl")}</div>
+                      <div className="mt-3 max-w-full break-all rounded-xl border border-rose-400/20 bg-black/30 p-3 text-xs font-mono text-rose-100">{shippingProofValue || paymentProofUrl}</div>
                     </div>
                   </div>
                 ) : (
@@ -1329,7 +1346,7 @@ function OrderDetails() {
 
       {paymentProofModalOpen && paymentProofUrl ? (
         <ModalShell title={t("orders.payment.proof")} onClose={() => setPaymentProofModalOpen(false)} closeLabel={t("common.close")}>
-          <img src={paymentProofUrl} alt={t("orders.details.shippingPaymentProof")} className="max-h-[78vh] w-full object-contain" />
+          <img src={paymentProofUrl} alt={t("orders.details.shippingPaymentProof")} className="max-h-[78vh] w-full object-contain" onError={() => setPaymentProofImageFailed(true)} />
           <div className="mt-4 flex justify-end">
             <button
               type="button"

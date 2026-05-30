@@ -50,6 +50,7 @@ import {
 } from "../lib/ordersStore";
 import {
   formatShippingPaymentMethodLabel,
+  getShippingProofRawValue,
   isInvalidShippingProofUrl,
   resolveProductImageUrl,
   resolveShippingProofImageUrl,
@@ -393,7 +394,7 @@ const buildTimeline = (order = {}) => {
   const items = [
     { key: "created", label: "Order created", at: order.created_at, done: Boolean(order.created_at), tone: "emerald" },
   ];
-  if (order.shipping_payment_screenshot) {
+  if (getShippingProofRawValue(order)) {
     items.push({ key: "payment_uploaded", label: "Payment proof uploaded", at: order.created_at, done: true, tone: "amber" });
   }
   if (order.shipping_payment_verified_at) {
@@ -1162,8 +1163,9 @@ function VerificationQueue({ t, orders, updateShippingPayment, openOrder }) {
   return (
     <div className="mt-3 grid gap-3 xl:grid-cols-2">
       {orders.map((order) => {
-        const proofUrl = resolveShippingProofImageUrl(order.shipping_payment_screenshot);
-        const proofInvalid = isInvalidShippingProofUrl(order.shipping_payment_screenshot);
+        const rawProof = getShippingProofRawValue(order);
+        const proofUrl = resolveShippingProofImageUrl(rawProof);
+        const proofInvalid = Boolean(rawProof) && isInvalidShippingProofUrl(rawProof);
         return (
           <div key={order.id} className="grid gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/10 p-3 shadow-xl shadow-amber-950/10 md:grid-cols-[7rem_minmax(0,1fr)]">
             <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
@@ -1260,8 +1262,9 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
   const previewItems = items.map((item) => normalizePreviewOrderItem(item, order));
   const timeline = buildTimeline(order);
   const address = [order.governorate, order.city_area, order.customer_address, order.landmark].filter(Boolean).join(" - ");
-  const proofUrl = resolveShippingProofImageUrl(order.shipping_payment_screenshot);
-  const proofInvalid = isInvalidShippingProofUrl(order.shipping_payment_screenshot);
+  const rawProof = getShippingProofRawValue(order);
+  const proofUrl = resolveShippingProofImageUrl(rawProof);
+  const proofInvalid = Boolean(rawProof) && isInvalidShippingProofUrl(rawProof);
   return (
     <div className={`fixed inset-0 z-50 ${inlinePreview ? "xl:hidden" : ""}`}>
       <button type="button" aria-label={t("orders.drawer.closeBackdrop")} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />

@@ -1395,6 +1395,25 @@ const isRealId = (value) => value !== undefined && value !== null && value !== "
 const getOrderItemLabel = (item = {}) =>
   item.product_name || item.name || item.variant_name || `product ${item.product_id || "unknown"}`;
 
+const withPaymentProofAliases = (order = {}) => {
+  const proofUrl = String(
+    order.shipping_payment_screenshot ||
+    order.payment_proof_url ||
+    order.shipping_proof_url ||
+    order.proof_image_url ||
+    order.payment_screenshot_url ||
+    ""
+  ).trim();
+  return {
+    ...order,
+    shipping_payment_screenshot: proofUrl,
+    payment_proof_url: proofUrl,
+    shipping_proof_url: proofUrl,
+    proof_image_url: proofUrl,
+    payment_screenshot_url: proofUrl,
+  };
+};
+
 const adjustProductStock = async (client, data = {}) => {
   const tenantId = data.tenantId ?? null;
   const productId = data.productId;
@@ -3502,13 +3521,13 @@ export const getOrders = async (req, res) => {
     const payload = result.rows.map((order) => {
         const items = normalizeReturnedOrderItems(order, itemsByOrder.get(String(order.id)) || []);
         const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-        return {
+        return withPaymentProofAliases({
           ...order,
           total_quantity: totalQuantity,
           total_items: totalQuantity,
           item_count: totalQuantity,
           items,
-        };
+        });
       });
     if (POS_DEBUG) console.log("[orders-list-timing]", { count: payload.length, total_ms: nowMs() - startedAt });
     res.status(200).json(payload);
@@ -5930,7 +5949,7 @@ export const getSingleOrder = async (req, res) => {
     timeline.sort((a, b) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime());
 
     const normalizedItems = normalizeReturnedOrderItems(order, itemsResult.rows);
-    return res.status(200).json({ order: { ...order, items: normalizedItems, audit_timeline: timeline }, items: normalizedItems, audit_timeline: timeline });
+    return res.status(200).json({ order: withPaymentProofAliases({ ...order, items: normalizedItems, audit_timeline: timeline }), items: normalizedItems, audit_timeline: timeline });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "Server Error" });

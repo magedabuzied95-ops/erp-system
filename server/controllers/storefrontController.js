@@ -61,6 +61,16 @@ const getStorefrontOrderSettings = async () => {
     defaultShippingProvider: String(defaultShippingProvider || "manual").trim().toLowerCase() || "manual",
   };
 };
+const withPaymentProofAliases = (order = {}) => {
+  const proofUrl = String(order.shipping_payment_screenshot || "").trim();
+  return {
+    ...order,
+    payment_proof_url: proofUrl,
+    shipping_proof_url: proofUrl,
+    proof_image_url: proofUrl,
+    payment_screenshot_url: proofUrl,
+  };
+};
 const VISUAL_SEARCH_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_SEARCH_MAX_BYTES || 8 * 1024 * 1024);
 const VISUAL_SEARCH_ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const VISUAL_HASH_SIZE = 8;
@@ -3364,7 +3374,7 @@ export const createWebsiteOrder = async (req, res) => {
         metadata: { product_id: item.product_id, stock, image_url: item.image_url || "", badge: "عاجل", source: "website_order" },
       }).catch((error) => console.warn("[notifications] low stock skipped", error?.message || error));
     });
-    res.status(201).json({ success: true, order, items: normalizedItems, track_token: token });
+    res.status(201).json({ success: true, order: withPaymentProofAliases(order), items: normalizedItems, track_token: token });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     if (req.file?.path) {
