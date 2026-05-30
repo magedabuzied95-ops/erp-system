@@ -44,7 +44,6 @@ import {
 
 import { socket } from "../socket";
 import LiveActivityFeed from "../components/activity/LiveActivityFeed";
-import CommandCenterDashboard from "../components/dashboard/CommandCenterDashboard";
 import { api } from "../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../shared/auth/authStorage";
 import { formatCurrency } from "../shared/lib/currency";
@@ -151,6 +150,8 @@ function Dashboard() {
   const [branches, setBranches] = React.useState([]);
   const [socketConnected, setSocketConnected] = React.useState(Boolean(socket?.connected));
   const [filters, setFilters] = React.useState({ range: "today", date_from: "", date_to: "", branch_id: "all" });
+  const [focusMode, setFocusMode] = React.useState(() => localStorage.getItem("erp.dashboard.mode") === "focus");
+  const [activeSection, setActiveSection] = React.useState("sales");
 
   React.useEffect(() => {
     try {
@@ -288,6 +289,10 @@ function Dashboard() {
   }, [loadDashboard]);
 
   React.useEffect(() => {
+    localStorage.setItem("erp.dashboard.mode", focusMode ? "focus" : "full");
+  }, [focusMode]);
+
+  React.useEffect(() => {
     api.get("/branches")
       .then((response) => {
         const payload = response?.data || response;
@@ -350,32 +355,14 @@ function Dashboard() {
   }, [loadDashboard]);
 
   const overview = data.overview || {};
-  const revenueSparkline = data.salesTrend.map((row) => row.revenue);
-  const orderSparkline = data.salesTrend.map((row) => row.orders);
-  const hourlySparkline = data.hourlySales.map((row) => row.sales);
-  const kpis = [
-    { key: "todaySales", label: "Today's Sales", value: formatCurrency(overview.kpis?.todaySales?.value || 0), growth: overview.kpis?.todaySales?.growth, icon: Banknote, tone: "emerald", sparkline: revenueSparkline },
-    { key: "todayProfit", label: "Today's Profit", value: formatCurrency(overview.kpis?.todayProfit?.value || 0), growth: overview.kpis?.todayProfit?.growth, icon: TrendingUp, tone: "sky", sparkline: revenueSparkline },
-    { key: "todayOrders", label: "Today's Orders", value: number(overview.kpis?.todayOrders?.value), growth: overview.kpis?.todayOrders?.growth, icon: ShoppingCart, tone: "violet", sparkline: orderSparkline },
-    { key: "averageOrderValue", label: "Average Order Value", value: formatCurrency(overview.kpis?.averageOrderValue?.value || 0), growth: overview.kpis?.averageOrderValue?.growth, icon: ReceiptText, tone: "amber", sparkline: revenueSparkline },
-    { key: "activePosSessions", label: "Active POS Sessions", value: number(overview.kpis?.activePosSessions?.value), growth: overview.kpis?.activePosSessions?.growth, icon: MonitorDot, tone: "emerald", sparkline: hourlySparkline },
-    { key: "lowStockProducts", label: "Low Stock Products", value: number(overview.kpis?.lowStockProducts?.value), growth: overview.kpis?.lowStockProducts?.growth, icon: AlertTriangle, tone: "rose", sparkline: data.lowStock.map((item) => item.stock) },
-    { key: "pendingPurchaseOrders", label: "Pending Purchase Orders", value: number(overview.kpis?.pendingPurchaseOrders?.value), growth: overview.kpis?.pendingPurchaseOrders?.growth, icon: Package, tone: "cyan", sparkline: [] },
-    { key: "totalCustomersToday", label: "Total Customers Today", value: number(overview.kpis?.totalCustomersToday?.value), growth: overview.kpis?.totalCustomersToday?.growth, icon: Users, tone: "blue", sparkline: orderSparkline },
-  ];
-  const productivityStats = [
-    { label: "Revenue", value: compactNumber(overview.today?.sales || 0) },
-    { label: "Orders", value: number(overview.today?.orders) },
-    { label: "AOV", value: formatCurrency(overview.kpis?.averageOrderValue?.value || 0) },
-  ];
   const openPosShifts = data.posLive?.openShifts || [];
   const hasPosActivity = openPosShifts.length > 0 || Number(data.posLive?.currentCartCounts || 0) > 0;
   const socketStatus = hasSocketClient && socketConnected
     ? { value: "Connected", tone: "emerald", pulse: true }
-    : { value: "Live Polling", tone: "cyan", pulse: false };
+    : { value: "Live Polling", tone: "slate", pulse: false };
   const posStatus = hasPosActivity
     ? { value: "Active", tone: "emerald", pulse: true }
-    : { value: "Ready", tone: "cyan", pulse: false };
+    : { value: "Ready", tone: "slate", pulse: false };
   const quickActions = [
     { to: "/pos", icon: Store, label: "POS", primary: true },
     { to: "/orders", icon: ReceiptText, label: "Orders" },
@@ -383,50 +370,54 @@ function Dashboard() {
     { to: "/products", icon: Boxes, label: "Products" },
     { to: "/marketing/ai-center", icon: Brain, label: "AI Center" },
   ];
-
-  const toggleHidden = (id) => {
-    const nextHidden = hidden.includes(id) ? hidden.filter((item) => item !== id) : [...hidden, id];
-    setHidden(nextHidden);
-    persistLayout({ hidden: nextHidden });
-  };
-
-  const toggleSize = (id) => {
-    const nextSizes = { ...sizes, [id]: sizes[id] === "wide" ? "medium" : "wide" };
-    setSizes(nextSizes);
-    persistLayout({ sizes: nextSizes });
-  };
-
-  const handleDrop = (targetId, sourceId) => {
-    if (!sourceId || sourceId === targetId) return;
-    const ids = availableWidgets.map((widget) => widget.id);
-    const next = ids.filter((id) => id !== sourceId);
-    next.splice(next.indexOf(targetId), 0, sourceId);
-    setOrder(next);
-    persistLayout({ order: next });
-  };
+  const latestAlert = React.useMemo(() => {
+    const low = (data.lowStock || [])[0];
+    if (low) return { tone: "amber", title: low.name || "Low stock product", detail: `${number(low.stock)} / ${number(low.threshold)} remaining` };
+    const activity = (data.liveActivity || [])[0];
+    if (activity) return { tone: "slate", title: activity.title || activity.type || "Latest activity", detail: shortTime(activity.created_at) };
+    return { tone: "emerald", title: "No critical alerts", detail: "Operations are calm" };
+  }, [data.liveActivity, data.lowStock]);
+  const executiveCards = [
+    { label: "Revenue today", value: formatCurrency(overview.kpis?.todaySales?.value || overview.today?.sales || 0), icon: Banknote, tone: "emerald", detail: percent(overview.kpis?.todaySales?.growth || 0) },
+    { label: "Orders today", value: number(overview.kpis?.todayOrders?.value ?? overview.today?.orders), icon: ShoppingCart, tone: "slate", detail: `${formatCurrency(overview.kpis?.averageOrderValue?.value || 0)} AOV` },
+    { label: "Active POS", value: number(openPosShifts.length), icon: MonitorDot, tone: hasPosActivity ? "emerald" : "slate", detail: posStatus.value },
+    { label: "Low stock", value: number(data.lowStock.length || overview.kpis?.lowStockProducts?.value), icon: AlertTriangle, tone: data.lowStock.length ? "amber" : "emerald", detail: data.lowStock.length ? "Needs attention" : "Healthy" },
+    { label: "Latest alert", value: latestAlert.title, icon: Bell, tone: latestAlert.tone, detail: latestAlert.detail, textValue: true },
+  ];
+  const hasSalesData = [...(data.salesTrend || []), ...(data.hourlySales || [])].some((row) => Number(row.revenue || row.sales || row.orders || 0) > 0);
+  const hasInventoryData = Boolean((data.inventory?.lowStock || []).length || (data.inventory?.fastMovingProducts || []).length || (data.inventory?.topSizes || []).length || (data.inventory?.topColors || []).length);
+  const hasAiData = Boolean((data.aiInsights || []).length);
+  const hasStaffData = Boolean(openPosShifts.length || Number(data.posLive?.activeCashiers || 0) > 0);
+  const hasMarketingData = Boolean((data.marketing?.channels || []).some((row) => Number(row.sales || row.orders || 0) > 0));
+  const hasActivityData = Boolean((data.liveActivity || []).length);
+  const secondarySections = [
+    { id: "sales", label: "Sales analytics", icon: LineChartIcon, show: hasSalesData, render: () => <SalesAnalytics salesTrend={data.salesTrend} hourlySales={data.hourlySales} /> },
+    { id: "inventory", label: "Inventory intelligence", icon: Warehouse, show: hasInventoryData, render: () => <InventoryIntelligence inventory={data.inventory} /> },
+    { id: "ai", label: "AI insights", icon: Brain, show: hasAiData, render: () => <AiInsights insights={data.aiInsights} /> },
+    { id: "staff", label: "Staff activity", icon: Users, show: hasStaffData, render: () => <StaffActivity posLive={data.posLive} /> },
+    { id: "marketing", label: "Marketing analytics", icon: Activity, show: hasMarketingData, render: () => <MarketingAnalytics marketing={data.marketing} /> },
+    { id: "activity", label: "Activity feed", icon: Bell, show: hasActivityData, render: () => <LiveActivityFeed initialEvents={data.liveActivity} /> },
+  ].filter((section) => section.show);
+  const activeSecondary = secondarySections.find((section) => section.id === activeSection) || secondarySections[0];
 
   return (
-    <div className="dashboard-premium relative isolate min-h-screen w-full overflow-x-hidden rounded-[28px] px-3 pb-8 pt-2 text-white sm:px-4">
-      <div className="dashboard-ambient dashboard-ambient-one" />
-      <div className="dashboard-ambient dashboard-ambient-two" />
-      <div className="dashboard-noise" />
-
-      <div className="sticky top-0 z-20 -mx-3 border-b border-white/[0.06] bg-zinc-950/55 px-3 py-3 backdrop-blur-2xl sm:-mx-4 sm:px-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <div className="dashboard-premium relative isolate min-h-screen w-full overflow-x-hidden rounded-[28px] px-4 pb-10 pt-4 text-slate-100 sm:px-6">
+      <div className="sticky top-0 z-20 -mx-4 border-b border-slate-700/45 bg-[#07111f]/88 px-4 py-4 backdrop-blur-xl sm:-mx-6 sm:px-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.26em] text-emerald-300/90">ERP Control Center</div>
-            <h1 className="mt-1 text-2xl font-black tracking-tight text-white md:text-4xl">
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Executive Control Center</div>
+            <h1 className="mt-1 text-2xl font-black tracking-normal text-white md:text-4xl">
               {getGreeting()}, {user?.name || "Admin"}
             </h1>
-            <div className="mt-1 text-xs font-semibold text-zinc-400">{tenant?.name || tenant?.companyName || "Workspace"}</div>
+            <div className="mt-1 text-sm font-semibold text-slate-400">{tenant?.name || tenant?.companyName || "Workspace"}{lastUpdated ? ` · Updated ${shortTime(lastUpdated)}` : ""}</div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-zinc-300 xl:justify-end">
-            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-white/[0.06] bg-black/20 p-1 shadow-lg shadow-black/10 backdrop-blur-xl">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-300 xl:justify-end">
+            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-slate-700/50 bg-slate-900/55 p-1">
               {quickActions.map((action) => (
                 <QuickAction key={action.to} {...action} />
               ))}
             </div>
-            <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-9 rounded-xl border border-white/[0.08] bg-zinc-950/65 px-3 text-xs font-bold text-white outline-none backdrop-blur-xl transition hover:border-white/15">
+            <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-10 rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-xs font-bold text-white outline-none transition hover:border-slate-500">
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>
               <option value="7d">Last 7 days</option>
@@ -435,21 +426,26 @@ function Dashboard() {
             </select>
             {filters.range === "custom" ? (
               <>
-                <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-9 rounded-xl border border-white/[0.08] bg-zinc-950/65 px-3 text-xs text-white outline-none backdrop-blur-xl" />
-                <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-9 rounded-xl border border-white/[0.08] bg-zinc-950/65 px-3 text-xs text-white outline-none backdrop-blur-xl" />
+                <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-10 rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-xs text-white outline-none" />
+                <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-10 rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-xs text-white outline-none" />
               </>
             ) : null}
             {branches.length > 1 ? (
-              <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-9 rounded-xl border border-white/[0.08] bg-zinc-950/65 px-3 text-xs font-bold text-white outline-none backdrop-blur-xl">
+              <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-10 rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-xs font-bold text-white outline-none">
                 <option value="all">All branches</option>
                 {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </select>
             ) : null}
             <StatusPill label="Socket" value={socketStatus.value} tone={socketStatus.tone} pulse={socketStatus.pulse} />
             <StatusPill label="POS" value={posStatus.value} tone={posStatus.tone} pulse={posStatus.pulse} />
-            <StatusPill label="Online" value={onlineUsers || "-"} tone="violet" pulse={Number(onlineUsers || 0) > 0} />
-            <SessionTimer />
-            <button type="button" onClick={() => loadDashboard()} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.055] px-3 transition hover:-translate-y-0.5 hover:bg-white/[0.09] hover:shadow-lg hover:shadow-emerald-950/30">
+            <button
+              type="button"
+              onClick={() => setFocusMode((value) => !value)}
+              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${focusMode ? "border-emerald-400/35 bg-emerald-500/12 text-emerald-100" : "border-slate-700 bg-slate-900/70 text-slate-200 hover:border-slate-500"}`}
+            >
+              {focusMode ? "Focus mode" : "Full mode"}
+            </button>
+            <button type="button" onClick={() => loadDashboard()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 transition hover:border-slate-500 hover:bg-slate-800/75">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </button>
@@ -457,91 +453,123 @@ function Dashboard() {
         </div>
       </div>
 
-      <section className="relative z-10 mt-4 grid gap-2 md:grid-cols-4">
-        <TodayCard label="Productivity" value={productivityStats.map((item) => `${item.label} ${item.value}`).join(" / ")} />
-        <TodayCard label="Live orders" value={number(overview.today?.orders)} pulse={Number(overview.today?.orders || 0) > 0} />
-        <TodayCard label="Active POS" value={number((data.posLive?.openShifts || []).length)} pulse={(data.posLive?.openShifts || []).length > 0} />
-        <TodayCard label="Last update" value={lastUpdated ? shortTime(lastUpdated) : "-"} />
-      </section>
-
-      {data.saleMode?.sale_mode_enabled ? (
-        <section className="relative z-10 mt-4 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">Existing Sale Prices Active</div>
-              <div className="mt-1 text-lg font-black text-white">{data.saleMode.sale_mode_label || "Products with saved sale prices are now live."}</div>
-            </div>
-            <div className="grid gap-2 text-sm sm:grid-cols-2">
-              <TodayCard label="Affected products" value={number(data.saleModeAnalytics?.affectedProductsCount || 0)} pulse />
-              <TodayCard label="Est. discount impact" value={formatCurrency(data.saleModeAnalytics?.estimatedDiscountImpact || 0)} pulse />
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {!loading ? (
-        <CommandCenterDashboard
-          data={data}
-          overview={overview}
-          onlineUsers={onlineUsers}
-          socketConnected={socketConnected}
-          formatCurrency={formatCurrency}
-        />
-      ) : null}
-
-      <section className="relative z-10 mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {kpis.map(({ key, ...cardProps }) => <KpiCard key={key} {...cardProps} loading={loading} />)}
+      <section className="relative z-10 mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {executiveCards.map((card) => <ExecutiveCard key={card.label} {...card} loading={loading} />)}
       </section>
 
       {!loading && Number(overview.today?.orders || 0) === 0 && Number(overview.today?.sales || 0) === 0 ? <GettingStarted /> : null}
 
-      <div className="relative z-10 mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
-        <main className="min-w-0">
-          <WidgetManager widgets={availableWidgets} hidden={hidden} onToggle={toggleHidden} />
-          <div className="mt-3 grid grid-cols-1 gap-3 2xl:grid-cols-2">
-            {visibleWidgets.map((widget) => (
-              <WidgetShell
-                key={widget.id}
-                widget={widget}
-                onToggleSize={toggleSize}
-                onDropWidget={handleDrop}
-              >
-                {loading ? <WidgetSkeleton /> : null}
-                {!loading && widget.id === "sales" ? <SalesAnalytics salesTrend={data.salesTrend} hourlySales={data.hourlySales} /> : null}
-                {!loading && widget.id === "activity" ? <LiveActivityFeed initialEvents={data.liveActivity} /> : null}
-                {!loading && widget.id === "inventory" ? <InventoryIntelligence inventory={data.inventory} /> : null}
-                {!loading && widget.id === "pos" ? <PosLiveMonitor posLive={data.posLive} /> : null}
-                {!loading && widget.id === "ai" ? <AiInsights insights={data.aiInsights} /> : null}
-                {!loading && widget.id === "branches" ? <BranchPerformance rows={data.branchPerformance} /> : null}
-                {!loading && widget.id === "marketing" ? <MarketingAnalytics marketing={data.marketing} /> : null}
-                {!loading && widget.id === "products" ? <TopProducts rows={data.topProducts} /> : null}
-              </WidgetShell>
-            ))}
-          </div>
+      <div className="relative z-10 mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <main className="min-w-0 space-y-6">
+          {!focusMode && secondarySections.length ? (
+            <ExecutiveSection
+              sections={secondarySections}
+              activeId={activeSecondary?.id}
+              onSelect={setActiveSection}
+            >
+              {loading ? <WidgetSkeleton /> : activeSecondary?.render()}
+            </ExecutiveSection>
+          ) : null}
+          {!focusMode && data.saleMode?.sale_mode_enabled ? (
+            <section className="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5">
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">Existing Sale Prices Active</div>
+              <div className="mt-2 text-lg font-black text-white">{data.saleMode.sale_mode_label || "Products with saved sale prices are now live."}</div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <TodayCard label="Affected products" value={number(data.saleModeAnalytics?.affectedProductsCount || 0)} pulse />
+                <TodayCard label="Est. discount impact" value={formatCurrency(data.saleModeAnalytics?.estimatedDiscountImpact || 0)} pulse />
+              </div>
+            </section>
+          ) : null}
         </main>
 
         <RightSidebar
           lowStock={data.lowStock}
           recentInvoices={overview.recentInvoices || []}
-          posLive={data.posLive}
           activity={data.liveActivity}
-          inventory={data.inventory}
-          onlineUsers={onlineUsers}
         />
       </div>
     </div>
   );
 }
 
-function StatusPill({ label, value, tone = "emerald", pulse = false }) {
+function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loading = false, textValue = false }) {
   const tones = {
-    emerald: "border-emerald-300/15 bg-emerald-400/[0.08] text-emerald-100",
-    sky: "border-sky-300/15 bg-sky-400/[0.08] text-sky-100",
-    amber: "border-amber-300/15 bg-amber-400/[0.08] text-amber-100",
-    violet: "border-violet-300/15 bg-violet-400/[0.08] text-violet-100",
+    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
+    amber: "border-amber-400/24 bg-amber-500/10 text-amber-100",
+    rose: "border-red-400/24 bg-red-500/10 text-red-100",
+    slate: "border-slate-700/70 bg-slate-900/62 text-slate-100",
+  };
+  const iconTones = {
+    emerald: "bg-emerald-400/12 text-emerald-200",
+    amber: "bg-amber-400/12 text-amber-200",
+    rose: "bg-red-400/12 text-red-200",
+    slate: "bg-slate-700/55 text-slate-300",
   };
   return (
-    <span className={`inline-flex h-9 items-center gap-2 rounded-xl border px-3 shadow-lg shadow-black/10 backdrop-blur-xl ${tones[tone]}`}>
+    <article className={`min-h-[168px] rounded-3xl border p-5 shadow-xl shadow-black/18 ${tones[tone] || tones.slate}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{label}</div>
+          <div className={`mt-4 font-black tracking-normal text-white ${textValue ? "line-clamp-2 text-xl leading-7" : "text-3xl md:text-4xl"}`}>
+            {loading ? <SkeletonLine className="h-9 w-24" /> : value}
+          </div>
+        </div>
+        <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${iconTones[tone] || iconTones.slate}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+      <div className="mt-5 text-sm font-semibold text-slate-400">{loading ? <SkeletonLine className="h-4 w-28" /> : detail}</div>
+    </article>
+  );
+}
+
+function ExecutiveSection({ sections, activeId, onSelect, children }) {
+  return (
+    <section className="rounded-3xl border border-slate-700/60 bg-slate-900/52 p-4 shadow-2xl shadow-black/20 md:p-5">
+      <div className="mb-5 flex flex-wrap gap-2">
+        {sections.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onSelect(id)}
+            className={`inline-flex h-11 items-center gap-2 rounded-2xl border px-4 text-sm font-black transition ${
+              activeId === id
+                ? "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"
+                : "border-slate-700 bg-slate-950/45 text-slate-400 hover:border-slate-500 hover:text-slate-100"
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function StaffActivity({ posLive }) {
+  const activeCashiers = Number(posLive?.activeCashiers || 0);
+  const openShifts = posLive?.openShifts || [];
+  if (!activeCashiers && !openShifts.length) return null;
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <MetricTile label="Active cashiers" value={number(activeCashiers)} icon={Users} />
+      <MetricTile label="Open shifts" value={number(openShifts.length)} icon={MonitorDot} />
+      <MetricTile label="Current carts" value={number(posLive?.currentCartCounts)} icon={ShoppingCart} />
+    </div>
+  );
+}
+
+function StatusPill({ label, value, tone = "emerald", pulse = false }) {
+  const tones = {
+    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
+    amber: "border-amber-400/20 bg-amber-500/10 text-amber-100",
+    rose: "border-red-400/20 bg-red-500/10 text-red-100",
+    slate: "border-slate-700 bg-slate-900/70 text-slate-300",
+  };
+  return (
+    <span className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 ${tones[tone] || tones.slate}`}>
       <LivePulse active={pulse} tone={tone} />
       {label}: <strong>{value}</strong>
     </span>
@@ -549,7 +577,7 @@ function StatusPill({ label, value, tone = "emerald", pulse = false }) {
 }
 
 function LivePulse({ active = true, tone = "emerald" }) {
-  const tones = { emerald: "bg-emerald-300", amber: "bg-amber-300", sky: "bg-sky-300", violet: "bg-violet-300", rose: "bg-rose-300" };
+  const tones = { emerald: "bg-emerald-300", amber: "bg-amber-300", rose: "bg-red-300", slate: "bg-slate-400" };
   return <span className={`dashboard-pulse h-2 w-2 shrink-0 rounded-full ${tones[tone] || tones.emerald} ${active ? "" : "opacity-40"}`} />;
 }
 
@@ -738,27 +766,25 @@ function SalesAnalytics({ salesTrend, hourlySales }) {
         {hasTrend ? <ResponsiveContainer width="100%" height={220}>
           <AreaChart data={salesTrend} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
             <defs>
-              <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.55} /><stop offset="95%" stopColor="#34d399" stopOpacity={0} /></linearGradient>
-              <linearGradient id="ordersGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#38bdf8" stopOpacity={0.28} /><stop offset="95%" stopColor="#38bdf8" stopOpacity={0} /></linearGradient>
+              <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#67e8f9" stopOpacity={0.32} /><stop offset="95%" stopColor="#67e8f9" stopOpacity={0} /></linearGradient>
             </defs>
-            <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-            <XAxis dataKey="label" stroke="#71717a" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-            <YAxis stroke="#71717a" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={48} />
+            <CartesianGrid stroke="rgba(148,163,184,0.12)" vertical={false} />
+            <XAxis dataKey="label" stroke="#64748b" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+            <YAxis stroke="#64748b" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={48} />
             <Tooltip content={<DashboardTooltip />} />
-            <Area type="monotone" dataKey="revenue" stroke="#34d399" strokeWidth={3} fill="url(#salesGradient)" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
-            <Area type="monotone" dataKey="orders" stroke="#38bdf8" strokeWidth={2} fill="url(#ordersGradient)" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+            <Area type="monotone" dataKey="revenue" stroke="#67e8f9" strokeWidth={2.5} fill="url(#salesGradient)" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+            <Area type="monotone" dataKey="orders" stroke="#94a3b8" strokeWidth={1.8} fill="transparent" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
           </AreaChart>
         </ResponsiveContainer> : <EmptyChart title="No sales in this range" message="Revenue and order trends will appear after real invoices are created." />}
       </ChartCard>
       <ChartCard title="Hourly Sales">
         {hasHourly ? <ResponsiveContainer width="100%" height={220}>
           <BarChart data={hourlySales} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
-            <defs><linearGradient id="hourlyGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#38bdf8" stopOpacity={0.85} /><stop offset="100%" stopColor="#10b981" stopOpacity={0.35} /></linearGradient></defs>
-            <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-            <XAxis dataKey="hourLabel" stroke="#71717a" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-            <YAxis stroke="#71717a" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={48} />
+            <CartesianGrid stroke="rgba(148,163,184,0.12)" vertical={false} />
+            <XAxis dataKey="hourLabel" stroke="#64748b" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+            <YAxis stroke="#64748b" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={48} />
             <Tooltip content={<DashboardTooltip />} />
-            <Bar dataKey="sales" fill="url(#hourlyGradient)" radius={[8, 8, 3, 3]} />
+            <Bar dataKey="sales" fill="#67e8f9" opacity={0.72} radius={[8, 8, 3, 3]} />
           </BarChart>
         </ResponsiveContainer> : <EmptyChart title="No hourly activity" message="Hourly sales will populate from POS and order activity." />}
       </ChartCard>
@@ -767,13 +793,13 @@ function SalesAnalytics({ salesTrend, hourlySales }) {
 }
 
 function ChartCard({ title, children }) {
-  return <div className="min-w-0 rounded-xl border border-white/[0.06] bg-white/[0.035] p-3 shadow-inner shadow-white/[0.02]"><div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-zinc-500">{title}</div>{children}</div>;
+  return <div className="min-w-0 rounded-2xl border border-slate-700/55 bg-slate-950/35 p-4"><div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">{title}</div>{children}</div>;
 }
 
 function EmptyChart({ title, message }) {
   return (
-    <div className="flex h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.09),transparent_55%)] px-6 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-400/10 text-emerald-200">
+    <div className="flex h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-slate-950/30 px-6 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-700 bg-slate-800/55 text-slate-300">
         <LineChartIcon className="h-6 w-6" />
       </div>
       <div className="mt-3 text-sm font-black text-white">{title}</div>
@@ -867,12 +893,11 @@ function BranchPerformance({ rows }) {
   return (
     <ResponsiveContainer width="100%" height={240}>
       <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
-        <defs><linearGradient id="branchGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#34d399" stopOpacity={0.85} /><stop offset="100%" stopColor="#22d3ee" stopOpacity={0.35} /></linearGradient></defs>
-        <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-        <XAxis dataKey="branch" stroke="#71717a" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-        <YAxis stroke="#71717a" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={48} />
+        <CartesianGrid stroke="rgba(148,163,184,0.12)" vertical={false} />
+        <XAxis dataKey="branch" stroke="#64748b" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+        <YAxis stroke="#64748b" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={48} />
         <Tooltip content={<DashboardTooltip />} />
-        <Bar dataKey="sales" fill="url(#branchGradient)" radius={[8, 8, 3, 3]} />
+        <Bar dataKey="sales" fill="#67e8f9" opacity={0.72} radius={[8, 8, 3, 3]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -886,12 +911,11 @@ function MarketingAnalytics({ marketing }) {
     <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
       <ResponsiveContainer width="100%" height={250}>
         <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
-          <defs><linearGradient id="marketingGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#a78bfa" stopOpacity={0.9} /><stop offset="100%" stopColor="#38bdf8" stopOpacity={0.35} /></linearGradient></defs>
-          <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-          <XAxis dataKey="source" stroke="#71717a" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-          <YAxis stroke="#71717a" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={48} />
+          <CartesianGrid stroke="rgba(148,163,184,0.12)" vertical={false} />
+          <XAxis dataKey="source" stroke="#64748b" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+          <YAxis stroke="#64748b" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={48} />
           <Tooltip content={<DashboardTooltip />} />
-          <Bar dataKey="sales" fill="url(#marketingGradient)" radius={[8, 8, 3, 3]} />
+          <Bar dataKey="sales" fill="#67e8f9" opacity={0.72} radius={[8, 8, 3, 3]} />
         </BarChart>
       </ResponsiveContainer>
       <MetricTile label="Attributed sales" value={formatCurrency(marketing?.attributedSales || 0)} icon={Activity} />
@@ -929,28 +953,21 @@ function MetricTile({ label, value, icon: Icon }) {
   );
 }
 
-function RightSidebar({ lowStock, recentInvoices, posLive, activity, inventory, onlineUsers }) {
+function RightSidebar({ lowStock, recentInvoices, activity }) {
+  const notifications = (activity || []).slice(0, 5);
   return (
-    <aside className="space-y-3 xl:sticky xl:top-24 xl:self-start">
+    <aside className="space-y-4 xl:sticky xl:top-28 xl:self-start">
       <SidePanel title="Notifications" icon={Bell}>
-        <NotificationLine tone="emerald" label="System live" value="Realtime updates enabled" pulse />
-        <NotificationLine tone="amber" label="Pending transfers" value={number(inventory?.pendingTransfers)} />
-        <NotificationLine tone="sky" label="Online users" value={number(onlineUsers)} pulse={Number(onlineUsers || 0) > 0} />
+        {notifications.map((item, index) => <NotificationLine key={`${item.created_at}-${index}`} tone="slate" label={item.title || item.type || "System update"} value={shortTime(item.created_at)} />)}
+        {!notifications.length ? <NotificationLine tone="emerald" label="System live" value="No new alerts" pulse /> : null}
       </SidePanel>
       <SidePanel title="Low stock alerts" icon={AlertTriangle}>
-        {(lowStock || []).slice(0, 6).map((item) => <NotificationLine key={`${item.id}-${item.sku}`} tone="rose" label={item.name} value={`${item.stock}/${item.threshold}`} />)}
+        {(lowStock || []).slice(0, 6).map((item) => <NotificationLine key={`${item.id}-${item.sku}`} tone="amber" label={item.name} value={`${item.stock}/${item.threshold}`} />)}
         {!(lowStock || []).length ? <PremiumEmpty icon={AlertTriangle} title="Stock is healthy" message="Low stock alerts will appear when products fall below their thresholds." compact /> : null}
       </SidePanel>
       <SidePanel title="Recent invoices" icon={ReceiptText}>
         {(recentInvoices || []).slice(0, 6).map((invoice) => <NotificationLine key={invoice.id} tone="emerald" label={invoice.invoice_number} value={formatCurrency(invoice.total)} />)}
         {!(recentInvoices || []).length ? <PremiumEmpty icon={ReceiptText} title="No invoices yet" message="Recent invoices will appear after POS or order sales." compact /> : null}
-      </SidePanel>
-      <SidePanel title="POS sessions" icon={CreditCard}>
-        {(posLive?.openShifts || []).slice(0, 5).map((shift) => <NotificationLine key={shift.id} tone="sky" label={shift.cashier || shift.name || `Shift ${shift.id}`} value={shift.status} />)}
-        {!(posLive?.openShifts || []).length ? <PremiumEmpty icon={MonitorDot} title="No open POS sessions" message="Open a cashier shift to monitor live POS activity." compact /> : null}
-      </SidePanel>
-      <SidePanel title="Live stream" icon={Activity}>
-        {(activity || []).slice(0, 5).map((item, index) => <NotificationLine key={`${item.created_at}-${index}`} tone="violet" label={item.title || item.type} value={shortTime(item.created_at)} />)}
       </SidePanel>
     </aside>
   );
@@ -958,17 +975,17 @@ function RightSidebar({ lowStock, recentInvoices, posLive, activity, inventory, 
 
 function SidePanel({ title, icon: Icon, children }) {
   return (
-    <section className="rounded-2xl border border-white/[0.07] bg-zinc-950/58 p-3.5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
-      <div className="mb-3 flex items-center gap-2 text-sm font-black text-white"><Icon className="h-4 w-4 text-emerald-300" />{title}</div>
+    <section className="rounded-3xl border border-slate-700/60 bg-slate-900/55 p-4 shadow-2xl shadow-black/18">
+      <div className="mb-4 flex items-center gap-2 text-sm font-black text-white"><Icon className="h-4 w-4 text-cyan-200" />{title}</div>
       <div className="space-y-2">{children}</div>
     </section>
   );
 }
 
 function NotificationLine({ label, value, tone = "emerald", pulse = false }) {
-  const tones = { emerald: "bg-emerald-400", amber: "bg-amber-400", sky: "bg-sky-400", rose: "bg-rose-400", violet: "bg-violet-400" };
+  const tones = { emerald: "bg-emerald-400", amber: "bg-amber-400", rose: "bg-red-400", slate: "bg-slate-500" };
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.028] px-3 py-2 text-xs transition hover:bg-white/[0.055]">
+    <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-950/42 px-3 py-2.5 text-xs transition hover:bg-slate-800/55">
       <div className="flex min-w-0 items-center gap-2"><span className={`h-2 w-2 shrink-0 rounded-full ${tones[tone]} ${pulse ? "dashboard-pulse" : ""}`} /><span className="truncate font-bold text-zinc-300">{label}</span></div>
       <span className="shrink-0 font-black text-white">{value}</span>
     </div>
