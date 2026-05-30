@@ -3708,6 +3708,265 @@ function MiniSearchGroup({ title, items, onPick }) {
   );
 }
 
+const featuredCategoryDefinitions = [
+  {
+    id: "men",
+    labelEn: "Men",
+    labelAr: "رجالي",
+    icon: Briefcase,
+    test: (product, text) => productAudienceValues(product).includes("men") || /\bmen\b|mens|male|رجالي|رجال/.test(text),
+  },
+  {
+    id: "women",
+    labelEn: "Women",
+    labelAr: "حريمي",
+    icon: Gem,
+    test: (product, text) => productAudienceValues(product).includes("women") || /\bwomen\b|womens|female|ladies|حريمي|نسائي|نساء/.test(text),
+  },
+  {
+    id: "kids",
+    labelEn: "Kids",
+    labelAr: "أطفال",
+    icon: Baby,
+    test: (product, text) => productAudienceValues(product).includes("kids") || /\bkids?\b|children|child|اطفال|أطفال|ولادي|بناتي/.test(text),
+  },
+  {
+    id: "crocs",
+    labelEn: "Crocs",
+    labelAr: "كروكس",
+    icon: Footprints,
+    test: (_product, text) => /crocs?|crocband|كروكس/.test(text),
+  },
+  {
+    id: "last-sizes",
+    labelEn: "Last Sizes",
+    labelAr: "آخر مقاسات",
+    icon: PackageSearch,
+    test: (product, text) => (productStock(product) > 0 && productStock(product) <= LAST_PIECE_MAX_STOCK) || /last size|last sizes|last piece|low stock|اخر مقاس|آخر مقاس|مقاسات محدودة/.test(text),
+  },
+  {
+    id: "offers",
+    labelEn: "Offers",
+    labelAr: "العروض",
+    icon: BadgePercent,
+    test: (product, text) => hasSale(product) || /offer|offers|sale|discount|خصم|عرض|عروض/.test(text),
+  },
+];
+
+const productSearchText = (product = {}) => {
+  const values = [
+    product.name,
+    product.name_ar,
+    product.title,
+    product.description,
+    product.category,
+    product.product_type,
+    product.productType,
+    product.gender,
+    product.brand,
+    product.tags,
+    product.labels,
+    product.audiences,
+    product.product_audiences,
+    product.classifications,
+  ];
+  return values
+    .flatMap((value) => {
+      if (Array.isArray(value)) return value.map((item) => (typeof item === "object" ? Object.values(item).join(" ") : item));
+      if (value && typeof value === "object") return Object.values(value);
+      return value;
+    })
+    .join(" ")
+    .toLowerCase();
+};
+
+const featuredSlideProduct = (product = {}) => {
+  const variant = firstDisplayVariant(product.variants || []);
+  const image = displayImageForProduct(product, variant);
+  const price = displaySellingPrice(product, variant);
+  const comparePrice = displayComparePrice(product, variant);
+  return { product, variant, image, price, comparePrice };
+};
+
+function FeaturedCategoriesHero({ products = [], lang = "ar" }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const isRtl = normalizeLanguage(lang) === "ar";
+  const [activeCategoryId, setActiveCategoryId] = useState("");
+  const [slideIndex, setSlideIndex] = useState(0);
+  const [manualTick, setManualTick] = useState(0);
+
+  const categories = useMemo(() => {
+    const sourceProducts = uniqueProductsByIdentity(products)
+      .filter((product) => product?.id && product?.name && isAvailableProduct(product))
+      .map(featuredSlideProduct)
+      .filter((item) => item.image);
+
+    return featuredCategoryDefinitions
+      .map((definition) => {
+        const slides = sourceProducts
+          .filter(({ product }) => definition.test(product, productSearchText(product)))
+          .slice(0, 6);
+        return {
+          ...definition,
+          label: isRtl ? definition.labelAr : definition.labelEn,
+          slides,
+        };
+      })
+      .filter((category) => category.slides.length);
+  }, [isRtl, products]);
+
+  useEffect(() => {
+    if (!categories.length) return;
+    if (!categories.some((category) => category.id === activeCategoryId)) {
+      setActiveCategoryId(categories[0].id);
+      setSlideIndex(0);
+    }
+  }, [activeCategoryId, categories]);
+
+  const activeCategory = categories.find((category) => category.id === activeCategoryId) || categories[0];
+  const slides = activeCategory?.slides || [];
+  const activeSlide = slides[slideIndex % Math.max(slides.length, 1)] || slides[0];
+
+  useEffect(() => {
+    if (slides.length <= 1) return undefined;
+    const timer = window.setInterval(() => {
+      setSlideIndex((current) => (current + 1) % slides.length);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [activeCategory?.id, manualTick, slides.length]);
+
+  const pickCategory = (categoryId) => {
+    setActiveCategoryId(categoryId);
+    setSlideIndex(0);
+    setManualTick((current) => current + 1);
+  };
+  const moveSlide = (direction) => {
+    if (!slides.length) return;
+    setSlideIndex((current) => (current + direction + slides.length) % slides.length);
+    setManualTick((current) => current + 1);
+  };
+
+  if (!activeCategory || !activeSlide) return null;
+
+  const { product, image, price, comparePrice } = activeSlide;
+  const ActiveIcon = activeCategory.icon;
+  const cta = isRtl ? "تسوق الآن" : t("storefront.common.shopNow", "Shop now");
+
+  return (
+    <section className="mx-auto max-w-[1200px] px-4 py-3 md:py-5" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="overflow-hidden rounded-[1.6rem] border border-stone-200 bg-[#f8f4ee] p-2 shadow-[0_24px_70px_rgba(39,20,75,0.10)] dark:border-white/10 dark:bg-[#0b1020] md:rounded-[2rem] md:p-3">
+        <div className="flex gap-2 overflow-x-auto pb-2 lg:hidden">
+          {categories.map((category) => {
+            const Icon = category.icon;
+            const active = category.id === activeCategory.id;
+            return (
+              <button key={category.id} type="button" onClick={() => pickCategory(category.id)} className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-black transition ${active ? "border-stone-950 bg-stone-950 text-white dark:border-white dark:bg-white dark:text-stone-950" : "border-stone-200 bg-white text-stone-700 dark:border-white/10 dark:bg-white/6 dark:text-stone-200"}`}>
+                <Icon className="h-4 w-4" />
+                {category.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className={`grid gap-3 lg:grid-cols-[17rem_minmax(0,1fr)] ${isRtl ? "lg:[direction:ltr]" : ""}`}>
+          <aside className={`hidden rounded-[1.35rem] border border-stone-200 bg-white/82 p-2 shadow-[0_14px_36px_rgba(39,20,75,0.08)] dark:border-white/10 dark:bg-white/[0.06] lg:block ${isRtl ? "lg:order-2 lg:[direction:rtl]" : "lg:order-1"}`}>
+            <div className="px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-stone-400 dark:text-stone-500">
+              {isRtl ? "تسوق حسب الفئة" : "Shop Categories"}
+            </div>
+            <div className="grid gap-1.5">
+              {categories.map((category) => {
+                const Icon = category.icon;
+                const active = category.id === activeCategory.id;
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onMouseEnter={() => pickCategory(category.id)}
+                    onClick={() => pickCategory(category.id)}
+                    className={`group flex items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-start transition ${active ? "border-stone-950 bg-stone-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.20)] dark:border-white dark:bg-white dark:text-stone-950" : "border-transparent bg-transparent text-stone-700 hover:border-stone-200 hover:bg-stone-50 dark:text-stone-200 dark:hover:border-white/10 dark:hover:bg-white/7"}`}
+                  >
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${active ? "bg-white/15 dark:bg-stone-950/10" : "bg-stone-100 dark:bg-white/8"}`}>
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-black">{category.label}</span>
+                        <span className={`mt-0.5 block text-[10px] font-bold ${active ? "text-white/65 dark:text-stone-500" : "text-stone-400"}`}>{category.slides.length} products</span>
+                      </span>
+                    </span>
+                    <ChevronLeft className={`h-4 w-4 transition ${isRtl ? "" : "rotate-180"} ${active ? "opacity-100" : "opacity-0 group-hover:opacity-60"}`} />
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          <div
+            role="link"
+            tabIndex={0}
+            onClick={() => navigate(productUrl(product))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                navigate(productUrl(product));
+              }
+            }}
+            className={`group relative min-h-[22rem] cursor-pointer overflow-hidden rounded-[1.35rem] border border-white bg-[radial-gradient(circle_at_70%_22%,rgba(255,255,255,0.86),transparent_24%),linear-gradient(135deg,#fffaf3_0%,#ede5d7_48%,#d7c7ad_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] transition active:scale-[0.995] dark:border-white/10 dark:bg-[radial-gradient(circle_at_70%_22%,rgba(167,139,250,0.16),transparent_24%),linear-gradient(135deg,#101426_0%,#0b1020_54%,#030712_100%)] md:min-h-[30rem] ${isRtl ? "lg:order-1 lg:[direction:rtl]" : "lg:order-2"}`}
+          >
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.2),transparent_36%,rgba(0,0,0,0.08))] dark:bg-[linear-gradient(120deg,rgba(255,255,255,0.06),transparent_36%,rgba(0,0,0,0.35))]" />
+            <div className="absolute end-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/85 px-3 py-1.5 text-xs font-black text-stone-800 shadow-sm backdrop-blur dark:border-white/10 dark:bg-stone-950/70 dark:text-stone-100">
+              <ActiveIcon className="h-4 w-4" />
+              {activeCategory.label}
+            </div>
+            <div className="absolute start-3 top-3 z-20 flex gap-2">
+              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className="grid h-9 w-9 place-items-center rounded-full border border-white/70 bg-white/82 text-stone-800 shadow-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-stone-950/70 dark:text-stone-100" aria-label="Previous slide">
+                <ChevronLeft className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
+              </button>
+              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? -1 : 1); }} className="grid h-9 w-9 place-items-center rounded-full border border-white/70 bg-white/82 text-stone-800 shadow-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-stone-950/70 dark:text-stone-100" aria-label="Next slide">
+                <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
+              </button>
+            </div>
+            <div className="relative grid h-full min-h-[22rem] items-end gap-3 p-4 md:min-h-[30rem] md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:p-7">
+              <div key={`copy-${activeCategory.id}-${productIdentityKey(product)}`} className="relative z-10 order-2 max-w-md animate-[sfFadeUp_420ms_ease-out_both] md:order-1">
+                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#7c3aed] dark:text-[#d8b4fe]">{activeCategory.label}</div>
+                <h2 className="line-clamp-3 text-2xl font-black leading-tight text-stone-950 dark:text-white md:text-4xl">{product.name}</h2>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-2xl font-black text-stone-950 dark:text-white">{money(price)}</span>
+                  {comparePrice ? <span className="text-sm font-black text-stone-400 line-through">{money(comparePrice)}</span> : null}
+                </div>
+                <span className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-stone-950 px-6 py-3 text-sm font-black text-white shadow-[0_18px_42px_rgba(15,23,42,0.22)] transition group-hover:-translate-y-0.5 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:bg-[#d8b4fe]">
+                  {cta}
+                </span>
+              </div>
+              <div className="relative order-1 flex min-h-[15rem] items-center justify-center md:order-2 md:min-h-[27rem]">
+                <div className="absolute bottom-8 left-1/2 h-8 w-64 -translate-x-1/2 rounded-[100%] bg-stone-950/18 blur-xl dark:bg-black/55 md:w-96" />
+                <img
+                  key={`${activeCategory.id}-${productIdentityKey(product)}-${image}`}
+                  src={imageFor(image)}
+                  alt={product.name || ""}
+                  onError={fallbackProductImage}
+                  className="relative z-10 max-h-[17rem] w-full object-contain drop-shadow-[0_30px_30px_rgba(15,23,42,0.20)] transition duration-700 ease-out animate-[sfFadeUp_420ms_ease-out_both] group-hover:-translate-y-1 group-hover:scale-[1.035] md:max-h-[29rem]"
+                  loading="lazy"
+                  decoding="async"
+                  width="640"
+                  height="520"
+                />
+              </div>
+            </div>
+            {slides.length > 1 ? (
+              <div className="absolute bottom-3 end-3 z-20 flex gap-1.5">
+                {slides.map((slide, index) => (
+                  <button key={productIdentityKey(slide.product, index)} type="button" onClick={(event) => { event.preventDefault(); setSlideIndex(index); setManualTick((current) => current + 1); }} className={`h-1.5 rounded-full transition ${index === slideIndex ? "w-8 bg-stone-950 dark:bg-white" : "w-2 bg-stone-950/24 dark:bg-white/30"}`} aria-label={`Slide ${index + 1}`} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HomePage(props) {
   const { i18n, t } = useTranslation();
   const lang = i18n.language || "ar";
@@ -3809,6 +4068,10 @@ function HomePage(props) {
       })
       .filter((card) => card.productCount > 0 || card.product);
   }, [classificationOptions.gender, storefrontGenderOptions, railProducts, lang, t]);
+  const featuredCategoryProducts = useMemo(
+    () => uniqueProductsByIdentity([...railProducts, ...saleBase, ...saleProducts, ...freshBase, ...bestBase]),
+    [bestBase, freshBase, railProducts, saleBase, saleProducts]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia?.("(max-width: 767px)")?.matches) return;
@@ -3918,6 +4181,7 @@ function HomePage(props) {
           ) : null}
         </div>
       </section>
+      <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} />
       <SimpleHomeProductGrid
         title={t("storefront.home.featuredProducts", "Featured products")}
         subtitle={t("storefront.home.featuredProductsSubtitle", "Selected products ready to shop")}
@@ -3958,50 +4222,6 @@ function HomePage(props) {
       )) : (
         <ProductRail title={t("storefront.home.bestsellers", "Best sellers")} subtitle={t("storefront.home.bestsellersSubtitle", "Best sellers this week")} loading={loading || storefrontHome.loading} products={best} railType="bestseller" featuredFirst {...props} />
       )}
-      <section className="mx-auto max-w-[1200px] px-4 py-1.5 md:py-2">
-        {categoryPreviewCards.length ? (
-          <div>
-            <div className="mb-2 flex items-end justify-between gap-3 text-right">
-              <SectionIntro eyebrow={t("storefront.search.categories", "Categories")} title={t("storefront.home.shopByCategory", "Shop by category")} subtitle={t("storefront.home.shopByCategorySubtitle", "Choose quickly by category or type")} compact />
-              <Link to="/shop/products" className="shrink-0 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:text-[#6d28d9] active:scale-[0.98] md:px-4 md:py-2 md:text-xs dark:border-white/10 dark:bg-white/5 dark:text-stone-200">{t("common.viewAll", "View all")}</Link>
-            </div>
-            <div className="rounded-[1rem] border border-stone-200 bg-white p-1.5 shadow-[0_12px_30px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:rounded-[1.5rem] md:p-3">
-              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:gap-2 lg:grid-cols-5">
-              {categoryPreviewCards.map((card) => (
-                <Link
-                  key={card.value}
-                  to={classificationUrl(card.field, card.value)}
-                  className="group min-w-0 overflow-hidden rounded-[0.9rem] border border-stone-200/80 bg-[#fbfaf7] text-right shadow-[0_12px_30px_rgba(39,20,75,0.05)] transition duration-300 hover:-translate-y-1 hover:border-[#7c3aed]/45 hover:shadow-[0_18px_40px_rgba(109,40,217,0.12)] active:scale-[0.99] dark:border-white/10 dark:bg-white/5 md:rounded-[1.35rem]"
-                >
-                  <div className="relative aspect-[4/3] overflow-hidden bg-stone-100 dark:bg-white/5">
-                    {card.image ? (
-                      <img src={imageFor(card.image)} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.06]" loading="lazy" decoding="async" width="320" height="240" />
-                    ) : (
-                      <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${card.color}, #111827)` }}>
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_22%,rgba(255,255,255,0.22),transparent_28%),radial-gradient(circle_at_28%_78%,rgba(255,255,255,0.14),transparent_22%)]" />
-                        <div className="absolute inset-0 grid place-items-center">
-                          <div className="grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-white/16 text-xs font-black text-white shadow-[0_18px_45px_rgba(0,0,0,0.20)] backdrop-blur md:h-16 md:w-16 md:text-lg">
-                            {card.icon}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/22 to-black/12" />
-                    <div className="absolute right-2 top-2 rounded-full bg-white/92 px-2 py-0.5 text-[9px] font-black text-stone-950 shadow-sm backdrop-blur dark:bg-stone-950/85 dark:text-white md:right-3 md:top-3 md:px-3 md:py-1 md:text-[10px]">
-                      {t("storefront.common.shopNow", "Shop Now")}
-                    </div>
-                    <div className="absolute bottom-0 right-0 left-0 p-2 text-white md:p-3">
-                      <div className="text-[13px] font-black leading-4 drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)] md:text-lg md:leading-6">{card.label}</div>
-                      <div className="mt-0.5 text-[9px] font-bold leading-3 text-white/90 drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)] md:mt-1 md:text-xs md:leading-4">{card.groupLabel}</div>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </section>
       {allowLegacyHomeFallback ? (
         <>
           <ProductRail title={t("storefront.nav.sale", "Sale")} subtitle={t("storefront.home.saleSubtitle", "Selected discounts for a limited time")} loading={saleLoading && !saleUnique.length} products={saleUnique} railType="sale" {...props} />
