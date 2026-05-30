@@ -24,6 +24,7 @@ import {
   getBarcodeSvg,
   getLabelImageUrl,
   getLabelIdentity,
+  getLabelPriceInfo,
   getLabelQuantity,
   buildProductLabelItems,
   buildBarcodeShopLabelItem,
@@ -213,9 +214,7 @@ function BarcodeLabels() {
       setCatalog(mergedCatalog);
 
       if (Number.isFinite(productId) && productId > 0) {
-        const matchedProduct = isBarcodeShopMode
-          ? baseProducts.find((item) => Number(item.id) === Number(productId))
-          : mergedCatalog.find((item) => Number(item.id) === Number(productId));
+        const matchedProduct = mergedCatalog.find((item) => Number(item.id) === Number(productId));
         if (matchedProduct) {
           setActiveProduct(matchedProduct);
           setRouteLocked(true);
@@ -277,11 +276,16 @@ function BarcodeLabels() {
   );
 
   const selectedProduct = useMemo(
-    () =>
-      Number.isFinite(productId)
-        ? products.find((product) => Number(product.id) === Number(productId)) || activeProduct
-        : activeProduct,
-    [products, productId, activeProduct]
+    () => {
+      if (!Number.isFinite(productId)) return activeProduct;
+      return (
+        activeProduct ||
+        catalog.find((product) => Number(product.id) === Number(productId)) ||
+        products.find((product) => Number(product.id) === Number(productId)) ||
+        null
+      );
+    },
+    [catalog, products, productId, activeProduct]
   );
 
   const selectedProductVariants = useMemo(
@@ -765,7 +769,7 @@ function ProductCard({ product, selectedQuantities, onQuantityChange, sheetMode 
 
 function VariantRow({ product, variant, imageUrl, quantity, onQuantityChange, sheetMode }) {
   const { t } = useTranslation();
-  const price = Number(variant?.sale_price ?? variant?.price ?? product.sale_price ?? product.price ?? 0);
+  const price = getLabelPriceInfo(product, variant).price;
   const safeImage = resolveAssetUrl(imageUrl);
 
   return (
@@ -925,8 +929,9 @@ function BarcodeShopLabel({ item, print = false }) {
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
   const qrToken = safeText(item.qrToken);
   const qrValue = safeText(item.qrValue, qrToken);
-  const price = formatCurrency(item.salePrice);
-  const comparePrice = Number(item.comparePrice || 0) > Number(item.salePrice || 0) ? formatCurrency(item.comparePrice) : "";
+  const effectivePrice = Number(item.effectivePrice ?? item.displayPrice ?? item.salePrice ?? 0);
+  const price = formatCurrency(effectivePrice);
+  const comparePrice = Number(item.comparePrice || 0) > effectivePrice ? formatCurrency(item.comparePrice) : "";
 
   return (
     <article className={`w-full rounded-[28px] border border-zinc-200 bg-white p-6 text-center text-zinc-900 ${print ? "" : "shadow-[0_18px_60px_rgba(0,0,0,0.16)]"}`}>
