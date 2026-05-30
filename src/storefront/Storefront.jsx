@@ -3629,6 +3629,9 @@ function HomePage(props) {
   const homeCollections = storefrontHome.collections;
   const hasHomeCollections = homeCollections.length > 0;
   const rawHomeCollections = Array.isArray(storefrontHome.rawHome?.featured_collections) ? storefrontHome.rawHome.featured_collections : [];
+  const firstRawHomeProduct = rawHomeCollections.length > 0 && Array.isArray(rawHomeCollections[0]?.products)
+    ? rawHomeCollections[0].products[0]
+    : null;
   const rawHomeProducts = useMemo(
     () => rawHomeCollections.flatMap((collection) => Array.isArray(collection?.products) ? collection.products : []).map(normalizeHomeProduct).filter((product) => product.id && product.name),
     [rawHomeCollections]
@@ -3802,6 +3805,20 @@ function HomePage(props) {
                 );
               })}
             </div>
+          ) : null}
+        </div>
+      </section>
+      <section className="mx-auto max-w-[1200px] px-4 pb-2">
+        <div dir="ltr" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-left text-xs font-bold leading-6 text-amber-950 shadow-sm dark:border-amber-400/30 dark:bg-amber-300/10 dark:text-amber-100">
+          <div>HOME LOADED: {storefrontHome.loaded ? "yes" : "no"}</div>
+          <div>RAW HOME EXISTS: {storefrontHome.rawHome ? "yes" : "no"}</div>
+          <div>HOME HERO EXISTS: {storefrontHome.rawHome?.hero ? "yes" : "no"}</div>
+          <div>COLLECTION COUNT: {rawHomeCollections.length}</div>
+          <div>FIRST COLLECTION PRODUCTS: {Array.isArray(rawHomeCollections[0]?.products) ? rawHomeCollections[0].products.length : 0}</div>
+          {rawHomeCollections.length > 0 ? (
+            <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-amber-300/70 bg-white/70 p-3 text-[11px] leading-5 text-amber-950 dark:border-amber-400/20 dark:bg-black/20 dark:text-amber-100">
+              {JSON.stringify(firstRawHomeProduct || null, null, 2)}
+            </pre>
           ) : null}
         </div>
       </section>
