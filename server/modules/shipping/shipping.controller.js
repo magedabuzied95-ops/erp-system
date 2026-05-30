@@ -5,6 +5,8 @@ import {
   listShippingCities,
   listShippingDistricts,
   listShippingZones,
+  previewBostaWebhookPayload,
+  processBostaWebhook,
   refreshBostaShipmentForOrder,
   saveBostaSettings,
   searchShippingLocations,
@@ -129,5 +131,23 @@ export const cancelOrderBostaShipment = async (req, res) => {
     return res.json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Failed to cancel Bosta shipment");
+  }
+};
+
+export const handleBostaWebhook = async (req, res) => {
+  try {
+    const result = await processBostaWebhook({ req, payload: req.body || {} });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to process Bosta webhook");
+  }
+};
+
+export const testBostaWebhook = async (req, res) => {
+  try {
+    const payload = Object.keys(req.body || {}).length ? req.body : undefined;
+    return res.json({ success: true, ...previewBostaWebhookPayload(payload) });
+  } catch (error) {
+    return sendError(res, error, "Failed to preview Bosta webhook");
   }
 };

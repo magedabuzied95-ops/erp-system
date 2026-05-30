@@ -505,6 +505,21 @@ CREATE INDEX IF NOT EXISTS idx_orders_tenant_created ON orders (tenant_id, creat
 CREATE INDEX IF NOT EXISTS idx_orders_branch_created ON orders (branch_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_invoice_number ON orders (invoice_number);
 
+CREATE TABLE IF NOT EXISTS shipping_events (
+  id BIGSERIAL PRIMARY KEY,
+  order_id BIGINT REFERENCES orders(id) ON DELETE CASCADE,
+  provider VARCHAR(80) NOT NULL,
+  status VARCHAR(80) NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  event_key TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_shipping_events_provider_event_key
+  ON shipping_events(provider, event_key)
+  WHERE event_key IS NOT NULL AND event_key <> '';
+CREATE INDEX IF NOT EXISTS idx_shipping_events_order_id ON shipping_events(order_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS ai_agent_settings (
   tenant_id BIGINT PRIMARY KEY,
   settings JSONB NOT NULL DEFAULT '{}'::jsonb,

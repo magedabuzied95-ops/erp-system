@@ -1484,7 +1484,7 @@ function OrderDetails() {
                 {(Array.isArray(order.shipment_timeline) && order.shipment_timeline.length ? order.shipment_timeline : [{ status: shipping.shipment_status || shipping.shipping_status || "pending", action: "current", at: order.updated_at || order.created_at }]).slice().reverse().map((event, index) => (
                   <div key={`${event.status || "shipment"}-${event.at || index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
                     <div>
-                      <div className="text-sm font-black text-white">{t(`orders.statusLabels.${String(event.status || "pending").replace(/\s+/g, "_")}`, event.status || "pending")}</div>
+                      <StatusBadge value={event.status || "pending"} />
                       <div className="mt-0.5 text-xs text-zinc-500">{event.action || "shipment"} · {event.provider || shipping.provider || "in_store_delivery"}</div>
                     </div>
                     <div className="shrink-0 text-xs font-semibold text-zinc-400">{formatDateTime(event.at)}</div>

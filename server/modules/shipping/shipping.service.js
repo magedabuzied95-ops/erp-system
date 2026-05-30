@@ -1,3 +1,4 @@
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import db from "../../database/db.js";
 import { getSetting, setSetting } from "../../services/settingsService.js";
 import { createBostaClient } from "./providers/bosta.client.js";
@@ -5,6 +6,7 @@ import { buildBostaAddressLine, mapOrderToBostaDeliveryPayload, normalizeBostaDe
 
 const text = (value = "") => String(value ?? "").trim();
 const nowIso = () => new Date().toISOString();
+const normalizeKey = (value = "") => text(value).toLowerCase().replace(/[\s-]+/g, "_");
 let shippingSchemaEnsured = false;
 let shippingSchemaEnsurePromise = null;
 
@@ -33,6 +35,142 @@ const bostaDeliveryError = (payload = {}, fallbackMessage = "Bosta delivery crea
   error.code = subscriptionRequired ? "BOSTA_SUBSCRIPTION_REQUIRED" : (bostaErrorCode(payload) || "BOSTA_CREATE_FAILED");
   error.payload = payload;
   return error;
+};
+
+const BOSTA_WEBHOOK_STATUS_MAP = {
+  created: "shipment_created",
+  shipment_created: "shipment_created",
+  picked_up: "picked_up",
+  pickup_done: "picked_up",
+  in_transit: "in_transit",
+  out_for_delivery: "out_for_delivery",
+  delivered: "delivered",
+  returned: "returned",
+  cancelled: "cancelled",
+  canceled: "cancelled",
+  failed: "failed_delivery",
+  failed_delivery: "failed_delivery",
+};
+
+export const BOSTA_WEBHOOK_SAMPLE_PAYLOAD = {
+  event: "delivery.status_changed",
+  deliveryId: "BOSTA_DELIVERY_ID",
+  trackingNumber: "BOSTA_TRACKING_NUMBER",
+  status: "in_transit",
+  timestamp: "2026-05-30T12:00:00.000Z",
+};
+
+const safeJson = (value) => {
+  try {
+    return JSON.stringify(value ?? {});
+  } catch {
+    return "{}";
+  }
+};
+
+const pickFirst = (source = {}, keys = []) => {
+  for (const key of keys) {
+    const parts = String(key).split(".");
+    let current = source;
+    for (const part of parts) {
+      current = current?.[part];
+    }
+    if (current !== undefined && current !== null && text(current)) return current;
+  }
+  return "";
+};
+
+const extractBostaWebhook = (payload = {}) => {
+  const data = payload?.data && typeof payload.data === "object" ? payload.data : {};
+  const delivery = payload?.delivery && typeof payload.delivery === "object" ? payload.delivery : {};
+  const order = payload?.order && typeof payload.order === "object" ? payload.order : {};
+  const source = { ...payload, data, delivery, order };
+  const rawStatus = text(pickFirst(source, [
+    "status",
+    "state",
+    "deliveryStatus",
+    "eventStatus",
+    "newStatus",
+    "newState",
+    "data.status",
+    "data.state",
+    "data.deliveryStatus",
+    "data.newStatus",
+    "delivery.status",
+    "delivery.state",
+    "order.status",
+  ]));
+  const mappedStatus = BOSTA_WEBHOOK_STATUS_MAP[normalizeKey(rawStatus)] || BOSTA_WEBHOOK_STATUS_MAP[normalizeKey(payload?.event)] || "";
+  return {
+    rawStatus,
+    status: mappedStatus,
+    deliveryId: text(pickFirst(source, [
+      "shipping_provider_delivery_id",
+      "deliveryId",
+      "delivery_id",
+      "_id",
+      "id",
+      "data.deliveryId",
+      "data.delivery_id",
+      "data._id",
+      "data.id",
+      "delivery.deliveryId",
+      "delivery._id",
+      "delivery.id",
+    ])),
+    trackingNumber: text(pickFirst(source, [
+      "trackingNumber",
+      "tracking_number",
+      "trackingNo",
+      "trackingCode",
+      "data.trackingNumber",
+      "data.tracking_number",
+      "data.trackingNo",
+      "delivery.trackingNumber",
+      "delivery.tracking_number",
+    ])),
+    eventId: text(pickFirst(source, ["eventId", "event_id", "id", "data.eventId", "data.event_id"])),
+    eventType: text(pickFirst(source, ["event", "type", "eventType", "data.event", "data.type"])),
+    occurredAt: text(pickFirst(source, ["timestamp", "createdAt", "updatedAt", "data.timestamp", "data.updatedAt", "delivery.updatedAt"])) || nowIso(),
+  };
+};
+
+const webhookSecret = async () => text(
+  (await getSetting("orders.bosta_webhook_secret", "")) ||
+  process.env.BOSTA_WEBHOOK_SECRET ||
+  process.env.BOSTA_WEBHOOK_TOKEN ||
+  ""
+);
+
+const verifyBostaWebhookAuth = async ({ req, payload }) => {
+  const secret = await webhookSecret();
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      const error = new Error("Bosta webhook secret is not configured");
+      error.status = 500;
+      error.code = "BOSTA_WEBHOOK_SECRET_MISSING";
+      throw error;
+    }
+    return { verified: true, mode: "development-no-secret" };
+  }
+
+  const signature = text(req.get("x-bosta-signature") || req.get("x-webhook-signature") || req.get("x-hub-signature-256"));
+  if (signature) {
+    const rawBody = Buffer.isBuffer(req.rawBody) ? req.rawBody : Buffer.from(safeJson(payload));
+    const digest = createHmac("sha256", secret).update(rawBody).digest("hex");
+    const expected = signature.startsWith("sha256=") ? signature.slice(7) : signature;
+    const left = Buffer.from(digest);
+    const right = Buffer.from(expected);
+    if (left.length === right.length && timingSafeEqual(left, right)) return { verified: true, mode: "signature" };
+  }
+
+  const token = text(req.get("x-bosta-webhook-token") || req.get("x-webhook-token") || req.query?.token || payload?.token);
+  if (token && token === secret) return { verified: true, mode: "token" };
+
+  const error = new Error("Invalid Bosta webhook signature or token");
+  error.status = 401;
+  error.code = "BOSTA_WEBHOOK_UNAUTHORIZED";
+  throw error;
 };
 
 export const ensureShippingSchema = async (client = db) => {
@@ -125,6 +263,25 @@ export const ensureShippingSchema = async (client = db) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS shipping_events (
+      id BIGSERIAL PRIMARY KEY,
+      order_id BIGINT REFERENCES orders(id) ON DELETE CASCADE,
+      provider VARCHAR(80) NOT NULL,
+      status VARCHAR(80) NOT NULL,
+      payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      event_key TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS order_id BIGINT`);
+  await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS provider VARCHAR(80) NOT NULL DEFAULT 'bosta'`);
+  await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS status VARCHAR(80) NOT NULL DEFAULT 'pending'`);
+  await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS event_key TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_shipping_events_provider_event_key ON shipping_events(provider, event_key) WHERE event_key IS NOT NULL AND event_key <> ''`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_shipping_events_order_id ON shipping_events(order_id, created_at DESC)`);
   shippingSchemaEnsured = true;
   })().catch((error) => {
     shippingSchemaEnsurePromise = null;
@@ -517,4 +674,131 @@ export const cancelBostaShipmentForOrder = async (orderId) => {
     [orderId, JSON.stringify([timelineEvent])]
   );
   return { success: true, provider: "bosta", status: "cancelled", order: updated.rows[0] };
+};
+
+const bostaWebhookEventKey = ({ payload = {}, parsed = {} }) => {
+  const explicit = text(parsed.eventId);
+  if (explicit) return explicit;
+  const basis = [
+    parsed.deliveryId,
+    parsed.trackingNumber,
+    parsed.status,
+    parsed.occurredAt,
+    safeJson(payload),
+  ].filter(Boolean).join("|");
+  return createHash("sha256").update(basis).digest("hex");
+};
+
+export const previewBostaWebhookPayload = (payload = BOSTA_WEBHOOK_SAMPLE_PAYLOAD) => {
+  const parsed = extractBostaWebhook(payload);
+  return {
+    provider: "bosta",
+    parsed,
+    event_key: bostaWebhookEventKey({ payload, parsed }),
+    would_update: Boolean(parsed.status && (parsed.deliveryId || parsed.trackingNumber)),
+  };
+};
+
+export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
+  await ensureShippingSchema();
+  console.log("[bosta-webhook]", safeJson(payload));
+  const auth = req ? await verifyBostaWebhookAuth({ req, payload }) : { verified: true, mode: "internal" };
+  const parsed = extractBostaWebhook(payload);
+  if (!parsed.status) {
+    const error = new Error("Bosta webhook status is missing or unsupported");
+    error.status = 400;
+    error.code = "BOSTA_WEBHOOK_STATUS_UNSUPPORTED";
+    error.payload = { parsed, payload };
+    throw error;
+  }
+  if (!parsed.deliveryId && !parsed.trackingNumber) {
+    const error = new Error("Bosta webhook delivery id or tracking number is required");
+    error.status = 400;
+    error.code = "BOSTA_WEBHOOK_IDENTIFIER_MISSING";
+    error.payload = { parsed, payload };
+    throw error;
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const orderResult = await client.query(
+      `
+      SELECT *
+      FROM orders
+      WHERE shipping_provider = 'bosta'
+        AND (
+          ($1::text <> '' AND shipping_provider_delivery_id = $1::text)
+          OR ($1::text <> '' AND shipment_id = $1::text)
+          OR ($2::text <> '' AND shipping_tracking_number = $2::text)
+          OR ($2::text <> '' AND tracking_number = $2::text)
+        )
+      ORDER BY id DESC
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [parsed.deliveryId, parsed.trackingNumber]
+    );
+    const order = orderResult.rows[0] || null;
+    const eventKey = bostaWebhookEventKey({ payload, parsed });
+    const eventInsert = await client.query(
+      `
+      INSERT INTO shipping_events (order_id, provider, status, payload, event_key)
+      VALUES ($1, 'bosta', $2, $3::jsonb, $4)
+      ON CONFLICT (provider, event_key) WHERE event_key IS NOT NULL AND event_key <> '' DO NOTHING
+      RETURNING *
+      `,
+      [order?.id || null, parsed.status, safeJson({ ...payload, parsed }), eventKey]
+    );
+    const duplicate = eventInsert.rowCount === 0;
+
+    if (!order) {
+      await client.query("COMMIT");
+      return { success: true, matched: false, duplicate, auth, parsed, message: "No matching ERP order found for Bosta webhook" };
+    }
+
+    const orderStatus = normalizeKey(order.status);
+    const shippingStatus = normalizeKey(order.shipping_status || order.shipment_status);
+    if (order.cancelled_at || orderStatus === "cancelled" || shippingStatus === "cancelled") {
+      await client.query("COMMIT");
+      return { success: true, matched: true, skipped: true, duplicate, order_id: order.id, auth, parsed, message: "ERP order is cancelled; webhook did not overwrite it" };
+    }
+
+    if (duplicate) {
+      await client.query("COMMIT");
+      return { success: true, matched: true, duplicate: true, order_id: order.id, auth, parsed, order };
+    }
+
+    const timelineEvent = {
+      at: parsed.occurredAt || nowIso(),
+      action: "bosta_webhook",
+      provider: "bosta",
+      status: parsed.status,
+      raw_status: parsed.rawStatus,
+      delivery_id: parsed.deliveryId,
+      tracking_number: parsed.trackingNumber,
+    };
+    const updated = await client.query(
+      `
+      UPDATE orders SET
+        shipping_status = $2,
+        shipment_status = $2,
+        shipping_last_synced_at = CURRENT_TIMESTAMP,
+        last_shipping_sync_at = CURRENT_TIMESTAMP,
+        shipping_raw_payload = $3::jsonb,
+        shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $4::jsonb,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+      `,
+      [order.id, parsed.status, safeJson(payload), JSON.stringify([timelineEvent])]
+    );
+    await client.query("COMMIT");
+    return { success: true, matched: true, duplicate: false, order_id: order.id, auth, parsed, order: updated.rows[0] };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };

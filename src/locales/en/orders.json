@@ -47,9 +47,11 @@
     "in_transit": "In Transit",
     "out_for_delivery": "Out for Delivery",
     "ready_to_ship": "Ready to Ship",
+    "shipment_created": "Shipment Created",
     "created": "Created",
     "picked_up": "Picked Up",
-    "failed": "Failed"
+    "failed": "Failed",
+    "failed_delivery": "Failed Delivery"
   },
   "kpis": {
     "totalOrders": "Total orders",
