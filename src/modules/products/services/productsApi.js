@@ -305,6 +305,50 @@ export const uploadProductImage = async (file) => {
   }
 };
 
+export const resolveUploadedImageUrl = (response = {}) =>
+  response?.secure_url ||
+  response?.secureUrl ||
+  response?.url ||
+  response?.imageUrl ||
+  response?.data?.secure_url ||
+  response?.data?.secureUrl ||
+  response?.data?.url ||
+  response?.data?.imageUrl ||
+  response?.file?.secure_url ||
+  response?.file?.url ||
+  "";
+
+const isDataImageUrl = (value) => typeof value === "string" && value.trim().startsWith("data:image/");
+
+const dataUrlToFile = async (dataUrl, filename = "product-image.png") => {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  const extension = blob.type?.split("/")?.[1] || "png";
+  const safeName = filename.includes(".") ? filename : `${filename}.${extension}`;
+  return new File([blob], safeName, { type: blob.type || "image/png" });
+};
+
+export const uploadProductImageValue = async (value, { filename = "product-image.png" } = {}) => {
+  if (!value) return "";
+  const isFileLike =
+    (typeof File !== "undefined" && value instanceof File) ||
+    (typeof Blob !== "undefined" && value instanceof Blob);
+  const file = isFileLike
+    ? value
+    : isDataImageUrl(value)
+      ? await dataUrlToFile(value, filename)
+      : null;
+
+  if (!file) return String(value || "").trim();
+
+  const response = await uploadProductImage(file);
+  const uploadedUrl = resolveUploadedImageUrl(response);
+  if (!uploadedUrl) {
+    throw new Error("Image upload did not return a URL");
+  }
+  return uploadedUrl;
+};
+
 export const updateVariant = async (id, body) =>
   unwrapItem(await api.put(`/products/variants/${id}`, normalizeVariantPayload(body)));
 

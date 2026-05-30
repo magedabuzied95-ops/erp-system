@@ -59,6 +59,7 @@ import {
   normalizeVariantPayload,
   suggestMirrorEditionName,
   updateProduct,
+  uploadProductImageValue,
   uploadProductImage,
 } from "../services/productsApi";
 import { isMirrorProduct, slugifyEdition } from "../../../shared/lib/mirrorProduct";
@@ -2012,8 +2013,8 @@ function ProductEdit() {
           article_code: String(group.article_code || "").trim(),
           images: dedupeImages(groupImages).map((image, index) => ({
             id: image.id || makeId(),
-            preview: image.preview || image.image_url || "",
-            image_url: image.image_url || image.preview || "",
+            preview: image.image_url || "",
+            image_url: image.image_url || "",
             is_primary: image.is_primary ?? index === 0,
             name: image.name || `${groupColor} image ${index + 1}`,
           })),
@@ -2185,11 +2186,10 @@ function ProductEdit() {
         await Promise.allSettled(pendingUploads);
       }
 
-      const galleryPayload = dedupeImages(gallery).map((item) => ({
-        ...item,
-        image_url: item.image_url || item.preview || "",
-        preview: item.preview || item.image_url || "",
-      }));
+      const { coverImageUrl, galleryPayload } = await resolvePersistedProductImages({
+        coverImage,
+        gallery,
+      });
 
       const savedProduct = await updateProduct(productId, {
         name: product.name,
@@ -2222,7 +2222,7 @@ function ProductEdit() {
         sku: product.sku || uniqueSmartSkuPrefix,
         barcode: product.barcode || "",
         status: product.status || "active",
-        image_url: coverImage,
+        image_url: coverImageUrl,
         gallery_images: galleryPayload,
         variants: isSimpleMode ? [] : variantPayloads,
         colorImages: isSimpleMode ? [] : colorImagesPayload.map((group) => ({
@@ -2290,7 +2290,7 @@ function ProductEdit() {
         fixed_size_label: isColorOnlyMode ? product.fixed_size_label || "One Size" : "",
         status: product.status || "active",
         active: product.status !== "inactive" && product.status !== "archived",
-        image_url: coverImage,
+        image_url: coverImageUrl,
         gallery: galleryPayload,
         gallery_images: galleryPayload,
       });
@@ -3563,6 +3563,43 @@ const getAiImagePayload = (image = "") => {
   if (!value) return {};
   if (value.startsWith("data:image/")) return { image_base64_optional: value };
   return { image_url: value };
+};
+
+const isDataImageUrl = (value) => typeof value === "string" && value.trim().startsWith("data:image/");
+
+const resolvePersistedProductImages = async ({ coverImage = "", gallery = [] } = {}) => {
+  const uploadedByPreview = new Map();
+  const galleryPayload = [];
+
+  for (const item of dedupeImages(gallery)) {
+    const preview = item.preview || "";
+    const source = item.image_url || item.url || preview || "";
+    const shouldUpload =
+      isDataImageUrl(source) ||
+      (typeof File !== "undefined" && item.file instanceof File) ||
+      (typeof Blob !== "undefined" && item.file instanceof Blob);
+    const imageUrl = shouldUpload
+      ? await uploadProductImageValue(item.file || source, { filename: item.name || "product-gallery.png" })
+      : String(source || "").trim();
+
+    if (preview && imageUrl) uploadedByPreview.set(preview, imageUrl);
+    if (source && imageUrl) uploadedByPreview.set(source, imageUrl);
+
+    galleryPayload.push({
+      ...item,
+      image_url: imageUrl,
+      preview: imageUrl || preview,
+    });
+  }
+
+  const coverSource = coverImage || "";
+  const coverImageUrl =
+    uploadedByPreview.get(coverSource) ||
+    (isDataImageUrl(coverSource)
+      ? await uploadProductImageValue(coverSource, { filename: "product-cover.png" })
+      : String(coverSource || "").trim());
+
+  return { coverImageUrl, galleryPayload };
 };
 
 export default ProductEdit;

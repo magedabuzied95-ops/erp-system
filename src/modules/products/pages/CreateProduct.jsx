@@ -58,6 +58,7 @@ import {
   getProductsWithVariants,
   normalizeVariantPayload,
   suggestMirrorEditionName,
+  uploadProductImageValue,
   uploadProductImage,
 } from "../services/productsApi";
 import { isMirrorProduct, slugifyEdition } from "../../../shared/lib/mirrorProduct";
@@ -98,6 +99,43 @@ const getAiImagePayload = (image = "") => {
   if (!value) return {};
   if (value.startsWith("data:image/")) return { image_base64_optional: value };
   return { image_url: value };
+};
+
+const isDataImageUrl = (value) => typeof value === "string" && value.trim().startsWith("data:image/");
+
+const resolvePersistedProductImages = async ({ coverImage = "", gallery = [] } = {}) => {
+  const uploadedByPreview = new Map();
+  const galleryPayload = [];
+
+  for (const item of dedupeImages(gallery)) {
+    const preview = item.preview || "";
+    const source = item.image_url || item.url || preview || "";
+    const shouldUpload =
+      isDataImageUrl(source) ||
+      (typeof File !== "undefined" && item.file instanceof File) ||
+      (typeof Blob !== "undefined" && item.file instanceof Blob);
+    const imageUrl = shouldUpload
+      ? await uploadProductImageValue(item.file || source, { filename: item.name || "product-gallery.png" })
+      : String(source || "").trim();
+
+    if (preview && imageUrl) uploadedByPreview.set(preview, imageUrl);
+    if (source && imageUrl) uploadedByPreview.set(source, imageUrl);
+
+    galleryPayload.push({
+      ...item,
+      image_url: imageUrl,
+      preview: imageUrl || preview,
+    });
+  }
+
+  const coverSource = coverImage || "";
+  const coverImageUrl =
+    uploadedByPreview.get(coverSource) ||
+    (isDataImageUrl(coverSource)
+      ? await uploadProductImageValue(coverSource, { filename: "product-cover.png" })
+      : String(coverSource || "").trim());
+
+  return { coverImageUrl, galleryPayload };
 };
 
 const makeId = () =>
@@ -1718,13 +1756,13 @@ function CreateProduct() {
             color_name: groupColor,
             color_value: groupColor,
             article_code: String(group.article_code || "").trim(),
-            images: dedupeImages(groupImages).map((image, index) => ({
-              id: image.id || makeId(),
-              preview: image.preview || image.image_url || "",
-              image_url: image.image_url || image.preview || "",
-              is_primary: image.is_primary ?? index === 0,
-              name: image.name || `${groupColor} image ${index + 1}`,
-            })),
+          images: dedupeImages(groupImages).map((image, index) => ({
+            id: image.id || makeId(),
+            preview: image.image_url || "",
+            image_url: image.image_url || "",
+            is_primary: image.is_primary ?? index === 0,
+            name: image.name || `${groupColor} image ${index + 1}`,
+          })),
           };
         })
         .filter(Boolean);
@@ -1739,11 +1777,10 @@ function CreateProduct() {
         return;
       }
 
-      const galleryPayload = dedupeImages(gallery).map((item) => ({
-        ...item,
-        image_url: item.image_url || item.preview || "",
-        preview: item.preview || item.image_url || "",
-      }));
+      const { coverImageUrl, galleryPayload } = await resolvePersistedProductImages({
+        coverImage,
+        gallery,
+      });
 
       const productPayload = normalizeProductRelationIds({
         name: name.trim(),
@@ -1783,7 +1820,7 @@ function CreateProduct() {
         active,
         status: active ? "active" : "inactive",
         track_stock: trackStock,
-        image_url: coverImage,
+        image_url: coverImageUrl,
         gallery: galleryPayload,
         variant_groups_count: filledGroups.length,
         variant_rows_count: generatedVariants.length,
@@ -1858,7 +1895,7 @@ function CreateProduct() {
         active,
         status: active ? "active" : "inactive",
         track_stock: trackStock,
-        image_url: coverImage,
+        image_url: coverImageUrl,
         gallery: galleryPayload,
       };
 

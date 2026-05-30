@@ -107,6 +107,13 @@ const normalizeGalleryImages = (value) => {
   }
 };
 
+const containsDataImageValue = (value) => {
+  if (typeof value === "string") return value.trim().startsWith("data:image/");
+  if (Array.isArray(value)) return value.some(containsDataImageValue);
+  if (value && typeof value === "object") return Object.values(value).some(containsDataImageValue);
+  return false;
+};
+
 const normalizeOptionalForeignKey = (value) => {
   if (value === undefined || value === null) return null;
   const text = String(value).trim();
@@ -2360,6 +2367,12 @@ export const createProduct = async (req, res) => {
         message: "Product name is required",
       });
     }
+    if (containsDataImageValue(image_url) || containsDataImageValue(gallery) || containsDataImageValue(gallery_images)) {
+      return res.status(400).json({
+        success: false,
+        message: "Upload product images before saving",
+      });
+    }
 
     const expectedVariantGroups = Number(variant_groups_count || 0);
     const expectedVariantRows = Number(variant_rows_count || 0);
@@ -2782,6 +2795,15 @@ export const updateProduct = async (req, res) => {
     const galleryImagesProvided =
       Object.prototype.hasOwnProperty.call(req.body || {}, "gallery_images") ||
       Object.prototype.hasOwnProperty.call(req.body || {}, "gallery");
+    if (
+      (imageUrlProvided && containsDataImageValue(image_url)) ||
+      (galleryImagesProvided && (containsDataImageValue(gallery) || containsDataImageValue(gallery_images)))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Upload product images before saving",
+      });
+    }
     const normalizedGalleryImages = Array.isArray(gallery_images)
       ? gallery_images
       : Array.isArray(gallery)

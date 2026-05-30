@@ -329,9 +329,7 @@ const getProductThumbnail = (row = {}) => {
     row.image_url,
     row.photo_url,
     row.image,
-    row.cover_image,
-    getFirstGalleryImage(row),
-    row.product_image_url
+    getFirstGalleryImage(row)
   );
 
   if (imageValue.startsWith("data:image/")) return imageValue;
