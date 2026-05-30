@@ -7,13 +7,17 @@ const browserOrigin = () =>
   typeof window !== "undefined" ? window.location.origin : "";
 
 const LOCAL_API_ORIGIN = "http://localhost:8000";
+const PRODUCTION_API_ORIGIN = "https://erp-system-0qhp.onrender.com";
+
+const defaultApiOrigin = () =>
+  import.meta.env.PROD ? PRODUCTION_API_ORIGIN : LOCAL_API_ORIGIN;
 
 const envValue = (key) =>
   trimTrailingSlash(import.meta.env[key]);
 
 const normalizeApiBaseUrl = (value) => {
   const base = trimTrailingSlash(value);
-  if (!base) return `${LOCAL_API_ORIGIN}/api`;
+  if (!base) return `${defaultApiOrigin()}/api`;
   const normalized = base.replace(/(?:\/api)+$/i, "/api");
   return normalized.endsWith("/api") ? normalized : `${normalized}/api`;
 };
@@ -30,8 +34,8 @@ export const API_ORIGIN = (() => {
   try {
     return new URL(API_ORIGIN_ENV || API_BASE_URL, browserOrigin()).origin;
   } catch {
-    return LOCAL_API_ORIGIN;
+    return defaultApiOrigin();
   }
 })();
 
-export const SOCKET_URL = API_ORIGIN_ENV || LOCAL_API_ORIGIN;
+export const SOCKET_URL = API_ORIGIN_ENV || defaultApiOrigin();

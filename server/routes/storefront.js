@@ -22,6 +22,7 @@ import {
   visualSearchProducts,
 } from "../controllers/storefrontController.js";
 import paymentProofUpload from "../config/paymentProofUpload.js";
+import { getWebsiteSettings } from "../services/liveActivityService.js";
 import {
   createOrRestoreStorefrontCustomerSession,
   getStorefrontCustomerSession,
@@ -108,6 +109,41 @@ const publicTenantId = (req) => {
   return Number.isFinite(value) && value > 0 ? value : 1;
 };
 
+const getPublicStorefrontSettings = async (req, res) => {
+  try {
+    const settings = await getWebsiteSettings({ tenantId: publicTenantId(req) });
+    return res.json({ success: true, settings });
+  } catch (error) {
+    console.error("[storefront] settings", {
+      requestId: req.id,
+      tenant_id: publicTenantId(req),
+      message: error?.message || String(error),
+    });
+    return res.status(500).json({ success: false, message: "Failed to load storefront settings" });
+  }
+};
+
+const getPublicStorefrontHome = async (req, res) => {
+  try {
+    const settings = await getWebsiteSettings({ tenantId: publicTenantId(req) });
+    return res.json({
+      success: true,
+      settings,
+      home: {
+        hero: settings?.homepage_hero || settings?.storefront_homepage_hero || null,
+        featured_collections: settings?.featured_collections || settings?.storefront_featured_collections || [],
+      },
+    });
+  } catch (error) {
+    console.error("[storefront] home", {
+      requestId: req.id,
+      tenant_id: publicTenantId(req),
+      message: error?.message || String(error),
+    });
+    return res.status(500).json({ success: false, message: "Failed to load storefront home" });
+  }
+};
+
 router.post("/customer/session", customerSessionRateLimit, async (req, res) => {
   try {
     const tenantId = publicTenantId(req);
@@ -187,6 +223,8 @@ router.post("/customer/restore-cart", async (req, res) => {
   }
 });
 
+router.get("/settings", getPublicStorefrontSettings);
+router.get("/home", getPublicStorefrontHome);
 router.get("/products", listProducts);
 router.get("/classifications/gender", listGenderClassifications);
 router.get("/last-piece", listLastPieceProducts);
