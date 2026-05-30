@@ -1674,14 +1674,7 @@ const useStorefrontHome = () => {
     hero: null,
     collections: [],
     rawHome: null,
-    rawResponse: null,
     requestUrl: homeRequestUrl,
-    responseKeys: [],
-    responsePreview: "",
-    status: null,
-    ok: null,
-    contentType: "",
-    rawTextPreview: "",
   });
 
   useEffect(() => {
@@ -1703,34 +1696,30 @@ const useStorefrontHome = () => {
       if (!res.ok) {
         const error = new Error(json?.message || json?.error || `Storefront home request failed (${res.status})`);
         error.status = res.status;
-        error.ok = res.ok;
-        error.contentType = contentType;
         error.responseBody = json;
-        error.rawTextPreview = rawText.slice(0, 500);
         throw error;
       }
-      return { contentType, json, ok: res.ok, parseError, rawTextPreview: parseError ? rawText.slice(0, 500) : "", status: res.status };
+      if (parseError) {
+        const error = new Error(parseError);
+        error.status = res.status;
+        error.responseBody = null;
+        throw error;
+      }
+      return { json };
     };
 
     loadHome()
-      .then(({ contentType, json, ok, parseError, rawTextPreview, status }) => {
+      .then(({ json }) => {
         const home = getStorefrontHomeFromResponse(json);
         const hero = home.hero ? normalizeHomeProduct(home.hero) : null;
         const collections = (Array.isArray(home.featured_collections) ? home.featured_collections : [])
           .map(normalizeHomeCollection)
           .filter((collection) => collection.products.length);
-        const responseKeys = json && typeof json === "object" ? Object.keys(json) : [];
-        let responsePreview = "";
-        try {
-          responsePreview = JSON.stringify(json).slice(0, 1000);
-        } catch {
-          responsePreview = String(json || "").slice(0, 1000);
-        }
-        if (!cancelled) setState({ loading: false, loaded: true, error: parseError, hero: hero?.id ? hero : null, collections, rawHome: home || null, rawResponse: json, requestUrl: homeRequestUrl, responseKeys, responsePreview, status, ok, contentType, rawTextPreview });
+        if (!cancelled) setState({ loading: false, loaded: true, error: "", hero: hero?.id ? hero : null, collections, rawHome: home || null, requestUrl: homeRequestUrl });
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, loaded: true, error: error?.message || "Failed to load storefront home", hero: null, collections: [], rawHome: null, rawResponse: error?.responseBody || null, requestUrl: homeRequestUrl, responseKeys: error?.responseBody && typeof error.responseBody === "object" ? Object.keys(error.responseBody) : [], responsePreview: error?.responseBody ? JSON.stringify(error.responseBody).slice(0, 1000) : "", status: error?.status || null, ok: error?.ok ?? false, contentType: error?.contentType || "", rawTextPreview: error?.rawTextPreview || "" });
+          setState({ loading: false, loaded: true, error: error?.message || "Failed to load storefront home", hero: null, collections: [], rawHome: null, requestUrl: homeRequestUrl });
         }
       });
     return () => {
@@ -3691,9 +3680,6 @@ function HomePage(props) {
   const homeCollections = storefrontHome.collections;
   const hasHomeCollections = homeCollections.length > 0;
   const rawHomeCollections = Array.isArray(storefrontHome.rawHome?.featured_collections) ? storefrontHome.rawHome.featured_collections : [];
-  const firstRawHomeProduct = rawHomeCollections.length > 0 && Array.isArray(rawHomeCollections[0]?.products)
-    ? rawHomeCollections[0].products[0]
-    : null;
   const rawHomeProducts = useMemo(
     () => rawHomeCollections.flatMap((collection) => Array.isArray(collection?.products) ? collection.products : []).map(normalizeHomeProduct).filter((product) => product.id && product.name),
     [rawHomeCollections]
@@ -3867,34 +3853,6 @@ function HomePage(props) {
                 );
               })}
             </div>
-          ) : null}
-        </div>
-      </section>
-      <section className="mx-auto max-w-[1200px] px-4 pb-2">
-        <div dir="ltr" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-left text-xs font-bold leading-6 text-amber-950 shadow-sm dark:border-amber-400/30 dark:bg-amber-300/10 dark:text-amber-100">
-          <div>HOME LOADED: {storefrontHome.loaded ? "yes" : "no"}</div>
-          <div>RAW HOME EXISTS: {storefrontHome.rawHome ? "yes" : "no"}</div>
-          <div>HOME HERO EXISTS: {storefrontHome.rawHome?.hero ? "yes" : "no"}</div>
-          <div>COLLECTION COUNT: {rawHomeCollections.length}</div>
-          <div>FIRST COLLECTION PRODUCTS: {Array.isArray(rawHomeCollections[0]?.products) ? rawHomeCollections[0].products.length : 0}</div>
-          <div>REQUEST URL: {storefrontHome.requestUrl || "-"}</div>
-          <div>HTTP STATUS: {storefrontHome.status ?? "-"}</div>
-          <div>HTTP OK: {storefrontHome.ok === null ? "-" : storefrontHome.ok ? "yes" : "no"}</div>
-          <div>CONTENT TYPE: {storefrontHome.contentType || "-"}</div>
-          <div>RESPONSE KEYS: {JSON.stringify(storefrontHome.responseKeys || [])}</div>
-          <div>OBJECT KEYS: {JSON.stringify(Object.keys(storefrontHome.rawResponse || {}))}</div>
-          {storefrontHome.rawTextPreview ? (
-            <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-red-300/70 bg-red-50/80 p-3 text-[11px] leading-5 text-red-950 dark:border-red-400/20 dark:bg-red-950/20 dark:text-red-100">
-              {storefrontHome.rawTextPreview}
-            </pre>
-          ) : null}
-          <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-amber-300/70 bg-white/70 p-3 text-[11px] leading-5 text-amber-950 dark:border-amber-400/20 dark:bg-black/20 dark:text-amber-100">
-            {storefrontHome.responsePreview || ""}
-          </pre>
-          {rawHomeCollections.length > 0 ? (
-            <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-amber-300/70 bg-white/70 p-3 text-[11px] leading-5 text-amber-950 dark:border-amber-400/20 dark:bg-black/20 dark:text-amber-100">
-              {JSON.stringify(firstRawHomeProduct || null, null, 2)}
-            </pre>
           ) : null}
         </div>
       </section>
