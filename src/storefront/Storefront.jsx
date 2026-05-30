@@ -1678,29 +1678,59 @@ const useStorefrontHome = () => {
     requestUrl: homeRequestUrl,
     responseKeys: [],
     responsePreview: "",
+    status: null,
+    ok: null,
+    contentType: "",
+    rawTextPreview: "",
   });
 
   useEffect(() => {
     let cancelled = false;
-    cachedStorefrontGet(homeEndpoint, { ttlMs: 0 })
-      .then((data) => {
-        const home = getStorefrontHomeFromResponse(data);
+    const loadHome = async () => {
+      const res = await fetch(homeRequestUrl, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      const contentType = res.headers.get("content-type") || "";
+      const rawText = await res.text();
+      let json = null;
+      let parseError = "";
+      try {
+        json = rawText ? JSON.parse(rawText) : null;
+      } catch (error) {
+        parseError = error?.message || "Failed to parse JSON";
+      }
+      if (!res.ok) {
+        const error = new Error(json?.message || json?.error || `Storefront home request failed (${res.status})`);
+        error.status = res.status;
+        error.ok = res.ok;
+        error.contentType = contentType;
+        error.responseBody = json;
+        error.rawTextPreview = rawText.slice(0, 500);
+        throw error;
+      }
+      return { contentType, json, ok: res.ok, parseError, rawTextPreview: parseError ? rawText.slice(0, 500) : "", status: res.status };
+    };
+
+    loadHome()
+      .then(({ contentType, json, ok, parseError, rawTextPreview, status }) => {
+        const home = getStorefrontHomeFromResponse(json);
         const hero = home.hero ? normalizeHomeProduct(home.hero) : null;
         const collections = (Array.isArray(home.featured_collections) ? home.featured_collections : [])
           .map(normalizeHomeCollection)
           .filter((collection) => collection.products.length);
-        const responseKeys = data && typeof data === "object" ? Object.keys(data) : [];
+        const responseKeys = json && typeof json === "object" ? Object.keys(json) : [];
         let responsePreview = "";
         try {
-          responsePreview = JSON.stringify(data).slice(0, 1000);
+          responsePreview = JSON.stringify(json).slice(0, 1000);
         } catch {
-          responsePreview = String(data || "").slice(0, 1000);
+          responsePreview = String(json || "").slice(0, 1000);
         }
-        if (!cancelled) setState({ loading: false, loaded: true, error: "", hero: hero?.id ? hero : null, collections, rawHome: home, rawResponse: data, requestUrl: homeRequestUrl, responseKeys, responsePreview });
+        if (!cancelled) setState({ loading: false, loaded: true, error: parseError, hero: hero?.id ? hero : null, collections, rawHome: home || null, rawResponse: json, requestUrl: homeRequestUrl, responseKeys, responsePreview, status, ok, contentType, rawTextPreview });
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, loaded: true, error: error?.message || "Failed to load storefront home", hero: null, collections: [], rawHome: null, rawResponse: error?.responseBody || null, requestUrl: error?.url || homeRequestUrl, responseKeys: error?.responseBody && typeof error.responseBody === "object" ? Object.keys(error.responseBody) : [], responsePreview: error?.responseBody ? JSON.stringify(error.responseBody).slice(0, 1000) : "" });
+          setState({ loading: false, loaded: true, error: error?.message || "Failed to load storefront home", hero: null, collections: [], rawHome: null, rawResponse: error?.responseBody || null, requestUrl: homeRequestUrl, responseKeys: error?.responseBody && typeof error.responseBody === "object" ? Object.keys(error.responseBody) : [], responsePreview: error?.responseBody ? JSON.stringify(error.responseBody).slice(0, 1000) : "", status: error?.status || null, ok: error?.ok ?? false, contentType: error?.contentType || "", rawTextPreview: error?.rawTextPreview || "" });
         }
       });
     return () => {
@@ -3848,8 +3878,16 @@ function HomePage(props) {
           <div>COLLECTION COUNT: {rawHomeCollections.length}</div>
           <div>FIRST COLLECTION PRODUCTS: {Array.isArray(rawHomeCollections[0]?.products) ? rawHomeCollections[0].products.length : 0}</div>
           <div>REQUEST URL: {storefrontHome.requestUrl || "-"}</div>
+          <div>HTTP STATUS: {storefrontHome.status ?? "-"}</div>
+          <div>HTTP OK: {storefrontHome.ok === null ? "-" : storefrontHome.ok ? "yes" : "no"}</div>
+          <div>CONTENT TYPE: {storefrontHome.contentType || "-"}</div>
           <div>RESPONSE KEYS: {JSON.stringify(storefrontHome.responseKeys || [])}</div>
           <div>OBJECT KEYS: {JSON.stringify(Object.keys(storefrontHome.rawResponse || {}))}</div>
+          {storefrontHome.rawTextPreview ? (
+            <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-red-300/70 bg-red-50/80 p-3 text-[11px] leading-5 text-red-950 dark:border-red-400/20 dark:bg-red-950/20 dark:text-red-100">
+              {storefrontHome.rawTextPreview}
+            </pre>
+          ) : null}
           <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-amber-300/70 bg-white/70 p-3 text-[11px] leading-5 text-amber-950 dark:border-amber-400/20 dark:bg-black/20 dark:text-amber-100">
             {storefrontHome.responsePreview || ""}
           </pre>
