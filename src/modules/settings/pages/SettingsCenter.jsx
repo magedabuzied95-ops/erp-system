@@ -1546,10 +1546,9 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   const [query, setQuery] = useState("");
   const [governorateFilter, setGovernorateFilter] = useState("");
   const [selected, setSelected] = useState([]);
-  const [expanded, setExpanded] = useState({});
+  const [expandedRules, setExpandedRules] = useState({});
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkEstimate, setBulkEstimate] = useState("");
-  const [testedRuleId, setTestedRuleId] = useState("");
   const [draft, setDraft] = useState({ governorate: "Cairo", city: "", area: "", price: defaultPrice || 0 });
   const zones = useMemo(() => (Array.isArray(value) ? value : []).map(normalizeShippingZoneRow), [value]);
   const duplicateCounts = useMemo(() => zones.reduce((map, zone) => {
@@ -1566,22 +1565,7 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   });
   const selectedSet = new Set(selected);
   const selectedCount = selected.filter((id) => zones.some((zone) => zone.id === id)).length;
-  const groupedZones = useMemo(() => {
-    const groups = new Map();
-    visibleZones.forEach((zone) => {
-      const governorate = zone.governorate || "Unassigned";
-      const city = zone.city || "Governorate rules";
-      if (!groups.has(governorate)) groups.set(governorate, new Map());
-      const cityMap = groups.get(governorate);
-      if (!cityMap.has(city)) cityMap.set(city, []);
-      cityMap.get(city).push(zone);
-    });
-    return Array.from(groups.entries()).map(([governorate, cityMap]) => ({
-      governorate,
-      cities: Array.from(cityMap.entries()).map(([city, rows]) => ({ city, rows })),
-    }));
-  }, [visibleZones]);
-  const toggleExpanded = (key) => setExpanded((current) => ({ ...current, [key]: current[key] === false ? true : false }));
+  const toggleRuleExpanded = (id) => setExpandedRules((current) => ({ ...current, [id]: !current[id] }));
 
   const updateRows = (next) => {
     const seen = new Set();
@@ -1790,58 +1774,35 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
             Select visible
           </label>
         </div>
-        <div className="grid max-h-[42rem] gap-3 overflow-y-auto pr-1">
-          {groupedZones.map((group) => {
-            const groupKey = `g:${group.governorate}`;
-            const groupOpen = expanded[groupKey] !== false;
-            const groupRows = group.cities.flatMap((city) => city.rows);
-            return (
-              <section key={groupKey} className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
-                <button type="button" onClick={() => toggleExpanded(groupKey)} className="flex w-full items-center gap-3 bg-slate-50 px-4 py-3 text-start dark:bg-white/[0.035]">
-                  {groupOpen ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
-                  <span className={`min-w-0 flex-1 truncate text-sm font-black ${headingText}`}>{group.governorate}</span>
-                  <span className="rounded-full bg-slate-200 px-2 py-1 text-[11px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300">{groupRows.length}</span>
-                </button>
-                {groupOpen ? (
-                  <div className="grid gap-2 p-3">
-                    {group.cities.map((cityGroup) => {
-                      const cityKey = `${groupKey}:c:${cityGroup.city}`;
-                      const cityOpen = expanded[cityKey] !== false;
-                      return (
-                        <div key={cityKey} className="rounded-2xl border border-slate-100 bg-slate-50/60 dark:border-white/10 dark:bg-white/[0.025]">
-                          <button type="button" onClick={() => toggleExpanded(cityKey)} className="flex w-full items-center gap-2 px-3 py-2 text-start">
-                            {cityOpen ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
-                            <span className={`min-w-0 flex-1 truncate text-xs font-black ${headingText}`}>{cityGroup.city}</span>
-                            <span className={`text-[11px] font-black ${mutedText}`}>{cityGroup.rows.length} rules</span>
-                          </button>
-                          {cityOpen ? (
-                            <div className="grid gap-2 p-2 pt-0">
-                              {cityGroup.rows.map((zone) => (
-                                <ZoneRuleCard
-                                  key={zone.id}
-                                  zone={zone}
-                                  zones={zones}
-                                  copy={copy}
-                                  defaultPrice={defaultPrice}
-                                  selected={selectedSet.has(zone.id)}
-                                  duplicate={duplicateCounts.get(ruleIdentity(zone)) > 1}
-                                  tested={testedRuleId === zone.id}
-                                  onSelect={(checked) => setSelected((current) => checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))}
-                                  onPatch={(patch) => patchRow(zone.id, patch)}
-                                  onDelete={() => deleteRow(zone.id)}
-                                  onTest={() => setTestedRuleId((current) => current === zone.id ? "" : zone.id)}
-                                />
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </section>
-            );
-          })}
+        <div className="max-h-[42rem] overflow-auto rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
+          <table className="min-w-[1180px] w-full border-separate border-spacing-0 text-sm">
+            <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-black uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+              <tr>
+                <th className="w-10 px-3 py-3 text-start"></th>
+                {["Governorate", "City", "Area", "Provider", "Shipping Cost", "COD", "Proof", "ETA", "Active", ""].map((header) => (
+                  <th key={header} className="px-3 py-3 text-start">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleZones.map((zone) => (
+                <ZoneRuleTableRow
+                  key={zone.id}
+                  zone={zone}
+                  zones={zones}
+                  copy={copy}
+                  defaultPrice={defaultPrice}
+                  selected={selectedSet.has(zone.id)}
+                  expanded={Boolean(expandedRules[zone.id])}
+                  duplicate={duplicateCounts.get(ruleIdentity(zone)) > 1}
+                  onSelect={(checked) => setSelected((current) => checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))}
+                  onPatch={(patch) => patchRow(zone.id, patch)}
+                  onDelete={() => deleteRow(zone.id)}
+                  onExpand={() => toggleRuleExpanded(zone.id)}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
         {!visibleZones.length ? <div className={`p-8 text-center text-sm font-bold ${bodyText}`}>{copy.empty}</div> : null}
       </div>
@@ -1849,7 +1810,7 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   );
 }
 
-function ZoneRuleCard({ zone, zones, copy, defaultPrice, selected, duplicate, tested, onSelect, onPatch, onDelete, onTest }) {
+function ZoneRuleTableRow({ zone, zones, copy, defaultPrice, selected, expanded, duplicate, onSelect, onPatch, onDelete, onExpand }) {
   const provider = normalizeProviderKey(zone.provider_id || zone.provider);
   const winner = resolveRuleWinner(zones, zone, defaultPrice);
   const isWinner = winner?.id === zone.id;
@@ -1862,67 +1823,72 @@ function ZoneRuleCard({ zone, zones, copy, defaultPrice, selected, duplicate, te
       normalizeZoneKey(candidate.city) === normalizeZoneKey(zone.city)
     )
   );
+  const providerSelect = (
+    <select value={provider} onChange={(event) => onPatch({ provider: event.target.value, provider_id: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`}>
+      {shippingProviderOptions.map((providerOption) => (
+        <option key={providerOption.id} value={providerOption.id}>{providerOption.label}</option>
+      ))}
+    </select>
+  );
+  const advancedPanel = expanded ? (
+    <div className="grid gap-3 border-t border-slate-100 p-3 dark:border-white/10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+      <div className="grid gap-2">
+        <div className="flex flex-wrap gap-2">
+          <span className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-300">{ruleType(zone)}</span>
+          <span className="inline-flex w-fit items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700 dark:border-blue-400/25 dark:bg-blue-500/10 dark:text-blue-100">{copy.priority}: {rulePriorityLabel(zone)}</span>
+          {duplicate ? <span className="inline-flex w-fit items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-800 dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-100">{copy.duplicateRule}</span> : null}
+          {overlaps ? <span className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-[11px] font-black ${isWinner ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/25 dark:bg-emerald-500/10 dark:text-emerald-100" : "border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300"}`}>{isWinner ? copy.winningRule : `${copy.overriddenBy}: ${winner ? zoneLabel(winner) : "Default"}`}</span> : null}
+        </div>
+        <p className={`text-xs font-bold leading-5 ${bodyText}`}>{ruleSummary(zone)}</p>
+        <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-black text-violet-800 dark:border-violet-400/25 dark:bg-violet-500/10 dark:text-violet-100">
+          {copy.testResult}: {winner ? ruleSummary(winner) : `Default -> ${Number(defaultPrice || 0).toLocaleString()} EGP`}
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => onPatch({ free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Free over" />
+        <input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => onPatch({ minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Min COD" />
+      </div>
+    </div>
+  ) : null;
+
   return (
-    <article className={`rounded-2xl border p-3 shadow-sm transition dark:shadow-none ${isWinner && overlaps ? "border-emerald-300 bg-emerald-50/70 dark:border-emerald-400/35 dark:bg-emerald-500/10" : duplicate ? "border-amber-300 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-500/10" : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/80"}`}>
-      <div className="grid gap-3 xl:grid-cols-[1.4rem_minmax(13rem,1fr)_8rem_minmax(12rem,0.75fr)_minmax(18rem,1.1fr)_auto] xl:items-center">
-        <input type="checkbox" className="mt-3 h-4 w-4 xl:mt-0" checked={selected} onChange={(event) => onSelect(event.target.checked)} />
-        <div className="grid gap-2 sm:grid-cols-3">
-          <input value={zone.governorate} onChange={(event) => onPatch({ governorate: event.target.value })} className={`${inputClass} h-10 rounded-xl`} placeholder="Governorate" />
-          <input value={zone.city} onChange={(event) => onPatch({ city: event.target.value })} className={`${inputClass} h-10 rounded-xl`} placeholder="City / Markaz" />
-          <input value={zone.area} onChange={(event) => onPatch({ area: event.target.value })} className={`${inputClass} h-10 rounded-xl`} placeholder="Area / District" />
-        </div>
-        <input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} />
-        <select value={provider} onChange={(event) => onPatch({ provider: event.target.value, provider_id: event.target.value })} className={`${inputClass} h-10 rounded-xl`}>
-          {shippingProviderOptions.map((provider) => (
-            <option key={provider.id} value={provider.id}>{provider.label}</option>
-          ))}
-        </select>
-        <div className="grid gap-2 sm:grid-cols-3">
-          <input value={zone.estimated_delivery_text} onChange={(event) => onPatch({ estimated_delivery_text: event.target.value })} className={`${inputClass} h-10 rounded-xl`} placeholder="ETA" />
-          <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => onPatch({ free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Free over" />
-          <input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => onPatch({ minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Min COD" />
-        </div>
-        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-          <label className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
-            <input type="checkbox" className="h-4 w-4" checked={Boolean(zone.cod_allowed)} onChange={(event) => onPatch({ cod_allowed: event.target.checked })} />
-            COD
-          </label>
-          <label className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
-            <input type="checkbox" className="h-4 w-4" checked={Boolean(zone.requires_shipping_proof)} onChange={(event) => onPatch({ requires_shipping_proof: event.target.checked })} />
-            Proof
-          </label>
-          <label className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
-            <input type="checkbox" className="h-4 w-4" checked={Boolean(zone.active)} onChange={(event) => onPatch({ active: event.target.checked })} />
-            Active
-          </label>
-          <button type="button" onClick={onTest} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]">
-            <TestTube2 className="h-3.5 w-3.5" />
-            {copy.testRule}
-          </button>
-          <button type="button" onClick={onDelete} className="grid h-9 w-9 place-items-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10" aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
-        </div>
-      </div>
-      <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 dark:border-white/10 lg:grid-cols-[auto_auto_minmax(0,1fr)] lg:items-center">
-        <span className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-300">{ruleType(zone)}</span>
-        <span className="inline-flex w-fit items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700 dark:border-blue-400/25 dark:bg-blue-500/10 dark:text-blue-100">{copy.priority}: {rulePriorityLabel(zone)}</span>
-        <p className={`min-w-0 truncate text-xs font-bold ${bodyText}`}>{ruleSummary(zone)}</p>
-      </div>
-      {(duplicate || overlaps || tested) ? (
-        <div className="mt-2 grid gap-2 md:grid-cols-2">
-          {duplicate ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800 dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-100">{copy.duplicateRule}</div> : null}
-          {overlaps ? (
-            <div className={`rounded-xl border px-3 py-2 text-xs font-black ${isWinner ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/25 dark:bg-emerald-500/10 dark:text-emerald-100" : "border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300"}`}>
-              {isWinner ? copy.winningRule : `${copy.overriddenBy}: ${winner ? zoneLabel(winner) : "Default"}`}
-            </div>
-          ) : null}
-          {tested ? (
-            <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-black text-violet-800 dark:border-violet-400/25 dark:bg-violet-500/10 dark:text-violet-100">
-              {copy.testResult}: {winner ? ruleSummary(winner) : `Default -> ${Number(defaultPrice || 0).toLocaleString()} EGP`}
-            </div>
-          ) : null}
-        </div>
+    <>
+      <tr className={`${isWinner && overlaps ? "bg-emerald-50/60 dark:bg-emerald-500/8" : duplicate ? "bg-amber-50/70 dark:bg-amber-500/8" : "bg-white dark:bg-slate-950/70"} border-b border-slate-100 dark:border-white/10`}>
+        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10">
+          <input type="checkbox" className="h-4 w-4" checked={selected} onChange={(event) => onSelect(event.target.checked)} />
+        </td>
+        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><input value={zone.governorate} onChange={(event) => onPatch({ governorate: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`} placeholder="Governorate" /></td>
+        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><input value={zone.city} onChange={(event) => onPatch({ city: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`} placeholder="City / Markaz" /></td>
+        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><input value={zone.area} onChange={(event) => onPatch({ area: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`} placeholder="Area / District" /></td>
+        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10">{providerSelect}</td>
+        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} h-9 w-24 rounded-xl text-center text-xs`} /></td>
+        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><TogglePill compact label="COD" checked={Boolean(zone.cod_allowed)} onChange={(checked) => onPatch({ cod_allowed: checked })} /></td>
+        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><TogglePill compact label="Proof" checked={Boolean(zone.requires_shipping_proof)} onChange={(checked) => onPatch({ requires_shipping_proof: checked })} /></td>
+        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><input value={zone.estimated_delivery_text} onChange={(event) => onPatch({ estimated_delivery_text: event.target.value })} className={`${inputClass} h-9 min-w-40 rounded-xl text-xs`} placeholder="ETA" /></td>
+        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><TogglePill compact label="Active" checked={Boolean(zone.active)} onChange={(checked) => onPatch({ active: checked })} /></td>
+        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10">
+          <div className="flex justify-end gap-1">
+            <button type="button" onClick={onExpand} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200" aria-label="Edit rule"><Settings2 className="h-4 w-4" /></button>
+            <button type="button" onClick={onExpand} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200" aria-label="Expand rule">{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button>
+            <button type="button" onClick={onDelete} className="grid h-9 w-9 place-items-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10" aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
+          </div>
+        </td>
+      </tr>
+      {expanded ? (
+        <tr className="bg-slate-50/80 dark:bg-white/[0.025]">
+          <td colSpan={11} className="border-b border-slate-100 p-0 dark:border-white/10">{advancedPanel}</td>
+        </tr>
       ) : null}
-    </article>
+    </>
+  );
+}
+
+function TogglePill({ label, checked, onChange, compact = false }) {
+  return (
+    <label className={`inline-flex items-center gap-2 rounded-full border px-3 text-xs font-black ${compact ? "h-8" : "h-9"} ${checked ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-500/10 dark:text-emerald-100" : "border-slate-200 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300"}`}>
+      <input type="checkbox" className="h-4 w-4" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      {label}
+    </label>
   );
 }
 
