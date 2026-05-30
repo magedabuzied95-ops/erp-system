@@ -5199,8 +5199,17 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
   );
 }
 
+const renderableFilterSections = (sections = []) =>
+  (Array.isArray(sections) ? sections : []).filter((section) => {
+    if (!section || section.key === "style") return false;
+    return uniqueClassificationOptions(section.options || []).length > 0;
+  });
+
 function PremiumFilterPanel({ sections, lang, buildFilterUrl, clearUrl, activeFilterCount = 0 }) {
   const { t } = useTranslation();
+  const visibleSections = renderableFilterSections(sections);
+  const gridClass = visibleSections.length >= 4 ? "xl:grid-cols-4" : visibleSections.length === 3 ? "xl:grid-cols-3" : "xl:grid-cols-2";
+  if (!visibleSections.length) return null;
   return (
     <div className="mb-5 hidden md:block">
       <div className="mb-3 flex items-center justify-between">
@@ -5222,8 +5231,8 @@ function PremiumFilterPanel({ sections, lang, buildFilterUrl, clearUrl, activeFi
           </Link>
         ) : null}
       </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {sections.map((section) => (
+      <div className={`grid gap-3 md:grid-cols-2 ${gridClass}`}>
+        {visibleSections.map((section) => (
           <PremiumFilterSection key={section.key} section={section} lang={lang} buildFilterUrl={buildFilterUrl} />
         ))}
       </div>
@@ -5235,6 +5244,7 @@ function PremiumFilterSection({ section, lang, buildFilterUrl }) {
   const { t } = useTranslation();
   const SectionIcon = section.icon || Sparkles;
   const options = uniqueClassificationOptions(section.options || []);
+  if (section.key === "style" || !options.length) return null;
   return (
     <section className="group/filter relative overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(12,16,32,0.96),rgba(24,18,39,0.92))] p-4 text-white shadow-[0_18px_54px_rgba(0,0,0,0.20)] backdrop-blur-xl">
       <div className="pointer-events-none absolute -left-10 -top-10 h-28 w-28 rounded-full bg-[#7c3aed]/18 blur-3xl transition group-hover/filter:bg-[#7c3aed]/28" />
@@ -5305,6 +5315,7 @@ function MobileFilterTrigger({ activeFilterCount = 0, onOpen }) {
 
 function MobileFilterDrawer({ open, sections, lang, draftFilters, setDraftFilters, onClose, onApply, onReset }) {
   const { t } = useTranslation();
+  const visibleSections = renderableFilterSections(sections);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
@@ -5321,7 +5332,7 @@ function MobileFilterDrawer({ open, sections, lang, draftFilters, setDraftFilter
           </button>
         </div>
         <div className="sf-scroll max-h-[calc(82dvh-124px)] space-y-1.5 overflow-y-auto px-2.5 py-2.5 pb-24">
-          {sections.map((section) => (
+          {visibleSections.map((section) => (
             <MobileFilterSection key={section.key} section={section} lang={lang} draftValue={draftFilters[section.key] || ""} onSelect={(value) => setDraftFilters((current) => ({ ...current, [section.key]: value }))} />
           ))}
         </div>
@@ -5342,6 +5353,7 @@ function MobileFilterSection({ section, lang, draftValue, onSelect }) {
   const { t } = useTranslation();
   const SectionIcon = section.icon || Sparkles;
   const options = uniqueClassificationOptions(section.options || []);
+  if (section.key === "style" || !options.length) return null;
   return (
     <section className="rounded-[0.9rem] border border-white/10 bg-white/[0.055] p-2 shadow-[0_12px_30px_rgba(0,0,0,0.18)] backdrop-blur-xl">
       <div className="mb-1.5 flex items-center gap-1.5">
