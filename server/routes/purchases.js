@@ -53,6 +53,7 @@ const withPurchaseQueryLogging = (client, context = {}) => {
     const startedAt = Date.now();
     console.log("[purchase:create] db query start", {
       requestId: context.requestId,
+      purchase_save_id: context.purchaseSaveId || null,
       step: queryName,
       params: params.length,
       sql: previewSql(sql),
@@ -61,6 +62,7 @@ const withPurchaseQueryLogging = (client, context = {}) => {
       const result = await originalQuery(...args);
       console.log("[purchase:create] db query end", {
         requestId: context.requestId,
+        purchase_save_id: context.purchaseSaveId || null,
         step: queryName,
         durationMs: Date.now() - startedAt,
         rows: result?.rowCount,
@@ -71,6 +73,7 @@ const withPurchaseQueryLogging = (client, context = {}) => {
       error.purchaseQuery = error.purchaseQuery || previewSql(sql);
       console.error("[purchase:create] db query error", {
         requestId: context.requestId,
+        purchase_save_id: context.purchaseSaveId || null,
         step: queryName,
         durationMs: Date.now() - startedAt,
         message: error.message,
@@ -81,6 +84,57 @@ const withPurchaseQueryLogging = (client, context = {}) => {
       throw error;
     }
   };
+};
+
+const withPurchaseDeleteQueryLogging = (client, context = {}) => {
+  if (client.__purchaseDeleteQueryLoggingWrapped) return;
+  client.__purchaseDeleteQueryLoggingWrapped = true;
+  const originalQuery = client.query.bind(client);
+  client.query = async (...args) => {
+    const sql = typeof args[0] === "string" ? args[0] : args[0]?.text || "";
+    const params = typeof args[0] === "string" ? (Array.isArray(args[1]) ? args[1] : []) : (Array.isArray(args[0]?.values) ? args[0].values : []);
+    const step = context.currentStep || "purchase.delete.query";
+    const label = `[purchase-delete:${context.purchaseId || "unknown"}] db ${step}`;
+    console.time(label);
+    try {
+      const result = await originalQuery(...args);
+      console.timeEnd(label);
+      console.log("[purchase:delete] db query end", {
+        requestId: context.requestId,
+        purchaseId: context.purchaseId,
+        step,
+        rows: result?.rowCount,
+        params: params.length,
+        sql: previewSql(sql),
+      });
+      return result;
+    } catch (error) {
+      console.timeEnd(label);
+      error.purchaseStep = error.purchaseStep || step;
+      error.purchaseQuery = error.purchaseQuery || previewSql(sql);
+      console.error("[purchase:delete] db query error", {
+        requestId: context.requestId,
+        purchaseId: context.purchaseId,
+        step,
+        message: error.message,
+        code: error.code,
+        sql: previewSql(sql),
+        stack: error.stack,
+      });
+      throw error;
+    }
+  };
+};
+
+const timedPurchaseDeleteStep = async (context, step, fn) => {
+  if (context) context.currentStep = step;
+  const label = `[purchase-delete:${context?.purchaseId || "unknown"}] ${step}`;
+  console.time(label);
+  try {
+    return await fn();
+  } finally {
+    console.timeEnd(label);
+  }
 };
 
 const ensurePurchaseDraftMetadataSchema = async (client) => {
@@ -303,6 +357,145 @@ const ensurePurchaseCreateSchema = async (client) => {
       ON purchases (tenant_id, purchase_save_id)
       WHERE purchase_save_id IS NOT NULL AND purchase_save_id <> ''
   `);
+};
+
+const safeCreateIndex = async (client, sql, label) => {
+  const timerLabel = `[purchase-delete:index] ${label}`;
+  console.time(timerLabel);
+  let savepoint = false;
+  try {
+    try {
+      await client.query("SAVEPOINT purchase_index_check");
+      savepoint = true;
+    } catch {
+      savepoint = false;
+    }
+    await client.query(sql);
+    if (savepoint) await client.query("RELEASE SAVEPOINT purchase_index_check");
+    console.timeEnd(timerLabel);
+  } catch (error) {
+    if (savepoint) await client.query("ROLLBACK TO SAVEPOINT purchase_index_check").catch(() => {});
+    console.timeEnd(timerLabel);
+    console.warn("[purchase-delete:index] skipped", { label, message: error.message, code: error.code });
+  }
+};
+
+const ensurePurchaseDeleteIndexes = async (client) => {
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_purchase_items_tenant_purchase_id ON purchase_items (tenant_id, purchase_id)", "purchase_items tenant purchase_id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON purchase_items (purchase_id)", "purchase_items purchase_id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_purchase_items_product_id ON purchase_items (product_id)", "purchase_items product_id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_purchase_items_variant_id ON purchase_items (variant_id)", "purchase_items variant_id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_purchase_items_tenant_variant_id ON purchase_items (tenant_id, variant_id)", "purchase_items tenant variant_id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_ref ON inventory_movements (tenant_id, reference_type, reference_id)", "inventory_movements tenant reference");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_movements_ref ON inventory_movements (reference_type, reference_id)", "inventory_movements reference");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_variant_created ON inventory_movements (tenant_id, variant_id, created_at DESC)", "inventory_movements tenant variant created");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_product_created ON inventory_movements (tenant_id, product_id, created_at DESC)", "inventory_movements tenant product created");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_movements_warehouse_id ON inventory_movements (warehouse_id)", "inventory_movements warehouse_id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_tenant_warehouse_variant ON warehouse_inventory (tenant_id, warehouse_id, variant_id)", "warehouse_inventory tenant warehouse variant");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_warehouse_id ON warehouse_inventory (warehouse_id)", "warehouse_inventory warehouse_id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_variant_id ON warehouse_inventory (variant_id)", "warehouse_inventory variant_id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_product_variants_tenant_id_id ON product_variants (tenant_id, id)", "product_variants tenant id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_products_tenant_id_id ON products (tenant_id, id)", "products tenant id");
+};
+
+const ensurePurchaseCreateIndexes = async (client) => {
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_products_id ON products (id)", "products id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_product_variants_id ON product_variants (id)", "product_variants id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_product_variants_product_color_size ON product_variants (product_id, color, size)", "product_variants product color size");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_purchases_id ON purchases (id)", "purchases id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON purchase_items (purchase_id)", "purchase_items purchase_id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_stock_movements_reference ON stock_movements (reference_type, reference_id)", "stock_movements reference");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_movements_reference ON inventory_movements (reference_type, reference_id)", "inventory_movements reference");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_supplier_transactions_reference_id ON supplier_transactions (reference_id)", "supplier_transactions reference_id");
+  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_financial_account_entries_source ON financial_account_entries (source_type, source_id)", "financial account entries source");
+};
+
+const roundPurchaseMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+
+const createPurchaseAccountingUnavailableError = (message) => {
+  const error = new Error(message);
+  error.code = "ACCOUNTING_FAST_PATH_UNAVAILABLE";
+  return error;
+};
+
+const postPurchaseEntryFast = async (client, data = {}) => {
+  const tenantId = getTenantId({ user: { tenant_id: data.tenantId } }, data.tenantId);
+  const amount = roundPurchaseMoney(data.amount || data.total || 0);
+  if (!amount) return null;
+
+  const payableCode = data.paymentType === "cash" ? "1000" : "2000";
+  const accountResult = await client.query(
+    `
+    SELECT id, code
+    FROM accounts
+    WHERE tenant_id = $1
+      AND code = ANY($2::text[])
+    `,
+    [tenantId, ["1200", payableCode]]
+  );
+  const accountByCode = new Map(accountResult.rows.map((row) => [String(row.code), Number(row.id)]));
+  const inventoryAccountId = accountByCode.get("1200");
+  const payableAccountId = accountByCode.get(payableCode);
+  if (!inventoryAccountId || !payableAccountId) {
+    throw createPurchaseAccountingUnavailableError(`Missing accounting account(s) for purchase save: 1200/${payableCode}`);
+  }
+
+  const entryResult = await client.query(
+    `
+    INSERT INTO journal_entries (
+      tenant_id,
+      entry_number,
+      status,
+      reference_type,
+      reference_id,
+      description,
+      notes,
+      entry_date,
+      created_by,
+      is_generated,
+      entry_type,
+      source_key,
+      created_at,
+      updated_at
+    )
+    VALUES ($1,$2,'posted',$3,$4,$5,$6,CURRENT_DATE,$7,FALSE,NULL,NULL,NOW(),NOW())
+    RETURNING *
+    `,
+    [
+      tenantId,
+      data.entryNumber || data.entry_number || `JE-${Date.now()}-${data.referenceId || data.reference_id || "purchase"}`,
+      data.referenceType || data.reference_type || "purchase",
+      data.referenceId || data.reference_id || null,
+      data.description || "Purchase receipt",
+      data.notes || "",
+      data.createdBy ?? data.created_by ?? null,
+    ]
+  );
+  const journalEntry = entryResult.rows[0];
+  const lineValues = [
+    tenantId, journalEntry.id, inventoryAccountId, amount, 0, data.branchId ?? data.branch_id ?? null, data.notes || "",
+    tenantId, journalEntry.id, payableAccountId, 0, amount, data.branchId ?? data.branch_id ?? null, data.notes || "",
+  ];
+  await client.query(
+    `
+    INSERT INTO journal_entry_lines (
+      tenant_id,
+      journal_entry_id,
+      account_id,
+      debit,
+      credit,
+      branch_id,
+      notes,
+      created_at
+    )
+    VALUES
+      ($1,$2,$3,$4,$5,$6,$7,NOW()),
+      ($8,$9,$10,$11,$12,$13,$14,NOW())
+    `,
+    lineValues
+  );
+
+  return journalEntry;
 };
 
 const ensureDraftSupplier = async (client, tenantId, supplierId = null) => {
@@ -727,6 +920,98 @@ const insertPurchaseItem = async (client, { tenantId, purchaseId, item, metadata
   return inserted.rows[0] || null;
 };
 
+const buildPurchaseItemInsertRow = ({ columns, tenantId, purchaseId, item, metadata = {} }) => {
+  const unitCost = Number(item.unit_cost || item.cost_price || item.price || 0);
+  const sellingPrice = Number(item.selling_price ?? item.regular_price ?? item.price ?? 0) || 0;
+  const salePrice = Number(item.sale_price ?? 0) || 0;
+  const wholesalePrice = Number(item.wholesale_price ?? 0) || 0;
+  const quantityColumn = firstColumn(columns, ["quantity", "qty"]);
+  const byColumn = {
+    tenant_id: tenantId,
+    purchase_id: purchaseId,
+    product_id: item.product_id ?? null,
+    variant_id: item.variant_id || null,
+    [quantityColumn]: item.quantity,
+    cost_price: unitCost,
+    unit_cost: unitCost,
+    total: Number(item.total || item.quantity * unitCost),
+    total_amount: Number(item.total || item.quantity * unitCost),
+    selling_price: sellingPrice,
+    regular_price: sellingPrice,
+    sale_price: salePrice,
+    wholesale_price: wholesalePrice,
+    tax_amount: Number(item.tax_amount ?? item.tax ?? 0) || 0,
+    discount_amount: Number(item.discount_amount ?? item.discount ?? 0) || 0,
+    sku: item.sku || "",
+    article_code: item.article_code || "",
+    color: item.color || "",
+    size: item.size || "",
+    metadata: JSON.stringify({
+      ...metadata,
+      ...(item.metadata || {}),
+      sku: item.sku || metadata.sku || "",
+      color: item.color || metadata.color || "",
+      size: item.size || metadata.size || "",
+      unit_cost: unitCost,
+      cost_price: unitCost,
+      selling_price: sellingPrice,
+      regular_price: sellingPrice,
+      sale_price: salePrice,
+      wholesale_price: wholesalePrice,
+      article_code: item.article_code || "",
+    }),
+  };
+  return byColumn;
+};
+
+const insertPurchaseItemsBulk = async (client, { tenantId, purchaseId, items = [] }) => {
+  const rows = items.map((item) => ({
+    ...item,
+    total: Number(item.total || item.quantity * item.unit_cost),
+    cost_price: item.unit_cost,
+  }));
+  if (!rows.length) return [];
+  const columnInfo = await getTableColumnInfo(client, "purchase_items");
+  const columns = new Set(columnInfo.keys());
+  const insertColumns = [
+    "tenant_id", "purchase_id", "product_id", "variant_id", firstColumn(columns, ["quantity", "qty"]),
+    "cost_price", "unit_cost", "total", "total_amount", "selling_price", "regular_price", "sale_price",
+    "wholesale_price", "tax_amount", "discount_amount", "sku", "article_code", "color", "size", "metadata",
+  ].filter((column, index, array) => column && columns.has(column) && array.indexOf(column) === index);
+  const missingRequired = requiredNoDefaultColumns(columnInfo, new Set(["id"])).filter((columnName) => !insertColumns.includes(columnName));
+  if (missingRequired.length) {
+    const error = new Error(`purchase_items missing required columns: ${missingRequired.join(", ")}`);
+    error.status = 500;
+    error.code = "PURCHASE_ITEMS_SCHEMA_MISMATCH";
+    throw error;
+  }
+  const values = [];
+  const tuples = rows.map((item) => {
+    const byColumn = buildPurchaseItemInsertRow({
+      columns,
+      tenantId,
+      purchaseId,
+      item,
+      metadata: { sku: item.sku, article_code: item.article_code || "", color: item.color, size: item.size },
+    });
+    const placeholders = insertColumns.map((column) => {
+      values.push(byColumn[column]);
+      return `$${values.length}`;
+    });
+    return `(${placeholders.join(", ")})`;
+  });
+  console.log("[purchase:create] bulk item insert columns:", insertColumns);
+  const inserted = await client.query(
+    `
+    INSERT INTO purchase_items (${insertColumns.join(", ")})
+    VALUES ${tuples.join(", ")}
+    RETURNING *
+    `,
+    values
+  );
+  return inserted.rows || [];
+};
+
 const ensureDefaultSupplierForPurchase = async (client, tenantId, supplierId = null) => {
   const numericSupplierId = Number(supplierId);
   if (Number.isInteger(numericSupplierId) && numericSupplierId > 0) {
@@ -827,6 +1112,255 @@ const upsertWarehouseVariantStock = async (client, { tenantId, warehouseId, vari
     await client.query("ROLLBACK TO SAVEPOINT purchase_warehouse_stock").catch(() => {});
     console.error("[purchase:create] warehouse stock warning:", error, error.stack);
   }
+};
+
+const bulkAdjustWarehouseVariantStock = async (client, { tenantId, warehouseId, adjustments = [] }) => {
+  const rows = adjustments
+    .map((row) => ({ variantId: Number(row.variantId || row.variant_id || 0), quantity: Number(row.quantity || 0) }))
+    .filter((row) => row.variantId > 0 && row.quantity !== 0);
+  const tableName = (await tableExists(client, "warehouse_inventory"))
+    ? "warehouse_inventory"
+    : (await tableExists(client, "warehouse_variant_stock"))
+      ? "warehouse_variant_stock"
+      : (await tableExists(client, "warehouse_stock"))
+        ? "warehouse_stock"
+        : null;
+  if (!warehouseId || !rows.length || !tableName) return;
+  const columns = await getTableColumns(client, tableName);
+  const stockColumn = firstColumn(columns, ["stock", "quantity", "qty", "available_quantity"]) || "stock";
+  const values = [];
+  const tuples = rows.map((row) => {
+    values.push(row.variantId, row.quantity);
+    return `($${values.length - 1}::bigint, $${values.length}::numeric)`;
+  });
+  values.push(warehouseId);
+  const warehouseParam = values.length;
+  let tenantFilter = "";
+  if (columns.has("tenant_id")) {
+    values.push(tenantId);
+    const tenantParam = values.length;
+    tenantFilter = `AND ($${tenantParam}::bigint IS NULL OR wi.tenant_id = $${tenantParam} OR wi.tenant_id IS NULL)`;
+  }
+
+  console.time("[purchase] warehouse_inventory batch update");
+  const updated = await client.query(
+    `
+    WITH incoming(variant_id, quantity) AS (VALUES ${tuples.join(", ")})
+    UPDATE ${tableName} wi
+    SET ${stockColumn} = COALESCE(wi.${stockColumn}, 0) + incoming.quantity
+    FROM incoming
+    WHERE wi.warehouse_id = $${warehouseParam}
+      AND wi.variant_id = incoming.variant_id
+      ${tenantFilter}
+    RETURNING wi.variant_id
+    `,
+    values
+  );
+  console.timeEnd("[purchase] warehouse_inventory batch update");
+
+  const updatedIds = new Set(updated.rows.map((row) => Number(row.variant_id)));
+  const missing = rows.filter((row) => !updatedIds.has(row.variantId));
+  if (!missing.length) return;
+
+  const insertColumns = [];
+  const insertValues = [];
+  const addColumnValue = (column, value) => {
+    if (!columns.has(column)) return false;
+    insertColumns.push(column);
+    insertValues.push(value);
+    return true;
+  };
+  addColumnValue("tenant_id", tenantId);
+  addColumnValue("warehouse_id", warehouseId);
+  addColumnValue("variant_id", null);
+  addColumnValue(stockColumn, null);
+  const variantIndex = insertColumns.indexOf("variant_id");
+  const stockIndex = insertColumns.indexOf(stockColumn);
+  if (variantIndex < 0 || stockIndex < 0) return;
+  const insertParams = [];
+  const insertTuples = missing.map((row) => {
+    const tuple = insertColumns.map((column, index) => {
+      const value = index === variantIndex ? row.variantId : index === stockIndex ? row.quantity : insertValues[index];
+      insertParams.push(value);
+      return `$${insertParams.length}`;
+    });
+    return `(${tuple.join(", ")})`;
+  });
+  console.time("[purchase] warehouse_inventory batch insert missing");
+  await client.query(`INSERT INTO ${tableName} (${insertColumns.join(", ")}) VALUES ${insertTuples.join(", ")}`, insertParams);
+  console.timeEnd("[purchase] warehouse_inventory batch insert missing");
+};
+
+const batchApplyVariantPurchaseStock = async (client, { tenantId, warehouseId, purchaseId, items = [], userId = null }) => {
+  const variantItems = items
+    .map((item) => ({ ...item, variant_id: Number(item.variant_id || 0), quantity: Number(item.quantity || 0), unit_cost: Number(item.unit_cost || item.cost_price || 0) }))
+    .filter((item) => item.variant_id > 0 && item.quantity > 0);
+  if (!variantItems.length) return { movementCount: 0, stockRows: [] };
+  const variantIds = [...new Set(variantItems.map((item) => item.variant_id))];
+  console.time("[purchase:create] variant lookup/create/update stock lock");
+  const locked = await client.query(
+    `
+    SELECT id, product_id, stock
+    FROM product_variants
+    WHERE id = ANY($1::bigint[])
+      AND ($2::bigint IS NULL OR tenant_id = $2 OR tenant_id IS NULL)
+    FOR UPDATE
+    `,
+    [variantIds, tenantId]
+  );
+  console.timeEnd("[purchase:create] variant lookup/create/update stock lock");
+  const stockById = new Map(locked.rows.map((row) => [Number(row.id), row]));
+  const deltaByVariant = new Map();
+  for (const item of variantItems) {
+    const current = deltaByVariant.get(item.variant_id) || { quantity: 0, items: [], product_id: item.product_id || null, unit_cost: item.unit_cost };
+    current.quantity += item.quantity;
+    current.items.push(item);
+    current.product_id = current.product_id || item.product_id || null;
+    current.unit_cost = item.unit_cost || current.unit_cost;
+    deltaByVariant.set(item.variant_id, current);
+  }
+  const updateValues = [];
+  const updateTuples = [];
+  const movementRows = [];
+  for (const [variantId, delta] of deltaByVariant.entries()) {
+    const stockRow = stockById.get(variantId);
+    if (!stockRow) {
+      const error = new Error(`Variant not found: ${variantId}`);
+      error.status = 409;
+      throw error;
+    }
+    const before = Number(stockRow.stock || 0);
+    const quantity = Number(delta.quantity || 0);
+    const after = before + quantity;
+    updateValues.push(variantId, quantity);
+    updateTuples.push(`($${updateValues.length - 1}::bigint, $${updateValues.length}::numeric)`);
+    movementRows.push({
+      tenant_id: tenantId,
+      product_id: stockRow.product_id || delta.product_id || null,
+      variant_id: variantId,
+      warehouse_id: warehouseId,
+      movement_type: "purchase",
+      quantity,
+      before_qty: before,
+      after_qty: after,
+      quantity_before: before,
+      quantity_change: quantity,
+      quantity_after: after,
+      unit_cost: delta.unit_cost || null,
+      total_cost: delta.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0),
+      reference_type: "purchase",
+      reference_id: purchaseId,
+      reason: "Purchase receiving",
+      notes: `Purchase received variant ${variantId}`,
+      note: `Purchase received variant ${variantId}`,
+      created_by: userId || null,
+    });
+  }
+  updateValues.push(tenantId);
+  console.time("[purchase:create] stock update variants batch");
+  await client.query(
+    `
+    WITH incoming(id, quantity) AS (VALUES ${updateTuples.join(", ")})
+    UPDATE product_variants pv
+    SET stock = COALESCE(pv.stock, 0) + incoming.quantity,
+        updated_at = CURRENT_TIMESTAMP
+    FROM incoming
+    WHERE pv.id = incoming.id
+      AND ($${updateValues.length}::bigint IS NULL OR pv.tenant_id = $${updateValues.length} OR pv.tenant_id IS NULL)
+    `,
+    updateValues
+  );
+  console.timeEnd("[purchase:create] stock update variants batch");
+  console.time("[purchase:create] warehouse_inventory updates");
+  await bulkAdjustWarehouseVariantStock(client, {
+    tenantId,
+    warehouseId,
+    adjustments: [...deltaByVariant.entries()].map(([variantId, delta]) => ({ variantId, quantity: Number(delta.quantity || 0) })),
+  });
+  console.timeEnd("[purchase:create] warehouse_inventory updates");
+  console.time("[purchase:create] inventory movement insert");
+  await bulkInsertInventoryMovements(client, movementRows);
+  console.timeEnd("[purchase:create] inventory movement insert");
+  return { movementCount: movementRows.length, stockRows: movementRows };
+};
+
+const batchUpdateVariantPricingAfterPurchase = async (client, { tenantId, supplierId, items = [], shouldApplyStock = false }) => {
+  const variantItems = items
+    .map((item) => ({ ...item, variant_id: Number(item.variant_id || 0) }))
+    .filter((item) => item.variant_id > 0);
+  if (!variantItems.length) return 0;
+  const columns = await getTableColumns(client, "product_variants");
+  const updateColumns = [];
+  if (columns.has("last_purchase_cost")) updateColumns.push("last_purchase_cost");
+  if (columns.has("last_purchase_price")) updateColumns.push("last_purchase_price");
+  if (columns.has("purchase_price")) updateColumns.push("purchase_price");
+  if (columns.has("cost_price")) updateColumns.push("cost_price");
+  if (columns.has("selling_price")) updateColumns.push("selling_price");
+  if (columns.has("price")) updateColumns.push("price");
+  if (columns.has("sale_price")) updateColumns.push("sale_price");
+  if (columns.has("discount_price")) updateColumns.push("discount_price");
+  if (columns.has("offer_price")) updateColumns.push("offer_price");
+  if (columns.has("sale_price_enabled")) updateColumns.push("sale_price_enabled");
+  if (columns.has("supplier_id")) updateColumns.push("supplier_id");
+  if (columns.has("article_code")) updateColumns.push("article_code");
+  if (columns.has("last_purchase_pricing_at")) updateColumns.push("last_purchase_pricing_at");
+  if (columns.has("updated_at")) updateColumns.push("updated_at");
+  if (!updateColumns.length) return 0;
+
+  const values = [];
+  const tuples = variantItems.map((item) => {
+    values.push(
+      item.variant_id,
+      purchaseSyncNumber(item.unit_cost ?? item.cost_price),
+      Math.max(0, Number(item.quantity || 0)),
+      purchaseSyncNumber(item.selling_price ?? item.regular_price ?? item.price),
+      purchaseSyncNumber(item.sale_price),
+      String(item.article_code || "").trim(),
+      supplierId || null
+    );
+    const start = values.length - 6;
+    return `($${start}::bigint, $${start + 1}::numeric, $${start + 2}::numeric, $${start + 3}::numeric, $${start + 4}::numeric, $${start + 5}::text, $${start + 6}::bigint)`;
+  });
+  values.push(tenantId);
+  const tenantParam = values.length;
+  const sets = [];
+  if (columns.has("last_purchase_cost")) sets.push("last_purchase_cost = COALESCE(incoming.unit_cost, pv.last_purchase_cost)");
+  if (columns.has("last_purchase_price")) sets.push("last_purchase_price = COALESCE(incoming.unit_cost, pv.last_purchase_price)");
+  if (columns.has("purchase_price")) sets.push("purchase_price = CASE WHEN COALESCE(incoming.unit_cost, 0) > 0 THEN incoming.unit_cost ELSE pv.purchase_price END");
+  if (columns.has("cost_price")) sets.push("cost_price = CASE WHEN COALESCE(incoming.unit_cost, 0) > 0 THEN incoming.unit_cost ELSE pv.cost_price END");
+  if (columns.has("selling_price")) sets.push("selling_price = COALESCE(incoming.selling_price, pv.selling_price)");
+  if (columns.has("price")) sets.push("price = COALESCE(incoming.selling_price, pv.price)");
+  if (columns.has("sale_price")) sets.push("sale_price = COALESCE(incoming.sale_price, pv.sale_price)");
+  if (columns.has("discount_price")) sets.push("discount_price = COALESCE(incoming.sale_price, pv.discount_price)");
+  if (columns.has("offer_price")) sets.push("offer_price = COALESCE(incoming.sale_price, pv.offer_price)");
+  if (columns.has("sale_price_enabled")) sets.push("sale_price_enabled = COALESCE(incoming.sale_price, 0) > 0");
+  if (columns.has("supplier_id")) sets.push("supplier_id = COALESCE(pv.supplier_id, incoming.supplier_id)");
+  if (columns.has("article_code")) sets.push("article_code = CASE WHEN incoming.article_code <> '' THEN incoming.article_code ELSE pv.article_code END");
+  if (columns.has("average_cost")) {
+    const previousStockExpr = shouldApplyStock && columns.has("stock") ? "GREATEST(COALESCE(pv.stock, 0) - incoming.quantity, 0)" : "GREATEST(COALESCE(pv.stock, 0), 0)";
+    const denominatorExpr = columns.has("stock") ? "GREATEST(COALESCE(pv.stock, 0), incoming.quantity)" : "incoming.quantity";
+    sets.push(`
+      average_cost = CASE
+        WHEN COALESCE(incoming.unit_cost, 0) > 0 AND ${denominatorExpr} > 0
+        THEN ROUND(((COALESCE(NULLIF(pv.average_cost, 0), NULLIF(pv.cost_price, 0), 0) * ${previousStockExpr}) + (incoming.unit_cost * incoming.quantity)) / ${denominatorExpr}, 2)
+        ELSE pv.average_cost
+      END
+    `);
+  }
+  if (columns.has("last_purchase_pricing_at")) sets.push("last_purchase_pricing_at = CURRENT_TIMESTAMP");
+  if (columns.has("updated_at")) sets.push("updated_at = CURRENT_TIMESTAMP");
+  const result = await client.query(
+    `
+    WITH incoming(variant_id, unit_cost, quantity, selling_price, sale_price, article_code, supplier_id) AS (VALUES ${tuples.join(", ")})
+    UPDATE product_variants pv
+    SET ${sets.join(", ")}
+    FROM incoming
+    WHERE pv.id = incoming.variant_id
+      AND ($${tenantParam}::bigint IS NULL OR pv.tenant_id = $${tenantParam} OR pv.tenant_id IS NULL)
+    `,
+    values
+  );
+  return result.rowCount || 0;
 };
 
 const insertPurchaseHeader = async (client, data = {}) => {
@@ -1632,6 +2166,7 @@ const loadPurchaseById = async (client, { tenantId, purchaseId, branchId = null,
   const productColumns = await getTableColumns(client, "products");
   const variantColumns = await getTableColumns(client, "product_variants");
   const hasVariantImageTable = await tableExists(client, "product_variant_images");
+  const variantImageColumns = hasVariantImageTable ? await getTableColumns(client, "product_variant_images") : new Set();
 
   const values = [purchaseId];
   const purchaseTenant = tenantClause("p", purchaseColumns, tenantId, values);
@@ -1661,6 +2196,10 @@ const loadPurchaseById = async (client, { tenantId, purchaseId, branchId = null,
 
   const itemTenantValues = [purchase.id];
   const itemTenant = tenantClause("pi", itemColumns, tenantId, itemTenantValues);
+  const itemTenantParam = itemTenantValues.length > 1 ? `$${itemTenantValues.length}` : null;
+  const productTenantJoin = productColumns.has("tenant_id") && itemTenantParam ? `AND (${itemTenantParam}::bigint IS NULL OR p.tenant_id = ${itemTenantParam} OR p.tenant_id IS NULL)` : "";
+  const variantTenantJoin = variantColumns.has("tenant_id") && itemTenantParam ? `AND (${itemTenantParam}::bigint IS NULL OR pv_match.tenant_id = ${itemTenantParam} OR pv_match.tenant_id IS NULL)` : "";
+  const variantImageTenantJoin = variantImageColumns.has("tenant_id") && itemTenantParam ? `AND (${itemTenantParam}::bigint IS NULL OR tenant_id = ${itemTenantParam} OR tenant_id IS NULL)` : "";
   const productImageExpr = firstTextColumn("p", productColumns, ["image_url", "product_image_url", "image", "thumbnail_url", "photo_url"], "NULL");
   const matchedVariantImageExpr = firstTextColumn("pv_match", variantColumns, ["variant_image_url", "color_image_url", "image_url", "image", "thumbnail_url", "photo_url"], "NULL");
   const lineVariantImageExpr = firstTextColumn("pi", itemColumns, ["variant_image_url", "color_image_url", "product_variant_image"], "NULL");
@@ -1697,6 +2236,7 @@ const loadPurchaseById = async (client, { tenantId, purchaseId, branchId = null,
       SELECT pv_match.*
       FROM product_variants pv_match
       WHERE pv_match.product_id = pi.product_id
+        ${variantTenantJoin}
         AND (
           (pi.variant_id IS NOT NULL AND pv_match.id = pi.variant_id)
           OR (${normalizedItemSkuExpr} <> '' AND ${normalizedVariantSkuExpr} = ${normalizedItemSkuExpr})
@@ -1723,6 +2263,7 @@ const loadPurchaseById = async (client, { tenantId, purchaseId, branchId = null,
       SELECT image_url
       FROM product_variant_images
       WHERE product_id = pi.product_id
+        ${variantImageTenantJoin}
         AND pv_match.id IS NOT NULL
         AND variant_id = pv_match.id
         AND COALESCE(TRIM(image_url), '') <> ''
@@ -1736,6 +2277,7 @@ const loadPurchaseById = async (client, { tenantId, purchaseId, branchId = null,
       SELECT image_url
       FROM product_variant_images
       WHERE product_id = pi.product_id
+        ${variantImageTenantJoin}
         AND COALESCE(TRIM(image_url), '') <> ''
         AND ${normalizedTextSql(itemColorExpr)} <> ''
         AND ${normalizedTextSql("COALESCE(NULLIF(color_name, ''), NULLIF(color_value, ''))")} = ${normalizedTextSql(itemColorExpr)}
@@ -1781,7 +2323,7 @@ const loadPurchaseById = async (client, { tenantId, purchaseId, branchId = null,
       ${itemSizeExpr} AS size
     FROM purchase_items pi
     JOIN purchases pu ON pu.id = pi.purchase_id
-    LEFT JOIN products p ON p.id = pi.product_id
+    LEFT JOIN products p ON p.id = pi.product_id ${productTenantJoin}
     ${variantMatchJoin}
     ${variantImageJoin}
     ${colorImageJoin}
@@ -2155,6 +2697,7 @@ const getPurchaseStockReversalState = async (client, { tenantId, purchase, items
 
   const variantStock = new Map();
   if (variantIds.length) {
+    console.time("[purchase-delete] stock recalculation variant lookup");
     const result = await client.query(
       `
       SELECT id, stock
@@ -2164,11 +2707,13 @@ const getPurchaseStockReversalState = async (client, { tenantId, purchase, items
       `,
       [variantIds, tenantId]
     );
+    console.timeEnd("[purchase-delete] stock recalculation variant lookup");
     result.rows.forEach((row) => variantStock.set(Number(row.id), Number(row.stock || 0)));
   }
 
   const productStock = new Map();
   if (productOnlyIds.length) {
+    console.time("[purchase-delete] stock recalculation product lookup");
     const result = await client.query(
       `
       SELECT id, stock
@@ -2178,11 +2723,13 @@ const getPurchaseStockReversalState = async (client, { tenantId, purchase, items
       `,
       [productOnlyIds, tenantId]
     );
+    console.timeEnd("[purchase-delete] stock recalculation product lookup");
     result.rows.forEach((row) => productStock.set(Number(row.id), Number(row.stock || 0)));
   }
 
   let movedKeys = new Set();
   if (await tableExists(client, "inventory_movements")) {
+    console.time("[purchase-delete] inventory_movements reversal safety");
     const movementColumns = await getTableColumns(client, "inventory_movements");
     const createdAtExpr = movementColumns.has("created_at") ? "created_at" : "CURRENT_TIMESTAMP";
     const movementCreatedAtExpr = movementColumns.has("created_at") ? "im.created_at" : "CURRENT_TIMESTAMP";
@@ -2222,6 +2769,7 @@ const getPurchaseStockReversalState = async (client, { tenantId, purchase, items
       `,
       movementParams
     );
+    console.timeEnd("[purchase-delete] inventory_movements reversal safety");
     movedKeys = new Set(
       result.rows.map((row) => {
         const variantId = Number(row.variant_id || 0);
@@ -2393,8 +2941,10 @@ const replacePurchasePaymentMovement = async (client, { tenantId, beforePurchase
 
 const reversePurchaseAndArchive = async (client, { tenantId, purchase, userId = null, reason = "delete_requested", stepRef = null }) => {
   setPurchaseDeleteStep(stepRef, "validate current stock");
+  console.time(`[purchase-delete:${purchase?.id || "unknown"}] stock reversal validation`);
   const safety = purchase.safety || {};
   if (safety.hasReturns) {
+    console.timeEnd(`[purchase-delete:${purchase?.id || "unknown"}] stock reversal validation`);
     const error = new Error("Cannot delete this purchase because return records already exist. Reverse or settle those returns first.");
     error.status = 409;
     error.reason = "PURCHASE_HAS_RETURNS";
@@ -2405,6 +2955,7 @@ const reversePurchaseAndArchive = async (client, { tenantId, purchase, userId = 
   if (purchaseHasReceivedStock(purchase)) {
     const stockReversal = await getPurchaseStockReversalState(client, { tenantId, purchase, items: purchase.items || [] });
     if (!stockReversal.canReverseStock) {
+      console.timeEnd(`[purchase-delete:${purchase?.id || "unknown"}] stock reversal validation`);
       const error = new Error(STOCK_REVERSAL_BLOCK_MESSAGE);
       error.status = 409;
       error.reason = "PURCHASE_STOCK_UNAVAILABLE";
@@ -2412,9 +2963,11 @@ const reversePurchaseAndArchive = async (client, { tenantId, purchase, userId = 
       throw error;
     }
   }
+  console.timeEnd(`[purchase-delete:${purchase?.id || "unknown"}] stock reversal validation`);
 
   const purchaseStatus = String(purchase.status || "").toLowerCase();
   const alreadyReversed = ["cancelled", "canceled", "reversed"].includes(purchaseStatus) || purchase.metadata?.reversed_at || purchase.reversed_at;
+  console.time(`[purchase-delete:${purchase.id}] reverse received purchase`);
   const reversal = !alreadyReversed && purchaseHasReceivedStock(purchase)
     ? await reverseReceivedPurchase(client, {
         tenantId,
@@ -2424,11 +2977,15 @@ const reversePurchaseAndArchive = async (client, { tenantId, purchase, userId = 
         stepRef,
       })
     : { movementCount: 0 };
+  console.timeEnd(`[purchase-delete:${purchase.id}] reverse received purchase`);
 
   setPurchaseDeleteStep(stepRef, "mark purchase archived");
   setPurchaseDeleteStep(stepRef, "reverse payment/cash movement");
+  console.time(`[purchase-delete:${purchase.id}] reverse payment/cash movement`);
   await reversePurchasePaymentMovements(client, { tenantId, purchase, userId, reason });
+  console.timeEnd(`[purchase-delete:${purchase.id}] reverse payment/cash movement`);
   setPurchaseDeleteStep(stepRef, "mark purchase archived");
+  console.time(`[purchase-delete:${purchase.id}] mark purchase archived`);
   await markPurchaseCancelledOrDeleted(client, {
     tenantId,
     purchaseId: purchase.id,
@@ -2438,7 +2995,9 @@ const reversePurchaseAndArchive = async (client, { tenantId, purchase, userId = 
     deleted: true,
     reversed: !alreadyReversed && purchaseHasReceivedStock(purchase),
   });
+  console.timeEnd(`[purchase-delete:${purchase.id}] mark purchase archived`);
   setPurchaseDeleteStep(stepRef, "mark purchase archived");
+  console.time(`[purchase-delete:${purchase.id}] append delete timeline`);
   await appendPurchaseTimelineEvents(client, {
     purchaseId: purchase.id,
     tenantId,
@@ -2451,6 +3010,7 @@ const reversePurchaseAndArchive = async (client, { tenantId, purchase, userId = 
       created_at: new Date().toISOString(),
     }],
   });
+  console.timeEnd(`[purchase-delete:${purchase.id}] append delete timeline`);
 
   return reversal;
 };
@@ -2991,45 +3551,61 @@ const reverseReceivedPurchase = async (client, { tenantId, purchase, userId, rea
   const items = (Array.isArray(purchase.items) ? purchase.items : []).map(normalizePurchaseItem);
   const warehouseId = await ensureDefaultWarehouseForPurchase(client, tenantId, purchase.warehouse_id);
   const movementRows = [];
+  const variantReversals = new Map();
+  const productReversals = new Map();
 
   for (const item of items) {
     const quantity = Number(item.quantity || 0);
     if (quantity <= 0) continue;
     const unitCost = Number(item.unit_cost || item.cost_price || 0) || 0;
     if (item.variant_id) {
-      setPurchaseDeleteStep(stepRef, "validate current stock");
-      const result = await client.query(
-        `
-        SELECT id, product_id, stock
-        FROM product_variants
-        WHERE id = $1
-          AND ($2::bigint IS NULL OR tenant_id = $2 OR tenant_id IS NULL)
-        FOR UPDATE
-        `,
-        [item.variant_id, tenantId]
-      );
-      const row = result.rows[0];
+      const key = Number(item.variant_id);
+      const current = variantReversals.get(key) || { quantity: 0, unitCost, item };
+      current.quantity += quantity;
+      current.unitCost = unitCost || current.unitCost;
+      current.item = item;
+      variantReversals.set(key, current);
+    } else if (item.product_id) {
+      const key = Number(item.product_id);
+      const current = productReversals.get(key) || { quantity: 0, unitCost, item };
+      current.quantity += quantity;
+      current.unitCost = unitCost || current.unitCost;
+      current.item = item;
+      productReversals.set(key, current);
+    }
+  }
+
+  const variantIds = [...variantReversals.keys()];
+  const productIds = [...productReversals.keys()];
+
+  if (variantIds.length) {
+    setPurchaseDeleteStep(stepRef, "validate current stock");
+    console.time("[purchase-delete] stock recalculation variant lock");
+    const result = await client.query(
+      `
+      SELECT id, product_id, stock
+      FROM product_variants
+      WHERE id = ANY($1::bigint[])
+        AND ($2::bigint IS NULL OR tenant_id = $2 OR tenant_id IS NULL)
+      FOR UPDATE
+      `,
+      [variantIds, tenantId]
+    );
+    console.timeEnd("[purchase-delete] stock recalculation variant lock");
+    const stockById = new Map(result.rows.map((row) => [Number(row.id), row]));
+    for (const [variantId, reversal] of variantReversals.entries()) {
+      const row = stockById.get(variantId);
       const before = Number(row?.stock || 0);
+      const quantity = Number(reversal.quantity || 0);
       if (!row || before < quantity) {
-        const error = new Error(`Cannot reverse ${quantity} units for ${item.sku || `variant ${item.variant_id}`}; available stock is ${before}.`);
+        const error = new Error(`Cannot reverse ${quantity} units for ${reversal.item?.sku || `variant ${variantId}`}; available stock is ${before}.`);
         error.status = 409;
         throw error;
       }
-      setPurchaseDeleteStep(stepRef, "create reversal stock movements");
-      await client.query(
-        `
-        UPDATE product_variants
-        SET stock = stock - $1,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-        `,
-        [quantity, item.variant_id]
-      );
-      await upsertWarehouseVariantStock(client, { tenantId, warehouseId, variantId: item.variant_id, quantity: -quantity });
       movementRows.push({
         tenant_id: tenantId,
-        product_id: row.product_id || item.product_id || null,
-        variant_id: item.variant_id,
+        product_id: row.product_id || reversal.item?.product_id || null,
+        variant_id: variantId,
         warehouse_id: warehouseId,
         movement_type: "purchase_reverse_stock_out",
         quantity: -quantity,
@@ -3038,8 +3614,8 @@ const reverseReceivedPurchase = async (client, { tenantId, purchase, userId, rea
         quantity_before: before,
         quantity_change: -quantity,
         quantity_after: before - quantity,
-        unit_cost: unitCost,
-        total_cost: quantity * unitCost,
+        unit_cost: reversal.unitCost,
+        total_cost: quantity * Number(reversal.unitCost || 0),
         reference_type: "purchase_reversal",
         reference_id: purchase.id,
         reason: "Purchase reversed",
@@ -3047,38 +3623,67 @@ const reverseReceivedPurchase = async (client, { tenantId, purchase, userId, rea
         note: reason || `Reversal for purchase ${purchase.purchase_number || purchase.id}`,
         created_by: userId || null,
       });
-    } else if (item.product_id) {
-      setPurchaseDeleteStep(stepRef, "validate current stock");
-      const result = await client.query(
-        `
-        SELECT id, stock
-        FROM products
-        WHERE id = $1
-          AND ($2::bigint IS NULL OR tenant_id = $2 OR tenant_id IS NULL)
-        FOR UPDATE
-        `,
-        [item.product_id, tenantId]
-      );
-      const row = result.rows[0];
+    }
+    setPurchaseDeleteStep(stepRef, "stock recalculation variant update");
+    const updateValues = [];
+    const tuples = [];
+    variantReversals.forEach((reversal, variantId) => {
+      updateValues.push(variantId, Number(reversal.quantity || 0));
+      tuples.push(`($${updateValues.length - 1}::bigint, $${updateValues.length}::numeric)`);
+    });
+    updateValues.push(tenantId);
+    console.time("[purchase-delete] stock recalculation variant update");
+    await client.query(
+      `
+      WITH incoming(id, quantity) AS (VALUES ${tuples.join(", ")})
+      UPDATE product_variants pv
+      SET stock = pv.stock - incoming.quantity,
+          updated_at = CURRENT_TIMESTAMP
+      FROM incoming
+      WHERE pv.id = incoming.id
+        AND ($${updateValues.length}::bigint IS NULL OR pv.tenant_id = $${updateValues.length} OR pv.tenant_id IS NULL)
+      `,
+      updateValues
+    );
+    console.timeEnd("[purchase-delete] stock recalculation variant update");
+    setPurchaseDeleteStep(stepRef, "warehouse_inventory updates");
+    await bulkAdjustWarehouseVariantStock(client, {
+      tenantId,
+      warehouseId,
+      adjustments: [...variantReversals.entries()].map(([variantId, reversal]) => ({
+        variantId,
+        quantity: -Number(reversal.quantity || 0),
+      })),
+    });
+  }
+
+  if (productIds.length) {
+    setPurchaseDeleteStep(stepRef, "validate current stock");
+    console.time("[purchase-delete] stock recalculation product lock");
+    const result = await client.query(
+      `
+      SELECT id, stock
+      FROM products
+      WHERE id = ANY($1::bigint[])
+        AND ($2::bigint IS NULL OR tenant_id = $2 OR tenant_id IS NULL)
+      FOR UPDATE
+      `,
+      [productIds, tenantId]
+    );
+    console.timeEnd("[purchase-delete] stock recalculation product lock");
+    const stockById = new Map(result.rows.map((row) => [Number(row.id), row]));
+    for (const [productId, reversal] of productReversals.entries()) {
+      const row = stockById.get(productId);
       const before = Number(row?.stock || 0);
+      const quantity = Number(reversal.quantity || 0);
       if (!row || before < quantity) {
-        const error = new Error(`Cannot reverse ${quantity} units for product ${item.product_id}; available stock is ${before}.`);
+        const error = new Error(`Cannot reverse ${quantity} units for product ${productId}; available stock is ${before}.`);
         error.status = 409;
         throw error;
       }
-      setPurchaseDeleteStep(stepRef, "create reversal stock movements");
-      await client.query(
-        `
-        UPDATE products
-        SET stock = stock - $1,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-        `,
-        [quantity, item.product_id]
-      );
       movementRows.push({
         tenant_id: tenantId,
-        product_id: item.product_id,
+        product_id: productId,
         variant_id: null,
         warehouse_id: warehouseId,
         movement_type: "purchase_reverse_stock_out",
@@ -3088,8 +3693,8 @@ const reverseReceivedPurchase = async (client, { tenantId, purchase, userId, rea
         quantity_before: before,
         quantity_change: -quantity,
         quantity_after: before - quantity,
-        unit_cost: unitCost,
-        total_cost: quantity * unitCost,
+        unit_cost: reversal.unitCost,
+        total_cost: quantity * Number(reversal.unitCost || 0),
         reference_type: "purchase_reversal",
         reference_id: purchase.id,
         reason: "Purchase reversed",
@@ -3098,10 +3703,33 @@ const reverseReceivedPurchase = async (client, { tenantId, purchase, userId, rea
         created_by: userId || null,
       });
     }
+    const updateValues = [];
+    const tuples = [];
+    productReversals.forEach((reversal, productId) => {
+      updateValues.push(productId, Number(reversal.quantity || 0));
+      tuples.push(`($${updateValues.length - 1}::bigint, $${updateValues.length}::numeric)`);
+    });
+    updateValues.push(tenantId);
+    console.time("[purchase-delete] stock recalculation product update");
+    await client.query(
+      `
+      WITH incoming(id, quantity) AS (VALUES ${tuples.join(", ")})
+      UPDATE products p
+      SET stock = p.stock - incoming.quantity,
+          updated_at = CURRENT_TIMESTAMP
+      FROM incoming
+      WHERE p.id = incoming.id
+        AND ($${updateValues.length}::bigint IS NULL OR p.tenant_id = $${updateValues.length} OR p.tenant_id IS NULL)
+      `,
+      updateValues
+    );
+    console.timeEnd("[purchase-delete] stock recalculation product update");
   }
 
   setPurchaseDeleteStep(stepRef, "create reversal stock movements");
+  console.time("[purchase-delete] inventory_movements reversal insert");
   await bulkInsertInventoryMovements(client, movementRows);
+  console.timeEnd("[purchase-delete] inventory_movements reversal insert");
 
   const amount = Math.max(0, Number(purchase.total || 0) || items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || item.cost_price || 0), 0));
   if (amount > 0 && tenantId !== null && tenantId !== undefined) {
@@ -4044,40 +4672,64 @@ router.delete(
     const client = await pool.connect();
     const purchaseId = req.params.id;
     const stepRef = { step: "start" };
+    const deleteLogContext = {
+      requestId: req.id,
+      purchaseId,
+      currentStep: "start",
+    };
+    withPurchaseDeleteQueryLogging(client, deleteLogContext);
     try {
       const tenantId = getTenantId(req, req.user?.tenant_id);
-      setPurchaseDeleteStep(stepRef, "load purchase");
-      await ensurePurchaseCreateSchema(client);
-      await ensureAccountingSchema();
-      await client.query("BEGIN");
-      const purchase = await loadPurchaseById(client, { tenantId, purchaseId, lock: true });
+      console.log("[purchase:delete] start", {
+        requestId: req.id,
+        purchaseId,
+        tenantId,
+        userId: req.user?.id || null,
+      });
+      setPurchaseDeleteStep(stepRef, "schema and index verification");
+      await timedPurchaseDeleteStep(deleteLogContext, "schema.purchaseCreate", () => ensurePurchaseCreateSchema(client));
+      await timedPurchaseDeleteStep(deleteLogContext, "schema.accounting", () => ensureAccountingSchema());
+      await timedPurchaseDeleteStep(deleteLogContext, "index verification", () => ensurePurchaseDeleteIndexes(client));
+      setPurchaseDeleteStep(stepRef, "begin transaction");
+      await timedPurchaseDeleteStep(deleteLogContext, "begin transaction", () => client.query("BEGIN"));
+      setPurchaseDeleteStep(stepRef, "purchase_items lookup");
+      const purchase = await timedPurchaseDeleteStep(deleteLogContext, "purchase_items lookup", () => loadPurchaseById(client, { tenantId, purchaseId, lock: true }));
       if (!purchase) {
-        await client.query("ROLLBACK");
+        setPurchaseDeleteStep(stepRef, "transaction rollback");
+        await timedPurchaseDeleteStep(deleteLogContext, "transaction rollback not found", () => client.query("ROLLBACK"));
         return res.status(404).json({ success: false, message: "Purchase not found" });
       }
+      console.log("[purchase:delete] purchase loaded", {
+        requestId: req.id,
+        purchaseId,
+        status: purchase.status,
+        itemCount: Array.isArray(purchase.items) ? purchase.items.length : 0,
+        safety: purchase.safety,
+      });
       setPurchaseDeleteStep(stepRef, "load purchase items");
       const purchaseStatus = String(purchase.status || "").toLowerCase();
       const isDraftDeleteAllowed = ["draft", "pending", ""].includes(purchaseStatus);
       if (isDraftDeleteAllowed && purchase.safety?.canDelete) {
         setPurchaseDeleteStep(stepRef, "mark purchase archived");
-        await client.query("DELETE FROM purchase_items WHERE purchase_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)", [purchase.id, tenantId]);
-        await client.query("DELETE FROM purchases WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)", [purchase.id, tenantId]);
+        await timedPurchaseDeleteStep(deleteLogContext, "purchase_items delete", () => client.query("DELETE FROM purchase_items WHERE purchase_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)", [purchase.id, tenantId]));
+        await timedPurchaseDeleteStep(deleteLogContext, "purchase delete", () => client.query("DELETE FROM purchases WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)", [purchase.id, tenantId]));
         setPurchaseDeleteStep(stepRef, "commit");
-        await client.query("COMMIT");
+        await timedPurchaseDeleteStep(deleteLogContext, "commit", () => client.query("COMMIT"));
         return res.json({ success: true, message: "Purchase deleted" });
       }
-      const reversal = await reversePurchaseAndArchive(client, {
+      const reversal = await timedPurchaseDeleteStep(deleteLogContext, "reverse purchase and archive", () => reversePurchaseAndArchive(client, {
         tenantId,
         purchase,
         userId: req.user?.id || null,
         reason: req.body?.reason || "delete_requested",
         stepRef,
-      });
+      }));
       setPurchaseDeleteStep(stepRef, "commit");
-      await client.query("COMMIT");
+      await timedPurchaseDeleteStep(deleteLogContext, "commit", () => client.query("COMMIT"));
       res.json({ success: true, message: reversal.movementCount > 0 ? "Purchase deleted and received stock reversed." : "Purchase deleted", reversal, archived: true });
     } catch (err) {
-      await client.query("ROLLBACK").catch(() => {});
+      setPurchaseDeleteStep(stepRef, "transaction rollback");
+      await timedPurchaseDeleteStep(deleteLogContext, "transaction rollback error path", () => client.query("ROLLBACK")).catch(() => {});
       logPurchaseDeleteReverseFailed({ purchaseId, step: stepRef.step, err });
       res.status(err.status || 500).json({
         success: false,
@@ -4109,7 +4761,8 @@ router.post(
     const requestedSupplierId = req.body?.supplier_id ?? req.body?.supplierId ?? null;
     const requestedWarehouseId = req.body?.warehouse_id ?? req.body?.warehouseId ?? null;
     const idempotencyKey = normalizeIdempotencyKey(req);
-    const logContext = { requestId, currentStep: "purchase.create" };
+    const purchaseSaveIdForLogs = idempotencyKey || req.body?.purchase_save_id || req.body?.purchaseSaveId || req.body?.client_request_id || req.body?.clientRequestId || null;
+    const logContext = { requestId, currentStep: "purchase.create", purchaseSaveId: purchaseSaveIdForLogs };
     let client;
     let transactionStarted = false;
 
@@ -4120,7 +4773,9 @@ router.post(
       supplier_id: requestedSupplierId,
       warehouse_id: requestedWarehouseId,
       idempotencyKey: idempotencyKey || null,
+      purchase_save_id: purchaseSaveIdForLogs,
       itemCount: rawItems.length,
+      durationMs: Date.now() - routeStartedAt,
     });
     console.log("[purchase:create] payload summary", {
       requestId,
@@ -4151,17 +4806,19 @@ router.post(
         const previousStep = logContext.currentStep;
         logContext.currentStep = step;
         const startedAt = Date.now();
-        console.log("[purchase:create] step start", { requestId, step });
+        console.log("[purchase:create] step start", { requestId, purchase_save_id: purchaseSaveIdForLogs, step, durationMs: Date.now() - routeStartedAt });
         try {
           const result = await action();
-          console.log("[purchase:create] step end", { requestId, step, durationMs: Date.now() - startedAt });
+          console.log("[purchase:create] step end", { requestId, purchase_save_id: purchaseSaveIdForLogs, step, durationMs: Date.now() - startedAt, totalDurationMs: Date.now() - routeStartedAt });
           return result;
         } catch (error) {
           error.purchaseStep = error.purchaseStep || step;
           console.error("[purchase:create] step error", {
             requestId,
+            purchase_save_id: purchaseSaveIdForLogs,
             step,
             durationMs: Date.now() - startedAt,
+            totalDurationMs: Date.now() - routeStartedAt,
             message: error.message,
             code: error.code,
             stack: error.stack,
@@ -4178,6 +4835,7 @@ router.post(
       });
       await runStep("schema.purchaseCreate", () => ensurePurchaseCreateSchema(client));
       await runStep("schema.smartReorder", () => ensureSmartReorderSchema(client));
+      await runStep("schema.indexVerification", () => ensurePurchaseCreateIndexes(client));
 
       const tenantId = getTenantId(req, req.user?.tenant_id);
       if (idempotencyKey) {
@@ -4203,8 +4861,10 @@ router.post(
         }
       }
 
-      const normalizedItems = rawItems.map(normalizePurchaseItem);
-      const items = mergePurchaseItems(normalizedItems);
+      const { normalizedItems, items } = await runStep("validation", async () => {
+        const normalized = rawItems.map(normalizePurchaseItem);
+        return { normalizedItems: normalized, items: mergePurchaseItems(normalized) };
+      });
       console.log("[purchase:create] normalized item summary", {
         requestId,
         itemCount: items.length,
@@ -4336,116 +4996,47 @@ router.post(
         itemCount: items.length,
       });
 
-      for (const [index, item] of items.entries()) {
-        const itemTotal = Number(item.total || item.quantity * item.unit_cost);
-        const insertedItem = await runStep(`item.${index + 1}.insert`, () => insertPurchaseItem(client, {
+      const insertedItems = await runStep("insert.purchase_items", () => insertPurchaseItemsBulk(client, { tenantId, purchaseId: purchase.id, items }));
+      const itemsWithInsertedIds = items.map((item, index) => {
+        const insertedItem = insertedItems[index] || null;
+        return insertedItem?.id ? { ...item, id: insertedItem.id, purchase_item_id: insertedItem.id } : item;
+      });
+
+      if (shouldApplyStock) {
+        await runStep("stock update", () => batchApplyVariantPurchaseStock(client, {
           tenantId,
+          warehouseId,
           purchaseId: purchase.id,
-          item: {
-            ...item,
-            total: itemTotal,
-            cost_price: item.unit_cost,
-          },
-          metadata: { sku: item.sku, article_code: item.article_code || "", color: item.color, size: item.size },
+          items: itemsWithInsertedIds,
+          userId: req.user?.id || null,
         }));
+      }
 
-        if (shouldApplyStock) {
-          if (item.variant_id) {
-            const stockResult = await runStep(`item.${index + 1}.adjustVariantStock`, () => adjustVariantStock(client, {
-              tenantId,
-              variantId: item.variant_id,
-              quantityChange: item.quantity,
-              movementType: "purchase",
-              referenceType: "purchase",
-              referenceId: purchase.id,
-              warehouseId,
-              unitCost: item.unit_cost,
-              totalCost: itemTotal,
-              reason: "Purchase receiving",
-              notes: `Purchase received SKU ${item.sku || item.variant_id}`,
-              createdBy: req.user?.id || null,
-            }));
-            console.log("[purchase:create] stock movement applied", {
-              requestId,
-              purchaseId: purchase.id,
-              itemCount: items.length,
-              variant_id: item.variant_id,
-              quantity: item.quantity,
-              stockBefore: stockResult?.quantityBefore,
-              stockAfter: stockResult?.quantityAfter,
-              movementId: stockResult?.movement?.id || null,
-            });
+      await runStep("variant lookup/create/update", () => batchUpdateVariantPricingAfterPurchase(client, {
+        tenantId,
+        supplierId,
+        items: itemsWithInsertedIds,
+        shouldApplyStock,
+      }));
 
-            await runStep(`item.${index + 1}.upsertWarehouseVariantStock`, () => upsertWarehouseVariantStock(client, {
-              tenantId,
-              warehouseId,
-              variantId: item.variant_id,
-              quantity: item.quantity,
-            }));
-
-            await runStep(`item.${index + 1}.updateProductVariant`, () => updateProductVariantAfterPurchase(client, {
+      const simpleItems = itemsWithInsertedIds.filter((item) => !item.variant_id && item.product_id);
+      if (simpleItems.length) {
+        await runStep("simple product fallback update", async () => {
+          for (const item of simpleItems) {
+            await updateProductFallbackStock(client, {
               tenantId,
               productId: item.product_id,
-              variantId: item.variant_id,
-              supplierId,
-              unitCost: item.unit_cost,
-              quantity: item.quantity,
-              sellingPrice: item.selling_price,
-              salePrice: item.sale_price,
-              articleCode: item.article_code,
-              invoiceId: purchase.id,
-              lineId: insertedItem?.id || item.id || item.purchase_item_id || null,
-              updateSource: "create_purchase",
-            }));
-          } else {
-            await runStep(`item.${index + 1}.updateProductFallbackStock`, () => updateProductFallbackStock(client, {
-              tenantId,
-              productId: item.product_id,
-              quantity: item.quantity,
+              quantity: shouldApplyStock ? item.quantity : 0,
               unitCost: item.unit_cost,
               sellingPrice: item.selling_price,
               salePrice: item.sale_price,
               articleCode: item.article_code,
               invoiceId: purchase.id,
-              lineId: insertedItem?.id || item.id || item.purchase_item_id || null,
+              lineId: item.id || item.purchase_item_id || null,
               updateSource: "create_purchase",
-            }));
-            console.log("[purchase:create] product fallback stock applied", {
-              requestId,
-              purchaseId: purchase.id,
-              itemCount: items.length,
-              product_id: item.product_id,
-              quantity: item.quantity,
             });
           }
-        } else if (item.variant_id) {
-          await runStep(`item.${index + 1}.updateVariantPricing`, () => updateProductVariantAfterPurchase(client, {
-            tenantId,
-            productId: item.product_id,
-            variantId: item.variant_id,
-            supplierId,
-            unitCost: item.unit_cost,
-            quantity: item.quantity,
-            sellingPrice: item.selling_price,
-            salePrice: item.sale_price,
-            articleCode: item.article_code,
-            invoiceId: purchase.id,
-            lineId: insertedItem?.id || item.id || item.purchase_item_id || null,
-            updateSource: "create_purchase",
-          }));
-        } else if (item.product_id) {
-          await runStep(`item.${index + 1}.updateSimpleProductPricing`, () => updateSimpleProductPricingAfterPurchase(client, {
-            tenantId,
-            productId: item.product_id,
-            unitCost: item.unit_cost,
-            sellingPrice: item.selling_price,
-            salePrice: item.sale_price,
-            articleCode: item.article_code,
-            invoiceId: purchase.id,
-            lineId: insertedItem?.id || item.id || item.purchase_item_id || null,
-            updateSource: "create_purchase",
-          }));
-        }
+        });
       }
 
       if (shouldApplyStock) {
@@ -4462,20 +5053,53 @@ router.post(
       await runStep("accounting.purchaseEntry", async () => {
         await client.query("SAVEPOINT purchase_accounting_entry");
         try {
-          await postPurchaseEntry(client, {
-            tenantId,
-            referenceType: "purchase",
-            referenceId: purchase.id,
-            description: `Purchase receipt #${purchase.id}`,
-            amount: total,
-            paymentType: paidAmount >= total && paymentMethod === "cash" ? "cash" : "ap",
-            createdBy: req.user?.id || null,
-          });
+          try {
+            await postPurchaseEntryFast(client, {
+              tenantId,
+              referenceType: "purchase",
+              referenceId: purchase.id,
+              description: `Purchase receipt #${purchase.id}`,
+              amount: total,
+              paymentType: paidAmount >= total && paymentMethod === "cash" ? "cash" : "ap",
+              createdBy: req.user?.id || null,
+            });
+          } catch (fastAccountingError) {
+            if (fastAccountingError?.code !== "ACCOUNTING_FAST_PATH_UNAVAILABLE") throw fastAccountingError;
+            await client.query("ROLLBACK TO SAVEPOINT purchase_accounting_entry");
+            await client.query("SAVEPOINT purchase_accounting_entry");
+            console.warn("[purchase:create] accounting fast path unavailable, falling back", {
+              requestId,
+              purchase_save_id: purchaseSaveIdForLogs,
+              purchaseId: purchase.id,
+              message: fastAccountingError.message,
+            });
+            await postPurchaseEntry(client, {
+              tenantId,
+              referenceType: "purchase",
+              referenceId: purchase.id,
+              description: `Purchase receipt #${purchase.id}`,
+              amount: total,
+              paymentType: paidAmount >= total && paymentMethod === "cash" ? "cash" : "ap",
+              createdBy: req.user?.id || null,
+            });
+          }
           await client.query("RELEASE SAVEPOINT purchase_accounting_entry");
         } catch (accountingError) {
           await client.query("ROLLBACK TO SAVEPOINT purchase_accounting_entry").catch(() => {});
           console.error("[purchase:create] accounting warning:", accountingError, accountingError.stack);
         }
+      });
+
+      await runStep("supplier balance/accounting update", async () => {
+        console.log("[purchase:create] supplier balance/accounting update summary", {
+          requestId,
+          purchase_save_id: purchaseSaveIdForLogs,
+          purchaseId: purchase.id,
+          supplierId,
+          total,
+          paidAmount,
+          remainingAmount,
+        });
       });
 
       await runStep("financialAccount.purchasePayment", async () => {
@@ -4499,6 +5123,7 @@ router.post(
       transactionStarted = false;
       console.log("[purchase:create] end", {
         requestId,
+        purchase_save_id: purchaseSaveIdForLogs,
         durationMs: Date.now() - routeStartedAt,
         purchaseId: purchase.id,
         itemCount: items.length,
@@ -4509,6 +5134,12 @@ router.post(
         message: "Purchase Created Successfully",
         purchase,
         items,
+      });
+      console.log("[purchase:create] response sent", {
+        requestId,
+        purchase_save_id: purchaseSaveIdForLogs,
+        purchaseId: purchase.id,
+        durationMs: Date.now() - routeStartedAt,
       });
     } catch (error) {
       if (client && transactionStarted) {
