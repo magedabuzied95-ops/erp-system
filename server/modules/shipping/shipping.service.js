@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import db from "../../database/db.js";
 import { getSetting, setSetting } from "../../services/settingsService.js";
+import { getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
 import { buildBostaAddressLine, mapOrderToBostaDeliveryPayload, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations } from "./providers/bosta.mapper.js";
 
@@ -141,6 +142,13 @@ const webhookSecret = async () => text(
   process.env.BOSTA_WEBHOOK_TOKEN ||
   ""
 );
+
+const requestBaseUrl = (req) => {
+  const envUrl = getPublicBackendUrl();
+  if (envUrl) return envUrl;
+  if (!req) return "";
+  return `${req.protocol || "http"}://${req.get?.("host") || ""}`.replace(/\/+$/g, "");
+};
 
 const verifyBostaWebhookAuth = async ({ req, payload }) => {
   const secret = await webhookSecret();
@@ -325,6 +333,51 @@ export const getBostaSettings = async () => {
     api_base_url: provider.api_base_url || settingsBaseUrl || process.env.BOSTA_API_BASE_URL || "https://app.bosta.co/api/v2",
     has_api_key: Boolean(provider.api_key || settingsKey || process.env.BOSTA_API_KEY),
     last_locations_sync_at: provider.last_locations_sync_at,
+    last_locations_sync_counts: provider.last_locations_sync_counts || {},
+  };
+};
+
+export const getBostaIntegrationStatus = async ({ req } = {}) => {
+  await ensureShippingSchema();
+  const provider = await getProvider(db, "bosta");
+  const settingsKey = await getSetting("orders.bosta_api_key", "");
+  const secret = await webhookSecret();
+  const locationCounts = await db.query(
+    `
+    SELECT
+      (SELECT COUNT(*)::int FROM shipping_cities c WHERE c.provider_id = $1) AS cities,
+      (SELECT COUNT(*)::int FROM shipping_zones z WHERE z.provider_id = $1) AS zones,
+      (SELECT COUNT(*)::int FROM shipping_districts d WHERE d.provider_id = $1) AS districts
+    `,
+    [provider.id]
+  );
+  const lastWebhook = await db.query(
+    `
+    SELECT order_id, status, created_at
+    FROM shipping_events
+    WHERE provider = 'bosta'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+    `
+  );
+  const counts = locationCounts.rows[0] || { cities: 0, zones: 0, districts: 0 };
+  const webhookUrl = `${requestBaseUrl(req) || ""}/api/shipping/bosta/webhook`;
+  return {
+    provider: "bosta",
+    api_connected: Boolean(provider.is_enabled && (provider.api_key || settingsKey || process.env.BOSTA_API_KEY)),
+    locations_synced: Number(counts.cities || 0) > 0 && Number(counts.zones || 0) > 0 && Number(counts.districts || 0) > 0,
+    webhook_registered: Boolean(webhookUrl && (secret || process.env.NODE_ENV !== "production")),
+    webhook_secret_configured: Boolean(secret),
+    webhook_url: webhookUrl,
+    last_webhook_received_at: lastWebhook.rows[0]?.created_at || null,
+    last_webhook_status: lastWebhook.rows[0]?.status || "",
+    last_webhook_order_id: lastWebhook.rows[0]?.order_id || null,
+    last_locations_sync_at: provider.last_locations_sync_at || null,
+    location_counts: {
+      cities: Number(counts.cities || 0),
+      zones: Number(counts.zones || 0),
+      districts: Number(counts.districts || 0),
+    },
     last_locations_sync_counts: provider.last_locations_sync_counts || {},
   };
 };
@@ -697,6 +750,12 @@ export const previewBostaWebhookPayload = (payload = BOSTA_WEBHOOK_SAMPLE_PAYLOA
     event_key: bostaWebhookEventKey({ payload, parsed }),
     would_update: Boolean(parsed.status && (parsed.deliveryId || parsed.trackingNumber)),
   };
+};
+
+export const testBostaWebhookPayload = async (payload = BOSTA_WEBHOOK_SAMPLE_PAYLOAD) => {
+  const preview = previewBostaWebhookPayload(payload);
+  const result = await processBostaWebhook({ payload });
+  return { preview, result };
 };
 
 export const processBostaWebhook = async ({ req, payload = {} } = {}) => {

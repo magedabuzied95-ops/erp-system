@@ -1044,10 +1044,20 @@ function ProviderBadgePicker({ value, onChange }) {
 
 function BostaIntegrationPanel({ copy }) {
   const [settings, setSettings] = useState({ enabled: false, api_base_url: "https://app.bosta.co/api/v2", api_key: "" });
+  const [status, setStatus] = useState(null);
   const [syncState, setSyncState] = useState({ loading: false, counts: null, error: "" });
   const [locations, setLocations] = useState([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const loadStatus = useCallback(async () => {
+    try {
+      const data = await api.get("/shipping/providers/bosta/status");
+      setStatus(data.status || null);
+    } catch {
+      setStatus(null);
+    }
+  }, []);
+
   const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
@@ -1079,8 +1089,9 @@ function BostaIntegrationPanel({ copy }) {
 
   useEffect(() => {
     loadSettings();
+    loadStatus();
     loadLocations("");
-  }, [loadSettings, loadLocations]);
+  }, [loadSettings, loadLocations, loadStatus]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => loadLocations(query), 250);
@@ -1096,6 +1107,7 @@ function BostaIntegrationPanel({ copy }) {
     await api.put("/shipping/providers/bosta/settings", payload);
     toast.success(copy.bostaSaved || "Bosta settings saved");
     loadSettings();
+    loadStatus();
   };
 
   const sync = async () => {
@@ -1105,6 +1117,7 @@ function BostaIntegrationPanel({ copy }) {
       setSyncState({ loading: false, counts: data.counts || null, error: "" });
       toast.success(copy.bostaSynced || "Bosta locations synced");
       loadSettings();
+      loadStatus();
       loadLocations(query);
     } catch (error) {
       setSyncState({ loading: false, counts: null, error: error.message || "Sync failed" });
@@ -1113,6 +1126,13 @@ function BostaIntegrationPanel({ copy }) {
   };
 
   const counts = syncState.counts || settings.last_locations_sync_counts || {};
+  const statusItems = [
+    ["API Connected", status?.api_connected],
+    ["Locations Synced", status?.locations_synced],
+    ["Webhook Registered", status?.webhook_registered],
+    ["Last Webhook Received", Boolean(status?.last_webhook_received_at), status?.last_webhook_received_at ? new Date(status.last_webhook_received_at).toLocaleString() : "No events yet"],
+    ["Last Sync Date", Boolean(status?.last_locations_sync_at || settings.last_locations_sync_at), status?.last_locations_sync_at || settings.last_locations_sync_at ? new Date(status?.last_locations_sync_at || settings.last_locations_sync_at).toLocaleString() : "Not synced"],
+  ];
   return (
     <div className="grid gap-5">
       <VisualSection icon={Truck} title={copy.bostaTitle || "Bosta Integration"} description={copy.bostaDescription || "Sync Bosta cities, zones, and districts, then create deliveries from ERP orders."}>
@@ -1159,6 +1179,40 @@ function BostaIntegrationPanel({ copy }) {
             </button>
           </article>
         </div>
+        <article className={`mt-4 rounded-2xl p-4 ${fieldSurface}`}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className={`text-base font-black ${headingText}`}>{copy.bostaStatus || "Bosta status"}</h3>
+              <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaStatusHint || "Operational checklist for API, location sync, and webhook readiness."}</p>
+            </div>
+            <code className="max-w-full break-all rounded-2xl bg-slate-950 px-3 py-2 text-xs font-bold text-cyan-100 dark:bg-black/40">
+              {status?.webhook_url || "/api/shipping/bosta/webhook"}
+            </code>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            {statusItems.map(([label, ok, detail]) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                <div className="flex items-center gap-2">
+                  <span className={`grid h-7 w-7 place-items-center rounded-full ${ok ? "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300" : "bg-amber-500/12 text-amber-600 dark:text-amber-300"}`}>
+                    {ok ? <Check className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                  </span>
+                  <span className={`text-xs font-black uppercase ${mutedText}`}>{label}</span>
+                </div>
+                <div className={`mt-2 text-sm font-black ${ok ? "text-emerald-700 dark:text-emerald-200" : "text-amber-700 dark:text-amber-200"}`}>
+                  {ok ? "Ready" : "Needs setup"}
+                </div>
+                {detail ? <div className={`mt-1 text-[11px] font-bold ${bodyText}`}>{detail}</div> : null}
+              </div>
+            ))}
+          </div>
+          {status?.last_webhook_status ? (
+            <div className={`mt-3 flex flex-wrap items-center gap-2 text-xs font-bold ${bodyText}`}>
+              <Clock3 className="h-4 w-4" />
+              <span>Last webhook status: {status.last_webhook_status}</span>
+              {status.last_webhook_order_id ? <span>Order #{status.last_webhook_order_id}</span> : null}
+            </div>
+          ) : null}
+        </article>
       </VisualSection>
 
       <VisualSection icon={MapPin} title={copy.bostaLocations || "Locations preview"} description={copy.bostaLocationsHint || "Search synced cities, zones, and districts in English and Arabic."}>

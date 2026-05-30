@@ -3,6 +3,7 @@ import { protect } from "../../middleware/authMiddleware.js";
 import permit from "../../middleware/permissionMiddleware.js";
 import {
   getBostaProviderSettings,
+  getBostaProviderStatus,
   getShippingCities,
   getShippingDistricts,
   getShippingZones,
@@ -21,6 +22,7 @@ router.get("/districts", getShippingDistricts);
 router.get("/locations/search", searchLocations);
 
 router.get("/providers/bosta/settings", protect, permit("settings", "view"), getBostaProviderSettings);
+router.get("/providers/bosta/status", protect, permit("settings", "view"), getBostaProviderStatus);
 router.put("/providers/bosta/settings", protect, permit("settings", "edit"), updateBostaProviderSettings);
 router.post("/bosta/sync-locations", protect, permit("settings", "edit"), syncBostaLocationsController);
 router.post("/bosta/webhook", handleBostaWebhook);

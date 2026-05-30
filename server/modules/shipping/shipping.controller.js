@@ -1,6 +1,7 @@
 import {
   cancelBostaShipmentForOrder,
   createBostaShipmentForOrder,
+  getBostaIntegrationStatus,
   getBostaSettings,
   listShippingCities,
   listShippingDistricts,
@@ -11,6 +12,7 @@ import {
   saveBostaSettings,
   searchShippingLocations,
   syncBostaLocations,
+  testBostaWebhookPayload,
 } from "./shipping.service.js";
 
 const sendError = (res, error, fallback = "Shipping request failed") => {
@@ -28,6 +30,14 @@ export const getBostaProviderSettings = async (_req, res) => {
     return res.json({ success: true, settings: await getBostaSettings() });
   } catch (error) {
     return sendError(res, error);
+  }
+};
+
+export const getBostaProviderStatus = async (req, res) => {
+  try {
+    return res.json({ success: true, status: await getBostaIntegrationStatus({ req }) });
+  } catch (error) {
+    return sendError(res, error, "Failed to load Bosta status");
   }
 };
 
@@ -146,8 +156,9 @@ export const handleBostaWebhook = async (req, res) => {
 export const testBostaWebhook = async (req, res) => {
   try {
     const payload = Object.keys(req.body || {}).length ? req.body : undefined;
-    return res.json({ success: true, ...previewBostaWebhookPayload(payload) });
+    const processed = await testBostaWebhookPayload(payload);
+    return res.json({ success: true, ...previewBostaWebhookPayload(payload), processed });
   } catch (error) {
-    return sendError(res, error, "Failed to preview Bosta webhook");
+    return sendError(res, error, "Failed to process Bosta test webhook");
   }
 };
