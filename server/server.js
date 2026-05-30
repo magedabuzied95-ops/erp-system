@@ -104,6 +104,43 @@ const SHUTDOWN_TIMEOUT_MS = Math.max(Number(process.env.SHUTDOWN_TIMEOUT_MS || 1
 const backgroundIntervals = new Set();
 let isShuttingDown = false;
 
+const normalizeOrigin = (value = "") => String(value || "").trim().replace(/\/+$/, "");
+const configuredCorsOrigins = [
+  "https://erp-system-ten-green.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:5175",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5175",
+  process.env.PUBLIC_APP_URL,
+  process.env.FRONTEND_URL,
+  process.env.PUBLIC_FRONTEND_URL,
+  process.env.VITE_PUBLIC_APP_URL,
+  process.env.VITE_PUBLIC_FRONTEND_URL,
+  process.env.CORS_ALLOWED_ORIGINS,
+]
+  .flatMap((value) => String(value || "").split(","))
+  .map(normalizeOrigin)
+  .filter(Boolean);
+const allowedCorsOrigins = new Set(configuredCorsOrigins);
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (allowedCorsOrigins.has(normalizedOrigin)) {
+      callback(null, normalizedOrigin);
+      return;
+    }
+    callback(new Error(`CORS origin not allowed: ${normalizedOrigin}`));
+  },
+  credentials: true,
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Tenant-Id", "x-tenant-id", "X-Request-Id"],
+  optionsSuccessStatus: 204,
+};
+
 /* =========================
    HTTP SERVER
 ========================= */
@@ -121,9 +158,11 @@ export let io = new Server(server, {
 
   cors: {
 
-    origin: true,
+    origin: Array.from(allowedCorsOrigins),
 
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
+
+    credentials: true
   }
 });
 setIo(io);
@@ -315,11 +354,9 @@ const collectRouterEndpoints = (router, prefix = "") => {
 ========================= */
 
 app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
+  cors(corsOptions)
 );
+app.options(/.*/, cors(corsOptions));
 
 app.use((req, res, next) => {
   if (isShuttingDown) {
