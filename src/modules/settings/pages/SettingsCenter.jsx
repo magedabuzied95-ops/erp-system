@@ -21,7 +21,10 @@ import {
   Loader2,
   Lock,
   MapPin,
+  Maximize2,
+  Minimize2,
   Package,
+  PanelLeftClose,
   PlayCircle,
   Plus,
   RefreshCw,
@@ -1253,6 +1256,14 @@ const shippingUi = {
     addZone: "Add zone",
     import: "Import",
     export: "Export",
+    fullScreen: "Full Screen",
+    exitFullScreen: "Exit Full Screen",
+    density: "Density",
+    comfortable: "Comfortable",
+    compact: "Compact",
+    ultraCompact: "Ultra Compact",
+    freezeColumns: "Freeze governorate + city",
+    shortcutHint: "Press F",
     bulk: "Bulk update",
     governorateFilter: "Governorate",
     all: "All",
@@ -1547,6 +1558,14 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   const [governorateFilter, setGovernorateFilter] = useState("");
   const [selected, setSelected] = useState([]);
   const [expandedRules, setExpandedRules] = useState({});
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [freezeColumns, setFreezeColumns] = useState(false);
+  const [density, setDensity] = useState(() => {
+    if (typeof window === "undefined") return "comfortable";
+    return ["comfortable", "compact", "ultra"].includes(window.localStorage.getItem("shippingZonesDensity"))
+      ? window.localStorage.getItem("shippingZonesDensity")
+      : "comfortable";
+  });
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkEstimate, setBulkEstimate] = useState("");
   const [draft, setDraft] = useState({ governorate: "Cairo", city: "", area: "", price: defaultPrice || 0 });
@@ -1566,6 +1585,36 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   const selectedSet = new Set(selected);
   const selectedCount = selected.filter((id) => zones.some((zone) => zone.id === id)).length;
   const toggleRuleExpanded = (id) => setExpandedRules((current) => ({ ...current, [id]: !current[id] }));
+  const toggleFullScreen = useCallback(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) return;
+    setIsFullScreen((current) => !current);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem("shippingZonesDensity", density);
+  }, [density]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key?.toLowerCase() !== "f" || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      const tagName = target?.tagName?.toLowerCase();
+      if (target?.isContentEditable || ["input", "textarea", "select", "button"].includes(tagName)) return;
+      event.preventDefault();
+      toggleFullScreen();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleFullScreen]);
+
+  useEffect(() => {
+    if (!isFullScreen || typeof document === "undefined") return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isFullScreen]);
 
   const updateRows = (next) => {
     const seen = new Set();
@@ -1689,9 +1738,28 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
     }
   };
   const toggleVisibleSelection = (checked) => setSelected(checked ? Array.from(new Set([...selected, ...visibleZones.map((zone) => zone.id)])) : selected.filter((id) => !visibleZones.some((zone) => zone.id === id)));
+  const densityOptions = [
+    ["comfortable", copy.comfortable],
+    ["compact", copy.compact],
+    ["ultra", copy.ultraCompact],
+  ];
+  const tableMaxHeight = isFullScreen ? "max-h-[calc(100vh-15rem)] md:max-h-[calc(100vh-13rem)]" : "max-h-[42rem]";
+  const tableMinWidth = density === "ultra" ? "min-w-[1040px]" : density === "compact" ? "min-w-[1120px]" : "min-w-[1180px]";
 
   return (
-    <article className="grid gap-4">
+    <article className={isFullScreen ? "fixed inset-0 z-[100] grid content-start gap-3 overflow-auto bg-slate-100 p-3 text-slate-950 dark:bg-slate-950 dark:text-white md:p-5" : "grid gap-4"}>
+      {isFullScreen ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950"><PanelLeftClose className="h-5 w-5" /></span>
+            <div>
+              <h2 className={`text-lg font-black ${headingText}`}>{copy.zonesTitle}</h2>
+              <p className={`text-xs font-bold ${bodyText}`}>{visibleZones.length} rules / {copy.shortcutHint}</p>
+            </div>
+          </div>
+          <button type="button" onClick={toggleFullScreen} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"><Minimize2 className="h-4 w-4" />{copy.exitFullScreen}</button>
+        </div>
+      ) : null}
       <div className={`rounded-2xl p-3.5 ${fieldSurface}`}>
         <div className="grid gap-3 xl:grid-cols-[minmax(24rem,1fr)_minmax(14rem,0.35fr)_auto] xl:items-center">
           <label className="relative min-w-0">
@@ -1713,11 +1781,31 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
               {copy.import}
               <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
             </label>
+            <button type="button" onClick={toggleFullScreen} className="hidden h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08] md:inline-flex"><Maximize2 className="h-3.5 w-3.5" />{isFullScreen ? copy.exitFullScreen : copy.fullScreen}</button>
           </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 dark:border-white/10">
+          <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-white/10">
+            <span className={`px-2 text-[11px] font-black uppercase ${mutedText}`}>{copy.density}</span>
+            {densityOptions.map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setDensity(id)}
+                className={`h-8 rounded-lg px-2.5 text-[11px] font-black transition ${density === id ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/8"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-slate-300">
+            <input type="checkbox" className="h-4 w-4" checked={freezeColumns} onChange={(event) => setFreezeColumns(event.target.checked)} />
+            {copy.freezeColumns}
+          </label>
         </div>
       </div>
 
-      <div className={`rounded-2xl p-4 ${fieldSurface}`}>
+      <div className={`rounded-2xl p-4 ${fieldSurface} ${isFullScreen ? "hidden" : ""}`}>
         <div className="mb-3 flex items-center gap-2">
           <span className="grid h-8 w-8 place-items-center rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" /></span>
           <h3 className={`text-sm font-black ${headingText}`}>{copy.quickTitle}</h3>
@@ -1737,7 +1825,7 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
         </div>
       </div>
 
-      <div className={`rounded-2xl p-4 ${fieldSurface}`}>
+      <div className={`rounded-2xl p-4 ${fieldSurface} ${isFullScreen ? "hidden" : ""}`}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 dark:bg-white/[0.055] dark:text-slate-300">
             <SlidersHorizontal className="h-4 w-4" />
@@ -1774,12 +1862,14 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
             Select visible
           </label>
         </div>
-        <div className="max-h-[42rem] overflow-auto rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
-          <table className="min-w-[1180px] w-full border-separate border-spacing-0 text-sm">
+        <div className={`${tableMaxHeight} overflow-auto rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70`}>
+          <table className={`${tableMinWidth} w-full border-separate border-spacing-0 ${density === "ultra" ? "text-xs" : "text-sm"}`}>
             <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-black uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
               <tr>
-                <th className="w-10 px-3 py-3 text-start"></th>
-                {["Governorate", "City", "Area", "Provider", "Shipping Cost", "COD", "Proof", "ETA", "Active", ""].map((header) => (
+                <th className={`${freezeColumns ? "sticky left-0 z-20 bg-slate-50 dark:bg-slate-900" : ""} w-10 px-3 py-3 text-start`}></th>
+                <th className={`${freezeColumns ? "sticky left-10 z-20 bg-slate-50 dark:bg-slate-900" : ""} w-36 px-3 py-3 text-start`}>Governorate</th>
+                <th className={`${freezeColumns ? "sticky left-[11.5rem] z-20 bg-slate-50 dark:bg-slate-900" : ""} w-36 px-3 py-3 text-start`}>City</th>
+                {["Area", "Provider", "Shipping Cost", "COD", "Proof", "ETA", "Active", ""].map((header) => (
                   <th key={header} className="px-3 py-3 text-start">{header}</th>
                 ))}
               </tr>
@@ -1795,6 +1885,8 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
                   selected={selectedSet.has(zone.id)}
                   expanded={Boolean(expandedRules[zone.id])}
                   duplicate={duplicateCounts.get(ruleIdentity(zone)) > 1}
+                  density={density}
+                  freezeColumns={freezeColumns}
                   onSelect={(checked) => setSelected((current) => checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))}
                   onPatch={(patch) => patchRow(zone.id, patch)}
                   onDelete={() => deleteRow(zone.id)}
@@ -1810,8 +1902,15 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   );
 }
 
-function ZoneRuleTableRow({ zone, zones, copy, defaultPrice, selected, expanded, duplicate, onSelect, onPatch, onDelete, onExpand }) {
+function ZoneRuleTableRow({ zone, zones, copy, defaultPrice, selected, expanded, duplicate, density, freezeColumns, onSelect, onPatch, onDelete, onExpand }) {
   const provider = normalizeProviderKey(zone.provider_id || zone.provider);
+  const isUltra = density === "ultra";
+  const isCompact = density === "compact" || isUltra;
+  const cellPadding = isUltra ? "px-2 py-1" : isCompact ? "px-2.5 py-1.5" : "px-3 py-2";
+  const inputHeight = isUltra ? "h-7" : isCompact ? "h-8" : "h-9";
+  const inputText = isUltra ? "text-[11px]" : "text-xs";
+  const pillCompact = isCompact;
+  const stickyCell = freezeColumns ? "sticky z-10 shadow-[1px_0_0_rgba(148,163,184,0.18)]" : "";
   const winner = resolveRuleWinner(zones, zone, defaultPrice);
   const isWinner = winner?.id === zone.id;
   const overlaps = zones.some((candidate) =>
@@ -1824,7 +1923,7 @@ function ZoneRuleTableRow({ zone, zones, copy, defaultPrice, selected, expanded,
     )
   );
   const providerSelect = (
-    <select value={provider} onChange={(event) => onPatch({ provider: event.target.value, provider_id: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`}>
+    <select value={provider} onChange={(event) => onPatch({ provider: event.target.value, provider_id: event.target.value })} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}>
       {shippingProviderOptions.map((providerOption) => (
         <option key={providerOption.id} value={providerOption.id}>{providerOption.label}</option>
       ))}
@@ -1854,23 +1953,23 @@ function ZoneRuleTableRow({ zone, zones, copy, defaultPrice, selected, expanded,
   return (
     <>
       <tr className={`${isWinner && overlaps ? "bg-emerald-50/60 dark:bg-emerald-500/8" : duplicate ? "bg-amber-50/70 dark:bg-amber-500/8" : "bg-white dark:bg-slate-950/70"} border-b border-slate-100 dark:border-white/10`}>
-        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10">
+        <td className={`${cellPadding} ${stickyCell} left-0 border-b border-slate-100 bg-inherit dark:border-white/10`}>
           <input type="checkbox" className="h-4 w-4" checked={selected} onChange={(event) => onSelect(event.target.checked)} />
         </td>
-        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><input value={zone.governorate} onChange={(event) => onPatch({ governorate: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`} placeholder="Governorate" /></td>
-        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><input value={zone.city} onChange={(event) => onPatch({ city: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`} placeholder="City / Markaz" /></td>
-        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><input value={zone.area} onChange={(event) => onPatch({ area: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`} placeholder="Area / District" /></td>
-        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10">{providerSelect}</td>
-        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} h-9 w-24 rounded-xl text-center text-xs`} /></td>
-        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><TogglePill compact label="COD" checked={Boolean(zone.cod_allowed)} onChange={(checked) => onPatch({ cod_allowed: checked })} /></td>
-        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><TogglePill compact label="Proof" checked={Boolean(zone.requires_shipping_proof)} onChange={(checked) => onPatch({ requires_shipping_proof: checked })} /></td>
-        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><input value={zone.estimated_delivery_text} onChange={(event) => onPatch({ estimated_delivery_text: event.target.value })} className={`${inputClass} h-9 min-w-40 rounded-xl text-xs`} placeholder="ETA" /></td>
-        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10"><TogglePill compact label="Active" checked={Boolean(zone.active)} onChange={(checked) => onPatch({ active: checked })} /></td>
-        <td className="border-b border-slate-100 px-3 py-2 dark:border-white/10">
+        <td className={`${cellPadding} ${stickyCell} left-10 w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><input value={zone.governorate} onChange={(event) => onPatch({ governorate: event.target.value })} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`} placeholder="Governorate" /></td>
+        <td className={`${cellPadding} ${stickyCell} left-[11.5rem] w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><input value={zone.city} onChange={(event) => onPatch({ city: event.target.value })} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`} placeholder="City / Markaz" /></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input value={zone.area} onChange={(event) => onPatch({ area: event.target.value })} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`} placeholder="Area / District" /></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}>{providerSelect}</td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} ${inputHeight} w-20 rounded-xl text-center ${inputText}`} /></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="COD" checked={Boolean(zone.cod_allowed)} onChange={(checked) => onPatch({ cod_allowed: checked })} /></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="Proof" checked={Boolean(zone.requires_shipping_proof)} onChange={(checked) => onPatch({ requires_shipping_proof: checked })} /></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input value={zone.estimated_delivery_text} onChange={(event) => onPatch({ estimated_delivery_text: event.target.value })} className={`${inputClass} ${inputHeight} min-w-36 rounded-xl ${inputText}`} placeholder="ETA" /></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="Active" checked={Boolean(zone.active)} onChange={(checked) => onPatch({ active: checked })} /></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}>
           <div className="flex justify-end gap-1">
-            <button type="button" onClick={onExpand} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200" aria-label="Edit rule"><Settings2 className="h-4 w-4" /></button>
-            <button type="button" onClick={onExpand} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200" aria-label="Expand rule">{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button>
-            <button type="button" onClick={onDelete} className="grid h-9 w-9 place-items-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10" aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
+            <button type="button" onClick={onExpand} className={`grid ${inputHeight} aspect-square place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200`} aria-label="Edit rule"><Settings2 className="h-4 w-4" /></button>
+            <button type="button" onClick={onExpand} className={`grid ${inputHeight} aspect-square place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200`} aria-label="Expand rule">{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button>
+            <button type="button" onClick={onDelete} className={`grid ${inputHeight} aspect-square place-items-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10`} aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
           </div>
         </td>
       </tr>
