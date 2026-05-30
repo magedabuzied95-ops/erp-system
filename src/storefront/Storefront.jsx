@@ -7042,6 +7042,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       const paymentMethod = normalizeCheckoutPaymentMethod(form.payment_method);
       const shippingPaymentMethod = normalizeShippingPaymentMethod(shippingTransferMethod);
       const paidAmount = paymentMethod === "shipping_confirmation" ? deliveryFee : 0;
+      const selectedShippingProvider = bostaMode && form.shipping_city_id ? "bosta" : (shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery");
       const shippingProviderAddress = {
         country: "EG",
         country_code: "EG",
@@ -7071,8 +7072,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
         delivery_fee: deliveryFee,
         shipping_fee: deliveryFee,
         shipping_cost: deliveryFee,
-        shipping_provider: shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery",
-        shipping_provider_id: shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery",
+        shipping_provider: selectedShippingProvider,
+        shipping_provider_id: selectedShippingProvider,
         governorate_id: form.governorate_id || shippingQuote.governorate_id || shippingQuote.zone?.governorate_id || "",
         city_id: form.city_id || shippingQuote.city_id || shippingQuote.zone?.city_id || "",
         area_id: form.area_id || shippingQuote.area_id || shippingQuote.zone?.area_id || shippingQuote.zone?.district_id || "",

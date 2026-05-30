@@ -5,8 +5,16 @@ import { mapOrderToBostaDeliveryPayload, normalizeBostaDeliveryResponse, normali
 
 const text = (value = "") => String(value ?? "").trim();
 const nowIso = () => new Date().toISOString();
+let shippingSchemaEnsured = false;
+let shippingSchemaEnsurePromise = null;
 
 export const ensureShippingSchema = async (client = db) => {
+  if (shippingSchemaEnsured) return;
+  if (shippingSchemaEnsurePromise) {
+    await shippingSchemaEnsurePromise;
+    return;
+  }
+  shippingSchemaEnsurePromise = (async () => {
   await client.query(`
     CREATE TABLE IF NOT EXISTS shipping_providers (
       id BIGSERIAL PRIMARY KEY,
@@ -86,6 +94,12 @@ export const ensureShippingSchema = async (client = db) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  shippingSchemaEnsured = true;
+  })().catch((error) => {
+    shippingSchemaEnsurePromise = null;
+    throw error;
+  });
+  await shippingSchemaEnsurePromise;
 };
 
 export const upsertShippingProvider = async (client, { code, name, is_enabled = false, api_base_url = "", api_key = "" }) => {
@@ -142,7 +156,8 @@ export const saveBostaSettings = async ({ enabled, apiKey, apiBaseUrl, updatedBy
       api_key: text(apiKey),
     });
     await client.query("COMMIT");
-    return { ...provider, has_api_key: Boolean(provider.api_key || apiKey) };
+    const { api_key: _apiKey, api_key_encrypted: _apiKeyEncrypted, ...safeProvider } = provider;
+    return { ...safeProvider, has_api_key: Boolean(provider.api_key || apiKey) };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

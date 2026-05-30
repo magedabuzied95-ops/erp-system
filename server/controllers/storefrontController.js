@@ -3204,7 +3204,7 @@ export const createWebsiteOrder = async (req, res) => {
       : "";
     const zoneShippingProviderId = normalizeShippingProviderKey(shippingQuote.provider_id || shippingQuote.provider || orderSettings.defaultShippingProvider);
     const requestedShippingMethod = normalizeShippingProviderKey(checkout.shipping_method || checkout.shipping_provider || zoneShippingProviderId);
-    const shippingMethod = shippingProviders[zoneShippingProviderId] ? zoneShippingProviderId : requestedShippingMethod;
+    const shippingMethod = shippingProviders[requestedShippingMethod] ? requestedShippingMethod : zoneShippingProviderId;
     if (paymentMethod === "shipping_confirmation" && !["instapay", "vodafone_cash"].includes(requestedShippingPaymentMethod)) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Choose a valid shipping payment method", "shipping_payment_method", {
