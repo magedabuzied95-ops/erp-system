@@ -52,7 +52,7 @@ import {
 } from "../lib/ordersStore";
 
 const BOSTA_SUBSCRIPTION_REQUIRED_CODE = "BOSTA_SUBSCRIPTION_REQUIRED";
-const BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE = "Your Bosta account is connected successfully, but shipment creation requires an active Bosta shipping plan or bundle.";
+const BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE = "حساب بوسطة متصل بنجاح، لكن يلزم تفعيل باقة شحن لإنشاء الشحنات.";
 
 const getAttributionLabel = (order = {}) => {
   const source = String(order.attribution_type || order.marketing_source || "").toLowerCase();
@@ -326,6 +326,12 @@ function OrderDetails() {
     shipping_city_id: "",
     shipping_zone_id: "",
     shipping_district_id: "",
+    shipping_city_name_en: "",
+    shipping_city_name_ar: "",
+    shipping_zone_name_en: "",
+    shipping_zone_name_ar: "",
+    shipping_district_name_en: "",
+    shipping_district_name_ar: "",
     shipping_provider_delivery_id: "",
     shipping_label_url: "",
     shipping_address_line: "",
@@ -363,6 +369,12 @@ function OrderDetails() {
         shipping_city_id: merged.shipping_city_id || merged.city_id || "",
         shipping_zone_id: merged.shipping_zone_id || "",
         shipping_district_id: merged.shipping_district_id || merged.area_id || "",
+        shipping_city_name_en: merged.shipping_city_name_en || "",
+        shipping_city_name_ar: merged.shipping_city_name_ar || "",
+        shipping_zone_name_en: merged.shipping_zone_name_en || "",
+        shipping_zone_name_ar: merged.shipping_zone_name_ar || "",
+        shipping_district_name_en: merged.shipping_district_name_en || "",
+        shipping_district_name_ar: merged.shipping_district_name_ar || "",
         shipping_provider_delivery_id: merged.shipping_provider_delivery_id || merged.shipment_id || "",
         shipping_label_url: merged.shipping_label_url || "",
         shipping_address_line: merged.shipping_address_line || merged.customer_address || "",
@@ -442,6 +454,9 @@ function OrderDetails() {
   const paymentBadge = getPaymentBadge(order || {}, paymentReviewBadgeText || order?.paymentStatus);
   const operationalEvents = useMemo(() => (order ? buildOperationalEvents(order, timeline) : []), [order, timeline]);
   const smartInsights = useMemo(() => (order ? buildSmartInsights(order, previewItems, shipping) : []), [order, previewItems, shipping]);
+  const bostaCityName = shipping.shipping_city_name_ar || shipping.shipping_city_name_en || order?.shipping_city_name_ar || order?.shipping_city_name_en || order?.city_area || order?.governorate || shipping.shipping_city_id || order?.city_id || "";
+  const bostaZoneName = shipping.shipping_zone_name_ar || shipping.shipping_zone_name_en || order?.shipping_zone_name_ar || order?.shipping_zone_name_en || shipping.shipping_zone_id || "";
+  const bostaDistrictName = shipping.shipping_district_name_ar || shipping.shipping_district_name_en || order?.shipping_district_name_ar || order?.shipping_district_name_en || shipping.shipping_district_id || order?.area_id || "";
   const financials = useMemo(() => (order ? buildOrderFinancials(order, previewItems) : buildOrderFinancials({}, [])), [order, previewItems]);
   const isCodOrder = [
     order?.payment_method,
@@ -556,6 +571,12 @@ function OrderDetails() {
         tracking_url: updated.tracking_url || result.tracking_url || prev.tracking_url,
         shipping_label_url: updated.shipping_label_url || result.label_url || prev.shipping_label_url,
         shipping_address_line: updated.shipping_address_line || prev.shipping_address_line,
+        shipping_city_name_en: updated.shipping_city_name_en || prev.shipping_city_name_en,
+        shipping_city_name_ar: updated.shipping_city_name_ar || prev.shipping_city_name_ar,
+        shipping_zone_name_en: updated.shipping_zone_name_en || prev.shipping_zone_name_en,
+        shipping_zone_name_ar: updated.shipping_zone_name_ar || prev.shipping_zone_name_ar,
+        shipping_district_name_en: updated.shipping_district_name_en || prev.shipping_district_name_en,
+        shipping_district_name_ar: updated.shipping_district_name_ar || prev.shipping_district_name_ar,
         street_address: updated.street_address || prev.street_address,
         building_number: updated.building_number || prev.building_number,
         floor_number: updated.floor_number || prev.floor_number,
@@ -1306,7 +1327,7 @@ function OrderDetails() {
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Bosta</div>
-                          <div className="mt-1 text-sm font-black text-white">City {shipping.shipping_city_id || order.city_id || "-"} · Zone {shipping.shipping_zone_id || "-"} · District {shipping.shipping_district_id || order.area_id || "-"}</div>
+                          <div className="mt-1 text-sm font-black text-white">{[bostaCityName, bostaZoneName, bostaDistrictName].filter(Boolean).join(" · ") || t("orders.fallback.notAvailable")}</div>
                           <div className="mt-1 text-xs font-semibold text-zinc-400">{shipping.shipping_address_line || order.customer_address || t("orders.fallback.notAvailable")}</div>
                           <div className="mt-1 text-[11px] font-semibold text-zinc-500">
                             {[shipping.street_address, shipping.building_number ? `Building ${shipping.building_number}` : "", shipping.floor_number ? `Floor ${shipping.floor_number}` : "", shipping.apartment_number ? `Apartment ${shipping.apartment_number}` : "", order.landmark ? `Near ${order.landmark}` : ""].filter(Boolean).join(" · ") || t("orders.fallback.notAvailable")}
@@ -1318,10 +1339,11 @@ function OrderDetails() {
                           <button type="button" onClick={() => handleBostaAction("cancel")} className="h-9 rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100">Cancel</button>
                         </div>
                       </div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                        <Info label="Delivery ID" value={shipping.shipping_provider_delivery_id || shipping.shipment_id || t("orders.fallback.notAvailable")} />
-                        <Info label={t("orders.shipping.trackingNumber")} value={shipping.tracking_number || t("orders.fallback.notAvailable")} />
-                        <Info label="Label" value={shipping.shipping_label_url ? "Available" : t("orders.fallback.notAvailable")} />
+                      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                        <Info label="Provider" value="Bosta" />
+                        <Info label="City" value={bostaCityName || t("orders.fallback.notAvailable")} />
+                        <Info label="Zone" value={bostaZoneName || t("orders.fallback.notAvailable")} />
+                        <Info label="District" value={bostaDistrictName || t("orders.fallback.notAvailable")} />
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-4">
                         <Info label="Street" value={shipping.street_address || t("orders.fallback.notAvailable")} />
@@ -1329,6 +1351,15 @@ function OrderDetails() {
                         <Info label="Floor" value={shipping.floor_number || t("orders.fallback.notAvailable")} />
                         <Info label="Apartment" value={shipping.apartment_number || t("orders.fallback.notAvailable")} />
                       </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                        <Info label="Landmark" value={order.landmark || t("orders.fallback.notAvailable")} />
+                        <Info label="Delivery ID" value={shipping.shipping_provider_delivery_id || shipping.shipment_id || t("orders.fallback.notAvailable")} />
+                        <Info label={t("orders.shipping.trackingNumber")} value={shipping.tracking_number || t("orders.fallback.notAvailable")} />
+                        <Info label="Label URL" value={shipping.shipping_label_url || t("orders.fallback.notAvailable")} />
+                      </div>
+                      {shipping.shipping_label_url ? (
+                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-9 rounded-xl border border-cyan-200/30 bg-cyan-200/10 px-3 text-xs font-black text-cyan-50 transition hover:bg-cyan-200/20">Print Label</button>
+                      ) : null}
                       {bostaActionError ? (
                         <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-5 ${
                           bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE

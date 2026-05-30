@@ -82,6 +82,9 @@ function ShipmentDrawer({ order, onClose }) {
   if (!order) return null;
   const timeline = Array.isArray(order.shipment_timeline) ? order.shipment_timeline : [];
   const events = Array.isArray(order.webhook_events) ? order.webhook_events : [];
+  const cityName = order.shipping_city_name_ar || order.shipping_city_name_en || order.city || "";
+  const zoneName = order.shipping_zone_name_ar || order.shipping_zone_name_en || "";
+  const districtName = order.shipping_district_name_ar || order.shipping_district_name_en || "";
   const address = [order.shipping_address_line || order.customer_address, order.street_address, order.building_number ? `Building ${order.building_number}` : "", order.floor_number ? `Floor ${order.floor_number}` : "", order.apartment_number ? `Apartment ${order.apartment_number}` : "", order.landmark].filter(Boolean).join(" · ");
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm">
@@ -99,9 +102,13 @@ function ShipmentDrawer({ order, onClose }) {
               ["Customer", order.customer_name],
               ["Phone", order.customer_phone],
               ["Provider", PROVIDER_LABELS[order.shipping_provider_id] || order.shipping_provider],
+              ["City", cityName || "-"],
+              ["Zone", zoneName || "-"],
+              ["District", districtName || "-"],
               ["Status", <StatusBadge status={order.shipment_status} />],
               ["Tracking Number", order.tracking_number || "-"],
               ["Delivery ID", order.delivery_id || "-"],
+              ["Label URL", order.shipping_label_url || "-"],
               ["COD Amount", fmtMoney(order.cod_amount)],
               ["Order Total", fmtMoney(order.order_total)],
             ].map(([label, value]) => (
@@ -114,6 +121,9 @@ function ShipmentDrawer({ order, onClose }) {
           <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-2 flex items-center gap-2 text-sm font-black"><MapPin className="h-4 w-4 text-emerald-300" /> Address</div>
             <p className="text-sm font-semibold leading-6 text-slate-300">{address || "-"}</p>
+            {order.shipping_label_url ? (
+              <button type="button" onClick={() => window.open(order.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 rounded-xl border border-cyan-200/25 bg-cyan-200/10 px-3 py-2 text-xs font-black text-cyan-50 transition hover:bg-cyan-200/20">Print Label</button>
+            ) : null}
           </section>
           <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-black"><Clock3 className="h-4 w-4 text-cyan-300" /> Shipping Timeline</div>

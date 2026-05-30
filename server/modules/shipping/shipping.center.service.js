@@ -101,6 +101,12 @@ const selectSql = `
     o.floor_number,
     o.apartment_number,
     COALESCE(sc.name_en, o.city_area, o.governorate, '') AS city,
+    sc.name_en AS shipping_city_name_en,
+    sc.name_ar AS shipping_city_name_ar,
+    sz.name_en AS shipping_zone_name_en,
+    sz.name_ar AS shipping_zone_name_ar,
+    sd.name_en AS shipping_district_name_en,
+    sd.name_ar AS shipping_district_name_ar,
     COALESCE(o.shipping_provider_id, o.shipping_provider, 'in_store_delivery') AS shipping_provider_id,
     COALESCE(o.shipping_provider, o.shipping_provider_id, 'in_store_delivery') AS shipping_provider,
     COALESCE(o.shipping_tracking_number, o.tracking_number, '') AS tracking_number,
@@ -119,6 +125,10 @@ const selectSql = `
   FROM orders o
   LEFT JOIN shipping_cities sc
     ON sc.id::text = o.shipping_city_id OR sc.provider_city_id = o.shipping_city_id
+  LEFT JOIN shipping_zones sz
+    ON sz.id::text = o.shipping_zone_id OR sz.provider_zone_id = o.shipping_zone_id
+  LEFT JOIN shipping_districts sd
+    ON sd.id::text = o.shipping_district_id OR sd.provider_district_id = o.shipping_district_id
   LEFT JOIN LATERAL (
     SELECT jsonb_agg(
       jsonb_build_object(

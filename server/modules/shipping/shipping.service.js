@@ -11,7 +11,7 @@ const normalizeKey = (value = "") => text(value).toLowerCase().replace(/[\s-]+/g
 let shippingSchemaEnsured = false;
 let shippingSchemaEnsurePromise = null;
 
-const BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE = "Your Bosta account is connected successfully, but shipment creation requires an active Bosta shipping plan or bundle.";
+const BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE = "حساب بوسطة متصل بنجاح، لكن يلزم تفعيل باقة شحن لإنشاء الشحنات.";
 
 const bostaErrorCode = (payload = {}) => {
   const nestedError = payload?.error && typeof payload.error === "object" ? payload.error : {};

@@ -5977,10 +5977,19 @@ export const getSingleOrder = async (req, res) => {
         COALESCE(NULLIF(o.seller_name, ''), NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.salesperson_name, ''), '') AS seller_name,
         COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), '') AS sales_employee_name,
         COALESCE(NULLIF(o.salesperson_name, ''), NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), '') AS salesperson_name,
-        COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), '') AS assigned_seller_name
+        COALESCE(NULLIF(${employeeSellerExpr}, ''), NULLIF(${salesEmployeeExpr}, ''), NULLIF(o.seller_name, ''), NULLIF(o.salesperson_name, ''), '') AS assigned_seller_name,
+        sc.name_en AS shipping_city_name_en,
+        sc.name_ar AS shipping_city_name_ar,
+        sz.name_en AS shipping_zone_name_en,
+        sz.name_ar AS shipping_zone_name_ar,
+        sd.name_en AS shipping_district_name_en,
+        sd.name_ar AS shipping_district_name_ar
       FROM orders o
       LEFT JOIN users creator ON creator.id = COALESCE(o.cashier_id, o.created_by)
       LEFT JOIN users canceller ON canceller.id = o.cancelled_by
+      LEFT JOIN shipping_cities sc ON sc.id::text = o.shipping_city_id OR sc.provider_city_id = o.shipping_city_id
+      LEFT JOIN shipping_zones sz ON sz.id::text = o.shipping_zone_id OR sz.provider_zone_id = o.shipping_zone_id
+      LEFT JOIN shipping_districts sd ON sd.id::text = o.shipping_district_id OR sd.provider_district_id = o.shipping_district_id OR sd.id::text = o.area_id
       ${employeeSellerJoin}
       ${salesEmployeeJoin}
       WHERE o.id = $1

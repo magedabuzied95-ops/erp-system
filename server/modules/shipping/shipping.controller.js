@@ -21,7 +21,7 @@ const sendError = (res, error, fallback = "Shipping request failed") => {
     success: false,
     message: error?.message || fallback,
     code: error?.code || undefined,
-    details: error?.payload || undefined,
+    details: error?.code === "BOSTA_SUBSCRIPTION_REQUIRED" ? undefined : (error?.payload || undefined),
   });
 };
 
