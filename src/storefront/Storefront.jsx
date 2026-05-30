@@ -1607,17 +1607,22 @@ const storefrontPathFromLink = (value = "") => {
 
 const normalizeHomeProduct = (product = {}) => {
   const link = storefrontPathFromLink(product.link || product.product_url || product.url);
-  const image = product.image_url || product.product_image_url || product.thumbnail_url || product.photo_url || product.image || product.gallery_images?.[0] || "";
-  const price = Number(product.price || product.final_price || product.selling_price || product.regular_price || 0) || 0;
+  const nestedProduct = nestedProductFor(product);
+  const nestedVariant = nestedVariantFor(product, nestedProduct);
+  const image = resolveProductImage(product, nestedProduct, nestedVariant) || product.image_url || product.product_image_url || product.thumbnail_url || product.photo_url || product.image || product.gallery_images?.[0] || "";
+  const price = Number(product.price || product.final_price || product.selling_price || product.regular_price || nestedVariant.price || nestedProduct.price || 0) || 0;
   const salePrice = Number(product.sale_price || 0) || 0;
   const sourceSellingPrice = Number(product.selling_price || product.price || price || 0) || 0;
+  const id = firstTextValue(product.id, product.product_id, product.productId, product.card_id, nestedProduct.id, nestedProduct.product_id, nestedVariant.product_id);
+  const name = firstTextValue(product.name, product.title, product.product_name, product.productName, nestedProduct.name, nestedProduct.title, nestedProduct.product_name);
   return {
+    ...nestedProduct,
     ...product,
-    id: product.id || product.product_id || product.card_id || "",
-    product_id: product.product_id || product.id || "",
-    card_id: product.card_id || product.id || product.product_id || "",
-    slug: product.slug || product.canonical_slug || product.id || "",
-    name: product.name || product.title || product.product_name || "",
+    id,
+    product_id: product.product_id || product.productId || nestedProduct.product_id || nestedProduct.id || id,
+    card_id: product.card_id || id,
+    slug: product.slug || product.canonical_slug || nestedProduct.slug || nestedProduct.canonical_slug || id,
+    name,
     image_url: image,
     product_image_url: product.product_image_url || image,
     gallery_images: Array.isArray(product.gallery_images) ? product.gallery_images : image ? [image] : [],
@@ -1634,16 +1639,21 @@ const normalizeHomeProduct = (product = {}) => {
   };
 };
 
-const normalizeHomeCollection = (collection = {}) => ({
-  ...collection,
-  key: collection.key || collection.id || collection.slug || collection.title || "",
-  title: collection.title || collection.name || collection.label || "",
-  subtitle: collection.subtitle || collection.description || "",
-  products: (Array.isArray(collection.products) ? collection.products : []).map(normalizeHomeProduct).filter((product) => product.id && product.name && product.image_url),
-});
+const normalizeHomeCollection = (collection = {}) => {
+  if (!collection || typeof collection !== "object" || Array.isArray(collection)) {
+    return { key: String(collection || ""), title: String(collection || ""), subtitle: "", products: [] };
+  }
+  return {
+    ...collection,
+    key: collection.key || collection.id || collection.slug || collection.title || "",
+    title: collection.title || collection.name || collection.label || "",
+    subtitle: collection.subtitle || collection.description || "",
+    products: (Array.isArray(collection.products) ? collection.products : []).map(normalizeHomeProduct).filter((product) => product.id && product.name),
+  };
+};
 
 const useStorefrontHome = () => {
-  const [state, setState] = useState({ loading: true, error: "", hero: null, collections: [] });
+  const [state, setState] = useState({ loading: true, loaded: false, error: "", hero: null, collections: [], rawHome: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -1654,11 +1664,11 @@ const useStorefrontHome = () => {
         const collections = (Array.isArray(home.featured_collections) ? home.featured_collections : [])
           .map(normalizeHomeCollection)
           .filter((collection) => collection.products.length);
-        if (!cancelled) setState({ loading: false, error: "", hero: hero?.id ? hero : null, collections });
+        if (!cancelled) setState({ loading: false, loaded: true, error: "", hero: hero?.id ? hero : null, collections, rawHome: home });
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, error: error?.message || "Failed to load storefront home", hero: null, collections: [] });
+          setState({ loading: false, loaded: true, error: error?.message || "Failed to load storefront home", hero: null, collections: [], rawHome: null });
         }
       });
     return () => {
@@ -3618,6 +3628,19 @@ function HomePage(props) {
   const heroDetailsUrl = heroProduct?.link || (allowLegacyHomeFallback && heroProduct?.id ? productUrl(heroProduct) : "/shop/products");
   const homeCollections = storefrontHome.collections;
   const hasHomeCollections = homeCollections.length > 0;
+  const rawHomeCollections = Array.isArray(storefrontHome.rawHome?.featured_collections) ? storefrontHome.rawHome.featured_collections : [];
+  const rawHomeProducts = useMemo(
+    () => rawHomeCollections.flatMap((collection) => Array.isArray(collection?.products) ? collection.products : []).map(normalizeHomeProduct).filter((product) => product.id && product.name),
+    [rawHomeCollections]
+  );
+  const stableHomeProducts = useMemo(() => {
+    const fromCollections = homeCollections.flatMap((collection) => Array.isArray(collection.products) ? collection.products : []);
+    return uniqueProductsByIdentity([
+      ...rawHomeProducts,
+      ...fromCollections,
+      ...railProducts,
+    ]).slice(0, 8);
+  }, [homeCollections, railProducts, rawHomeProducts]);
   const categoryPreviewCards = useMemo(() => {
     const genderOptions = storefrontGenderOptions.length ? storefrontGenderOptions : classificationOptions.gender;
     return uniqueClassificationOptions(genderOptions)
@@ -3794,6 +3817,12 @@ function HomePage(props) {
       <section className="relative z-10 mx-auto min-h-[84px] max-w-[1200px] px-4 py-1.5 md:min-h-[120px] md:py-2">
         <StoryStrip products={railProducts} categories={categoryPreviewCards} loading={loading} onLastPiece={() => setLastPieceOpen(true)} />
       </section>
+      <SimpleHomeProductGrid
+        title={t("storefront.home.featuredProducts", "Featured products")}
+        subtitle={t("storefront.home.featuredProductsSubtitle", "Selected products ready to shop")}
+        products={stableHomeProducts}
+        loading={storefrontHome.loading || loading}
+      />
       <section className="mx-auto max-w-[1200px] px-4 py-1.5 md:py-2">
         {categoryPreviewCards.length ? (
           <div>
@@ -3897,6 +3926,58 @@ function HomeCollectionRail({ collection = {} }) {
             </div>
           </Link>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false }) {
+  const visibleProducts = (Array.isArray(products) ? products : []).filter((product) => product?.id && product?.name).slice(0, 8);
+  if (!visibleProducts.length && !loading) return null;
+
+  return (
+    <section className="mx-auto max-w-[1200px] px-4 py-3 md:py-5">
+      <div className="mb-3 flex items-end justify-between gap-3 text-right">
+        <div className="min-w-0">
+          <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.common.shopNow", "Shop Now")}</div>
+          <h2 className="text-2xl font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-3xl">{title}</h2>
+          {subtitle ? <p className="mt-1 text-xs font-bold text-stone-500 dark:text-stone-400 md:text-sm">{subtitle}</p> : null}
+        </div>
+        <Link to="/shop/products" className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:text-[#6d28d9] active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+          {sfText("common.viewAll", "View all")}
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {loading && !visibleProducts.length ? (
+          <ProductSkeleton count={4} />
+        ) : visibleProducts.map((product, index) => {
+          const price = Number(product.price || product.final_price || product.selling_price || product.regular_price || 0) || 0;
+          const image = product.image_url || product.product_image_url || product.gallery_images?.[0] || "";
+          return (
+            <Link
+              key={product.card_id || product.id || index}
+              to={product.link || productUrl(product)}
+              className="group min-w-0 overflow-hidden rounded-[1.15rem] border border-stone-200 bg-white text-right shadow-[0_12px_30px_rgba(39,20,75,0.07)] transition duration-300 hover:-translate-y-1 hover:border-[#a78bfa]/45 hover:shadow-[0_20px_50px_rgba(39,20,75,0.14)] active:scale-[0.99] dark:border-white/10 dark:bg-[#0b1020]"
+            >
+              <div className="aspect-[1.05/1] overflow-hidden bg-stone-100 p-2 dark:bg-white/5">
+                <img
+                  src={imageFor(image)}
+                  alt={product.name || ""}
+                  onError={fallbackProductImage}
+                  className="h-full w-full rounded-[0.9rem] object-contain transition duration-500 group-hover:scale-[1.05]"
+                  loading="lazy"
+                  decoding="async"
+                  width="360"
+                  height="360"
+                />
+              </div>
+              <div className="p-3">
+                <h3 className="line-clamp-2 min-h-10 text-sm font-black leading-5 text-stone-950 dark:text-stone-100">{product.name}</h3>
+                <div className="mt-2 text-base font-black text-stone-950 dark:text-white">{money(price)}</div>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );
