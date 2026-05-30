@@ -9,8 +9,10 @@ import {
   Copy,
   CreditCard,
   Database,
+  Download,
   ExternalLink,
   Eye,
+  Filter,
   Globe2,
   Image,
   Layers3,
@@ -18,17 +20,21 @@ import {
   Lock,
   Package,
   PlayCircle,
+  Plus,
   RefreshCw,
   Save,
   Search,
   Settings2,
   ShieldCheck,
   ShoppingCart,
+  SlidersHorizontal,
   Sparkles,
   Store,
   TestTube2,
+  Trash2,
   Truck,
   Undo2,
+  Upload,
   WalletCards,
   Warehouse,
   X,
@@ -79,7 +85,8 @@ const copy = {
     retry: "Retry",
     apiErrorTitle: "Settings could not be loaded",
     apiErrorHint: "Check your connection or backend session, then try again.",
-    missingStoreUrl: "Store URL not configured",
+    previewTitle: "Storefront Preview",
+    close: "Close",
   },
   ar: {
     title: "Settings Center",
@@ -119,7 +126,8 @@ const copy = {
     retry: "Retry",
     apiErrorTitle: "Settings could not be loaded",
     apiErrorHint: "Check your connection or backend session, then try again.",
-    missingStoreUrl: "Store URL not configured",
+    previewTitle: "Storefront Preview",
+    close: "Close",
   },
 };
 
@@ -201,6 +209,17 @@ const sectionMap = {
     ["Meta Integrations", ["ai_channels.meta_integration_enabled", "ai_channels.webhook_url_display", "ai_channels.cloudinary_cloud_name", "ai_channels.cloudinary_api_secret"]],
   ],
 };
+
+const visualStorefrontSections = [
+  "storefront",
+  "identity",
+  "store_identity",
+  "homepage",
+  "catalog",
+  "product_cards",
+  "seo",
+  "marketing",
+];
 
 const legacyAudit = [
   ["Company, language, currency, tax number", "/settings/company, /settings/currencies", "general"],
@@ -337,7 +356,15 @@ function SettingsCenterContent({ debugMode = false }) {
   const [error, setError] = useState("");
   const [lastSaved, setLastSaved] = useState(null);
   const [collectionDraft, setCollectionDraft] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const canViewDebugSettings = useMemo(() => debugSettingsEnabled() || isDeveloperUser(getCurrentUser()), []);
+  const activeSection = activeCategory === "storefront"
+    ? String(params.get("section") || "storefront").trim().toLowerCase().replace(/[\s-]+/g, "_")
+    : activeCategory;
+  const shouldShowPreviewPanel = activeCategory === "storefront" && visualStorefrontSections.includes(activeSection);
+  const settingsGridColumns = shouldShowPreviewPanel
+    ? "lg:grid-cols-[20rem_minmax(0,1fr)] xl:grid-cols-[20rem_minmax(0,1fr)_22rem]"
+    : "lg:grid-cols-[20rem_minmax(0,1fr)]";
 
   const definitions = useMemo(() => settingsByCategory[activeCategory] || [], [activeCategory]);
   const recordMap = useMemo(() => mapByKey(records), [records]);
@@ -382,6 +409,10 @@ function SettingsCenterContent({ debugMode = false }) {
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
+
+  useEffect(() => {
+    if (!shouldShowPreviewPanel) setPreviewOpen(false);
+  }, [shouldShowPreviewPanel]);
 
   useEffect(() => {
     const handler = (event) => {
@@ -484,7 +515,7 @@ function SettingsCenterContent({ debugMode = false }) {
   const hero = safeParseJson(value("storefront.homepage_hero"), {});
   const featuredCollections = Array.isArray(value("storefront.featured_collections")) ? value("storefront.featured_collections") : [];
   const storeUrl = value("storefront.public_url") || "";
-  const storeName = value("storefront.store_name") || "Your Store";
+  const storeName = value("storefront.store_name") || "";
   const logoUrl = value("storefront.store_logo_url");
 
   const quickActions = {
@@ -642,13 +673,15 @@ function SettingsCenterContent({ debugMode = false }) {
                 <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                 <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={ui.search} className="h-11 w-full rounded-2xl border border-slate-200 bg-white pe-3 ps-10 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
               </label>
-              <button type="button" onClick={() => toast.success("Preview refreshed")} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"><Eye className="h-4 w-4" />{ui.preview}</button>
+              {shouldShowPreviewPanel ? (
+                <button type="button" onClick={() => setPreviewOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"><Eye className="h-4 w-4" />{ui.preview}</button>
+              ) : null}
               <button type="button" disabled={!isDirty || saving} onClick={save} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500 dark:text-white">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : ui.save}</button>
             </div>
           </div>
         </header>
 
-        <div className="mt-5 grid min-w-0 max-w-full gap-5 lg:grid-cols-[20rem_minmax(0,1fr)] xl:grid-cols-[20rem_minmax(0,1fr)_22rem]">
+        <div className={`mt-5 grid min-w-0 max-w-full gap-5 ${settingsGridColumns}`}>
           <aside className="lg:sticky lg:top-32 lg:self-start">
             <nav className={`grid gap-2 rounded-[1.75rem] p-2 sm:grid-cols-2 lg:grid-cols-1 ${shellCard}`}>
               {settingsCategories.map((category) => {
@@ -718,6 +751,7 @@ function SettingsCenterContent({ debugMode = false }) {
               <ShippingSettings
                 setting={setting}
                 value={value}
+                language={language}
                 updateValue={updateValue}
                 renderField={renderField}
               />
@@ -736,11 +770,19 @@ function SettingsCenterContent({ debugMode = false }) {
 
           </main>
 
-          <aside className="hidden xl:block xl:sticky xl:top-32 xl:self-start">
-            <PreviewPanel ui={ui} storeName={storeName} storeUrl={storeUrl} logoUrl={logoUrl} hero={hero} values={values} />
-          </aside>
+          {shouldShowPreviewPanel ? (
+            <aside className="hidden xl:block xl:sticky xl:top-32 xl:self-start">
+              <PreviewPanel storeName={storeName} storeUrl={storeUrl} logoUrl={logoUrl} hero={hero} />
+            </aside>
+          ) : null}
         </div>
       </div>
+
+      {shouldShowPreviewPanel && previewOpen ? (
+        <PreviewDrawer ui={ui} onClose={() => setPreviewOpen(false)}>
+          <PreviewPanel storeName={storeName} storeUrl={storeUrl} logoUrl={logoUrl} hero={hero} />
+        </PreviewDrawer>
+      ) : null}
 
       {isDirty ? (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 py-3 shadow-[0_-18px_48px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 dark:shadow-[0_-18px_48px_rgba(0,0,0,0.45)]">
@@ -760,6 +802,8 @@ function SettingsCenterContent({ debugMode = false }) {
 function StorefrontSettings(props) {
   const { ui, setting, value, hero, featuredCollections, collectionDraft, setCollectionDraft, updateValue, updateHero, renderInput, renderField } = props;
   const publicUrl = value("storefront.public_url");
+  const hasHeroPreview = Boolean(hero.imageUrl || hero.title || hero.subtitle || hero.buttonText);
+  const hasSeoPreview = Boolean(publicUrl || value("storefront.seo_title") || value("storefront.store_name") || value("storefront.seo_description"));
   return (
     <div className="grid gap-5">
       <VisualSection icon={Store} title="Store Identity" description="Name, URL, logo, and browser identity for the public store.">
@@ -780,16 +824,18 @@ function StorefrontSettings(props) {
           <PremiumInput label="Hero Button URL" value={hero.buttonUrl || ""} onChange={(next) => updateHero({ buttonUrl: next })} />
           <VisualUpload title="Hero Image Upload" value={hero.imageUrl || ""} onChange={(next) => updateHero({ imageUrl: next })} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} wide />
         </div>
-        <div className="mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 text-white dark:border-white/10">
-          <HeroBackdrop imageUrl={hero.imageUrl} className="min-h-56 p-6">
-            <div>
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-white/50">Live homepage preview</div>
-              <h3 className="mt-2 text-3xl font-black">{hero.title || "Hero title"}</h3>
-              <p className="mt-2 max-w-xl text-sm text-white/70">{hero.subtitle || "Hero subtitle appears here."}</p>
-              <button type="button" className="mt-4 rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950">{hero.buttonText || "Shop now"}</button>
-            </div>
-          </HeroBackdrop>
-        </div>
+        {hasHeroPreview ? (
+          <div className="mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 text-white dark:border-white/10">
+            <HeroBackdrop imageUrl={hero.imageUrl} className="min-h-56 p-6">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-white/50">Live homepage preview</div>
+                {hero.title ? <h3 className="mt-2 text-3xl font-black">{hero.title}</h3> : null}
+                {hero.subtitle ? <p className="mt-2 max-w-xl text-sm text-white/70">{hero.subtitle}</p> : null}
+                {hero.buttonText ? <button type="button" className="mt-4 rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950">{hero.buttonText}</button> : null}
+              </div>
+            </HeroBackdrop>
+          </div>
+        ) : null}
       </VisualSection>
 
       <VisualSection icon={Package} title="Catalog" description="Control how customers browse and interact with products.">
@@ -817,11 +863,13 @@ function StorefrontSettings(props) {
           {renderField(setting("storefront.seo_description"), true)}
           <VisualUpload title="Open Graph Image Upload" value={value("storefront.open_graph_image_url")} onChange={(next) => updateValue("storefront.open_graph_image_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} wide />
         </div>
-        <div className={`mt-4 rounded-2xl p-4 ${fieldSurface}`}>
-          <div className="text-xs text-emerald-700">{publicUrl || ui.missingStoreUrl}</div>
-          <div className="mt-1 text-lg font-medium text-blue-700">{value("storefront.seo_title") || value("storefront.store_name") || "Store SEO title"}</div>
-          <p className={`mt-1 max-w-2xl text-sm ${bodyText}`}>{value("storefront.seo_description") || "Search result description preview appears here."}</p>
-        </div>
+        {hasSeoPreview ? (
+          <div className={`mt-4 rounded-2xl p-4 ${fieldSurface}`}>
+            {publicUrl ? <div className="text-xs text-emerald-700">{publicUrl}</div> : null}
+            {value("storefront.seo_title") || value("storefront.store_name") ? <div className="mt-1 text-lg font-medium text-blue-700">{value("storefront.seo_title") || value("storefront.store_name")}</div> : null}
+            {value("storefront.seo_description") ? <p className={`mt-1 max-w-2xl text-sm ${bodyText}`}>{value("storefront.seo_description")}</p> : null}
+          </div>
+        ) : null}
       </VisualSection>
 
       <VisualSection icon={Layers3} title="Marketing" description="Tracking IDs used by campaigns and catalog integrations.">
@@ -836,43 +884,46 @@ function StorefrontSettings(props) {
   );
 }
 
-function ShippingSettings({ setting, value, updateValue, renderField }) {
+function ShippingSettings({ setting, value, language, updateValue, renderField }) {
   const zones = useMemo(() => (Array.isArray(value("storefront.shipping_zones")) ? value("storefront.shipping_zones") : []).map(normalizeShippingZoneRow), [value]);
   const defaultPrice = Number(value("storefront.default_shipping_price") || 0);
   const activeZones = zones.filter((zone) => zone.active).length;
   const codZones = zones.filter((zone) => zone.cod_allowed).length;
+  const proofZones = zones.filter((zone) => zone.requires_shipping_proof).length;
   const freeShippingRules = zones.filter((zone) => Number(zone.free_shipping_threshold || 0) > 0).length;
+  const copy = shippingUi[language] || shippingUi.en;
 
   return (
     <div className="grid gap-5">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryTile icon={Truck} label="Default Shipping Price" value={`${defaultPrice.toLocaleString()} EGP`} />
-        <SummaryTile icon={Check} label="Active Zones" value={activeZones} />
-        <SummaryTile icon={WalletCards} label="COD Zones" value={codZones} />
-        <SummaryTile icon={Package} label="Free Shipping Rules" value={freeShippingRules} />
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-5">
+        <SummaryTile icon={Truck} label={copy.defaultPrice} value={`${defaultPrice.toLocaleString()} EGP`} />
+        <SummaryTile icon={Check} label={copy.activeZones} value={activeZones} />
+        <SummaryTile icon={WalletCards} label={copy.codZones} value={codZones} />
+        <SummaryTile icon={ShieldCheck} label={copy.proofZones} value={proofZones} />
+        <SummaryTile icon={Package} label={copy.freeRules} value={freeShippingRules} />
       </div>
 
-      <VisualSection icon={Truck} title="Shipping Overview" description="Default fallback and the zone matrix that checkout uses for governorate, city, and area matching.">
+      <VisualSection icon={Truck} title={copy.overviewTitle} description={copy.overviewDescription}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.default_shipping_price"), true)}
           {renderField(setting("orders.shipping_rule_engine_enabled"), true)}
         </div>
       </VisualSection>
 
-      <VisualSection icon={Layers3} title="Shipping Zones" description="Exact area rows win first, then city/markaz rows, then governorate rows, then the default price.">
-        <ShippingZonesEditor value={zones} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
+      <VisualSection icon={Layers3} title={copy.zonesTitle} description={copy.zonesDescription}>
+        <ShippingZonesEditor value={zones} language={language} defaultPrice={defaultPrice} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
       </VisualSection>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <VisualSection icon={WalletCards} title="COD Rules" description="Global COD availability plus per-zone COD controls in the zone matrix.">
-          <p className={`text-sm leading-6 ${bodyText}`}>Global cash-on-delivery is configured in Payments. Zone-level COD exceptions are controlled directly inside Shipping Zones.</p>
+        <VisualSection icon={WalletCards} title={copy.codTitle} description={copy.codDescription}>
+          <p className={`text-sm leading-6 ${bodyText}`}>{copy.codBody}</p>
         </VisualSection>
-        <VisualSection icon={ShieldCheck} title="Shipping Proof Rules" description="Use the per-zone proof toggle to require or skip shipping payment proof for each area.">
-          <p className={`text-sm leading-6 ${bodyText}`}>Proof rules are controlled directly inside Shipping Zones so Damietta, city, and district exceptions stay visible beside their prices.</p>
+        <VisualSection icon={ShieldCheck} title={copy.proofTitle} description={copy.proofDescription}>
+          <p className={`text-sm leading-6 ${bodyText}`}>{copy.proofBody}</p>
         </VisualSection>
       </div>
 
-      <VisualSection icon={Package} title="Shipping Providers" description="Default provider and carrier credentials for future automatic shipment creation.">
+      <VisualSection icon={Package} title={copy.providersTitle} description={copy.providersDescription}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("orders.shipping_provider"), true)}
           {renderField(setting("orders.shipping_auto_create_ready_to_ship"), true)}
@@ -901,17 +952,148 @@ function SummaryTile({ icon: Icon, label, value }) {
   );
 }
 
-const shippingZonePresets = [
-  { id: "damietta", governorate: "Damietta", city: "", area: "", price: 45, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", active: true },
-  { id: "new-damietta", governorate: "Damietta", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", active: true },
-  { id: "cairo", governorate: "Cairo", city: "", area: "", price: 70, cod_allowed: false, requires_shipping_proof: true, estimated_delivery_text: "2-4 business days", active: true },
-  { id: "giza", governorate: "Giza", city: "", area: "", price: 70, cod_allowed: false, requires_shipping_proof: true, estimated_delivery_text: "2-4 business days", active: true },
-  { id: "alexandria", governorate: "Alexandria", city: "", area: "", price: 75, cod_allowed: false, requires_shipping_proof: true, estimated_delivery_text: "2-5 business days", active: true },
+const shippingUi = {
+  en: {
+    defaultPrice: "Default shipping price",
+    activeZones: "Active zones",
+    codZones: "COD zones",
+    proofZones: "Proof required",
+    freeRules: "Free shipping rules",
+    overviewTitle: "Shipping Overview",
+    overviewDescription: "Default fallback and operational rules used by storefront checkout.",
+    zonesTitle: "Shipping Zones",
+    zonesDescription: "Exact area rows win first, then city/markaz rows, then governorate rows, then the default price.",
+    codTitle: "COD Rules",
+    codDescription: "Global COD availability plus per-zone COD controls in the zone matrix.",
+    codBody: "Global cash-on-delivery is configured in Payments. Zone-level COD exceptions are controlled directly inside Shipping Zones.",
+    proofTitle: "Shipping Proof Rules",
+    proofDescription: "Use the per-zone proof toggle to require or skip shipping payment proof for each area.",
+    proofBody: "Proof rules are controlled directly inside Shipping Zones so Damietta, city, and district exceptions stay visible beside their prices.",
+    providersTitle: "Shipping Providers",
+    providersDescription: "Default provider and carrier credentials for future automatic shipment creation.",
+    search: "Search governorate, city, area, provider",
+    allGovernorates: "Add all Egypt governorates",
+    addZone: "Add zone",
+    import: "Import",
+    export: "Export",
+    bulk: "Bulk update",
+    governorateFilter: "Governorate",
+    all: "All",
+    selected: "selected",
+    quickTitle: "Quick zone creation",
+    createGovernorate: "Governorate only",
+    createCity: "Governorate + city",
+    createArea: "Governorate + city + area",
+    bulkPrice: "Set selected price",
+    bulkEstimate: "Set delivery estimate",
+    enableCod: "Enable COD",
+    disableCod: "Disable COD",
+    requireProof: "Require proof",
+    skipProof: "Proof not required",
+    deleteSelected: "Delete selected",
+    empty: "No shipping zones match the current filters.",
+    seeded: "Egypt governorates added",
+    headers: ["Governorate", "City / Markaz", "Area / District", "Price", "COD", "Proof", "ETA", "Provider", "Free over", "Min COD", "Active", ""],
+  },
+  ar: {
+    defaultPrice: "سعر الشحن الافتراضي",
+    activeZones: "المناطق المفعلة",
+    codZones: "الدفع عند الاستلام",
+    proofZones: "مطلوب إثبات",
+    freeRules: "قواعد الشحن المجاني",
+    overviewTitle: "ملخص الشحن",
+    overviewDescription: "سعر احتياطي وقواعد تشغيل يستخدمها الدفع في المتجر.",
+    zonesTitle: "مناطق الشحن",
+    zonesDescription: "تطابق المنطقة أولا، ثم المدينة/المركز، ثم المحافظة، ثم السعر الافتراضي.",
+    codTitle: "قواعد الدفع عند الاستلام",
+    codDescription: "إعداد عام للدفع عند الاستلام مع استثناءات لكل منطقة.",
+    codBody: "الإعداد العام موجود في المدفوعات. الاستثناءات حسب المنطقة تظهر مباشرة داخل جدول الشحن.",
+    proofTitle: "قواعد إثبات دفع الشحن",
+    proofDescription: "استخدم مفتاح الإثبات لكل منطقة لتحديد هل مطلوب صورة تحويل أم لا.",
+    proofBody: "قواعد الإثبات داخل مناطق الشحن لتبقى استثناءات دمياط والمدن والمناطق واضحة بجانب السعر.",
+    providersTitle: "شركات الشحن",
+    providersDescription: "شركة الشحن الافتراضية وبيانات التكامل لإنشاء الشحنات لاحقا.",
+    search: "بحث بالمحافظة أو المدينة أو المنطقة أو الشركة",
+    allGovernorates: "إضافة كل محافظات مصر",
+    addZone: "إضافة منطقة",
+    import: "استيراد",
+    export: "تصدير",
+    bulk: "تحديث جماعي",
+    governorateFilter: "المحافظة",
+    all: "الكل",
+    selected: "محدد",
+    quickTitle: "إضافة سريعة",
+    createGovernorate: "محافظة فقط",
+    createCity: "محافظة + مدينة",
+    createArea: "محافظة + مدينة + منطقة",
+    bulkPrice: "تحديد سعر المختار",
+    bulkEstimate: "تحديد مدة التوصيل",
+    enableCod: "تفعيل COD",
+    disableCod: "إيقاف COD",
+    requireProof: "طلب إثبات",
+    skipProof: "بدون إثبات",
+    deleteSelected: "حذف المختار",
+    empty: "لا توجد مناطق شحن مطابقة للفلاتر الحالية.",
+    seeded: "تمت إضافة محافظات مصر",
+    headers: ["المحافظة", "المدينة / المركز", "المنطقة / الحي", "السعر", "COD", "إثبات", "المدة", "الشركة", "مجاني بعد", "حد COD", "مفعل", ""],
+  },
+};
+
+const egyptGovernorates = [
+  ["cairo", "Cairo", "القاهرة", 70, false, true, "2-4 business days"],
+  ["giza", "Giza", "الجيزة", 70, false, true, "2-4 business days"],
+  ["alexandria", "Alexandria", "الإسكندرية", 75, false, true, "2-5 business days"],
+  ["dakahlia", "Dakahlia", "الدقهلية", 75, false, true, "2-5 business days"],
+  ["red-sea", "Red Sea", "البحر الأحمر", 90, false, true, "3-6 business days"],
+  ["beheira", "Beheira", "البحيرة", 75, false, true, "2-5 business days"],
+  ["fayoum", "Fayoum", "الفيوم", 80, false, true, "2-5 business days"],
+  ["gharbia", "Gharbia", "الغربية", 75, false, true, "2-5 business days"],
+  ["ismailia", "Ismailia", "الإسماعيلية", 75, false, true, "2-5 business days"],
+  ["menofia", "Menofia", "المنوفية", 75, false, true, "2-5 business days"],
+  ["minya", "Minya", "المنيا", 85, false, true, "3-6 business days"],
+  ["qalyubia", "Qalyubia", "القليوبية", 70, false, true, "2-4 business days"],
+  ["new-valley", "New Valley", "الوادي الجديد", 95, false, true, "4-7 business days"],
+  ["suez", "Suez", "السويس", 75, false, true, "2-5 business days"],
+  ["aswan", "Aswan", "أسوان", 90, false, true, "3-6 business days"],
+  ["assiut", "Assiut", "أسيوط", 85, false, true, "3-6 business days"],
+  ["beni-suef", "Beni Suef", "بني سويف", 80, false, true, "2-5 business days"],
+  ["port-said", "Port Said", "بورسعيد", 75, false, true, "2-5 business days"],
+  ["damietta", "Damietta", "دمياط", 45, true, false, "1-2 business days"],
+  ["sharqia", "Sharqia", "الشرقية", 75, false, true, "2-5 business days"],
+  ["south-sinai", "South Sinai", "جنوب سيناء", 95, false, true, "4-7 business days"],
+  ["kafr-el-sheikh", "Kafr El Sheikh", "كفر الشيخ", 75, false, true, "2-5 business days"],
+  ["matrouh", "Matrouh", "مطروح", 90, false, true, "3-6 business days"],
+  ["luxor", "Luxor", "الأقصر", 90, false, true, "3-6 business days"],
+  ["qena", "Qena", "قنا", 90, false, true, "3-6 business days"],
+  ["north-sinai", "North Sinai", "شمال سيناء", 95, false, true, "4-7 business days"],
+  ["sohag", "Sohag", "سوهاج", 90, false, true, "3-6 business days"],
 ];
+
+const shippingZonePresets = [
+  ...egyptGovernorates.map(([id, governorate, arabic_alias, price, cod_allowed, requires_shipping_proof, estimated_delivery_text]) => ({
+    id,
+    governorate,
+    arabic_alias,
+    city: "",
+    area: "",
+    price,
+    cod_allowed,
+    requires_shipping_proof,
+    estimated_delivery_text,
+    provider: "manual",
+    free_shipping_threshold: 0,
+    minimum_order_for_cod: 0,
+    active: true,
+  })),
+  { id: "new-damietta", governorate: "Damietta", arabic_alias: "دمياط الجديدة", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "manual", free_shipping_threshold: 0, minimum_order_for_cod: 0, active: true },
+];
+
+const normalizeZoneKey = (value = "") => String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
 
 const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   id: String(zone.id || `zone-${Date.now()}-${index}`).trim(),
   governorate: String(zone.governorate || "").trim(),
+  arabic_alias: String(zone.arabic_alias || zone.arabicAlias || "").trim(),
   city: String(zone.city || zone.markaz || "").trim(),
   area: String(zone.area || zone.district || "").trim(),
   price: Number.isFinite(Number(zone.price ?? zone.shipping_price)) ? Number(zone.price ?? zone.shipping_price) : 0,
@@ -924,30 +1106,74 @@ const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   active: zone.active !== false,
 });
 
-function ShippingZonesEditor({ value, onChange }) {
+function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
+  const copy = shippingUi[language] || shippingUi.en;
   const [query, setQuery] = useState("");
+  const [governorateFilter, setGovernorateFilter] = useState("");
   const [selected, setSelected] = useState([]);
   const [bulkPrice, setBulkPrice] = useState("");
+  const [bulkEstimate, setBulkEstimate] = useState("");
+  const [draft, setDraft] = useState({ governorate: "Cairo", city: "", area: "", price: defaultPrice || 0 });
   const zones = useMemo(() => (Array.isArray(value) ? value : []).map(normalizeShippingZoneRow), [value]);
   const normalizedQuery = query.trim().toLowerCase();
-  const visibleZones = zones.filter((zone) => !normalizedQuery || [zone.governorate, zone.city, zone.area, zone.estimated_delivery_text].join(" ").toLowerCase().includes(normalizedQuery));
+  const governorateOptions = useMemo(() => Array.from(new Set([...egyptGovernorates.map(([, name]) => name), ...zones.map((zone) => zone.governorate).filter(Boolean)])).sort(), [zones]);
+  const visibleZones = zones.filter((zone) => {
+    const matchesQuery = !normalizedQuery || [zone.governorate, zone.arabic_alias, zone.city, zone.area, zone.provider, zone.estimated_delivery_text].join(" ").toLowerCase().includes(normalizedQuery);
+    const matchesGovernorate = !governorateFilter || normalizeZoneKey(zone.governorate) === normalizeZoneKey(governorateFilter);
+    return matchesQuery && matchesGovernorate;
+  });
   const selectedSet = new Set(selected);
+  const selectedCount = selected.filter((id) => zones.some((zone) => zone.id === id)).length;
 
   const updateRows = (next) => onChange(next.map(normalizeShippingZoneRow));
   const patchRow = (id, patch) => updateRows(zones.map((zone) => (zone.id === id ? { ...zone, ...patch } : zone)));
-  const addRow = () => updateRows([...zones, normalizeShippingZoneRow({ governorate: "", price: 60 }, zones.length)]);
+  const addRow = (scope = "governorate") => {
+    const selectedGovernorate = egyptGovernorates.find(([, name]) => name === draft.governorate);
+    const [, governorate = draft.governorate, arabic_alias = ""] = selectedGovernorate || [];
+    const row = normalizeShippingZoneRow({
+      id: `zone-${Date.now()}-${zones.length}`,
+      governorate,
+      arabic_alias,
+      city: scope === "city" || scope === "area" ? draft.city : "",
+      area: scope === "area" ? draft.area : "",
+      price: Number.isFinite(Number(draft.price)) ? Number(draft.price) : defaultPrice || 0,
+      cod_allowed: governorate === "Damietta",
+      requires_shipping_proof: governorate !== "Damietta",
+      estimated_delivery_text: governorate === "Damietta" ? "1-2 business days" : "2-5 business days",
+      provider: "manual",
+      active: true,
+    }, zones.length);
+    updateRows([...zones, row]);
+    setDraft((current) => ({ ...current, city: "", area: "" }));
+  };
   const deleteRow = (id) => {
     updateRows(zones.filter((zone) => zone.id !== id));
     setSelected((current) => current.filter((item) => item !== id));
   };
-  const addPresets = () => {
-    const existing = new Set(zones.map((zone) => zone.id));
-    updateRows([...zones, ...shippingZonePresets.filter((zone) => !existing.has(zone.id))]);
+  const addAllGovernorates = () => {
+    const existing = new Set(zones.filter((zone) => !zone.city && !zone.area).map((zone) => normalizeZoneKey(zone.governorate)));
+    const missing = shippingZonePresets.filter((zone) => !zone.city && !existing.has(normalizeZoneKey(zone.governorate)));
+    updateRows([...zones, ...missing]);
+    toast.success(copy.seeded);
+  };
+  const applyToSelected = (patch) => {
+    if (!selectedCount) return;
+    updateRows(zones.map((zone) => (selectedSet.has(zone.id) ? { ...zone, ...patch } : zone)));
   };
   const applyBulkPrice = () => {
     const price = Number(bulkPrice);
-    if (!Number.isFinite(price) || price < 0 || !selected.length) return;
-    updateRows(zones.map((zone) => (selectedSet.has(zone.id) ? { ...zone, price } : zone)));
+    if (!Number.isFinite(price) || price < 0 || !selectedCount) return;
+    applyToSelected({ price });
+  };
+  const applyBulkEstimate = () => {
+    const estimated_delivery_text = bulkEstimate.trim();
+    if (!estimated_delivery_text || !selectedCount) return;
+    applyToSelected({ estimated_delivery_text });
+  };
+  const deleteSelected = () => {
+    if (!selectedCount) return;
+    updateRows(zones.filter((zone) => !selectedSet.has(zone.id)));
+    setSelected([]);
   };
   const exportZones = () => {
     const blob = new Blob([JSON.stringify(zones, null, 2)], { type: "application/json" });
@@ -979,78 +1205,125 @@ function ShippingZonesEditor({ value, onChange }) {
           cod_allowed: !["false", "0", "no"].includes(String(row.cod_allowed || "").toLowerCase()),
           requires_shipping_proof: !["false", "0", "no"].includes(String(row.requires_shipping_proof || "").toLowerCase()),
           estimated_delivery_text: row.estimated_delivery_text || row.eta,
+          arabic_alias: row.arabic_alias || row.alias_ar,
+          provider: row.provider || "manual",
+          free_shipping_threshold: row.free_shipping_threshold,
+          minimum_order_for_cod: row.minimum_order_for_cod,
           active: !["false", "0", "no"].includes(String(row.active || "").toLowerCase()),
         });
       });
       updateRows(rows);
     }
   };
+  const toggleVisibleSelection = (checked) => setSelected(checked ? Array.from(new Set([...selected, ...visibleZones.map((zone) => zone.id)])) : selected.filter((id) => !visibleZones.some((zone) => zone.id === id)));
 
   return (
-    <article className={`rounded-2xl p-4 ${fieldSurface}`}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h3 className={`text-sm font-black ${headingText}`}>Shipping zones</h3>
-          <p className={`mt-1 text-xs ${bodyText}`}>Exact area rows win first, then city rows, then governorate rows.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={addRow} className="h-10 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-white dark:text-slate-950">Add zone</button>
-          <button type="button" onClick={addPresets} className="h-10 rounded-2xl border border-slate-200 px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:text-slate-200">Add presets</button>
-          <button type="button" onClick={exportZones} className="h-10 rounded-2xl border border-slate-200 px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:text-slate-200">Export</button>
-          <label className="inline-flex h-10 cursor-pointer items-center rounded-2xl border border-slate-200 px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:text-slate-200">
-            Import
-            <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
+    <article className="grid gap-4">
+      <div className={`rounded-3xl p-4 ${fieldSurface}`}>
+        <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(180px,0.45fr)_auto]">
+          <label className="relative min-w-0">
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} className={`${inputClass} ps-10`} />
           </label>
+          <label className="relative min-w-0">
+            <Filter className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <select value={governorateFilter} onChange={(event) => setGovernorateFilter(event.target.value)} className={`${inputClass} ps-10`}>
+              <option value="">{copy.governorateFilter}: {copy.all}</option>
+              {governorateOptions.map((governorate) => <option key={governorate} value={governorate}>{governorate}</option>)}
+            </select>
+          </label>
+          <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
+            <button type="button" onClick={addAllGovernorates} className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" />{copy.allGovernorates}</button>
+            <button type="button" onClick={exportZones} className="inline-flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"><Download className="h-4 w-4" />{copy.export}</button>
+            <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+              <Upload className="h-4 w-4" />
+              {copy.import}
+              <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
+            </label>
+          </div>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search governorate, city, or area" className={`${inputClass} pl-9`} />
+
+      <div className={`rounded-3xl p-4 ${fieldSurface}`}>
+        <div className="mb-3 flex items-center gap-2">
+          <Plus className="h-4 w-4 text-slate-500" />
+          <h3 className={`text-sm font-black ${headingText}`}>{copy.quickTitle}</h3>
         </div>
-        <div className="flex gap-2">
-          <input type="number" min="0" value={bulkPrice} onChange={(event) => setBulkPrice(event.target.value)} placeholder="Bulk price" className={`${inputClass} w-32`} />
-          <button type="button" onClick={applyBulkPrice} disabled={!selected.length} className="h-12 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">Apply</button>
+        <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_9rem_auto]">
+          <select value={draft.governorate} onChange={(event) => setDraft((current) => ({ ...current, governorate: event.target.value }))} className={inputClass}>
+            {egyptGovernorates.map(([, name, ar]) => <option key={name} value={name}>{name} / {ar}</option>)}
+          </select>
+          <input value={draft.city} onChange={(event) => setDraft((current) => ({ ...current, city: event.target.value }))} placeholder="City / Markaz" className={inputClass} />
+          <input value={draft.area} onChange={(event) => setDraft((current) => ({ ...current, area: event.target.value }))} placeholder="Area / District" className={inputClass} />
+          <input type="number" min="0" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} placeholder="Price" className={inputClass} />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => addRow("governorate")} className="h-12 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-white dark:text-slate-950">{copy.createGovernorate}</button>
+            <button type="button" onClick={() => addRow("city")} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.createCity}</button>
+            <button type="button" onClick={() => addRow("area")} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.createArea}</button>
+          </div>
         </div>
       </div>
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 dark:border-white/10">
-        <table className="min-w-[980px] w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+
+      <div className={`rounded-3xl p-4 ${fieldSurface}`}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex items-center gap-2 text-xs font-black text-slate-500 dark:text-slate-400">
+            <SlidersHorizontal className="h-4 w-4" />
+            {copy.bulk}: {selectedCount} {copy.selected}
+          </div>
+          <button type="button" onClick={deleteSelected} disabled={!selectedCount} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-rose-200 bg-white px-3 text-xs font-black text-rose-600 disabled:opacity-40 dark:border-rose-400/25 dark:bg-white/5 dark:text-rose-200"><Trash2 className="h-4 w-4" />{copy.deleteSelected}</button>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_auto_minmax(12rem,1fr)_auto_auto_auto_auto]">
+          <input type="number" min="0" value={bulkPrice} onChange={(event) => setBulkPrice(event.target.value)} placeholder={copy.bulkPrice} className={inputClass} />
+          <button type="button" onClick={applyBulkPrice} disabled={!selectedCount} className="h-12 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkPrice}</button>
+          <input value={bulkEstimate} onChange={(event) => setBulkEstimate(event.target.value)} placeholder={copy.bulkEstimate} className={inputClass} />
+          <button type="button" onClick={applyBulkEstimate} disabled={!selectedCount} className="h-12 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkEstimate}</button>
+          <button type="button" onClick={() => applyToSelected({ cod_allowed: true })} disabled={!selectedCount} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.enableCod}</button>
+          <button type="button" onClick={() => applyToSelected({ cod_allowed: false })} disabled={!selectedCount} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.disableCod}</button>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: true })} disabled={!selectedCount} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.requireProof}</button>
+            <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: false })} disabled={!selectedCount} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.skipProof}</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
+        <table className="w-full min-w-[1320px] text-start text-sm">
+          <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500 dark:bg-white/[0.04] dark:text-slate-400">
             <tr>
-              <th className="w-10 px-3 py-3" />
-              {["Governorate", "City / Markaz", "Area / District", "Price", "COD", "Proof", "Estimated delivery", "Provider", "Free over", "Min COD", "Active", ""].map((header) => <th key={header} className="px-3 py-3">{header}</th>)}
+              <th className="w-12 px-4 py-4"><input type="checkbox" checked={visibleZones.length > 0 && visibleZones.every((zone) => selectedSet.has(zone.id))} onChange={(event) => toggleVisibleSelection(event.target.checked)} /></th>
+              {copy.headers.map((header) => <th key={header} className="px-4 py-4">{header}</th>)}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-white/10">
             {visibleZones.map((zone) => (
-              <tr key={zone.id} className="bg-white dark:bg-slate-900/70">
-                <td className="px-3 py-2">
+              <tr key={zone.id} className="bg-white transition hover:bg-slate-50 dark:bg-transparent dark:hover:bg-white/[0.035]">
+                <td className="px-4 py-3">
                   <input type="checkbox" checked={selectedSet.has(zone.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))} />
                 </td>
-                <td className="px-3 py-2"><input value={zone.governorate} onChange={(event) => patchRow(zone.id, { governorate: event.target.value })} className={inputClass} /></td>
-                <td className="px-3 py-2"><input value={zone.city} onChange={(event) => patchRow(zone.id, { city: event.target.value })} className={inputClass} /></td>
-                <td className="px-3 py-2"><input value={zone.area} onChange={(event) => patchRow(zone.id, { area: event.target.value })} className={inputClass} /></td>
-                <td className="px-3 py-2"><input type="number" min="0" value={zone.price} onChange={(event) => patchRow(zone.id, { price: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
+                <td className="px-4 py-3"><input value={zone.governorate} onChange={(event) => patchRow(zone.id, { governorate: event.target.value })} className={`${inputClass} min-w-40`} /></td>
+                <td className="px-4 py-3"><input value={zone.city} onChange={(event) => patchRow(zone.id, { city: event.target.value })} className={`${inputClass} min-w-40`} /></td>
+                <td className="px-4 py-3"><input value={zone.area} onChange={(event) => patchRow(zone.id, { area: event.target.value })} className={`${inputClass} min-w-40`} /></td>
+                <td className="px-4 py-3"><input type="number" min="0" value={zone.price} onChange={(event) => patchRow(zone.id, { price: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
                 {["cod_allowed", "requires_shipping_proof"].map((key) => (
-                  <td key={key} className="px-3 py-2 text-center">
+                  <td key={key} className="px-4 py-3 text-center">
                     <input type="checkbox" checked={Boolean(zone[key])} onChange={(event) => patchRow(zone.id, { [key]: event.target.checked })} />
                   </td>
                 ))}
-                <td className="px-3 py-2"><input value={zone.estimated_delivery_text} onChange={(event) => patchRow(zone.id, { estimated_delivery_text: event.target.value })} className={inputClass} /></td>
-                <td className="px-3 py-2"><input value={zone.provider} onChange={(event) => patchRow(zone.id, { provider: event.target.value })} className={`${inputClass} w-32`} /></td>
-                <td className="px-3 py-2"><input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
-                <td className="px-3 py-2"><input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => patchRow(zone.id, { minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
-                <td className="px-3 py-2 text-center">
+                <td className="px-4 py-3"><input value={zone.estimated_delivery_text} onChange={(event) => patchRow(zone.id, { estimated_delivery_text: event.target.value })} className={`${inputClass} min-w-44`} /></td>
+                <td className="px-4 py-3"><input value={zone.provider} onChange={(event) => patchRow(zone.id, { provider: event.target.value })} className={`${inputClass} w-32`} /></td>
+                <td className="px-4 py-3"><input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
+                <td className="px-4 py-3"><input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => patchRow(zone.id, { minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
+                <td className="px-4 py-3 text-center">
                   <input type="checkbox" checked={Boolean(zone.active)} onChange={(event) => patchRow(zone.id, { active: event.target.checked })} />
                 </td>
-                <td className="px-3 py-2">
-                  <button type="button" onClick={() => deleteRow(zone.id)} className="grid h-10 w-10 place-items-center rounded-2xl border border-rose-200 text-rose-600 dark:border-rose-400/25 dark:text-rose-200" aria-label="Delete zone"><X className="h-4 w-4" /></button>
+                <td className="px-4 py-3">
+                  <button type="button" onClick={() => deleteRow(zone.id)} className="grid h-10 w-10 place-items-center rounded-2xl border border-rose-200 text-rose-600 dark:border-rose-400/25 dark:text-rose-200" aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {!visibleZones.length ? <div className={`p-5 text-sm font-bold ${bodyText}`}>No shipping zones match the current filter.</div> : null}
+        {!visibleZones.length ? <div className={`p-8 text-center text-sm font-bold ${bodyText}`}>{copy.empty}</div> : null}
       </div>
     </article>
   );
@@ -1191,39 +1464,57 @@ function HeroBackdrop({ imageUrl, className = "", children }) {
   );
 }
 
-function PreviewPanel({ ui, storeName, storeUrl, logoUrl, hero, values }) {
+function PreviewDrawer({ ui, onClose, children }) {
+  return (
+    <div className="fixed inset-0 z-40">
+      <button type="button" aria-label={ui.close} onClick={onClose} className="absolute inset-0 h-full w-full bg-slate-950/45 backdrop-blur-sm" />
+      <aside className="absolute inset-y-0 end-0 flex w-full max-w-xl flex-col border-slate-200 bg-[#f6f8fb] shadow-[-24px_0_80px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-[#050816] dark:shadow-[-24px_0_80px_rgba(0,0,0,0.5)] sm:border-s">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-white/10">
+          <div>
+            <div className={`text-xs font-black uppercase tracking-[0.16em] ${mutedText}`}>{ui.preview}</div>
+            <h2 className={`mt-1 text-xl font-black ${headingText}`}>{ui.previewTitle}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="grid h-11 w-11 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">{children}</div>
+      </aside>
+    </div>
+  );
+}
+
+function PreviewPanel({ storeName, storeUrl, logoUrl, hero }) {
+  const hasHeroContent = Boolean(hero.imageUrl || hero.title || hero.subtitle);
+  const hasIdentityContent = Boolean(storeName || storeUrl || logoUrl);
+  if (!hasIdentityContent && !hasHeroContent) return null;
+
   return (
     <div className={`overflow-hidden rounded-[1.75rem] ${shellCard}`}>
-      <div className="border-b border-slate-100 p-4 dark:border-white/10">
-        <div className={`text-xs font-black uppercase tracking-[0.16em] ${mutedText}`}>Preview</div>
-        <div className="mt-3 flex items-center gap-3">
-          <LogoAvatar src={logoUrl} name={storeName} />
-          <div className="min-w-0">
-            <div className={`truncate text-sm font-black ${headingText}`}>{storeName}</div>
-            <div className={`truncate text-xs ${mutedText}`}>{storeUrl || ui.missingStoreUrl}</div>
-          </div>
-        </div>
-      </div>
-      <div className="p-4">
-        <div className="overflow-hidden rounded-3xl bg-slate-950 text-white">
-          <HeroBackdrop imageUrl={hero.imageUrl} className="min-h-44 p-4">
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/45">Homepage</div>
-              <div className="mt-1 text-lg font-black">{hero.title || "Hero title"}</div>
-              <p className="mt-1 line-clamp-2 text-xs text-white/65">{hero.subtitle || "Subtitle preview"}</p>
+      {hasIdentityContent ? (
+        <div className="border-b border-slate-100 p-4 dark:border-white/10">
+          <div className="mt-3 flex items-center gap-3">
+            {logoUrl || storeName ? <LogoAvatar src={logoUrl} name={storeName} /> : null}
+            <div className="min-w-0">
+              {storeName ? <div className={`truncate text-sm font-black ${headingText}`}>{storeName}</div> : null}
+              {storeUrl ? <div className={`truncate text-xs ${mutedText}`}>{storeUrl}</div> : null}
             </div>
-          </HeroBackdrop>
-        </div>
-        <div className={`mt-4 rounded-3xl p-3 ${fieldSurface}`}>
-          <div className="aspect-[4/3] rounded-2xl bg-slate-100 dark:bg-slate-950" />
-          <div className={`mt-3 text-sm font-black ${headingText}`}>Product preview</div>
-          <div className={`mt-1 text-xs ${bodyText}`}>{values["storefront.show_low_stock_badge"] ? "Low stock badge on" : "Low stock badge off"}</div>
-          <div className={`mt-3 flex items-center justify-between text-xs font-black ${bodyText}`}>
-            <span>{values["storefront.enable_wishlist"] ? "Wishlist" : "No wishlist"}</span>
-            <span>{values["storefront.enable_product_sharing"] ? "Share" : "Private"}</span>
           </div>
         </div>
-      </div>
+      ) : null}
+      {hasHeroContent ? (
+        <div className="p-4">
+          <div className="overflow-hidden rounded-3xl bg-slate-950 text-white">
+            <HeroBackdrop imageUrl={hero.imageUrl} className="min-h-44 p-4">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/45">Homepage</div>
+                {hero.title ? <div className="mt-1 text-lg font-black">{hero.title}</div> : null}
+                {hero.subtitle ? <p className="mt-1 line-clamp-2 text-xs text-white/65">{hero.subtitle}</p> : null}
+              </div>
+            </HeroBackdrop>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
