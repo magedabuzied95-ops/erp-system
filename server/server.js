@@ -167,6 +167,11 @@ const corsOptions = {
     "X-Tenant-Id",
     "x-tenant-id",
     "X-Request-Id",
+    "x-request-id",
+    "X-Storefront-Customer-Token",
+    "x-storefront-customer-token",
+    "X-Customer-Token",
+    "x-customer-token",
   ],
   optionsSuccessStatus: 204,
 };
