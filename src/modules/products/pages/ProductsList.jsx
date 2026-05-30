@@ -264,7 +264,7 @@ const duplicateProductPayload = (row = {}) => ({
 const resolveImageUrl = (value) => {
   const imageUrl = String(value || "").trim();
   if (!imageUrl) return "";
-  if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) return imageUrl;
+  if (imageUrl.startsWith("data:image/") || imageUrl.startsWith("blob:")) return imageUrl;
   if (/^https?:\/\//i.test(imageUrl)) {
     try {
       const parsed = new URL(imageUrl);
@@ -282,12 +282,61 @@ const resolveImageUrl = (value) => {
   return `/uploads/products/${imageUrl}`;
 };
 
-const getProductThumbnail = (row) =>
-  resolveImageUrl(
-    row?.variants?.find((variant) => String(variant?.image_url || "").trim())?.image_url ||
-      row?.product_image_url ||
-      row?.image_url
+const firstImageValue = (...values) => {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      const nested = firstImageValue(...value);
+      if (nested) return nested;
+      continue;
+    }
+
+    if (value && typeof value === "object") {
+      const nested = firstImageValue(value.image_url, value.url, value.image, value.preview, value.path, value.file_path);
+      if (nested) return nested;
+      continue;
+    }
+
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+};
+
+const parseGalleryImages = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  const text = value.trim();
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const getFirstGalleryImage = (row = {}) =>
+  firstImageValue(
+    row.gallery_images,
+    row.gallery,
+    parseGalleryImages(row.gallery_images),
+    parseGalleryImages(row.gallery)
   );
+
+const getProductThumbnail = (row = {}) => {
+  const imageValue = firstImageValue(
+    row.thumbnail_url,
+    row.image_url,
+    row.photo_url,
+    row.image,
+    row.cover_image,
+    getFirstGalleryImage(row),
+    row.product_image_url
+  );
+
+  if (imageValue.startsWith("data:image/")) return imageValue;
+  return resolveImageUrl(imageValue);
+};
 
 const getErrorMessage = (error, fallback) =>
   error?.responseBody?.message ||
@@ -1118,6 +1167,8 @@ function ProductsList() {
         return {
           ...mergeProductRecord(product, isSimpleProduct ? null : variants[0] || null),
           product_image_url: product.image_url || "",
+          gallery_images: product.gallery_images || product.gallery || [],
+          gallery: product.gallery || product.gallery_images || [],
           variants: isSimpleProduct ? [] : variants,
         };
       });
