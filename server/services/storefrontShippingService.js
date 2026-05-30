@@ -117,13 +117,14 @@ export const loadShippingZones = async () => {
   };
 };
 
-export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "" } = {}) => {
+export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "", subtotal = 0, order_total = 0 } = {}) => {
   const { defaultPrice, zones } = await loadShippingZones();
   const target = {
     governorate: shippingKey(governorate),
     city: shippingKey(city),
     area: shippingKey(area),
   };
+  const orderSubtotal = number(subtotal || order_total, 0);
 
   const zoneCity = (zone) => shippingKey(zone.city);
   const zoneArea = (zone) => shippingKey(zone.area);
@@ -139,7 +140,9 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
     zones.find(matchesArea) ||
     zones.find((zone) => matchesCity(zone) && !zoneArea(zone)) ||
     zones.find((zone) => matchesGovernorate(zone) && !zoneCity(zone) && !zoneArea(zone));
-  const price = match ? number(match.price, defaultPrice) : defaultPrice;
+  const freeShippingThreshold = match ? number(match.free_shipping_threshold, 0) : 0;
+  const matchedPrice = match ? number(match.price, defaultPrice) : defaultPrice;
+  const price = freeShippingThreshold > 0 && orderSubtotal >= freeShippingThreshold ? 0 : matchedPrice;
 
   return {
     price,
@@ -148,10 +151,12 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
     requires_shipping_proof: match ? Boolean(match.requires_shipping_proof) : true,
     estimated_delivery_text: match?.estimated_delivery_text || "",
     provider: match?.provider || "manual",
-    free_shipping_threshold: match ? number(match.free_shipping_threshold, 0) : 0,
+    free_shipping_threshold: freeShippingThreshold,
     minimum_order_for_cod: match ? number(match.minimum_order_for_cod, 0) : 0,
     match_level: match ? (zoneArea(match) ? "area" : zoneCity(match) ? "city" : "governorate") : "default",
     zone: match || null,
+    original_price: matchedPrice,
+    free_shipping_applied: freeShippingThreshold > 0 && orderSubtotal >= freeShippingThreshold,
     default_shipping_price: defaultPrice,
   };
 };

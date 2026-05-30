@@ -210,6 +210,11 @@ const normalizeShippingQuote = (quote = {}) => ({
   requires_shipping_proof: quote.requires_shipping_proof !== false,
   estimated_delivery_text: String(quote.estimated_delivery_text || ""),
   match_level: String(quote.match_level || ""),
+  provider: String(quote.provider || "manual"),
+  zone: quote.zone || null,
+  free_shipping_threshold: Number.isFinite(Number(quote.free_shipping_threshold)) ? Number(quote.free_shipping_threshold) : 0,
+  original_price: Number.isFinite(Number(quote.original_price)) ? Number(quote.original_price) : 0,
+  free_shipping_applied: Boolean(quote.free_shipping_applied),
 });
 const paymentLogoPreloadUrls = Object.values(paymentBrandLogos).flatMap((logo) => [logo.webp, logo.png].filter(Boolean));
 const whatsappPhone = String(import.meta.env.VITE_WHATSAPP_PHONE || import.meta.env.VITE_STORE_WHATSAPP || "").replace(/\D/g, "");
@@ -6614,11 +6619,24 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       governorate: form.governorate,
       city: form.city_area || "",
       area: form.city_area || "",
+      subtotal: String(subtotal),
     });
     api
       .get(`/storefront/shipping/quote?${params.toString()}`)
       .then((data) => {
-        if (!cancelled) setShippingQuote(normalizeShippingQuote(data.quote || data));
+        const quote = normalizeShippingQuote(data.quote || data);
+        if (import.meta.env.DEV) {
+          console.debug("[storefront-shipping-quote]", {
+            governorate: form.governorate,
+            city_area: form.city_area,
+            subtotal,
+            match_level: quote.match_level,
+            zone: quote.zone,
+            price: quote.price,
+            free_shipping_applied: quote.free_shipping_applied,
+          });
+        }
+        if (!cancelled) setShippingQuote(quote);
       })
       .catch(() => {
         if (!cancelled) setShippingQuote((prev) => ({ ...prev, loading: false }));
@@ -6626,7 +6644,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     return () => {
       cancelled = true;
     };
-  }, [form.governorate, form.city_area]);
+  }, [form.governorate, form.city_area, subtotal]);
 
   const setField = (key, value, options = {}) => {
     if (options.markDirty !== false) editedCheckoutFieldsRef.current.add(key);
@@ -8107,6 +8125,11 @@ function CheckoutSummary({ cart, subtotal, discount, deliveryFee, total, codAmou
         {codAmount ? <SummaryRow dark label={paymentMethod === "cod" ? t("storefront.checkout.codOnDelivery", "COD on delivery") : t("storefront.checkout.remainingOnDelivery", "Remaining on delivery")} value={money(codAmount)} /> : null}
       </div>
       <div className="mt-3 grid gap-2 text-xs font-bold text-white/58">
+        {import.meta.env.DEV && governorate ? (
+          <span className="rounded-2xl border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-sky-100">
+            Shipping dev: {shippingQuote.match_level || "default"} {shippingQuote.zone?.governorate ? `- ${[shippingQuote.zone.governorate, shippingQuote.zone.city, shippingQuote.zone.area].filter(Boolean).join(" / ")}` : ""}
+          </span>
+        ) : null}
         <span className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">{deliveryText}</span>
         {governorate && shippingQuote.cod_allowed === false ? <span className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-amber-100">{t("storefront.checkout.codUnavailableForAddress", "Cash on delivery is not available for this address.")}</span> : null}
         <span className="rounded-2xl border border-[#a78bfa]/20 bg-[#7c3aed]/12 px-3 py-2 text-[#ddd6fe]">{t("storefront.checkout.shippingProvidersReady", "Shipping data is ready for Bosta / Mylerz / Aramex when the provider is enabled.")}</span>

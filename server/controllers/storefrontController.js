@@ -2939,6 +2939,7 @@ export const getShippingQuote = async (req, res) => {
       governorate: req.query?.governorate || req.query?.province || "",
       city: req.query?.city || req.query?.markaz || req.query?.city_area || "",
       area: req.query?.area || req.query?.district || req.query?.city_area || "",
+      subtotal: req.query?.subtotal || req.query?.order_subtotal || req.query?.order_total || 0,
     });
     return res.json({ success: true, quote });
   } catch (error) {
@@ -3130,6 +3131,7 @@ export const createWebsiteOrder = async (req, res) => {
       governorate: checkout.governorate,
       city: checkout.city_area,
       area: checkout.area || checkout.district || checkout.city_area || "",
+      subtotal,
     });
     const deliveryFee = roundMoney(shippingQuote.price);
     const discount = toNumber(req.body?.discount || checkout.discount, 0);
@@ -3192,6 +3194,11 @@ export const createWebsiteOrder = async (req, res) => {
     if (paymentMethod === "cod" && !orderSettings.allowCod) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(403, "Cash on delivery is disabled", "payment_method", { payment_method: paymentMethod });
+    }
+    const minimumOrderForCod = Number(shippingQuote.minimum_order_for_cod || 0);
+    if (paymentMethod === "cod" && minimumOrderForCod > 0 && subtotal < minimumOrderForCod) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(403, "Cash on delivery minimum order is not met for this address", "payment_method", { payment_method: paymentMethod, governorate: checkout.governorate, subtotal, minimum_order_for_cod: minimumOrderForCod, shipping_quote: shippingQuote });
     }
     if (paymentMethod === "cod" && !canUseCod(customer, checkout, shippingQuote)) {
       await client.query("ROLLBACK");
