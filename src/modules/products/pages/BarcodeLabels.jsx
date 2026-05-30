@@ -926,6 +926,7 @@ function BarcodeShopLabel({ item, print = false }) {
   const qrToken = safeText(item.qrToken);
   const qrValue = safeText(item.qrValue, qrToken);
   const price = formatCurrency(item.salePrice);
+  const comparePrice = Number(item.comparePrice || 0) > Number(item.salePrice || 0) ? formatCurrency(item.comparePrice) : "";
 
   return (
     <article className={`w-full rounded-[28px] border border-zinc-200 bg-white p-6 text-center text-zinc-900 ${print ? "" : "shadow-[0_18px_60px_rgba(0,0,0,0.16)]"}`}>
@@ -933,7 +934,12 @@ function BarcodeShopLabel({ item, print = false }) {
       <div className="mx-auto mt-6 flex w-fit rounded-[30px] border border-zinc-200 bg-white p-3 shadow-[0_14px_40px_rgba(15,23,42,0.08)]">
         <QRCodeCanvas value={String(qrValue || "")} size={print ? 172 : 190} />
       </div>
-      <p className="mt-6 text-3xl font-black leading-none tracking-tight text-zinc-950">{price}</p>
+      <div className="mt-6">
+        <p className="text-3xl font-black leading-none tracking-tight text-zinc-950">{price}</p>
+        {comparePrice ? (
+          <p className="mt-2 text-sm font-bold text-zinc-400 line-through">{comparePrice}</p>
+        ) : null}
+      </div>
       <div className="mt-3 truncate rounded-full bg-zinc-100 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">
         {qrToken}
       </div>

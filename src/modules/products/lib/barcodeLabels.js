@@ -119,6 +119,37 @@ const normalizeBarcode = (value, fallbackSeed = "") => {
 const firstText = (...values) =>
   values.map((value) => String(value || "").trim()).find(Boolean) || "";
 
+const truthyFlag = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") return ["1", "true", "yes", "on", "active", "enabled"].includes(value.trim().toLowerCase());
+  return false;
+};
+
+const positiveNumber = (...values) => {
+  for (const value of values) {
+    const parsed = Number(value ?? 0);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
+};
+
+const resolveLabelPrice = (source = {}, fallbackSource = {}) => {
+  const salePrice = positiveNumber(source.sale_price, source.salePrice);
+  const saleEnabled = truthyFlag(source.sale_price_enabled ?? source.salePriceEnabled ?? fallbackSource.sale_price_enabled ?? fallbackSource.salePriceEnabled);
+  const sellingPrice = positiveNumber(source.selling_price, source.sellingPrice, fallbackSource.selling_price, fallbackSource.sellingPrice);
+  const regularPrice = positiveNumber(source.regular_price, source.regularPrice, fallbackSource.regular_price, fallbackSource.regularPrice);
+  const basePrice = positiveNumber(source.price, source.variant_price, fallbackSource.price, fallbackSource.variant_price);
+  const effectivePrice = saleEnabled && salePrice > 0 ? salePrice : positiveNumber(sellingPrice, regularPrice, basePrice);
+  const comparePrice = saleEnabled && salePrice > 0 ? positiveNumber(sellingPrice, regularPrice, basePrice) : 0;
+
+  return {
+    price: effectivePrice,
+    comparePrice: comparePrice > effectivePrice ? comparePrice : 0,
+    saleActive: Boolean(saleEnabled && salePrice > 0),
+  };
+};
+
 export const getLabelImageUrl = (product, variant = null, colorGroup = null) => {
   const variantImage =
     firstText(
@@ -187,8 +218,11 @@ export const getLabelIdentity = (product, variant = null) => {
 export const getLabelDisplayBarcode = (product, variant = null) =>
   variant?.barcode || variant?.variant_barcode || product?.barcode || product?.sku || `SKU-${product?.id ?? "0000"}`;
 
+export const getLabelPriceInfo = (product, variant = null) =>
+  variant ? resolveLabelPrice(variant, product) : resolveLabelPrice(product);
+
 export const getLabelSalePrice = (product, variant = null) =>
-  Number(variant?.sale_price ?? variant?.price ?? product?.sale_price ?? product?.price ?? 0);
+  getLabelPriceInfo(product, variant).price;
 
 export const getLabelSku = (product, variant = null) =>
   variant?.sku || variant?.variant_sku || product?.sku || `SKU-${product?.id ?? "0000"}`;
@@ -214,6 +248,7 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     sourceProductImage,
     resolvedImage,
   });
+  const priceInfo = getLabelPriceInfo(product, variant);
   return {
     key: getLabelIdentity(product, variant),
     productId: product?.id,
@@ -226,7 +261,9 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     sku: getLabelSku(product, variant),
     barcode: displayBarcode,
     barcodeValue: normalizeBarcode(displayBarcode, `${product?.id ?? ""}${variant?.variant_id ?? variant?.id ?? ""}`),
-    salePrice: getLabelSalePrice(product, variant),
+    salePrice: priceInfo.price,
+    comparePrice: priceInfo.comparePrice,
+    saleActive: priceInfo.saleActive,
     stock: Number(variant?.stock ?? product?.stock ?? 0),
     sourceVariantImage,
     sourceProductImage,
@@ -298,6 +335,7 @@ export const getBarcodeShopQrUrl = (product = {}) => {
 export const buildBarcodeShopLabelItem = (product = null, quantity = 1) => {
   if (!product) return null;
   const qrToken = getBarcodeShopQrValue(product);
+  const priceInfo = getLabelPriceInfo(product);
   return {
     key: `barcode-shop:${product.id}`,
     productId: product.id,
@@ -306,7 +344,9 @@ export const buildBarcodeShopLabelItem = (product = null, quantity = 1) => {
     category: product.category || "Category",
     qrToken,
     qrValue: getBarcodeShopQrUrl(product),
-    salePrice: getLabelSalePrice(product),
+    salePrice: priceInfo.price,
+    comparePrice: priceInfo.comparePrice,
+    saleActive: priceInfo.saleActive,
     imageUrl: product.product_image_url || product.image_url || "",
     companyName: product.companyName || APP_NAME,
     quantity: getLabelQuantity(quantity) || 1,
