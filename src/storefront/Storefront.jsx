@@ -1652,23 +1652,55 @@ const normalizeHomeCollection = (collection = {}) => {
   };
 };
 
+const getStorefrontHomeFromResponse = (response = {}) => {
+  const candidates = [
+    response?.home,
+    response?.data?.home,
+    response?.result?.home,
+    response?.payload?.home,
+    response?.storefront?.home,
+  ];
+  const directHome = response?.hero || response?.featured_collections ? response : null;
+  return candidates.find((value) => value && typeof value === "object") || directHome || {};
+};
+
 const useStorefrontHome = () => {
-  const [state, setState] = useState({ loading: true, loaded: false, error: "", hero: null, collections: [], rawHome: null });
+  const homeEndpoint = "/storefront/home";
+  const homeRequestUrl = `${API_BASE_URL}${homeEndpoint}`;
+  const [state, setState] = useState({
+    loading: true,
+    loaded: false,
+    error: "",
+    hero: null,
+    collections: [],
+    rawHome: null,
+    rawResponse: null,
+    requestUrl: homeRequestUrl,
+    responseKeys: [],
+    responsePreview: "",
+  });
 
   useEffect(() => {
     let cancelled = false;
-    cachedStorefrontGet("/storefront/home", { ttlMs: 0 })
+    cachedStorefrontGet(homeEndpoint, { ttlMs: 0 })
       .then((data) => {
-        const home = data?.home || {};
+        const home = getStorefrontHomeFromResponse(data);
         const hero = home.hero ? normalizeHomeProduct(home.hero) : null;
         const collections = (Array.isArray(home.featured_collections) ? home.featured_collections : [])
           .map(normalizeHomeCollection)
           .filter((collection) => collection.products.length);
-        if (!cancelled) setState({ loading: false, loaded: true, error: "", hero: hero?.id ? hero : null, collections, rawHome: home });
+        const responseKeys = data && typeof data === "object" ? Object.keys(data) : [];
+        let responsePreview = "";
+        try {
+          responsePreview = JSON.stringify(data).slice(0, 1000);
+        } catch {
+          responsePreview = String(data || "").slice(0, 1000);
+        }
+        if (!cancelled) setState({ loading: false, loaded: true, error: "", hero: hero?.id ? hero : null, collections, rawHome: home, rawResponse: data, requestUrl: homeRequestUrl, responseKeys, responsePreview });
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, loaded: true, error: error?.message || "Failed to load storefront home", hero: null, collections: [], rawHome: null });
+          setState({ loading: false, loaded: true, error: error?.message || "Failed to load storefront home", hero: null, collections: [], rawHome: null, rawResponse: error?.responseBody || null, requestUrl: error?.url || homeRequestUrl, responseKeys: error?.responseBody && typeof error.responseBody === "object" ? Object.keys(error.responseBody) : [], responsePreview: error?.responseBody ? JSON.stringify(error.responseBody).slice(0, 1000) : "" });
         }
       });
     return () => {
@@ -3815,6 +3847,12 @@ function HomePage(props) {
           <div>HOME HERO EXISTS: {storefrontHome.rawHome?.hero ? "yes" : "no"}</div>
           <div>COLLECTION COUNT: {rawHomeCollections.length}</div>
           <div>FIRST COLLECTION PRODUCTS: {Array.isArray(rawHomeCollections[0]?.products) ? rawHomeCollections[0].products.length : 0}</div>
+          <div>REQUEST URL: {storefrontHome.requestUrl || "-"}</div>
+          <div>RESPONSE KEYS: {JSON.stringify(storefrontHome.responseKeys || [])}</div>
+          <div>OBJECT KEYS: {JSON.stringify(Object.keys(storefrontHome.rawResponse || {}))}</div>
+          <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-amber-300/70 bg-white/70 p-3 text-[11px] leading-5 text-amber-950 dark:border-amber-400/20 dark:bg-black/20 dark:text-amber-100">
+            {storefrontHome.responsePreview || ""}
+          </pre>
           {rawHomeCollections.length > 0 ? (
             <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-amber-300/70 bg-white/70 p-3 text-[11px] leading-5 text-amber-950 dark:border-amber-400/20 dark:bg-black/20 dark:text-amber-100">
               {JSON.stringify(firstRawHomeProduct || null, null, 2)}
