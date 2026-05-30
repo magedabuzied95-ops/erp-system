@@ -22,7 +22,6 @@ import {
 const GROUP_ACCENTS = {
   gender: "from-[#7c3aed] to-[#d8b4fe]",
   product_type: "from-[#2563eb] to-[#93c5fd]",
-  style: "from-[#0f766e] to-[#2dd4bf]",
   grade: "from-[#f97316] to-[#fdba74]",
 };
 

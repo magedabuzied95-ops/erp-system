@@ -78,7 +78,6 @@ const ROW_ACTION_BREAKPOINTS = {
 const CLASSIFICATION_FILTER_FIELDS = [
   { key: "gender", field: "gender", labelKey: "products.filters.gender", fallbackLabel: "Gender" },
   { key: "productType", field: "product_type", labelKey: "products.filters.productType", fallbackLabel: "Product type" },
-  { key: "style", field: "style", labelKey: "products.filters.style", fallbackLabel: "Style" },
   { key: "grade", field: "grade", labelKey: "products.filters.sourceQuality", fallbackLabel: "Source / quality" },
 ];
 const PRODUCT_AUDIENCE_OPTIONS = [
@@ -221,7 +220,6 @@ const duplicateProductPayload = (row = {}) => ({
   audiences: Array.isArray(row.audiences) ? row.audiences : [],
   product_audiences: Array.isArray(row.product_audiences) ? row.product_audiences : Array.isArray(row.audiences) ? row.audiences : [],
   product_type: row.product_type || "",
-  style: row.style || "",
   grade: row.grade || "",
   variation_mode: row.variation_mode || "full_variations",
   fixed_size_label: row.fixed_size_label || "",
@@ -1038,7 +1036,6 @@ function ProductsList() {
   const [classificationFilters, setClassificationFilters] = useState(() => ({
     gender: "all",
     productType: "all",
-    style: "all",
     grade: "all",
   }));
   const [brandFilter, setBrandFilter] = useState("all");
@@ -1255,7 +1252,6 @@ function ProductsList() {
     setClassificationFilters({
       gender: "all",
       productType: "all",
-      style: "all",
       grade: "all",
     });
     setPage(1);
@@ -1284,7 +1280,6 @@ function ProductsList() {
           row.brand,
           row.gender,
           row.product_type,
-          row.style,
           row.grade,
         ]
           .join(" ")

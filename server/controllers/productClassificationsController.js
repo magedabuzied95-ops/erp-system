@@ -29,6 +29,9 @@ const toBoolean = (value, fallback = true) => {
   return fallback;
 };
 
+const removedClassificationKeys = new Set(["style"]);
+const isRemovedClassificationKey = (key) => removedClassificationKeys.has(normalizeKey(key));
+
 const groupPayload = (body = {}) => ({
   key: normalizeKey(body.key),
   name_ar: normalizeText(body.name_ar),
@@ -115,7 +118,6 @@ const invalidateProductClassificationCaches = async () => {
 const columnCandidatesForGroup = (groupKey) => ({
   gender: ["gender"],
   product_type: ["product_type", "productType", "type"],
-  style: ["style"],
   grade: ["grade", "product_grade"],
 }[normalizeKey(groupKey)] || [normalizeKey(groupKey)]);
 
@@ -234,6 +236,9 @@ export const createProductClassificationGroup = async (req, res) => {
     if (!payload.key || !payload.name_ar || !payload.name_en) {
       return res.status(400).json({ success: false, message: "key, name_ar, and name_en are required" });
     }
+    if (isRemovedClassificationKey(payload.key)) {
+      return res.status(400).json({ success: false, message: "This classification group is no longer supported" });
+    }
     await client.query("BEGIN");
     const result = await client.query(
       `
@@ -273,6 +278,9 @@ export const updateProductClassificationGroup = async (req, res) => {
     }
     if (!payload.key || !payload.name_ar || !payload.name_en) {
       return res.status(400).json({ success: false, message: "key, name_ar, and name_en are required" });
+    }
+    if (isRemovedClassificationKey(payload.key)) {
+      return res.status(400).json({ success: false, message: "This classification group is no longer supported" });
     }
     await client.query("BEGIN");
     const result = await client.query(
@@ -357,6 +365,10 @@ export const createProductClassificationOption = async (req, res) => {
     const groupId = await resolveGroupId(payload);
     if (!groupId) {
       return res.status(400).json({ success: false, message: "group_id or group_key is required" });
+    }
+    const group = await fetchProductClassificationGroups({ includeInactive: true }).then((groups) => groups.find((item) => Number(item.id) === Number(groupId)));
+    if (isRemovedClassificationKey(group?.key || payload.group_key)) {
+      return res.status(400).json({ success: false, message: "This classification group is no longer supported" });
     }
     if (!payload.value || !payload.label_ar || !payload.label_en) {
       return res.status(400).json({ success: false, message: "value, label_ar, and label_en are required" });

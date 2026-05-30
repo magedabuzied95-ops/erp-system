@@ -184,7 +184,6 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     gender: pickClassificationText(row, sourceProduct, "gender", "gender"),
     product_type: pickClassificationText(row, sourceProduct, "product_type", "productType"),
     productType: pickClassificationText(row, sourceProduct, "product_type", "productType"),
-    style: pickClassificationText(row, sourceProduct, "style", "style"),
     grade: pickClassificationText(row, sourceProduct, "grade", "grade"),
     main_category_id: row.main_category_id ?? row.mainCategoryId ?? sourceProduct.main_category_id ?? sourceProduct.mainCategoryId ?? null,
     main_category_name: pickFirstText(row.main_category_name, row.mainCategoryName, row.main_category, sourceProduct.main_category_name, sourceProduct.mainCategoryName, sourceProduct.main_category),
@@ -249,7 +248,6 @@ const buildProductFromVariants = (productSeed, variants) => {
     gender: pickClassificationText(productSeed, variants[0] || {}, "gender", "gender"),
     product_type: pickClassificationText(productSeed, variants[0] || {}, "product_type", "productType"),
     productType: pickClassificationText(productSeed, variants[0] || {}, "product_type", "productType"),
-    style: pickClassificationText(productSeed, variants[0] || {}, "style", "style"),
     grade: pickClassificationText(productSeed, variants[0] || {}, "grade", "grade"),
     main_category_id: productSeed.main_category_id ?? productSeed.mainCategoryId ?? variants[0]?.main_category_id ?? null,
     main_category_name: pickFirstText(productSeed.main_category_name, productSeed.mainCategoryName, productSeed.main_category, variants[0]?.main_category_name, variants[0]?.main_category),
@@ -308,7 +306,6 @@ const preserveClassificationFields = (item, productSeed = {}) => {
     firstVariant.productType,
     firstVariant.type
   );
-  const style = pickFirstText(item?.style, productSeed.style, productSeed.product?.style, firstVariant.style);
   const grade = pickFirstText(
     item?.grade,
     productSeed.grade,
@@ -326,7 +323,6 @@ const preserveClassificationFields = (item, productSeed = {}) => {
     gender,
     product_type: productType,
     productType,
-    style,
     grade,
   };
 };

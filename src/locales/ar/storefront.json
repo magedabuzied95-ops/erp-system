@@ -84,7 +84,6 @@
     "recentTitle": "بحثت مؤخرًا",
     "categories": "الأقسام",
     "brands": "البراندات",
-    "styles": "ستايلات",
     "resultCount": "{{count}} نتيجة",
     "resultsFor": "نتائج البحث عن \"{{query}}\"",
     "placeholders": [
@@ -115,12 +114,6 @@
         "Adidas",
         "New Balance",
         "Air Jordan"
-      ],
-      "styles": [
-        "Sneakers",
-        "Running",
-        "Lifestyle",
-        "Mirror Original"
       ]
     }
   },
@@ -168,7 +161,6 @@
     ],
     "heroFallbackSubtitle": "تصميم مختار من أحدث المنتجات المتاحة الآن.",
     "newArrival": "وصل حديثًا",
-    "featuredStyle": "اختيار مميز",
     "shopByCategory": "تسوق حسب القسم",
     "shopByCategorySubtitle": "اختار بسرعة حسب الفئة أو النوع",
     "bestsellers": "الأكثر مبيعًا",
@@ -259,7 +251,6 @@
     "gender": "الجنس",
     "productType": "نوع المنتج",
     "type": "النوع",
-    "style": "الستايل",
     "grade": "الجريد",
     "sizeFilter": "فلتر المقاس",
     "availableSize": "فلتر المقاس المتاح",
@@ -616,7 +607,7 @@
     "lengthCm": "الطول بالسنتيمتر",
     "notes": {
       "39": "مناسب للأقدام الصغيرة نسبيًا",
-      "40": "اختيار شائع للكاجوال اليومي",
+      "40": "?????? ???? ????????? ??????",
       "41": "لو القدم عريضة اختار نصف مقاس أكبر إن وجد",
       "42": "الأكثر طلبًا في الموديلات الرجالي",
       "43": "مناسب للقدم المتوسطة إلى العريضة",

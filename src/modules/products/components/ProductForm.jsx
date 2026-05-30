@@ -25,7 +25,6 @@ function ProductForm({
   gender = "",
   audiences = [],
   productType = "",
-  style = "",
   grade = "",
   onMainCategoryChange,
   onSubCategoryChange,
@@ -36,7 +35,6 @@ function ProductForm({
   onGenderChange,
   onAudiencesChange,
   onProductTypeChange,
-  onStyleChange,
   onGradeChange,
 }) {
   const { t } = useTranslation();
@@ -70,8 +68,8 @@ function ProductForm({
   }, [brands, brandQuery]);
   const selectedAudiences = useMemo(() => normalizeAudiences(audiences, gender), [audiences, gender]);
   const classificationOptions = useMemo(
-    () => classificationGroupsToFieldOptions(classificationGroups, { gender: selectedAudiences[0] || gender, productType, style, grade }, { includeInactive: false, includeCurrentValue: false }),
-    [classificationGroups, selectedAudiences, gender, productType, style, grade]
+    () => classificationGroupsToFieldOptions(classificationGroups, { gender: selectedAudiences[0] || gender, productType, grade }, { includeInactive: false, includeCurrentValue: false }),
+    [classificationGroups, selectedAudiences, gender, productType, grade]
   );
 
   useEffect(() => {
@@ -170,7 +168,7 @@ function ProductForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="relative" ref={brandWrapRef}>
             <label className="text-sm font-semibold text-zinc-300">{t("products.form.brand")}</label>
             <button
@@ -287,14 +285,6 @@ function ProductForm({
             onChange={onProductTypeChange}
             options={classificationOptions.productType}
             placeholder={t("products.form.selectProductType", "Select product type")}
-          />
-
-          <SmartClassificationSelect
-            label={t("products.form.style")}
-            value={style}
-            onChange={onStyleChange}
-            options={classificationOptions.style}
-            placeholder={t("products.form.selectStyle", "Select style")}
           />
 
           <SmartClassificationSelect

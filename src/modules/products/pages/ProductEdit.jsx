@@ -633,7 +633,6 @@ function ProductEdit() {
       gender: product.audiences?.[0] || product.gender,
       audiences: product.audiences || [],
       productType: product.product_type,
-      style: product.style,
       grade: product.grade,
       colors: colorGroups.map((group) => group.color),
       sizes: isColorOnlyMode ? [product.fixed_size_label || "One Size"] : colorGroups.flatMap((group) => group.sizes || []).map((row) => row.size),
@@ -712,7 +711,7 @@ function ProductEdit() {
           product_name: product.name,
           description_ar: product.description_ar,
           description_en: product.description_en,
-          selling_vibe: descriptionTone || product.style,
+          selling_vibe: descriptionTone,
         },
       });
       const next = {
@@ -1747,14 +1746,12 @@ function ProductEdit() {
           seo_keywords: fallback.seo_keywords,
           canonical_slug: fallback.canonical_slug,
           suggested_category: childCategory || subCategory || mainCategory || product.category,
-          suggested_style: product.style,
           suggested_product_type: product.product_type,
           gender: product.audiences?.[0] || product.gender,
           grade: product.grade,
           dominant_colors: colorGroups.map((group) => group.color).filter(Boolean),
           detection_confidence: {
             colors: colorGroups.some((group) => String(group.color || "").trim()) ? 45 : 15,
-            style: product.style ? 35 : 15,
             product_type: product.product_type ? 40 : 15,
           },
         },
@@ -1798,7 +1795,6 @@ function ProductEdit() {
       setSeoTouched((current) => ({ ...current, slug: true }));
     }
     if (field === "suggested_category") setMainCategory(value);
-    if (field === "suggested_style") updateProductField("style", value);
     if (field === "suggested_product_type") updateProductField("product_type", value);
     if (field === "gender") {
       const nextAudience = normalizeAudienceValue(value);
@@ -1823,7 +1819,6 @@ function ProductEdit() {
       product.seo_keywords,
       product.canonical_slug,
       mainCategory,
-      product.style,
       product.product_type,
       product.gender,
       product.grade,
@@ -1840,7 +1835,6 @@ function ProductEdit() {
       "seo_keywords",
       "canonical_slug",
       "suggested_category",
-      "suggested_style",
       "suggested_product_type",
       "gender",
       "grade",
@@ -2481,7 +2475,7 @@ function ProductEdit() {
                     <input
                       value={descriptionTone}
                       onChange={(event) => setDescriptionTone(event.target.value)}
-                      placeholder={t("products.editor.promptPlaceholder", "luxury tone, sporty tone, streetwear tone")}
+                      placeholder={t("products.editor.promptPlaceholder", "premium tone, concise tone, friendly tone")}
                       className="mt-1.5 h-11 w-full rounded-[16px] border border-white/10 bg-zinc-900/80 px-4 text-sm text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] placeholder:text-zinc-500 transition focus:border-amber-300/35 focus:bg-zinc-900"
                     />
                   </div>
@@ -2664,7 +2658,6 @@ function ProductEdit() {
               gender={product.gender}
               audiences={product.audiences || []}
               productType={product.product_type}
-              style={product.style}
               grade={product.grade}
               onMainCategoryChange={setMainCategory}
               onSubCategoryChange={setSubCategory}
@@ -2682,7 +2675,6 @@ function ProductEdit() {
                 }));
               }}
               onProductTypeChange={(value) => updateProductField("product_type", value)}
-              onStyleChange={(value) => updateProductField("style", value)}
               onGradeChange={(value) => updateProductField("grade", value)}
             />
           </section>
@@ -2774,7 +2766,6 @@ function ProductEdit() {
                     ["seo_keywords", "SEO keywords"],
                     ["suggested_category", "Suggested category"],
                     ["suggested_product_type", "Suggested type"],
-                    ["suggested_style", "Suggested style"],
                     ["gender", "Gender"],
                     ["grade", "Grade"],
                   ].map(([field, label]) => {
@@ -2829,24 +2820,9 @@ function ProductEdit() {
                       </p>
                     </div>
                   ) : null}
-                  {getSuggestionValue(aiProductData.suggestions, "suggested_style", "classification") ? (
-                    <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.detectedStyle", "Detected style")}</p>
-                        {getDetectionConfidenceLabel(aiProductData.suggestions, "style") ? (
-                          <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
-                            {getDetectionConfidenceLabel(aiProductData.suggestions, "style")}
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="mt-2 text-sm leading-5 text-zinc-200">
-                        {[getSuggestionValue(aiProductData.suggestions, "suggested_style"), getSuggestionValue(aiProductData.suggestions, "classification")].filter(Boolean).join(" · ")}
-                      </p>
-                    </div>
-                  ) : null}
                   {getSuggestionValue(aiProductData.suggestions, "brand_resemblance") ? (
                     <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
-                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.brandStyleResemblance", "Brand style resemblance")}</p>
+                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.brandResemblance", "Brand resemblance")}</p>
                       <p className="mt-2 text-sm leading-5 text-zinc-200">
                         {getSuggestionValue(aiProductData.suggestions, "brand_resemblance")}
                       </p>

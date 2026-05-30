@@ -236,10 +236,9 @@ const getSearchFallbackSections = () => {
   const sections = i18n.t("storefront.search.fallbackSections", { returnObjects: true });
   return sections && typeof sections === "object" && !Array.isArray(sections)
     ? sections
-    : {
+      : {
         categories: ["Men", "Women", "Kids", "Sale", "Last piece"],
         brands: ["Nike", "Adidas", "New Balance", "Air Jordan"],
-        styles: ["Sneakers", "Running", "Lifestyle", "Mirror Original"],
       };
 };
 const AI_SUPPORT_SESSION_KEY = "storefront.ai_support.session_id";
@@ -3449,7 +3448,7 @@ function SearchQuickSections({ value, loading, suggestions, visualSearch, chips,
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-black">{product.name}</div>
                       <div className="truncate text-xs font-bold text-stone-500 dark:text-stone-400">
-                        {[product.category, product.brand, product.style, product.grade].filter(Boolean).join(" / ") || product.sizes?.slice(0, 4).join(" / ") || t("storefront.products.sizesAvailable", "Available sizes")}
+                        {[product.category, product.brand, product.grade].filter(Boolean).join(" / ") || product.sizes?.slice(0, 4).join(" / ") || t("storefront.products.sizesAvailable", "Available sizes")}
                       </div>
                     </div>
                     <div className="rounded-full bg-stone-950 px-3 py-1 text-xs font-black text-white dark:bg-white dark:text-stone-950">{money(displaySellingPrice(product))}</div>
@@ -3472,7 +3471,6 @@ function SearchQuickSections({ value, loading, suggestions, visualSearch, chips,
           <div className="grid gap-2 sm:grid-cols-3">
             <MiniSearchGroup title={t("storefront.search.categories", "Categories")} items={fallbackSections.categories || []} onPick={onPickTerm} />
             <MiniSearchGroup title={t("storefront.search.brands", "Brands")} items={fallbackSections.brands || []} onPick={onPickTerm} />
-            <MiniSearchGroup title={t("storefront.search.styles", "Styles")} items={fallbackSections.styles || []} onPick={onPickTerm} />
           </div>
         </>
       ) : null}
@@ -3562,7 +3560,7 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd }) 
   const isAvailable = stock > 0 && (!variant || variantStock > 0);
   const activePrice = displaySellingPrice(safeProduct, variant);
   const comparePrice = displayComparePrice(safeProduct, variant);
-  const meta = [safeProduct?.brand, safeProduct?.category, safeProduct?.gender, safeProduct?.style].filter(Boolean).join(" / ") || t("storefront.products.storeProduct", "Store product");
+  const meta = [safeProduct?.brand, safeProduct?.category, safeProduct?.gender, safeProduct?.grade].filter(Boolean).join(" / ") || t("storefront.products.storeProduct", "Store product");
 
   const viewProduct = (event) => {
     event.stopPropagation();
@@ -4677,7 +4675,6 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
   const inStock = params.get("inStock") || "";
   const quality = params.get("quality") || "";
   const productType = params.get("product_type") || "";
-  const style = params.get("style") || "";
   const grade = params.get("grade") || "";
   const sort = params.get("sort") || "";
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -4687,45 +4684,52 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
   const [currentStep, setCurrentStep] = useState(gender ? (productType ? "grid" : "productType") : "gender");
   const productTypeStepRef = useRef(null);
   const gridStepRef = useRef(null);
-  const [draftFilters, setDraftFilters] = useState({ gender, product_type: productType, style, grade });
+  const [draftFilters, setDraftFilters] = useState({ gender, product_type: productType, grade });
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const { options: storefrontGenderOptions } = useStorefrontGenderClassifications();
   const classificationOptions = useMemo(
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false }),
     [classificationGroups]
   );
-  const isGuidedCategoryFlow = !q && !category && !sale && !gender && !size && !inStock && !quality && !productType && !style && !grade && !sort;
-  const { products, loading, error } = useProducts({ q, category, sale: sale ? 1 : "", gender, size, inStock, quality, product_type: productType, style, grade, sort });
+  const isGuidedCategoryFlow = !q && !category && !sale && !gender && !size && !inStock && !quality && !productType && !grade && !sort;
+  const { products, loading, error } = useProducts({ q, category, sale: sale ? 1 : "", gender, size, inStock, quality, product_type: productType, grade, sort });
   const {
     products: genderProducts,
     loading: genderProductsLoading,
-  } = useProducts({ limit: 160, gender: selectedGender, sale: "", product_type: "", q: "", category: "", style: "", grade: "" });
+  } = useProducts({ limit: 160, gender: selectedGender, sale: "", product_type: "", q: "", category: "", grade: "" });
   const {
     products: gridProducts,
     loading: gridProductsLoading,
     error: gridProductsError,
-  } = useProducts({ limit: 160, gender: selectedGender, product_type: selectedProductType, sale: "", q: "", category: "", style: "", grade: "" });
+  } = useProducts({ limit: 160, gender: selectedGender, product_type: selectedProductType, sale: "", q: "", category: "", grade: "" });
   const filterBasePath = sale ? "/shop/sale" : "/shop/products";
-  const activeFilterCount = [gender, size, inStock, quality, productType, style, grade].filter(Boolean).length;
+  const activeFilterCount = [gender, size, inStock, quality, productType, grade].filter(Boolean).length;
+
+  useEffect(() => {
+    if (!params.has("style")) return;
+    const next = new URLSearchParams(params);
+    next.delete("style");
+    navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`, { replace: true });
+  }, [filterBasePath, navigate, params]);
+
   const filterSections = useMemo(
     () => [
       { key: "gender", label: t("storefront.filters.gender", "Gender"), eyebrow: t("storefront.filters.gender", "Gender"), icon: Users, options: classificationOptions.gender, value: gender },
       { key: "product_type", label: t("storefront.filters.productType", "Product Type"), eyebrow: t("storefront.filters.type", "Type"), icon: Footprints, options: classificationOptions.productType, value: productType },
-      { key: "style", label: t("storefront.filters.style", "Style"), eyebrow: t("storefront.filters.style", "Style"), icon: Sparkles, options: classificationOptions.style, value: style },
       { key: "grade", label: t("storefront.filters.grade", "Grade"), eyebrow: t("storefront.filters.grade", "Grade"), icon: Gem, options: classificationOptions.grade, value: grade },
     ],
-    [classificationOptions, gender, grade, productType, style, t]
+    [classificationOptions, gender, grade, productType, t]
   );
 
   useEffect(() => {
     let cancelled = false;
     deferReactState(() => {
-      if (!cancelled) setDraftFilters({ gender, product_type: productType, style, grade });
+      if (!cancelled) setDraftFilters({ gender, product_type: productType, grade });
     });
     return () => {
       cancelled = true;
     };
-  }, [gender, productType, style, grade]);
+  }, [gender, productType, grade]);
 
   useEffect(() => {
     let cancelled = false;
@@ -4763,7 +4767,7 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
   };
   const applyDraftFilters = () => {
     const next = new URLSearchParams(params);
-    ["gender", "product_type", "style", "grade"].forEach((field) => {
+    ["gender", "product_type", "grade"].forEach((field) => {
       if (draftFilters[field]) next.set(field, draftFilters[field]);
       else next.delete(field);
     });
@@ -4773,7 +4777,7 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
   const resetDraftFilters = () => {
     const next = new URLSearchParams(params);
     ["gender", "product_type", "style", "grade", "quality"].forEach((field) => next.delete(field));
-    setDraftFilters({ gender: "", product_type: "", style: "", grade: "" });
+    setDraftFilters({ gender: "", product_type: "", grade: "" });
     setFiltersOpen(false);
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
   };
@@ -4866,8 +4870,8 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
     [orderedProducts, size]
   );
   const activeFilters = useMemo(
-    () => ({ q, category, gender, size, inStock, quality, productType, style, grade, sort, sale: sale ? 1 : "" }),
-    [category, gender, grade, inStock, productType, q, quality, sale, size, sort, style]
+    () => ({ q, category, gender, size, inStock, quality, productType, grade, sort, sale: sale ? 1 : "" }),
+    [category, gender, grade, inStock, productType, q, quality, sale, size, sort]
   );
 
   useEffect(() => {
@@ -7828,7 +7832,7 @@ function ContactPage() {
 function SizeGuide() {
   const sizeRows = [
     { eu: 39, foot: "24.8 cm", usMen: "6.5", usWomen: "8", uk: "6", note: sfText("storefront.sizeGuide.notes.39", "Good for relatively small feet") },
-    { eu: 40, foot: "25.4 cm", usMen: "7", usWomen: "8.5", uk: "6.5", note: sfText("storefront.sizeGuide.notes.40", "A common daily casual choice") },
+    { eu: 40, foot: "25.4 cm", usMen: "7", usWomen: "8.5", uk: "6.5", note: sfText("storefront.sizeGuide.notes.40", "A common daily choice") },
     { eu: 41, foot: "26.0 cm", usMen: "8", usWomen: "9.5", uk: "7.5", note: sfText("storefront.sizeGuide.notes.41", "If your foot is wide, choose half a size up when available") },
     { eu: 42, foot: "26.6 cm", usMen: "8.5", usWomen: "10", uk: "8", note: sfText("storefront.sizeGuide.notes.42", "Most requested in men's models") },
     { eu: 43, foot: "27.2 cm", usMen: "9.5", usWomen: "11", uk: "9", note: sfText("storefront.sizeGuide.notes.43", "Suitable for medium to wide feet") },

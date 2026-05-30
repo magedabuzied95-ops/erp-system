@@ -50,7 +50,6 @@ const compactContext = (input = {}) => {
     manufacturer: cleanText(current.manufacturer || input.manufacturer),
     colors: normalizeList(current.colors || current.color_name || input.colors || input.color_name),
     sizes: normalizeList(current.sizes || input.sizes),
-    style: cleanText(current.style || input.style),
     gender: cleanText(current.gender || input.gender),
     product_type: cleanText(current.productType || current.product_type || input.productType || input.product_type),
     material: cleanText(current.material || input.material),
@@ -72,9 +71,6 @@ const translateArabicFallbackTerm = (value = "", type = "generic") => {
   if (/sneaker|shoe|trainer/.test(normalized)) return "كوتشي";
   if (/boot/.test(normalized)) return "جزمة";
   if (/slipper|slide|sandal/.test(normalized)) return "شبشب";
-  if (/streetwear|street/.test(normalized)) return "ستريت وير";
-  if (/sport|athletic|training|running/.test(normalized)) return "رياضي";
-  if (/casual/.test(normalized)) return "كاجوال";
   return text;
 };
 
@@ -84,7 +80,7 @@ const fallbackDescription = (context = {}) => {
   const category = cleanText(context.category || context.product_type) || "item";
   const colors = normalizeList(context.colors).slice(0, 5);
   const sizes = normalizeList(context.sizes).slice(0, 8);
-  const style = cleanText(context.style || context.selling_vibe) || "casual";
+  const tone = cleanText(context.selling_vibe) || "retail-ready";
   const gender = cleanText(context.gender);
   const material = cleanText(context.material);
   const brandPrefix = brand && !name.toLowerCase().includes(brand.toLowerCase()) ? brand : "";
@@ -93,13 +89,12 @@ const fallbackDescription = (context = {}) => {
   const colorText = colors.length ? `Available in ${colors.join(", ")}` : "Designed with versatile colorways";
   const sizeText = sizes.length ? `with sizes ${sizes.join(", ")}` : "with practical everyday sizing";
   const materialText = material ? ` ${material} material` : "";
-  const englishDescription = `${displayName} is a storefront-ready ${category} for ${genderPhrase || "everyday "}customers with a ${style} look.${materialText ? ` Made with${materialText}.` : ""} ${colorText} and ${sizeText}, it is easy to style for daily outfits, streetwear looks, and confident casual wear.`
+  const englishDescription = `${displayName} is a storefront-ready ${category} for ${genderPhrase || "everyday "}customers with a ${tone} presentation.${materialText ? ` Made with${materialText}.` : ""} ${colorText} and ${sizeText}, it is ready for clear catalog browsing and product detail pages.`
     .replace(/\s+/g, " ")
     .trim();
   const arabicCategory = translateArabicFallbackTerm(category);
-  const arabicStyle = translateArabicFallbackTerm(style);
   const arabicGender = translateArabicFallbackTerm(gender, "gender");
-  const arabicDescription = `${displayName} ${arabicCategory} بطابع ${arabicStyle} مناسب للبس اليومي والكاجوال في السوق المصري.${arabicGender ? ` مناسب لـ ${arabicGender}.` : ""}${material ? ` الخامة: ${material}.` : ""} متوفر بألوان ${colors.length ? colors.join("، ") : "عملية"}${sizes.length ? ` ومقاسات ${sizes.join("، ")}` : ""}، واختيار مناسب للي بيدور على شكل مميز وسهل التنسيق.`
+  const arabicDescription = `${displayName} ${arabicCategory} بجودة عرض واضحة للسوق المصري.${arabicGender ? ` مناسب لـ ${arabicGender}.` : ""}${material ? ` الخامة: ${material}.` : ""} متوفر بألوان ${colors.length ? colors.join("، ") : "عملية"}${sizes.length ? ` ومقاسات ${sizes.join("، ")}` : ""}، ومجهز لعرض منظم في الكتالوج وصفحة المنتج.`
     .replace(/\s+/g, " ")
     .trim();
 
@@ -128,7 +123,7 @@ const buildPrompt = (context = {}, target = "all") => {
     targets.english
       ? "For english_description: write clean storefront-ready English copy with a premium ecommerce tone."
       : "For english_description: return an empty string.",
-    "Use only supplied product facts: product name, category, brand, colors, sizes, style, gender, material, and selling vibe.",
+    "Use only supplied product facts: product name, category, brand, colors, sizes, gender, material, and selling vibe.",
     "Mention available colors and sizes naturally, without listing every color repeatedly.",
     "Do not claim material, authenticity, technology, comfort features, or performance benefits unless supplied.",
     "Avoid keyword stuffing and avoid repeating color names excessively.",

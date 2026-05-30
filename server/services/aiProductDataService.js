@@ -4,7 +4,6 @@ const FORBIDDEN_PLACEHOLDERS = [
   /\bfashion footwear\b/gi,
   /\bfashion shoes\b/gi,
   /\bgeneric product\b/gi,
-  /\bstyle\b/gi,
 ];
 
 const AR = {
@@ -28,11 +27,6 @@ const AR = {
   bag: "\u0634\u0646\u0637\u0629",
   top: "\u062a\u064a\u0634\u064a\u0631\u062a",
   pants: "\u0628\u0646\u0637\u0644\u0648\u0646",
-  casual: "\u0643\u0627\u062c\u0648\u0627\u0644",
-  sport: "\u0631\u064a\u0627\u0636\u064a",
-  streetwear: "\u0633\u062a\u0631\u064a\u062a \u0648\u064a\u0631",
-  classic: "\u0643\u0644\u0627\u0633\u064a\u0643",
-  modern: "\u0639\u0635\u0631\u064a",
 };
 
 const cleanText = (value = "") => {
@@ -134,17 +128,6 @@ const translateProductTypeAr = (value = "") => {
   return cleanText(value);
 };
 
-const translateStyleAr = (value = "") => {
-  const text = cleanText(value).toLowerCase();
-  const parts = [];
-  if (/casual/.test(text)) parts.push(AR.casual);
-  if (/sport|athletic|running|training/.test(text)) parts.push(AR.sport);
-  if (/streetwear|street/.test(text)) parts.push(AR.streetwear);
-  if (/classic|retro|heritage/.test(text)) parts.push(AR.classic);
-  if (/modern/.test(text)) parts.push(AR.modern);
-  return parts.length ? parts.join(" ") : cleanText(value);
-};
-
 const inferProductType = (context = {}) => {
   const source = [context.product_type, context.productType, context.category, context.name, context.product_name]
     .map(cleanText)
@@ -163,20 +146,19 @@ const generateFallbackDescriptions = (context = {}) => {
   const name = cleanText(context.name) || "Product";
   const brand = cleanText(context.brand || context.manufacturer);
   const type = cleanText(context.productType || context.product_type || context.category) || "product";
-  const style = cleanText(context.style) || "casual everyday";
   const gender = cleanText(context.gender);
   const grade = cleanText(context.grade);
   const colors = normalizeList(context.colors);
   const colorText = colors.length ? ` in ${colors.slice(0, 4).join(", ")}` : "";
   const colorPhrase = colors.length ? `${colors.slice(0, 3).join(" ")} ` : "";
   const title = withoutPlaceholders([brand, name, colorPhrase.trim(), grade, gender, type].filter(Boolean).join(" ")).slice(0, 68);
-  const descriptionEn = `${[brand, name].filter(Boolean).join(" ")} ${colorText} ${gender ? `${gender} ` : ""}${type} with ${style} details${grade ? ` and ${grade} grade` : ""}. Built for casual daily outfits with a product-specific retail look.`
+  const descriptionEn = `${[brand, name].filter(Boolean).join(" ")} ${colorText} ${gender ? `${gender} ` : ""}${type}${grade ? ` with ${grade} grade` : ""}. Built for everyday product browsing with a retail-ready look.`
     .replace(/\s+/g, " ")
     .trim();
-  const descriptionAr = `${translateProductTypeAr(type)} ${colors.map(translateColorAr).join(" \u0648")} ${grade ? `${grade} ` : ""}${translateGenderAr(gender)} ${brand || name} \u0628\u062a\u0641\u0627\u0635\u064a\u0644 ${translateStyleAr(style)} \u0645\u0646\u0627\u0633\u0628\u0629 \u0644\u0644\u0625\u0637\u0644\u0627\u0644\u0627\u062a \u0627\u0644\u064a\u0648\u0645\u064a\u0629 \u0648\u0627\u0644\u0643\u0627\u062c\u0648\u0627\u0644.`
+  const descriptionAr = `${translateProductTypeAr(type)} ${colors.map(translateColorAr).join(" \u0648")} ${grade ? `${grade} ` : ""}${translateGenderAr(gender)} ${brand || name} \u0628\u062a\u0641\u0627\u0635\u064a\u0644 \u0648\u0627\u0636\u062d\u0629 \u0648\u062c\u0627\u0647\u0632\u0629 \u0644\u0639\u0631\u0636 \u0627\u0644\u0645\u062a\u062c\u0631.`
     .replace(/\s+/g, " ")
     .trim();
-  const seoDescription = `${name}${brand ? ` by ${brand}` : ""}: ${gender ? `${gender} ` : ""}${grade ? `${grade} ` : ""}${colorPhrase}${type} with ${style} details${colorText}.`
+  const seoDescription = `${name}${brand ? ` by ${brand}` : ""}: ${gender ? `${gender} ` : ""}${grade ? `${grade} ` : ""}${colorPhrase}${type}${colorText}.`
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 156);
@@ -186,7 +168,7 @@ const generateFallbackDescriptions = (context = {}) => {
     description_en: withoutPlaceholders(descriptionEn),
     meta_title: title,
     seo_description: withoutPlaceholders(seoDescription),
-    seo_keywords: sanitizeList([name, brand, context.category, gender, grade, type, style, ...colors]).join(", "),
+    seo_keywords: sanitizeList([name, brand, context.category, gender, grade, type, ...colors]).join(", "),
     canonical_slug: slugify(`${brand ? `${brand} ` : ""}${name}`),
   };
 };
@@ -206,11 +188,9 @@ const buildFallbackSuggestion = (input = {}, reason = "TEXT_FALLBACK") => {
     category: current.category,
     gender: current.gender,
     productType,
-    style: current.style,
     grade: current.grade,
     colors,
     sizes: current.sizes,
-    styleKeywords: normalizeList(current.style_keywords || current.classification),
   };
   const generated = generateFallbackDescriptions(context);
   const nameEn = withoutPlaceholders(current.name_en || current.name || current.product_name) || baseName;
@@ -232,20 +212,18 @@ const buildFallbackSuggestion = (input = {}, reason = "TEXT_FALLBACK") => {
       seo_keywords: generated.seo_keywords,
       canonical_slug: generated.canonical_slug || slugify(nameEn),
       suggested_category: cleanText(current.category),
-      suggested_style: cleanText(current.style),
       suggested_product_type: productType,
       gender: cleanText(current.gender),
       grade: cleanText(current.grade),
       dominant_colors: colors,
       brand_resemblance: cleanText(current.brand || current.manufacturer),
       detected_model: cleanText(current.detected_model || current.model),
-      classification: cleanText(current.style || "casual"),
+      classification: cleanText(current.category || productType),
       silhouette: cleanText(current.silhouette),
       fashion_category: cleanText(current.category),
       target_audience: cleanText(current.gender),
       detection_confidence: {
         colors: colors.length ? 55 : 20,
-        style: cleanText(current.style) ? 50 : 25,
         product_type: productType && productType !== "product" ? 55 : 25,
       },
     },
@@ -302,14 +280,13 @@ const normalizeAiSuggestion = (raw = {}, fallback = {}, context = {}) => {
       seo_keywords: sanitizeList(suggestions.seo_keywords || suggestions.keywords).join(", ") || fallbackSuggestions.seo_keywords,
       canonical_slug: cleanText(suggestions.canonical_slug || suggestions.slug) || slugify(nameEn),
       suggested_category: cleanText(suggestions.suggested_category || suggestions.category) || fallbackSuggestions.suggested_category,
-      suggested_style: cleanText(suggestions.suggested_style || suggestions.style) || fallbackSuggestions.suggested_style,
       suggested_product_type:
         cleanText(suggestions.suggested_product_type || suggestions.product_type) || fallbackSuggestions.suggested_product_type,
       gender: cleanText(suggestions.gender) || fallbackSuggestions.gender,
       grade: cleanText(suggestions.grade) || fallbackSuggestions.grade,
       dominant_colors: normalizeList(suggestions.dominant_colors || suggestions.colors || fallbackSuggestions.dominant_colors),
       brand_resemblance:
-        brandName || cleanText(suggestions.brand_resemblance || suggestions.brand_style_resemblance) || fallbackSuggestions.brand_resemblance,
+        brandName || cleanText(suggestions.brand_resemblance) || fallbackSuggestions.brand_resemblance,
       detected_model: cleanText(suggestions.detected_model || suggestions.model) || fallbackSuggestions.detected_model,
       classification: cleanText(suggestions.classification) || fallbackSuggestions.classification,
       silhouette: cleanText(suggestions.silhouette) || fallbackSuggestions.silhouette,
@@ -317,7 +294,6 @@ const normalizeAiSuggestion = (raw = {}, fallback = {}, context = {}) => {
       target_audience: cleanText(suggestions.target_audience) || fallbackSuggestions.target_audience,
       detection_confidence: {
         colors: clampConfidence(detectionConfidence.colors, fallbackSuggestions.detection_confidence?.colors || 70),
-        style: clampConfidence(detectionConfidence.style, fallbackSuggestions.detection_confidence?.style || 70),
         product_type: clampConfidence(
           detectionConfidence.product_type ?? detectionConfidence.productType,
           fallbackSuggestions.detection_confidence?.product_type || 70
@@ -334,7 +310,7 @@ const buildPrompt = (current = {}) => {
 Selected brand:
 - Brand name: ${brandName}
 - Use this exact brand name naturally in English product titles when it fits the image.
-- Title formula: brand + product type + color/style, for example "Nike Casual Running Shoes" or "Puma Black Street Sneakers".
+- Title formula: brand + product type + color, for example "Nike Black Shoes" or "Puma White Sneakers".
 - Do not repeat the brand name twice. If the product name already contains the brand, do not add it again.
 `
     : "";
@@ -360,33 +336,31 @@ Return strict JSON only using this shape:
     "seo_keywords": ["keyword"],
     "canonical_slug": "",
     "suggested_category": "",
-    "suggested_style": "",
     "suggested_product_type": "",
     "gender": "",
     "grade": "mirror/original/local/import/premium/unknown",
     "dominant_colors": ["color"],
     "brand_resemblance": "",
     "detected_model": "",
-    "classification": "casual/sport/streetwear/running/classic",
+    "classification": "sneakers/shoes/apparel/bags/accessories",
     "silhouette": "low-top/high-top/slip-on/sandal/boot/bag/apparel shape",
     "fashion_category": "sneakers/shoes/apparel/bags/accessories",
     "target_audience": "men/women/kids/unisex",
     "detection_confidence": {
       "colors": 0,
-      "style": 0,
       "product_type": 0
     }
   }
 }
 
 Image recognition requirements:
-- Identify visible dominant colors, silhouette, product type, target gender, fashion category, and whether the look is casual, sport, streetwear, running, classic, or similar.
-- Recognize brand-style resemblance from visible design cues or entered fields, but do not claim authenticity unless the existing fields explicitly say the product is original/authentic.
+- Identify visible dominant colors, silhouette, product type, target gender, fashion category, brand cues, and model details.
+- Recognize brand resemblance from visible design cues or entered fields, but do not claim authenticity unless the existing fields explicitly say the product is original/authentic.
 - For famous-inspired footwear, name the visual model only when visible or supplied, such as Superstar, Air Force, Samba, Campus, Gazelle, Jordan, Dunk, Yeezy, etc.
-- Use image evidence plus existing fields. Existing brand, grade, gender, category, color, and look fields should refine the result.
+- Use image evidence plus existing fields. Existing brand, grade, gender, category, and color fields should refine the result.
 - SEO titles must be specific, e.g. "Adidas Superstar Black White Mirror Sneakers For Men", never generic.
-- SEO keywords must include multi-word purchase phrases from the detected image, e.g. "black white sneakers", "men's casual shoes", "shell toe sneakers".
-- Arabic must sound premium for Egyptian ecommerce and include color, product type, gender, grade, and look when available.
+- SEO keywords must include multi-word purchase phrases from the detected image, e.g. "black white sneakers", "men's shoes", "shell toe sneakers".
+- Arabic must sound premium for Egyptian ecommerce and include color, product type, gender, and grade when available.
 - Never output placeholder wording: "Style", "Stylish sneakers", "Fashion footwear", "fashion shoes", or generic filler.
 Keep English concise and retail-ready.`;
 };

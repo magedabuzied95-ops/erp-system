@@ -88,7 +88,6 @@ const defaultState = {
   selectedManufacturerId: "all",
   selectedGender: "all",
   selectedProductType: "all",
-  selectedStyle: "all",
   selectedGrade: "all",
   customerSearch: "",
   paymentMode: "cash",
@@ -956,7 +955,6 @@ const getProductSmartFilterValue = (product, field, options = []) => {
       firstVariant.productType,
       firstVariant.type,
     ],
-    style: [product?.style, firstVariant.style],
     grade: [product?.grade, product?.product_grade, firstVariant.grade, firstVariant.product_grade],
   };
 
@@ -986,7 +984,6 @@ const buildProductSearchText = (product, manufacturerLookup) => {
     ...getProductAudienceKeys(product),
     product?.product_type,
     product?.productType,
-    product?.style,
     product?.grade,
     product?.main_category_name,
     product?.sub_category_name,
@@ -1044,7 +1041,6 @@ const buildSmartMeta = (product, manufacturerLookup, classificationOptions = {})
   const productType =
     getProductSmartFilterValue(product, "productType", classificationOptions.productType) ||
     normalizeSmartFilterKey(product?.product_type || product?.productType || firstVariant.product_type || firstVariant.productType);
-  const style = getProductSmartFilterValue(product, "style", classificationOptions.style) || normalizeSmartFilterKey(product?.style || firstVariant.style);
   const grade = getProductSmartFilterValue(product, "grade", classificationOptions.grade) || normalizeSmartFilterKey(product?.grade || firstVariant.grade);
 
   return {
@@ -1054,7 +1050,6 @@ const buildSmartMeta = (product, manufacturerLookup, classificationOptions = {})
     brandKey,
     gender,
     productType,
-    style,
     grade,
     manufacturerIds,
     manufacturerNames,
@@ -1148,7 +1143,6 @@ function POSPro() {
   );
   const [selectedGender, setSelectedGender] = useState(() => persisted.selectedGender || defaultState.selectedGender);
   const [selectedProductType, setSelectedProductType] = useState(() => persisted.selectedProductType || defaultState.selectedProductType);
-  const [selectedStyle, setSelectedStyle] = useState(() => persisted.selectedStyle || defaultState.selectedStyle);
   const [selectedGrade, setSelectedGrade] = useState(() => persisted.selectedGrade || defaultState.selectedGrade);
   const [customerSearch, setCustomerSearch] = useState(defaultState.customerSearch);
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -1297,7 +1291,6 @@ function POSPro() {
         selectedManufacturerId,
         selectedGender,
         selectedProductType,
-        selectedStyle,
         selectedGrade,
         paymentMode,
         cashAmount,
@@ -1319,7 +1312,6 @@ function POSPro() {
     selectedManufacturerId,
     selectedGender,
     selectedProductType,
-    selectedStyle,
     selectedGrade,
     paymentMode,
     cashAmount,
@@ -2065,7 +2057,6 @@ function POSPro() {
     const counts = {
       gender: withCounts(smartClassificationOptions.gender, "gender"),
       productType: withCounts(smartClassificationOptions.productType, "productType"),
-      style: withCounts(smartClassificationOptions.style, "style"),
       grade: withCounts(smartClassificationOptions.grade, "grade"),
     };
     return counts;
@@ -2084,13 +2075,11 @@ function POSPro() {
         const matchesProductType =
           selectedProductType === "all" ||
           getProductSmartFilterValue(product, "productType", smartClassificationOptions.productType) === normalizeFilterValue(selectedProductType);
-        const matchesStyle =
-          selectedStyle === "all" || getProductSmartFilterValue(product, "style", smartClassificationOptions.style) === normalizeFilterValue(selectedStyle);
         const matchesGrade =
           selectedGrade === "all" || getProductSmartFilterValue(product, "grade", smartClassificationOptions.grade) === normalizeFilterValue(selectedGrade);
-        return matchesGender && matchesProductType && matchesStyle && matchesGrade;
+        return matchesGender && matchesProductType && matchesGrade;
       }),
-    [productsAfterNonSmartFilters, selectedGender, selectedProductType, selectedStyle, selectedGrade, smartClassificationOptions]
+    [productsAfterNonSmartFilters, selectedGender, selectedProductType, selectedGrade, smartClassificationOptions]
   );
 
   const brandOptions = useMemo(() => {
@@ -2199,15 +2188,6 @@ function POSPro() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [smartFilterOptions.productType, selectedProductType]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (selectedStyle !== "all" && !smartFilterOptions.style.some((option) => option.id === selectedStyle)) {
-        setSelectedStyle("all");
-      }
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [smartFilterOptions.style, selectedStyle]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -2445,7 +2425,6 @@ function POSPro() {
       [
         { key: "gender", label: "الجنس", value: selectedGender, setValue: setSelectedGender, options: smartFilterOptions.gender },
         { key: "type", label: "نوع المنتج", value: selectedProductType, setValue: setSelectedProductType, options: smartFilterOptions.productType },
-        { key: "style", label: "الستايل", value: selectedStyle, setValue: setSelectedStyle, options: smartFilterOptions.style },
         { key: "grade", label: "الفئة", value: selectedGrade, setValue: setSelectedGrade, options: smartFilterOptions.grade },
       ]
         .filter((item) => item.value !== "all")
@@ -2453,7 +2432,7 @@ function POSPro() {
           ...item,
           name: item.options.find((option) => option.id === item.value)?.name || item.options.find((option) => option.value === item.value)?.name || item.value,
         })),
-    [selectedGender, selectedProductType, selectedStyle, selectedGrade, smartFilterOptions]
+    [selectedGender, selectedProductType, selectedGrade, smartFilterOptions]
   );
   const activeSmartFilterCount = activeSmartFilters.length;
 
@@ -4691,7 +4670,6 @@ function POSPro() {
     setSelectedManufacturerId("all");
     setSelectedGender("all");
     setSelectedProductType("all");
-    setSelectedStyle("all");
     setSelectedGrade("all");
     setSearch("");
   };
@@ -4989,15 +4967,6 @@ function POSPro() {
                       value={selectedProductType}
                       onChange={setSelectedProductType}
                       filterKey="productType"
-                      productsSource={smartFilterProductsSource}
-                      smart
-                    />
-                    <SmartFilterRow
-                      label="الستايل"
-                      options={smartFilterOptions.style}
-                      value={selectedStyle}
-                      onChange={setSelectedStyle}
-                      filterKey="style"
                       productsSource={smartFilterProductsSource}
                       smart
                     />

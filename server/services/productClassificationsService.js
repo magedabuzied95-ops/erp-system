@@ -1,6 +1,6 @@
 import db from "../database/db.js";
 
-const CLASSIFICATION_KEYS = ["gender", "product_type", "style", "grade"];
+const CLASSIFICATION_KEYS = ["gender", "product_type", "grade"];
 let productClassificationSchemaPromise = null;
 let productClassificationSchemaEnsured = false;
 
@@ -135,12 +135,14 @@ const fetchGroupsBase = async ({ includeInactive = false } = {}) => {
     optionsByGroupId.get(option.group_id).push(option);
   });
 
-  return groupsResult.rows.map((group) => ({
-    ...group,
-    label_ar: group.name_ar,
-    label_en: group.name_en,
-    options: optionsByGroupId.get(group.id) || [],
-  }));
+  return groupsResult.rows
+    .filter((group) => normalizeKey(group.key) !== "style")
+    .map((group) => ({
+      ...group,
+      label_ar: group.name_ar,
+      label_en: group.name_en,
+      options: optionsByGroupId.get(group.id) || [],
+    }));
 };
 
 export const fetchProductClassificationGroups = async ({ includeInactive = false } = {}) => {

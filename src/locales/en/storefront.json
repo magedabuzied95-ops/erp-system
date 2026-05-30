@@ -214,7 +214,6 @@
     "recentTitle": "Recent searches",
     "categories": "Categories",
     "brands": "Brands",
-    "styles": "Styles",
     "resultCount": "{{count}} result",
     "resultsFor": "Search results for \"{{query}}\"",
     "placeholders": [
@@ -245,12 +244,6 @@
         "Adidas",
         "New Balance",
         "Air Jordan"
-      ],
-      "styles": [
-        "Sneakers",
-        "Running",
-        "Lifestyle",
-        "Mirror Original"
       ]
     }
   },
@@ -288,9 +281,8 @@
       "Real photos",
       "Fast shipping"
     ],
-    "heroFallbackSubtitle": "A selected drop from the latest available styles.",
+    "heroFallbackSubtitle": "A selected drop from the latest available products.",
     "newArrival": "New Arrival",
-    "featuredStyle": "Featured Style",
     "shopByCategory": "Shop by category",
     "shopByCategorySubtitle": "Choose quickly by category or type",
     "bestsellers": "Best sellers",
@@ -381,7 +373,6 @@
     "gender": "Gender",
     "productType": "Product Type",
     "type": "Type",
-    "style": "Style",
     "grade": "Grade",
     "sizeFilter": "Size Filter",
     "availableSize": "Available size filter",
@@ -616,7 +607,7 @@
     "lengthCm": "Length in centimeters",
     "notes": {
       "39": "Good for relatively small feet",
-      "40": "A common daily casual choice",
+      "40": "A common daily choice",
       "41": "If your foot is wide, choose half a size up when available",
       "42": "Most requested in men's models",
       "43": "Suitable for medium to wide feet",

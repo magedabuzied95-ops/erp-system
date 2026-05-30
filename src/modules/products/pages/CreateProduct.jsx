@@ -285,7 +285,6 @@ function CreateProduct() {
   const [gender, setGender] = useState("");
   const [audiences, setAudiences] = useState([]);
   const [productType, setProductType] = useState("");
-  const [style, setStyle] = useState("");
   const [grade, setGrade] = useState("");
   const [variationMode, setVariationMode] = useState("full_variations");
   const [fixedSizeLabel, setFixedSizeLabel] = useState("One Size");
@@ -337,7 +336,6 @@ function CreateProduct() {
   const mirrorEditionEnabled = isMirrorProduct({
     product_type: productType,
     category: childCategory || subCategory || mainCategory,
-    style,
     grade,
   });
   const descriptionContext = useMemo(
@@ -349,7 +347,6 @@ function CreateProduct() {
       gender: audiences[0] || gender,
       audiences,
       productType,
-      style,
       grade,
       colors: colorGroups.map((group) => group.color),
       sizes: isColorOnlyMode ? [fixedSizeLabel] : colorGroups.flatMap((group) => group.sizes || []).map((row) => row.size),
@@ -365,7 +362,6 @@ function CreateProduct() {
       audiences,
       gender,
       productType,
-      style,
       grade,
       colorGroups,
       isColorOnlyMode,
@@ -449,7 +445,7 @@ function CreateProduct() {
           product_name: name,
           description_ar: descriptionAr,
           description_en: descriptionEn,
-          selling_vibe: descriptionTone || style,
+          selling_vibe: descriptionTone,
         },
       });
       const next = {
@@ -516,7 +512,6 @@ function CreateProduct() {
           gender ||
           audiences.length > 0 ||
           productType ||
-          style ||
           grade ||
           brand ||
           unit ||
@@ -562,7 +557,6 @@ function CreateProduct() {
       gender,
       audiences,
       productType,
-      style,
       grade,
       brand,
       unit,
@@ -786,7 +780,6 @@ function CreateProduct() {
       .map((image) => image.image_url || image.preview)
       .filter(Boolean)
       .slice(0, 3),
-    style,
     gender,
     product_type: productType,
   });
@@ -1445,7 +1438,6 @@ function CreateProduct() {
           seo_keywords: fallback.seo_keywords,
           canonical_slug: fallback.canonical_slug,
           suggested_category: childCategory || subCategory || mainCategory,
-          suggested_style: style,
           suggested_product_type: productType,
           gender: audiences[0] || gender,
           audiences,
@@ -1453,7 +1445,6 @@ function CreateProduct() {
           dominant_colors: colorGroups.map((group) => group.color).filter(Boolean),
           detection_confidence: {
             colors: colorGroups.some((group) => String(group.color || "").trim()) ? 45 : 15,
-            style: style ? 35 : 15,
             product_type: productType ? 40 : 15,
           },
         },
@@ -1499,7 +1490,6 @@ function CreateProduct() {
       setSeoTouched((current) => ({ ...current, slug: true }));
     }
     if (field === "suggested_category") setMainCategory(value);
-    if (field === "suggested_style") setStyle(value);
     if (field === "suggested_product_type") setProductType(value);
     if (field === "gender") {
       const normalized = String(value || "").trim().toLowerCase();
@@ -1528,7 +1518,6 @@ function CreateProduct() {
       seoKeywords,
       canonicalSlug,
       mainCategory,
-      style,
       productType,
       gender,
       grade,
@@ -1545,7 +1534,6 @@ function CreateProduct() {
       "seo_keywords",
       "canonical_slug",
       "suggested_category",
-      "suggested_style",
       "suggested_product_type",
       "gender",
       "grade",
@@ -1806,7 +1794,6 @@ function CreateProduct() {
         audiences,
         product_audiences: audiences,
         product_type: productType,
-        style,
         grade,
         variation_mode: variationMode,
         fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
@@ -1877,7 +1864,6 @@ function CreateProduct() {
         audiences,
         product_audiences: audiences,
         product_type: productType,
-        style,
         grade,
         variation_mode: variationMode,
         fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
@@ -1968,7 +1954,7 @@ function CreateProduct() {
           <input
             value={descriptionTone}
             onChange={(event) => setDescriptionTone(event.target.value)}
-            placeholder={t("products.editor.promptPlaceholder", "luxury tone, sporty tone, streetwear tone")}
+            placeholder={t("products.editor.promptPlaceholder", "premium tone, concise tone, friendly tone")}
             className="mt-1.5 h-11 w-full rounded-[14px] border border-white/10 bg-zinc-900/80 px-4 text-sm text-white shadow-inner shadow-black/20 outline-none placeholder:text-zinc-500 transition focus:border-amber-300/35 focus:bg-zinc-900"
           />
         </div>
@@ -2243,7 +2229,6 @@ function CreateProduct() {
                 gender={gender}
                 audiences={audiences}
                 productType={productType}
-                style={style}
                 grade={grade}
                 onMainCategoryChange={setMainCategory}
                 onSubCategoryChange={setSubCategory}
@@ -2260,7 +2245,6 @@ function CreateProduct() {
                   setGender(next[0] || "");
                 }}
                 onProductTypeChange={setProductType}
-                onStyleChange={setStyle}
                 onGradeChange={setGrade}
               />
 
@@ -2652,7 +2636,6 @@ function CreateProduct() {
                       ["seo_keywords", "SEO keywords"],
                       ["suggested_category", "Suggested category"],
                       ["suggested_product_type", "Suggested type"],
-                      ["suggested_style", "Suggested style"],
                       ["gender", "Gender"],
                       ["grade", "Grade"],
                     ].map(([field, label]) => {
@@ -2707,24 +2690,9 @@ function CreateProduct() {
                         </p>
                       </div>
                     ) : null}
-                    {getSuggestionValue(aiProductData.suggestions, "suggested_style", "classification") ? (
-                      <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.detectedStyle", "Detected style")}</p>
-                          {getDetectionConfidenceLabel(aiProductData.suggestions, "style") ? (
-                            <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-black text-emerald-100">
-                              {getDetectionConfidenceLabel(aiProductData.suggestions, "style")}
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="mt-2 text-sm leading-5 text-zinc-200">
-                          {[getSuggestionValue(aiProductData.suggestions, "suggested_style"), getSuggestionValue(aiProductData.suggestions, "classification")].filter(Boolean).join(" · ")}
-                        </p>
-                      </div>
-                    ) : null}
                     {getSuggestionValue(aiProductData.suggestions, "brand_resemblance") ? (
                       <div className="rounded-[16px] border border-white/10 bg-zinc-950/70 p-3">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.brandStyleResemblance", "Brand style resemblance")}</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{t("products.editor.brandResemblance", "Brand resemblance")}</p>
                         <p className="mt-2 text-sm leading-5 text-zinc-200">
                           {getSuggestionValue(aiProductData.suggestions, "brand_resemblance")}
                         </p>
