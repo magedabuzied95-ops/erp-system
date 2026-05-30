@@ -1178,6 +1178,8 @@ router.post("/channels/meta/webhook", async (req, res) => {
           conversationId: message.external_conversation_id,
           attachments: outboundAttachments,
           productCards: reply.product_cards || aiPayload.suggested_products || [],
+          facebookPageId: message.metadata?.page_id || message.page_id || "",
+          instagramBusinessAccountId: message.metadata?.instagram_business_account_id || message.instagram_business_account_id || "",
         });
         results.push({ channel, external_customer_id: message.external_customer_id, conversation_id: message.external_conversation_id, sent: sendResult.sent });
         pushAIEvent({
@@ -1840,6 +1842,8 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       recipientId,
       messageText,
       conversationId,
+      facebookPageId: conversation.channel_metadata?.page_id || conversation.channel_metadata?.facebook_page_id || "",
+      instagramBusinessAccountId: conversation.channel_metadata?.instagram_business_account_id || conversation.channel_metadata?.instagram_account_id || "",
     });
     const message = await appendManualAiSupportReply({
       tenantId,
@@ -1932,6 +1936,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       status: error?.status || 500,
       code: error?.code || "",
       message: error?.message || "Meta send failed",
+      meta_error: error?.metaResponse?.error || null,
     });
     return sendError(res, error, "Failed to send Meta message");
   }

@@ -543,6 +543,10 @@ export const appendAiGeneratedSupportReply = async ({
   suggestedProducts = [],
   visualAttachments = [],
   suggestedActions = [],
+  channel = "",
+  deliveryStatus = "",
+  deliveryError = "",
+  externalMessageId = "",
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
@@ -583,9 +587,13 @@ export const appendAiGeneratedSupportReply = async ({
       detected_intent,
       fallback_reason,
       sender_type,
-      manual_message
+      manual_message,
+      channel,
+      delivery_status,
+      delivery_error,
+      external_message_id
     )
-    VALUES ($1, $2, $3, $4, '', $4, $5, FALSE, '[]'::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, '', 'ai', FALSE)
+    VALUES ($1, $2, $3, $4, '', $4, $5, FALSE, '[]'::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, '', 'ai', FALSE, COALESCE(NULLIF($10, ''), 'web_chat'), $11, $12, $13)
     RETURNING *
     `,
     [
@@ -598,6 +606,10 @@ export const appendAiGeneratedSupportReply = async ({
       jsonValue(Array.isArray(visualAttachments) ? visualAttachments : []),
       jsonValue(Array.isArray(suggestedActions) ? suggestedActions : []),
       toText(detectedIntent),
+      toText(channel),
+      toText(deliveryStatus),
+      toText(deliveryError),
+      toText(externalMessageId),
     ]
   );
   await db.query(

@@ -6,6 +6,7 @@ import { emitToRooms } from "../utils/socket.js";
 import {
   appendAiGeneratedSupportReply,
   ensureAiSupportLogSchema,
+  getAiSupportConversationState,
   markAiSupportConversationEscalated,
 } from "./aiSupportLogService.js";
 import {
@@ -323,6 +324,22 @@ const decryptSecret = (value = "") => {
   const decipher = crypto.createDecipheriv("aes-256-gcm", secretKey(), Buffer.from(ivRaw, "base64"));
   decipher.setAuthTag(Buffer.from(tagRaw, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(encryptedRaw, "base64")), decipher.final()]).toString("utf8");
+};
+
+const tryDecryptSecret = (value = "", metadata = {}) => {
+  try {
+    return { value: decryptSecret(value), error: null };
+  } catch (error) {
+    console.error("[meta-inbox] meta_token_decrypt_failed", {
+      tenant_id: metadata.tenant_id || null,
+      config_id: metadata.config_id || null,
+      source: metadata.source || "",
+      channel: metadata.channel || "",
+      message: error?.message || "Meta token decrypt failed",
+      code: error?.code || "",
+    });
+    return { value: "", error };
+  }
 };
 
 const parseMetaPayload = async (response) => {
@@ -2985,6 +3002,7 @@ const postMetaMessage = async ({ token, recipientId, messageText }) => {
   console.log("ai_inbox_send_graph_request", {
     recipient_id: maskIdForLog(recipientId),
     message_length: text(messageText).length,
+    message_type: "text",
   });
   const response = await fetch(`${GRAPH_BASE_URL}/me/messages?access_token=${encodeURIComponent(token)}`, {
     method: "POST",
@@ -2996,11 +3014,35 @@ const postMetaMessage = async ({ token, recipientId, messageText }) => {
     }),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(payload?.error?.message || "Meta Send API failed"), { status: response.status });
+  if (!response.ok) {
+    console.error("[meta-inbox] graph_send_error", {
+      status: response.status,
+      code: payload?.error?.code || "",
+      subcode: payload?.error?.error_subcode || "",
+      type: payload?.error?.type || "",
+      message: payload?.error?.message || "Meta Send API failed",
+      fbtrace_id: payload?.error?.fbtrace_id || "",
+    });
+    throw Object.assign(new Error(payload?.error?.message || "Meta Send API failed"), {
+      status: response.status,
+      code: payload?.error?.code || "",
+      metaResponse: payload,
+    });
+  }
+  console.log("[meta-inbox] graph_send_success", {
+    recipient_id: maskIdForLog(recipientId),
+    message_id: payload?.message_id || "",
+    recipient_id_returned: maskIdForLog(payload?.recipient_id || ""),
+  });
   return payload;
 };
 
 const postMetaImageMessage = async ({ token, recipientId, imageUrl }) => {
+  console.log("ai_inbox_send_graph_request", {
+    recipient_id: maskIdForLog(recipientId),
+    message_type: "image",
+    image_url_exists: Boolean(text(imageUrl)),
+  });
   const response = await fetch(`${GRAPH_BASE_URL}/me/messages?access_token=${encodeURIComponent(token)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -3016,7 +3058,28 @@ const postMetaImageMessage = async ({ token, recipientId, imageUrl }) => {
     }),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(payload?.error?.message || "Meta image send failed"), { status: response.status });
+  if (!response.ok) {
+    console.error("[meta-inbox] graph_send_error", {
+      status: response.status,
+      code: payload?.error?.code || "",
+      subcode: payload?.error?.error_subcode || "",
+      type: payload?.error?.type || "",
+      message: payload?.error?.message || "Meta image send failed",
+      fbtrace_id: payload?.error?.fbtrace_id || "",
+      message_type: "image",
+    });
+    throw Object.assign(new Error(payload?.error?.message || "Meta image send failed"), {
+      status: response.status,
+      code: payload?.error?.code || "",
+      metaResponse: payload,
+    });
+  }
+  console.log("[meta-inbox] graph_send_success", {
+    recipient_id: maskIdForLog(recipientId),
+    message_id: payload?.message_id || "",
+    recipient_id_returned: maskIdForLog(payload?.recipient_id || ""),
+    message_type: "image",
+  });
   return payload;
 };
 
@@ -3565,13 +3628,36 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     recipientId: message.external_customer_id,
     messageText: replyText,
     conversationId: message.external_conversation_id,
+    facebookPageId: config.facebook_page_id,
+    instagramBusinessAccountId: config.instagram_business_account_id,
+    preferredConfigId: config.id,
   });
-  await appendAiGeneratedSupportReply({
+  const inserted = await appendAiGeneratedSupportReply({
     tenantId: config.tenant_id,
     sessionId: message.external_conversation_id,
     answer: replyText,
     detectedIntent,
-  }).catch(() => {});
+    channel: message.channel,
+    deliveryStatus: "sent",
+    externalMessageId: result?.message_id || "",
+  }).catch((error) => {
+    console.error("[meta-inbox] ai_outbound_db_insert_failed", {
+      tenant_id: config.tenant_id,
+      session_id: message.external_conversation_id,
+      channel: message.channel,
+      message: error?.message || "AI outbound insert failed",
+      code: error?.code || "",
+    });
+    return null;
+  });
+  console.log("[meta-inbox] ai_outbound_db_insert_result", {
+    tenant_id: config.tenant_id,
+    session_id: message.external_conversation_id,
+    channel: message.channel,
+    message_id: inserted?.id || null,
+    delivery_status: inserted?.delivery_status || "",
+    external_message_id: inserted?.external_message_id || result?.message_id || "",
+  });
   await logChannelEvent({
     tenantId: config.tenant_id,
     channel: message.channel,
@@ -3646,6 +3732,9 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     conversationId: message.external_conversation_id,
     productCards: gatedCards,
     suggestedActions: META_COMMERCE_ACTIONS,
+    facebookPageId: config.facebook_page_id,
+    instagramBusinessAccountId: config.instagram_business_account_id,
+    preferredConfigId: config.id,
   });
   rememberLastProductCards({ conversationId: message.external_conversation_id, productCards: gatedCards });
   await recordLeadSignals({ config, message, reason: "product_cards_sent" }).catch(() => {});
@@ -3657,6 +3746,9 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     detectedIntent,
     suggestedProducts: gatedCards,
     suggestedActions: META_COMMERCE_ACTIONS,
+    channel: message.channel,
+    deliveryStatus: "sent",
+    externalMessageId: result?.message_id || "",
   }).catch(() => {});
   await logChannelEvent({
     tenantId: config.tenant_id,
@@ -3903,7 +3995,13 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   let understanding = null;
   let downloadedImageInput = null;
   try {
-    const token = decryptSecret(config.page_access_token_encrypted);
+    const { token } = await resolveMetaSendConfig({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      facebookPageId: config.facebook_page_id,
+      instagramBusinessAccountId: config.instagram_business_account_id,
+      preferredConfigId: config.id,
+    });
     const imageInput = await downloadImageForVision({ imageUrl, token });
     downloadedImageInput = imageInput;
     pipeline.image_download_success = true;
@@ -4239,6 +4337,9 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     conversationId: message.external_conversation_id,
     productCards: moreImageCards,
     suggestedActions: META_COMMERCE_ACTIONS,
+    facebookPageId: config.facebook_page_id,
+    instagramBusinessAccountId: config.instagram_business_account_id,
+    preferredConfigId: config.id,
   });
   rememberLastProductCards({ conversationId: message.external_conversation_id, productCards: moreImageCards });
   const preview = moreImageCards.map(productCardReplyText).join("\n\n").slice(0, 500);
@@ -4249,6 +4350,9 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     detectedIntent: "more_images",
     suggestedProducts: moreImageCards,
     suggestedActions: META_COMMERCE_ACTIONS,
+    channel: message.channel,
+    deliveryStatus: "sent",
+    externalMessageId: result?.message_id || "",
   }).catch(() => {});
   await logChannelEvent({
     tenantId: config.tenant_id,
@@ -4690,6 +4794,111 @@ const recordLeadSignals = async ({ config, message, reason = "inbound" } = {}) =
   return { score, signals: next };
 };
 
+const resolveMetaSendConfig = async ({
+  tenantId,
+  channel = "",
+  facebookPageId = "",
+  instagramBusinessAccountId = "",
+  preferredConfigId = null,
+} = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  const normalizedChannel = adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
+  const pageId = text(facebookPageId);
+  const igId = text(instagramBusinessAccountId);
+  const preferredId = numberOrNull(preferredConfigId);
+  if (!scopedTenantId) {
+    throw Object.assign(new Error("tenant_id is required for Meta send config lookup"), { status: 400, code: "META_SEND_TENANT_REQUIRED" });
+  }
+
+  const result = await db.query(
+    `
+    SELECT *
+    FROM meta_integration_configs
+    WHERE tenant_id = $1
+      AND page_access_token_encrypted IS NOT NULL
+      AND page_access_token_encrypted <> ''
+      AND COALESCE(token_expires_at, NOW() + INTERVAL '1 day') > NOW()
+      AND LOWER(COALESCE(status, '')) NOT IN ('invalid','token_expired','revoked','error','not_connected')
+      AND (
+        $5::text <> 'instagram'
+        OR COALESCE(instagram_business_account_id, '') <> ''
+        OR $4::text <> ''
+      )
+    ORDER BY
+      CASE WHEN $2::bigint IS NOT NULL AND id = $2::bigint THEN 0 ELSE 1 END,
+      CASE WHEN $3::text <> '' AND TRIM(COALESCE(facebook_page_id, '')::text) = $3 THEN 0 ELSE 1 END,
+      CASE WHEN $4::text <> '' AND TRIM(COALESCE(instagram_business_account_id, '')::text) = $4 THEN 0 ELSE 1 END,
+      CASE WHEN webhook_enabled = TRUE THEN 0 ELSE 1 END,
+      updated_at DESC,
+      id DESC
+    LIMIT 10
+    `,
+    [scopedTenantId, preferredId, pageId, igId, normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook"]
+  );
+  const marketingResult = await db.query(
+    `
+    SELECT *
+    FROM marketing_settings
+    WHERE tenant_id = $1
+      AND (COALESCE(page_access_token, '') <> '' OR COALESCE(access_token_encrypted, '') <> '')
+      AND ($2::text = '' OR COALESCE(page_id, '') = '' OR TRIM(page_id::text) = $2)
+      AND ($3::text = '' OR COALESCE(instagram_account_id, '') = '' OR TRIM(instagram_account_id::text) = $3)
+    ORDER BY updated_at DESC
+    LIMIT 1
+    `,
+    [scopedTenantId, pageId, igId]
+  ).catch(() => ({ rows: [] }));
+
+  const candidates = [
+    ...result.rows.map((row) => ({ source: "meta_integration_configs", row })),
+    ...marketingResult.rows.map((row) => ({
+      source: "marketing_settings",
+      row: {
+        id: null,
+        tenant_id: row.tenant_id,
+        facebook_page_id: row.page_id || pageId,
+        instagram_business_account_id: row.instagram_account_id || igId,
+        page_access_token_encrypted: row.page_access_token || row.access_token_encrypted || "",
+        token_expires_at: row.token_expires_at || null,
+        status: row.token_status || "active",
+        webhook_enabled: false,
+      },
+    })),
+  ];
+
+  let decryptFailures = 0;
+  for (const candidate of candidates) {
+    const { row } = candidate;
+    const decrypted = tryDecryptSecret(row.page_access_token_encrypted, {
+      tenant_id: scopedTenantId,
+      config_id: row.id || null,
+      source: candidate.source,
+      channel: normalizedChannel,
+    });
+    if (!decrypted.value) {
+      if (decrypted.error) decryptFailures += 1;
+      continue;
+    }
+    console.log("[meta-inbox] meta_send_config_resolved", {
+      tenant_id: scopedTenantId,
+      config_id: row.id || null,
+      source: candidate.source,
+      channel: normalizedChannel,
+      facebook_page_id: maskIdForLog(row.facebook_page_id || pageId),
+      instagram_business_account_id: maskIdForLog(row.instagram_business_account_id || igId),
+      token_expires_at: row.token_expires_at || null,
+      decrypt_failures_before_selected: decryptFailures,
+    });
+    return { config: row, token: decrypted.value, source: candidate.source, channel: normalizedChannel };
+  }
+
+  throw Object.assign(new Error(decryptFailures ? "No decryptable active Meta token found for this tenant/account." : "No active persisted Meta integration config found for this tenant/account."), {
+    status: 409,
+    code: decryptFailures ? "META_TOKEN_DECRYPT_FAILED" : "META_CONFIG_MISSING",
+  });
+};
+
 export const sendMetaInboxOutboundMessage = async ({
   tenantId,
   channel = "",
@@ -4699,6 +4908,9 @@ export const sendMetaInboxOutboundMessage = async ({
   attachments = [],
   productCards = [],
   suggestedActions = [],
+  facebookPageId = "",
+  instagramBusinessAccountId = "",
+  preferredConfigId = null,
 } = {}) => {
   await ensureMetaIntegrationSchema();
   const scopedTenantId = numberOrNull(tenantId);
@@ -4709,43 +4921,25 @@ export const sendMetaInboxOutboundMessage = async ({
   if (!scopedTenantId || !safeRecipientId || (!safeMessage && !cards.length)) {
     throw Object.assign(new Error("tenant_id, recipient id, and message are required"), { status: 400, code: "META_SEND_INPUT_REQUIRED" });
   }
-  const result = await db.query(
-    `
-    SELECT *
-    FROM meta_integration_configs
-    WHERE tenant_id = $1
-      AND page_access_token_encrypted <> ''
-      AND COALESCE(token_expires_at, NOW() + INTERVAL '1 day') > NOW()
-      AND LOWER(COALESCE(status, '')) NOT IN ('invalid','token_expired','revoked','error','not_connected')
-      AND (
-        $2::text <> 'instagram'
-        OR COALESCE(instagram_business_account_id, '') <> ''
-      )
-    ORDER BY
-      CASE WHEN webhook_enabled = TRUE THEN 0 ELSE 1 END,
-      updated_at DESC,
-      id DESC
-    LIMIT 1
-    `,
-    [scopedTenantId, normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook"]
-  );
-  const config = result.rows[0] || null;
-  if (!config) {
-    throw Object.assign(new Error("No active persisted Meta integration config found for this tenant."), {
-      status: 409,
-      code: "META_CONFIG_MISSING",
-    });
-  }
-  const token = decryptSecret(config.page_access_token_encrypted);
-  if (!token) {
-    throw Object.assign(new Error("Saved Meta page access token is empty."), { status: 409, code: "META_TOKEN_MISSING" });
-  }
+  const { config, token, source } = await resolveMetaSendConfig({
+    tenantId: scopedTenantId,
+    channel: normalizedChannel,
+    facebookPageId,
+    instagramBusinessAccountId,
+    preferredConfigId,
+  });
   console.log("ai_inbox_send_start", {
     tenant_id: scopedTenantId,
     config_id: config.id || null,
+    config_source: source,
     channel: normalizedChannel,
     conversation_id: conversationId || "",
     recipient_id: maskIdForLog(safeRecipientId),
+    payload_metadata: {
+      message_length: safeMessage.length,
+      product_card_count: cards.length,
+      attachment_count: imageAttachmentUrls(attachments).length,
+    },
   });
   let meta = null;
   const imageResults = [];
@@ -4810,6 +5004,7 @@ export const sendMetaInboxOutboundMessage = async ({
       sent: true,
       channel: normalizedChannel,
       config_id: config.id || null,
+      config_source: source,
       recipient_id: safeRecipientId,
       message_id: meta?.message_id || "",
       meta,
@@ -4867,6 +5062,7 @@ export const sendMetaInboxOutboundMessage = async ({
     sent: true,
     channel: normalizedChannel,
     config_id: config.id || null,
+    config_source: source,
     recipient_id: safeRecipientId,
     message_id: meta?.message_id || "",
     meta,
@@ -4974,8 +5170,44 @@ export const processMetaWebhook = async ({ req } = {}) => {
     }
     const settings = await getChannelSettings({ tenantId: config.tenant_id, channel: message.channel }).catch(() => ({}));
     const autoReplyMode = text(settings.auto_reply_mode || (settings.ai_replies_enabled === true ? "fully_automatic" : "off")).toLowerCase();
+    console.log("[meta-inbox] auto_reply_settings_resolved", {
+      tenant_id: config.tenant_id,
+      config_id: config.id || null,
+      session_id: message.external_conversation_id,
+      channel: alias,
+      ai_replies_enabled: settings.ai_replies_enabled === true,
+      auto_reply_mode: autoReplyMode,
+      messenger_enabled: config.messenger_enabled === true,
+      instagram_enabled: config.instagram_enabled === true,
+    });
     if (settings.ai_replies_enabled !== true || autoReplyMode === "off") {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "auto_reply_disabled" });
+      continue;
+    }
+    const conversationState = await getAiSupportConversationState({
+      tenantId: config.tenant_id,
+      sessionId: message.external_conversation_id,
+    }).catch((error) => {
+      console.warn("[meta-inbox] auto_reply_state_lookup_failed", {
+        tenant_id: config.tenant_id,
+        session_id: message.external_conversation_id,
+        channel: alias,
+        message: error?.message || "state lookup failed",
+      });
+      return null;
+    });
+    const status = text(conversationState?.status || "ai_active").toLowerCase();
+    console.log("[meta-inbox] auto_reply_state_checks", {
+      tenant_id: config.tenant_id,
+      session_id: message.external_conversation_id,
+      channel: alias,
+      status,
+      human_takeover: status === "human_takeover",
+      ai_paused: ["human_takeover", "closed"].includes(status),
+      closed: status === "closed",
+    });
+    if (["human_takeover", "closed"].includes(status)) {
+      results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: status });
       continue;
     }
     console.log("[meta-inbox] meta_inbox_auto_reply_triggered", {
@@ -5019,6 +5251,17 @@ export const processMetaWebhook = async ({ req } = {}) => {
     let aiPayload;
     try {
       aiPayload = await routeMessageThroughAi({ req, message, config });
+      console.log("[meta-inbox] auto_reply_ai_generation_result", {
+        tenant_id: config.tenant_id,
+        session_id: message.external_conversation_id,
+        channel: alias,
+        has_answer: Boolean(text(aiPayload?.answer)),
+        has_channel_reply: Boolean(aiPayload?.channel_reply),
+        channel_reply_text_length: text(aiPayload?.channel_reply?.text).length,
+        suggested_product_count: Array.isArray(aiPayload?.suggested_products) ? aiPayload.suggested_products.length : 0,
+        conversation_status: text(aiPayload?.conversation_status || ""),
+        detected_intent: text(aiPayload?.detected_intent || ""),
+      });
       await linkChannelConversationToCustomerProfile({
         tenantId: config.tenant_id,
         channel: message.channel,
@@ -5026,6 +5269,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
         externalCustomerId: message.external_customer_id,
       }).catch(() => {});
     } catch (error) {
+      console.error("[meta-inbox] auto_reply_ai_generation_failed", {
+        tenant_id: config.tenant_id,
+        session_id: message.external_conversation_id,
+        channel: alias,
+        message: error?.message || "AI flow failed",
+        status: error?.status || "",
+        code: error?.code || "",
+      });
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, ai_error: error?.message || "AI flow failed" });
       continue;
     }
@@ -5066,50 +5317,37 @@ export const processMetaWebhook = async ({ req } = {}) => {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true, reason: "repeated_product_card_prevented" });
       continue;
     }
-    if ((!replyText && !productCards.length) || ["human_takeover", "closed"].includes(text(aiPayload.conversation_status || aiPayload.detected_intent).toLowerCase())) {
+    const aiStatus = text(aiPayload.conversation_status || aiPayload.detected_intent).toLowerCase();
+    console.log("[meta-inbox] auto_reply_post_ai_checks", {
+      tenant_id: config.tenant_id,
+      session_id: message.external_conversation_id,
+      channel: alias,
+      reply_text_length: text(replyText).length,
+      product_card_count: productCards.length,
+      ai_status: aiStatus,
+      human_takeover: aiStatus === "human_takeover",
+      ai_paused: ["human_takeover", "closed"].includes(aiStatus),
+      closed: aiStatus === "closed",
+    });
+    if ((!replyText && !productCards.length) || ["human_takeover", "closed"].includes(aiStatus)) {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "ai_paused" });
       continue;
     }
     try {
-      const token = decryptSecret(config.page_access_token_encrypted);
-      let sendResult = null;
-      const imageResults = [];
+      const outboundPreview = productCards.length ? productCards.map(productCardReplyText).join("\n\n").slice(0, 500) : replyText;
+      const sendResult = await sendMetaInboxOutboundMessage({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        recipientId: message.external_customer_id,
+        messageText: replyText,
+        conversationId: message.external_conversation_id,
+        productCards,
+        suggestedActions: productCards.length ? META_COMMERCE_ACTIONS : [],
+        facebookPageId: config.facebook_page_id || pageIds[0] || "",
+        instagramBusinessAccountId: config.instagram_business_account_id || instagramBusinessAccountIds[0] || "",
+        preferredConfigId: config.id,
+      });
       if (productCards.length) {
-        for (const product of productCards) {
-          console.log("ai_inbox_selected_product_card", {
-            tenant_id: config.tenant_id,
-            channel: message.channel,
-            conversation_id: message.external_conversation_id,
-            selected_product_id: product.product_id || product.id || null,
-            image_url_exists: Boolean(product.image_url),
-            product_link_generated: product.product_url || product.url || "",
-          });
-          if (product.image_url) {
-            try {
-              const imageResult = await postMetaImageMessage({ token, recipientId: message.external_customer_id, imageUrl: product.image_url });
-              imageResults.push(imageResult);
-              console.log("ai_inbox_messenger_send_image_success", {
-                tenant_id: config.tenant_id,
-                channel: message.channel,
-                conversation_id: message.external_conversation_id,
-                selected_product_id: product.product_id || product.id || null,
-                image_url: product.image_url,
-              });
-            } catch (error) {
-              console.warn("ai_inbox_messenger_send_image_failure", {
-                tenant_id: config.tenant_id,
-                channel: message.channel,
-                conversation_id: message.external_conversation_id,
-                selected_product_id: product.product_id || product.id || null,
-                image_url: product.image_url,
-                status: error?.status || "",
-                message: error?.message || "Meta image send failed",
-              });
-            }
-          }
-          sendResult = await postMetaMessage({ token, recipientId: message.external_customer_id, messageText: productCardReplyText(product) });
-        }
-        sendResult = await postMetaMessage({ token, recipientId: message.external_customer_id, messageText: META_COMMERCE_ACTION_FALLBACK });
         rememberLastProductCards({ conversationId: message.external_conversation_id, productCards });
         await recordLeadSignals({ config, message, reason: "product_cards_sent" }).catch(() => {});
         console.log("ai_inbox_suggested_action_generated", {
@@ -5119,26 +5357,63 @@ export const processMetaWebhook = async ({ req } = {}) => {
           actions: META_COMMERCE_ACTIONS,
           fallback: true,
         });
-      } else {
-        sendResult = await postMetaMessage({ token, recipientId: message.external_customer_id, messageText: replyText });
       }
+      const inserted = await appendAiGeneratedSupportReply({
+        tenantId: config.tenant_id,
+        sessionId: message.external_conversation_id,
+        answer: outboundPreview,
+        detectedIntent: aiPayload.detected_intent || "",
+        suggestedProducts: productCards,
+        suggestedActions: productCards.length ? META_COMMERCE_ACTIONS : [],
+        channel: message.channel,
+        deliveryStatus: "sent",
+        externalMessageId: sendResult?.message_id || "",
+      }).catch((error) => {
+        console.error("[meta-inbox] ai_outbound_db_insert_failed", {
+          tenant_id: config.tenant_id,
+          session_id: message.external_conversation_id,
+          channel: message.channel,
+          message: error?.message || "AI outbound insert failed",
+          code: error?.code || "",
+        });
+        return null;
+      });
+      console.log("[meta-inbox] ai_outbound_db_insert_result", {
+        tenant_id: config.tenant_id,
+        session_id: message.external_conversation_id,
+        channel: message.channel,
+        message_id: inserted?.id || null,
+        delivery_status: inserted?.delivery_status || "",
+        external_message_id: inserted?.external_message_id || sendResult?.message_id || "",
+      });
       await logChannelEvent({
         tenantId: config.tenant_id,
         channel: message.channel,
         direction: "outbound",
         externalCustomerId: message.external_customer_id,
         conversationId: message.external_conversation_id,
-        messagePreview: productCards.length ? productCards.map(productCardReplyText).join("\n\n").slice(0, 500) : replyText,
+        messagePreview: outboundPreview,
         status: "sent",
         metadata: {
           meta_message_id: sendResult?.message_id || "",
-          image_result_count: imageResults.length,
+          image_result_count: Array.isArray(sendResult?.results) ? Math.max(0, sendResult.results.length - 1) : 0,
           product_card_count: productCards.length,
           suggested_actions: productCards.length ? META_COMMERCE_ACTIONS : [],
         },
       }).catch(() => {});
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true });
     } catch (error) {
+      console.error("[meta-inbox] auto_reply_send_failed", {
+        tenant_id: config.tenant_id,
+        config_id: config.id || null,
+        session_id: message.external_conversation_id,
+        channel: alias,
+        recipient_id: maskIdForLog(message.external_customer_id),
+        status: error?.status || "",
+        code: error?.code || "",
+        message: error?.message || "Meta send failed",
+        meta_error: error?.metaResponse?.error || null,
+      });
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, send_error: error?.message || "Meta send failed" });
     }
   }
