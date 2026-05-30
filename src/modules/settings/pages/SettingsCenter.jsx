@@ -717,8 +717,36 @@ function SettingsCenterContent({ debugMode = false }) {
 function StorefrontSettings(props) {
   const { ui, setting, value, hero, featuredCollections, collectionDraft, setCollectionDraft, updateValue, updateHero, renderInput, renderField } = props;
   const publicUrl = value("storefront.public_url");
+  const [activeTab, setActiveTab] = useState("general");
+  const tabs = [
+    ["general", "Storefront", Store],
+    ["shipping", "Shipping", Truck],
+  ];
   return (
     <div className="grid gap-5">
+      <div className={`flex flex-wrap gap-2 rounded-[1.5rem] p-2 ${shellCard}`}>
+        {tabs.map(([id, labelText, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black transition ${activeTab === id ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/8"}`}
+          >
+            <Icon className="h-4 w-4" />
+            {labelText}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "shipping" ? (
+        <VisualSection icon={Truck} title="Shipping" description="Set checkout shipping prices by governorate, city, and optional district.">
+          <div className="grid gap-4">
+            {renderField(setting("storefront.default_shipping_price"), true)}
+            <ShippingZonesEditor value={value("storefront.shipping_zones")} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
+          </div>
+        </VisualSection>
+      ) : (
+        <>
       <VisualSection icon={Store} title="Store Identity" description="Name, URL, logo, and browser identity for the public store.">
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.store_name"), true)}
@@ -788,7 +816,158 @@ function StorefrontSettings(props) {
           <PremiumInput label="Google Analytics" value={value("storefront.google_analytics_id")} onChange={(next) => updateValue("storefront.google_analytics_id", next)} />
         </div>
       </VisualSection>
+        </>
+      )}
     </div>
+  );
+}
+
+const shippingZonePresets = [
+  { id: "damietta", governorate: "Damietta", city: "", area: "", price: 45, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", active: true },
+  { id: "new-damietta", governorate: "Damietta", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", active: true },
+  { id: "cairo", governorate: "Cairo", city: "", area: "", price: 70, cod_allowed: false, requires_shipping_proof: true, estimated_delivery_text: "2-4 business days", active: true },
+  { id: "giza", governorate: "Giza", city: "", area: "", price: 70, cod_allowed: false, requires_shipping_proof: true, estimated_delivery_text: "2-4 business days", active: true },
+  { id: "alexandria", governorate: "Alexandria", city: "", area: "", price: 75, cod_allowed: false, requires_shipping_proof: true, estimated_delivery_text: "2-5 business days", active: true },
+];
+
+const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
+  id: String(zone.id || `zone-${Date.now()}-${index}`).trim(),
+  governorate: String(zone.governorate || "").trim(),
+  city: String(zone.city || zone.markaz || "").trim(),
+  area: String(zone.area || zone.district || "").trim(),
+  price: Number.isFinite(Number(zone.price ?? zone.shipping_price)) ? Number(zone.price ?? zone.shipping_price) : 0,
+  cod_allowed: zone.cod_allowed !== false,
+  requires_shipping_proof: zone.requires_shipping_proof !== false,
+  estimated_delivery_text: String(zone.estimated_delivery_text || zone.estimatedDeliveryText || "").trim(),
+  active: zone.active !== false,
+});
+
+function ShippingZonesEditor({ value, onChange }) {
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState([]);
+  const [bulkPrice, setBulkPrice] = useState("");
+  const zones = useMemo(() => (Array.isArray(value) ? value : []).map(normalizeShippingZoneRow), [value]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleZones = zones.filter((zone) => !normalizedQuery || [zone.governorate, zone.city, zone.area, zone.estimated_delivery_text].join(" ").toLowerCase().includes(normalizedQuery));
+  const selectedSet = new Set(selected);
+
+  const updateRows = (next) => onChange(next.map(normalizeShippingZoneRow));
+  const patchRow = (id, patch) => updateRows(zones.map((zone) => (zone.id === id ? { ...zone, ...patch } : zone)));
+  const addRow = () => updateRows([...zones, normalizeShippingZoneRow({ governorate: "", price: 60 }, zones.length)]);
+  const deleteRow = (id) => {
+    updateRows(zones.filter((zone) => zone.id !== id));
+    setSelected((current) => current.filter((item) => item !== id));
+  };
+  const addPresets = () => {
+    const existing = new Set(zones.map((zone) => zone.id));
+    updateRows([...zones, ...shippingZonePresets.filter((zone) => !existing.has(zone.id))]);
+  };
+  const applyBulkPrice = () => {
+    const price = Number(bulkPrice);
+    if (!Number.isFinite(price) || price < 0 || !selected.length) return;
+    updateRows(zones.map((zone) => (selectedSet.has(zone.id) ? { ...zone, price } : zone)));
+  };
+  const exportZones = () => {
+    const blob = new Blob([JSON.stringify(zones, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "storefront-shipping-zones.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+  const importZones = async (file) => {
+    if (!file) return;
+    const text = await file.text();
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) updateRows(parsed);
+    } catch {
+      const [headerLine, ...lines] = text.split(/\r?\n/).filter(Boolean);
+      const headers = headerLine.split(",").map((item) => item.trim().toLowerCase());
+      const rows = lines.map((line, index) => {
+        const cells = line.split(",").map((item) => item.trim());
+        const row = Object.fromEntries(headers.map((header, cellIndex) => [header, cells[cellIndex] || ""]));
+        return normalizeShippingZoneRow({
+          id: row.id || `import-${Date.now()}-${index}`,
+          governorate: row.governorate,
+          city: row.city || row.markaz,
+          area: row.area || row.district,
+          price: row.price || row.shipping_price,
+          cod_allowed: !["false", "0", "no"].includes(String(row.cod_allowed || "").toLowerCase()),
+          requires_shipping_proof: !["false", "0", "no"].includes(String(row.requires_shipping_proof || "").toLowerCase()),
+          estimated_delivery_text: row.estimated_delivery_text || row.eta,
+          active: !["false", "0", "no"].includes(String(row.active || "").toLowerCase()),
+        });
+      });
+      updateRows(rows);
+    }
+  };
+
+  return (
+    <article className={`rounded-2xl p-4 ${fieldSurface}`}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h3 className={`text-sm font-black ${headingText}`}>Shipping zones</h3>
+          <p className={`mt-1 text-xs ${bodyText}`}>Exact area rows win first, then city rows, then governorate rows.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={addRow} className="h-10 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-white dark:text-slate-950">Add zone</button>
+          <button type="button" onClick={addPresets} className="h-10 rounded-2xl border border-slate-200 px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:text-slate-200">Add presets</button>
+          <button type="button" onClick={exportZones} className="h-10 rounded-2xl border border-slate-200 px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:text-slate-200">Export</button>
+          <label className="inline-flex h-10 cursor-pointer items-center rounded-2xl border border-slate-200 px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:text-slate-200">
+            Import
+            <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
+          </label>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search governorate, city, or area" className={`${inputClass} pl-9`} />
+        </div>
+        <div className="flex gap-2">
+          <input type="number" min="0" value={bulkPrice} onChange={(event) => setBulkPrice(event.target.value)} placeholder="Bulk price" className={`${inputClass} w-32`} />
+          <button type="button" onClick={applyBulkPrice} disabled={!selected.length} className="h-12 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">Apply</button>
+        </div>
+      </div>
+      <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 dark:border-white/10">
+        <table className="min-w-[980px] w-full text-left text-sm">
+          <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+            <tr>
+              <th className="w-10 px-3 py-3" />
+              {["Governorate", "City / Markaz", "Area / District", "Price", "COD", "Proof", "Estimated delivery", "Active", ""].map((header) => <th key={header} className="px-3 py-3">{header}</th>)}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+            {visibleZones.map((zone) => (
+              <tr key={zone.id} className="bg-white dark:bg-slate-900/70">
+                <td className="px-3 py-2">
+                  <input type="checkbox" checked={selectedSet.has(zone.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))} />
+                </td>
+                <td className="px-3 py-2"><input value={zone.governorate} onChange={(event) => patchRow(zone.id, { governorate: event.target.value })} className={inputClass} /></td>
+                <td className="px-3 py-2"><input value={zone.city} onChange={(event) => patchRow(zone.id, { city: event.target.value })} className={inputClass} /></td>
+                <td className="px-3 py-2"><input value={zone.area} onChange={(event) => patchRow(zone.id, { area: event.target.value })} className={inputClass} /></td>
+                <td className="px-3 py-2"><input type="number" min="0" value={zone.price} onChange={(event) => patchRow(zone.id, { price: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
+                {["cod_allowed", "requires_shipping_proof"].map((key) => (
+                  <td key={key} className="px-3 py-2 text-center">
+                    <input type="checkbox" checked={Boolean(zone[key])} onChange={(event) => patchRow(zone.id, { [key]: event.target.checked })} />
+                  </td>
+                ))}
+                <td className="px-3 py-2"><input value={zone.estimated_delivery_text} onChange={(event) => patchRow(zone.id, { estimated_delivery_text: event.target.value })} className={inputClass} /></td>
+                <td className="px-3 py-2 text-center">
+                  <input type="checkbox" checked={Boolean(zone.active)} onChange={(event) => patchRow(zone.id, { active: event.target.checked })} />
+                </td>
+                <td className="px-3 py-2">
+                  <button type="button" onClick={() => deleteRow(zone.id)} className="grid h-10 w-10 place-items-center rounded-2xl border border-rose-200 text-rose-600 dark:border-rose-400/25 dark:text-rose-200" aria-label="Delete zone"><X className="h-4 w-4" /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!visibleZones.length ? <div className={`p-5 text-sm font-bold ${bodyText}`}>No shipping zones match the current filter.</div> : null}
+      </div>
+    </article>
   );
 }
 

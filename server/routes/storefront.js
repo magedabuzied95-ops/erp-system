@@ -8,6 +8,7 @@ import {
   createWebsiteOrder,
   getProduct,
   getProductByToken,
+  getShippingQuote,
   latestShippingAddress,
   listGenderClassifications,
   listLastPieceProducts,
@@ -266,6 +267,7 @@ router.post("/products/visual-search", visualUpload, visualSearchProducts);
 router.get("/product/by-token/:token", getProductByToken);
 router.get("/products/resolve/:slugOrId", resolveProductLink);
 router.get("/products/:identifier", getProduct);
+router.get("/shipping/quote", getShippingQuote);
 router.post("/checkout", checkoutUpload, createWebsiteOrder);
 router.get("/track", trackOrder);
 router.post("/track", trackOrder);

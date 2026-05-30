@@ -17,6 +17,14 @@ export const settingsCategories = [
 
 const option = (value, en, ar) => ({ value, label: label(en, ar) });
 
+const defaultStorefrontShippingZones = [
+  { id: "damietta", governorate: "Damietta", city: "", area: "", price: 45, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", active: true },
+  { id: "new-damietta", governorate: "Damietta", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", active: true },
+  { id: "cairo", governorate: "Cairo", city: "", area: "", price: 70, cod_allowed: false, requires_shipping_proof: true, estimated_delivery_text: "2-4 business days", active: true },
+  { id: "giza", governorate: "Giza", city: "", area: "", price: 70, cod_allowed: false, requires_shipping_proof: true, estimated_delivery_text: "2-4 business days", active: true },
+  { id: "alexandria", governorate: "Alexandria", city: "", area: "", price: 75, cod_allowed: false, requires_shipping_proof: true, estimated_delivery_text: "2-5 business days", active: true },
+];
+
 const definitions = [
   ["general.company_name", "general", "text", "", "Company name", "اسم الشركة", "Shown on invoices, storefront, and receipts.", "يظهر في الفواتير والمتجر والإيصالات.", { isPublic: true, usedBy: ["Invoices", "POS", "Storefront"] }],
   ["general.company_logo_url", "general", "url", "", "Company logo", "شعار الشركة", "Public logo URL used by customer-facing views.", "رابط الشعار المستخدم في الواجهات العامة.", { isPublic: true, usedBy: ["Invoices", "Storefront"] }],
@@ -64,6 +72,8 @@ const definitions = [
   ["storefront.favicon_url", "storefront", "url", "", "Favicon", "أيقونة المتجر", "Public browser favicon URL.", "رابط أيقونة المتجر في المتصفح.", { isPublic: true }],
   ["storefront.homepage_hero", "storefront", "json", { title: "", subtitle: "", imageUrl: "" }, "Homepage hero settings", "واجهة الصفحة الرئيسية", "Hero title, subtitle, and image URL.", "العنوان والوصف وصورة واجهة الصفحة الرئيسية.", { isPublic: true }],
   ["storefront.featured_collections", "storefront", "json", [], "Featured collections", "المجموعات المميزة", "Collection IDs or slugs displayed on home.", "معرفات أو روابط المجموعات الظاهرة في الرئيسية.", { isPublic: true }],
+  ["storefront.default_shipping_price", "storefront", "number", 60, "Default shipping price", "Default shipping price", "Fallback shipping price when no governorate, city, or area zone matches.", "Fallback shipping price when no governorate, city, or area zone matches.", { validation: { min: 0 }, usedBy: ["Storefront", "Checkout"] }],
+  ["storefront.shipping_zones", "storefront", "json", defaultStorefrontShippingZones, "Shipping zones", "Shipping zones", "Governorate, city, and optional area shipping prices used by checkout.", "Governorate, city, and optional area shipping prices used by checkout.", { usedBy: ["Storefront", "Checkout"] }],
   ["storefront.product_sorting_default", "storefront", "select", "newest", "Default product sorting", "ترتيب المنتجات", "Default catalog sorting.", "ترتيب المنتجات الافتراضي.", { options: [option("newest", "Newest", "الأحدث"), option("price_asc", "Price low to high", "السعر من الأقل"), option("price_desc", "Price high to low", "السعر من الأعلى"), option("popular", "Popular", "الأكثر مشاهدة")], isPublic: true }],
   ["storefront.show_sold_out_products", "storefront", "boolean", true, "Show sold out products", "إظهار غير المتوفر", "Display out-of-stock products.", "عرض المنتجات غير المتوفرة.", { isPublic: true }],
   ["storefront.show_low_stock_badge", "storefront", "boolean", true, "Show low stock badge", "إظهار قرب النفاد", "Show low stock label to customers.", "عرض علامة قرب النفاد للعملاء.", { isPublic: true }],

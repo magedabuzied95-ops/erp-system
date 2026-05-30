@@ -203,6 +203,14 @@ const normalizeShippingPaymentMethod = (value) => {
   const raw = rawOptionValue(value).toLowerCase();
   return raw === "vodafone_cash" ? "vodafone_cash" : "instapay";
 };
+const normalizeShippingQuote = (quote = {}) => ({
+  loading: false,
+  price: Number.isFinite(Number(quote.price ?? quote.shipping_price)) ? Number(quote.price ?? quote.shipping_price) : 0,
+  cod_allowed: quote.cod_allowed !== false,
+  requires_shipping_proof: quote.requires_shipping_proof !== false,
+  estimated_delivery_text: String(quote.estimated_delivery_text || ""),
+  match_level: String(quote.match_level || ""),
+});
 const paymentLogoPreloadUrls = Object.values(paymentBrandLogos).flatMap((logo) => [logo.webp, logo.png].filter(Boolean));
 const whatsappPhone = String(import.meta.env.VITE_WHATSAPP_PHONE || import.meta.env.VITE_STORE_WHATSAPP || "").replace(/\D/g, "");
 const getStatusLabels = () => {
@@ -6498,7 +6506,7 @@ function CartContent({ cart, updateCart, removeFromCart }) {
   );
 }
 
-function OrderSummary({ subtotal, delivery = 60 }) {
+function OrderSummary({ subtotal, delivery = 0 }) {
   return (
     <aside className="h-max rounded-3xl border border-stone-200 bg-white p-5">
       <h2 className="text-xl font-black">{sfText("storefront.checkout.orderSummary", "Order summary")}</h2>
@@ -6539,32 +6547,36 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
   const [paymentProofDragActive, setPaymentProofDragActive] = useState(false);
   const [paymentProofUploaded, setPaymentProofUploaded] = useState(false);
   const [latestAddressApplied, setLatestAddressApplied] = useState(false);
+  const [shippingQuote, setShippingQuote] = useState(normalizeShippingQuote());
   const editedCheckoutFieldsRef = useRef(new Set());
   const latestAddressLookupsRef = useRef(new Set());
   const pricedCart = useMemo(() => cart.map((item) => ({ ...item, price: displayCartItemPrice(item) })), [cart]);
   const subtotal = pricedCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const discount = 0;
-  const deliveryFee = form.governorate ? 60 : 0;
+  const deliveryFee = form.governorate ? shippingQuote.price : 0;
   const total = Math.max(0, subtotal - discount + deliveryFee);
   const isDamietta = ["دمياط", "دمياط"].some((name) => String(form.governorate || "").includes(name));
   const trustedCustomer = customerTrust.customer || {};
   const codAvailable =
-    isDamietta ||
+    shippingQuote.cod_allowed !== false && (isDamietta ||
     Number(trustedCustomer.completed_orders || 0) >= 1 ||
     trustedCustomer.is_trusted === true ||
-    trustedCustomer.cod_enabled === true;
+    trustedCustomer.cod_enabled === true);
   const normalizedFormPaymentMethod = normalizeCheckoutPaymentMethod(form.payment_method);
   const isShippingConfirmation = SHIPPING_CONFIRMATION_METHODS.has(normalizedFormPaymentMethod);
+  const shippingProofRequired = isShippingConfirmation && shippingQuote.requires_shipping_proof !== false;
   const hasShippingPaymentProof = Boolean(shippingPaymentFile);
   const isFinalCheckoutStep = checkoutStep === 3;
-  const submitDisabled = isFinalCheckoutStep && (submitting || (isShippingConfirmation && !hasShippingPaymentProof));
+  const submitDisabled = isFinalCheckoutStep && (submitting || shippingQuote.loading || (shippingProofRequired && !hasShippingPaymentProof));
   const checkoutActionLabel = checkoutStep === 1
     ? t("storefront.checkout.actions.continueToAddress", "Continue to address")
     : checkoutStep === 2
       ? t("storefront.checkout.actions.continueToPayment", "Continue to payment")
       : normalizedFormPaymentMethod === "cod"
         ? t("storefront.checkout.actions.confirmOrder", "Confirm order")
-        : t("storefront.checkout.actions.uploadProofAndConfirm", "Upload transfer proof and confirm order");
+        : shippingProofRequired
+          ? t("storefront.checkout.actions.uploadProofAndConfirm", "Upload transfer proof and confirm order")
+          : t("storefront.checkout.actions.confirmOrder", "Confirm order");
   const codAmount = normalizedFormPaymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
   const paymentMethods = getPaymentMethods();
   const paymentCopy = paymentMethods.find((method) => method.id === normalizedFormPaymentMethod)?.text || "";
@@ -6590,6 +6602,31 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       cancelled = true;
     };
   }, [checkoutStep]);
+
+  useEffect(() => {
+    if (!form.governorate) {
+      setShippingQuote(normalizeShippingQuote());
+      return undefined;
+    }
+    let cancelled = false;
+    setShippingQuote((prev) => ({ ...prev, loading: true }));
+    const params = new URLSearchParams({
+      governorate: form.governorate,
+      city: form.city_area || "",
+      area: form.city_area || "",
+    });
+    api
+      .get(`/storefront/shipping/quote?${params.toString()}`)
+      .then((data) => {
+        if (!cancelled) setShippingQuote(normalizeShippingQuote(data.quote || data));
+      })
+      .catch(() => {
+        if (!cancelled) setShippingQuote((prev) => ({ ...prev, loading: false }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.governorate, form.city_area]);
 
   const setField = (key, value, options = {}) => {
     if (options.markDirty !== false) editedCheckoutFieldsRef.current.add(key);
@@ -6740,7 +6777,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
   }, [codAvailable, form.payment_method]);
 
   useEffect(() => {
-    if (!isShippingConfirmation) {
+    if (!shippingProofRequired) {
       let cancelled = false;
       deferReactState(() => {
         if (cancelled) return;
@@ -6752,7 +6789,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       };
     }
     return undefined;
-  }, [isShippingConfirmation]);
+  }, [shippingProofRequired]);
 
   useEffect(() => {
     if (!shippingPaymentFile) {
@@ -6808,7 +6845,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     if (step === 3) {
       if (!form.payment_method) next.payment_method = sfText("storefront.validation.paymentMethodRequired", "Choose a payment method");
       if (normalizeCheckoutPaymentMethod(form.payment_method) === "cod" && !codAvailable) next.payment_method = sfText("storefront.validation.codUnavailable", "Cash on delivery is not available for this customer");
-      if (SHIPPING_CONFIRMATION_METHODS.has(normalizeCheckoutPaymentMethod(form.payment_method)) && !shippingPaymentFile) {
+      if (shippingProofRequired && !shippingPaymentFile) {
         next.shipping_payment_screenshot = sfText("storefront.validation.transferProofRequired", "Upload the transfer proof image to confirm the order");
       }
     }
@@ -6837,7 +6874,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     if (!valid) {
       if (firstInvalidStep) goToCheckoutStep(firstInvalidStep);
       toast.error(sfText("storefront.toasts.completeRequiredData", "Review the required details to complete the order."));
-      if (firstInvalidStep === 3 && isShippingConfirmation && !shippingPaymentFile) toast.error(sfText("storefront.toasts.uploadTransferProof", "Upload the transfer proof image first."));
+      if (firstInvalidStep === 3 && shippingProofRequired && !shippingPaymentFile) toast.error(sfText("storefront.toasts.uploadTransferProof", "Upload the transfer proof image first."));
     }
     return valid;
   };
@@ -7150,7 +7187,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
             </div>
           </CheckoutSection> : null}
         </div>
-        <CheckoutSummary cart={pricedCart} subtotal={subtotal} discount={discount} deliveryFee={deliveryFee} total={total} codAmount={codAmount} governorate={form.governorate} paymentMethod={normalizedFormPaymentMethod} open={summaryOpen} setOpen={setSummaryOpen} submitting={isFinalCheckoutStep && submitting} submitDisabled={submitDisabled} actionLabel={checkoutActionLabel} />
+        <CheckoutSummary cart={pricedCart} subtotal={subtotal} discount={discount} deliveryFee={deliveryFee} total={total} codAmount={codAmount} governorate={form.governorate} paymentMethod={normalizedFormPaymentMethod} shippingQuote={shippingQuote} open={summaryOpen} setOpen={setSummaryOpen} submitting={isFinalCheckoutStep && submitting} submitDisabled={submitDisabled} actionLabel={checkoutActionLabel} />
       </form>
       <div className="sf-checkout-sticky-actions fixed left-0 right-0 p-3 md:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-3">
@@ -8029,8 +8066,14 @@ function CheckoutSection({ number, title, note, children }) {
   );
 }
 
-function CheckoutSummary({ cart, subtotal, discount, deliveryFee, total, codAmount, governorate, paymentMethod, open, setOpen, submitting, submitDisabled, actionLabel }) {
+function CheckoutSummary({ cart, subtotal, discount, deliveryFee, total, codAmount, governorate, paymentMethod, shippingQuote = {}, open, setOpen, submitting, submitDisabled, actionLabel }) {
   const { t } = useTranslation();
+  const shippingText = governorate
+    ? shippingQuote.loading
+      ? t("common.loading", "Loading...")
+      : money(deliveryFee)
+    : t("storefront.checkout.chooseGovernorate", "Choose governorate");
+  const deliveryText = shippingQuote.estimated_delivery_text || t("storefront.checkout.expectedDeliveryNotice", "Expected delivery is 2 to 5 business days depending on governorate.");
   return (
     <aside className="h-max rounded-[1.7rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035)_42%,rgba(7,10,20,0.9))] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.06)] ring-1 ring-white/[0.04] backdrop-blur-2xl lg:sticky lg:top-24 md:p-5">
       <button type="button" onClick={() => setOpen((value) => !value)} className="flex min-h-10 w-full items-center justify-between md:pointer-events-none">
@@ -8059,12 +8102,13 @@ function CheckoutSummary({ cart, subtotal, discount, deliveryFee, total, codAmou
       <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4 shadow-inner shadow-black/30">
         <SummaryRow dark label={t("storefront.checkout.products", "Products")} value={money(subtotal)} />
         <SummaryRow dark label={t("storefront.checkout.discount", "Discount")} value={discount ? `-${money(discount)}` : money(0)} />
-        <SummaryRow dark label={t("storefront.checkout.shipping", "Shipping")} value={governorate ? money(deliveryFee) : t("storefront.checkout.chooseGovernorate", "Choose governorate")} />
+        <SummaryRow dark label={t("storefront.checkout.shipping", "Shipping")} value={shippingText} />
         <SummaryRow dark label={t("storefront.checkout.total", "Total")} value={money(total)} strong />
         {codAmount ? <SummaryRow dark label={paymentMethod === "cod" ? t("storefront.checkout.codOnDelivery", "COD on delivery") : t("storefront.checkout.remainingOnDelivery", "Remaining on delivery")} value={money(codAmount)} /> : null}
       </div>
       <div className="mt-3 grid gap-2 text-xs font-bold text-white/58">
-        <span className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">{t("storefront.checkout.expectedDeliveryNotice", "Expected delivery is 2 to 5 business days depending on governorate.")}</span>
+        <span className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">{deliveryText}</span>
+        {governorate && shippingQuote.cod_allowed === false ? <span className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-amber-100">{t("storefront.checkout.codUnavailableForAddress", "Cash on delivery is not available for this address.")}</span> : null}
         <span className="rounded-2xl border border-[#a78bfa]/20 bg-[#7c3aed]/12 px-3 py-2 text-[#ddd6fe]">{t("storefront.checkout.shippingProvidersReady", "Shipping data is ready for Bosta / Mylerz / Aramex when the provider is enabled.")}</span>
       </div>
       <div className="mt-4 hidden md:block">
@@ -8246,7 +8290,7 @@ function EmptyState({ title, text, actionTo = "/shop/products", actionLabel }) {
 function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
   if (!open) return null;
   const subtotal = cart.reduce((sum, item) => sum + displayCartItemPrice(item) * item.quantity, 0);
-  const total = subtotal + 60;
+  const total = subtotal;
   return (
     <div className="fixed inset-0 z-50">
       <button className="absolute inset-0 bg-black/55 backdrop-blur-[3px]" onClick={onClose} aria-label={sfText("storefront.common.close", "Close")} />

@@ -23,6 +23,7 @@ import { getWebsiteSettings } from "../services/liveActivityService.js";
 import { getSetting } from "../services/settingsService.js";
 import { normalizeSaleModeSettings } from "../services/saleModeService.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
+import { resolveStorefrontShippingQuote } from "../services/storefrontShippingService.js";
 import {
   attachPublicOrderNumber,
   displayPublicOrderNumber,
@@ -2913,11 +2914,31 @@ const isDamiettaGovernorate = (value = "") => {
   return text.includes("دمياط") || text.includes("damietta") || text.includes("دمياط");
 };
 
-const canUseCod = (customer = {}, checkout = {}) =>
-  isDamiettaGovernorate(checkout.governorate) ||
-  Number(customer?.completed_orders || 0) >= 1 ||
-  customer?.is_trusted === true ||
-  customer?.cod_enabled === true;
+const canUseCod = (customer = {}, checkout = {}, shippingQuote = {}) =>
+  shippingQuote.cod_allowed !== false && (
+    toText(checkout.governorate).includes("دمياط") ||
+    isDamiettaGovernorate(checkout.governorate) ||
+    Number(customer?.completed_orders || 0) >= 1 ||
+    customer?.is_trusted === true ||
+    customer?.cod_enabled === true
+  );
+
+export const getShippingQuote = async (req, res) => {
+  try {
+    const quote = await resolveStorefrontShippingQuote({
+      governorate: req.query?.governorate || req.query?.province || "",
+      city: req.query?.city || req.query?.markaz || req.query?.city_area || "",
+      area: req.query?.area || req.query?.district || req.query?.city_area || "",
+    });
+    return res.json({ success: true, quote });
+  } catch (error) {
+    console.error("[storefront] shipping quote", {
+      requestId: req.id,
+      message: error?.message || String(error),
+    });
+    return res.status(500).json({ success: false, message: "Failed to resolve shipping price" });
+  }
+};
 
 export const createWebsiteOrder = async (req, res) => {
   const client = await db.connect();
@@ -3095,7 +3116,12 @@ export const createWebsiteOrder = async (req, res) => {
     }
 
     const orderSettings = await getStorefrontOrderSettings();
-    const deliveryFee = toNumber(checkout.delivery_fee, toNumber(req.body?.delivery_fee, 60));
+    const shippingQuote = await resolveStorefrontShippingQuote({
+      governorate: checkout.governorate,
+      city: checkout.city_area,
+      area: checkout.area || checkout.district || checkout.city_area || "",
+    });
+    const deliveryFee = roundMoney(shippingQuote.price);
     const discount = toNumber(req.body?.discount || checkout.discount, 0);
     const total = Math.max(0, subtotal - discount + deliveryFee);
     const requestedPaymentMethod = toText(checkout.payment_method || checkout.payment_type || "shipping_confirmation").toLowerCase();
@@ -3135,6 +3161,15 @@ export const createWebsiteOrder = async (req, res) => {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(403, "Store pickup is disabled", "shipping_method", { shipping_method: shippingMethod });
     }
+    const requestedDeliveryFee = roundMoney(toNumber(checkout.delivery_fee, toNumber(req.body?.delivery_fee, deliveryFee)));
+    if (requestedDeliveryFee !== deliveryFee) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(409, "Shipping fee changed. Review the checkout total and try again.", "delivery_fee", {
+        requested_delivery_fee: requestedDeliveryFee,
+        delivery_fee: deliveryFee,
+        shipping_quote: shippingQuote,
+      });
+    }
     const requestedPaidAmount = toNumber(checkout.paid_amount, 0);
     if (paymentMethod === "shipping_confirmation" && roundMoney(requestedPaidAmount) !== roundMoney(deliveryFee)) {
       await client.query("ROLLBACK");
@@ -3148,11 +3183,11 @@ export const createWebsiteOrder = async (req, res) => {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(403, "Cash on delivery is disabled", "payment_method", { payment_method: paymentMethod });
     }
-    if (paymentMethod === "cod" && !canUseCod(customer, checkout)) {
+    if (paymentMethod === "cod" && !canUseCod(customer, checkout, shippingQuote)) {
       await client.query("ROLLBACK");
-      return checkoutValidationResponse(403, "Cash on delivery is available only for eligible customers or Damietta addresses", "payment_method", { payment_method: paymentMethod, governorate: checkout.governorate });
+      return checkoutValidationResponse(403, "Cash on delivery is not available for this address", "payment_method", { payment_method: paymentMethod, governorate: checkout.governorate, shipping_quote: shippingQuote });
     }
-    if (paymentMethod === "shipping_confirmation" && !shippingPaymentFile) {
+    if (paymentMethod === "shipping_confirmation" && shippingQuote.requires_shipping_proof !== false && !shippingPaymentFile) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Upload a valid transfer proof image", "shipping_payment_screenshot", { payment_method: paymentMethod });
     }
