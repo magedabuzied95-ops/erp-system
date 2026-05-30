@@ -3854,9 +3854,11 @@ function HomePage(props) {
       )) : (
         <ProductRail title={t("storefront.home.bestsellers", "Best sellers")} subtitle={t("storefront.home.bestsellersSubtitle", "Best sellers this week")} loading={loading || storefrontHome.loading} products={best} railType="bestseller" featuredFirst {...props} />
       )}
-      <section className="mx-auto max-w-[1200px] px-4 py-2">
-        <FeaturedProductSection product={weekProduct} variant={weekVariant} sizes={weekSizes} />
-      </section>
+      {!hasHomeCollections ? (
+        <section className="mx-auto max-w-[1200px] px-4 py-2">
+          <FeaturedProductSection product={weekProduct} variant={weekVariant} sizes={weekSizes} />
+        </section>
+      ) : null}
       {!hasHomeCollections ? (
         <>
           <ProductRail title={t("storefront.nav.sale", "Sale")} subtitle={t("storefront.home.saleSubtitle", "Selected discounts for a limited time")} loading={saleLoading && !saleUnique.length} products={saleUnique} railType="sale" {...props} />
