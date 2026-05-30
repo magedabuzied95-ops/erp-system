@@ -1596,6 +1596,11 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
 
   useEffect(() => {
     const handleKeyDown = (event) => {
+      if (event.key === "Escape" && isFullScreen) {
+        event.preventDefault();
+        setIsFullScreen(false);
+        return;
+      }
       if (event.key?.toLowerCase() !== "f" || event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target;
       const tagName = target?.tagName?.toLowerCase();
@@ -1605,7 +1610,7 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleFullScreen]);
+  }, [isFullScreen, toggleFullScreen]);
 
   useEffect(() => {
     if (!isFullScreen || typeof document === "undefined") return undefined;
@@ -1743,23 +1748,51 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
     ["compact", copy.compact],
     ["ultra", copy.ultraCompact],
   ];
-  const tableMaxHeight = isFullScreen ? "max-h-[calc(100vh-15rem)] md:max-h-[calc(100vh-13rem)]" : "max-h-[42rem]";
-  const tableMinWidth = density === "ultra" ? "min-w-[1040px]" : density === "compact" ? "min-w-[1120px]" : "min-w-[1180px]";
+  const renderZonesTable = ({ fullScreenMode = false } = {}) => {
+    const tableDensity = fullScreenMode ? density : "comfortable";
+    const frozen = fullScreenMode && freezeColumns;
+    const tableMinWidth = tableDensity === "ultra" ? "min-w-[1040px]" : tableDensity === "compact" ? "min-w-[1120px]" : "min-w-[1180px]";
+    const tableHeight = fullScreenMode ? "h-[calc(100vh-9.5rem)]" : "max-h-[42rem]";
+    return (
+      <div className={`${tableHeight} overflow-auto rounded-2xl border ${fullScreenMode ? "border-white/10 bg-slate-950" : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70"}`}>
+        <table className={`${tableMinWidth} w-full border-separate border-spacing-0 ${tableDensity === "ultra" ? "text-xs" : "text-sm"}`}>
+          <thead className={`sticky top-0 z-10 text-[11px] font-black uppercase ${fullScreenMode ? "bg-slate-900 text-slate-300" : "bg-slate-50 text-slate-500 dark:bg-slate-900 dark:text-slate-400"}`}>
+            <tr>
+              <th className={`${frozen ? "sticky left-0 z-20 bg-inherit" : ""} w-10 px-3 py-3 text-start`}></th>
+              <th className={`${frozen ? "sticky left-10 z-20 bg-inherit" : ""} w-36 px-3 py-3 text-start`}>Governorate</th>
+              <th className={`${frozen ? "sticky left-[11.5rem] z-20 bg-inherit" : ""} w-36 px-3 py-3 text-start`}>City</th>
+              {["Area", "Provider", "Shipping Cost", "COD", "Proof", "ETA", "Active", ""].map((header) => (
+                <th key={header} className="px-3 py-3 text-start">{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visibleZones.map((zone) => (
+              <ZoneRuleTableRow
+                key={zone.id}
+                zone={zone}
+                zones={zones}
+                copy={copy}
+                defaultPrice={defaultPrice}
+                selected={selectedSet.has(zone.id)}
+                expanded={Boolean(expandedRules[zone.id])}
+                duplicate={duplicateCounts.get(ruleIdentity(zone)) > 1}
+                density={tableDensity}
+                freezeColumns={frozen}
+                onSelect={(checked) => setSelected((current) => checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))}
+                onPatch={(patch) => patchRow(zone.id, patch)}
+                onDelete={() => deleteRow(zone.id)}
+                onExpand={() => toggleRuleExpanded(zone.id)}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
-    <article className={isFullScreen ? "fixed inset-0 z-[100] grid content-start gap-3 overflow-auto bg-slate-100 p-3 text-slate-950 dark:bg-slate-950 dark:text-white md:p-5" : "grid gap-4"}>
-      {isFullScreen ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950"><PanelLeftClose className="h-5 w-5" /></span>
-            <div>
-              <h2 className={`text-lg font-black ${headingText}`}>{copy.zonesTitle}</h2>
-              <p className={`text-xs font-bold ${bodyText}`}>{visibleZones.length} rules / {copy.shortcutHint}</p>
-            </div>
-          </div>
-          <button type="button" onClick={toggleFullScreen} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"><Minimize2 className="h-4 w-4" />{copy.exitFullScreen}</button>
-        </div>
-      ) : null}
+    <article className="grid gap-4">
       <div className={`rounded-2xl p-3.5 ${fieldSurface}`}>
         <div className="grid gap-3 xl:grid-cols-[minmax(24rem,1fr)_minmax(14rem,0.35fr)_auto] xl:items-center">
           <label className="relative min-w-0">
@@ -1781,31 +1814,12 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
               {copy.import}
               <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
             </label>
-            <button type="button" onClick={toggleFullScreen} className="hidden h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08] md:inline-flex"><Maximize2 className="h-3.5 w-3.5" />{isFullScreen ? copy.exitFullScreen : copy.fullScreen}</button>
+            <button type="button" onClick={toggleFullScreen} className="hidden h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08] md:grid" aria-label={copy.fullScreen} title={`${copy.fullScreen} (${copy.shortcutHint})`}><Maximize2 className="h-4 w-4" /></button>
           </div>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 dark:border-white/10">
-          <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-white/10">
-            <span className={`px-2 text-[11px] font-black uppercase ${mutedText}`}>{copy.density}</span>
-            {densityOptions.map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setDensity(id)}
-                className={`h-8 rounded-lg px-2.5 text-[11px] font-black transition ${density === id ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/8"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <label className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-slate-300">
-            <input type="checkbox" className="h-4 w-4" checked={freezeColumns} onChange={(event) => setFreezeColumns(event.target.checked)} />
-            {copy.freezeColumns}
-          </label>
         </div>
       </div>
 
-      <div className={`rounded-2xl p-4 ${fieldSurface} ${isFullScreen ? "hidden" : ""}`}>
+      <div className={`rounded-2xl p-4 ${fieldSurface}`}>
         <div className="mb-3 flex items-center gap-2">
           <span className="grid h-8 w-8 place-items-center rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" /></span>
           <h3 className={`text-sm font-black ${headingText}`}>{copy.quickTitle}</h3>
@@ -1825,7 +1839,7 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
         </div>
       </div>
 
-      <div className={`rounded-2xl p-4 ${fieldSurface} ${isFullScreen ? "hidden" : ""}`}>
+      <div className={`rounded-2xl p-4 ${fieldSurface}`}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 dark:bg-white/[0.055] dark:text-slate-300">
             <SlidersHorizontal className="h-4 w-4" />
@@ -1857,47 +1871,53 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
             <MapPin className="h-4 w-4" />
             Governorate / City-Markaz / Area-District
           </div>
-          <label className="inline-flex items-center gap-2 text-xs font-black text-slate-500 dark:text-slate-300">
-            <input type="checkbox" className="h-4 w-4" checked={visibleZones.length > 0 && visibleZones.every((zone) => selectedSet.has(zone.id))} onChange={(event) => toggleVisibleSelection(event.target.checked)} />
-            Select visible
-          </label>
+          <div className="flex items-center gap-2">
+            <label className="inline-flex items-center gap-2 text-xs font-black text-slate-500 dark:text-slate-300">
+              <input type="checkbox" className="h-4 w-4" checked={visibleZones.length > 0 && visibleZones.every((zone) => selectedSet.has(zone.id))} onChange={(event) => toggleVisibleSelection(event.target.checked)} />
+              Select visible
+            </label>
+            <button type="button" onClick={toggleFullScreen} className="hidden h-9 w-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/[0.08] md:grid" aria-label={copy.fullScreen} title={`${copy.fullScreen} (${copy.shortcutHint})`}><Maximize2 className="h-4 w-4" /></button>
+          </div>
         </div>
-        <div className={`${tableMaxHeight} overflow-auto rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70`}>
-          <table className={`${tableMinWidth} w-full border-separate border-spacing-0 ${density === "ultra" ? "text-xs" : "text-sm"}`}>
-            <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-black uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-              <tr>
-                <th className={`${freezeColumns ? "sticky left-0 z-20 bg-slate-50 dark:bg-slate-900" : ""} w-10 px-3 py-3 text-start`}></th>
-                <th className={`${freezeColumns ? "sticky left-10 z-20 bg-slate-50 dark:bg-slate-900" : ""} w-36 px-3 py-3 text-start`}>Governorate</th>
-                <th className={`${freezeColumns ? "sticky left-[11.5rem] z-20 bg-slate-50 dark:bg-slate-900" : ""} w-36 px-3 py-3 text-start`}>City</th>
-                {["Area", "Provider", "Shipping Cost", "COD", "Proof", "ETA", "Active", ""].map((header) => (
-                  <th key={header} className="px-3 py-3 text-start">{header}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleZones.map((zone) => (
-                <ZoneRuleTableRow
-                  key={zone.id}
-                  zone={zone}
-                  zones={zones}
-                  copy={copy}
-                  defaultPrice={defaultPrice}
-                  selected={selectedSet.has(zone.id)}
-                  expanded={Boolean(expandedRules[zone.id])}
-                  duplicate={duplicateCounts.get(ruleIdentity(zone)) > 1}
-                  density={density}
-                  freezeColumns={freezeColumns}
-                  onSelect={(checked) => setSelected((current) => checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))}
-                  onPatch={(patch) => patchRow(zone.id, patch)}
-                  onDelete={() => deleteRow(zone.id)}
-                  onExpand={() => toggleRuleExpanded(zone.id)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {renderZonesTable()}
         {!visibleZones.length ? <div className={`p-8 text-center text-sm font-bold ${bodyText}`}>{copy.empty}</div> : null}
       </div>
+      {isFullScreen ? (
+        <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-950 p-3 text-white md:p-4" role="dialog" aria-modal="true" aria-label="Shipping Zones Fullscreen">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-2xl backdrop-blur">
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-400 text-slate-950"><PanelLeftClose className="h-5 w-5" /></span>
+              <div>
+                <h2 className="text-lg font-black">Shipping Zones - Fullscreen</h2>
+                <p className="text-xs font-bold text-slate-400">{visibleZones.length} rules / {copy.shortcutHint} / ESC</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-slate-900 p-1 ring-1 ring-white/10">
+                <span className="px-2 text-[11px] font-black uppercase text-slate-400">{copy.density}</span>
+                {densityOptions.map(([id, label]) => (
+                  <button key={id} type="button" onClick={() => setDensity(id)} className={`h-8 rounded-lg px-2.5 text-[11px] font-black transition ${density === id ? "bg-white text-slate-950" : "text-slate-300 hover:bg-white/10"}`}>{label}</button>
+                ))}
+              </div>
+              <label className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200">
+                <input type="checkbox" className="h-4 w-4" checked={freezeColumns} onChange={(event) => setFreezeColumns(event.target.checked)} />
+                {copy.freezeColumns}
+              </label>
+              <button type="button" onClick={exportZones} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200 transition hover:bg-white/10"><Download className="h-3.5 w-3.5" />{copy.export}</button>
+              <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs font-black text-slate-200 transition hover:bg-white/10">
+                <Upload className="h-3.5 w-3.5" />
+                {copy.import}
+                <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
+              </label>
+              <button type="button" onClick={() => addRow("governorate")} className="inline-flex h-9 items-center gap-2 rounded-xl bg-emerald-400 px-3 text-xs font-black text-slate-950 transition hover:bg-emerald-300"><Plus className="h-3.5 w-3.5" />Add Rule</button>
+              <button type="button" onClick={toggleFullScreen} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white px-3 text-xs font-black text-slate-950 transition hover:bg-slate-200"><Minimize2 className="h-3.5 w-3.5" />{copy.exitFullScreen}</button>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1">
+            {renderZonesTable({ fullScreenMode: true })}
+          </div>
+        </div>
+      ) : null}
     </article>
   );
 }
