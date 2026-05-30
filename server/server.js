@@ -299,6 +299,7 @@ const { default: publicInvoiceRoutes } = await import("./routes/publicInvoices.j
 const { default: publicProductsRoutes } = await import("./routes/publicProducts.js");
 const { getPublicProductOgImage, getPublicProductShareMetadata } = await import("./controllers/publicProductsController.js");
 const { default: storefrontRoutes } = await import("./routes/storefront.js");
+const { default: shippingRoutes } = await import("./modules/shipping/shipping.routes.js");
 const { default: liveActivityRoutes } = await import("./routes/liveActivity.js");
 const { default: productClassificationsRoutes } = await import("./routes/productClassifications.js");
 const { default: variantsInventoryRoutes } = await import("./routes/variantsInventory.js");
@@ -333,6 +334,7 @@ const { ensureOrdersSchema } = await import("./controllers/ordersController.js")
 const { ensureProductClassificationSchema } = await import("./services/productClassificationsService.js");
 const { ensureProductVariantImagesSchema } = await import("./services/productVariantImagesService.js");
 const { ensureStorefrontSchema } = await import("./controllers/storefrontController.js");
+const { ensureShippingSchema } = await import("./modules/shipping/shipping.service.js");
 const { ensureVariantsInventorySchema } = await import("./routes/variantsInventory.js");
 const { warmDashboardMetadataCache } = await import("./services/dashboardAnalyticsService.js");
 const { ensureAttendanceSchema } = await import("./utils/attendanceSchema.js");
@@ -589,6 +591,7 @@ app.use("/api/paymob", paymobRoutes);
 app.use("/api/public/invoices", publicInvoiceRoutes);
 app.use("/api/public/products", publicProductsRoutes);
 app.use("/api/storefront", storefrontRoutes);
+app.use("/api/shipping", shippingRoutes);
 app.get("/api/website/products/:slug/og-image", getPublicProductOgImage);
 app.get("/api/website/products/:slug/share-meta", getPublicProductShareMetadata);
 app.use("/api/website", liveActivityRoutes);
@@ -877,6 +880,8 @@ server.listen(PORT, HOST, () => {
       console.log("[server] product classification schema ensured");
       await ensureStorefrontSchema();
       console.log("[server] storefront schema ensured");
+      await ensureShippingSchema(db);
+      console.log("[server] shipping schema ensured");
       await ensureStorefrontCustomerSessionSchema(db);
       console.log("[server] storefront customer session schema ensured");
       await ensureMarketingSchema();

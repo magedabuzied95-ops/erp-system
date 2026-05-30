@@ -98,12 +98,6 @@ const getSuccessMessages = () => {
   return Array.isArray(messages) && messages.length ? messages : ["Great choice"];
 };
 
-const storyVisuals = [
-  "from-[#6d28d9] via-[#9f7aea] to-[#f0abfc]",
-  "from-stone-950 via-[#4c1d95] to-[#a78bfa]",
-  "from-[#7c3aed] via-[#c4b5fd] to-[#f7f4ee]",
-  "from-[#111827] via-[#6d28d9] to-[#d8b4fe]",
-];
 const getConversionTrustPoints = () => {
   const points = i18n.t("storefront.home.trustPoints", { returnObjects: true });
   return Array.isArray(points) && points.length ? points : ["Secure payment", "Real photos", "Fast shipping"];
@@ -250,6 +244,11 @@ const normalizeShippingQuote = (quote = {}) => ({
   provider: String(quote.provider || "manual"),
   provider_id: String(quote.provider_id || quote.provider || "in_store_delivery"),
   zone: quote.zone || null,
+  governorate_id: String(quote.governorate_id || quote.zone?.governorate_id || ""),
+  city_id: String(quote.city_id || quote.zone?.city_id || ""),
+  area_id: String(quote.area_id || quote.zone?.area_id || quote.zone?.district_id || ""),
+  district_id: String(quote.district_id || quote.zone?.district_id || quote.zone?.area_id || ""),
+  zone_id: String(quote.zone_id || quote.zone?.zone_id || ""),
   free_shipping_threshold: Number.isFinite(Number(quote.free_shipping_threshold)) ? Number(quote.free_shipping_threshold) : 0,
   original_price: Number.isFinite(Number(quote.original_price)) ? Number(quote.original_price) : 0,
   free_shipping_applied: Boolean(quote.free_shipping_applied),
@@ -1441,12 +1440,6 @@ const classificationLabel = (option = {}, lang = "ar") =>
     ? option.label_ar || option.name_ar || option.label || option.name || option.label_en || option.name_en || option.value || ""
     : option.label_en || option.name_en || option.english_name || option.label || option.name || option.label_ar || option.name_ar || option.value || "";
 const classificationColor = (option = {}) => option.color || "#6d28d9";
-const classificationIcon = (option = {}, lang = "ar") => option.icon || String(classificationLabel(option, lang)).slice(0, 2);
-const classificationUrl = (field, value) => {
-  const query = new URLSearchParams();
-  query.set(field, value);
-  return `/shop/products?${query.toString()}`;
-};
 const uniqueClassificationOptions = (options = []) => {
   const seen = new Set();
   return (Array.isArray(options) ? options : []).filter((option) => {
@@ -1481,92 +1474,6 @@ const productAudienceValues = (product = {}) => {
   visit(product.product_audiences);
   if (!seen.size) visit(product.gender);
   return ["men", "women", "kids"].filter((audience) => seen.has(audience));
-};
-const productMatchesAudience = (product = {}, value = "") => {
-  const audience = normalizeAudienceValue(value);
-  if (!audience) return true;
-  return productAudienceValues(product).includes(audience);
-};
-const productClassificationValue = (product = {}, field) => {
-  if (field === "gender") return productAudienceValues(product)[0] || product.gender || "";
-  if (field === "product_type") return product.product_type || product.productType || product.category;
-  return product[field] || "";
-};
-const pickClassificationPreviewProduct = (products = [], field, value) => {
-  if (!products.length) return null;
-  const target = String(value || "").trim().toLowerCase();
-  if (!target) return null;
-  return (
-    products.find((product) => {
-      if (field === "gender") return productMatchesAudience(product, value) && isAvailableProduct(product);
-      const current = String(productClassificationValue(product, field) || "").trim().toLowerCase();
-      return current === target && isAvailableProduct(product);
-    }) || null
-  );
-};
-const normalizeColorHint = (value = "") => String(value || "").trim().toLowerCase();
-const heroThemeForProduct = (product = {}, variant = {}) => {
-  const hint = normalizeColorHint(
-    [
-      variant?.color,
-      product?.color,
-      product?.primary_color,
-      product?.product_type,
-      product?.productType,
-      product?.category,
-      product?.name,
-    ]
-      .filter(Boolean)
-      .join(" ")
-  );
-
-  if (/(beige|brown|tan|camel|coffee|mocha|espresso|بني|بيج|جملي|كافيه|هافان)/.test(hint)) {
-    return {
-      gradient: "linear-gradient(135deg, #1c1917 0%, #3f2d21 42%, #9a6a43 100%)",
-      glow: "rgba(217, 185, 145, 0.34)",
-      accent: "#d9b991",
-    };
-  }
-  if (/(white|silver|grey|gray|ice|ابيض|أبيض|فضي|رمادي|سلفر)/.test(hint)) {
-    return {
-      gradient: "linear-gradient(135deg, #0f172a 0%, #334155 48%, #e2e8f0 100%)",
-      glow: "rgba(226, 232, 240, 0.34)",
-      accent: "#e2e8f0",
-    };
-  }
-  if (/(red|rose|pink|burgundy|احمر|أحمر|وردي|نبيتي)/.test(hint)) {
-    return {
-      gradient: "linear-gradient(135deg, #111827 0%, #7f1d1d 48%, #fb7185 100%)",
-      glow: "rgba(251, 113, 133, 0.32)",
-      accent: "#fb7185",
-    };
-  }
-  if (/(blue|navy|sky|ازرق|أزرق|كحلي|سماوي)/.test(hint)) {
-    return {
-      gradient: "linear-gradient(135deg, #020617 0%, #1d4ed8 48%, #93c5fd 100%)",
-      glow: "rgba(147, 197, 253, 0.34)",
-      accent: "#93c5fd",
-    };
-  }
-  if (/(green|olive|mint|اخضر|أخضر|زيتي)/.test(hint)) {
-    return {
-      gradient: "linear-gradient(135deg, #020617 0%, #166534 48%, #86efac 100%)",
-      glow: "rgba(134, 239, 172, 0.30)",
-      accent: "#86efac",
-    };
-  }
-  if (/(black|charcoal|اسود|أسود)/.test(hint)) {
-    return {
-      gradient: "linear-gradient(135deg, #030712 0%, #111827 52%, #52525b 100%)",
-      glow: "rgba(255, 255, 255, 0.20)",
-      accent: "#d4d4d8",
-    };
-  }
-  return {
-    gradient: "linear-gradient(135deg, #070713 0%, #4c1d95 48%, #a78bfa 100%)",
-    glow: "rgba(167, 139, 250, 0.34)",
-    accent: "#c4b5fd",
-  };
 };
 const heroSizesForProduct = (product = {}, limit = 5) => {
   const sizes = [
@@ -3751,6 +3658,8 @@ const featuredCategoryDefinitions = [
     labelEn: "Men",
     labelAr: "رجالي",
     icon: Briefcase,
+    query: "رجالي Jordan 4 Nike Shox Air Force Adidas Campus",
+    examples: ["Jordan 4", "Nike Shox", "Air Force", "Adidas Campus"],
     test: (product, text) => productAudienceValues(product).includes("men") || /\bmen\b|mens|male|رجالي|رجال/.test(text),
   },
   {
@@ -3758,6 +3667,8 @@ const featuredCategoryDefinitions = [
     labelEn: "Women",
     labelAr: "حريمي",
     icon: Gem,
+    query: "حريمي women ladies sneakers",
+    examples: ["Nike", "Adidas", "New Balance", "Campus"],
     test: (product, text) => productAudienceValues(product).includes("women") || /\bwomen\b|womens|female|ladies|حريمي|نسائي|نساء/.test(text),
   },
   {
@@ -3765,6 +3676,8 @@ const featuredCategoryDefinitions = [
     labelEn: "Kids",
     labelAr: "أطفال",
     icon: Baby,
+    query: "أطفال kids children",
+    examples: ["Kids Sneakers", "Children Shoes", "School Shoes", "Crocs Kids"],
     test: (product, text) => productAudienceValues(product).includes("kids") || /\bkids?\b|children|child|اطفال|أطفال|ولادي|بناتي/.test(text),
   },
   {
@@ -3772,6 +3685,8 @@ const featuredCategoryDefinitions = [
     labelEn: "Crocs",
     labelAr: "كروكس",
     icon: Footprints,
+    query: "كروكس crocs",
+    examples: ["Crocs", "Crocband", "Classic Clog", "Slides"],
     test: (_product, text) => /crocs?|crocband|كروكس/.test(text),
   },
   {
@@ -3779,6 +3694,8 @@ const featuredCategoryDefinitions = [
     labelEn: "Last Sizes",
     labelAr: "آخر مقاسات",
     icon: PackageSearch,
+    query: "آخر المقاسات last size last piece",
+    examples: ["Last Size", "Low Stock", "Last Piece", "Limited Sizes"],
     test: (product, text) => (productStock(product) > 0 && productStock(product) <= LAST_PIECE_MAX_STOCK) || /last size|last sizes|last piece|low stock|اخر مقاس|آخر مقاس|مقاسات محدودة/.test(text),
   },
   {
@@ -3786,6 +3703,8 @@ const featuredCategoryDefinitions = [
     labelEn: "Offers",
     labelAr: "العروض",
     icon: BadgePercent,
+    query: "العروض offers sale discount",
+    examples: ["Sale", "Discount", "Offers", "Best Price"],
     test: (product, text) => hasSale(product) || /offer|offers|sale|discount|خصم|عرض|عروض/.test(text),
   },
 ];
@@ -3827,7 +3746,6 @@ const featuredSlideProduct = (product = {}) => {
 
 function FeaturedCategoriesHero({ products = [], lang = "ar" }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const isRtl = normalizeLanguage(lang) === "ar";
   const [activeCategoryId, setActiveCategoryId] = useState("");
   const [slideIndex, setSlideIndex] = useState(0);
@@ -3841,8 +3759,12 @@ function FeaturedCategoriesHero({ products = [], lang = "ar" }) {
 
     return featuredCategoryDefinitions
       .map((definition) => {
-        const slides = sourceProducts
-          .filter(({ product }) => definition.test(product, productSearchText(product)))
+        const keywordPattern = new RegExp(definition.examples.map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
+        const exactSlides = sourceProducts.filter(({ product }) => keywordPattern.test(productSearchText(product)));
+        const matchedSlides = sourceProducts.filter(({ product }) => definition.test(product, productSearchText(product)));
+        const slides = uniqueProductsByIdentity([...exactSlides, ...matchedSlides, ...sourceProducts].map((item) => item.product))
+          .map(featuredSlideProduct)
+          .filter((item) => item.image)
           .slice(0, 6);
         return {
           ...definition,
@@ -3891,67 +3813,27 @@ function FeaturedCategoriesHero({ products = [], lang = "ar" }) {
   const cta = isRtl ? "تسوق الآن" : t("storefront.common.shopNow", "Shop now");
 
   return (
-    <section className="mx-auto max-w-[1200px] px-4 py-3 md:py-5" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="overflow-hidden rounded-[1.6rem] border border-stone-200 bg-[#f8f4ee] p-2 shadow-[0_24px_70px_rgba(39,20,75,0.10)] dark:border-white/10 dark:bg-[#0b1020] md:rounded-[2rem] md:p-3">
-        <div className="flex gap-2 overflow-x-auto pb-2 lg:hidden">
+    <section className="mx-auto max-w-[1200px] px-4 pb-2 pt-3 md:pb-4 md:pt-5" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="overflow-hidden rounded-[1.6rem] border border-stone-200 bg-[#f7f4ee] shadow-[0_24px_70px_rgba(39,20,75,0.12)] dark:border-white/10 dark:bg-[#080d1a] md:rounded-[2rem]">
+        <div className="flex gap-2 overflow-x-auto border-b border-stone-200/80 bg-white/70 p-2 dark:border-white/10 dark:bg-white/[0.04] lg:hidden">
           {categories.map((category) => {
             const Icon = category.icon;
             const active = category.id === activeCategory.id;
             return (
-              <button key={category.id} type="button" onClick={() => pickCategory(category.id)} className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-black transition ${active ? "border-stone-950 bg-stone-950 text-white dark:border-white dark:bg-white dark:text-stone-950" : "border-stone-200 bg-white text-stone-700 dark:border-white/10 dark:bg-white/6 dark:text-stone-200"}`}>
+              <button key={category.id} type="button" onClick={() => pickCategory(category.id)} className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-xs font-black transition ${active ? "border-stone-950 bg-stone-950 text-white dark:border-white dark:bg-white dark:text-stone-950" : "border-stone-200 bg-white text-stone-700 hover:border-[#7c3aed]/40 dark:border-white/10 dark:bg-white/6 dark:text-stone-200"}`}>
                 <Icon className="h-4 w-4" />
                 {category.label}
               </button>
             );
           })}
         </div>
-        <div className={`grid gap-3 lg:grid-cols-[17rem_minmax(0,1fr)] ${isRtl ? "lg:[direction:ltr]" : ""}`}>
-          <aside className={`hidden rounded-[1.35rem] border border-stone-200 bg-white/82 p-2 shadow-[0_14px_36px_rgba(39,20,75,0.08)] dark:border-white/10 dark:bg-white/[0.06] lg:block ${isRtl ? "lg:order-2 lg:[direction:rtl]" : "lg:order-1"}`}>
-            <div className="px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-stone-400 dark:text-stone-500">
-              {isRtl ? "تسوق حسب الفئة" : "Shop Categories"}
-            </div>
-            <div className="grid gap-1.5">
-              {categories.map((category) => {
-                const Icon = category.icon;
-                const active = category.id === activeCategory.id;
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onMouseEnter={() => pickCategory(category.id)}
-                    onClick={() => pickCategory(category.id)}
-                    className={`group flex items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-start transition ${active ? "border-stone-950 bg-stone-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.20)] dark:border-white dark:bg-white dark:text-stone-950" : "border-transparent bg-transparent text-stone-700 hover:border-stone-200 hover:bg-stone-50 dark:text-stone-200 dark:hover:border-white/10 dark:hover:bg-white/7"}`}
-                  >
-                    <span className="flex min-w-0 items-center gap-2.5">
-                      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${active ? "bg-white/15 dark:bg-stone-950/10" : "bg-stone-100 dark:bg-white/8"}`}>
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-black">{category.label}</span>
-                        <span className={`mt-0.5 block text-[10px] font-bold ${active ? "text-white/65 dark:text-stone-500" : "text-stone-400"}`}>{category.slides.length} products</span>
-                      </span>
-                    </span>
-                    <ChevronLeft className={`h-4 w-4 transition ${isRtl ? "" : "rotate-180"} ${active ? "opacity-100" : "opacity-0 group-hover:opacity-60"}`} />
-                  </button>
-                );
-              })}
-            </div>
-          </aside>
-
-          <div
-            role="link"
-            tabIndex={0}
-            onClick={() => navigate(productUrl(product))}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                navigate(productUrl(product));
-              }
-            }}
-            className={`group relative min-h-[22rem] cursor-pointer overflow-hidden rounded-[1.35rem] border border-white bg-[radial-gradient(circle_at_70%_22%,rgba(255,255,255,0.86),transparent_24%),linear-gradient(135deg,#fffaf3_0%,#ede5d7_48%,#d7c7ad_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] transition active:scale-[0.995] dark:border-white/10 dark:bg-[radial-gradient(circle_at_70%_22%,rgba(167,139,250,0.16),transparent_24%),linear-gradient(135deg,#101426_0%,#0b1020_54%,#030712_100%)] md:min-h-[30rem] ${isRtl ? "lg:order-1 lg:[direction:rtl]" : "lg:order-2"}`}
+        <div className="grid min-h-[520px] lg:grid-cols-[minmax(0,0.7fr)_minmax(18rem,0.3fr)] lg:[direction:ltr]">
+          <Link
+            to={productUrl(product)}
+            className="group relative flex min-h-[430px] overflow-hidden bg-[radial-gradient(circle_at_48%_42%,rgba(255,255,255,0.96),transparent_22%),linear-gradient(135deg,#fffaf3_0%,#e8dcc9_58%,#cdbb9f_100%)] dark:bg-[radial-gradient(circle_at_48%_42%,rgba(167,139,250,0.18),transparent_24%),linear-gradient(135deg,#101426_0%,#080d1a_58%,#030712_100%)] lg:min-h-[520px] lg:[direction:rtl]"
           >
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.2),transparent_36%,rgba(0,0,0,0.08))] dark:bg-[linear-gradient(120deg,rgba(255,255,255,0.06),transparent_36%,rgba(0,0,0,0.35))]" />
-            <div className="absolute end-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/85 px-3 py-1.5 text-xs font-black text-stone-800 shadow-sm backdrop-blur dark:border-white/10 dark:bg-stone-950/70 dark:text-stone-100">
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.28),transparent_34%,rgba(0,0,0,0.10))] dark:bg-[linear-gradient(120deg,rgba(255,255,255,0.07),transparent_34%,rgba(0,0,0,0.42))]" />
+            <div className="absolute end-3 top-3 z-20 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/86 px-3 py-1.5 text-xs font-black text-stone-900 shadow-sm backdrop-blur dark:border-white/10 dark:bg-stone-950/72 dark:text-white">
               <ActiveIcon className="h-4 w-4" />
               {activeCategory.label}
             </div>
@@ -3963,41 +3845,82 @@ function FeaturedCategoriesHero({ products = [], lang = "ar" }) {
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
               </button>
             </div>
-            <div className="relative grid h-full min-h-[22rem] items-end gap-3 p-4 md:min-h-[30rem] md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:p-7">
-              <div key={`copy-${activeCategory.id}-${productIdentityKey(product)}`} className="relative z-10 order-2 max-w-md animate-[sfFadeUp_420ms_ease-out_both] md:order-1">
-                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#7c3aed] dark:text-[#d8b4fe]">{activeCategory.label}</div>
-                <h2 className="line-clamp-3 text-2xl font-black leading-tight text-stone-950 dark:text-white md:text-4xl">{product.name}</h2>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="text-2xl font-black text-stone-950 dark:text-white">{money(price)}</span>
-                  {comparePrice ? <span className="text-sm font-black text-stone-400 line-through">{money(comparePrice)}</span> : null}
-                </div>
-                <span className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-stone-950 px-6 py-3 text-sm font-black text-white shadow-[0_18px_42px_rgba(15,23,42,0.22)] transition group-hover:-translate-y-0.5 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:bg-[#d8b4fe]">
-                  {cta}
-                </span>
-              </div>
-              <div className="relative order-1 flex min-h-[15rem] items-center justify-center md:order-2 md:min-h-[27rem]">
-                <div className="absolute bottom-8 left-1/2 h-8 w-64 -translate-x-1/2 rounded-[100%] bg-stone-950/18 blur-xl dark:bg-black/55 md:w-96" />
+            <div className="relative z-10 grid w-full grid-rows-[1fr_auto] p-4 md:p-7">
+              <div className="relative flex min-h-[300px] items-center justify-center lg:min-h-[420px]">
+                <div className="absolute bottom-8 left-1/2 h-8 w-[72%] -translate-x-1/2 rounded-[100%] bg-stone-950/22 blur-xl dark:bg-black/60" />
                 <img
                   key={`${activeCategory.id}-${productIdentityKey(product)}-${image}`}
                   src={imageFor(image)}
                   alt={product.name || ""}
                   onError={fallbackProductImage}
-                  className="relative z-10 max-h-[17rem] w-full object-contain drop-shadow-[0_30px_30px_rgba(15,23,42,0.20)] transition duration-700 ease-out animate-[sfFadeUp_420ms_ease-out_both] group-hover:-translate-y-1 group-hover:scale-[1.035] md:max-h-[29rem]"
-                  loading="lazy"
+                  className="relative z-10 max-h-[330px] w-full object-contain drop-shadow-[0_34px_34px_rgba(15,23,42,0.24)] transition duration-700 ease-out animate-[sfFadeUp_420ms_ease-out_both] group-hover:-translate-y-1 group-hover:scale-[1.035] md:max-h-[440px] lg:max-h-[500px]"
+                  loading="eager"
                   decoding="async"
-                  width="640"
-                  height="520"
+                  width="760"
+                  height="620"
                 />
               </div>
-            </div>
-            {slides.length > 1 ? (
-              <div className="absolute bottom-3 end-3 z-20 flex gap-1.5">
-                {slides.map((slide, index) => (
-                  <button key={productIdentityKey(slide.product, index)} type="button" onClick={(event) => { event.preventDefault(); setSlideIndex(index); setManualTick((current) => current + 1); }} className={`h-1.5 rounded-full transition ${index === slideIndex ? "w-8 bg-stone-950 dark:bg-white" : "w-2 bg-stone-950/24 dark:bg-white/30"}`} aria-label={`Slide ${index + 1}`} />
-                ))}
+              <div key={`copy-${activeCategory.id}-${productIdentityKey(product)}`} className="relative mx-auto w-full max-w-2xl animate-[sfFadeUp_420ms_ease-out_both] text-center">
+                <div className="mx-auto mb-2 h-1 w-12 rounded-full bg-stone-950/20 dark:bg-white/20" />
+                <h1 className="mx-auto line-clamp-2 max-w-2xl text-2xl font-black leading-tight text-stone-950 dark:text-white md:text-4xl">
+                  {product.name}
+                </h1>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  <span className="text-2xl font-black text-stone-950 dark:text-white">{money(price)}</span>
+                  {comparePrice ? <span className="text-sm font-black text-stone-400 line-through">{money(comparePrice)}</span> : null}
+                  <span className="inline-flex min-h-9 items-center justify-center rounded-full bg-stone-950 px-4 text-xs font-black text-white shadow-[0_14px_34px_rgba(15,23,42,0.18)] transition group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950">
+                    {cta}
+                  </span>
+                </div>
               </div>
-            ) : null}
-          </div>
+              {slides.length > 1 ? (
+                <div className="absolute bottom-3 end-3 z-20 flex gap-1.5">
+                  {slides.map((slide, index) => (
+                    <button key={productIdentityKey(slide.product, index)} type="button" onClick={(event) => { event.preventDefault(); setSlideIndex(index); setManualTick((current) => current + 1); }} className={`h-1.5 rounded-full transition ${index === slideIndex ? "w-8 bg-stone-950 dark:bg-white" : "w-2 bg-stone-950/24 dark:bg-white/30"}`} aria-label={`Slide ${index + 1}`} />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </Link>
+
+          <aside className="hidden border-s border-stone-200 bg-white/88 p-3 shadow-[inset_1px_0_0_rgba(255,255,255,0.7)] dark:border-white/10 dark:bg-white/[0.055] lg:block lg:[direction:rtl]">
+            <div className="mb-3 px-2 pt-2 text-[11px] font-black uppercase tracking-[0.16em] text-stone-400 dark:text-stone-500">
+              {isRtl ? "تسوق حسب الفئة" : "Shop Categories"}
+            </div>
+            <div className="grid gap-2">
+              {categories.map((category) => {
+                const Icon = category.icon;
+                const active = category.id === activeCategory.id;
+                const preview = category.slides[0];
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onMouseEnter={() => pickCategory(category.id)}
+                    onClick={() => pickCategory(category.id)}
+                    className={`group flex min-h-[4.65rem] items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-start transition ${active ? "border-stone-950 bg-stone-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.20)] dark:border-white dark:bg-white dark:text-stone-950" : "border-stone-200/70 bg-white/68 text-stone-800 hover:border-[#7c3aed]/35 hover:bg-white dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-200 dark:hover:bg-white/[0.08]"}`}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className={`grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl ${active ? "bg-white/15 dark:bg-stone-950/10" : "bg-stone-100 dark:bg-white/8"}`}>
+                        {preview?.image ? (
+                          <img src={imageFor(preview.image)} alt="" className="h-full w-full object-contain p-1.5" loading="lazy" decoding="async" width="44" height="44" />
+                        ) : (
+                          <Icon className="h-5 w-5" />
+                        )}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-base font-black">{category.label}</span>
+                        <span className={`mt-0.5 block truncate text-[11px] font-bold ${active ? "text-white/64 dark:text-stone-500" : "text-stone-400"}`}>
+                          {category.examples.slice(0, 2).join(" / ")}
+                        </span>
+                      </span>
+                    </span>
+                    <ChevronLeft className={`h-4 w-4 shrink-0 transition ${isRtl ? "" : "rotate-180"} ${active ? "opacity-100" : "opacity-0 group-hover:opacity-60"}`} />
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
         </div>
       </div>
     </section>
@@ -4007,18 +3930,10 @@ function FeaturedCategoriesHero({ products = [], lang = "ar" }) {
 function HomePage(props) {
   const { i18n, t } = useTranslation();
   const lang = i18n.language || "ar";
-  const [heroIndex, setHeroIndex] = useState(0);
-  const [heroPaused, setHeroPaused] = useState(false);
   const [lastPieceOpen, setLastPieceOpen] = useState(false);
   const storefrontHome = useStorefrontHome();
   const { products, loading } = useProducts({ limit: 24 });
   const { products: saleProducts, loading: saleLoading } = useProducts({ sale: 1, limit: 12 });
-  const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
-  const { options: storefrontGenderOptions } = useStorefrontGenderClassifications();
-  const classificationOptions = useMemo(
-    () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false }),
-    [classificationGroups]
-  );
   const merchProducts = useMemo(() => products.filter(isAvailableProduct), [products]);
   const railProducts = useMemo(() => (merchProducts.length ? merchProducts : products), [merchProducts, products]);
   const saleRailProducts = useMemo(() => saleProducts.filter(isAvailableProduct), [saleProducts]);
@@ -4037,15 +3952,7 @@ function HomePage(props) {
   );
   const homeHero = storefrontHome.hero;
   const allowLegacyHomeFallback = Boolean(storefrontHome.error && !homeHero && !storefrontHome.collections.length);
-  const heroProducts = useMemo(() => {
-    if (homeHero) return [homeHero];
-    if (!allowLegacyHomeFallback) return [];
-    return uniqueProductsByIdentity([...bestBase, ...freshBase, ...saleBase, ...railProducts]).slice(0, 6);
-  }, [allowLegacyHomeFallback, bestBase, freshBase, homeHero, railProducts, saleBase]);
-  const safeHeroIndex = heroProducts.length ? Math.min(heroIndex, heroProducts.length - 1) : 0;
-  const heroProduct = heroProducts[safeHeroIndex] || heroProducts[0] || {};
-  const heroKey = productIdentityKey(heroProduct);
-  const heroExcluded = useMemo(() => new Set(heroKey ? [heroKey] : []), [heroKey]);
+  const heroExcluded = useMemo(() => new Set(), []);
   const saleUnique = useMemo(() => pickHomeProducts({ preferred: saleBase, exclude: heroExcluded, limit: 8 }), [heroExcluded, saleBase]);
   const saleIds = useMemo(() => new Set(saleUnique.map((product, index) => productIdentityKey(product, index))), [saleUnique]);
   const freshUnique = useMemo(() => {
@@ -4057,22 +3964,7 @@ function HomePage(props) {
     const exclude = new Set([...heroExcluded, ...saleIds, ...freshIds]);
     return pickHomeProducts({ preferred: bestBase, exclude, limit: 8 });
   }, [bestBase, freshIds, heroExcluded, saleIds]);
-  const heroVariant = firstDisplayVariant(heroProduct.variants || []);
-  const heroImage = homeHero ? homeHero.image_url : displayImageForProduct(heroProduct, heroVariant);
-  const heroTheme = heroThemeForProduct(heroProduct, heroVariant);
-  const heroPrice = homeHero ? Number(homeHero.price || homeHero.final_price || homeHero.selling_price || 0) || 0 : displaySellingPrice(heroProduct, heroVariant);
   const conversionTrustPoints = getConversionTrustPoints();
-  const heroDetailsUrl = heroProduct?.id ? productUrl(heroProduct) : "/shop/products";
-  const homeCollections = storefrontHome.collections;
-  const rawHomeCollections = Array.isArray(storefrontHome.rawHome?.featured_collections) ? storefrontHome.rawHome.featured_collections : [];
-  const rawHomeSectionCounts = useMemo(
-    () => rawHomeCollections.map((collection, index) => ({
-      key: collection?.key || collection?.id || collection?.slug || collection?.title || collection?.name || index,
-      title: collection?.title || collection?.name || collection?.label || `Section ${index + 1}`,
-      count: Array.isArray(collection?.products) ? collection.products.length : 0,
-    })),
-    [rawHomeCollections]
-  );
   const stableHomeProducts = useMemo(() => {
     const exclude = new Set([...heroExcluded, ...saleIds, ...freshIds]);
     return pickHomeProducts({
@@ -4081,30 +3973,6 @@ function HomePage(props) {
       limit: 8,
     });
   }, [bestBase, freshIds, heroExcluded, saleIds]);
-  const hasHomeCollections = homeCollections.some((collection) => Array.isArray(collection.products) && collection.products.length);
-  const categoryPreviewCards = useMemo(() => {
-    const genderOptions = storefrontGenderOptions.length ? storefrontGenderOptions : classificationOptions.gender;
-    return uniqueClassificationOptions(genderOptions)
-      .map((option) => {
-        const field = "gender";
-        const label = classificationLabel(option, lang);
-        const product = pickClassificationPreviewProduct(railProducts, field, option.value);
-        const variant = product ? firstDisplayVariant(product.variants || []) : null;
-        return {
-          field,
-          label,
-          value: option.value,
-          groupLabel: t("storefront.filters.gender", "Gender"),
-          color: classificationColor(option),
-          icon: classificationIcon(option, lang),
-          product,
-          variant,
-          image: product ? displayImageForProduct(product, variant) : "",
-          productCount: Number(option.product_count ?? 0),
-        };
-      })
-      .filter((card) => card.productCount > 0 || card.product);
-  }, [classificationOptions.gender, storefrontGenderOptions, railProducts, lang, t]);
   const featuredCategoryProducts = useMemo(
     () => uniqueProductsByIdentity([...railProducts, ...saleBase, ...saleProducts, ...freshBase, ...bestBase]),
     [bestBase, freshBase, railProducts, saleBase, saleProducts]
@@ -4124,100 +3992,8 @@ function HomePage(props) {
     });
   }, [loading, products.length, railProducts.length, saleProducts.length]);
 
-  useEffect(() => {
-    if (heroPaused || heroProducts.length <= 1) return undefined;
-    const timer = window.setInterval(() => {
-      setHeroIndex((current) => (current + 1) % heroProducts.length);
-    }, 5000);
-    return () => window.clearInterval(timer);
-  }, [heroPaused, heroProducts.length]);
-
   return (
     <div className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0">
-      <section className="mx-auto max-w-[1200px] px-4 pb-1 pt-2 md:pt-3">
-        <div
-          className="relative overflow-hidden rounded-[1.65rem] text-white shadow-[0_24px_72px_rgba(15,23,42,0.30)] md:rounded-[2.15rem]"
-          style={{ background: heroTheme.gradient }}
-          onMouseEnter={() => setHeroPaused(true)}
-          onMouseLeave={() => setHeroPaused(false)}
-        >
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_22%_22%,rgba(255,255,255,0.14),transparent_26%),linear-gradient(120deg,rgba(255,255,255,0.06),transparent_40%,rgba(0,0,0,0.30))]" />
-          <div className="pointer-events-none absolute -left-20 top-8 h-56 w-56 rounded-full blur-3xl md:h-80 md:w-80" style={{ backgroundColor: heroTheme.glow }} />
-          <div className="pointer-events-none absolute bottom-0 right-0 h-32 w-32 rounded-full bg-black/24 blur-3xl md:h-60 md:w-60" />
-
-          <div className="relative grid min-h-[360px] gap-0 p-3 sm:p-4 lg:grid-cols-[1.25fr_0.75fr] lg:items-center lg:[direction:ltr] lg:p-6 xl:p-7">
-            <div className="relative order-1 flex min-h-[230px] items-center justify-center lg:min-h-[360px] lg:[direction:rtl]">
-              <div className="absolute left-1/2 top-1/2 h-48 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/12 blur-3xl md:h-64 md:w-[30rem]" />
-              <div className="absolute bottom-6 left-1/2 h-6 w-64 -translate-x-1/2 rounded-[100%] bg-black/38 blur-xl md:w-[28rem]" />
-              {heroImage ? (
-                <Link to={heroDetailsUrl} className="group/hero relative z-10 block w-full max-w-[700px] transition duration-500 hover:scale-[1.025]" aria-label={heroProduct.name || "Hero product"}>
-                  <img
-                    key={heroProduct.id || heroImage}
-                    src={imageFor(heroImage)}
-                    alt={heroProduct.name || ""}
-                    className="mx-auto max-h-[310px] w-full object-contain drop-shadow-[0_34px_34px_rgba(0,0,0,0.44)] transition duration-700 ease-out animate-[sfFloat_7s_ease-in-out_infinite] group-hover/hero:-rotate-2 group-hover/hero:scale-[1.045] md:max-h-[430px]"
-                    loading="eager"
-                    decoding="async"
-                    fetchPriority="high"
-                    width="620"
-                    height="520"
-                  />
-                </Link>
-              ) : storefrontHome.loading ? (
-                <div className="relative z-10 h-60 w-full max-w-lg animate-pulse rounded-[1.5rem] border border-white/10 bg-white/8 md:h-80" />
-              ) : null}
-            </div>
-
-            <div className="order-2 flex flex-col justify-center py-3 lg:[direction:rtl]">
-              <div className="inline-flex w-max items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-white/86 backdrop-blur">
-                <Sparkles className="h-4 w-4" style={{ color: heroTheme.accent }} />
-                {t("storefront.home.newArrival", "New Arrival")}
-              </div>
-              <h1 key={`title-${heroProduct.id || heroIndex}`} className="mt-3 max-w-xl text-3xl font-black leading-[1.03] tracking-normal text-white animate-[sfFadeUp_420ms_ease-out_both] md:text-5xl xl:text-6xl">
-                {heroProduct.name || ""}
-              </h1>
-              <div className="mt-4 flex flex-wrap items-end gap-3">
-                <div className="text-3xl font-black leading-none md:text-4xl">{heroPrice ? money(heroPrice) : "—"}</div>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Link to={heroDetailsUrl} className="sf-primary-cta inline-flex min-h-12 items-center justify-center rounded-full bg-white px-7 py-3 text-sm font-black text-stone-950 shadow-[0_18px_45px_rgba(255,255,255,0.18)] transition hover:-translate-y-0.5 hover:bg-[#f8fafc] active:scale-[0.98]">
-                  {t("storefront.common.shopNow", "Shop Now")}
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {heroProducts.length > 1 ? (
-            <div className="relative flex items-stretch gap-2 overflow-x-auto px-3 pb-3 sm:px-4 lg:px-6 xl:px-7">
-              {heroProducts.map((product, index) => {
-                const variant = firstDisplayVariant(product.variants || []);
-                const active = index === heroIndex;
-                return (
-                  <button
-                    key={product.id || index}
-                    type="button"
-                    onClick={() => setHeroIndex(index)}
-                    className={`group flex h-[58px] min-w-[70px] shrink-0 items-center gap-2.5 rounded-2xl border px-2.5 text-start backdrop-blur transition hover:-translate-y-0.5 active:scale-[0.98] sm:min-w-[180px] ${
-                      active ? "border-white/40 bg-white/18 text-white" : "border-white/10 bg-white/7 text-white/68 hover:bg-white/12"
-                    }`}
-                    aria-label={product.name || `Hero ${index + 1}`}
-                  >
-                    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/12">
-                      <img src={imageFor(displayImageForProduct(product, variant))} alt="" className="h-full w-full object-contain p-1.5" loading="lazy" decoding="async" width="40" height="40" />
-                    </span>
-                    <span className="hidden max-w-[9rem] min-w-0 sm:block">
-                      <span className="block truncate text-xs font-black">{product.name}</span>
-                      <span className="mt-0.5 block text-[10px] font-bold text-white/54">{money(displaySellingPrice(product, variant))}</span>
-                    </span>
-                    <span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-white" : "bg-white/32"}`} />
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-        </div>
-      </section>
       <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} />
       <SimpleHomeProductGrid
         title={t("storefront.home.featuredProducts", "Featured products")}
@@ -4234,31 +4010,7 @@ function HomePage(props) {
           ))}
         </div>
       </section>
-      <section className="relative z-10 mx-auto min-h-[84px] max-w-[1200px] px-4 py-1.5 md:min-h-[120px] md:py-2">
-        <StoryStrip products={railProducts} categories={categoryPreviewCards} loading={loading} onLastPiece={() => setLastPieceOpen(true)} />
-      </section>
-      <section className="mx-auto max-w-[1200px] px-4 pb-2">
-        <div className="rounded-2xl border border-[#a78bfa]/20 bg-white/80 px-4 py-3 text-xs font-black text-stone-700 shadow-[0_12px_28px_rgba(39,20,75,0.06)] dark:border-white/10 dark:bg-white/[0.055] dark:text-stone-200">
-          <div>SECTIONS COUNT: {rawHomeSectionCounts.length}</div>
-          <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-bold text-stone-500 dark:text-stone-400">
-            {rawHomeSectionCounts.length ? rawHomeSectionCounts.map((collection) => (
-              <span key={collection.key} className="rounded-full border border-stone-200 bg-white px-2 py-1 dark:border-white/10 dark:bg-white/[0.06]">
-                {collection.title}: {collection.count}
-              </span>
-            )) : (
-              <span>home.featured_collections: 0</span>
-            )}
-          </div>
-        </div>
-      </section>
-      {hasHomeCollections ? homeCollections.map((collection) => (
-        <HomeCollectionRail
-          key={collection.key || collection.title}
-          collection={collection}
-        />
-      )) : (
-        <ProductRail title={t("storefront.home.bestsellers", "Best sellers")} subtitle={t("storefront.home.bestsellersSubtitle", "Best sellers this week")} loading={loading || storefrontHome.loading} products={best} railType="bestseller" featuredFirst {...props} />
-      )}
+      <ProductRail title={t("storefront.home.bestsellers", "Best sellers")} subtitle={t("storefront.home.bestsellersSubtitle", "Best sellers this week")} loading={loading || storefrontHome.loading} products={best} railType="bestseller" featuredFirst {...props} />
       {allowLegacyHomeFallback ? (
         <>
           <ProductRail title={t("storefront.nav.sale", "Sale")} subtitle={t("storefront.home.saleSubtitle", "Selected discounts for a limited time")} loading={saleLoading && !saleUnique.length} products={saleUnique} railType="sale" {...props} />
@@ -4268,50 +4020,6 @@ function HomePage(props) {
       <Reviews />
       <LastPieceFinder open={lastPieceOpen} onClose={() => setLastPieceOpen(false)} />
     </div>
-  );
-}
-
-function HomeCollectionRail({ collection = {} }) {
-  const { t } = useTranslation();
-  const products = Array.isArray(collection.products) ? collection.products.filter((product) => product?.id && product?.name) : [];
-  if (!products.length) return null;
-
-  return (
-    <section className="mx-auto max-w-[1200px] px-4 py-2 md:py-4">
-      <div className="mb-2 flex items-end justify-between gap-3 text-right md:mb-4 md:gap-4">
-        <div className="min-w-0">
-          <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#7c3aed] dark:text-[#d8b4fe] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{t("storefront.common.shopNow", "Shop Now")}</div>
-          <h2 className="text-[1.25rem] font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-3xl">{collection.title}</h2>
-          {collection.subtitle ? <p className="mt-0.5 text-[11px] font-bold text-stone-500 dark:text-stone-400 md:mt-1 md:text-sm">{collection.subtitle}</p> : null}
-          <div className="mt-1 h-0.5 w-10 rounded-full bg-gradient-to-l from-[#7c3aed] to-[#d8b4fe] md:mt-1.5 md:h-1 md:w-14" />
-        </div>
-        <Link to="/shop/products" className="mb-0.5 inline-flex min-h-8 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 shadow-[0_10px_26px_rgba(39,20,75,0.07)] transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:text-[#6d28d9] active:scale-[0.98] md:mb-1 md:min-h-10 md:px-5 md:py-2 md:text-xs dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-          {t("common.viewAll", "View all")}
-        </Link>
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {products.slice(0, 10).map((product, index) => (
-          <Link
-            key={product.card_id || product.id || index}
-            to={productUrl(product)}
-            className="group/product min-w-0 overflow-hidden rounded-[1.1rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(250,248,244,0.9)_48%,rgba(245,241,234,0.78))] shadow-[0_10px_28px_rgba(39,20,75,0.06),inset_0_1px_0_rgba(255,255,255,0.82)] ring-1 ring-stone-200/60 transition duration-300 hover:-translate-y-1.5 hover:border-[#a78bfa]/40 hover:ring-[#7c3aed]/30 hover:shadow-[0_20px_58px_rgba(39,20,75,0.15)] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.92),rgba(11,16,32,0.9)_52%,rgba(8,13,25,0.96))] dark:ring-white/[0.05]"
-          >
-            <div className="relative aspect-[1.14/1] overflow-hidden bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.16),transparent_30%),linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] p-2 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.12),transparent_30%),linear-gradient(180deg,#101426_0%,#0b1020_100%)]">
-              <img src={imageFor(product.image_url)} alt={product.name || ""} className="h-full w-full rounded-[0.9rem] object-contain transition duration-500 group-hover/product:-translate-y-1 group-hover/product:scale-[1.07]" loading="lazy" decoding="async" width="360" height="360" />
-              {product.sale_price_enabled ? (
-                <span className="absolute right-2 top-2 rounded-full border border-[#7c3aed]/15 bg-white/95 px-2 py-1 text-[9px] font-black leading-none text-[#6d28d9] shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1020] dark:text-[#d8b4fe]">
-                  {t("storefront.nav.sale", "Sale")}
-                </span>
-              ) : null}
-            </div>
-            <div className="p-2 pt-1.5 text-right">
-              <h3 className="line-clamp-2 min-h-8 text-[11.5px] font-black leading-4 text-stone-950 dark:text-stone-100">{product.name}</h3>
-              <div className="mt-1.5 text-[15px] font-black text-stone-950 dark:text-white">{money(product.price || product.selling_price || 0)}</div>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -4374,86 +4082,6 @@ function SectionIntro({ eyebrow, title, subtitle, compact = false }) {
       <h2 className={`${compact ? "text-xl md:text-3xl" : "text-2xl md:text-4xl"} font-black tracking-normal text-stone-950 dark:text-stone-100`}>{title}</h2>
       {subtitle ? <p className="mt-1 text-xs font-semibold leading-5 text-stone-500 dark:text-stone-400 md:mt-2 md:text-sm md:leading-6">{subtitle}</p> : null}
       <div className="mt-1.5 h-0.5 w-10 rounded-full bg-gradient-to-l from-[#7c3aed] to-[#d8b4fe] md:mt-2 md:h-1 md:w-14" />
-    </div>
-  );
-}
-
-function StoryStrip({ products = [], categories = [], loading = false, onLastPiece }) {
-  const { t } = useTranslation();
-  const fallbackStories = [
-    { label: t("storefront.nav.new", "New"), to: "/shop/products?sort=new", image: "", accent: "from-[#111827] to-[#7c3aed]" },
-    { label: t("storefront.nav.men", "Men"), to: "/shop/products?q=رجالي", image: "", accent: "from-[#020617] to-[#334155]" },
-    { label: t("storefront.nav.women", "Women"), to: "/shop/products?q=حريمي", image: "", accent: "from-[#3b0764] to-[#db2777]" },
-    { label: t("storefront.nav.kids", "Kids"), to: "/shop/products?q=أطفال", image: "", accent: "from-[#0f172a] to-[#0ea5e9]" },
-    { label: t("storefront.home.bestsellers", "Best sellers"), to: "/shop/products", image: "", accent: "from-[#1c1917] to-[#a16207]" },
-    { label: t("storefront.nav.sale", "Sale"), to: "/shop/sale", image: "", accent: "from-[#581c87] to-[#ef4444]" },
-  ];
-  const categoryStories = categories.slice(0, 6).map((category) => ({
-    label: category.label,
-    to: classificationUrl(category.field, category.value),
-    image: category.image,
-    icon: category.icon,
-    accent: "",
-  }));
-  const productStories = products.slice(0, 8).map((product) => {
-    const variant = firstDisplayVariant(product.variants || []);
-    return {
-      label: product.name,
-      to: productUrl(product),
-      image: displayImageForProduct(product, variant),
-      accent: "",
-    };
-  });
-  const storyItems = [
-    { label: t("storefront.lastPiece.title", "Last piece"), action: onLastPiece, image: "", icon: <Sparkles className="h-6 w-6" />, accent: "from-[#1c1917] via-[#78350f] to-[#f8e7b3]" },
-    ...(categoryStories.length ? categoryStories : productStories.length ? productStories : fallbackStories),
-  ].slice(0, 10);
-  const showSkeleton = loading && !categories.length && !products.length;
-
-  return (
-    <div className="relative z-10 min-h-[80px] overflow-visible rounded-[1.45rem] border border-stone-200/80 bg-white/82 px-2.5 py-2.5 opacity-100 shadow-[0_16px_44px_rgba(39,20,75,0.07)] backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/88 md:min-h-[112px] md:px-3 md:py-3">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(124,58,237,0.10),transparent_28%),radial-gradient(circle_at_85%_20%,rgba(248,231,179,0.10),transparent_24%)]" />
-      <div className="sf-scroll relative flex min-h-[72px] gap-3 overflow-x-auto pb-1 opacity-100 md:min-h-[96px] md:gap-4">
-        {showSkeleton ? Array.from({ length: 7 }).map((_, index) => (
-          <div key={index} className="shrink-0 text-center">
-            <div className="h-[62px] w-[62px] animate-pulse rounded-full bg-stone-200 dark:bg-white/10 md:h-[72px] md:w-[72px]" />
-            <div className="mx-auto mt-1.5 h-2.5 w-12 animate-pulse rounded-full bg-stone-200 dark:bg-white/10 md:mt-2 md:h-3 md:w-14" />
-          </div>
-        )) : null}
-        {!showSkeleton && storyItems.map((story, index) => {
-          const content = (
-            <>
-              <span className="relative grid h-[62px] w-[62px] place-items-center rounded-full bg-gradient-to-br from-[#7c3aed] via-[#f8e7b3] to-[#111827] p-[2px] shadow-[0_14px_32px_rgba(39,20,75,0.14)] transition group-hover:-translate-y-0.5 group-hover:scale-[1.03] md:h-[72px] md:w-[72px]">
-                <span className="grid h-full w-full place-items-center overflow-hidden rounded-full border-[3px] border-white bg-[#0b1020] dark:border-[#0b1020]">
-                  {story.image ? (
-                    <img src={imageFor(story.image)} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" width="72" height="72" />
-                  ) : (
-                    <span className={`grid h-full w-full place-items-center bg-gradient-to-br ${story.accent || storyVisuals[index % storyVisuals.length]} text-white`}>
-                      {story.icon || <Sparkles className="h-6 w-6" />}
-                    </span>
-                  )}
-                </span>
-                <span className="absolute -left-0.5 bottom-0.5 grid h-4 min-w-4 place-items-center rounded-full border border-white bg-stone-950 px-1 text-[7.5px] font-black text-white shadow-sm md:bottom-1 md:h-5 md:min-w-5 md:text-[9px]">
-                  {index === 0 ? "LIVE" : "NEW"}
-                </span>
-              </span>
-              <span className="mt-1 block max-w-[72px] truncate text-center text-[10px] font-black text-stone-700 dark:text-stone-200 md:mt-1.5 md:max-w-[78px] md:text-[11px]">
-                {story.label}
-              </span>
-            </>
-          );
-
-          return story.action ? (
-            <button key={story.label} type="button" onClick={story.action} className="group shrink-0 text-center">
-              {content}
-            </button>
-          ) : (
-            <Link key={`${story.label}-${story.to}`} to={story.to} className="group shrink-0 text-center">
-              {content}
-            </Link>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -6811,6 +6439,13 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     city: "",
     area_id: "",
     area: "",
+    zone_id: "",
+    zone: "",
+    district_id: "",
+    district: "",
+    shipping_city_id: "",
+    shipping_zone_id: "",
+    shipping_district_id: "",
     city_area: "",
     detailed_address: "",
     landmark: "",
@@ -6833,6 +6468,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
   const [latestAddressApplied, setLatestAddressApplied] = useState(false);
   const [shippingQuote, setShippingQuote] = useState(normalizeShippingQuote());
   const [shippingLocations, setShippingLocations] = useState(() => normalizeCheckoutLocations());
+  const [bostaLocations, setBostaLocations] = useState({ cities: [], zones: [], districts: [], loading: false });
   const editedCheckoutFieldsRef = useRef(new Set());
   const latestAddressLookupsRef = useRef(new Set());
   const pricedCart = useMemo(() => cart.map((item) => ({ ...item, price: displayCartItemPrice(item) })), [cart]);
@@ -6868,6 +6504,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
   const locationGovernorates = useMemo(() => uniqueCheckoutLocations(shippingLocations, "governorate_id"), [shippingLocations]);
   const locationCities = useMemo(() => uniqueCheckoutLocations(shippingLocations, "city_id", (item) => !form.governorate_id || item.governorate_id === form.governorate_id), [shippingLocations, form.governorate_id]);
   const locationAreas = useMemo(() => uniqueCheckoutLocations(shippingLocations, "area_id", (item) => !form.city_id || item.city_id === form.city_id), [shippingLocations, form.city_id]);
+  const bostaMode = bostaLocations.cities.length > 0;
   const cityAreaOptions = governorateCityAreas[form.governorate] || [];
   const activeTransferValue = shippingTransferMethod === "instapay" ? INSTA_PAY_HANDLE : VODAFONE_CASH_NUMBER;
   const activePaymentDeepLink = shippingTransferMethod === "instapay" ? "instapay://" : "tel:*9%23";
@@ -6895,6 +6532,57 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
 
   useEffect(() => {
     let cancelled = false;
+    setBostaLocations((prev) => ({ ...prev, loading: true }));
+    api.get("/shipping/cities?provider=bosta&dropoff=1", { suppressErrorStatuses: [404, 500] })
+      .then((data) => {
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, cities: Array.isArray(data.cities) ? data.cities : [], loading: false }));
+      })
+      .catch(() => {
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, cities: [], loading: false }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!bostaMode || !form.shipping_city_id) {
+      setBostaLocations((prev) => ({ ...prev, zones: [], districts: [] }));
+      return undefined;
+    }
+    let cancelled = false;
+    api.get(`/shipping/zones?provider=bosta&dropoff=1&cityId=${encodeURIComponent(form.shipping_city_id)}`, { suppressErrorStatuses: [404, 500] })
+      .then((data) => {
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, zones: Array.isArray(data.zones) ? data.zones : [], districts: [] }));
+      })
+      .catch(() => {
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, zones: [], districts: [] }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bostaMode, form.shipping_city_id]);
+
+  useEffect(() => {
+    if (!bostaMode || !form.shipping_zone_id) {
+      setBostaLocations((prev) => ({ ...prev, districts: [] }));
+      return undefined;
+    }
+    let cancelled = false;
+    api.get(`/shipping/districts?provider=bosta&dropoff=1&zoneId=${encodeURIComponent(form.shipping_zone_id)}`, { suppressErrorStatuses: [404, 500] })
+      .then((data) => {
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, districts: Array.isArray(data.districts) ? data.districts : [] }));
+      })
+      .catch(() => {
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, districts: [] }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bostaMode, form.shipping_zone_id]);
+
+  useEffect(() => {
+    let cancelled = false;
     deferReactState(() => {
       if (!cancelled) setSubmitting(false);
     });
@@ -6917,6 +6605,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       governorate_id: form.governorate_id || "",
       city_id: form.city_id || "",
       area_id: form.area_id || "",
+      district_id: form.district_id || "",
+      zone_id: form.zone_id || "",
       subtotal: String(subtotal),
     });
     api
@@ -6942,7 +6632,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     return () => {
       cancelled = true;
     };
-  }, [form.governorate, form.city_area, form.governorate_id, form.city_id, form.area_id, form.city, form.area, subtotal]);
+  }, [form.governorate, form.city_area, form.governorate_id, form.city_id, form.area_id, form.city, form.area, form.district_id, form.zone_id, subtotal]);
 
   const setField = (key, value, options = {}) => {
     if (options.markDirty !== false) editedCheckoutFieldsRef.current.add(key);
@@ -7015,6 +6705,60 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     }
     setManualCityArea(false);
     setField("city_area", value);
+  };
+
+  const setBostaCity = (value) => {
+    editedCheckoutFieldsRef.current.add("governorate");
+    editedCheckoutFieldsRef.current.add("city_area");
+    const selected = bostaLocations.cities.find((city) => String(city.id) === String(value));
+    setForm((prev) => ({
+      ...prev,
+      governorate_id: selected?.provider_city_id || "",
+      governorate: selected?.name_ar || selected?.name_en || "",
+      city_id: selected?.provider_city_id || "",
+      city: selected?.name_ar || selected?.name_en || "",
+      city_area: selected?.name_ar || selected?.name_en || "",
+      shipping_city_id: selected?.id ? String(selected.id) : "",
+      zone_id: "",
+      zone: "",
+      shipping_zone_id: "",
+      area_id: "",
+      area: "",
+      district_id: "",
+      district: "",
+      shipping_district_id: "",
+    }));
+    setErrors((prev) => ({ ...prev, governorate: "", city_area: "" }));
+  };
+
+  const setBostaZone = (value) => {
+    const selected = bostaLocations.zones.find((zone) => String(zone.id) === String(value));
+    setForm((prev) => ({
+      ...prev,
+      zone_id: selected?.provider_zone_id || "",
+      zone: selected?.name_ar || selected?.name_en || "",
+      shipping_zone_id: selected?.id ? String(selected.id) : "",
+      area_id: "",
+      area: "",
+      district_id: "",
+      district: "",
+      shipping_district_id: "",
+    }));
+    setErrors((prev) => ({ ...prev, city_area: "" }));
+  };
+
+  const setBostaDistrict = (value) => {
+    const selected = bostaLocations.districts.find((district) => String(district.id) === String(value));
+    setForm((prev) => ({
+      ...prev,
+      area_id: selected?.provider_district_id || "",
+      area: selected?.name_ar || selected?.name_en || "",
+      district_id: selected?.provider_district_id || "",
+      district: selected?.name_ar || selected?.name_en || "",
+      city_area: selected?.name_ar || selected?.name_en || prev.city_area,
+      shipping_district_id: selected?.id ? String(selected.id) : "",
+    }));
+    setErrors((prev) => ({ ...prev, city_area: "" }));
   };
 
   useEffect(() => {
@@ -7200,7 +6944,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
 
     if (step === 2) {
       if (!form.governorate) next.governorate = sfText("storefront.validation.governorateRequired", "Choose the governorate");
-      if (!form.city_area.trim()) next.city_area = manualCityArea ? sfText("storefront.validation.cityAreaManualRequired", "Enter the city or area") : sfText("storefront.validation.cityAreaRequired", "Choose the city or area");
+      if (bostaMode && (!form.shipping_city_id || !form.shipping_zone_id || !form.shipping_district_id)) next.city_area = sfText("storefront.validation.cityAreaRequired", "Choose the city or area");
+      else if (!form.city_area.trim()) next.city_area = manualCityArea ? sfText("storefront.validation.cityAreaManualRequired", "Enter the city or area") : sfText("storefront.validation.cityAreaRequired", "Choose the city or area");
       if (!form.detailed_address.trim()) next.detailed_address = sfText("storefront.validation.addressRequired", "Enter the full address so the courier can reach you quickly");
     }
 
@@ -7305,6 +7050,14 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
         city_id: form.city_id,
         city: form.city || form.city_area,
         area_id: form.area_id,
+        district_id: form.district_id || shippingQuote.district_id || shippingQuote.zone?.district_id || "",
+        zone_id: form.zone_id || shippingQuote.zone_id || shippingQuote.zone?.zone_id || "",
+        shipping_city_id: form.shipping_city_id,
+        shipping_zone_id: form.shipping_zone_id,
+        shipping_district_id: form.shipping_district_id,
+        provider_city_id: shippingQuote.zone?.provider_city_id || "",
+        provider_district_id: shippingQuote.zone?.provider_district_id || "",
+        provider_zone_id: shippingQuote.zone?.provider_zone_id || "",
         area: form.area || form.city_area,
         street_address: form.detailed_address,
         landmark: form.landmark,
@@ -7320,6 +7073,14 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
         shipping_cost: deliveryFee,
         shipping_provider: shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery",
         shipping_provider_id: shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery",
+        governorate_id: form.governorate_id || shippingQuote.governorate_id || shippingQuote.zone?.governorate_id || "",
+        city_id: form.city_id || shippingQuote.city_id || shippingQuote.zone?.city_id || "",
+        area_id: form.area_id || shippingQuote.area_id || shippingQuote.zone?.area_id || shippingQuote.zone?.district_id || "",
+        district_id: form.district_id || shippingQuote.district_id || shippingQuote.zone?.district_id || shippingQuote.zone?.area_id || "",
+        zone_id: form.zone_id || shippingQuote.zone_id || shippingQuote.zone?.zone_id || "",
+        shipping_city_id: form.shipping_city_id,
+        shipping_zone_id: form.shipping_zone_id,
+        shipping_district_id: form.shipping_district_id,
         paid_amount: paidAmount,
         shipping_address: shippingProviderAddress,
         shipping_provider_address: shippingProviderAddress,
@@ -7398,10 +7159,20 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
               </p>
             ) : null}
             <div className="grid gap-2.5 md:grid-cols-2">
-              <SelectField label={sfText("storefront.checkout.governorate", "Governorate")} value={form.governorate_id || form.governorate} onChange={setGovernorate} options={locationGovernorates.length ? locationGovernorates.map((item) => item.governorate_id) : governorates} labels={Object.fromEntries(locationGovernorates.map((item) => [item.governorate_id, checkoutLocationName(item, i18n.language, "governorate")]))} required error={errors.governorate} />
-              <SelectField label={sfText("storefront.checkout.city", "City / Markaz")} value={form.city_id || ""} onChange={setCityArea} options={locationCities.map((item) => item.city_id)} labels={Object.fromEntries(locationCities.map((item) => [item.city_id, checkoutLocationName(item, i18n.language, "city")]))} required error={!form.city_id && errors.city_area ? errors.city_area : ""} />
-              <SelectField label={sfText("storefront.checkout.area", "Area / District")} value={form.area_id || ""} onChange={setCityArea} options={locationAreas.map((item) => item.area_id)} labels={Object.fromEntries(locationAreas.map((item) => [item.area_id, checkoutLocationName(item, i18n.language, "area")]))} required error={errors.city_area} />
-              {!locationGovernorates.length ? <CityAreaField governorate={form.governorate} options={cityAreaOptions} value={form.city_area} onChange={setCityArea} manual={manualCityArea} onManualChange={(value) => setField("city_area", value)} required error={errors.city_area} /> : null}
+              {bostaMode ? (
+                <>
+                  <SelectField label={sfText("storefront.checkout.governorate", "City / Governorate")} value={form.shipping_city_id || ""} onChange={setBostaCity} options={bostaLocations.cities.map((item) => String(item.id))} labels={Object.fromEntries(bostaLocations.cities.map((item) => [String(item.id), i18n.language === "ar" ? (item.name_ar || item.name_en) : (item.name_en || item.name_ar)]))} required error={errors.governorate} />
+                  <SelectField label={sfText("storefront.checkout.zone", "Zone")} value={form.shipping_zone_id || ""} onChange={setBostaZone} options={bostaLocations.zones.map((item) => String(item.id))} labels={Object.fromEntries(bostaLocations.zones.map((item) => [String(item.id), i18n.language === "ar" ? (item.name_ar || item.name_en) : (item.name_en || item.name_ar)]))} required error={!form.shipping_zone_id && errors.city_area ? errors.city_area : ""} />
+                  <SelectField label={sfText("storefront.checkout.area", "District")} value={form.shipping_district_id || ""} onChange={setBostaDistrict} options={bostaLocations.districts.map((item) => String(item.id))} labels={Object.fromEntries(bostaLocations.districts.map((item) => [String(item.id), i18n.language === "ar" ? (item.name_ar || item.name_en) : (item.name_en || item.name_ar)]))} required error={!form.shipping_district_id ? errors.city_area : ""} />
+                </>
+              ) : (
+                <>
+                  <SelectField label={sfText("storefront.checkout.governorate", "Governorate")} value={form.governorate_id || form.governorate} onChange={setGovernorate} options={locationGovernorates.length ? locationGovernorates.map((item) => item.governorate_id) : governorates} labels={Object.fromEntries(locationGovernorates.map((item) => [item.governorate_id, checkoutLocationName(item, i18n.language, "governorate")]))} required error={errors.governorate} />
+                  <SelectField label={sfText("storefront.checkout.city", "City / Markaz")} value={form.city_id || ""} onChange={setCityArea} options={locationCities.map((item) => item.city_id)} labels={Object.fromEntries(locationCities.map((item) => [item.city_id, checkoutLocationName(item, i18n.language, "city")]))} required error={!form.city_id && errors.city_area ? errors.city_area : ""} />
+                  <SelectField label={sfText("storefront.checkout.area", "Area / District")} value={form.area_id || ""} onChange={setCityArea} options={locationAreas.map((item) => item.area_id)} labels={Object.fromEntries(locationAreas.map((item) => [item.area_id, checkoutLocationName(item, i18n.language, "area")]))} required error={errors.city_area} />
+                  {!locationGovernorates.length ? <CityAreaField governorate={form.governorate} options={cityAreaOptions} value={form.city_area} onChange={setCityArea} manual={manualCityArea} onManualChange={(value) => setField("city_area", value)} required error={errors.city_area} /> : null}
+                </>
+              )}
               <TextField label={sfText("storefront.checkout.fullAddress", "Full address")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder", "Street, building number, floor, apartment")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} />
               <Field label={sfText("storefront.checkout.landmark", "Landmark")} placeholder={sfText("storefront.checkout.landmarkPlaceholder", "Near...")} value={form.landmark} onChange={(v) => setField("landmark", v)} />
               <TextField label={sfText("storefront.checkout.deliveryNotes", "Delivery notes")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder", "Preferred time or courier note")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} />

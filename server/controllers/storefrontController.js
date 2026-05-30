@@ -724,6 +724,8 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS governorate_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS city_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS area_id VARCHAR(160)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS district_id VARCHAR(160)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS zone_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS landmark TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS delivery_notes TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS order_notes TEXT`);
@@ -743,9 +745,17 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS display_order_number VARCHAR(40)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider VARCHAR(80) NOT NULL DEFAULT 'manual'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider_id VARCHAR(80) NOT NULL DEFAULT 'in_store_delivery'`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_city_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_zone_id VARCHAR(160)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_district_id VARCHAR(160)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_address_line TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(80) NOT NULL DEFAULT 'pending'`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_tracking_number VARCHAR(160)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider_delivery_id VARCHAR(160)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_label_url TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_last_synced_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_status VARCHAR(80)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(160)`);
@@ -2957,7 +2967,9 @@ export const getShippingQuote = async (req, res) => {
       area: req.query?.area || req.query?.district || req.query?.city_area || "",
       governorate_id: req.query?.governorate_id || "",
       city_id: req.query?.city_id || "",
-      area_id: req.query?.area_id || req.query?.location_id || "",
+      area_id: req.query?.area_id || req.query?.district_id || req.query?.location_id || "",
+      district_id: req.query?.district_id || req.query?.area_id || req.query?.location_id || "",
+      zone_id: req.query?.zone_id || "",
       subtotal: req.query?.subtotal || req.query?.order_subtotal || req.query?.order_total || 0,
     });
     return res.json({ success: true, quote });
@@ -2995,7 +3007,12 @@ export const createWebsiteOrder = async (req, res) => {
       city_area: toText(checkoutRaw.city_area || checkoutRaw.city || checkoutRaw.area),
       governorate_id: toText(checkoutRaw.governorate_id || checkoutRaw.governorateId),
       city_id: toText(checkoutRaw.city_id || checkoutRaw.cityId),
-      area_id: toText(checkoutRaw.area_id || checkoutRaw.areaId || checkoutRaw.location_id || checkoutRaw.locationId),
+      area_id: toText(checkoutRaw.area_id || checkoutRaw.areaId || checkoutRaw.district_id || checkoutRaw.districtId || checkoutRaw.location_id || checkoutRaw.locationId),
+      district_id: toText(checkoutRaw.district_id || checkoutRaw.districtId || checkoutRaw.area_id || checkoutRaw.areaId || checkoutRaw.location_id || checkoutRaw.locationId),
+      zone_id: toText(checkoutRaw.zone_id || checkoutRaw.zoneId),
+      shipping_city_id: toText(checkoutRaw.shipping_city_id || checkoutRaw.shippingCityId || checkoutRaw.city_id || checkoutRaw.cityId),
+      shipping_zone_id: toText(checkoutRaw.shipping_zone_id || checkoutRaw.shippingZoneId || checkoutRaw.zone_id || checkoutRaw.zoneId),
+      shipping_district_id: toText(checkoutRaw.shipping_district_id || checkoutRaw.shippingDistrictId || checkoutRaw.district_id || checkoutRaw.districtId || checkoutRaw.area_id || checkoutRaw.areaId),
       city: toText(checkoutRaw.city),
       area: toText(checkoutRaw.area || checkoutRaw.district),
       detailed_address: toText(checkoutRaw.detailed_address || checkoutRaw.customer_address || checkoutRaw.address),
@@ -3158,6 +3175,8 @@ export const createWebsiteOrder = async (req, res) => {
       governorate_id: checkout.governorate_id,
       city_id: checkout.city_id,
       area_id: checkout.area_id,
+      district_id: checkout.district_id,
+      zone_id: checkout.zone_id,
       subtotal,
     });
     const deliveryFee = roundMoney(shippingQuote.price);
@@ -3286,13 +3305,18 @@ export const createWebsiteOrder = async (req, res) => {
       governorate_id: checkout.governorate_id,
       city_id: checkout.city_id,
       area_id: checkout.area_id,
+      district_id: checkout.district_id,
+      zone_id: checkout.zone_id,
       landmark: checkout.landmark || "",
       delivery_notes: checkout.delivery_notes || "",
       order_notes: checkout.order_notes || "",
       notes: checkout.order_notes || "",
       shipping_provider: shippingMethod,
       shipping_provider_id: shippingMethod,
-      shipping_zone_id: shippingQuote.zone?.id || null,
+      shipping_city_id: checkout.shipping_city_id || checkout.city_id || shippingQuote.zone?.city_id || null,
+      shipping_zone_id: checkout.shipping_zone_id || checkout.zone_id || shippingQuote.zone?.zone_id || shippingQuote.zone?.id || null,
+      shipping_district_id: checkout.shipping_district_id || checkout.district_id || checkout.area_id || shippingQuote.zone?.district_id || null,
+      shipping_address_line: checkout.detailed_address,
       shipping_status: "pending",
       shipment_status: "pending",
     }, checkoutColumns.orders, { step: "create order" });

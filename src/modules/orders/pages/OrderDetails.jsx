@@ -320,6 +320,12 @@ function OrderDetails() {
     shipment_id: "",
     tracking_number: "",
     tracking_url: "",
+    shipping_city_id: "",
+    shipping_zone_id: "",
+    shipping_district_id: "",
+    shipping_provider_delivery_id: "",
+    shipping_label_url: "",
+    shipping_address_line: "",
     delivery_fee: 0,
     cod_amount: 0,
     courier_notes: "",
@@ -344,8 +350,14 @@ function OrderDetails() {
         shipping_status: merged.shipping_status || "pending",
         shipment_status: merged.shipment_status || merged.shipping_status || "pending",
         shipment_id: merged.shipment_id || "",
-        tracking_number: merged.tracking_number || "",
+        tracking_number: merged.shipping_tracking_number || merged.tracking_number || "",
         tracking_url: merged.tracking_url || "",
+        shipping_city_id: merged.shipping_city_id || merged.city_id || "",
+        shipping_zone_id: merged.shipping_zone_id || "",
+        shipping_district_id: merged.shipping_district_id || merged.area_id || "",
+        shipping_provider_delivery_id: merged.shipping_provider_delivery_id || merged.shipment_id || "",
+        shipping_label_url: merged.shipping_label_url || "",
+        shipping_address_line: merged.shipping_address_line || merged.customer_address || "",
         delivery_fee: merged.delivery_fee || merged.shipping_fee || 0,
         cod_amount: merged.cod_amount || 0,
         courier_notes: merged.courier_notes || "",
@@ -514,6 +526,28 @@ function OrderDetails() {
   };
 
   const handleCreateShipment = () => handleShipmentAction("create");
+
+  const handleBostaAction = async (action) => {
+    try {
+      const result = await api.post(`/orders/${order.id}/shipping/bosta/${action}`, {});
+      const updated = normalizeOrder(result.order || order, { items: previewItems });
+      setOrder(updated);
+      setShipping((prev) => ({
+        ...prev,
+        provider: "bosta",
+        shipping_status: updated.shipping_status || result.status || prev.shipping_status,
+        shipment_status: updated.shipment_status || updated.shipping_status || result.status || prev.shipment_status,
+        shipment_id: updated.shipment_id || result.shipment_id || prev.shipment_id,
+        shipping_provider_delivery_id: updated.shipping_provider_delivery_id || result.shipment_id || prev.shipping_provider_delivery_id,
+        tracking_number: updated.shipping_tracking_number || updated.tracking_number || result.tracking_number || prev.tracking_number,
+        tracking_url: updated.tracking_url || result.tracking_url || prev.tracking_url,
+        shipping_label_url: updated.shipping_label_url || result.label_url || prev.shipping_label_url,
+      }));
+      toast.success(result.message || (action === "create" ? "Bosta shipment created" : "Bosta shipment updated"));
+    } catch (err) {
+      toast.error(err.message || "Bosta shipment action failed");
+    }
+  };
 
   const handleShippingPaymentReview = async (action) => {
     try {
@@ -1244,6 +1278,27 @@ function OrderDetails() {
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
               {shippingTab === "shipment" ? (
                 <div className="grid gap-3 2xl:grid-cols-2">
+                  {shipping.provider === "bosta" ? (
+                    <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 2xl:col-span-2">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Bosta</div>
+                          <div className="mt-1 text-sm font-black text-white">City {shipping.shipping_city_id || order.city_id || "-"} · Zone {shipping.shipping_zone_id || "-"} · District {shipping.shipping_district_id || order.area_id || "-"}</div>
+                          <div className="mt-1 text-xs font-semibold text-zinc-400">{shipping.shipping_address_line || order.customer_address || t("orders.fallback.notAvailable")}</div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => handleBostaAction("create")} className="h-9 rounded-xl bg-cyan-300 px-3 text-xs font-black text-zinc-950">Create Bosta Shipment</button>
+                          <button type="button" onClick={() => handleBostaAction("refresh")} className="h-9 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white">Refresh Status</button>
+                          <button type="button" onClick={() => handleBostaAction("cancel")} className="h-9 rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100">Cancel</button>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        <Info label="Delivery ID" value={shipping.shipping_provider_delivery_id || shipping.shipment_id || t("orders.fallback.notAvailable")} />
+                        <Info label={t("orders.shipping.trackingNumber")} value={shipping.tracking_number || t("orders.fallback.notAvailable")} />
+                        <Info label="Label" value={shipping.shipping_label_url ? "Available" : t("orders.fallback.notAvailable")} />
+                      </div>
+                    </div>
+                  ) : null}
                   <FieldLabel label={t("orders.shipping.provider")}>
                     <select
                       value={shipping.provider}

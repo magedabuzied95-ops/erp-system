@@ -1,4 +1,5 @@
 import { normalizeProviderResponse } from "./response.js";
+import { syncBostaLocations } from "../../modules/shipping/shipping.service.js";
 
 const hasCredentials = () =>
   Boolean(String(process.env.BOSTA_API_KEY || "").trim()) &&
@@ -8,6 +9,7 @@ const bostaProvider = {
   key: "bosta",
   name: "Bosta",
   isConfigured: hasCredentials,
+  syncLocations: syncBostaLocations,
   async createShipment() {
     // TODO: Add Bosta shipment API request mapping, credentials validation, and webhook handlers.
     if (!hasCredentials()) {

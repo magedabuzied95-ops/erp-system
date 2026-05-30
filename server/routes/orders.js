@@ -3,6 +3,11 @@ import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 
 import permit from "../middleware/permissionMiddleware.js";
+import {
+  cancelOrderBostaShipment,
+  createOrderBostaShipment,
+  refreshOrderBostaShipment,
+} from "../modules/shipping/shipping.controller.js";
 
 import {
   createOrder,
@@ -123,6 +128,27 @@ router.post(
   protect,
   permit("orders", "edit"),
   updateOrderShipment
+);
+
+router.post(
+  "/:id/shipping/bosta/create",
+  protect,
+  permit("orders", "edit"),
+  createOrderBostaShipment
+);
+
+router.post(
+  "/:id/shipping/bosta/refresh",
+  protect,
+  permit("orders", "edit"),
+  refreshOrderBostaShipment
+);
+
+router.post(
+  "/:id/shipping/bosta/cancel",
+  protect,
+  permit("orders", "edit"),
+  cancelOrderBostaShipment
 );
 
 router.patch(

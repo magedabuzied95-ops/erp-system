@@ -910,6 +910,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
     ["cod", copy.tabCod, WalletCards],
     ["free", copy.tabFree, Package],
     ["providers", copy.tabProviders, ShieldCheck],
+    ["integrations", copy.tabIntegrations, Database],
     ["advanced", copy.tabAdvanced, SlidersHorizontal],
   ];
 
@@ -983,11 +984,17 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
           <div className="grid gap-4 xl:grid-cols-2">
             <ProviderBadgePicker value={defaultProvider} onChange={(next) => updateValue("orders.shipping_provider", next)} />
             {renderField(setting("orders.shipping_auto_create_ready_to_ship"), true)}
+            {renderField(setting("orders.bosta_enabled"), true)}
+            {renderField(setting("orders.bosta_api_base_url"), true)}
             {renderField(setting("orders.bosta_api_key"), true)}
             {renderField(setting("orders.mylerz_api_key"), true)}
             {renderField(setting("orders.shipblu_api_key"), true)}
           </div>
         </VisualSection>
+      ) : null}
+
+      {activeTab === "integrations" ? (
+        <BostaIntegrationPanel copy={copy} />
       ) : null}
 
       {activeTab === "advanced" ? (
@@ -1032,6 +1039,162 @@ function ProviderBadgePicker({ value, onChange }) {
         ))}
       </select>
     </article>
+  );
+}
+
+function BostaIntegrationPanel({ copy }) {
+  const [settings, setSettings] = useState({ enabled: false, api_base_url: "https://app.bosta.co/api/v2", api_key: "" });
+  const [syncState, setSyncState] = useState({ loading: false, counts: null, error: "" });
+  const [locations, setLocations] = useState([]);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const loadSettings = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await api.get("/shipping/providers/bosta/settings");
+      const next = data.settings || {};
+      setSettings({
+        enabled: Boolean(next.enabled),
+        api_base_url: next.api_base_url || "https://app.bosta.co/api/v2",
+        api_key: next.has_api_key ? "********" : "",
+        last_locations_sync_at: next.last_locations_sync_at || "",
+        last_locations_sync_counts: next.last_locations_sync_counts || {},
+      });
+      setSyncState((current) => ({ ...current, counts: next.last_locations_sync_counts || null }));
+    } catch (error) {
+      toast.error(error.message || "Failed to load Bosta settings");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadLocations = useCallback(async (search = "") => {
+    try {
+      const data = await api.get(`/shipping/locations/search?provider=bosta&q=${encodeURIComponent(search)}&limit=30`);
+      setLocations(Array.isArray(data.locations) ? data.locations : []);
+    } catch {
+      setLocations([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSettings();
+    loadLocations("");
+  }, [loadSettings, loadLocations]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => loadLocations(query), 250);
+    return () => window.clearTimeout(timer);
+  }, [query, loadLocations]);
+
+  const save = async () => {
+    const payload = {
+      enabled: settings.enabled,
+      api_base_url: settings.api_base_url,
+      api_key: settings.api_key === "********" ? undefined : settings.api_key,
+    };
+    await api.put("/shipping/providers/bosta/settings", payload);
+    toast.success(copy.bostaSaved || "Bosta settings saved");
+    loadSettings();
+  };
+
+  const sync = async () => {
+    try {
+      setSyncState({ loading: true, counts: null, error: "" });
+      const data = await api.post("/shipping/bosta/sync-locations", {});
+      setSyncState({ loading: false, counts: data.counts || null, error: "" });
+      toast.success(copy.bostaSynced || "Bosta locations synced");
+      loadSettings();
+      loadLocations(query);
+    } catch (error) {
+      setSyncState({ loading: false, counts: null, error: error.message || "Sync failed" });
+      toast.error(error.message || "Bosta sync failed");
+    }
+  };
+
+  const counts = syncState.counts || settings.last_locations_sync_counts || {};
+  return (
+    <div className="grid gap-5">
+      <VisualSection icon={Truck} title={copy.bostaTitle || "Bosta Integration"} description={copy.bostaDescription || "Sync Bosta cities, zones, and districts, then create deliveries from ERP orders."}>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <article className={`rounded-2xl p-4 ${fieldSurface}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className={`text-base font-black ${headingText}`}>{copy.bostaConnection || "Connection"}</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaConnectionHint || "Use your production Bosta API token. The key is never shown after saving."}</p>
+              </div>
+              <button type="button" onClick={() => setSettings((current) => ({ ...current, enabled: !current.enabled }))} className={`rounded-full px-3 py-1.5 text-xs font-black ${settings.enabled ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200"}`}>
+                {settings.enabled ? copy.enabled || "Enabled" : copy.disabled || "Disabled"}
+              </button>
+            </div>
+            <div className="mt-4 grid gap-3">
+              <label>
+                <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>Base URL</span>
+                <input value={settings.api_base_url} onChange={(event) => setSettings((current) => ({ ...current, api_base_url: event.target.value }))} className={inputClass} />
+              </label>
+              <label>
+                <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>API key</span>
+                <input type="password" value={settings.api_key} onChange={(event) => setSettings((current) => ({ ...current, api_key: event.target.value }))} className={inputClass} placeholder="Bosta API key" />
+              </label>
+              <button type="button" disabled={loading} onClick={save} className="inline-flex h-11 w-fit items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-60 dark:bg-white dark:text-slate-950">
+                <Save className="h-4 w-4" />
+                {copy.saveBosta || "Save settings"}
+              </button>
+            </div>
+          </article>
+
+          <article className={`rounded-2xl p-4 ${fieldSurface}`}>
+            <h3 className={`text-base font-black ${headingText}`}>{copy.bostaSync || "Sync locations"}</h3>
+            <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{copy.bostaSyncHint || "Imports Bosta City -> Zone -> District master locations. Checkout only shows dropoff-available rows."}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <TesterMetric label="Cities" value={counts.citiesSynced ?? counts.cities ?? 0} />
+              <TesterMetric label="Zones" value={counts.zonesSynced ?? counts.zones ?? 0} />
+              <TesterMetric label="Districts" value={counts.districtsSynced ?? counts.districts ?? 0} />
+            </div>
+            {settings.last_locations_sync_at ? <p className={`mt-3 text-xs font-bold ${mutedText}`}>Last sync: {new Date(settings.last_locations_sync_at).toLocaleString()}</p> : null}
+            {syncState.error ? <p className="mt-3 rounded-2xl border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-xs font-black text-rose-200">{syncState.error}</p> : null}
+            <button type="button" disabled={syncState.loading} onClick={sync} className="mt-4 inline-flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-900 disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white">
+              {syncState.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {copy.syncNow || "Sync now"}
+            </button>
+          </article>
+        </div>
+      </VisualSection>
+
+      <VisualSection icon={MapPin} title={copy.bostaLocations || "Locations preview"} description={copy.bostaLocationsHint || "Search synced cities, zones, and districts in English and Arabic."}>
+        <div className="mb-3 max-w-lg">
+          <div className="relative">
+            <Search className={`absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${mutedText}`} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Bosta locations" className={`${inputClass} pl-9`} />
+          </div>
+        </div>
+        <div className="max-h-[28rem] overflow-auto rounded-2xl border border-slate-200 dark:border-white/10">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 bg-slate-100 text-xs font-black uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+              <tr>
+                {["City", "Zone", "District", "Availability"].map((header) => <th key={header} className="px-4 py-3 text-start">{header}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+              {locations.map((location) => (
+                <tr key={`${location.city_id}-${location.zone_id}-${location.district_id}`} className="bg-white dark:bg-slate-950/40">
+                  <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">{location.city_name_en}<div className="text-xs text-slate-500">{location.city_name_ar}</div></td>
+                  <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200">{location.zone_name_en}<div className="text-xs text-slate-500">{location.zone_name_ar}</div></td>
+                  <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200">{location.district_name_en}<div className="text-xs text-slate-500">{location.district_name_ar}</div></td>
+                  <td className="px-4 py-3">
+                    <span className="mr-2 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-black text-emerald-600 dark:text-emerald-300">Dropoff</span>
+                    {location.district_pickup_available ? <span className="rounded-full bg-blue-500/10 px-2 py-1 text-[11px] font-black text-blue-600 dark:text-blue-300">Pickup</span> : null}
+                  </td>
+                </tr>
+              ))}
+              {!locations.length ? (
+                <tr><td colSpan={4} className={`px-4 py-8 text-center text-sm font-bold ${bodyText}`}>{copy.emptyBostaLocations || "No Bosta locations synced yet."}</td></tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </VisualSection>
+    </div>
   );
 }
 
@@ -1215,6 +1378,7 @@ const shippingUi = {
     tabCod: "COD Rules",
     tabFree: "Free Shipping",
     tabProviders: "Providers",
+    tabIntegrations: "Integrations",
     tabAdvanced: "Advanced",
     overviewTitle: "Shipping Overview",
     overviewDescription: "Default fallback and operational rules used by storefront checkout.",
@@ -2006,7 +2170,7 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
       return;
     }
     updateRows([...zones, row]);
-    setDraft((current) => ({ ...current, city: "", area: "" }));
+    setDraft((current) => ({ ...current, city: "", area: "", district: "", zone: "", city_id: "", area_id: "", district_id: "", zone_id: "", provider_city_id: "", provider_district_id: "", provider_zone_id: "", provider_location_code: "" }));
   };
   const applyDraftLocation = (scope, id) => {
     const location = activeLocations.find((item) => item[`${scope}_id`] === id);
@@ -2018,18 +2182,14 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
       city_id: scope === "governorate" ? "" : location.city_id,
       city: scope === "governorate" ? "" : location.city_name_en || location.city_name_ar,
       district_id: scope === "area" || scope === "district" ? location.district_id : "",
-      district: scope === "area" || scope === "district" ? location.district_name_en || location.district_name_ar || location.area_name_en || location.area_name_ar : "",
-      zone_id: scope === "area" ? location.zone_id : "",
-      zone: scope === "area" ? location.zone_name_en || location.zone_name_ar || location.area_name_en || location.area_name_ar : "",
-      district_id: scope === "area" ? location.district_id : "",
       zone_id: scope === "area" ? location.zone_id : "",
       area_id: scope === "area" ? location.area_id || location.district_id : "",
-      district: scope === "area" ? location.district_name_en || location.district_name_ar || location.area_name_en || location.area_name_ar : "",
+      district: scope === "area" || scope === "district" ? location.district_name_en || location.district_name_ar || location.area_name_en || location.area_name_ar : "",
       area: scope === "area" ? location.area_name_en || location.area_name_ar || location.district_name_en || location.district_name_ar : "",
       zone: scope === "area" ? location.zone_name_en || location.zone_name_ar || location.area_name_en || location.area_name_ar : "",
       provider_location_code: scope === "area" ? location.provider_location_code || location.provider_zone_id : "",
       provider_city_id: scope === "governorate" ? "" : location.provider_city_id || "",
-      provider_district_id: scope === "area" ? location.provider_district_id || "" : "",
+      provider_district_id: scope === "area" || scope === "district" ? location.provider_district_id || "" : "",
       provider_zone_id: scope === "area" ? location.provider_zone_id || "" : "",
       provider: location.provider || current.provider,
     }));
@@ -2090,9 +2250,16 @@ function ShippingZonesEditor({ value, locations = [], language, defaultPrice, on
           governorate: row.governorate,
           city_id: row.city_id,
           city: row.city || row.markaz,
-          area_id: row.area_id || row.location_id,
-          area: row.area || row.district,
-          provider_location_code: row.provider_location_code || row.zone_code,
+          district_id: row.district_id || row.area_id || row.location_id,
+          zone_id: row.zone_id || row.provider_zone_id || row.zone_code,
+          area_id: row.area_id || row.district_id || row.location_id,
+          district: row.district || row.area,
+          area: row.area || row.district || row.zone,
+          zone: row.zone || row.area || row.district,
+          provider_location_code: row.provider_location_code || row.provider_zone_id || row.zone_code,
+          provider_city_id: row.provider_city_id || row.bosta_city_id,
+          provider_district_id: row.provider_district_id || row.bosta_district_id,
+          provider_zone_id: row.provider_zone_id || row.bosta_zone_id || row.zone_code,
           price: row.price || row.shipping_price,
           cod_allowed: !["false", "0", "no"].includes(String(row.cod_allowed || "").toLowerCase()),
           requires_shipping_proof: !["false", "0", "no"].includes(String(row.requires_shipping_proof || "").toLowerCase()),
@@ -2334,7 +2501,8 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
   );
   const governorateLocations = uniqueLocationsBy(locations, "governorate_id");
   const cityLocations = uniqueLocationsBy(locations, "city_id", (location) => !zone.governorate_id || location.governorate_id === zone.governorate_id);
-  const areaLocations = uniqueLocationsBy(locations, "area_id", (location) => !zone.city_id || location.city_id === zone.city_id);
+  const districtLocations = uniqueLocationsBy(locations, "district_id", (location) => !zone.city_id || location.city_id === zone.city_id);
+  const zoneLocations = uniqueLocationsBy(locations, "zone_id", (location) => !zone.district_id || location.district_id === zone.district_id);
   const applyLocationPatch = (scope, id) => {
     const location = locations.find((item) => item[`${scope}_id`] === id);
     if (!location) return;
@@ -2344,9 +2512,16 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         governorate: location.governorate_name_en || location.governorate_name_ar,
         city_id: "",
         city: "",
+        district_id: "",
+        district: "",
+        zone_id: "",
+        zone: "",
         area_id: "",
         area: "",
         provider_location_code: "",
+        provider_city_id: "",
+        provider_district_id: "",
+        provider_zone_id: "",
       });
     } else if (scope === "city") {
       onPatch({
@@ -2354,9 +2529,33 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         governorate: location.governorate_name_en || location.governorate_name_ar,
         city_id: location.city_id,
         city: location.city_name_en || location.city_name_ar,
+        district_id: "",
+        district: "",
+        zone_id: "",
+        zone: "",
         area_id: "",
         area: "",
         provider_location_code: "",
+        provider_city_id: location.provider_city_id || "",
+        provider_district_id: "",
+        provider_zone_id: "",
+      });
+    } else if (scope === "district") {
+      onPatch({
+        governorate_id: location.governorate_id,
+        governorate: location.governorate_name_en || location.governorate_name_ar,
+        city_id: location.city_id,
+        city: location.city_name_en || location.city_name_ar,
+        district_id: location.district_id,
+        district: location.district_name_en || location.district_name_ar || location.area_name_en || location.area_name_ar,
+        zone_id: "",
+        zone: "",
+        area_id: "",
+        area: "",
+        provider_location_code: "",
+        provider_city_id: location.provider_city_id || "",
+        provider_district_id: location.provider_district_id || "",
+        provider_zone_id: "",
       });
     } else {
       onPatch({
@@ -2364,9 +2563,16 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         governorate: location.governorate_name_en || location.governorate_name_ar,
         city_id: location.city_id,
         city: location.city_name_en || location.city_name_ar,
-        area_id: location.area_id,
-        area: location.area_name_en || location.area_name_ar,
-        provider_location_code: location.provider_location_code,
+        district_id: location.district_id,
+        district: location.district_name_en || location.district_name_ar || location.area_name_en || location.area_name_ar,
+        zone_id: location.zone_id,
+        zone: location.zone_name_en || location.zone_name_ar || location.area_name_en || location.area_name_ar,
+        area_id: location.area_id || location.district_id,
+        area: location.area_name_en || location.area_name_ar || location.district_name_en || location.district_name_ar,
+        provider_location_code: location.provider_location_code || location.provider_zone_id,
+        provider_city_id: location.provider_city_id || "",
+        provider_district_id: location.provider_district_id || "",
+        provider_zone_id: location.provider_zone_id || "",
         provider: location.provider || zone.provider,
         provider_id: location.provider || zone.provider_id,
       });
@@ -2389,6 +2595,17 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
       <div className="grid gap-2 sm:grid-cols-2">
         <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => onPatch({ free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Free over" />
         <input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => onPatch({ minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Min COD" />
+        <input type="hidden" value={zone.provider_city_id || ""} readOnly />
+        <input type="hidden" value={zone.provider_district_id || ""} readOnly />
+        <input type="hidden" value={zone.provider_zone_id || ""} readOnly />
+        <details className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+          <summary className={`cursor-pointer text-xs font-black uppercase ${mutedText}`}>Provider mapping IDs</summary>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <input value={zone.provider_city_id || ""} onChange={(event) => onPatch({ provider_city_id: event.target.value })} className={`${inputClass} h-10 rounded-xl text-xs`} placeholder="provider_city_id" />
+            <input value={zone.provider_district_id || ""} onChange={(event) => onPatch({ provider_district_id: event.target.value })} className={`${inputClass} h-10 rounded-xl text-xs`} placeholder="provider_district_id" />
+            <input value={zone.provider_zone_id || ""} onChange={(event) => onPatch({ provider_zone_id: event.target.value, provider_location_code: event.target.value })} className={`${inputClass} h-10 rounded-xl text-xs`} placeholder="provider_zone_id" />
+          </div>
+        </details>
       </div>
     </div>
   ) : null;
@@ -2401,7 +2618,18 @@ function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, 
         </td>
         <td className={`${cellPadding} ${stickyCell} left-10 w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><select value={zone.governorate_id || ""} onChange={(event) => applyLocationPatch("governorate", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}><option value="">{zone.governorate || "Governorate"}</option>{governorateLocations.map((location) => <option key={location.governorate_id} value={location.governorate_id}>{locationName(location, language, "governorate")}</option>)}</select></td>
         <td className={`${cellPadding} ${stickyCell} left-[11.5rem] w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><select value={zone.city_id || ""} onChange={(event) => applyLocationPatch("city", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}><option value="">{zone.city || "City / Markaz"}</option>{cityLocations.map((location) => <option key={location.city_id} value={location.city_id}>{locationName(location, language, "city")}</option>)}</select></td>
-        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><select value={zone.area_id || ""} onChange={(event) => applyLocationPatch("area", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}><option value="">{zone.area || "Area / District"}</option>{areaLocations.map((location) => <option key={location.area_id} value={location.area_id}>{locationName(location, language, "area")}</option>)}</select></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}>
+          <div className="grid gap-1">
+            <select value={zone.district_id || ""} onChange={(event) => applyLocationPatch("district", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}>
+              <option value="">{zone.district || zone.area || "District"}</option>
+              {districtLocations.map((location) => <option key={location.district_id} value={location.district_id}>{locationName(location, language, "district")}</option>)}
+            </select>
+            <select value={zone.zone_id || ""} onChange={(event) => applyLocationPatch("area", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}>
+              <option value="">{zone.zone || zone.area || "Zone"}</option>
+              {zoneLocations.map((location) => <option key={location.zone_id} value={location.zone_id}>{locationName(location, language, "zone")}</option>)}
+            </select>
+          </div>
+        </td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}>{providerSelect}</td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} ${inputHeight} w-20 rounded-xl text-center ${inputText}`} /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="COD" checked={Boolean(zone.cod_allowed)} onChange={(checked) => onPatch({ cod_allowed: checked })} /></td>
