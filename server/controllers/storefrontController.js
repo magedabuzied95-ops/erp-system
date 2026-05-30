@@ -1781,17 +1781,6 @@ const productHomeCard = async (tenantId, product = {}) => ({
   link: await productHomeLink(tenantId, product),
 });
 
-const homeText = (value = "") => toText(value).toLowerCase();
-
-const homeAudienceMatches = (product = {}, terms = []) => {
-  const haystack = [
-    product.gender,
-    ...(Array.isArray(product.audiences) ? product.audiences : []),
-    ...(Array.isArray(product.product_audiences) ? product.product_audiences : []),
-  ].map(homeText).join(" ");
-  return terms.some((term) => haystack.includes(homeText(term)));
-};
-
 const isHomeSaleProduct = (product = {}) => {
   const salePrice = roundMoney(product.sale_price);
   const sellingPrice = roundMoney(product.selling_price || product.price || product.regular_price);
@@ -1862,27 +1851,26 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
   }
 
   const latest = products;
-  const lastPiece = products.filter((product) => toNumber(product.total_stock) > 0 && toNumber(product.total_stock) <= 3);
+  const featured = [...products].sort((a, b) => toNumber(b.total_stock) - toNumber(a.total_stock) || homeNewestScore(b) - homeNewestScore(a));
   const sale = products.filter(isHomeSaleProduct);
-  const men = products.filter((product) => homeAudienceMatches(product, ["men", "man", "male", "رجالي", "رجال"]));
-  const women = products.filter((product) => homeAudienceMatches(product, ["women", "woman", "female", "حريمي", "نسائي", "نساء"]));
-  const kids = products.filter((product) => homeAudienceMatches(product, ["kids", "kid", "children", "child", "أطفال", "اطفال", "ولادي"]));
   const heroProduct = sale[0] || latest[0];
   const hero = await productHomeCard(tenantId, heroProduct);
   const usage = new Map();
+  markHomeProductUsage(usage, [heroProduct]);
+  const saleProducts = capHomeProductUsage(usage, sale, 8, 1);
+  markHomeProductUsage(usage, saleProducts);
+  const latestProducts = capHomeProductUsage(usage, latest, 8, 1);
+  markHomeProductUsage(usage, latestProducts);
+  const featuredProducts = capHomeProductUsage(usage, featured, 8, 1);
   const sectionSpecs = [
-    { key: "new_arrivals", title: "New arrivals", products: latest },
-    { key: "last_piece", title: "Last piece", products: lastPiece },
-    { key: "sale", title: "Sale", products: sale },
-    { key: "men", title: "Men", products: men },
-    { key: "women", title: "Women", products: women },
-    { key: "kids", title: "Kids", products: kids },
+    { key: "featured_products", title: "Featured products", products: featuredProducts },
+    { key: "new_arrivals", title: "New arrivals", products: latestProducts },
+    { key: "sale", title: "Sale", products: saleProducts },
   ];
   const sections = [];
   for (const spec of sectionSpecs) {
-    const sectionProducts = capHomeProductUsage(usage, spec.products, 8, 2);
+    const sectionProducts = spec.products;
     if (!sectionProducts.length) continue;
-    markHomeProductUsage(usage, sectionProducts);
     sections.push(await homeSection({ tenantId, key: spec.key, title: spec.title, products: sectionProducts }));
   }
 
