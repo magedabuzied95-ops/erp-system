@@ -5,6 +5,8 @@ import {
   Bot,
   Building2,
   Check,
+  ChevronDown,
+  ChevronRight,
   Clock3,
   Copy,
   CreditCard,
@@ -18,6 +20,7 @@ import {
   Layers3,
   Loader2,
   Lock,
+  MapPin,
   Package,
   PlayCircle,
   Plus,
@@ -887,11 +890,21 @@ function StorefrontSettings(props) {
 function ShippingSettings({ setting, value, language, updateValue, renderField }) {
   const zones = useMemo(() => (Array.isArray(value("storefront.shipping_zones")) ? value("storefront.shipping_zones") : []).map(normalizeShippingZoneRow), [value]);
   const defaultPrice = Number(value("storefront.default_shipping_price") || 0);
+  const defaultProvider = normalizeProviderKey(value("orders.shipping_provider"));
+  const [activeTab, setActiveTab] = useState("overview");
   const activeZones = zones.filter((zone) => zone.active).length;
   const codZones = zones.filter((zone) => zone.cod_allowed).length;
   const proofZones = zones.filter((zone) => zone.requires_shipping_proof).length;
   const freeShippingRules = zones.filter((zone) => Number(zone.free_shipping_threshold || 0) > 0).length;
-  const copy = shippingUi[language] || shippingUi.en;
+  const copy = { ...shippingUi.en, ...(shippingUi[language] || {}) };
+  const tabs = [
+    ["overview", copy.tabOverview, Truck],
+    ["zones", copy.tabZones, Layers3],
+    ["cod", copy.tabCod, WalletCards],
+    ["free", copy.tabFree, Package],
+    ["providers", copy.tabProviders, ShieldCheck],
+    ["advanced", copy.tabAdvanced, SlidersHorizontal],
+  ];
 
   return (
     <div className="grid gap-6">
@@ -903,35 +916,76 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
         <SummaryTile icon={Package} label={copy.freeRules} value={freeShippingRules} />
       </div>
 
-      <VisualSection icon={Truck} title={copy.overviewTitle} description={copy.overviewDescription}>
-        <div className="grid gap-4 xl:grid-cols-2">
-          {renderField(setting("storefront.default_shipping_price"), true)}
-          {renderField(setting("orders.shipping_rule_engine_enabled"), true)}
-        </div>
-      </VisualSection>
-
-      <VisualSection icon={Layers3} title={copy.zonesTitle} description={copy.zonesDescription}>
-        <ShippingZonesEditor value={zones} language={language} defaultPrice={defaultPrice} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
-      </VisualSection>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <VisualSection icon={WalletCards} title={copy.codTitle} description={copy.codDescription}>
-          <p className={`text-sm leading-6 ${bodyText}`}>{copy.codBody}</p>
-        </VisualSection>
-        <VisualSection icon={ShieldCheck} title={copy.proofTitle} description={copy.proofDescription}>
-          <p className={`text-sm leading-6 ${bodyText}`}>{copy.proofBody}</p>
-        </VisualSection>
+      <div className={`flex gap-2 overflow-x-auto rounded-[1.75rem] p-2 ${shellCard}`}>
+        {tabs.map(([id, label, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl px-4 text-sm font-black transition ${activeTab === id ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/8"}`}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
       </div>
 
-      <VisualSection icon={Package} title={copy.providersTitle} description={copy.providersDescription}>
-        <div className="grid gap-4 xl:grid-cols-2">
-          {renderField(setting("orders.shipping_provider"), true)}
-          {renderField(setting("orders.shipping_auto_create_ready_to_ship"), true)}
-          {renderField(setting("orders.bosta_api_key"), true)}
-          {renderField(setting("orders.mylerz_api_key"), true)}
-          {renderField(setting("orders.shipblu_api_key"), true)}
+      {activeTab === "overview" ? (
+        <div className="grid gap-5">
+          <VisualSection icon={Truck} title={copy.overviewTitle} description={copy.overviewDescription}>
+            <div className="grid gap-4 xl:grid-cols-2">
+              {renderField(setting("storefront.default_shipping_price"), true)}
+              {renderField(setting("orders.shipping_rule_engine_enabled"), true)}
+            </div>
+          </VisualSection>
+          <ShippingQuickSetup zones={zones} defaultPrice={defaultPrice} copy={copy} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
+          <ShippingTemplates zones={zones} defaultPrice={defaultPrice} copy={copy} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
+          <ShippingRuleTester zones={zones} defaultPrice={defaultPrice} defaultProvider={defaultProvider} copy={copy} />
         </div>
-      </VisualSection>
+      ) : null}
+
+      {activeTab === "zones" ? (
+        <VisualSection icon={Layers3} title={copy.zonesTitle} description={copy.zonesDescription}>
+          <ShippingZonesEditor value={zones} language={language} defaultPrice={defaultPrice} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
+        </VisualSection>
+      ) : null}
+
+      {activeTab === "cod" ? (
+        <VisualSection icon={WalletCards} title={copy.codTitle} description={copy.codDescription}>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <p className={`rounded-2xl p-4 text-sm leading-6 ${fieldSurface} ${bodyText}`}>{copy.codBody}</p>
+            <ZonePolicyList zones={zones.filter((zone) => zone.cod_allowed || Number(zone.minimum_order_for_cod || 0) > 0)} empty={copy.emptyCod} mode="cod" onChange={(next) => updateValue("storefront.shipping_zones", next)} allZones={zones} />
+          </div>
+        </VisualSection>
+      ) : null}
+
+      {activeTab === "free" ? (
+        <VisualSection icon={Package} title={copy.freeTitle} description={copy.freeDescription}>
+          <ZonePolicyList zones={zones.filter((zone) => Number(zone.free_shipping_threshold || 0) > 0)} empty={copy.emptyFree} mode="free" onChange={(next) => updateValue("storefront.shipping_zones", next)} allZones={zones} />
+        </VisualSection>
+      ) : null}
+
+      {activeTab === "providers" ? (
+        <VisualSection icon={ShieldCheck} title={copy.providersTitle} description={copy.providersDescription}>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <ProviderBadgePicker value={defaultProvider} onChange={(next) => updateValue("orders.shipping_provider", next)} />
+            {renderField(setting("orders.shipping_auto_create_ready_to_ship"), true)}
+            {renderField(setting("orders.bosta_api_key"), true)}
+            {renderField(setting("orders.mylerz_api_key"), true)}
+            {renderField(setting("orders.shipblu_api_key"), true)}
+          </div>
+        </VisualSection>
+      ) : null}
+
+      {activeTab === "advanced" ? (
+        <VisualSection icon={SlidersHorizontal} title={copy.advancedTitle} description={copy.advancedDescription}>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {renderField(setting("orders.shipping_rule_engine_enabled"), true)}
+            {renderField(setting("orders.shipping_provider"), true)}
+            {renderField(setting("storefront.shipping_zones"), true)}
+          </div>
+        </VisualSection>
+      ) : null}
     </div>
   );
 }
@@ -952,6 +1006,188 @@ function SummaryTile({ icon: Icon, label, value }) {
   );
 }
 
+function ProviderBadgePicker({ value, onChange }) {
+  const activeProvider = normalizeProviderKey(value);
+  return (
+    <article className={`rounded-2xl p-4 ${fieldSurface}`}>
+      <h3 className={`text-sm font-black ${headingText}`}>Default shipping provider</h3>
+      <p className={`mt-1 text-xs leading-5 ${bodyText}`}>Select the fallback carrier used when a zone has no specific provider.</p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {shippingProviderOptions.map((provider) => (
+          <ProviderBadge key={provider.id} provider={provider.id} active={activeProvider === provider.id} onClick={() => onChange(provider.id)} />
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function ProviderBadge({ provider, active = false, onClick }) {
+  const meta = providerMeta(provider);
+  const className = `inline-flex h-10 items-center gap-2 rounded-full border px-3 text-xs font-black transition ${active ? meta.activeClass : meta.className}`;
+  const content = (
+    <>
+      <span className={`h-2.5 w-2.5 rounded-full ${meta.dotClass}`} />
+      {meta.label}
+    </>
+  );
+  if (!onClick) return <span className={className}>{content}</span>;
+  return <button type="button" onClick={onClick} className={className}>{content}</button>;
+}
+
+function ShippingQuickSetup({ zones, defaultPrice, copy, onChange }) {
+  const [prices, setPrices] = useState({
+    damietta: 45,
+    cairoGiza: 70,
+    alexandria: 75,
+    rest: defaultPrice || 80,
+  });
+  const updatePrice = (key, value) => setPrices((current) => ({ ...current, [key]: value }));
+  const priceNumber = (value, fallback) => {
+    const next = Number(value);
+    return Number.isFinite(next) && next >= 0 ? next : fallback;
+  };
+  const applyTemplate = () => {
+    const next = applyEgyptStandardTemplate(zones, {
+      damietta: priceNumber(prices.damietta, 45),
+      cairoGiza: priceNumber(prices.cairoGiza, 70),
+      alexandria: priceNumber(prices.alexandria, 75),
+      rest: priceNumber(prices.rest, defaultPrice || 80),
+    });
+    onChange(next);
+    toast.success(copy.quickApplied);
+  };
+  return (
+    <VisualSection icon={Sparkles} title={copy.quickSetupTitle} description={copy.quickSetupDescription}>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
+        {[
+          ["damietta", copy.damiettaPrice],
+          ["cairoGiza", copy.cairoGizaPrice],
+          ["alexandria", copy.alexandriaPrice],
+          ["rest", copy.restPrice],
+        ].map(([key, label]) => (
+          <label key={key} className={`rounded-2xl p-3 ${fieldSurface}`}>
+            <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{label}</span>
+            <input type="number" min="0" value={prices[key]} onChange={(event) => updatePrice(key, event.target.value)} className={inputClass} />
+          </label>
+        ))}
+        <button type="button" onClick={applyTemplate} className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white dark:bg-white dark:text-slate-950">
+          <Check className="h-4 w-4" />
+          {copy.applyTemplate}
+        </button>
+      </div>
+    </VisualSection>
+  );
+}
+
+function ShippingTemplates({ zones, defaultPrice, copy, onChange }) {
+  const templates = [
+    ["egypt_standard", copy.templateEgypt, "Balanced nationwide prices with local Damietta COD.", () => applyEgyptStandardTemplate(zones, { damietta: 45, cairoGiza: 70, alexandria: 75, rest: defaultPrice || 80 })],
+    ["local_store", copy.templateLocal, "Prioritizes Damietta and in-store delivery while keeping Egypt fallback zones.", () => applyNamedShippingTemplate("local_store", zones, defaultPrice)],
+    ["fast_delivery", copy.templateFast, "Shorter ETA copy and carrier-ready defaults.", () => applyNamedShippingTemplate("fast_delivery", zones, defaultPrice)],
+    ["free_campaign", copy.templateFree, "Adds free shipping thresholds for campaign periods.", () => applyNamedShippingTemplate("free_campaign", zones, defaultPrice)],
+  ];
+  return (
+    <VisualSection icon={Package} title={copy.templatesTitle} description={copy.templatesDescription}>
+      <div className="grid gap-3 lg:grid-cols-4">
+        {templates.map(([id, title, description, build]) => (
+          <button key={id} type="button" onClick={() => { onChange(build()); toast.success(copy.templateApplied); }} className={`min-h-36 rounded-2xl p-4 text-start transition hover:-translate-y-0.5 hover:border-slate-300 ${fieldSurface}`}>
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950"><Truck className="h-5 w-5" /></span>
+            <h3 className={`mt-3 text-base font-black ${headingText}`}>{title}</h3>
+            <p className={`mt-2 text-xs leading-5 ${bodyText}`}>{description}</p>
+          </button>
+        ))}
+      </div>
+    </VisualSection>
+  );
+}
+
+function ShippingRuleTester({ zones, defaultPrice, defaultProvider, copy }) {
+  const governorateOptions = useMemo(() => Array.from(new Set(zones.map((zone) => zone.governorate).filter(Boolean))).sort(), [zones]);
+  const [tester, setTester] = useState({ governorate: governorateOptions[0] || "Damietta", city: "", area: "", subtotal: 0 });
+  useEffect(() => {
+    if (!tester.governorate && governorateOptions[0]) setTester((current) => ({ ...current, governorate: governorateOptions[0] }));
+  }, [governorateOptions, tester.governorate]);
+  const result = useMemo(() => resolveShippingPreview(zones, { ...tester, defaultPrice, defaultProvider }), [zones, tester, defaultPrice, defaultProvider]);
+  const cityOptions = useMemo(() => Array.from(new Set(zones.filter((zone) => normalizeZoneKey(zone.governorate) === normalizeZoneKey(tester.governorate)).map((zone) => zone.city).filter(Boolean))).sort(), [zones, tester.governorate]);
+  const areaOptions = useMemo(() => Array.from(new Set(zones.filter((zone) => normalizeZoneKey(zone.governorate) === normalizeZoneKey(tester.governorate) && (!tester.city || normalizeZoneKey(zone.city) === normalizeZoneKey(tester.city))).map((zone) => zone.area).filter(Boolean))).sort(), [zones, tester.governorate, tester.city]);
+  const setField = (key, next) => setTester((current) => ({ ...current, [key]: next }));
+  return (
+    <VisualSection icon={TestTube2} title={copy.testerTitle} description={copy.testerDescription}>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={`rounded-2xl p-3 ${fieldSurface}`}>
+            <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{copy.governorate}</span>
+            <select value={tester.governorate} onChange={(event) => setField("governorate", event.target.value)} className={inputClass}>
+              {governorateOptions.map((governorate) => <option key={governorate} value={governorate}>{governorate}</option>)}
+            </select>
+          </label>
+          <TesterInput label={copy.city} value={tester.city} onChange={(next) => setField("city", next)} options={cityOptions} />
+          <TesterInput label={copy.area} value={tester.area} onChange={(next) => setField("area", next)} options={areaOptions} />
+          <label className={`rounded-2xl p-3 ${fieldSurface}`}>
+            <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{copy.orderSubtotal}</span>
+            <input type="number" min="0" value={tester.subtotal} onChange={(event) => setField("subtotal", event.target.value)} className={inputClass} />
+          </label>
+        </div>
+        <div className={`rounded-2xl p-4 ${subtleSurface}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className={`text-xs font-black uppercase ${mutedText}`}>{copy.matchedZone}</div>
+              <div className={`mt-1 text-lg font-black ${headingText}`}>{result.matchedZone}</div>
+            </div>
+            <ProviderBadge provider={result.provider_id || result.provider} active />
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <TesterMetric label={copy.shippingCost} value={`${Number(result.price || 0).toLocaleString()} EGP`} />
+            <TesterMetric label={copy.codAllowed} value={result.cod_allowed ? copy.yes : copy.no} />
+            <TesterMetric label={copy.proofRequired} value={result.requires_shipping_proof ? copy.yes : copy.no} />
+            <TesterMetric label={copy.eta} value={result.estimated_delivery_text || copy.noEta} />
+          </div>
+        </div>
+      </div>
+    </VisualSection>
+  );
+}
+
+function TesterInput({ label, value, onChange, options }) {
+  const listId = `tester-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return (
+    <label className={`rounded-2xl p-3 ${fieldSurface}`}>
+      <span className={`mb-2 block text-xs font-black uppercase ${mutedText}`}>{label}</span>
+      <input list={listId} value={value} onChange={(event) => onChange(event.target.value)} className={inputClass} />
+      <datalist id={listId}>
+        {options.map((option) => <option key={option} value={option} />)}
+      </datalist>
+    </label>
+  );
+}
+
+function TesterMetric({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+      <div className={`text-[11px] font-black uppercase ${mutedText}`}>{label}</div>
+      <div className={`mt-1 text-sm font-black ${headingText}`}>{value}</div>
+    </div>
+  );
+}
+
+function ZonePolicyList({ zones, allZones, mode, empty, onChange }) {
+  const patchRow = (id, patch) => onChange(allZones.map((zone) => (zone.id === id ? normalizeShippingZoneRow({ ...zone, ...patch }) : zone)));
+  if (!zones.length) return <div className={`rounded-2xl p-4 text-sm font-bold ${fieldSurface} ${bodyText}`}>{empty}</div>;
+  return (
+    <div className="grid gap-2">
+      {zones.slice(0, 10).map((zone) => (
+        <div key={zone.id} className={`grid gap-3 rounded-2xl p-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-center ${fieldSurface}`}>
+          <div className="min-w-0">
+            <div className={`truncate text-sm font-black ${headingText}`}>{zoneLabel(zone)}</div>
+            <div className={`mt-1 text-xs ${bodyText}`}>{mode === "cod" ? `COD ${zone.cod_allowed ? "enabled" : "disabled"} / min ${Number(zone.minimum_order_for_cod || 0).toLocaleString()} EGP` : `Free over ${Number(zone.free_shipping_threshold || 0).toLocaleString()} EGP`}</div>
+          </div>
+          <input type="number" min="0" value={mode === "cod" ? zone.minimum_order_for_cod : zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { [mode === "cod" ? "minimum_order_for_cod" : "free_shipping_threshold"]: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const shippingUi = {
   en: {
     defaultPrice: "Default shipping price",
@@ -959,18 +1195,59 @@ const shippingUi = {
     codZones: "COD zones",
     proofZones: "Proof required",
     freeRules: "Free shipping rules",
+    tabOverview: "Overview",
+    tabZones: "Zones",
+    tabCod: "COD Rules",
+    tabFree: "Free Shipping",
+    tabProviders: "Providers",
+    tabAdvanced: "Advanced",
     overviewTitle: "Shipping Overview",
     overviewDescription: "Default fallback and operational rules used by storefront checkout.",
+    quickSetupTitle: "Quick Setup",
+    quickSetupDescription: "Set the core Egypt pricing model in one pass without editing every row.",
+    damiettaPrice: "Damietta price",
+    cairoGizaPrice: "Cairo / Giza price",
+    alexandriaPrice: "Alexandria price",
+    restPrice: "Rest of Egypt price",
+    applyTemplate: "Apply template",
+    quickApplied: "Shipping template applied",
+    templatesTitle: "Shipping Templates",
+    templatesDescription: "Start from a working logistics pattern, then tune individual zones.",
+    templateEgypt: "Egypt Standard",
+    templateLocal: "Local Store",
+    templateFast: "Fast Delivery",
+    templateFree: "Free Shipping Campaign",
+    templateApplied: "Template applied",
+    testerTitle: "Shipping Rule Tester",
+    testerDescription: "Preview the checkout result using the same area, city, governorate, default priority.",
+    governorate: "Governorate",
+    city: "City / Markaz",
+    area: "Area / District",
+    orderSubtotal: "Order subtotal",
+    matchedZone: "Matched zone",
+    shippingCost: "Shipping cost",
+    codAllowed: "COD allowed",
+    proofRequired: "Proof required",
+    eta: "ETA",
+    yes: "Yes",
+    no: "No",
+    noEta: "No ETA",
     zonesTitle: "Shipping Zones",
     zonesDescription: "Exact area rows win first, then city/markaz rows, then governorate rows, then the default price.",
     codTitle: "COD Rules",
     codDescription: "Global COD availability plus per-zone COD controls in the zone matrix.",
     codBody: "Global cash-on-delivery is configured in Payments. Zone-level COD exceptions are controlled directly inside Shipping Zones.",
+    emptyCod: "No COD-specific rules yet. Enable COD or set minimum COD amounts from Zones.",
+    freeTitle: "Free Shipping",
+    freeDescription: "Campaign thresholds by governorate, city, or district.",
+    emptyFree: "No free shipping thresholds yet. Add thresholds from Zones or apply a campaign template.",
     proofTitle: "Shipping Proof Rules",
     proofDescription: "Use the per-zone proof toggle to require or skip shipping payment proof for each area.",
     proofBody: "Proof rules are controlled directly inside Shipping Zones so Damietta, city, and district exceptions stay visible beside their prices.",
     providersTitle: "Shipping Providers",
     providersDescription: "Default provider and carrier credentials for future automatic shipment creation.",
+    advancedTitle: "Advanced",
+    advancedDescription: "Raw registry fields for compatibility and troubleshooting.",
     search: "Search governorate, city, area, provider",
     allGovernorates: "Add all Egypt governorates",
     addZone: "Add zone",
@@ -1101,6 +1378,116 @@ const normalizeProviderKey = (value = "") => {
   if (key === "manual" || key === "store_pickup" || key === "in-store-delivery") return "in_store_delivery";
   return shippingProviderOptions.some((provider) => provider.id === key) ? key : "in_store_delivery";
 };
+const providerMeta = (value = "") => {
+  const provider = shippingProviderOptions.find((item) => item.id === normalizeProviderKey(value)) || shippingProviderOptions[3];
+  const styles = {
+    bosta: ["border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/25 dark:bg-rose-500/12 dark:text-rose-100", "border-rose-500 bg-rose-600 text-white shadow-sm dark:border-rose-300 dark:bg-rose-500", "bg-rose-500"],
+    mylerz: ["border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-400/25 dark:bg-indigo-500/12 dark:text-indigo-100", "border-indigo-500 bg-indigo-600 text-white shadow-sm dark:border-indigo-300 dark:bg-indigo-500", "bg-indigo-500"],
+    shipblu: ["border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-400/25 dark:bg-sky-500/12 dark:text-sky-100", "border-sky-500 bg-sky-600 text-white shadow-sm dark:border-sky-300 dark:bg-sky-500", "bg-sky-500"],
+    in_store_delivery: ["border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-500/12 dark:text-emerald-100", "border-emerald-500 bg-emerald-600 text-white shadow-sm dark:border-emerald-300 dark:bg-emerald-500", "bg-emerald-500"],
+  };
+  const [className, activeClass, dotClass] = styles[provider.id] || styles.in_store_delivery;
+  return { ...provider, className, activeClass, dotClass };
+};
+
+const zoneLabel = (zone = {}) => [zone.governorate, zone.city, zone.area].filter(Boolean).join(" / ") || "Default";
+
+const ensureTemplateRow = (rows, row) => {
+  const normalized = normalizeShippingZoneRow(row);
+  const existingIndex = rows.findIndex((zone) =>
+    normalizeZoneKey(zone.governorate) === normalizeZoneKey(normalized.governorate) &&
+    normalizeZoneKey(zone.city) === normalizeZoneKey(normalized.city) &&
+    normalizeZoneKey(zone.area) === normalizeZoneKey(normalized.area)
+  );
+  if (existingIndex >= 0) {
+    const next = [...rows];
+    next[existingIndex] = normalizeShippingZoneRow({ ...next[existingIndex], ...normalized, id: next[existingIndex].id });
+    return next;
+  }
+  return [...rows, normalized];
+};
+
+const applyEgyptStandardTemplate = (zones, prices) => {
+  const rows = (Array.isArray(zones) ? zones : []).map(normalizeShippingZoneRow);
+  return egyptGovernorates.reduce((nextRows, [id, governorate, arabic_alias, basePrice, cod_allowed, requires_shipping_proof, estimated_delivery_text]) => {
+    const price = governorate === "Damietta"
+      ? prices.damietta
+      : ["Cairo", "Giza"].includes(governorate)
+        ? prices.cairoGiza
+        : governorate === "Alexandria"
+          ? prices.alexandria
+          : prices.rest ?? basePrice;
+    return ensureTemplateRow(nextRows, {
+      id,
+      governorate,
+      arabic_alias,
+      city: "",
+      area: "",
+      price,
+      cod_allowed,
+      requires_shipping_proof,
+      estimated_delivery_text,
+      provider: "in_store_delivery",
+      provider_id: "in_store_delivery",
+      active: true,
+    });
+  }, rows);
+};
+
+const applyNamedShippingTemplate = (name, zones, defaultPrice) => {
+  let rows = applyEgyptStandardTemplate(zones, { damietta: 45, cairoGiza: 70, alexandria: 75, rest: defaultPrice || 80 });
+  if (name === "local_store") {
+    rows = rows.map((zone) => normalizeShippingZoneRow({
+      ...zone,
+      provider: "in_store_delivery",
+      provider_id: "in_store_delivery",
+      cod_allowed: normalizeZoneKey(zone.governorate) === "damietta" ? true : zone.cod_allowed,
+      requires_shipping_proof: normalizeZoneKey(zone.governorate) === "damietta" ? false : zone.requires_shipping_proof,
+    }));
+    rows = ensureTemplateRow(rows, { id: "new-damietta", governorate: "Damietta", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "in_store_delivery", provider_id: "in_store_delivery", active: true });
+  }
+  if (name === "fast_delivery") {
+    rows = rows.map((zone) => normalizeShippingZoneRow({
+      ...zone,
+      provider: ["Cairo", "Giza", "Alexandria"].includes(zone.governorate) ? "bosta" : "shipblu",
+      provider_id: ["Cairo", "Giza", "Alexandria"].includes(zone.governorate) ? "bosta" : "shipblu",
+      estimated_delivery_text: zone.governorate === "Damietta" ? "Same day - 1 business day" : "1-3 business days",
+    }));
+  }
+  if (name === "free_campaign") {
+    rows = rows.map((zone) => normalizeShippingZoneRow({
+      ...zone,
+      free_shipping_threshold: ["Damietta", "Cairo", "Giza", "Alexandria"].includes(zone.governorate) ? 1500 : 2500,
+    }));
+  }
+  return rows;
+};
+
+const resolveShippingPreview = (zones, { governorate = "", city = "", area = "", subtotal = 0, defaultPrice = 0, defaultProvider = "in_store_delivery" } = {}) => {
+  const activeZones = (Array.isArray(zones) ? zones : []).map(normalizeShippingZoneRow).filter((zone) => zone.governorate && zone.active);
+  const target = { governorate: normalizeZoneKey(governorate), city: normalizeZoneKey(city), area: normalizeZoneKey(area) };
+  const zoneCity = (zone) => normalizeZoneKey(zone.city);
+  const zoneArea = (zone) => normalizeZoneKey(zone.area);
+  const matchesGovernorate = (zone) => normalizeZoneKey(zone.governorate) === target.governorate;
+  const matchesCity = (zone) => matchesGovernorate(zone) && zoneCity(zone) && zoneCity(zone) === target.city;
+  const matchesArea = (zone) => matchesGovernorate(zone) && zoneArea(zone) && zoneArea(zone) === target.area && (!zoneCity(zone) || !target.city || zoneCity(zone) === target.city);
+  const match =
+    activeZones.find(matchesArea) ||
+    activeZones.find((zone) => matchesCity(zone) && !zoneArea(zone)) ||
+    activeZones.find((zone) => matchesGovernorate(zone) && !zoneCity(zone) && !zoneArea(zone));
+  const threshold = match ? Number(match.free_shipping_threshold || 0) : 0;
+  const matchedPrice = match ? Number(match.price || defaultPrice || 0) : Number(defaultPrice || 0);
+  const orderSubtotal = Number(subtotal || 0);
+  return {
+    price: threshold > 0 && orderSubtotal >= threshold ? 0 : matchedPrice,
+    cod_allowed: match ? Boolean(match.cod_allowed) : true,
+    requires_shipping_proof: match ? Boolean(match.requires_shipping_proof) : true,
+    estimated_delivery_text: match?.estimated_delivery_text || "",
+    provider: match?.provider || defaultProvider,
+    provider_id: match?.provider_id || match?.provider || defaultProvider,
+    matchedZone: match ? `${zoneLabel(match)} (${zoneArea(match) ? "area" : zoneCity(match) ? "city" : "governorate"})` : "Default shipping price",
+  };
+};
 
 const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   id: String(zone.id || `zone-${Date.now()}-${index}`).trim(),
@@ -1120,10 +1507,11 @@ const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
 });
 
 function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
-  const copy = shippingUi[language] || shippingUi.en;
+  const copy = { ...shippingUi.en, ...(shippingUi[language] || {}) };
   const [query, setQuery] = useState("");
   const [governorateFilter, setGovernorateFilter] = useState("");
   const [selected, setSelected] = useState([]);
+  const [expanded, setExpanded] = useState({});
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkEstimate, setBulkEstimate] = useState("");
   const [draft, setDraft] = useState({ governorate: "Cairo", city: "", area: "", price: defaultPrice || 0 });
@@ -1137,6 +1525,22 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   });
   const selectedSet = new Set(selected);
   const selectedCount = selected.filter((id) => zones.some((zone) => zone.id === id)).length;
+  const groupedZones = useMemo(() => {
+    const groups = new Map();
+    visibleZones.forEach((zone) => {
+      const governorate = zone.governorate || "Unassigned";
+      const city = zone.city || "Governorate rules";
+      if (!groups.has(governorate)) groups.set(governorate, new Map());
+      const cityMap = groups.get(governorate);
+      if (!cityMap.has(city)) cityMap.set(city, []);
+      cityMap.get(city).push(zone);
+    });
+    return Array.from(groups.entries()).map(([governorate, cityMap]) => ({
+      governorate,
+      cities: Array.from(cityMap.entries()).map(([city, rows]) => ({ city, rows })),
+    }));
+  }, [visibleZones]);
+  const toggleExpanded = (key) => setExpanded((current) => ({ ...current, [key]: current[key] === false ? true : false }));
 
   const updateRows = (next) => onChange(next.map(normalizeShippingZoneRow));
   const patchRow = (id, patch) => updateRows(zones.map((zone) => (zone.id === id ? { ...zone, ...patch } : zone)));
@@ -1305,48 +1709,106 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
         </div>
       </div>
 
-      <div className="max-h-[36rem] overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950/60 dark:shadow-none">
-        <table className="w-full min-w-[1360px] border-separate border-spacing-0 text-start text-sm">
-          <thead className="sticky top-0 z-10 bg-slate-50 text-xs font-black uppercase text-slate-500 shadow-[0_1px_0_rgba(148,163,184,0.28)] dark:bg-slate-900 dark:text-slate-400 dark:shadow-[0_1px_0_rgba(255,255,255,0.08)]">
-            <tr>
-              <th className="w-12 px-4 py-3 text-center"><input type="checkbox" className="h-4 w-4 align-middle" checked={visibleZones.length > 0 && visibleZones.every((zone) => selectedSet.has(zone.id))} onChange={(event) => toggleVisibleSelection(event.target.checked)} /></th>
-              {copy.headers.map((header) => <th key={header} className="whitespace-nowrap px-4 py-3">{header}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {visibleZones.map((zone) => (
-              <tr key={zone.id} className="bg-white transition hover:bg-slate-50 dark:bg-transparent dark:hover:bg-white/[0.035]">
-                <td className="border-b border-slate-100 px-4 py-3 text-center align-middle dark:border-white/10">
-                  <input type="checkbox" className="h-4 w-4 align-middle" checked={selectedSet.has(zone.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))} />
-                </td>
-                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input value={zone.governorate} onChange={(event) => patchRow(zone.id, { governorate: event.target.value })} className={`${inputClass} h-10 min-w-40 rounded-xl`} /></td>
-                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input value={zone.city} onChange={(event) => patchRow(zone.id, { city: event.target.value })} className={`${inputClass} h-10 min-w-40 rounded-xl`} /></td>
-                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input value={zone.area} onChange={(event) => patchRow(zone.id, { area: event.target.value })} className={`${inputClass} h-10 min-w-40 rounded-xl`} /></td>
-                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input type="number" min="0" value={zone.price} onChange={(event) => patchRow(zone.id, { price: Number(event.target.value) })} className={`${inputClass} h-10 w-24 rounded-xl text-center`} /></td>
-                {["cod_allowed", "requires_shipping_proof"].map((key) => (
-                  <td key={key} className="border-b border-slate-100 px-4 py-3 text-center align-middle dark:border-white/10">
-                    <input type="checkbox" className="h-4 w-4 align-middle" checked={Boolean(zone[key])} onChange={(event) => patchRow(zone.id, { [key]: event.target.checked })} />
-                  </td>
-                ))}
-                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input value={zone.estimated_delivery_text} onChange={(event) => patchRow(zone.id, { estimated_delivery_text: event.target.value })} className={`${inputClass} h-10 min-w-56 rounded-xl`} /></td>
-                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10">
-                  <select value={zone.provider_id || zone.provider} onChange={(event) => patchRow(zone.id, { provider: event.target.value, provider_id: event.target.value })} className="h-10 w-44 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-100 dark:focus:border-blue-400 dark:focus:ring-blue-500/15">
-                    {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
-                  </select>
-                </td>
-                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-10 w-24 rounded-xl text-center`} /></td>
-                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => patchRow(zone.id, { minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-10 w-24 rounded-xl text-center`} /></td>
-                <td className="border-b border-slate-100 px-4 py-3 text-center align-middle dark:border-white/10">
-                  <input type="checkbox" className="h-4 w-4 align-middle" checked={Boolean(zone.active)} onChange={(event) => patchRow(zone.id, { active: event.target.checked })} />
-                </td>
-                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10">
-                  <button type="button" onClick={() => deleteRow(zone.id)} className="grid h-9 w-9 place-items-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10" aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className={`rounded-2xl p-3 ${fieldSurface}`}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className={`inline-flex items-center gap-2 text-xs font-black uppercase ${mutedText}`}>
+            <MapPin className="h-4 w-4" />
+            Governorate / City-Markaz / Area-District
+          </div>
+          <label className="inline-flex items-center gap-2 text-xs font-black text-slate-500 dark:text-slate-300">
+            <input type="checkbox" className="h-4 w-4" checked={visibleZones.length > 0 && visibleZones.every((zone) => selectedSet.has(zone.id))} onChange={(event) => toggleVisibleSelection(event.target.checked)} />
+            Select visible
+          </label>
+        </div>
+        <div className="grid max-h-[42rem] gap-3 overflow-y-auto pr-1">
+          {groupedZones.map((group) => {
+            const groupKey = `g:${group.governorate}`;
+            const groupOpen = expanded[groupKey] !== false;
+            const groupRows = group.cities.flatMap((city) => city.rows);
+            return (
+              <section key={groupKey} className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
+                <button type="button" onClick={() => toggleExpanded(groupKey)} className="flex w-full items-center gap-3 bg-slate-50 px-4 py-3 text-start dark:bg-white/[0.035]">
+                  {groupOpen ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
+                  <span className={`min-w-0 flex-1 truncate text-sm font-black ${headingText}`}>{group.governorate}</span>
+                  <span className="rounded-full bg-slate-200 px-2 py-1 text-[11px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300">{groupRows.length}</span>
+                </button>
+                {groupOpen ? (
+                  <div className="grid gap-2 p-3">
+                    {group.cities.map((cityGroup) => {
+                      const cityKey = `${groupKey}:c:${cityGroup.city}`;
+                      const cityOpen = expanded[cityKey] !== false;
+                      return (
+                        <div key={cityKey} className="rounded-2xl border border-slate-100 bg-slate-50/60 dark:border-white/10 dark:bg-white/[0.025]">
+                          <button type="button" onClick={() => toggleExpanded(cityKey)} className="flex w-full items-center gap-2 px-3 py-2 text-start">
+                            {cityOpen ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
+                            <span className={`min-w-0 flex-1 truncate text-xs font-black ${headingText}`}>{cityGroup.city}</span>
+                            <span className={`text-[11px] font-black ${mutedText}`}>{cityGroup.rows.length} rules</span>
+                          </button>
+                          {cityOpen ? (
+                            <div className="grid gap-2 p-2 pt-0">
+                              {cityGroup.rows.map((zone) => (
+                                <ZoneRuleCard
+                                  key={zone.id}
+                                  zone={zone}
+                                  selected={selectedSet.has(zone.id)}
+                                  onSelect={(checked) => setSelected((current) => checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))}
+                                  onPatch={(patch) => patchRow(zone.id, patch)}
+                                  onDelete={() => deleteRow(zone.id)}
+                                />
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </section>
+            );
+          })}
+        </div>
         {!visibleZones.length ? <div className={`p-8 text-center text-sm font-bold ${bodyText}`}>{copy.empty}</div> : null}
+      </div>
+    </article>
+  );
+}
+
+function ZoneRuleCard({ zone, selected, onSelect, onPatch, onDelete }) {
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-950/80 dark:shadow-none">
+      <div className="grid gap-3 xl:grid-cols-[1.4rem_minmax(13rem,1fr)_8rem_minmax(13rem,0.9fr)_minmax(18rem,1.2fr)_auto] xl:items-center">
+        <input type="checkbox" className="mt-3 h-4 w-4 xl:mt-0" checked={selected} onChange={(event) => onSelect(event.target.checked)} />
+        <div className="grid gap-2 sm:grid-cols-3">
+          <input value={zone.governorate} onChange={(event) => onPatch({ governorate: event.target.value })} className={`${inputClass} h-10 rounded-xl`} placeholder="Governorate" />
+          <input value={zone.city} onChange={(event) => onPatch({ city: event.target.value })} className={`${inputClass} h-10 rounded-xl`} placeholder="City / Markaz" />
+          <input value={zone.area} onChange={(event) => onPatch({ area: event.target.value })} className={`${inputClass} h-10 rounded-xl`} placeholder="Area / District" />
+        </div>
+        <input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} />
+        <div className="flex flex-wrap gap-2">
+          {shippingProviderOptions.map((provider) => (
+            <ProviderBadge key={provider.id} provider={provider.id} active={normalizeProviderKey(zone.provider_id || zone.provider) === provider.id} onClick={() => onPatch({ provider: provider.id, provider_id: provider.id })} />
+          ))}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <input value={zone.estimated_delivery_text} onChange={(event) => onPatch({ estimated_delivery_text: event.target.value })} className={`${inputClass} h-10 rounded-xl`} placeholder="ETA" />
+          <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => onPatch({ free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Free over" />
+          <input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => onPatch({ minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Min COD" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          <label className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
+            <input type="checkbox" className="h-4 w-4" checked={Boolean(zone.cod_allowed)} onChange={(event) => onPatch({ cod_allowed: event.target.checked })} />
+            COD
+          </label>
+          <label className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
+            <input type="checkbox" className="h-4 w-4" checked={Boolean(zone.requires_shipping_proof)} onChange={(event) => onPatch({ requires_shipping_proof: event.target.checked })} />
+            Proof
+          </label>
+          <label className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
+            <input type="checkbox" className="h-4 w-4" checked={Boolean(zone.active)} onChange={(event) => onPatch({ active: event.target.checked })} />
+            Active
+          </label>
+          <button type="button" onClick={onDelete} className="grid h-9 w-9 place-items-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10" aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
+        </div>
       </div>
     </article>
   );
