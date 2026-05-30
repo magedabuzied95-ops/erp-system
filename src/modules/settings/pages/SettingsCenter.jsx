@@ -1012,11 +1012,11 @@ function ProviderBadgePicker({ value, onChange }) {
     <article className={`rounded-2xl p-4 ${fieldSurface}`}>
       <h3 className={`text-sm font-black ${headingText}`}>Default shipping provider</h3>
       <p className={`mt-1 text-xs leading-5 ${bodyText}`}>Select the fallback carrier used when a zone has no specific provider.</p>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <select value={activeProvider} onChange={(event) => onChange(event.target.value)} className={`${inputClass} mt-4 max-w-sm`}>
         {shippingProviderOptions.map((provider) => (
-          <ProviderBadge key={provider.id} provider={provider.id} active={activeProvider === provider.id} onClick={() => onChange(provider.id)} />
+          <option key={provider.id} value={provider.id}>{provider.label}</option>
         ))}
-      </div>
+      </select>
     </article>
   );
 }
@@ -1268,6 +1268,13 @@ const shippingUi = {
     requireProof: "Require proof",
     skipProof: "Proof not required",
     deleteSelected: "Delete selected",
+    priority: "Priority",
+    testRule: "Test rule",
+    testResult: "Test result",
+    winningRule: "Winning rule for this address",
+    overriddenBy: "Overridden by",
+    duplicateRule: "Duplicate identical rule",
+    duplicatePrevented: "Duplicate identical shipping rule was not added.",
     empty: "No shipping zones match the current filters.",
     seeded: "Egypt governorates added",
     headers: ["Governorate", "City / Markaz", "Area / District", "Price", "COD", "Proof", "ETA", "Provider", "Free over", "Min COD", "Active", ""],
@@ -1392,6 +1399,33 @@ const providerMeta = (value = "") => {
 
 const zoneLabel = (zone = {}) => [zone.governorate, zone.city, zone.area].filter(Boolean).join(" / ") || "Default";
 
+const ruleIdentity = (zone = {}) =>
+  [zone.governorate, zone.city, zone.area].map((value) => normalizeZoneKey(value)).join("|");
+
+const ruleType = (zone = {}) => zone.area ? "Area Rule" : zone.city ? "City Rule" : "Governorate Rule";
+
+const rulePriority = (zone = {}) => zone.area ? 1 : zone.city ? 2 : zone.governorate ? 3 : 4;
+
+const rulePriorityLabel = (zone = {}) => `${zone.area ? "1" : zone.city ? "2" : "3"} / Area > City > Governorate > Default`;
+
+const ruleSummary = (zone = {}) => {
+  const provider = providerMeta(zone.provider_id || zone.provider).label;
+  const proof = zone.requires_shipping_proof ? "Proof Required" : "No Proof";
+  const eta = zone.estimated_delivery_text || "No ETA";
+  return `${zoneLabel(zone).replaceAll(" / ", " -> ")} -> Shipping ${Number(zone.price || 0).toLocaleString()} EGP -> ${provider} -> ${proof} -> ETA ${eta}`;
+};
+
+const resolveRuleWinner = (zones = [], zone = {}, defaultPrice = 0) => {
+  const preview = resolveShippingPreview(zones, {
+    governorate: zone.governorate,
+    city: zone.city,
+    area: zone.area,
+    subtotal: 0,
+    defaultPrice,
+  });
+  return preview.match || null;
+};
+
 const ensureTemplateRow = (rows, row) => {
   const normalized = normalizeShippingZoneRow(row);
   const existingIndex = rows.findIndex((zone) =>
@@ -1485,6 +1519,7 @@ const resolveShippingPreview = (zones, { governorate = "", city = "", area = "",
     estimated_delivery_text: match?.estimated_delivery_text || "",
     provider: match?.provider || defaultProvider,
     provider_id: match?.provider_id || match?.provider || defaultProvider,
+    match,
     matchedZone: match ? `${zoneLabel(match)} (${zoneArea(match) ? "area" : zoneCity(match) ? "city" : "governorate"})` : "Default shipping price",
   };
 };
@@ -1514,8 +1549,14 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   const [expanded, setExpanded] = useState({});
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkEstimate, setBulkEstimate] = useState("");
+  const [testedRuleId, setTestedRuleId] = useState("");
   const [draft, setDraft] = useState({ governorate: "Cairo", city: "", area: "", price: defaultPrice || 0 });
   const zones = useMemo(() => (Array.isArray(value) ? value : []).map(normalizeShippingZoneRow), [value]);
+  const duplicateCounts = useMemo(() => zones.reduce((map, zone) => {
+    const key = ruleIdentity(zone);
+    map.set(key, (map.get(key) || 0) + 1);
+    return map;
+  }, new Map()), [zones]);
   const normalizedQuery = query.trim().toLowerCase();
   const governorateOptions = useMemo(() => Array.from(new Set([...egyptGovernorates.map(([, name]) => name), ...zones.map((zone) => zone.governorate).filter(Boolean)])).sort(), [zones]);
   const visibleZones = zones.filter((zone) => {
@@ -1542,8 +1583,33 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   }, [visibleZones]);
   const toggleExpanded = (key) => setExpanded((current) => ({ ...current, [key]: current[key] === false ? true : false }));
 
-  const updateRows = (next) => onChange(next.map(normalizeShippingZoneRow));
-  const patchRow = (id, patch) => updateRows(zones.map((zone) => (zone.id === id ? { ...zone, ...patch } : zone)));
+  const updateRows = (next) => {
+    const seen = new Set();
+    let skipped = 0;
+    const normalized = next.map(normalizeShippingZoneRow).filter((zone) => {
+      const key = ruleIdentity(zone);
+      if (!zone.governorate || seen.has(key)) {
+        skipped += seen.has(key) ? 1 : 0;
+        return Boolean(zone.governorate) && !seen.has(key);
+      }
+      seen.add(key);
+      return true;
+    });
+    if (skipped) toast.error(copy.duplicatePrevented);
+    onChange(normalized);
+  };
+  const patchRow = (id, patch) => {
+    const target = zones.find((zone) => zone.id === id);
+    if (!target) return;
+    const nextTarget = normalizeShippingZoneRow({ ...target, ...patch });
+    const nextKey = ruleIdentity(nextTarget);
+    const duplicate = zones.some((zone) => zone.id !== id && ruleIdentity(zone) === nextKey);
+    if (duplicate) {
+      toast.error(copy.duplicatePrevented);
+      return;
+    }
+    updateRows(zones.map((zone) => (zone.id === id ? nextTarget : zone)));
+  };
   const addRow = (scope = "governorate") => {
     const selectedGovernorate = egyptGovernorates.find(([, name]) => name === draft.governorate);
     const [, governorate = draft.governorate, arabic_alias = ""] = selectedGovernorate || [];
@@ -1561,6 +1627,10 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
       provider_id: "in_store_delivery",
       active: true,
     }, zones.length);
+    if (zones.some((zone) => ruleIdentity(zone) === ruleIdentity(row))) {
+      toast.error(copy.duplicatePrevented);
+      return;
+    }
     updateRows([...zones, row]);
     setDraft((current) => ({ ...current, city: "", area: "" }));
   };
@@ -1750,10 +1820,16 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
                                 <ZoneRuleCard
                                   key={zone.id}
                                   zone={zone}
+                                  zones={zones}
+                                  copy={copy}
+                                  defaultPrice={defaultPrice}
                                   selected={selectedSet.has(zone.id)}
+                                  duplicate={duplicateCounts.get(ruleIdentity(zone)) > 1}
+                                  tested={testedRuleId === zone.id}
                                   onSelect={(checked) => setSelected((current) => checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))}
                                   onPatch={(patch) => patchRow(zone.id, patch)}
                                   onDelete={() => deleteRow(zone.id)}
+                                  onTest={() => setTestedRuleId((current) => current === zone.id ? "" : zone.id)}
                                 />
                               ))}
                             </div>
@@ -1773,10 +1849,22 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   );
 }
 
-function ZoneRuleCard({ zone, selected, onSelect, onPatch, onDelete }) {
+function ZoneRuleCard({ zone, zones, copy, defaultPrice, selected, duplicate, tested, onSelect, onPatch, onDelete, onTest }) {
+  const provider = normalizeProviderKey(zone.provider_id || zone.provider);
+  const winner = resolveRuleWinner(zones, zone, defaultPrice);
+  const isWinner = winner?.id === zone.id;
+  const overlaps = zones.some((candidate) =>
+    candidate.id !== zone.id &&
+    normalizeZoneKey(candidate.governorate) === normalizeZoneKey(zone.governorate) &&
+    (
+      !candidate.city ||
+      !zone.city ||
+      normalizeZoneKey(candidate.city) === normalizeZoneKey(zone.city)
+    )
+  );
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-950/80 dark:shadow-none">
-      <div className="grid gap-3 xl:grid-cols-[1.4rem_minmax(13rem,1fr)_8rem_minmax(13rem,0.9fr)_minmax(18rem,1.2fr)_auto] xl:items-center">
+    <article className={`rounded-2xl border p-3 shadow-sm transition dark:shadow-none ${isWinner && overlaps ? "border-emerald-300 bg-emerald-50/70 dark:border-emerald-400/35 dark:bg-emerald-500/10" : duplicate ? "border-amber-300 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-500/10" : "border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/80"}`}>
+      <div className="grid gap-3 xl:grid-cols-[1.4rem_minmax(13rem,1fr)_8rem_minmax(12rem,0.75fr)_minmax(18rem,1.1fr)_auto] xl:items-center">
         <input type="checkbox" className="mt-3 h-4 w-4 xl:mt-0" checked={selected} onChange={(event) => onSelect(event.target.checked)} />
         <div className="grid gap-2 sm:grid-cols-3">
           <input value={zone.governorate} onChange={(event) => onPatch({ governorate: event.target.value })} className={`${inputClass} h-10 rounded-xl`} placeholder="Governorate" />
@@ -1784,11 +1872,11 @@ function ZoneRuleCard({ zone, selected, onSelect, onPatch, onDelete }) {
           <input value={zone.area} onChange={(event) => onPatch({ area: event.target.value })} className={`${inputClass} h-10 rounded-xl`} placeholder="Area / District" />
         </div>
         <input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} />
-        <div className="flex flex-wrap gap-2">
+        <select value={provider} onChange={(event) => onPatch({ provider: event.target.value, provider_id: event.target.value })} className={`${inputClass} h-10 rounded-xl`}>
           {shippingProviderOptions.map((provider) => (
-            <ProviderBadge key={provider.id} provider={provider.id} active={normalizeProviderKey(zone.provider_id || zone.provider) === provider.id} onClick={() => onPatch({ provider: provider.id, provider_id: provider.id })} />
+            <option key={provider.id} value={provider.id}>{provider.label}</option>
           ))}
-        </div>
+        </select>
         <div className="grid gap-2 sm:grid-cols-3">
           <input value={zone.estimated_delivery_text} onChange={(event) => onPatch({ estimated_delivery_text: event.target.value })} className={`${inputClass} h-10 rounded-xl`} placeholder="ETA" />
           <input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => onPatch({ free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-10 rounded-xl text-center`} placeholder="Free over" />
@@ -1807,9 +1895,33 @@ function ZoneRuleCard({ zone, selected, onSelect, onPatch, onDelete }) {
             <input type="checkbox" className="h-4 w-4" checked={Boolean(zone.active)} onChange={(event) => onPatch({ active: event.target.checked })} />
             Active
           </label>
+          <button type="button" onClick={onTest} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]">
+            <TestTube2 className="h-3.5 w-3.5" />
+            {copy.testRule}
+          </button>
           <button type="button" onClick={onDelete} className="grid h-9 w-9 place-items-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10" aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
         </div>
       </div>
+      <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 dark:border-white/10 lg:grid-cols-[auto_auto_minmax(0,1fr)] lg:items-center">
+        <span className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-300">{ruleType(zone)}</span>
+        <span className="inline-flex w-fit items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-700 dark:border-blue-400/25 dark:bg-blue-500/10 dark:text-blue-100">{copy.priority}: {rulePriorityLabel(zone)}</span>
+        <p className={`min-w-0 truncate text-xs font-bold ${bodyText}`}>{ruleSummary(zone)}</p>
+      </div>
+      {(duplicate || overlaps || tested) ? (
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+          {duplicate ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800 dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-100">{copy.duplicateRule}</div> : null}
+          {overlaps ? (
+            <div className={`rounded-xl border px-3 py-2 text-xs font-black ${isWinner ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/25 dark:bg-emerald-500/10 dark:text-emerald-100" : "border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300"}`}>
+              {isWinner ? copy.winningRule : `${copy.overriddenBy}: ${winner ? zoneLabel(winner) : "Default"}`}
+            </div>
+          ) : null}
+          {tested ? (
+            <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-black text-violet-800 dark:border-violet-400/25 dark:bg-violet-500/10 dark:text-violet-100">
+              {copy.testResult}: {winner ? ruleSummary(winner) : `Default -> ${Number(defaultPrice || 0).toLocaleString()} EGP`}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 }
