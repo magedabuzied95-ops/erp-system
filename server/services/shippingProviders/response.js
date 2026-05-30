@@ -10,6 +10,7 @@ export const normalizeProviderResponse = (response = {}, fallback = {}) => {
     shipment_id: response.shipment_id || fallback.shipment_id || null,
     tracking_number: response.tracking_number || fallback.tracking_number || null,
     tracking_url: response.tracking_url || fallback.tracking_url || null,
+    label_url: response.label_url || response.shipping_label_url || fallback.label_url || null,
     status,
     shipping_status: status,
     raw_response: response.raw_response || null,

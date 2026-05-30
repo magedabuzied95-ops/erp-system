@@ -52,6 +52,32 @@ const bostaProvider = {
       tracking_url: order.tracking_url || "",
     });
   },
+  async refreshStatus(order = {}) {
+    return this.trackShipment(order);
+  },
+  async cancelShipment(order = {}) {
+    return normalizeProviderResponse({
+      success: false,
+      provider: "bosta",
+      provider_id: "bosta",
+      status: order.shipment_status || order.shipping_status || "pending",
+      shipment_id: order.shipment_id || order.shipping_provider_delivery_id || null,
+      tracking_number: order.tracking_number || order.shipping_tracking_number || "",
+      error: "Use the Bosta shipment cancellation endpoint once the delivery exists.",
+    });
+  },
+  async printLabel(order = {}) {
+    return normalizeProviderResponse({
+      success: Boolean(order.shipping_label_url),
+      provider: "bosta",
+      provider_id: "bosta",
+      status: order.shipment_status || order.shipping_status || "pending",
+      shipment_id: order.shipment_id || order.shipping_provider_delivery_id || null,
+      tracking_number: order.tracking_number || order.shipping_tracking_number || "",
+      label_url: order.shipping_label_url || "",
+      error: order.shipping_label_url ? "" : "No Bosta label URL is stored for this order yet.",
+    });
+  },
 };
 
 export default bostaProvider;

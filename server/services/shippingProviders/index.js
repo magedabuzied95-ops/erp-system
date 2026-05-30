@@ -18,6 +18,29 @@ const placeholderProvider = (key, name) => ({
       error: `${name} credentials are not configured yet. Use In Store Delivery for now.`,
     });
   },
+  async refreshStatus(order = {}) {
+    return this.trackShipment(order);
+  },
+  async cancelShipment(order = {}) {
+    return normalizeProviderResponse({
+      success: false,
+      provider: key,
+      provider_id: key,
+      status: order.shipment_status || order.shipping_status || "pending",
+      error: `${name} cancellation is not configured yet.`,
+    });
+  },
+  async printLabel(order = {}) {
+    return normalizeProviderResponse({
+      success: false,
+      provider: key,
+      provider_id: key,
+      status: order.shipment_status || order.shipping_status || "pending",
+      tracking_number: order.tracking_number || order.shipping_tracking_number || "",
+      label_url: order.shipping_label_url || "",
+      error: `${name} label printing is not configured yet.`,
+    });
+  },
   async trackShipment(order = {}) {
     // TODO: Replace this placeholder with ${name} tracking API and webhook status sync.
     return normalizeProviderResponse({
@@ -35,6 +58,7 @@ const placeholderProvider = (key, name) => ({
 export const shippingProviderCatalog = [
   bostaProvider,
   placeholderProvider("mylerz", "Mylerz"),
+  placeholderProvider("aramex", "Aramex"),
   placeholderProvider("shipblu", "ShipBlu"),
   inStoreDeliveryProvider,
 ];
@@ -42,6 +66,7 @@ export const shippingProviderCatalog = [
 export const shippingProviders = {
   bosta: bostaProvider,
   mylerz: shippingProviderCatalog.find((provider) => provider.key === "mylerz"),
+  aramex: shippingProviderCatalog.find((provider) => provider.key === "aramex"),
   shipblu: shippingProviderCatalog.find((provider) => provider.key === "shipblu"),
   in_store_delivery: inStoreDeliveryProvider,
   manual: inStoreDeliveryProvider,

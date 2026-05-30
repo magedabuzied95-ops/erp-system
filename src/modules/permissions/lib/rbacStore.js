@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   Sparkles,
   Store,
+  Truck,
   UsersRound,
   Warehouse,
   Wallet,
@@ -398,6 +399,12 @@ const RAW_SIDEBAR_SECTIONS = [
       { label: "Website Orders", to: "/orders?channel=website", permission: "website.orders", icon: ShoppingBag },
       { label: "Returns", to: "/orders/returns", permission: "orders.view", icon: ReceiptText },
       { label: "Customers", to: "/customers", permission: "orders.view", icon: UsersRound },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { label: "Shipping Center", to: "/operations/shipping", permission: "orders.view", icon: Truck, aliases: ["Logistics", "Shipments", "Bosta", "Shipping operations"], keywords: "shipping logistics bosta shipments delivery tracking operations" },
     ],
   },
   {

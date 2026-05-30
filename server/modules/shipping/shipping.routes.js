@@ -2,6 +2,12 @@ import express from "express";
 import { protect } from "../../middleware/authMiddleware.js";
 import permit from "../../middleware/permissionMiddleware.js";
 import {
+  bulkShippingCenterActionController,
+  getShippingCenter,
+  getShippingCenterMetaController,
+  getShippingCenterSummaryController,
+} from "./shipping.center.controller.js";
+import {
   getBostaProviderSettings,
   getBostaProviderStatus,
   getShippingCities,
@@ -15,6 +21,11 @@ import {
 } from "./shipping.controller.js";
 
 const router = express.Router();
+
+router.get("/center", protect, permit("orders", "view"), getShippingCenter);
+router.get("/center/summary", protect, permit("orders", "view"), getShippingCenterSummaryController);
+router.get("/center/meta", protect, permit("orders", "view"), getShippingCenterMetaController);
+router.post("/center/bulk", protect, permit("orders", "edit"), bulkShippingCenterActionController);
 
 router.get("/cities", getShippingCities);
 router.get("/zones", getShippingZones);
