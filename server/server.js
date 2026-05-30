@@ -146,6 +146,7 @@ const corsOptions = {
     "Accept",
     "Origin",
     "Cache-Control",
+    "cache-control",
     "Pragma",
     "Expires",
     "idempotency-key",
