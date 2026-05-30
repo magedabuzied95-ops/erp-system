@@ -2724,13 +2724,12 @@ function ProductEdit() {
                 </label>
 
                 {gallery.length > 0 ? (
-                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                  <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(88px,96px))] gap-3">
                     {gallery.map((item) => (
                       <ImageThumbnailActions
                         key={item.id || item.name}
                         image={{ ...item, preview: resolveAssetUrl(item.preview || item.image_url) }}
                         alt={item.name || "Gallery image"}
-                        className="min-w-0"
                         isPrimary={Boolean(coverImage && (coverImage === item.preview || coverImage === item.image_url))}
                         onPrimary={() => setGalleryItemAsPrimary(item)}
                         deleteDisabled={Boolean(item.uploading)}
@@ -3108,7 +3107,7 @@ function ProductEdit() {
                           }}
                         />
                       </label>
-                      <div className="grid w-full max-w-[620px] grid-cols-2 gap-2 sm:grid-cols-3 2xl:grid-cols-4">
+                      <div className="grid w-full max-w-[520px] grid-cols-[repeat(auto-fill,minmax(88px,96px))] gap-2.5">
                         {normalizeColorImages(group.images).map((image, imageIndex) => (
                           <ImageThumbnailActions
                             key={image.id || `${group.id}-${imageIndex}`}
@@ -3119,27 +3118,26 @@ function ProductEdit() {
                             deleteDisabled={Boolean(image.uploading)}
                             deleteDisabledReason="Image is still uploading"
                             onDelete={() => removeColorImage(group.id, image.id)}
-                            className="min-w-0 rounded-[14px]"
                             actions={(
                               <>
-                                <GripVertical className="h-4 w-4 text-zinc-500" aria-hidden="true" />
+                                <GripVertical className="hidden h-3.5 w-3.5 text-zinc-300 sm:block" aria-hidden="true" />
                                 <button
                                   type="button"
                                   onClick={() => moveColorImage(group.id, image.id, "up")}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/8 text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-black/65 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
                                   disabled={imageIndex === 0}
                                   aria-label={t("products.images.moveUp", "Move image up")}
                                 >
-                                  <ArrowUp className="h-3.5 w-3.5" />
+                                  <ArrowUp className="h-3 w-3" />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => moveColorImage(group.id, image.id, "down")}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/8 text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-black/65 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
                                   disabled={imageIndex === normalizeColorImages(group.images).length - 1}
                                   aria-label={t("products.images.moveDown", "Move image down")}
                                 >
-                                  <ArrowDown className="h-3.5 w-3.5" />
+                                  <ArrowDown className="h-3 w-3" />
                                 </button>
                               </>
                             )}

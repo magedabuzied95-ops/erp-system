@@ -43,70 +43,64 @@ function ImageThumbnailActions({
 
   return (
     <div
-      className={`group relative flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-zinc-950/80 p-2 shadow-lg shadow-black/10 ${
+      className={`group relative h-24 w-24 overflow-hidden rounded-xl border bg-zinc-950/80 shadow-lg shadow-black/10 ${
         isPrimary ? "border-emerald-400/70" : "border-white/10"
       } ${className}`}
     >
-      <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-white/8 bg-black/30">
-        {src ? (
-          <img src={src} alt={alt} className={`h-full w-full transition duration-200 group-hover:scale-[1.03] ${imageClassName}`} />
-        ) : (
-          <div className="flex h-full min-h-20 w-full items-center justify-center bg-white/5 text-xs font-bold text-zinc-500">
-            {t("products.images.noImage", "No image")}
-          </div>
-        )}
+      {src ? (
+        <img src={src} alt={alt} className={`h-full w-full transition duration-200 group-hover:scale-[1.03] ${imageClassName}`} />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-white/5 text-xs font-bold text-zinc-500">
+          {t("products.images.noImage", "No image")}
+        </div>
+      )}
 
-        {isPrimary ? (
-          <span className="pointer-events-none absolute left-2 top-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[9px] font-black text-black shadow-lg">
-            {t("products.images.main", "Main")}
-          </span>
-        ) : null}
+      <div className="pointer-events-none absolute inset-0 bg-black/0 transition duration-200 group-hover:bg-black/20" />
 
-        {onDelete ? (
-          <button
-            type="button"
-            onClick={() => {
-              if (!deleteDisabled) setConfirming(true);
-            }}
-            disabled={deleteDisabled}
-            className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-200/40 bg-red-500/95 text-white shadow-xl shadow-black/40 backdrop-blur-md transition duration-200 hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200/70 disabled:cursor-not-allowed disabled:bg-zinc-700/85 disabled:text-zinc-300"
-            aria-label={deleteDisabled ? deleteDisabledReason || t("products.images.deleteDisabled", "Delete disabled") : t("products.images.deleteImage", "Delete image")}
-            title={deleteDisabled ? deleteDisabledReason || t("products.images.deleteDisabled", "Delete disabled") : t("products.actionsMenu.delete", "Delete")}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        ) : null}
-      </div>
+      {isPrimary ? (
+        <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-full bg-emerald-400 px-1.5 py-0.5 text-[9px] font-black leading-none text-black shadow-lg">
+          {t("products.images.main", "Main")}
+        </span>
+      ) : null}
 
-      <div className="mt-2 flex min-h-8 items-center gap-1.5">
+      {onDelete ? (
         <button
           type="button"
-          onClick={preview}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/8 text-white transition hover:bg-white/15"
-          aria-label={t("products.images.previewImage", "Preview image")}
-          title={t("products.images.preview", "Preview")}
+          onClick={() => {
+            if (!deleteDisabled) setConfirming(true);
+          }}
+          disabled={deleteDisabled}
+          className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-red-200/35 bg-red-500/95 text-white shadow-lg shadow-black/35 backdrop-blur-md transition duration-200 hover:bg-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200/70 disabled:cursor-not-allowed disabled:bg-zinc-700/85 disabled:text-zinc-300"
+          aria-label={deleteDisabled ? deleteDisabledReason || t("products.images.deleteDisabled", "Delete disabled") : t("products.images.deleteImage", "Delete image")}
+          title={deleteDisabled ? deleteDisabledReason || t("products.images.deleteDisabled", "Delete disabled") : t("products.actionsMenu.delete", "Delete")}
         >
-          <Eye className="h-4 w-4" />
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
-        {onPrimary ? (
-          <button
-            type="button"
-            onClick={() => onPrimary(image)}
-            disabled={isPrimary}
-            className={`inline-flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg border border-emerald-300/15 bg-emerald-400/12 px-2 text-[10px] font-black text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-55 ${
-              actions ? "w-8 flex-none" : "flex-1"
-            }`}
-            aria-label={t("products.images.setPrimaryImage", "Set as primary image")}
-            title={t("products.images.setPrimary", "Set primary")}
-          >
-            <Star className="h-3.5 w-3.5 shrink-0" />
-            {actions ? null : (
-              <span className="truncate">{isPrimary ? t("products.images.main", "Main") : t("products.images.setPrimary", "Set main")}</span>
-            )}
-          </button>
-        ) : null}
-        {actions ? <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div> : null}
-      </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={preview}
+        className="absolute left-1/2 top-1/2 inline-flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white opacity-0 shadow-lg backdrop-blur-md transition duration-200 hover:bg-black/80 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+        aria-label={t("products.images.previewImage", "Preview image")}
+        title={t("products.images.preview", "Preview")}
+      >
+        <Eye className="h-4 w-4" />
+      </button>
+
+      {onPrimary && !isPrimary ? (
+        <button
+          type="button"
+          onClick={() => onPrimary(image)}
+          className="absolute bottom-1.5 left-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200/25 bg-black/65 text-emerald-100 opacity-0 shadow-lg backdrop-blur-md transition duration-200 hover:bg-emerald-500/25 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200/60"
+          aria-label={t("products.images.setPrimaryImage", "Set as primary image")}
+          title={t("products.images.setPrimary", "Set main")}
+        >
+          <Star className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
+
+      {actions ? <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 opacity-0 transition duration-200 group-hover:opacity-100 group-focus-within:opacity-100">{actions}</div> : null}
 
       {confirming ? (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 rounded-2xl bg-black/86 p-2 text-center backdrop-blur-sm">
