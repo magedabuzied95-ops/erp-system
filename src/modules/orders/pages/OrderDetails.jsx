@@ -51,6 +51,9 @@ import {
   upsertOrderMeta,
 } from "../lib/ordersStore";
 
+const BOSTA_SUBSCRIPTION_REQUIRED_CODE = "BOSTA_SUBSCRIPTION_REQUIRED";
+const BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE = "Your Bosta account is connected successfully, but shipment creation requires an active Bosta shipping plan or bundle.";
+
 const getAttributionLabel = (order = {}) => {
   const source = String(order.attribution_type || order.marketing_source || "").toLowerCase();
   const platform = String(order.marketing_platform || order.marketing_source || "").toLowerCase();
@@ -334,7 +337,7 @@ function OrderDetails() {
     cod_amount: 0,
     courier_notes: "",
   });
-  const [bostaActionError, setBostaActionError] = useState("");
+  const [bostaActionError, setBostaActionError] = useState(null);
   const [shippingTab, setShippingTab] = useState("shipment");
   const [paymentProofModalOpen, setPaymentProofModalOpen] = useState(false);
   const [paymentProofImageFailed, setPaymentProofImageFailed] = useState(false);
@@ -538,7 +541,7 @@ function OrderDetails() {
 
   const handleBostaAction = async (action) => {
     try {
-      setBostaActionError("");
+      setBostaActionError(null);
       const result = await api.post(`/orders/${order.id}/shipping/bosta/${action}`, {});
       const updated = normalizeOrder(result.order || order, { items: previewItems });
       setOrder(updated);
@@ -560,8 +563,11 @@ function OrderDetails() {
       }));
       toast.success(result.message || (action === "create" ? "Bosta shipment created" : "Bosta shipment updated"));
     } catch (err) {
-      const message = err?.responseBody?.message || err?.responseBody?.details?.message || err.message || "Bosta shipment action failed";
-      setBostaActionError(message);
+      const code = err?.responseBody?.code || err?.responseBody?.details?.errorCode || err?.responseBody?.details?.code || "";
+      const message = code === BOSTA_SUBSCRIPTION_REQUIRED_CODE
+        ? BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE
+        : (err?.responseBody?.message || err?.responseBody?.details?.message || err.message || "Bosta shipment action failed");
+      setBostaActionError({ code, message });
       toast.error(message);
     }
   };
@@ -1324,8 +1330,27 @@ function OrderDetails() {
                         <Info label="Apartment" value={shipping.apartment_number || t("orders.fallback.notAvailable")} />
                       </div>
                       {bostaActionError ? (
-                        <div className="mt-3 rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 py-2 text-xs font-bold leading-5 text-rose-100">
-                          {bostaActionError}
+                        <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-5 ${
+                          bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE
+                            ? "border-amber-300/35 bg-amber-400/10 text-amber-100"
+                            : "border-rose-300/30 bg-rose-400/10 text-rose-100"
+                        }`}>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${
+                              bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE
+                                ? "bg-amber-300/20 text-amber-100"
+                                : "bg-rose-300/20 text-rose-100"
+                            }`}>
+                              {bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? "Plan required" : "Bosta error"}
+                            </span>
+                            <span>{bostaActionError.message}</span>
+                          </div>
+                          {bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? (
+                            <Link to="/settings?category=shipping" className="mt-2 inline-flex items-center gap-1 rounded-lg border border-amber-200/25 bg-amber-200/10 px-2 py-1 text-[11px] font-black text-amber-50 transition hover:bg-amber-200/20">
+                              Shipping provider settings
+                              <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>

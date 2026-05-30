@@ -8,6 +8,33 @@ const nowIso = () => new Date().toISOString();
 let shippingSchemaEnsured = false;
 let shippingSchemaEnsurePromise = null;
 
+const BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE = "Your Bosta account is connected successfully, but shipment creation requires an active Bosta shipping plan or bundle.";
+
+const bostaErrorCode = (payload = {}) => {
+  const nestedError = payload?.error && typeof payload.error === "object" ? payload.error : {};
+  return text(payload?.errorCode || payload?.code || nestedError?.errorCode || nestedError?.code);
+};
+
+const bostaErrorMessage = (payload = {}, fallback = "") => {
+  const nestedError = payload?.error && typeof payload.error === "object" ? payload.error : {};
+  return text(payload?.message || nestedError?.message || (typeof payload?.error === "string" ? payload.error : "") || fallback);
+};
+
+const isBostaSubscriptionRequiredError = (payload = {}, fallbackMessage = "") => {
+  const code = bostaErrorCode(payload);
+  const message = bostaErrorMessage(payload, fallbackMessage).toLowerCase();
+  return code === "8000002" && message.includes("active bundle subscription required");
+};
+
+const bostaDeliveryError = (payload = {}, fallbackMessage = "Bosta delivery creation failed", fallbackStatus = 400) => {
+  const subscriptionRequired = isBostaSubscriptionRequiredError(payload, fallbackMessage);
+  const error = new Error(subscriptionRequired ? BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE : bostaErrorMessage(payload, fallbackMessage));
+  error.status = subscriptionRequired ? 409 : fallbackStatus;
+  error.code = subscriptionRequired ? "BOSTA_SUBSCRIPTION_REQUIRED" : (bostaErrorCode(payload) || "BOSTA_CREATE_FAILED");
+  error.payload = payload;
+  return error;
+};
+
 export const ensureShippingSchema = async (client = db) => {
   if (shippingSchemaEnsured) return;
   if (shippingSchemaEnsurePromise) {
@@ -383,21 +410,15 @@ export const createBostaShipmentForOrder = async (orderId) => {
     } catch (apiError) {
       const rawErrorPayload = apiError?.payload || { message: apiError?.message, status: apiError?.status };
       console.error("[bosta-create-response]", JSON.stringify(rawErrorPayload));
-      const nestedError = rawErrorPayload?.error && typeof rawErrorPayload.error === "object" ? rawErrorPayload.error : {};
-      const bostaMessage = text(rawErrorPayload?.message || nestedError?.message || (typeof rawErrorPayload?.error === "string" ? rawErrorPayload.error : "") || apiError?.message);
-      const error = new Error(bostaMessage || "Bosta delivery creation failed");
-      error.status = apiError?.status >= 400 && apiError.status < 500 ? 400 : 502;
-      error.code = rawErrorPayload?.errorCode || rawErrorPayload?.code || "BOSTA_CREATE_FAILED";
-      error.payload = rawErrorPayload;
-      throw error;
+      throw bostaDeliveryError(
+        rawErrorPayload,
+        apiError?.message || "Bosta delivery creation failed",
+        apiError?.status >= 400 && apiError.status < 500 ? 400 : 502
+      );
     }
     const response = normalizeBostaDeliveryResponse(rawBostaResponse);
     if (!response.success) {
-      const error = new Error(response.error || "Bosta delivery creation failed");
-      error.status = 400;
-      error.code = response.error_code || "BOSTA_CREATE_FAILED";
-      error.payload = response.raw_response;
-      throw error;
+      throw bostaDeliveryError(response.raw_response, response.error || "Bosta delivery creation failed", 400);
     }
 
     const status = response.status || "created";
