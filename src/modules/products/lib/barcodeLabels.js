@@ -150,6 +150,38 @@ const resolveLabelPrice = (source = {}, fallbackSource = {}) => {
   };
 };
 
+const resolveProductFirstLabelPrice = (product = {}, variant = {}) => {
+  const productSalePrice = positiveNumber(product.sale_price, product.salePrice);
+  const productSaleEnabled = truthyFlag(product.sale_price_enabled ?? product.salePriceEnabled);
+  const productSellingPrice = positiveNumber(product.selling_price, product.sellingPrice);
+  const productRegularPrice = positiveNumber(product.regular_price, product.regularPrice);
+  const productBasePrice = positiveNumber(product.price);
+
+  const variantSalePrice = positiveNumber(variant.sale_price, variant.salePrice);
+  const variantSaleEnabled = truthyFlag(variant.sale_price_enabled ?? variant.salePriceEnabled);
+  const variantSellingPrice = positiveNumber(variant.selling_price, variant.sellingPrice);
+  const variantRegularPrice = positiveNumber(variant.regular_price, variant.regularPrice);
+  const variantBasePrice = positiveNumber(variant.price, variant.variant_price);
+
+  const productSaleActive = productSaleEnabled && productSalePrice > 0;
+  const variantSaleActive = variantSaleEnabled && variantSalePrice > 0;
+  const effectivePrice = productSaleActive
+    ? productSalePrice
+    : positiveNumber(productSellingPrice, productRegularPrice, productBasePrice) ||
+      (variantSaleActive ? variantSalePrice : positiveNumber(variantSellingPrice, variantRegularPrice, variantBasePrice));
+  const comparePrice = productSaleActive
+    ? positiveNumber(productSellingPrice, productRegularPrice, productBasePrice)
+    : variantSaleActive
+      ? positiveNumber(variantSellingPrice, variantRegularPrice, variantBasePrice)
+      : 0;
+
+  return {
+    price: effectivePrice,
+    comparePrice: comparePrice > effectivePrice ? comparePrice : 0,
+    saleActive: Boolean(productSaleActive || (!positiveNumber(productSellingPrice, productRegularPrice, productBasePrice) && variantSaleActive)),
+  };
+};
+
 export const getLabelImageUrl = (product, variant = null, colorGroup = null) => {
   const variantImage =
     firstText(
@@ -220,6 +252,9 @@ export const getLabelDisplayBarcode = (product, variant = null) =>
 
 export const getLabelPriceInfo = (product, variant = null) =>
   variant ? resolveLabelPrice(variant, product) : resolveLabelPrice(product);
+
+export const getProductFirstLabelPriceInfo = (product, variant = null) =>
+  resolveProductFirstLabelPrice(product, variant || {});
 
 export const getLabelSalePrice = (product, variant = null) =>
   getLabelPriceInfo(product, variant).price;
@@ -334,10 +369,10 @@ export const getBarcodeShopQrUrl = (product = {}) => {
   return `${resolveStorefrontOrigin()}/shop/product/${String(identifier).replace(/^\/+/, "")}`;
 };
 
-export const buildBarcodeShopLabelItem = (product = null, quantity = 1) => {
+export const buildBarcodeShopLabelItem = (product = null, quantity = 1, variantFallback = null) => {
   if (!product) return null;
   const qrToken = getBarcodeShopQrValue(product);
-  const priceInfo = getLabelPriceInfo(product);
+  const priceInfo = getProductFirstLabelPriceInfo(product, variantFallback);
   return {
     key: `barcode-shop:${product.id}`,
     productId: product.id,
@@ -351,6 +386,7 @@ export const buildBarcodeShopLabelItem = (product = null, quantity = 1) => {
     displayPrice: priceInfo.price,
     comparePrice: priceInfo.comparePrice,
     saleActive: priceInfo.saleActive,
+    priceSource: priceInfo.saleActive || priceInfo.price > 0 ? "product-first" : "none",
     imageUrl: product.product_image_url || product.image_url || "",
     companyName: product.companyName || APP_NAME,
     quantity: getLabelQuantity(quantity) || 1,

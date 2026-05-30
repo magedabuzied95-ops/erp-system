@@ -265,16 +265,6 @@ function BarcodeLabels() {
     return catalog.filter((product) => toSearchText(product).includes(query));
   }, [catalog, search, routeLocked, activeProduct]);
 
-  const selectedItems = useMemo(
-    () =>
-      isBarcodeShopMode && activeProduct
-        ? [buildBarcodeShopLabelItem(activeProduct, barcodeShopQuantity)].filter(Boolean)
-        : routeLocked && activeProduct
-        ? buildProductLabelItems({ product: activeProduct, availableOnly })
-        : buildSelectedLabelItems(catalog, selectedQuantities),
-    [catalog, selectedQuantities, routeLocked, activeProduct, availableOnly, isBarcodeShopMode, barcodeShopQuantity]
-  );
-
   const selectedProduct = useMemo(
     () => {
       if (!Number.isFinite(productId)) return activeProduct;
@@ -301,6 +291,24 @@ function BarcodeLabels() {
         return Number(rowProductId) === Number(productId);
       }),
     [allVariantRows, productId]
+  );
+
+  const selectedProductPriceFallbackVariant = useMemo(
+    () =>
+      selectedProductVariants.find((variant) =>
+        Number(variant?.sale_price || variant?.selling_price || variant?.regular_price || variant?.price || variant?.variant_price || 0) > 0
+      ) || selectedProductVariants[0] || null,
+    [selectedProductVariants]
+  );
+
+  const selectedItems = useMemo(
+    () =>
+      isBarcodeShopMode && activeProduct
+        ? [buildBarcodeShopLabelItem(activeProduct, barcodeShopQuantity, selectedProductPriceFallbackVariant)].filter(Boolean)
+        : routeLocked && activeProduct
+        ? buildProductLabelItems({ product: activeProduct, availableOnly })
+        : buildSelectedLabelItems(catalog, selectedQuantities),
+    [catalog, selectedQuantities, routeLocked, activeProduct, availableOnly, isBarcodeShopMode, barcodeShopQuantity, selectedProductPriceFallbackVariant]
   );
 
   console.log("[barcode-shop] mode/productId", { mode, productId });
@@ -406,7 +414,7 @@ function BarcodeLabels() {
     const shopItem =
       normalizedProduct
         ? {
-            ...(buildBarcodeShopLabelItem(normalizedProduct, barcodeShopQuantity) || {}),
+            ...(buildBarcodeShopLabelItem(normalizedProduct, barcodeShopQuantity, selectedProductPriceFallbackVariant) || {}),
             productId: normalizedProduct.id,
             productName: safeText(normalizedProduct.name, t("products.barcodeLabels.product")),
             imageUrl: getProductImage(normalizedProduct),
