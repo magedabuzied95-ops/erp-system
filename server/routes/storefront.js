@@ -15,6 +15,7 @@ import {
   listProducts,
   resolveProductLink,
   listShippingProviders,
+  buildStorefrontHomeFromProducts,
   saveRecentlyViewed,
   saveWishlist,
   searchProducts,
@@ -109,10 +110,43 @@ const publicTenantId = (req) => {
   return Number.isFinite(value) && value > 0 ? value : 1;
 };
 
+const firstSettingValue = (settings = {}, ...keys) => keys.map((key) => settings?.[key]).find((value) => value !== undefined && value !== null) ?? null;
+
+const settingObject = (value) => {
+  if (value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length) return value;
+  return null;
+};
+
+const settingArray = (value) => {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return [];
+};
+
+const configuredHomeFromSettings = (settings = {}) => ({
+  hero: settingObject(firstSettingValue(settings, "homepage_hero", "storefront_homepage_hero", "storefront.homepage_hero")),
+  featured_collections: settingArray(firstSettingValue(settings, "featured_collections", "storefront_featured_collections", "storefront.featured_collections")),
+});
+
+const resolveStorefrontHome = async ({ tenantId, settings }) => {
+  const configured = configuredHomeFromSettings(settings);
+  if (configured.hero && configured.featured_collections.length) {
+    return { ...configured, source: "settings" };
+  }
+  const generated = await buildStorefrontHomeFromProducts({ tenantId, settings });
+  return {
+    ...generated,
+    hero: configured.hero || generated.hero,
+    featured_collections: configured.featured_collections.length ? configured.featured_collections : generated.featured_collections,
+    source: configured.hero || configured.featured_collections.length ? "settings_with_product_fallback" : generated.source,
+  };
+};
+
 const getPublicStorefrontSettings = async (req, res) => {
   try {
-    const settings = await getWebsiteSettings({ tenantId: publicTenantId(req) });
-    return res.json({ success: true, settings });
+    const tenantId = publicTenantId(req);
+    const settings = await getWebsiteSettings({ tenantId });
+    const home = await resolveStorefrontHome({ tenantId, settings });
+    return res.json({ success: true, settings, home });
   } catch (error) {
     console.error("[storefront] settings", {
       requestId: req.id,
@@ -125,14 +159,13 @@ const getPublicStorefrontSettings = async (req, res) => {
 
 const getPublicStorefrontHome = async (req, res) => {
   try {
-    const settings = await getWebsiteSettings({ tenantId: publicTenantId(req) });
+    const tenantId = publicTenantId(req);
+    const settings = await getWebsiteSettings({ tenantId });
+    const home = await resolveStorefrontHome({ tenantId, settings });
     return res.json({
       success: true,
       settings,
-      home: {
-        hero: settings?.homepage_hero || settings?.storefront_homepage_hero || null,
-        featured_collections: settings?.featured_collections || settings?.storefront_featured_collections || [],
-      },
+      home,
     });
   } catch (error) {
     console.error("[storefront] home", {

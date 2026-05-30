@@ -1739,6 +1739,140 @@ const slimProductForList = (product = {}) => ({
   seo_title: product.seo_title,
 });
 
+const productHomeImage = (product = {}) =>
+  firstText(
+    product.image_url,
+    product.product_image_url,
+    product.thumbnail_url,
+    product.photo_url,
+    product.image,
+    Array.isArray(product.gallery_images) ? product.gallery_images[0] : "",
+    Array.isArray(product.variants) ? product.variants.find((variant) => firstText(variant.image_url, variant.primary_image_url))?.image_url : ""
+  );
+
+const productHomePrice = (product = {}) =>
+  roundMoney(product.final_price || product.selling_price || product.regular_price || product.price || product.sale_price);
+
+const productHomeLink = async (tenantId, product = {}) => {
+  try {
+    const link = await resolveStorefrontProductLink({ tenantId, product });
+    return link?.url || link?.path || `/shop/product/${product.slug || product.id}`;
+  } catch {
+    return `/shop/product/${product.slug || product.id}`;
+  }
+};
+
+const productHomeCard = async (tenantId, product = {}) => ({
+  id: product.id,
+  card_id: product.card_id || product.id,
+  slug: product.slug,
+  name: product.name || "",
+  image_url: productHomeImage(product),
+  price: productHomePrice(product),
+  selling_price: roundMoney(product.selling_price || product.price),
+  regular_price: roundMoney(product.regular_price || product.original_price),
+  sale_price: roundMoney(product.sale_price),
+  sale_price_enabled: Boolean(product.sale_price_enabled || product.sale_mode_applied),
+  total_stock: toNumber(product.total_stock),
+  category: product.category || "",
+  gender: product.gender || "",
+  audiences: product.audiences || product.product_audiences || [],
+  product_type: product.product_type || product.productType || "",
+  link: await productHomeLink(tenantId, product),
+});
+
+const homeText = (value = "") => toText(value).toLowerCase();
+
+const homeProductMatches = (product = {}, terms = []) => {
+  const haystack = [
+    product.gender,
+    product.category,
+    product.product_type,
+    product.productType,
+    product.style,
+    product.name,
+    ...(Array.isArray(product.audiences) ? product.audiences : []),
+    ...(Array.isArray(product.product_audiences) ? product.product_audiences : []),
+  ].map(homeText).join(" ");
+  return terms.some((term) => haystack.includes(homeText(term)));
+};
+
+const isHomeSaleProduct = (product = {}) =>
+  Boolean(product.sale_price_enabled || product.sale_mode_applied || (roundMoney(product.sale_price) > 0 && roundMoney(product.sale_price) < roundMoney(product.selling_price || product.price || product.regular_price)));
+
+const homeNewestScore = (product = {}) => {
+  const time = Date.parse(product.created_at || product.updated_at || "");
+  return Number.isFinite(time) ? time : 0;
+};
+
+const uniqueHomeProducts = (products = []) => {
+  const seen = new Set();
+  return products.filter((product) => {
+    const key = String(product.parent_product_id || product.id || product.card_id || "");
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const homeSection = async ({ tenantId, key, title, products, fallback, limit = 8 }) => {
+  const cards = uniqueHomeProducts([...(products || []), ...(fallback || [])])
+    .filter((product) => product?.id && productHomeImage(product))
+    .slice(0, limit);
+  return {
+    key,
+    title,
+    products: await Promise.all(cards.map((product) => productHomeCard(tenantId, product))),
+  };
+};
+
+export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENANT_ID, settings = {} } = {}) => {
+  await ensureStorefrontSchema();
+  await ensureProductVariantImagesSchema();
+  const pricingSettings = normalizeStorefrontPricingSettings(settings || await getWebsiteSettings({ tenantId }));
+  const filters = { gender: [], productType: [], style: [], grade: [], quality: [], size: "", inStock: true };
+  let result = await queryProducts(tenantId, "", "", filters, false, 80, 0);
+  let usedTenantFallback = false;
+  if (!result.rows.length && tenantId !== null) {
+    result = await queryProducts(null, "", "", filters, false, 80, 0);
+    usedTenantFallback = result.rows.length > 0;
+  }
+  const normalized = result.rows.map((row) => normalizeProduct(row, pricingSettings));
+  const hydrated = await scrubInactiveClassifications(await hydrateProductsWithImages(normalized, { compact: true }));
+  const products = uniqueHomeProducts(expandProductsToColorCards(hydrated))
+    .filter((product) => toNumber(product.total_stock) > 0 && productHomeImage(product))
+    .sort((a, b) => homeNewestScore(b) - homeNewestScore(a) || toNumber(b.total_stock) - toNumber(a.total_stock));
+
+  if (!products.length) {
+    return { hero: null, featured_collections: [], source: "empty", product_count: 0, used_tenant_fallback: usedTenantFallback };
+  }
+
+  const latest = products;
+  const lastPiece = products.filter((product) => toNumber(product.total_stock) > 0 && toNumber(product.total_stock) <= 3);
+  const sale = products.filter(isHomeSaleProduct);
+  const men = products.filter((product) => homeProductMatches(product, ["men", "man", "male", "رجالي", "رجال"]));
+  const women = products.filter((product) => homeProductMatches(product, ["women", "woman", "female", "حريمي", "نسائي", "نساء"]));
+  const kids = products.filter((product) => homeProductMatches(product, ["kids", "kid", "children", "child", "أطفال", "اطفال", "ولادي"]));
+  const heroProduct = sale[0] || latest[0];
+  const hero = await productHomeCard(tenantId, heroProduct);
+  const sections = await Promise.all([
+    homeSection({ tenantId, key: "new_arrivals", title: "New arrivals", products: latest, fallback: products }),
+    homeSection({ tenantId, key: "last_piece", title: "Last piece", products: lastPiece, fallback: products }),
+    homeSection({ tenantId, key: "sale", title: "Sale", products: sale, fallback: products }),
+    homeSection({ tenantId, key: "men", title: "Men", products: men, fallback: products }),
+    homeSection({ tenantId, key: "women", title: "Women", products: women, fallback: products }),
+    homeSection({ tenantId, key: "kids", title: "Kids", products: kids, fallback: products }),
+  ]);
+
+  return {
+    hero,
+    featured_collections: sections.filter((section) => section.products.length),
+    source: "products",
+    product_count: products.length,
+    used_tenant_fallback: usedTenantFallback,
+  };
+};
+
 const variantColorNameForCard = (variant = {}) => firstText(variant.color, variant.color_name, variant.colour, variant.name, "Default");
 
 const variantColorKeyForCard = (variant = {}) => {
