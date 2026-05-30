@@ -425,6 +425,7 @@ function PurchaseOrder() {
   const [posting, setPosting] = useState(false);
   const postingRef = useRef(false);
   const purchaseSaveIdRef = useRef("");
+  const lastAutoBulkPricingSignatureRef = useRef("");
   const [supplierModalOpen, setSupplierModalOpen] = useState(false);
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -641,6 +642,20 @@ function PurchaseOrder() {
     }, {});
   }, [products]);
 
+  const cartProductGroups = useMemo(() => bulkProductTargets(items), [items]);
+  const cartProductSignature = useMemo(
+    () => cartProductGroups.map((group) => `${group.product_id || group.product_name}:${group.items.length}`).join("|"),
+    [cartProductGroups]
+  );
+
+  useEffect(() => {
+    if (cartProductGroups.length <= 1) return;
+    if (!cartProductSignature || lastAutoBulkPricingSignatureRef.current === cartProductSignature) return;
+    if (variantSelector || runModal || purchaseQtyModal || supplierModalOpen || productModalOpen || confirmReceivedEditSave) return;
+    lastAutoBulkPricingSignatureRef.current = cartProductSignature;
+    setBulkPriceModal("model-pricing");
+  }, [cartProductGroups.length, cartProductSignature, variantSelector, runModal, purchaseQtyModal, supplierModalOpen, productModalOpen, confirmReceivedEditSave]);
+
   const purchaseQtyLabels = isArabic
     ? {
         button: "استخدم كميات المنتج",
@@ -792,6 +807,36 @@ function PurchaseOrder() {
       toast.success(t(type === "purchase" ? "purchases.create.bulkPurchasePriceApplied" : "purchases.create.bulkSellingPriceApplied"));
     }
     setBulkPriceModal(null);
+    return true;
+  };
+
+  const applyModelPrices = (rows = []) => {
+    const patches = new Map(
+      rows.map((row) => [
+        String(row.product_id || row.product_name || ""),
+        {
+          selling_price: money(row.selling_price),
+          sale_price: row.sale_price === "" ? 0 : money(row.sale_price),
+          wholesale_price: row.wholesale_price === "" ? 0 : money(row.wholesale_price),
+        },
+      ])
+    );
+    if (!patches.size) return false;
+    setItems((prev) =>
+      prev.map((item) => {
+        const patch = patches.get(String(item.product_id || item.product_name || ""));
+        if (!patch) return item;
+        return normalizePurchaseItem({
+          ...item,
+          selling_price: patch.selling_price,
+          regular_price: patch.selling_price,
+          price: patch.selling_price,
+          sale_price: patch.sale_price,
+          wholesale_price: patch.wholesale_price,
+        });
+      })
+    );
+    toast.success(t("purchases.create.bulkSellingPriceApplied"));
     return true;
   };
 
@@ -1538,7 +1583,15 @@ function PurchaseOrder() {
 
       {variantSelector ? <VariantSelector group={variantSelector} onAdd={addProduct} onClose={() => setVariantSelector(null)} /> : null}
       {runModal ? <RunModal mode={runModal.mode} initialProduct={runModal.product} productGroups={groupByProduct(products)} onClose={() => setRunModal(null)} onAdd={addRunItems} /> : null}
-      {bulkPriceModal ? <BulkPriceModal mode={bulkPriceModal} items={items} onClose={() => setBulkPriceModal(null)} onApply={(payload) => applyBulkPrice({ type: bulkPriceModal, ...payload })} /> : null}
+      {bulkPriceModal === "model-pricing" ? (
+        <BulkModelPricingModal
+          items={items}
+          onClose={() => setBulkPriceModal(null)}
+          onApply={applyModelPrices}
+        />
+      ) : bulkPriceModal ? (
+        <BulkPriceModal mode={bulkPriceModal} items={items} onClose={() => setBulkPriceModal(null)} onApply={(payload) => applyBulkPrice({ type: bulkPriceModal, ...payload })} />
+      ) : null}
       {purchaseQtyModal ? <ProductPurchaseQtyModal data={purchaseQtyModal} onClose={() => setPurchaseQtyModal(null)} onApply={() => applyProductPurchaseQty(purchaseQtyModal.group)} /> : null}
       {supplierModalOpen ? <QuickSupplierModal form={supplierForm} setForm={setSupplierForm} saving={supplierSaving} error={supplierError} onClose={() => setSupplierModalOpen(false)} onSubmit={saveSupplierFromOrder} /> : null}
       {productModalOpen ? <QuickProductModal form={productForm} setForm={setProductForm} saving={productSaving} error={productError} onClose={() => setProductModalOpen(false)} onSubmit={createInlineProduct} /> : null}
@@ -2218,6 +2271,187 @@ const bulkNewPrice = (item, mode, method, value) => {
   if (mode === "sale") return resolveBulkSalePrice(item, method, value);
   return money(value);
 };
+
+const priceInputValue = (value) => {
+  const numeric = money(value);
+  return numeric > 0 ? String(numeric) : "";
+};
+
+const summarizeValues = (values, fallback) => {
+  const normalized = uniqueValues(values);
+  if (!normalized.length) return fallback;
+  if (normalized.length <= 3) return normalized.join(", ");
+  return `${normalized.slice(0, 3).join(", ")} +${normalized.length - 3}`;
+};
+
+const modelPricingInitialRows = (items = []) =>
+  bulkProductTargets(items).map((group) => {
+    const first = group.items[0] || {};
+    return {
+      product_id: group.product_id,
+      product_name: group.product_name,
+      colors: uniqueValues(group.items.map((item) => item.color || "Default")),
+      sizes: uniqueValues(group.items.map((item) => item.size || "One size")),
+      variants_count: group.items.length,
+      selling_price: priceInputValue(first.selling_price ?? first.price),
+      sale_price: priceInputValue(first.sale_price),
+      wholesale_price: priceInputValue(first.wholesale_price),
+    };
+  });
+
+const validateModelPricingRow = (row) => {
+  const sellingPrice = Number(row.selling_price);
+  const salePrice = row.sale_price === "" ? null : Number(row.sale_price);
+  const wholesalePrice = row.wholesale_price === "" ? null : Number(row.wholesale_price);
+  if (!Number.isFinite(sellingPrice) || sellingPrice <= 0) return "Selling price must be greater than 0.";
+  if (salePrice !== null && (!Number.isFinite(salePrice) || salePrice <= 0)) return "Sale price must be greater than 0.";
+  if (wholesalePrice !== null && (!Number.isFinite(wholesalePrice) || wholesalePrice <= 0)) return "Wholesale price must be greater than 0.";
+  if (salePrice !== null && salePrice > sellingPrice) return "Sale price should not be greater than selling price.";
+  if (wholesalePrice !== null && wholesalePrice > sellingPrice) return "Wholesale price should not be greater than selling price.";
+  return "";
+};
+
+function BulkModelPricingModal({ items = [], onClose, onApply }) {
+  const { t } = useTranslation();
+  const [rows, setRows] = useState(() => modelPricingInitialRows(items));
+  const [errors, setErrors] = useState({});
+  const productGroups = useMemo(() => bulkProductTargets(items), [items]);
+  const productCount = productGroups.length;
+  const variantsCount = productGroups.reduce((sum, group) => sum + group.items.length, 0);
+  const completedCount = rows.filter((row) => !validateModelPricingRow(row)).length;
+
+  useEffect(() => {
+    setRows((current) => {
+      const currentMap = new Map(current.map((row) => [String(row.product_id || row.product_name || ""), row]));
+      return modelPricingInitialRows(items).map((row) => ({
+        ...row,
+        ...(currentMap.get(String(row.product_id || row.product_name || "")) || {}),
+        colors: row.colors,
+        sizes: row.sizes,
+        variants_count: row.variants_count,
+      }));
+    });
+  }, [items]);
+
+  const setRowField = (key, field, value) => {
+    setRows((current) =>
+      current.map((row) => (String(row.product_id || row.product_name || "") === String(key) ? { ...row, [field]: value } : row))
+    );
+    setErrors((current) => {
+      const next = { ...current };
+      delete next[String(key)];
+      return next;
+    });
+  };
+
+  const validate = () => {
+    const nextErrors = {};
+    rows.forEach((row) => {
+      const error = validateModelPricingRow(row);
+      if (error) nextErrors[String(row.product_id || row.product_name || "")] = error;
+    });
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const apply = () => {
+    if (!validate()) return false;
+    return onApply(rows);
+  };
+
+  const saveAndClose = () => {
+    if (apply()) onClose();
+  };
+
+  return (
+    <Modal eyebrow="Bulk pricing" title="Product model prices" onClose={onClose}>
+      <div className="flex max-h-[82vh] flex-col gap-4">
+        <div className="rounded-3xl border border-cyan-400/25 bg-cyan-400/10 p-4">
+          <div className="text-sm font-black text-white">Set selling, sale, and wholesale prices by product/model.</div>
+          <p className="mt-2 text-sm leading-6 text-zinc-300">
+            Applying prices updates purchase invoice lines locally only. It does not receive stock.
+          </p>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="grid gap-3">
+            {rows.map((row) => {
+              const key = String(row.product_id || row.product_name || "");
+              return (
+                <div key={key} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1.35fr)]">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black text-white">{row.product_name}</div>
+                      <div className="mt-2 grid gap-1.5 text-xs font-semibold text-zinc-400 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">Colors</div>
+                          <div className="mt-1 truncate text-zinc-200">{summarizeValues(row.colors, "Default")}</div>
+                        </div>
+                        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">Sizes</div>
+                          <div className="mt-1 truncate text-zinc-200">{summarizeValues(row.sizes, "One size")}</div>
+                        </div>
+                        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">Variants</div>
+                          <div className="mt-1 text-zinc-200">{row.variants_count}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <ModelPriceField label="Selling price" value={row.selling_price} required onChange={(value) => setRowField(key, "selling_price", value)} />
+                      <ModelPriceField label="Sale price" value={row.sale_price} onChange={(value) => setRowField(key, "sale_price", value)} />
+                      <ModelPriceField label="Wholesale price" value={row.wholesale_price} onChange={(value) => setRowField(key, "wholesale_price", value)} />
+                    </div>
+                  </div>
+                  {errors[key] ? <div className="mt-2 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">{errors[key]}</div> : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="shrink-0 rounded-2xl border border-white/10 bg-zinc-950/95 p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-zinc-400">
+            <span>Products: <b className="text-white">{productCount}</b></span>
+            <span>Variants: <b className="text-white">{variantsCount}</b></span>
+            <span>Completed: <b className="text-emerald-200">{completedCount}</b> / {productCount}</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <button type="button" onClick={apply} className="rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-black transition hover:bg-cyan-300">
+              Apply prices
+            </button>
+            <button type="button" onClick={saveAndClose} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400">
+              Save and close
+            </button>
+            <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+              Close without saving
+            </button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ModelPriceField({ label, value, required = false, onChange }) {
+  return (
+    <label className="rounded-xl border border-white/10 bg-zinc-950/45 px-3 py-2">
+      <div className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">
+        {label}{required ? <span className="text-rose-300"> *</span> : null}
+      </div>
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={required ? "0.00" : "Optional"}
+        className="mt-1 h-9 w-full bg-transparent text-sm font-black text-white outline-none placeholder:text-zinc-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        dir="ltr"
+      />
+    </label>
+  );
+}
 
 function BulkPriceModal({ mode, items = [], onClose, onApply }) {
   const { t } = useTranslation();
