@@ -139,7 +139,20 @@ const corsOptions = {
   },
   credentials: true,
   methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "idempotency-key", "X-Tenant-Id", "x-tenant-id", "X-Request-Id"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "Origin",
+    "Cache-Control",
+    "Pragma",
+    "Expires",
+    "idempotency-key",
+    "X-Tenant-Id",
+    "x-tenant-id",
+    "X-Request-Id",
+  ],
   optionsSuccessStatus: 204,
 };
 
