@@ -1317,6 +1317,12 @@ function OrderDetails() {
                         <Info label={t("orders.shipping.trackingNumber")} value={shipping.tracking_number || t("orders.fallback.notAvailable")} />
                         <Info label="Label" value={shipping.shipping_label_url ? "Available" : t("orders.fallback.notAvailable")} />
                       </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                        <Info label="Street" value={shipping.street_address || t("orders.fallback.notAvailable")} />
+                        <Info label="Building" value={shipping.building_number || t("orders.fallback.notAvailable")} />
+                        <Info label="Floor" value={shipping.floor_number || t("orders.fallback.notAvailable")} />
+                        <Info label="Apartment" value={shipping.apartment_number || t("orders.fallback.notAvailable")} />
+                      </div>
                       {bostaActionError ? (
                         <div className="mt-3 rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 py-2 text-xs font-bold leading-5 text-rose-100">
                           {bostaActionError}

@@ -6952,7 +6952,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     const stepKeys = step === 1
       ? ["full_name", "primary_phone"]
       : step === 2
-        ? ["governorate", "city_area", "detailed_address"]
+        ? ["governorate", "city_area", "detailed_address", "street_address", "building_number"]
         : ["payment_method", "shipping_payment_screenshot"];
     const phone = form.primary_phone.replace(/\s/g, "");
     const composedAddress = [
@@ -6975,6 +6975,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       else if (!form.city_area.trim()) next.city_area = manualCityArea ? sfText("storefront.validation.cityAreaManualRequired", "Enter the city or area") : sfText("storefront.validation.cityAreaRequired", "Choose the city or area");
       if (!form.detailed_address.trim()) next.detailed_address = sfText("storefront.validation.addressRequired", "Enter the full address so the courier can reach you quickly");
       else if (bostaMode && composedAddress.trim().length < 12) next.detailed_address = sfText("storefront.validation.addressRequired", "Enter the full address so the courier can reach you quickly");
+      if (bostaMode && !form.street_address.trim()) next.street_address = sfText("storefront.validation.streetAddressRequired", "Enter the street address");
+      if (bostaMode && !form.building_number.trim()) next.building_number = sfText("storefront.validation.buildingNumberRequired", "Enter the building number");
     }
 
     if (step === 3) {
@@ -7215,10 +7217,18 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
                 </>
               )}
               <TextField label={sfText("storefront.checkout.fullAddress", "Full address")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder", "Street, building number, floor, apartment")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} />
-              <Field label={sfText("storefront.checkout.streetAddress", "Street address")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder", "Street or neighborhood")} value={form.street_address} onChange={(v) => setField("street_address", v)} />
-              <Field label={sfText("storefront.checkout.buildingNumber", "Building number")} placeholder={sfText("storefront.checkout.buildingNumberPlaceholder", "12")} value={form.building_number} onChange={(v) => setField("building_number", v)} />
-              <Field label={sfText("storefront.checkout.floorNumber", "Floor")} placeholder={sfText("storefront.checkout.floorNumberPlaceholder", "3")} value={form.floor_number} onChange={(v) => setField("floor_number", v)} />
-              <Field label={sfText("storefront.checkout.apartmentNumber", "Apartment")} placeholder={sfText("storefront.checkout.apartmentNumberPlaceholder", "7")} value={form.apartment_number} onChange={(v) => setField("apartment_number", v)} />
+              <div className="md:col-span-2 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-white/54">{sfText("storefront.checkout.bostaAddressDetails", "Bosta address details")}</p>
+                  {bostaMode ? <span className="rounded-full bg-cyan-300/15 px-2.5 py-1 text-[10px] font-black text-cyan-100">{sfText("storefront.checkout.requiredForBosta", "Required for Bosta")}</span> : null}
+                </div>
+                <div className="grid gap-2.5 md:grid-cols-4">
+                  <Field label={sfText("storefront.checkout.streetAddress", "Street address")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder", "Street or neighborhood")} value={form.street_address} onChange={(v) => setField("street_address", v)} required={bostaMode} error={errors.street_address} />
+                  <Field label={sfText("storefront.checkout.buildingNumber", "Building number")} placeholder={sfText("storefront.checkout.buildingNumberPlaceholder", "12")} value={form.building_number} onChange={(v) => setField("building_number", v)} required={bostaMode} error={errors.building_number} />
+                  <Field label={sfText("storefront.checkout.floorNumber", "Floor")} placeholder={sfText("storefront.checkout.floorNumberPlaceholder", "3")} value={form.floor_number} onChange={(v) => setField("floor_number", v)} />
+                  <Field label={sfText("storefront.checkout.apartmentNumber", "Apartment")} placeholder={sfText("storefront.checkout.apartmentNumberPlaceholder", "7")} value={form.apartment_number} onChange={(v) => setField("apartment_number", v)} />
+                </div>
+              </div>
               <Field label={sfText("storefront.checkout.landmark", "Landmark")} placeholder={sfText("storefront.checkout.landmarkPlaceholder", "Near...")} value={form.landmark} onChange={(v) => setField("landmark", v)} />
               <TextField label={sfText("storefront.checkout.deliveryNotes", "Delivery notes")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder", "Preferred time or courier note")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} />
             </div>

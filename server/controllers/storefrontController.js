@@ -3224,6 +3224,15 @@ export const createWebsiteOrder = async (req, res) => {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Unsupported shipping method", "shipping_method", { shipping_method: shippingMethod });
     }
+    if (shippingMethod === "bosta") {
+      const missingBostaAddressFields = [];
+      if (!toText(checkout.street_address)) missingBostaAddressFields.push("street_address");
+      if (!toText(checkout.building_number)) missingBostaAddressFields.push("building_number");
+      if (missingBostaAddressFields.length) {
+        await client.query("ROLLBACK");
+        return checkoutValidationResponse(400, "Street address and building number are required for Bosta delivery", missingBostaAddressFields[0], { missing_fields: missingBostaAddressFields });
+      }
+    }
     if (shippingMethod === "store_pickup" && !orderSettings.allowStorePickup) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(403, "Store pickup is disabled", "shipping_method", { shipping_method: shippingMethod });
