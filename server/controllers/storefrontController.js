@@ -1783,22 +1783,20 @@ const productHomeCard = async (tenantId, product = {}) => ({
 
 const homeText = (value = "") => toText(value).toLowerCase();
 
-const homeProductMatches = (product = {}, terms = []) => {
+const homeAudienceMatches = (product = {}, terms = []) => {
   const haystack = [
     product.gender,
-    product.category,
-    product.product_type,
-    product.productType,
-    product.style,
-    product.name,
     ...(Array.isArray(product.audiences) ? product.audiences : []),
     ...(Array.isArray(product.product_audiences) ? product.product_audiences : []),
   ].map(homeText).join(" ");
   return terms.some((term) => haystack.includes(homeText(term)));
 };
 
-const isHomeSaleProduct = (product = {}) =>
-  Boolean(product.sale_price_enabled || product.sale_mode_applied || (roundMoney(product.sale_price) > 0 && roundMoney(product.sale_price) < roundMoney(product.selling_price || product.price || product.regular_price)));
+const isHomeSaleProduct = (product = {}) => {
+  const salePrice = roundMoney(product.sale_price);
+  const sellingPrice = roundMoney(product.selling_price || product.price || product.regular_price);
+  return salePrice > 0 && sellingPrice > 0 && salePrice < sellingPrice && Boolean(product.sale_price_enabled || product.sale_mode_applied);
+};
 
 const homeNewestScore = (product = {}) => {
   const time = Date.parse(product.created_at || product.updated_at || "");
@@ -1815,8 +1813,24 @@ const uniqueHomeProducts = (products = []) => {
   });
 };
 
-const homeSection = async ({ tenantId, key, title, products, fallback, limit = 8 }) => {
-  const cards = uniqueHomeProducts([...(products || []), ...(fallback || [])])
+const markHomeProductUsage = (usage, products = []) => {
+  for (const product of products) {
+    const identity = String(product.parent_product_id || product.id || product.card_id || "");
+    if (!identity) continue;
+    usage.set(identity, (usage.get(identity) || 0) + 1);
+  }
+};
+
+const capHomeProductUsage = (usage, products = [], limit = 8, maxUses = 2) =>
+  uniqueHomeProducts(products)
+    .filter((product) => {
+      const identity = String(product.parent_product_id || product.id || product.card_id || "");
+      return identity && (usage.get(identity) || 0) < maxUses;
+    })
+    .slice(0, limit);
+
+const homeSection = async ({ tenantId, key, title, products, limit = 8 }) => {
+  const cards = uniqueHomeProducts(products || [])
     .filter((product) => product?.id && productHomeImage(product))
     .slice(0, limit);
   return {
@@ -1850,19 +1864,27 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
   const latest = products;
   const lastPiece = products.filter((product) => toNumber(product.total_stock) > 0 && toNumber(product.total_stock) <= 3);
   const sale = products.filter(isHomeSaleProduct);
-  const men = products.filter((product) => homeProductMatches(product, ["men", "man", "male", "رجالي", "رجال"]));
-  const women = products.filter((product) => homeProductMatches(product, ["women", "woman", "female", "حريمي", "نسائي", "نساء"]));
-  const kids = products.filter((product) => homeProductMatches(product, ["kids", "kid", "children", "child", "أطفال", "اطفال", "ولادي"]));
+  const men = products.filter((product) => homeAudienceMatches(product, ["men", "man", "male", "رجالي", "رجال"]));
+  const women = products.filter((product) => homeAudienceMatches(product, ["women", "woman", "female", "حريمي", "نسائي", "نساء"]));
+  const kids = products.filter((product) => homeAudienceMatches(product, ["kids", "kid", "children", "child", "أطفال", "اطفال", "ولادي"]));
   const heroProduct = sale[0] || latest[0];
   const hero = await productHomeCard(tenantId, heroProduct);
-  const sections = await Promise.all([
-    homeSection({ tenantId, key: "new_arrivals", title: "New arrivals", products: latest, fallback: products }),
-    homeSection({ tenantId, key: "last_piece", title: "Last piece", products: lastPiece, fallback: products }),
-    homeSection({ tenantId, key: "sale", title: "Sale", products: sale, fallback: products }),
-    homeSection({ tenantId, key: "men", title: "Men", products: men, fallback: products }),
-    homeSection({ tenantId, key: "women", title: "Women", products: women, fallback: products }),
-    homeSection({ tenantId, key: "kids", title: "Kids", products: kids, fallback: products }),
-  ]);
+  const usage = new Map();
+  const sectionSpecs = [
+    { key: "new_arrivals", title: "New arrivals", products: latest },
+    { key: "last_piece", title: "Last piece", products: lastPiece },
+    { key: "sale", title: "Sale", products: sale },
+    { key: "men", title: "Men", products: men },
+    { key: "women", title: "Women", products: women },
+    { key: "kids", title: "Kids", products: kids },
+  ];
+  const sections = [];
+  for (const spec of sectionSpecs) {
+    const sectionProducts = capHomeProductUsage(usage, spec.products, 8, 2);
+    if (!sectionProducts.length) continue;
+    markHomeProductUsage(usage, sectionProducts);
+    sections.push(await homeSection({ tenantId, key: spec.key, title: spec.title, products: sectionProducts }));
+  }
 
   return {
     hero,
