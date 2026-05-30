@@ -3740,28 +3740,28 @@ function HomePage(props) {
 
   return (
     <div className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0">
-      <section className="mx-auto max-w-[1200px] px-4 pb-2 pt-3 md:pt-4">
+      <section className="mx-auto max-w-[1200px] px-4 pb-1 pt-2 md:pt-3">
         <div
-          className="relative overflow-hidden rounded-[2rem] text-white shadow-[0_32px_100px_rgba(15,23,42,0.32)] md:rounded-[2.6rem]"
+          className="relative overflow-hidden rounded-[1.65rem] text-white shadow-[0_24px_72px_rgba(15,23,42,0.30)] md:rounded-[2.15rem]"
           style={{ background: heroTheme.gradient }}
           onMouseEnter={() => setHeroPaused(true)}
           onMouseLeave={() => setHeroPaused(false)}
         >
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.18),transparent_30%),linear-gradient(120deg,rgba(255,255,255,0.08),transparent_46%,rgba(0,0,0,0.24))]" />
-          <div className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full blur-3xl md:h-[30rem] md:w-[30rem]" style={{ backgroundColor: heroTheme.glow }} />
-          <div className="pointer-events-none absolute bottom-0 right-0 h-40 w-40 rounded-full bg-black/20 blur-3xl md:h-80 md:w-80" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_22%_22%,rgba(255,255,255,0.14),transparent_26%),linear-gradient(120deg,rgba(255,255,255,0.06),transparent_40%,rgba(0,0,0,0.30))]" />
+          <div className="pointer-events-none absolute -left-20 top-8 h-56 w-56 rounded-full blur-3xl md:h-80 md:w-80" style={{ backgroundColor: heroTheme.glow }} />
+          <div className="pointer-events-none absolute bottom-0 right-0 h-32 w-32 rounded-full bg-black/24 blur-3xl md:h-60 md:w-60" />
 
-          <div className="relative grid min-h-[520px] gap-2 p-4 sm:p-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:[direction:ltr] lg:p-9 xl:p-10">
-            <div className="relative order-1 flex min-h-[310px] items-center justify-center lg:min-h-[520px] lg:[direction:rtl]">
-              <div className="absolute left-1/2 top-1/2 h-52 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/14 blur-3xl md:h-72 md:w-[30rem]" />
-              <div className="absolute bottom-10 left-1/2 h-7 w-64 -translate-x-1/2 rounded-[100%] bg-black/36 blur-xl md:w-96" />
+          <div className="relative grid min-h-[360px] gap-0 p-3 sm:p-4 lg:grid-cols-[1.25fr_0.75fr] lg:items-center lg:[direction:ltr] lg:p-6 xl:p-7">
+            <div className="relative order-1 flex min-h-[230px] items-center justify-center lg:min-h-[360px] lg:[direction:rtl]">
+              <div className="absolute left-1/2 top-1/2 h-48 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/12 blur-3xl md:h-64 md:w-[30rem]" />
+              <div className="absolute bottom-6 left-1/2 h-6 w-64 -translate-x-1/2 rounded-[100%] bg-black/38 blur-xl md:w-[28rem]" />
               {heroImage ? (
-                <Link to={heroDetailsUrl} className="group/hero relative z-10 block w-full max-w-[620px] transition duration-500 hover:scale-[1.025]" aria-label={heroProduct.name || "Hero product"}>
+                <Link to={heroDetailsUrl} className="group/hero relative z-10 block w-full max-w-[700px] transition duration-500 hover:scale-[1.025]" aria-label={heroProduct.name || "Hero product"}>
                   <img
                     key={heroProduct.id || heroImage}
                     src={imageFor(heroImage)}
                     alt={heroProduct.name || ""}
-                    className="mx-auto max-h-[360px] w-full object-contain drop-shadow-[0_42px_38px_rgba(0,0,0,0.42)] transition duration-700 ease-out animate-[sfFloat_7s_ease-in-out_infinite] group-hover/hero:-rotate-2 group-hover/hero:scale-[1.04] md:max-h-[520px]"
+                    className="mx-auto max-h-[310px] w-full object-contain drop-shadow-[0_34px_34px_rgba(0,0,0,0.44)] transition duration-700 ease-out animate-[sfFloat_7s_ease-in-out_infinite] group-hover/hero:-rotate-2 group-hover/hero:scale-[1.045] md:max-h-[430px]"
                     loading="eager"
                     decoding="async"
                     fetchPriority="high"
@@ -3770,64 +3770,32 @@ function HomePage(props) {
                   />
                 </Link>
               ) : storefrontHome.loading ? (
-                <div className="relative z-10 h-72 w-full max-w-lg animate-pulse rounded-[2rem] border border-white/10 bg-white/8 md:h-[30rem]" />
+                <div className="relative z-10 h-60 w-full max-w-lg animate-pulse rounded-[1.5rem] border border-white/10 bg-white/8 md:h-80" />
               ) : null}
             </div>
 
-            <div className="order-2 flex flex-col justify-center py-4 lg:[direction:rtl]">
+            <div className="order-2 flex flex-col justify-center py-3 lg:[direction:rtl]">
               <div className="inline-flex w-max items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-white/86 backdrop-blur">
                 <Sparkles className="h-4 w-4" style={{ color: heroTheme.accent }} />
                 {t("storefront.home.newArrival", "New Arrival")}
               </div>
-              <h1 key={`title-${heroProduct.id || heroIndex}`} className="mt-4 max-w-xl text-4xl font-black leading-[1.02] tracking-normal text-white animate-[sfFadeUp_420ms_ease-out_both] md:text-6xl xl:text-7xl">
+              <h1 key={`title-${heroProduct.id || heroIndex}`} className="mt-3 max-w-xl text-3xl font-black leading-[1.03] tracking-normal text-white animate-[sfFadeUp_420ms_ease-out_both] md:text-5xl xl:text-6xl">
                 {heroProduct.name || ""}
               </h1>
-              {heroSubtitle ? (
-                <p className="mt-4 line-clamp-2 max-w-lg text-sm font-semibold leading-7 text-white/72 md:text-base">
-                  {heroSubtitle}
-                </p>
-              ) : null}
-              <div className="mt-5 flex flex-wrap items-end gap-3">
+              <div className="mt-4 flex flex-wrap items-end gap-3">
                 <div className="text-3xl font-black leading-none md:text-4xl">{heroPrice ? money(heroPrice) : "—"}</div>
-                <div className="rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[11px] font-black text-white/74 backdrop-blur">
-                  {heroStockText}
-                </div>
               </div>
 
-              <div key={`sizes-${heroProduct.id || heroIndex}`} className="mt-5 flex min-h-9 flex-wrap gap-2">
-                {heroSizes.visible.length ? heroSizes.visible.map((size, index) => (
-                  <span
-                    key={size}
-                    className="rounded-full border border-white/14 bg-white/10 px-3.5 py-2 text-xs font-black text-white/88 shadow-sm backdrop-blur animate-[sfFadeUp_420ms_ease-out_both]"
-                    style={{ animationDelay: `${index * 55}ms` }}
-                  >
-                    {size}
-                  </span>
-                )) : (
-                  <span className="rounded-full border border-white/14 bg-white/10 px-3.5 py-2 text-xs font-black text-white/68 backdrop-blur">
-                    {t("storefront.products.sizesInsideProduct", "Sizes inside product")}
-                  </span>
-                )}
-                {heroSizes.extra ? (
-                  <span className="rounded-full border border-white/14 bg-white/10 px-3.5 py-2 text-xs font-black text-white/88 backdrop-blur">
-                    +{heroSizes.extra}
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="mt-7 flex flex-wrap gap-3">
+              <div className="mt-5 flex flex-wrap gap-3">
                 <Link to={heroDetailsUrl} className="sf-primary-cta inline-flex min-h-12 items-center justify-center rounded-full bg-white px-7 py-3 text-sm font-black text-stone-950 shadow-[0_18px_45px_rgba(255,255,255,0.18)] transition hover:-translate-y-0.5 hover:bg-[#f8fafc] active:scale-[0.98]">
                   {t("storefront.common.shopNow", "Shop Now")}
-                </Link>
-                <Link to={heroDetailsUrl} className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/24 bg-white/8 px-7 py-3 text-sm font-black text-white backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/14 active:scale-[0.98]">
-                  {t("storefront.products.viewSizes", "View Sizes")}
                 </Link>
               </div>
             </div>
           </div>
 
           {heroProducts.length > 1 ? (
-            <div className="relative flex items-stretch gap-2 overflow-x-auto px-4 pb-4 sm:px-6 lg:px-9 xl:px-10">
+            <div className="relative flex items-stretch gap-2 overflow-x-auto px-3 pb-3 sm:px-4 lg:px-6 xl:px-7">
               {heroProducts.map((product, index) => {
                 const variant = firstDisplayVariant(product.variants || []);
                 const active = index === heroIndex;
@@ -3836,13 +3804,13 @@ function HomePage(props) {
                     key={product.id || index}
                     type="button"
                     onClick={() => setHeroIndex(index)}
-                    className={`group flex h-[68px] min-w-[76px] shrink-0 items-center gap-3 rounded-2xl border px-2.5 text-start backdrop-blur transition hover:-translate-y-0.5 active:scale-[0.98] sm:min-w-[190px] ${
+                    className={`group flex h-[58px] min-w-[70px] shrink-0 items-center gap-2.5 rounded-2xl border px-2.5 text-start backdrop-blur transition hover:-translate-y-0.5 active:scale-[0.98] sm:min-w-[180px] ${
                       active ? "border-white/40 bg-white/18 text-white" : "border-white/10 bg-white/7 text-white/68 hover:bg-white/12"
                     }`}
                     aria-label={product.name || `Hero ${index + 1}`}
                   >
-                    <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/12">
-                      <img src={imageFor(displayImageForProduct(product, variant))} alt="" className="h-full w-full object-contain p-1.5" loading="lazy" decoding="async" width="44" height="44" />
+                    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/12">
+                      <img src={imageFor(displayImageForProduct(product, variant))} alt="" className="h-full w-full object-contain p-1.5" loading="lazy" decoding="async" width="40" height="40" />
                     </span>
                     <span className="hidden max-w-[9rem] min-w-0 sm:block">
                       <span className="block truncate text-xs font-black">{product.name}</span>
@@ -6829,7 +6797,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       return;
     }
     setSubmitting(true);
-    let requestDebugPayload = null;
     try {
       const cleanPhone = form.primary_phone.replace(/\s/g, "");
       const paymentMethod = normalizeCheckoutPaymentMethod(form.payment_method);
@@ -6857,24 +6824,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
         shipping_provider_address: shippingProviderAddress,
         shipping_payment_method: shippingPaymentMethod,
       };
-      requestDebugPayload = {
-        checkout: checkoutPayload,
-        items: pricedCart.map((item) => ({
-          product_id: item.product_id,
-          productId: item.productId,
-          variant_id: item.variant_id,
-          variantId: item.variantId,
-          quantity: item.quantity,
-          price: item.price,
-          lineId: item.lineId,
-        })),
-        delivery_fee: deliveryFee,
-        discount,
-        has_shipping_payment_screenshot: Boolean(shippingPaymentFile),
-        shipping_payment_screenshot: shippingPaymentFile
-          ? { name: shippingPaymentFile.name, type: shippingPaymentFile.type, size: shippingPaymentFile.size }
-          : null,
-      };
       const requestBody = shippingPaymentFile
         ? (() => {
             const formData = new FormData();
@@ -6891,9 +6840,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
             delivery_fee: deliveryFee,
             discount,
       };
-      if (storefrontDebugEnabled()) {
-        console.log("[storefront-checkout-submit-debug]", JSON.stringify(requestDebugPayload, null, 2));
-      }
       const data = await api.post("/storefront/checkout", requestBody);
       const successPayload = { order: data.order, items: data.items || pricedCart, customer: { full_name: form.full_name, phone: cleanPhone }, checkout: { ...checkoutPayload, shipping_payment_method: shippingPaymentMethod } };
       const publicNumber = displayOrderNumber(data.order);
@@ -6907,14 +6853,13 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       navigate(`/shop/success/${encodeURIComponent(publicNumber)}?phone=${encodeURIComponent(cleanPhone)}`, { state: successPayload });
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.error("[storefront-checkout-error]", JSON.stringify({
+        console.error("[storefront-checkout-error]", {
           message: error?.responseBody?.message || error?.message,
           field: error?.responseBody?.field || null,
           details: error?.responseBody?.details || null,
           status: error?.status,
           responseData: error?.responseBody || null,
-          payload: requestDebugPayload,
-        }, null, 2));
+        });
       }
       const backendMessage = error?.responseBody?.message || error?.message;
       toast.error(backendMessage || sfText("storefront.toasts.checkoutFailed", "Something went wrong. Try again or contact us on WhatsApp."));
