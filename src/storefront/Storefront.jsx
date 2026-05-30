@@ -3839,14 +3839,9 @@ function HomePage(props) {
         ) : null}
       </section>
       {hasHomeCollections ? homeCollections.map((collection) => (
-        <ProductRail
+        <HomeCollectionRail
           key={collection.key || collection.title}
-          title={collection.title}
-          subtitle={collection.subtitle}
-          loading={storefrontHome.loading && !collection.products.length}
-          products={collection.products}
-          railType={collection.key || "default"}
-          {...props}
+          collection={collection}
         />
       )) : (
         <ProductRail title={t("storefront.home.bestsellers", "Best sellers")} subtitle={t("storefront.home.bestsellersSubtitle", "Best sellers this week")} loading={loading || storefrontHome.loading} products={best} railType="bestseller" featuredFirst {...props} />
@@ -3860,6 +3855,50 @@ function HomePage(props) {
       <Reviews />
       <LastPieceFinder open={lastPieceOpen} onClose={() => setLastPieceOpen(false)} />
     </div>
+  );
+}
+
+function HomeCollectionRail({ collection = {} }) {
+  const { t } = useTranslation();
+  const products = Array.isArray(collection.products) ? collection.products.filter((product) => product?.id && product?.image_url) : [];
+  if (!products.length) return null;
+
+  return (
+    <section className="mx-auto max-w-[1200px] px-4 py-2 md:py-4">
+      <div className="mb-2 flex items-end justify-between gap-3 text-right md:mb-4 md:gap-4">
+        <div className="min-w-0">
+          <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#7c3aed] dark:text-[#d8b4fe] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{t("storefront.common.shopNow", "Shop Now")}</div>
+          <h2 className="text-[1.25rem] font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-3xl">{collection.title}</h2>
+          {collection.subtitle ? <p className="mt-0.5 text-[11px] font-bold text-stone-500 dark:text-stone-400 md:mt-1 md:text-sm">{collection.subtitle}</p> : null}
+          <div className="mt-1 h-0.5 w-10 rounded-full bg-gradient-to-l from-[#7c3aed] to-[#d8b4fe] md:mt-1.5 md:h-1 md:w-14" />
+        </div>
+        <Link to="/shop/products" className="mb-0.5 inline-flex min-h-8 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 shadow-[0_10px_26px_rgba(39,20,75,0.07)] transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:text-[#6d28d9] active:scale-[0.98] md:mb-1 md:min-h-10 md:px-5 md:py-2 md:text-xs dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+          {t("common.viewAll", "View all")}
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {products.slice(0, 10).map((product, index) => (
+          <Link
+            key={product.card_id || product.id || index}
+            to={product.link || productUrl(product)}
+            className="group/product min-w-0 overflow-hidden rounded-[1.1rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(250,248,244,0.9)_48%,rgba(245,241,234,0.78))] shadow-[0_10px_28px_rgba(39,20,75,0.06),inset_0_1px_0_rgba(255,255,255,0.82)] ring-1 ring-stone-200/60 transition duration-300 hover:-translate-y-1.5 hover:border-[#a78bfa]/40 hover:ring-[#7c3aed]/30 hover:shadow-[0_20px_58px_rgba(39,20,75,0.15)] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.92),rgba(11,16,32,0.9)_52%,rgba(8,13,25,0.96))] dark:ring-white/[0.05]"
+          >
+            <div className="relative aspect-[1.14/1] overflow-hidden bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.16),transparent_30%),linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] p-2 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.12),transparent_30%),linear-gradient(180deg,#101426_0%,#0b1020_100%)]">
+              <img src={imageFor(product.image_url)} alt={product.name || ""} className="h-full w-full rounded-[0.9rem] object-contain transition duration-500 group-hover/product:-translate-y-1 group-hover/product:scale-[1.07]" loading="lazy" decoding="async" width="360" height="360" />
+              {product.sale_price_enabled ? (
+                <span className="absolute right-2 top-2 rounded-full border border-[#7c3aed]/15 bg-white/95 px-2 py-1 text-[9px] font-black leading-none text-[#6d28d9] shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#0b1020] dark:text-[#d8b4fe]">
+                  {t("storefront.nav.sale", "Sale")}
+                </span>
+              ) : null}
+            </div>
+            <div className="p-2 pt-1.5 text-right">
+              <h3 className="line-clamp-2 min-h-8 text-[11.5px] font-black leading-4 text-stone-950 dark:text-stone-100">{product.name}</h3>
+              <div className="mt-1.5 text-[15px] font-black text-stone-950 dark:text-white">{money(product.price || product.selling_price || 0)}</div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
