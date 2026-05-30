@@ -1,4 +1,4 @@
-const CACHE_NAME = "employee-portal-shell-v1";
+const CACHE_NAME = "employee-portal-shell-v2";
 const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",
@@ -29,7 +29,7 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: "no-store" })
         .then((response) => {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put("/", copy));
@@ -37,6 +37,11 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(() => caches.match("/") || caches.match("/index.html"))
     );
+    return;
+  }
+
+  if (url.pathname.startsWith("/assets/") && /\.(js|mjs)$/i.test(url.pathname)) {
+    event.respondWith(fetch(request, { cache: "no-store" }));
     return;
   }
 

@@ -1,4 +1,26 @@
 import React from "react";
+import {
+  hasChunkReloadAttempted,
+  isChunkLoadError,
+  recoverFromChunkLoadError,
+} from "../utils/chunkLoadRecovery";
+
+function ChunkReloadFallback() {
+  return (
+    <div dir="rtl" className="flex min-h-screen items-center justify-center bg-stone-950 px-4 text-white">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.06] p-6 text-center shadow-2xl">
+        <h1 className="text-2xl font-black">تم تحديث الموقع، برجاء إعادة تحميل الصفحة</h1>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-5 rounded-full bg-white px-5 py-3 text-sm font-black text-stone-950"
+        >
+          إعادة تحميل
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default class DebugErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,12 +36,17 @@ export default class DebugErrorBoundary extends React.Component {
     console.error("[DebugErrorBoundary] error:", error);
     console.error("[DebugErrorBoundary] componentStack:", info?.componentStack);
     this.setState({ info });
+    recoverFromChunkLoadError(error);
   }
 
   render() {
     const title = this.props.title || "This screen crashed";
 
     if (this.state.error) {
+      if (isChunkLoadError(this.state.error) && hasChunkReloadAttempted()) {
+        return <ChunkReloadFallback />;
+      }
+
       return (
         <div className="m-6 rounded-2xl border border-red-500/40 bg-red-950/40 p-6 text-red-100">
           <h1 className="text-xl font-bold">{title}</h1>
