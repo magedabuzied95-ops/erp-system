@@ -203,14 +203,17 @@ const imageSearchUnderstandingSchema = {
     "brand_guess",
     "model_family",
     "model_guess",
+    "shoe_type",
     "colors",
     "secondary_colors",
     "materials",
     "sole_shape",
+    "logo_position",
     "silhouette",
     "category",
     "gender_style",
     "features",
+    "notable_features",
     "english_keywords",
     "arabic_keywords",
     "field_confidence",
@@ -221,6 +224,7 @@ const imageSearchUnderstandingSchema = {
     brand_guess: { type: "string" },
     model_family: { type: "string" },
     model_guess: { type: "string" },
+    shoe_type: { type: "string" },
     colors: {
       type: "array",
       items: { type: "string" },
@@ -234,10 +238,15 @@ const imageSearchUnderstandingSchema = {
       items: { type: "string" },
     },
     sole_shape: { type: "string" },
+    logo_position: { type: "string" },
     silhouette: { type: "string" },
     category: { type: "string" },
     gender_style: { type: "string" },
     features: {
+      type: "array",
+      items: { type: "string" },
+    },
+    notable_features: {
       type: "array",
       items: { type: "string" },
     },
@@ -257,9 +266,11 @@ const imageSearchUnderstandingSchema = {
         "brand_guess",
         "model_family",
         "model_guess",
+        "shoe_type",
         "colors",
         "materials",
         "sole_shape",
+        "logo_position",
         "silhouette",
         "category",
         "gender_style",
@@ -270,9 +281,11 @@ const imageSearchUnderstandingSchema = {
         brand_guess: { type: "number", minimum: 0, maximum: 1 },
         model_family: { type: "number", minimum: 0, maximum: 1 },
         model_guess: { type: "number", minimum: 0, maximum: 1 },
+        shoe_type: { type: "number", minimum: 0, maximum: 1 },
         colors: { type: "number", minimum: 0, maximum: 1 },
         materials: { type: "number", minimum: 0, maximum: 1 },
         sole_shape: { type: "number", minimum: 0, maximum: 1 },
+        logo_position: { type: "number", minimum: 0, maximum: 1 },
         silhouette: { type: "number", minimum: 0, maximum: 1 },
         category: { type: "number", minimum: 0, maximum: 1 },
         gender_style: { type: "number", minimum: 0, maximum: 1 },
@@ -425,6 +438,7 @@ const normalizeImageSearchUnderstanding = (payload = {}) => {
   const secondaryColors = normalizeVisionList(detected.secondary_colors || detected.accent_colors || []);
   const materials = normalizeVisionList(detected.materials || detected.material || []);
   const features = normalizeVisionList(detected.features || detected.distinctive_features || detected.visual_features, 12);
+  const notableFeatures = normalizeVisionList(detected.notable_features || detected.notable_visual_features || features, 12);
   const englishKeywords = normalizeVisionList(detected.english_keywords || detected.search_keywords || detected.model_keywords || likelyModel, 12);
   const arabicKeywords = normalizeVisionList(detected.arabic_keywords || [], 12);
   const silhouetteStyle = toText(detected.silhouette || detected.silhouette_style || detected.style).slice(0, 140);
@@ -435,6 +449,7 @@ const normalizeImageSearchUnderstanding = (payload = {}) => {
   return {
     detected: {
       product_type: toText(detected.product_type).slice(0, 80),
+      shoe_type: toText(detected.shoe_type || detected.product_type || detected.category).slice(0, 80),
       likely_model: likelyModel,
       model_guess: likelyModel,
       model_family: modelFamily,
@@ -448,9 +463,11 @@ const normalizeImageSearchUnderstanding = (payload = {}) => {
       silhouette: silhouetteStyle,
       high_top_low_top: highTopLowTop,
       sole_shape: toText(detected.sole_shape || detected.outsole_shape || "").slice(0, 120),
+      logo_position: toText(detected.logo_position || detected.visible_logo_position || "").slice(0, 120),
       materials,
       distinctive_features: features,
       features,
+      notable_features: notableFeatures,
       english_keywords: englishKeywords,
       arabic_keywords: arabicKeywords,
       field_confidence: fieldConfidence,
@@ -528,6 +545,7 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
             "Analyze the customer-uploaded product image for storefront product discovery.",
             "Return JSON only, with exactly the schema fields requested. Do not wrap the JSON in text.",
             "Extract every useful visual shopping detail: product_type, visible brand/logo guess, model family, exact model guess, colors, secondary colors, material, sole shape, silhouette, category, gender style if obvious, distinctive features, English keywords, Arabic keywords, and confidence per field.",
+            "For sneakers always separate: brand_guess, model_family, shoe_type, silhouette, primary colors, secondary colors, sole_shape, logo_position, notable_features, and overall confidence.",
             "Use empty strings or empty arrays when a field is not visible. Never invent certainty.",
             "Classify sneaker silhouette explicitly when visible: high-top, low-top, running/trail, basketball, skate/dunk style, chunky sole, slim sole, low profile sole.",
             "Extract side-panel features when visible: side graphic/pattern, black swoosh or side stripe, white base, black heel/toe accents, low profile sole.",

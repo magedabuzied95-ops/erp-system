@@ -90,6 +90,9 @@ const MORE_IMAGES_EMPTY_REPLY = "مفيش صور ألوان أكتر واضحة 
 const VISUAL_NO_STRONG_MATCH_REPLY = "مش لاقي نفس الموديل بالظبط\nبس دي أقرب موديلات شبهه.";
 const HOT_LEAD_INSIGHT = "عميل قريب جدًا من الشراء";
 const CHECKOUT_INFO_COLLECTION_REPLY = "\u062a\u0645\u0627\u0645  \u0647\u062c\u0647\u0632\u0644\u0643 \u0627\u0644\u0637\u0644\u0628.\n\u0627\u0628\u0639\u062a\u0644\u064a \u0627\u0644\u0627\u0633\u0645 \u0648\u0631\u0642\u0645 \u0627\u0644\u0645\u0648\u0628\u0627\u064a\u0644 \u0648\u0627\u0644\u0639\u0646\u0648\u0627\u0646.";
+const VISUAL_CLARIFICATION_REPLY = "\u0645\u0634 \u0642\u0627\u062f\u0631 \u0623\u062d\u062f\u062f \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0628\u062f\u0642\u0629 \u0645\u0646 \u0627\u0644\u0635\u0648\u0631\u0629 \u062f\u064a.\n\u0645\u0645\u0643\u0646 \u062a\u0628\u0639\u062a \u0635\u0648\u0631\u0629 \u0623\u0648\u0636\u062d \u0645\u0646 \u0627\u0644\u062c\u0646\u0628 \u0623\u0648 \u0627\u0633\u0645 \u0627\u0644\u0645\u0648\u062f\u064a\u0644\u061f";
+const VISUAL_CLOSE_MATCH_REPLY = "\u0645\u0634 \u0646\u0641\u0633 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0628\u0627\u0644\u0638\u0628\u0637\u060c \u0628\u0633 \u062f\u064a \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647\u0647 \u0639\u0646\u062f\u0646\u0627.";
+const MULTIPLE_PRODUCT_CLARIFICATION_REPLY = "\u0623\u0646\u0647\u064a \u0648\u0627\u062d\u062f \u0641\u064a\u0647\u0645\u061f \u0627\u0644\u0623\u0648\u0644 \u0648\u0644\u0627 \u0627\u0644\u062a\u0627\u0646\u064a\u061f";
 const LOW_STOCK_THRESHOLD = 2;
 const HOT_LEAD_THRESHOLD = 65;
 const MAX_VISUAL_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -3175,9 +3178,9 @@ const rememberLastProductCards = ({ conversationId, productCards = [] } = {}) =>
     lastProductCard: cards[0],
     viewedImageUrls: [...viewedImageUrls],
     viewedProductIds: [...viewedProductIds],
-    selectedProductId: current.selectedProductId || cards[0]?.product_id || null,
-    selectedVariantId: current.selectedVariantId || cards[0]?.variant_id || null,
-    selectedColor: current.selectedColor || cards[0]?.color || "",
+    selectedProductId: current.selectedProductId || (cards.length === 1 ? cards[0]?.product_id || null : null),
+    selectedVariantId: current.selectedVariantId || (cards.length === 1 ? cards[0]?.variant_id || null : null),
+    selectedColor: current.selectedColor || (cards.length === 1 ? cards[0]?.color || "" : ""),
     checkoutStage: checkoutStageAtLeast(current.checkoutStage, "size_selected")
       ? current.checkoutStage
       : "product_selected",
@@ -3393,6 +3396,131 @@ const visualScoreBreakdown = ({ product = {}, query = "", baseScore = 0 } = {}) 
   if (queryInfo.hasLowTop && !productLow) breakdown.penalties -= 0.2;
   breakdown.final_score = Math.max(0, Math.min(1, breakdown.base_score + breakdown.silhouette_score + breakdown.category_score + breakdown.graphic_pattern_score + breakdown.color_score + breakdown.brand_score + breakdown.penalties));
   return breakdown;
+};
+
+const listTokens = (...items) => [
+  ...new Set(
+    items
+      .flatMap((item) => Array.isArray(item) ? item : [item])
+      .map(text)
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .replace(/[^a-z0-9\u0600-\u06FF]+/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length > 1)
+  ),
+];
+
+const hasAnyToken = (blob = "", tokensList = []) => {
+  const normalized = normalizedSearchText(blob);
+  return tokensList.some((token) => token && normalized.includes(normalizedSearchText(token)));
+};
+
+const visualAnalysisFromUnderstanding = (understanding = {}) => {
+  const detected = understanding?.detected || {};
+  return {
+    brand: text(detected.brand_guess || detected.brand_family || detected.brand),
+    modelFamily: text(detected.model_family || detected.likely_model || detected.model_guess),
+    shoeType: text(detected.shoe_type || detected.product_type || detected.category),
+    silhouette: text(detected.silhouette_style || detected.silhouette || detected.high_top_low_top),
+    primaryColors: Array.isArray(detected.main_colors) ? detected.main_colors : detected.colors || [],
+    secondaryColors: Array.isArray(detected.secondary_colors) ? detected.secondary_colors : [],
+    soleType: text(detected.sole_shape),
+    logoPosition: text(detected.logo_position),
+    notableFeatures: [
+      ...(Array.isArray(detected.notable_features) ? detected.notable_features : []),
+      ...(Array.isArray(detected.distinctive_features) ? detected.distinctive_features : []),
+      ...(Array.isArray(detected.features) ? detected.features : []),
+    ].map(text).filter(Boolean).slice(0, 12),
+    confidence: Math.max(0, Math.min(100, Number(understanding?.confidence || detected.confidence || 0) * 100)),
+    raw: detected,
+  };
+};
+
+const strictVisualScoreProduct = ({ product = {}, analysis = {}, indexedScore = 0 } = {}) => {
+  const blob = productVisualText(product);
+  const brandTokens = listTokens(analysis.brand);
+  const modelTokens = listTokens(analysis.modelFamily);
+  const silhouetteTokens = listTokens(analysis.shoeType, analysis.silhouette);
+  const colorTokens = listTokens(analysis.primaryColors, analysis.secondaryColors);
+  const detailTokens = listTokens(analysis.soleType, analysis.logoPosition, analysis.notableFeatures);
+  const productTrail = /\b(trail|running|runner|outdoor|hiking|terrex|goretex|gore tex)\b/.test(blob);
+  const queryJordan = hasAnyToken([analysis.brand, analysis.modelFamily].join(" "), ["jordan", "air jordan", "aj4", "j4"]);
+  const productJordan = /\bjordan\b|\bair jordan\b|\baj4\b|\bj4\b/.test(blob);
+  const queryJordan4 = hasAnyToken(analysis.modelFamily, ["jordan 4", "air jordan 4", "aj4", "j4", "retro 4"]);
+  const productJordan4 = /\b(jordan\s*4|air\s*jordan\s*4|aj4|j4|retro\s*4)\b/.test(blob);
+  const brandMatch = brandTokens.length ? hasAnyToken(blob, brandTokens) || (queryJordan && productJordan) : false;
+  const modelMatch = modelTokens.length ? hasAnyToken(blob, modelTokens) || (queryJordan4 && productJordan4) : false;
+  const silhouetteMatch = silhouetteTokens.length ? hasAnyToken(blob, silhouetteTokens) : false;
+  const colorMatches = colorTokens.filter((token) => hasAnyToken(blob, [token])).length;
+  const detailMatches = detailTokens.filter((token) => hasAnyToken(blob, [token])).length;
+  const colorScore = colorTokens.length ? Math.min(1, colorMatches / Math.min(3, colorTokens.length)) : 0;
+  const detailScore = detailTokens.length ? Math.min(1, detailMatches / Math.min(4, detailTokens.length)) : 0;
+  const silhouetteScore = silhouetteMatch ? 1 : Number(product.visual_score_breakdown?.silhouette_score || 0) > 0 ? 0.65 : 0;
+  const brandScore = brandMatch ? 1 : Number(product.visual_score_breakdown?.brand_score || 0) > 0 ? 0.55 : 0;
+  const modelScore = modelMatch ? 1 : Number(product.visual_score_breakdown?.model_score || 0) > 0 ? 0.55 : 0;
+  let score = (brandScore * 40) + (modelScore * 30) + (silhouetteScore * 15) + (colorScore * 10) + (detailScore * 5);
+  if (indexedScore > 0) score = Math.max(score, Math.min(100, indexedScore * 100));
+  if ((queryJordan || queryJordan4) && productTrail) score -= 45;
+  if (queryJordan4 && !productJordan) score -= 35;
+  if (queryJordan4 && productJordan && !productJordan4) score -= 12;
+  score = Math.max(0, Math.min(100, score));
+  return {
+    strict_visual_score: score,
+    brand_score: brandScore * 40,
+    model_family_score: modelScore * 30,
+    silhouette_score: silhouetteScore * 15,
+    color_score: colorScore * 10,
+    detail_score: detailScore * 5,
+    penalty_trail_running: (queryJordan || queryJordan4) && productTrail ? -45 : 0,
+    penalty_wrong_jordan_family: queryJordan4 && !productJordan ? -35 : 0,
+    brand_match: brandMatch,
+    model_match: modelMatch,
+    silhouette_match: silhouetteMatch,
+    color_matches: colorMatches,
+    detail_matches: detailMatches,
+  };
+};
+
+const rankStrictVisualProducts = ({ products = [], analysis = {} } = {}) =>
+  products
+    .map((product) => {
+      const strict = strictVisualScoreProduct({
+        product,
+        analysis,
+        indexedScore: Number(product.visual_confidence_score || product.confidence || 0),
+      });
+      return {
+        ...product,
+        visual_confidence_score: strict.strict_visual_score / 100,
+        visual_score_breakdown: {
+          ...(product.visual_score_breakdown || {}),
+          strict_sales_brain_v2: strict,
+        },
+      };
+    })
+    .sort((left, right) => Number(right.visual_confidence_score || 0) - Number(left.visual_confidence_score || 0));
+
+const visualDecisionForConfidence = ({ visualConfidence = 0, matchConfidence = 0, hasExact = false, alternativesRequested = false } = {}) => {
+  const confidence = Math.max(0, Math.min(100, Math.round(Math.min(visualConfidence || 0, matchConfidence || 0))));
+  if (visualConfidence < 70 || !matchConfidence) return { replyType: "clarification", limit: 0, confidence };
+  if (confidence < 70) return { replyType: "no_match", limit: 0, confidence };
+  if (confidence < 80) return { replyType: "close_match", limit: alternativesRequested ? 2 : 1, confidence };
+  if (confidence <= 90) return { replyType: hasExact ? "exact_match" : "close_match", limit: 2, confidence };
+  return { replyType: hasExact ? "exact_match" : "close_match", limit: alternativesRequested ? 2 : 1, confidence };
+};
+
+const oneCardPerProduct = (productCards = []) => {
+  const seen = new Set();
+  const selected = [];
+  for (const card of productCards) {
+    const key = String(card.product_id || card.id || card.base_name || card.name || "");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    selected.push(card);
+  }
+  return selected;
 };
 
 const filterNewProductRecommendations = ({ conversationId, productCards = [], allowRepeat = false } = {}) => {
@@ -3779,6 +3907,9 @@ const repeatedProductCards = ({ conversationId, productCards = [] } = {}) => {
 const explicitlyAskedForProductCards = (message = "") =>
   Boolean(hasTerm(message, ["ابعت المنتج", "ابعت اللينك", "اللينك", "وريني المنتج", "صور", "صورة", "بدائل", "موديلات", "موديل"]));
 
+const detectAlternativesRequest = (message = "") =>
+  hasTerm(message, ["بدائل", "بديل", "شبهه", "شبهها", "similar", "alternative", "alternatives"]);
+
 const answerFaqIfMatched = async ({ config, message } = {}) => {
   const faqIntent = detectFaqIntent(message.message_text);
   if (!faqIntent) return null;
@@ -4054,11 +4185,17 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   }
   const visualQuery = visualSearchQueryFromUnderstanding(understanding);
   pipeline.normalized_visual_query = visualQuery;
+  const visualAnalysis = visualAnalysisFromUnderstanding(understanding);
   console.log("ai_inbox_visual_json_from_customer_image", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
     visual_json: understanding?.detected || {},
     confidence: understanding?.confidence || 0,
+  });
+  console.log("ai_sales_brain_v2_image_analysis", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    image_analysis: visualAnalysis,
   });
   console.log("ai_inbox_generated_visual_query", {
     tenant_id: config.tenant_id,
@@ -4069,6 +4206,32 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   });
   const searchQuery = visualQuery || message.message_text || "sneaker shoe";
   pipeline.inventory_search_query = searchQuery;
+  if (visualAnalysis.confidence < 70) {
+    pipeline.confidence_score = visualAnalysis.confidence / 100;
+    pipeline.fallback_reason = pipeline.fallback_reason || "visual_understanding_confidence_below_70";
+    console.log("ai_sales_brain_v2_confidence_decision", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      visual_confidence: visualAnalysis.confidence,
+      selected_products: [],
+      final_reply_type: "clarification",
+      reason: pipeline.fallback_reason,
+    });
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: VISUAL_CLARIFICATION_REPLY,
+      detectedIntent: "visual_search_clarification",
+      metadata: { visual_query: searchQuery, confidence_score: visualAnalysis.confidence / 100, fallback_reason: pipeline.fallback_reason, visual_pipeline: pipeline },
+    });
+    updateConversationMemory(message.external_conversation_id, {
+      lastVisualQuery: searchQuery,
+      lastVisualConfidence: visualAnalysis.confidence / 100,
+      lastVisualReplyType: "clarification",
+      lastVisualAnalysis: visualAnalysis,
+    });
+    return { handled: true, reason: "visual_search_clarification" };
+  }
   const indexedSearch = await searchIndexedProductImageMatches({
     tenantId: config.tenant_id,
     detected: understanding?.detected || {},
@@ -4110,21 +4273,63 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
       match: indexedSearch.exactMatch,
       visualQuery: searchQuery,
     });
-    const exactCards = normalizeProductCards(exactProducts, { limit: 1 });
+    const exactCards = normalizeProductCards(rankStrictVisualProducts({ products: exactProducts, analysis: visualAnalysis }), { limit: 1 });
     if (exactCards.length) {
+      const strictScore = Number(exactCards[0].visual_confidence_score || 0) * 100;
+      const decision = visualDecisionForConfidence({
+        visualConfidence: visualAnalysis.confidence,
+        matchConfidence: strictScore,
+        hasExact: true,
+      });
+      console.log("ai_sales_brain_v2_candidate_scores", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        candidates: exactCards.map((product) => ({
+          product_id: product.product_id || product.id || null,
+          name: product.name || "",
+          score: Number(product.visual_confidence_score || 0),
+          breakdown: product.visual_score_breakdown?.strict_sales_brain_v2 || product.visual_score_breakdown || null,
+        })),
+      });
+      if (decision.limit < 1) {
+        console.log("ai_sales_brain_v2_confidence_decision", {
+          tenant_id: config.tenant_id,
+          conversation_id: message.external_conversation_id,
+          visual_confidence: visualAnalysis.confidence,
+          match_confidence: strictScore,
+          selected_products: [],
+          final_reply_type: decision.replyType,
+        });
+        await sendAndLogMetaText({
+          config,
+          message,
+          text: VISUAL_CLARIFICATION_REPLY,
+          detectedIntent: "visual_search_clarification",
+          metadata: { visual_query: searchQuery, confidence_score: decision.confidence / 100, fallback_reason: "strict_exact_match_below_threshold", visual_pipeline: pipeline },
+        });
+        return { handled: true, reason: "visual_search_clarification" };
+      }
       pipeline.selected_exact_product = {
         product_id: exactCards[0].product_id,
         name: exactCards[0].name,
         image_url: exactCards[0].image_url,
-        score: indexedSearch.exactMatch.score,
+        score: exactCards[0].visual_confidence_score,
       };
       pipeline.matched_products = exactCards.map((product) => ({
         product_id: product.product_id || product.id || null,
         name: product.name || "",
-        confidence: indexedSearch.exactMatch.score || 0,
-        score_breakdown: indexedSearch.exactMatch.score_breakdown || null,
+        confidence: product.visual_confidence_score || 0,
+        score_breakdown: product.visual_score_breakdown || null,
       }));
-      pipeline.confidence_score = Number(indexedSearch.exactMatch.score || 0);
+      pipeline.confidence_score = Number(exactCards[0].visual_confidence_score || 0);
+      console.log("ai_sales_brain_v2_confidence_decision", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        visual_confidence: visualAnalysis.confidence,
+        match_confidence: strictScore,
+        selected_products: exactCards.map((product) => ({ product_id: product.product_id || product.id || null, name: product.name || "" })),
+        final_reply_type: decision.replyType,
+      });
       console.log("ai_inbox_visual_exact_inventory_match_selected", {
         tenant_id: config.tenant_id,
         conversation_id: message.external_conversation_id,
@@ -4140,6 +4345,8 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
         metadata: {
           visual_query: searchQuery,
           confidence_score: pipeline.confidence_score,
+          final_reply_type: decision.replyType,
+          visual_analysis: visualAnalysis,
           image_search: true,
           exact_inventory_match: true,
           visual_pipeline: pipeline,
@@ -4148,6 +4355,8 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
       updateConversationMemory(message.external_conversation_id, {
         lastVisualQuery: searchQuery,
         lastVisualConfidence: pipeline.confidence_score,
+        lastVisualReplyType: decision.replyType,
+        lastVisualAnalysis: visualAnalysis,
       });
       return { handled: true, reason: "visual_search_exact_inventory_match_sent" };
     }
@@ -4171,21 +4380,30 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     conversationId: message.external_conversation_id,
   });
   pipeline.inventory_search_attempts = searchResult.attempts;
-  const visualConfidence = Number(understanding?.confidence || 0);
-  const ranked = searchResult.products
-    .map((product) => ({
-      ...product,
-      visual_confidence_score: Math.max(Number(product.visual_confidence_score || 0), Number(product.confidence || 0), visualConfidence * 0.65),
-    }))
-    .sort((a, b) => Number(b.visual_confidence_score || 0) - Number(a.visual_confidence_score || 0));
-  const cards = normalizeProductCards(ranked, { limit: 6 });
+  const ranked = rankStrictVisualProducts({ products: searchResult.products, analysis: visualAnalysis });
+  console.log("ai_sales_brain_v2_candidate_scores", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    candidates: ranked.slice(0, 8).map((product) => ({
+      product_id: product.product_id || product.id || null,
+      name: product.name || "",
+      score: Number(product.visual_confidence_score || 0),
+      breakdown: product.visual_score_breakdown?.strict_sales_brain_v2 || product.visual_score_breakdown || null,
+    })),
+  });
+  const cards = oneCardPerProduct(normalizeProductCards(ranked, { limit: 4 }));
   const newCards = filterNewProductRecommendations({
     conversationId: message.external_conversation_id,
     productCards: cards,
     allowRepeat: false,
-  }).slice(0, 3);
-  const selectedCards = newCards.length ? newCards : cards.slice(0, 3);
-  const topConfidence = Number(ranked[0]?.visual_confidence_score || 0);
+  });
+  const topConfidence = Number(cards[0]?.visual_confidence_score || ranked[0]?.visual_confidence_score || 0);
+  const decision = visualDecisionForConfidence({
+    visualConfidence: visualAnalysis.confidence,
+    matchConfidence: topConfidence * 100,
+    hasExact: false,
+  });
+  const selectedCards = (newCards.length ? newCards : cards).slice(0, decision.limit);
   const strongMatch = false;
   pipeline.matched_products = selectedCards.map((product) => ({
     product_id: product.product_id || product.id || null,
@@ -4194,7 +4412,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     score_breakdown: product.visual_score_breakdown || null,
   }));
   pipeline.confidence_score = topConfidence;
-  if (!selectedCards.length) pipeline.fallback_reason = pipeline.fallback_reason || "inventory_search_returned_no_cards";
+  if (!selectedCards.length) pipeline.fallback_reason = pipeline.fallback_reason || (decision.replyType === "clarification" ? "strict_visual_confidence_below_threshold" : "inventory_search_returned_no_cards");
   else if (!strongMatch) pipeline.fallback_reason = pipeline.fallback_reason || "exact_inventory_match_failed_using_close_visual_alternatives";
   console.log("ai_inbox_visual_search_matched_products", {
     tenant_id: config.tenant_id,
@@ -4214,6 +4432,15 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     conversation_id: message.external_conversation_id,
     ...pipeline,
   });
+  console.log("ai_sales_brain_v2_confidence_decision", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    visual_confidence: visualAnalysis.confidence,
+    match_confidence: topConfidence * 100,
+    selected_products: selectedCards.map((product) => ({ product_id: product.product_id || product.id || null, name: product.name || "" })),
+    final_reply_type: decision.replyType,
+    limit: decision.limit,
+  });
   if (!selectedCards.length) {
     const fallbackDebug = visualDebug
       ? `\n\nDebug:\nquery: ${searchQuery}\nmatched: none\nconfidence: ${topConfidence}`
@@ -4221,7 +4448,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     await sendAndLogMetaText({
       config,
       message,
-      text: `مش لاقي موديلات قريبة من الصورة دلوقتي. ابعتلي اسم الموديل أو صورة أوضح.${fallbackDebug}`,
+      text: `${VISUAL_CLARIFICATION_REPLY}${fallbackDebug}`,
       detectedIntent: "visual_search_no_match",
       metadata: { visual_query: searchQuery, confidence_score: topConfidence, fallback_reason: pipeline.fallback_reason, visual_pipeline: pipeline },
     });
@@ -4243,19 +4470,23 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     message,
     productCards: selectedCards,
     detectedIntent: "visual_search",
-    introText: [strongMatch ? "لقيتلك أقرب موديلات للصورة." : VISUAL_NO_STRONG_MATCH_REPLY, debugText].filter(Boolean).join("\n\n"),
+    introText: [decision.replyType === "exact_match" ? "" : VISUAL_CLOSE_MATCH_REPLY, debugText].filter(Boolean).join("\n\n"),
     metadata: {
       visual_query: searchQuery,
       confidence_score: topConfidence,
       image_search: true,
       strong_match: strongMatch,
       fallback_reason: pipeline.fallback_reason,
+      final_reply_type: decision.replyType,
+      visual_analysis: visualAnalysis,
       visual_pipeline: pipeline,
     },
   });
   updateConversationMemory(message.external_conversation_id, {
     lastVisualQuery: searchQuery,
     lastVisualConfidence: topConfidence,
+    lastVisualReplyType: decision.replyType,
+    lastVisualAnalysis: visualAnalysis,
   });
   return { handled: true, reason: "visual_search_sent" };
 };
@@ -4367,11 +4598,80 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
   return { handled: true, reason: "more_images_sent" };
 };
 
+const handleAlternativesIfMatched = async ({ config, message } = {}) => {
+  const keyword = detectAlternativesRequest(message.message_text);
+  if (!keyword) return null;
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  const baseCard = lastProductCardFromMemory(message.external_conversation_id);
+  const query = text(memory.lastVisualQuery || baseCard?.name || message.message_text);
+  if (!query) return null;
+  const analysis = memory.lastVisualAnalysis || {
+    brand: baseCard?.name || "",
+    modelFamily: baseCard?.name || "",
+    confidence: Math.max(70, Number(memory.lastVisualConfidence || 0) * 100),
+  };
+  const searchResult = await searchVisualInventory({
+    tenantId: config.tenant_id,
+    query,
+    metadata: { visual_search: true, allow_alternatives: true, visual_query: query },
+    conversationId: message.external_conversation_id,
+  });
+  const currentId = String(baseCard?.product_id || "");
+  const ranked = rankStrictVisualProducts({ products: searchResult.products, analysis })
+    .filter((product) => String(product.product_id || product.id || "") !== currentId);
+  const cards = oneCardPerProduct(normalizeProductCards(ranked, { limit: 4 })).slice(0, 2);
+  console.log("ai_sales_brain_v2_alternatives", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    query,
+    selected_products: cards.map((product) => ({
+      product_id: product.product_id || product.id || null,
+      name: product.name || "",
+      score: Number(product.visual_confidence_score || 0),
+    })),
+    final_reply_type: cards.length ? "close_match" : "no_match",
+  });
+  if (!cards.length) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: VISUAL_CLARIFICATION_REPLY,
+      detectedIntent: "visual_alternatives_no_match",
+      metadata: { visual_query: query, keyword },
+    });
+    return { handled: true, reason: "visual_alternatives_no_match" };
+  }
+  await sendAndLogProductCards({
+    config,
+    message,
+    productCards: cards,
+    detectedIntent: "visual_alternatives",
+    introText: VISUAL_CLOSE_MATCH_REPLY,
+    metadata: { visual_query: query, allow_alternatives: true, final_reply_type: "close_match" },
+  });
+  return { handled: true, reason: "visual_alternatives_sent" };
+};
+
 const handleSizesIfMatched = async ({ config, message } = {}) => {
   const keyword = detectSizesRequest(message.message_text);
   if (!keyword) return null;
   const baseCard = lastProductCardFromMemory(message.external_conversation_id);
   if (!baseCard) return null;
+  const rememberedCards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
+  if (requestedSize && rememberedCards.length > 1 && !memory.selectedProductId) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: MULTIPLE_PRODUCT_CLARIFICATION_REPLY,
+      detectedIntent: "multiple_product_size_clarification",
+      metadata: { requested_size: requestedSize, product_card_count: rememberedCards.length },
+    });
+    updateConversationMemory(message.external_conversation_id, {
+      pendingSizeForProductChoice: requestedSize,
+      checkoutStage: "selecting_product",
+    });
+    return { handled: true, reason: "multiple_product_size_clarification" };
+  }
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
   const sizes = availableSizesForProduct(product, baseCard);
   const replyText = sizes.length
@@ -5226,6 +5526,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           handleHumanHandoffIfMatched,
           answerFaqIfMatched,
           handleMoreImagesIfMatched,
+          handleAlternativesIfMatched,
           handleSizesIfMatched,
           handleOrderDraftIfMatched,
         ];
