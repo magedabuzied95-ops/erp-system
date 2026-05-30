@@ -4127,7 +4127,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
           </div>
         )) : visibleProducts.map((product, index) => (
           <div key={productCardKey(product, index)} className="w-[82vw] max-w-[22rem] shrink-0 snap-start sm:w-[43vw] md:w-auto md:max-w-none">
-            <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} railType={railType} rank={index + 1} density="compact" />
+            <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} railType={railType} rank={index + 1} density="compact" eagerImage eagerImagePriority={index < 4} />
           </div>
         ))}
         {!loading && !visibleProducts.length ? (
@@ -5557,7 +5557,7 @@ const swatchColorStyle = (label = "") => {
   return { background: color };
 };
 
-const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, addToCart, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4 }) {
+const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, addToCart, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, eagerImagePriority = false }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const product = groupedProduct || rawProduct || {};
@@ -5713,13 +5713,23 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const densityClasses = cardDensityClasses[density] || cardDensityClasses.standard;
 
   return (
-    <article style={{ contentVisibility: "auto", containIntrinsicSize: "220px 360px" }} onClick={openDetails} className={`group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.1rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(250,248,244,0.9)_48%,rgba(245,241,234,0.78))] shadow-[0_10px_28px_rgba(39,20,75,0.06),inset_0_1px_0_rgba(255,255,255,0.82)] ring-1 ring-stone-200/60 transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out hover:-translate-y-1.5 hover:border-[#a78bfa]/40 hover:ring-[#7c3aed]/30 hover:shadow-[0_20px_58px_rgba(39,20,75,0.15),0_0_0_1px_rgba(124,58,237,0.08)_inset] md:rounded-[1.4rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.92),rgba(11,16,32,0.9)_52%,rgba(8,13,25,0.96))] dark:ring-white/[0.05] dark:shadow-[0_16px_46px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.055)] dark:hover:border-[#a78bfa]/30 dark:hover:shadow-[0_24px_64px_rgba(0,0,0,0.34),0_0_34px_rgba(124,58,237,0.12)] ${featured ? "md:shadow-[0_22px_66px_rgba(109,40,217,0.15)]" : ""}`}>
+    <article style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "220px 360px" }} onClick={openDetails} className={`group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.1rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(250,248,244,0.9)_48%,rgba(245,241,234,0.78))] shadow-[0_10px_28px_rgba(39,20,75,0.06),inset_0_1px_0_rgba(255,255,255,0.82)] ring-1 ring-stone-200/60 transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out hover:-translate-y-1.5 hover:border-[#a78bfa]/40 hover:ring-[#7c3aed]/30 hover:shadow-[0_20px_58px_rgba(39,20,75,0.15),0_0_0_1px_rgba(124,58,237,0.08)_inset] md:rounded-[1.4rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.92),rgba(11,16,32,0.9)_52%,rgba(8,13,25,0.96))] dark:ring-white/[0.05] dark:shadow-[0_16px_46px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.055)] dark:hover:border-[#a78bfa]/30 dark:hover:shadow-[0_24px_64px_rgba(0,0,0,0.34),0_0_34px_rgba(124,58,237,0.12)] ${featured ? "md:shadow-[0_22px_66px_rgba(109,40,217,0.15)]" : ""}`}>
       <div className="pointer-events-none absolute inset-x-7 top-7 h-16 rounded-full bg-[#a78bfa]/0 blur-2xl transition duration-500 group-hover/product:bg-[#a78bfa]/16" />
       <div className={`relative overflow-visible bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.16),transparent_30%),linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] md:aspect-[1/1.04] md:p-2.5 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.12),transparent_30%),linear-gradient(180deg,#101426_0%,#0b1020_100%)] ${densityClasses.image}`}>
         <div className="absolute inset-x-7 top-[18%] h-28 rounded-full bg-white/50 blur-xl dark:bg-white/[0.09]" />
         <Link to={detailsUrl} className="relative z-10 block h-full">
           {displayImage ? (
-            <img src={imageFor(displayImage)} alt={product.name} className="h-full w-full transform-gpu rounded-[0.85rem] object-contain object-center p-0 opacity-0 transition-[opacity,transform] duration-500 ease-out will-change-transform group-hover/product:-translate-y-1 group-hover/product:scale-[1.075] md:rounded-[1.15rem] md:scale-[1.03] md:group-hover/product:scale-[1.11]" loading="lazy" decoding="async" width="360" height="432" onLoad={(event) => event.currentTarget.classList.remove("opacity-0")} />
+            <img
+              src={imageFor(displayImage)}
+              alt={product.name}
+              className={`h-full w-full transform-gpu rounded-[0.85rem] object-contain object-center p-0 transition-[opacity,transform] duration-500 ease-out will-change-transform group-hover/product:-translate-y-1 group-hover/product:scale-[1.075] md:rounded-[1.15rem] md:scale-[1.03] md:group-hover/product:scale-[1.11] ${eagerImage ? "opacity-100" : "opacity-0"}`}
+              loading={eagerImage ? "eager" : "lazy"}
+              decoding={eagerImage ? "sync" : "async"}
+              fetchPriority={eagerImagePriority ? "high" : undefined}
+              width="360"
+              height="432"
+              onLoad={eagerImage ? undefined : (event) => event.currentTarget.classList.remove("opacity-0")}
+            />
           ) : (
             <div className="grid h-full w-full place-items-center rounded-[1rem] bg-white/70 text-center text-xs font-black text-stone-400 dark:bg-white/5 dark:text-stone-500 md:rounded-[1.15rem]">
               <Sparkles className="h-6 w-6 opacity-50" />
