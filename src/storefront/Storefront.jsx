@@ -3581,12 +3581,15 @@ function HomePage(props) {
     () => uniqueProductsByIdentity(saleRailProducts.length ? saleRailProducts : saleProducts.length ? saleProducts : saleFallback.length ? saleFallback : railProducts),
     [railProducts, saleFallback, saleProducts, saleRailProducts]
   );
+  const homeHero = storefrontHome.hero;
+  const allowLegacyHomeFallback = Boolean(storefrontHome.error && !homeHero && !storefrontHome.collections.length);
   const heroProducts = useMemo(() => {
-    const homeHero = storefrontHome.hero ? [storefrontHome.hero] : [];
-    return uniqueProductsByIdentity([...homeHero, ...bestBase, ...freshBase, ...saleBase, ...railProducts]).slice(0, 6);
-  }, [bestBase, freshBase, railProducts, saleBase, storefrontHome.hero]);
+    if (homeHero) return [homeHero];
+    if (!allowLegacyHomeFallback) return [];
+    return uniqueProductsByIdentity([...bestBase, ...freshBase, ...saleBase, ...railProducts]).slice(0, 6);
+  }, [allowLegacyHomeFallback, bestBase, freshBase, homeHero, railProducts, saleBase]);
   const safeHeroIndex = heroProducts.length ? Math.min(heroIndex, heroProducts.length - 1) : 0;
-  const heroProduct = heroProducts[safeHeroIndex] || heroProducts[0] || railProducts[0] || {};
+  const heroProduct = heroProducts[safeHeroIndex] || heroProducts[0] || {};
   const heroKey = productIdentityKey(heroProduct);
   const heroExcluded = useMemo(() => new Set(heroKey ? [heroKey] : []), [heroKey]);
   const saleUnique = useMemo(() => pickHomeProducts({ preferred: saleBase, fallback: railProducts, exclude: heroExcluded, limit: 8 }), [heroExcluded, railProducts, saleBase]);
@@ -3601,24 +3604,18 @@ function HomePage(props) {
     return pickHomeProducts({ preferred: bestBase, fallback: railProducts, exclude, limit: 8 });
   }, [bestBase, freshIds, heroExcluded, railProducts, saleIds]);
   const heroVariant = firstDisplayVariant(heroProduct.variants || []);
-  const heroImage = displayImageForProduct(heroProduct, heroVariant);
+  const heroImage = homeHero ? homeHero.image_url : displayImageForProduct(heroProduct, heroVariant);
   const heroSizes = heroSizesForProduct(heroProduct);
   const heroTheme = heroThemeForProduct(heroProduct, heroVariant);
-  const weekProduct = useMemo(() => storefrontHome.hero || best[0] || freshUnique[0] || saleUnique[0] || railProducts[0] || {}, [best, freshUnique, railProducts, saleUnique, storefrontHome.hero]);
-  const weekVariant = firstDisplayVariant(weekProduct.variants || []);
-  const weekSizes = useMemo(
-    () => [...new Set((weekProduct.variants || []).filter((variant) => variantHasStock(variant) && variant.size).map((variant) => variant.size))].slice(0, 5),
-    [weekProduct]
-  );
-  const heroPrice = displaySellingPrice(heroProduct, heroVariant);
+  const heroPrice = homeHero ? Number(homeHero.price || homeHero.final_price || homeHero.selling_price || 0) || 0 : displaySellingPrice(heroProduct, heroVariant);
   const conversionTrustPoints = getConversionTrustPoints();
-  const heroSubtitle = heroProduct.description || heroProduct.model || heroProduct.sku || heroProduct.category || t("storefront.home.heroFallbackSubtitle", "A selected drop from the latest available styles.");
+  const heroSubtitle = heroProduct.description || heroProduct.model || heroProduct.sku || heroProduct.category || "";
   const heroStockText = heroProduct.low_stock
     ? t("storefront.products.limitedStock", "Limited stock")
     : productStock(heroProduct) > 0
       ? t("storefront.products.availableLiveStock", "Available now from live stock")
       : t("storefront.products.checkAvailability", "Check availability");
-  const heroDetailsUrl = heroProduct?.link || (heroProduct?.id ? productUrl(heroProduct) : "/shop/products");
+  const heroDetailsUrl = heroProduct?.link || (allowLegacyHomeFallback && heroProduct?.id ? productUrl(heroProduct) : "/shop/products");
   const homeCollections = storefrontHome.collections;
   const hasHomeCollections = homeCollections.length > 0;
   const categoryPreviewCards = useMemo(() => {
@@ -3698,11 +3695,9 @@ function HomePage(props) {
                     height="520"
                   />
                 </Link>
-              ) : (
-                <div className="relative z-10 grid h-72 w-full max-w-lg place-items-center rounded-[2rem] border border-white/10 bg-white/8 text-3xl font-black text-white/60">
-                  SHOES
-                </div>
-              )}
+              ) : storefrontHome.loading ? (
+                <div className="relative z-10 h-72 w-full max-w-lg animate-pulse rounded-[2rem] border border-white/10 bg-white/8 md:h-[30rem]" />
+              ) : null}
             </div>
 
             <div className="order-2 flex flex-col justify-center py-4 lg:[direction:rtl]">
@@ -3711,11 +3706,13 @@ function HomePage(props) {
                 {t("storefront.home.newArrival", "New Arrival")}
               </div>
               <h1 key={`title-${heroProduct.id || heroIndex}`} className="mt-4 max-w-xl text-4xl font-black leading-[1.02] tracking-normal text-white animate-[sfFadeUp_420ms_ease-out_both] md:text-6xl xl:text-7xl">
-                {heroProduct.name || t("storefront.home.featuredStyle", "Featured Style")}
+                {heroProduct.name || ""}
               </h1>
-              <p className="mt-4 line-clamp-2 max-w-lg text-sm font-semibold leading-7 text-white/72 md:text-base">
-                {heroSubtitle}
-              </p>
+              {heroSubtitle ? (
+                <p className="mt-4 line-clamp-2 max-w-lg text-sm font-semibold leading-7 text-white/72 md:text-base">
+                  {heroSubtitle}
+                </p>
+              ) : null}
               <div className="mt-5 flex flex-wrap items-end gap-3">
                 <div className="text-3xl font-black leading-none md:text-4xl">{heroPrice ? money(heroPrice) : "—"}</div>
                 <div className="rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[11px] font-black text-white/74 backdrop-blur">
@@ -3854,12 +3851,7 @@ function HomePage(props) {
       )) : (
         <ProductRail title={t("storefront.home.bestsellers", "Best sellers")} subtitle={t("storefront.home.bestsellersSubtitle", "Best sellers this week")} loading={loading || storefrontHome.loading} products={best} railType="bestseller" featuredFirst {...props} />
       )}
-      {!hasHomeCollections ? (
-        <section className="mx-auto max-w-[1200px] px-4 py-2">
-          <FeaturedProductSection product={weekProduct} variant={weekVariant} sizes={weekSizes} />
-        </section>
-      ) : null}
-      {!hasHomeCollections ? (
+      {allowLegacyHomeFallback ? (
         <>
           <ProductRail title={t("storefront.nav.sale", "Sale")} subtitle={t("storefront.home.saleSubtitle", "Selected discounts for a limited time")} loading={saleLoading && !saleUnique.length} products={saleUnique} railType="sale" {...props} />
           <ProductRail title={t("storefront.nav.new", "New")} subtitle={t("storefront.home.newSubtitle", "Recently added to stock")} loading={loading} products={freshUnique} railType="new" {...props} />
@@ -3867,49 +3859,6 @@ function HomePage(props) {
       ) : null}
       <Reviews />
       <LastPieceFinder open={lastPieceOpen} onClose={() => setLastPieceOpen(false)} />
-    </div>
-  );
-}
-
-function FeaturedProductSection({ product, variant, sizes }) {
-  const { t } = useTranslation();
-  if (!product?.id) {
-    return <LastPieceEmpty title={t("storefront.home.productOfWeek", "Product of the week")} text={t("storefront.home.productOfWeekEmpty", "The featured product will appear here once stock updates.")} light />;
-  }
-  return (
-    <div className="grid gap-4 overflow-hidden rounded-[2rem] border border-stone-200 bg-white p-4 shadow-[0_20px_55px_rgba(39,20,75,0.08)] dark:border-white/10 dark:bg-[#0b1020] md:grid-cols-[1.05fr_0.95fr] md:p-6">
-      <div className="relative overflow-hidden rounded-[1.65rem] bg-[radial-gradient(circle_at_50%_35%,rgba(167,139,250,0.16),transparent_30%),linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] p-4 dark:bg-[radial-gradient(circle_at_50%_35%,rgba(167,139,250,0.14),transparent_30%),linear-gradient(180deg,#111827_0%,#0b1020_100%)]">
-        <img src={imageFor(displayImageForProduct(product, variant))} alt="" className="aspect-square w-full object-contain drop-shadow-[0_20px_28px_rgba(39,20,75,0.18)] transition duration-500 hover:scale-[1.04]" loading="lazy" decoding="async" width="640" height="640" />
-        <div className="absolute left-4 top-4 rounded-full bg-stone-950 px-3 py-1.5 text-xs font-black text-white shadow-sm dark:bg-white dark:text-stone-950">
-          {t("storefront.home.productOfWeek", "Product of the week")}
-        </div>
-      </div>
-      <div className="flex min-w-0 flex-col justify-center">
-        <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#6d28d9] dark:text-[#d8b4fe]">featured</div>
-        <h2 className="mt-1 text-3xl font-black leading-tight text-stone-950 dark:text-stone-100">{product.name}</h2>
-        <p className="mt-3 max-w-xl text-sm font-semibold leading-7 text-stone-600 dark:text-stone-400">
-          {product.description || t("storefront.home.featuredDescription", "This week's featured pick comes with clearer photos, visible sizes, and a faster shopping experience.")}
-        </p>
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          <span className="text-3xl font-black text-stone-950 dark:text-white">{money(displaySellingPrice(product, variant))}</span>
-          {displayComparePrice(product, variant) ? <span className="text-sm font-bold text-stone-400 line-through dark:text-stone-500">{money(displayComparePrice(product, variant))}</span> : null}
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {sizes.length ? sizes.map((size) => (
-            <span key={size} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-black text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-stone-300">
-              {size}
-            </span>
-          )) : <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-black text-stone-500 dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.sizesWillAppear", "Sizes will appear here")}</span>}
-        </div>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Link to={productUrl(product)} className="sf-shimmer-button inline-flex min-h-12 items-center gap-2 rounded-full bg-stone-950 px-6 py-3 text-sm font-black text-white shadow-[0_14px_35px_rgba(39,20,75,0.18)] transition hover:-translate-y-0.5 active:scale-[0.98] dark:bg-white dark:text-stone-950">
-            {t("storefront.cart.buyNow", "Buy now")}
-          </Link>
-          <Link to={productUrl(product)} className="inline-flex min-h-12 items-center gap-2 rounded-full border border-stone-200 bg-white px-6 py-3 text-sm font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#7c3aed]/40 hover:text-[#6d28d9] active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-            {t("storefront.products.productDetails", "Product details")}
-          </Link>
-        </div>
-      </div>
     </div>
   );
 }
@@ -5398,7 +5347,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             <img src={imageFor(displayImage)} alt={product.name} className="h-full w-full transform-gpu rounded-[0.85rem] object-contain object-center p-0 opacity-0 transition-[opacity,transform] duration-500 ease-out will-change-transform group-hover/product:-translate-y-1 group-hover/product:scale-[1.075] md:rounded-[1.15rem] md:scale-[1.03] md:group-hover/product:scale-[1.11]" loading="lazy" decoding="async" width="360" height="432" onLoad={(event) => event.currentTarget.classList.remove("opacity-0")} />
           ) : (
             <div className="grid h-full w-full place-items-center rounded-[1rem] bg-white/70 text-center text-xs font-black text-stone-400 dark:bg-white/5 dark:text-stone-500 md:rounded-[1.15rem]">
-              SHOES
+              <Sparkles className="h-6 w-6 opacity-50" />
             </div>
           )}
         </Link>
@@ -8171,7 +8120,7 @@ function Footer() {
   return (
     <footer className="mt-4 border-t border-stone-200 bg-[#f0ebe2] px-4 py-6 md:mt-8 md:py-10 dark:border-white/10 dark:bg-[linear-gradient(180deg,#050816,#020617)] dark:text-white">
       <div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1.2fr_0.8fr_0.8fr_1fr]">
-        <div><h3 className="text-2xl font-black tracking-normal">SHOES</h3><p className="mt-2 max-w-sm text-sm font-bold leading-6 text-stone-600 dark:text-stone-400">{sfText("storefront.footer.tagline", "A simple and fast shopping experience connected to real inventory.")}</p></div>
+        <div><h3 className="text-2xl font-black tracking-normal">{sfText("storefront.footer.brand", "Storefront")}</h3><p className="mt-2 max-w-sm text-sm font-bold leading-6 text-stone-600 dark:text-stone-400">{sfText("storefront.footer.tagline", "A simple and fast shopping experience connected to real inventory.")}</p></div>
         <FooterLinks title={sfText("storefront.footer.links", "Links")} links={[[sfText("storefront.returns.title", "Exchange policy"), "/shop/returns"], [sfText("storefront.nav.sizeGuide", "Size guide"), "/shop/size-guide"], [sfText("storefront.faq.title", "FAQ"), "/shop/faq"]]} />
         <FooterLinks title={sfText("storefront.footer.contact", "Contact")} links={[[sfText("storefront.contact.title", "Contact"), "/shop/contact"], [sfText("storefront.support.whatsapp", "WhatsApp"), "https://wa.me/"], ["Instagram", "/shop/contact"]]} />
         <div>
