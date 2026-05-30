@@ -894,8 +894,8 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
   const copy = shippingUi[language] || shippingUi.en;
 
   return (
-    <div className="grid gap-5">
-      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-5">
+    <div className="grid gap-6">
+      <div className="grid gap-3 lg:grid-cols-5">
         <SummaryTile icon={Truck} label={copy.defaultPrice} value={`${defaultPrice.toLocaleString()} EGP`} />
         <SummaryTile icon={Check} label={copy.activeZones} value={activeZones} />
         <SummaryTile icon={WalletCards} label={copy.codZones} value={codZones} />
@@ -914,7 +914,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
         <ShippingZonesEditor value={zones} language={language} defaultPrice={defaultPrice} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
       </VisualSection>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         <VisualSection icon={WalletCards} title={copy.codTitle} description={copy.codDescription}>
           <p className={`text-sm leading-6 ${bodyText}`}>{copy.codBody}</p>
         </VisualSection>
@@ -938,13 +938,13 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
 
 function SummaryTile({ icon: Icon, label, value }) {
   return (
-    <article className={`rounded-[1.5rem] p-4 ${shellCard}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className={`text-xs font-black uppercase tracking-[0.14em] ${mutedText}`}>{label}</div>
-          <div className={`mt-2 text-2xl font-black ${headingText}`}>{value}</div>
+    <article className={`flex min-h-[7rem] rounded-2xl p-4 ${shellCard}`}>
+      <div className="flex w-full items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className={`line-clamp-2 text-[11px] font-black uppercase leading-4 tracking-[0.12em] ${mutedText}`}>{label}</div>
+          <div className={`mt-2 truncate text-2xl font-black ${headingText}`}>{value}</div>
         </div>
-        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-100 text-slate-700 dark:bg-white/8 dark:text-slate-200">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-700 ring-1 ring-slate-200/70 dark:bg-white/[0.06] dark:text-slate-200 dark:ring-white/10">
           <Icon className="h-5 w-5" />
         </span>
       </div>
@@ -1234,8 +1234,8 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
 
   return (
     <article className="grid gap-4">
-      <div className={`rounded-3xl p-4 ${fieldSurface}`}>
-        <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(180px,0.45fr)_auto]">
+      <div className={`rounded-2xl p-3.5 ${fieldSurface}`}>
+        <div className="grid gap-3 xl:grid-cols-[minmax(24rem,1fr)_minmax(14rem,0.35fr)_auto] xl:items-center">
           <label className="relative min-w-0">
             <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} className={`${inputClass} ps-10`} />
@@ -1248,10 +1248,10 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
             </select>
           </label>
           <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
-            <button type="button" onClick={addAllGovernorates} className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" />{copy.allGovernorates}</button>
-            <button type="button" onClick={exportZones} className="inline-flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"><Download className="h-4 w-4" />{copy.export}</button>
-            <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-              <Upload className="h-4 w-4" />
+            <button type="button" onClick={addAllGovernorates} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"><Plus className="h-4 w-4" />{copy.allGovernorates}</button>
+            <button type="button" onClick={exportZones} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08]"><Download className="h-3.5 w-3.5" />{copy.export}</button>
+            <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08]">
+              <Upload className="h-3.5 w-3.5" />
               {copy.import}
               <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importZones(event.target.files?.[0])} />
             </label>
@@ -1259,12 +1259,12 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
         </div>
       </div>
 
-      <div className={`rounded-3xl p-4 ${fieldSurface}`}>
+      <div className={`rounded-2xl p-4 ${fieldSurface}`}>
         <div className="mb-3 flex items-center gap-2">
-          <Plus className="h-4 w-4 text-slate-500" />
+          <span className="grid h-8 w-8 place-items-center rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" /></span>
           <h3 className={`text-sm font-black ${headingText}`}>{copy.quickTitle}</h3>
         </div>
-        <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_9rem_auto]">
+        <div className="grid gap-3 lg:grid-cols-[minmax(12rem,1fr)_minmax(11rem,1fr)_minmax(11rem,1fr)_7rem_auto] lg:items-center">
           <select value={draft.governorate} onChange={(event) => setDraft((current) => ({ ...current, governorate: event.target.value }))} className={inputClass}>
             {egyptGovernorates.map(([, name, ar]) => <option key={name} value={name}>{name} / {ar}</option>)}
           </select>
@@ -1272,71 +1272,75 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
           <input value={draft.area} onChange={(event) => setDraft((current) => ({ ...current, area: event.target.value }))} placeholder="Area / District" className={inputClass} />
           <input type="number" min="0" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} placeholder="Price" className={inputClass} />
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => addRow("governorate")} className="h-12 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-white dark:text-slate-950">{copy.createGovernorate}</button>
-            <button type="button" onClick={() => addRow("city")} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.createCity}</button>
-            <button type="button" onClick={() => addRow("area")} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.createArea}</button>
+            <button type="button" onClick={() => addRow("governorate")} className="h-11 rounded-xl bg-slate-950 px-4 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">{copy.addZone}</button>
+            <button type="button" onClick={() => addRow("city")} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]">{copy.createCity}</button>
+            <button type="button" onClick={() => addRow("area")} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]">{copy.createArea}</button>
           </div>
         </div>
       </div>
 
-      <div className={`rounded-3xl p-4 ${fieldSurface}`}>
+      <div className={`rounded-2xl p-4 ${fieldSurface}`}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex items-center gap-2 text-xs font-black text-slate-500 dark:text-slate-400">
+          <div className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 dark:bg-white/[0.055] dark:text-slate-300">
             <SlidersHorizontal className="h-4 w-4" />
             {copy.bulk}: {selectedCount} {copy.selected}
           </div>
-          <button type="button" onClick={deleteSelected} disabled={!selectedCount} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-rose-200 bg-white px-3 text-xs font-black text-rose-600 disabled:opacity-40 dark:border-rose-400/25 dark:bg-white/5 dark:text-rose-200"><Trash2 className="h-4 w-4" />{copy.deleteSelected}</button>
+          <button type="button" onClick={deleteSelected} disabled={!selectedCount} className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 text-xs font-black text-rose-600 transition hover:bg-rose-50 disabled:opacity-40 dark:border-rose-400/25 dark:bg-white/[0.04] dark:text-rose-200 dark:hover:bg-rose-500/10"><Trash2 className="h-4 w-4" />{copy.deleteSelected}</button>
         </div>
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_auto_minmax(12rem,1fr)_auto_auto_auto_auto]">
-          <input type="number" min="0" value={bulkPrice} onChange={(event) => setBulkPrice(event.target.value)} placeholder={copy.bulkPrice} className={inputClass} />
-          <button type="button" onClick={applyBulkPrice} disabled={!selectedCount} className="h-12 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkPrice}</button>
-          <input value={bulkEstimate} onChange={(event) => setBulkEstimate(event.target.value)} placeholder={copy.bulkEstimate} className={inputClass} />
-          <button type="button" onClick={applyBulkEstimate} disabled={!selectedCount} className="h-12 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkEstimate}</button>
-          <button type="button" onClick={() => applyToSelected({ cod_allowed: true })} disabled={!selectedCount} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.enableCod}</button>
-          <button type="button" onClick={() => applyToSelected({ cod_allowed: false })} disabled={!selectedCount} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.disableCod}</button>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: true })} disabled={!selectedCount} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.requireProof}</button>
-            <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: false })} disabled={!selectedCount} className="h-12 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{copy.skipProof}</button>
+        <div className="grid gap-3 xl:grid-cols-[minmax(14rem,0.8fr)_minmax(18rem,1.1fr)_auto]">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <input type="number" min="0" value={bulkPrice} onChange={(event) => setBulkPrice(event.target.value)} placeholder={copy.bulkPrice} className={inputClass} />
+            <button type="button" onClick={applyBulkPrice} disabled={!selectedCount} className="h-12 rounded-xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkPrice}</button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <input value={bulkEstimate} onChange={(event) => setBulkEstimate(event.target.value)} placeholder={copy.bulkEstimate} className={inputClass} />
+            <button type="button" onClick={applyBulkEstimate} disabled={!selectedCount} className="h-12 rounded-xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">{copy.bulkEstimate}</button>
+          </div>
+          <div className="flex flex-wrap gap-2 xl:justify-end">
+            <button type="button" onClick={() => applyToSelected({ cod_allowed: true })} disabled={!selectedCount} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.enableCod}</button>
+            <button type="button" onClick={() => applyToSelected({ cod_allowed: false })} disabled={!selectedCount} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.disableCod}</button>
+            <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: true })} disabled={!selectedCount} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.requireProof}</button>
+            <button type="button" onClick={() => applyToSelected({ requires_shipping_proof: false })} disabled={!selectedCount} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">{copy.skipProof}</button>
           </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
-        <table className="w-full min-w-[1320px] text-start text-sm">
-          <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500 dark:bg-white/[0.04] dark:text-slate-400">
+      <div className="max-h-[36rem] overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950/60 dark:shadow-none">
+        <table className="w-full min-w-[1360px] border-separate border-spacing-0 text-start text-sm">
+          <thead className="sticky top-0 z-10 bg-slate-50 text-xs font-black uppercase text-slate-500 shadow-[0_1px_0_rgba(148,163,184,0.28)] dark:bg-slate-900 dark:text-slate-400 dark:shadow-[0_1px_0_rgba(255,255,255,0.08)]">
             <tr>
-              <th className="w-12 px-4 py-4"><input type="checkbox" checked={visibleZones.length > 0 && visibleZones.every((zone) => selectedSet.has(zone.id))} onChange={(event) => toggleVisibleSelection(event.target.checked)} /></th>
-              {copy.headers.map((header) => <th key={header} className="px-4 py-4">{header}</th>)}
+              <th className="w-12 px-4 py-3 text-center"><input type="checkbox" className="h-4 w-4 align-middle" checked={visibleZones.length > 0 && visibleZones.every((zone) => selectedSet.has(zone.id))} onChange={(event) => toggleVisibleSelection(event.target.checked)} /></th>
+              {copy.headers.map((header) => <th key={header} className="whitespace-nowrap px-4 py-3">{header}</th>)}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+          <tbody>
             {visibleZones.map((zone) => (
               <tr key={zone.id} className="bg-white transition hover:bg-slate-50 dark:bg-transparent dark:hover:bg-white/[0.035]">
-                <td className="px-4 py-3">
-                  <input type="checkbox" checked={selectedSet.has(zone.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))} />
+                <td className="border-b border-slate-100 px-4 py-3 text-center align-middle dark:border-white/10">
+                  <input type="checkbox" className="h-4 w-4 align-middle" checked={selectedSet.has(zone.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, zone.id] : current.filter((item) => item !== zone.id))} />
                 </td>
-                <td className="px-4 py-3"><input value={zone.governorate} onChange={(event) => patchRow(zone.id, { governorate: event.target.value })} className={`${inputClass} min-w-40`} /></td>
-                <td className="px-4 py-3"><input value={zone.city} onChange={(event) => patchRow(zone.id, { city: event.target.value })} className={`${inputClass} min-w-40`} /></td>
-                <td className="px-4 py-3"><input value={zone.area} onChange={(event) => patchRow(zone.id, { area: event.target.value })} className={`${inputClass} min-w-40`} /></td>
-                <td className="px-4 py-3"><input type="number" min="0" value={zone.price} onChange={(event) => patchRow(zone.id, { price: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
+                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input value={zone.governorate} onChange={(event) => patchRow(zone.id, { governorate: event.target.value })} className={`${inputClass} h-10 min-w-40 rounded-xl`} /></td>
+                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input value={zone.city} onChange={(event) => patchRow(zone.id, { city: event.target.value })} className={`${inputClass} h-10 min-w-40 rounded-xl`} /></td>
+                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input value={zone.area} onChange={(event) => patchRow(zone.id, { area: event.target.value })} className={`${inputClass} h-10 min-w-40 rounded-xl`} /></td>
+                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input type="number" min="0" value={zone.price} onChange={(event) => patchRow(zone.id, { price: Number(event.target.value) })} className={`${inputClass} h-10 w-24 rounded-xl text-center`} /></td>
                 {["cod_allowed", "requires_shipping_proof"].map((key) => (
-                  <td key={key} className="px-4 py-3 text-center">
-                    <input type="checkbox" checked={Boolean(zone[key])} onChange={(event) => patchRow(zone.id, { [key]: event.target.checked })} />
+                  <td key={key} className="border-b border-slate-100 px-4 py-3 text-center align-middle dark:border-white/10">
+                    <input type="checkbox" className="h-4 w-4 align-middle" checked={Boolean(zone[key])} onChange={(event) => patchRow(zone.id, { [key]: event.target.checked })} />
                   </td>
                 ))}
-                <td className="px-4 py-3"><input value={zone.estimated_delivery_text} onChange={(event) => patchRow(zone.id, { estimated_delivery_text: event.target.value })} className={`${inputClass} min-w-44`} /></td>
-                <td className="px-4 py-3">
-                  <select value={zone.provider_id || zone.provider} onChange={(event) => patchRow(zone.id, { provider: event.target.value, provider_id: event.target.value })} className={`${inputClass} w-44`}>
+                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input value={zone.estimated_delivery_text} onChange={(event) => patchRow(zone.id, { estimated_delivery_text: event.target.value })} className={`${inputClass} h-10 min-w-56 rounded-xl`} /></td>
+                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10">
+                  <select value={zone.provider_id || zone.provider} onChange={(event) => patchRow(zone.id, { provider: event.target.value, provider_id: event.target.value })} className="h-10 w-44 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-100 dark:focus:border-blue-400 dark:focus:ring-blue-500/15">
                     {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
                   </select>
                 </td>
-                <td className="px-4 py-3"><input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
-                <td className="px-4 py-3"><input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => patchRow(zone.id, { minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
-                <td className="px-4 py-3 text-center">
-                  <input type="checkbox" checked={Boolean(zone.active)} onChange={(event) => patchRow(zone.id, { active: event.target.checked })} />
+                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} h-10 w-24 rounded-xl text-center`} /></td>
+                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10"><input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => patchRow(zone.id, { minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} h-10 w-24 rounded-xl text-center`} /></td>
+                <td className="border-b border-slate-100 px-4 py-3 text-center align-middle dark:border-white/10">
+                  <input type="checkbox" className="h-4 w-4 align-middle" checked={Boolean(zone.active)} onChange={(event) => patchRow(zone.id, { active: event.target.checked })} />
                 </td>
-                <td className="px-4 py-3">
-                  <button type="button" onClick={() => deleteRow(zone.id)} className="grid h-10 w-10 place-items-center rounded-2xl border border-rose-200 text-rose-600 dark:border-rose-400/25 dark:text-rose-200" aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
+                <td className="border-b border-slate-100 px-4 py-3 align-middle dark:border-white/10">
+                  <button type="button" onClick={() => deleteRow(zone.id)} className="grid h-9 w-9 place-items-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10" aria-label="Delete zone"><Trash2 className="h-4 w-4" /></button>
                 </td>
               </tr>
             ))}
