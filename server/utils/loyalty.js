@@ -72,9 +72,15 @@ export const finalizeOrderLoyalty = async (client, {
   userId = null,
 }) => {
   try {
-    if (tenantId === undefined || tenantId === null || String(tenantId).trim() === "") {
+    let finalTenantId = tenantId;
+    if ((finalTenantId === undefined || finalTenantId === null || String(finalTenantId).trim() === "") && orderId) {
+      const tenantResult = await client.query(`SELECT tenant_id FROM orders WHERE id = $1 LIMIT 1`, [orderId]);
+      finalTenantId = tenantResult.rows[0]?.tenant_id ?? null;
+    }
+    if (finalTenantId === undefined || finalTenantId === null || String(finalTenantId).trim() === "") {
       return { awarded: false, reason: "missing_tenant" };
     }
+    tenantId = finalTenantId;
     if (!customerId) {
       return { awarded: false, reason: "missing_customer" };
     }

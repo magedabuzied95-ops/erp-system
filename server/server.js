@@ -22,9 +22,23 @@ import { isPerfDebugEnabled, runWithPerfContext, slowestPhaseFromTimings } from 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const packageJson = require("../package.json");
 
 require("dotenv").config({ path: require("path").join(__dirname, ".env"), quiet: true });
 
+const buildInfo = {
+  version: packageJson.version || "0.0.0",
+  commit: String(
+    process.env.RENDER_GIT_COMMIT ||
+      process.env.GIT_COMMIT ||
+      process.env.SOURCE_VERSION ||
+      process.env.COMMIT_SHA ||
+      process.env.VERCEL_GIT_COMMIT_SHA ||
+      ""
+  ).slice(0, 40) || "unknown",
+  environment: process.env.NODE_ENV || "development",
+};
+console.log("[build] version", buildInfo);
 console.log("[env] META_APP_ID loaded:", Boolean(process.env.META_APP_ID));
 console.log("[env] META_APP_SECRET loaded:", Boolean(process.env.META_APP_SECRET));
 console.log("[env] PUBLIC_BACKEND_URL:", process.env.PUBLIC_BACKEND_URL || "missing");
@@ -482,6 +496,9 @@ app.use((req, res, next) => {
 const healthPayload = () => ({
   success: true,
   status: "ok",
+  version: buildInfo.version,
+  commit: buildInfo.commit,
+  environment: buildInfo.environment,
   uptime: process.uptime(),
   timestamp: new Date().toISOString(),
 });

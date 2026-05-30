@@ -4329,7 +4329,11 @@ export const confirmShippingPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: "صورة إثبات التحويل غير صالحة" });
     }
     const paymentMethod = String(currentOrder.payment_method || "").trim().toLowerCase();
-    const effectiveTenantId = currentOrder.tenant_id ?? tenantId ?? getTenantId(req, req.tenant_id || req.user?.tenant_id);
+    let effectiveTenantId = currentOrder.tenant_id ?? tenantId ?? req.tenantId ?? req.tenant_id ?? req.user?.tenant_id ?? null;
+    if (effectiveTenantId === undefined || effectiveTenantId === null || String(effectiveTenantId).trim() === "") {
+      const tenantFallback = await client.query(`SELECT tenant_id FROM orders WHERE id = $1 LIMIT 1`, [req.params.id]);
+      effectiveTenantId = tenantFallback.rows[0]?.tenant_id ?? null;
+    }
     const totalAmount = Number(currentOrder.total_amount ?? currentOrder.total ?? currentOrder.total_price ?? 0);
     const shippingAmount = Number(currentOrder.shipping_fee ?? currentOrder.delivery_fee ?? currentOrder.service_fee ?? 0);
     const existingPaidAmount = Number(currentOrder.paid_amount || 0);
@@ -4355,18 +4359,49 @@ export const confirmShippingPayment = async (req, res) => {
       `,
       [req.params.id, req.user?.id || null, tenantId, nextPaymentStatus, nextPaidAmount]
     );
-    const loyaltyResult = await processOrderLoyalty(client, {
-      tenantId: effectiveTenantId,
-      orderId: result.rows[0].id,
-      customerId: result.rows[0].customer_id,
-      orderTotal: result.rows[0].total_amount || result.rows[0].total || result.rows[0].total_price || 0,
-      paidAmount: result.rows[0].paid_amount || result.rows[0].total_amount || result.rows[0].total || 0,
-      status: result.rows[0].status,
-      paymentStatus: result.rows[0].payment_status,
-      userId: req.user?.id || null,
+    console.log("[orders.confirm-payment] loyalty tenant context", {
+      order_id: result.rows[0].id,
+      order_tenant_id: result.rows[0].tenant_id ?? currentOrder.tenant_id ?? null,
+      req_tenantId: req.tenantId ?? req.tenant_id ?? null,
+      user_tenant_id: req.user?.tenant_id ?? null,
+      final_tenant_id: effectiveTenantId ?? null,
     });
+    let loyaltyResult = { earned: false, reason: "skipped" };
+    let loyaltyWarning = null;
+    if (effectiveTenantId === undefined || effectiveTenantId === null || String(effectiveTenantId).trim() === "") {
+      loyaltyWarning = "Loyalty skipped: missing tenant_id";
+      console.warn("[orders.confirm-payment] loyalty skipped missing tenant", { order_id: result.rows[0].id });
+    } else {
+      await client.query("SAVEPOINT confirm_payment_loyalty");
+      try {
+        loyaltyResult = await processOrderLoyalty(client, {
+          tenantId: effectiveTenantId,
+          orderId: result.rows[0].id,
+          customerId: result.rows[0].customer_id,
+          orderTotal: result.rows[0].total_amount || result.rows[0].total || result.rows[0].total_price || 0,
+          paidAmount: result.rows[0].paid_amount || result.rows[0].total_amount || result.rows[0].total || 0,
+          status: result.rows[0].status,
+          paymentStatus: result.rows[0].payment_status,
+          userId: req.user?.id || null,
+        });
+        if (loyaltyResult?.reason === "missing_tenant") {
+          loyaltyWarning = "Loyalty skipped: missing tenant_id";
+        }
+        await client.query("RELEASE SAVEPOINT confirm_payment_loyalty");
+      } catch (loyaltyError) {
+        await client.query("ROLLBACK TO SAVEPOINT confirm_payment_loyalty");
+        await client.query("RELEASE SAVEPOINT confirm_payment_loyalty");
+        loyaltyWarning = loyaltyError?.message || "Loyalty failed";
+        loyaltyResult = { earned: false, reason: "loyalty_failed", error: loyaltyWarning };
+        console.error("[orders.confirm-payment] loyalty failed; payment confirmation will still commit", {
+          order_id: result.rows[0].id,
+          final_tenant_id: effectiveTenantId,
+          message: loyaltyWarning,
+        });
+      }
+    }
     await client.query("COMMIT");
-    return res.json({ success: true, order: result.rows[0], loyalty: loyaltyResult });
+    return res.json({ success: true, order: result.rows[0], loyalty: loyaltyResult, warning: loyaltyWarning });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     return res.status(500).json({ success: false, message: "Failed to confirm payment", error: error.message });

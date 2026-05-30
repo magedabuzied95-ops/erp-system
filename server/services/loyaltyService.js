@@ -119,6 +119,13 @@ export const resolveCustomerTier = (lifetimePoints = 0) => {
 const isCancelled = (status) => ["cancelled", "canceled", "void", "refunded"].includes(String(status || "").toLowerCase());
 const hasTenantId = (tenantId) => tenantId !== undefined && tenantId !== null && String(tenantId).trim() !== "";
 
+const resolveTenantIdForOrder = async (client, { tenantId, orderId } = {}) => {
+  if (hasTenantId(tenantId)) return tenantId;
+  if (!orderId) return null;
+  const result = await client.query(`SELECT tenant_id FROM orders WHERE id = $1 LIMIT 1`, [orderId]);
+  return result.rows[0]?.tenant_id ?? null;
+};
+
 const isPaidOrCompleted = (order = {}) => {
   const status = String(order.status || "").toLowerCase();
   const paymentStatus = String(order.payment_status || order.paymentStatus || "").toLowerCase();
@@ -244,7 +251,7 @@ export const applyOrderLoyalty = async (client, order = {}) => {
   await ensureLoyaltySchema(client);
   const customerId = order.customer_id || order.customerId;
   const orderId = order.id || order.order_id || order.orderId;
-  const tenantId = order.tenant_id ?? order.tenantId ?? null;
+  const tenantId = await resolveTenantIdForOrder(client, { tenantId: order.tenant_id ?? order.tenantId ?? null, orderId });
   const source = normalizeSource(order);
   const orderTotal = Math.max(0, Number(order.total_amount ?? order.total ?? order.total_price ?? order.orderTotal ?? 0));
 
@@ -317,7 +324,7 @@ export const reverseOrderLoyalty = async (client, order = {}) => {
   await ensureLoyaltySchema(client);
   const customerId = order.customer_id || order.customerId;
   const orderId = order.id || order.order_id || order.orderId;
-  const tenantId = order.tenant_id ?? order.tenantId ?? null;
+  const tenantId = await resolveTenantIdForOrder(client, { tenantId: order.tenant_id ?? order.tenantId ?? null, orderId });
   const source = normalizeSource(order);
   const orderTotal = Math.max(0, Number(order.total_amount ?? order.total ?? order.total_price ?? order.orderTotal ?? 0));
 
@@ -653,6 +660,7 @@ export const processOrderLoyalty = async (client, {
   userId = null,
 }) => {
   await ensureLoyaltySchema(client);
+  const finalTenantId = await resolveTenantIdForOrder(client, { tenantId, orderId });
 
   const emptyResult = {
     earned: false,
@@ -673,7 +681,7 @@ export const processOrderLoyalty = async (client, {
   if (!customerId) {
     return { ...emptyResult, reason: "missing_customer" };
   }
-  if (!hasTenantId(tenantId)) {
+  if (!hasTenantId(finalTenantId)) {
     return { ...emptyResult, reason: "missing_tenant" };
   }
 
@@ -684,7 +692,7 @@ export const processOrderLoyalty = async (client, {
   let pointsRedeemed = 0;
 
   if (requestedRedeem > 0) {
-    const current = await readCustomerBalance(client, { tenantId, customerId });
+    const current = await readCustomerBalance(client, { tenantId: finalTenantId, customerId });
     const availablePoints = Number(current.loyalty_points || 0);
     if (requestedRedeem > availablePoints) {
       return { ...emptyResult, reason: "over_redemption", maxRedeemable: availablePoints };
@@ -705,13 +713,13 @@ export const processOrderLoyalty = async (client, {
       ON CONFLICT DO NOTHING
       RETURNING *
       `,
-      [tenantId, customerId, orderId || null, "pos", -Math.abs(requestedRedeem), redemptionBalance]
+      [finalTenantId, customerId, orderId || null, "pos", -Math.abs(requestedRedeem), redemptionBalance]
     );
     if (!redemption.rows[0]) {
       return { ...emptyResult, reason: "redemption_already_applied", duplicate: true };
     }
     await syncCustomerLoyalty(client, {
-      tenantId,
+      tenantId: finalTenantId,
       customerId,
       points: redemptionBalance,
       totalSpent: Number(current.total_spent || 0),
@@ -734,13 +742,13 @@ export const processOrderLoyalty = async (client, {
       )
       VALUES ($1,$2,$3,'redeemed',$4,$5,$6,$7)
       `,
-      [tenantId, customerId, orderId || null, -Math.abs(requestedRedeem), total, `Redeemed ${requestedRedeem} points on order #${orderId}`, userId]
+      [finalTenantId, customerId, orderId || null, -Math.abs(requestedRedeem), total, `Redeemed ${requestedRedeem} points on order #${orderId}`, userId]
     );
   }
 
   const order = {
     id: orderId,
-    tenant_id: tenantId,
+    tenant_id: finalTenantId,
     customer_id: customerId,
     total_amount: total,
     paid_amount: paidAmount,
@@ -756,7 +764,7 @@ export const processOrderLoyalty = async (client, {
       ? await applyOrderLoyalty(client, order)
       : { applied: false, pointsEarned: 0 };
 
-  const summary = await getCustomerLoyaltySummary(client, customerId, tenantId);
+  const summary = await getCustomerLoyaltySummary(client, customerId, finalTenantId);
   const pointsEarned = Number(loyaltyAction.pointsEarned || 0);
   if (pointsEarned > 0) activities.push(`Earned ${pointsEarned} points`);
   const previousTier = "Bronze";
@@ -765,7 +773,7 @@ export const processOrderLoyalty = async (client, {
 
   const cashbackAmount = calculateWalletCashback({ tier, orderTotal: total });
   const wallet = await applyWalletActivity(client, {
-    tenantId,
+    tenantId: finalTenantId,
     customerId,
     orderId,
     cashbackAmount,
