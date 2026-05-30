@@ -1594,6 +1594,81 @@ const useProducts = (params = {}) => {
   return state;
 };
 
+const storefrontPathFromLink = (value = "") => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw, typeof window !== "undefined" ? window.location.origin : "https://storefront.local");
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return raw.startsWith("/") ? raw : "";
+  }
+};
+
+const normalizeHomeProduct = (product = {}) => {
+  const link = storefrontPathFromLink(product.link || product.product_url || product.url);
+  const image = product.image_url || product.product_image_url || product.thumbnail_url || product.photo_url || product.image || product.gallery_images?.[0] || "";
+  const price = Number(product.price || product.final_price || product.selling_price || product.regular_price || 0) || 0;
+  const salePrice = Number(product.sale_price || 0) || 0;
+  const sourceSellingPrice = Number(product.selling_price || product.price || price || 0) || 0;
+  return {
+    ...product,
+    id: product.id || product.product_id || product.card_id || "",
+    product_id: product.product_id || product.id || "",
+    card_id: product.card_id || product.id || product.product_id || "",
+    slug: product.slug || product.canonical_slug || product.id || "",
+    name: product.name || product.title || product.product_name || "",
+    image_url: image,
+    product_image_url: product.product_image_url || image,
+    gallery_images: Array.isArray(product.gallery_images) ? product.gallery_images : image ? [image] : [],
+    price,
+    final_price: price,
+    selling_price: price || sourceSellingPrice,
+    regular_price: Number(product.regular_price || product.original_price || product.compare_at_price || sourceSellingPrice || price || 0) || 0,
+    sale_price: salePrice,
+    sale_price_enabled: Boolean(product.sale_price_enabled && salePrice > 0 && sourceSellingPrice > 0 && salePrice < sourceSellingPrice),
+    sale_mode_applied: Boolean(product.sale_price_enabled && salePrice > 0 && sourceSellingPrice > 0 && salePrice < sourceSellingPrice),
+    total_stock: Number(product.total_stock ?? product.stock ?? 1) || 0,
+    stock: Number(product.stock ?? product.total_stock ?? 1) || 0,
+    link,
+  };
+};
+
+const normalizeHomeCollection = (collection = {}) => ({
+  ...collection,
+  key: collection.key || collection.id || collection.slug || collection.title || "",
+  title: collection.title || collection.name || collection.label || "",
+  subtitle: collection.subtitle || collection.description || "",
+  products: (Array.isArray(collection.products) ? collection.products : []).map(normalizeHomeProduct).filter((product) => product.id && product.name && product.image_url),
+});
+
+const useStorefrontHome = () => {
+  const [state, setState] = useState({ loading: true, error: "", hero: null, collections: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    cachedStorefrontGet("/storefront/home", { ttlMs: 0 })
+      .then((data) => {
+        const home = data?.home || {};
+        const hero = home.hero ? normalizeHomeProduct(home.hero) : null;
+        const collections = (Array.isArray(home.featured_collections) ? home.featured_collections : [])
+          .map(normalizeHomeCollection)
+          .filter((collection) => collection.products.length);
+        if (!cancelled) setState({ loading: false, error: "", hero: hero?.id ? hero : null, collections });
+      })
+      .catch((error) => {
+        if (!cancelled && error?.cause?.name !== "AbortError") {
+          setState({ loading: false, error: error?.message || "Failed to load storefront home", hero: null, collections: [] });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return state;
+};
+
 const useStorefrontGenderClassifications = () => {
   const [state, setState] = useState({ loading: true, error: "", options: [] });
 
@@ -3481,6 +3556,7 @@ function HomePage(props) {
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [lastPieceOpen, setLastPieceOpen] = useState(false);
+  const storefrontHome = useStorefrontHome();
   const { products, loading } = useProducts({ limit: 24 });
   const { products: saleProducts, loading: saleLoading } = useProducts({ sale: 1, limit: 12 });
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
@@ -3506,8 +3582,9 @@ function HomePage(props) {
     [railProducts, saleFallback, saleProducts, saleRailProducts]
   );
   const heroProducts = useMemo(() => {
-    return uniqueProductsByIdentity([...bestBase, ...freshBase, ...saleBase, ...railProducts]).slice(0, 6);
-  }, [bestBase, freshBase, railProducts, saleBase]);
+    const homeHero = storefrontHome.hero ? [storefrontHome.hero] : [];
+    return uniqueProductsByIdentity([...homeHero, ...bestBase, ...freshBase, ...saleBase, ...railProducts]).slice(0, 6);
+  }, [bestBase, freshBase, railProducts, saleBase, storefrontHome.hero]);
   const safeHeroIndex = heroProducts.length ? Math.min(heroIndex, heroProducts.length - 1) : 0;
   const heroProduct = heroProducts[safeHeroIndex] || heroProducts[0] || railProducts[0] || {};
   const heroKey = productIdentityKey(heroProduct);
@@ -3527,7 +3604,7 @@ function HomePage(props) {
   const heroImage = displayImageForProduct(heroProduct, heroVariant);
   const heroSizes = heroSizesForProduct(heroProduct);
   const heroTheme = heroThemeForProduct(heroProduct, heroVariant);
-  const weekProduct = useMemo(() => best[0] || freshUnique[0] || saleUnique[0] || railProducts[0] || {}, [best, freshUnique, railProducts, saleUnique]);
+  const weekProduct = useMemo(() => storefrontHome.hero || best[0] || freshUnique[0] || saleUnique[0] || railProducts[0] || {}, [best, freshUnique, railProducts, saleUnique, storefrontHome.hero]);
   const weekVariant = firstDisplayVariant(weekProduct.variants || []);
   const weekSizes = useMemo(
     () => [...new Set((weekProduct.variants || []).filter((variant) => variantHasStock(variant) && variant.size).map((variant) => variant.size))].slice(0, 5),
@@ -3541,7 +3618,9 @@ function HomePage(props) {
     : productStock(heroProduct) > 0
       ? t("storefront.products.availableLiveStock", "Available now from live stock")
       : t("storefront.products.checkAvailability", "Check availability");
-  const heroDetailsUrl = heroProduct?.id ? productUrl(heroProduct) : "/shop/products";
+  const heroDetailsUrl = heroProduct?.link || (heroProduct?.id ? productUrl(heroProduct) : "/shop/products");
+  const homeCollections = storefrontHome.collections;
+  const hasHomeCollections = homeCollections.length > 0;
   const categoryPreviewCards = useMemo(() => {
     const genderOptions = storefrontGenderOptions.length ? storefrontGenderOptions : classificationOptions.gender;
     return uniqueClassificationOptions(genderOptions)
@@ -3762,12 +3841,28 @@ function HomePage(props) {
           </div>
         ) : null}
       </section>
-      <ProductRail title={t("storefront.home.bestsellers", "Best sellers")} subtitle={t("storefront.home.bestsellersSubtitle", "Best sellers this week")} loading={loading} products={best} railType="bestseller" featuredFirst {...props} />
+      {hasHomeCollections ? homeCollections.map((collection) => (
+        <ProductRail
+          key={collection.key || collection.title}
+          title={collection.title}
+          subtitle={collection.subtitle}
+          loading={storefrontHome.loading && !collection.products.length}
+          products={collection.products}
+          railType={collection.key || "default"}
+          {...props}
+        />
+      )) : (
+        <ProductRail title={t("storefront.home.bestsellers", "Best sellers")} subtitle={t("storefront.home.bestsellersSubtitle", "Best sellers this week")} loading={loading || storefrontHome.loading} products={best} railType="bestseller" featuredFirst {...props} />
+      )}
       <section className="mx-auto max-w-[1200px] px-4 py-2">
         <FeaturedProductSection product={weekProduct} variant={weekVariant} sizes={weekSizes} />
       </section>
-      <ProductRail title={t("storefront.nav.sale", "Sale")} subtitle={t("storefront.home.saleSubtitle", "Selected discounts for a limited time")} loading={saleLoading && !saleUnique.length} products={saleUnique} railType="sale" {...props} />
-      <ProductRail title={t("storefront.nav.new", "New")} subtitle={t("storefront.home.newSubtitle", "Recently added to stock")} loading={loading} products={freshUnique} railType="new" {...props} />
+      {!hasHomeCollections ? (
+        <>
+          <ProductRail title={t("storefront.nav.sale", "Sale")} subtitle={t("storefront.home.saleSubtitle", "Selected discounts for a limited time")} loading={saleLoading && !saleUnique.length} products={saleUnique} railType="sale" {...props} />
+          <ProductRail title={t("storefront.nav.new", "New")} subtitle={t("storefront.home.newSubtitle", "Recently added to stock")} loading={loading} products={freshUnique} railType="new" {...props} />
+        </>
+      ) : null}
       <Reviews />
       <LastPieceFinder open={lastPieceOpen} onClose={() => setLastPieceOpen(false)} />
     </div>
