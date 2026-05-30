@@ -448,6 +448,10 @@ const productIdentifierCandidates = (value = "") => {
   const raw = String(value || "").trim();
   const decoded = decodeIdentifier(raw).trim();
   const candidates = [raw, decoded];
+  for (const candidate of [raw, decoded]) {
+    const cardProductId = candidate.match(/^(\d+):/);
+    if (cardProductId?.[1]) candidates.push(cardProductId[1]);
+  }
   if (decoded.includes("-")) {
     candidates.push(decoded.replace(/\s*-\s*/g, "-").replace(/-+/g, "-").trim());
   }

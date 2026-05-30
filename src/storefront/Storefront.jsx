@@ -826,7 +826,21 @@ function storefrontPathFromLink(value = "") {
     return "";
   }
 }
-const productBaseUrl = (product = {}) => `/shop/product/${product.slug || product.id}`;
+const productRouteIdentifier = (product = {}) =>
+  firstTextValue(
+    product.product_id,
+    product.productId,
+    product.parent_product_id,
+    product.id,
+    product.slug,
+    product.product_slug,
+    product.canonical_slug,
+    product.card_id
+  );
+const productBaseUrl = (product = {}) => {
+  const identifier = productRouteIdentifier(product);
+  return identifier ? `/shop/product/${encodeURIComponent(identifier)}` : "/shop/products";
+};
 const appendProductUrlParams = (url = "", entries = []) => {
   const [path, query = ""] = String(url || "").split("?");
   const params = new URLSearchParams(query);
@@ -841,7 +855,8 @@ const productUrl = (product = {}) => {
   const variantId = product.selected_variant_id || product.display_variant_id || product.matched_variant_id || "";
   const color = product.color_key || product.display_color_key || product.color || product.display_color || "";
   const linkedPath = storefrontPathFromLink(product.link || product.product_url || product.url);
-  return appendProductUrlParams(linkedPath || productBaseUrl(product), [
+  const linkedProductPath = linkedPath.startsWith("/shop/product/") ? linkedPath : "";
+  return appendProductUrlParams(linkedProductPath || productBaseUrl(product), [
     ["variant", variantId],
     ["color", color],
   ]);

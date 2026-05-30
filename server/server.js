@@ -113,8 +113,10 @@ const configuredCorsOrigins = [
   "http://127.0.0.1:5175",
   process.env.PUBLIC_APP_URL,
   process.env.FRONTEND_URL,
+  process.env.STORE_FRONT_URL,
   process.env.PUBLIC_FRONTEND_URL,
   process.env.VITE_PUBLIC_APP_URL,
+  process.env.VITE_PUBLIC_STOREFRONT_URL,
   process.env.VITE_PUBLIC_FRONTEND_URL,
   process.env.CORS_ALLOWED_ORIGINS,
 ]
