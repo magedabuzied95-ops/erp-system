@@ -5,9 +5,12 @@ import { useTranslation } from "react-i18next";
 
 import {
   ArrowLeft,
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   ChevronRight,
   Clock3,
+  GripVertical,
   ImagePlus,
   Loader2,
   Plus,
@@ -2709,7 +2712,7 @@ function ProductEdit() {
                 </button>
               </div>
 
-              <div className="w-full rounded-[28px] border border-white/8 bg-white/5 p-5 xl:w-[380px]">
+              <div className="w-full rounded-[28px] border border-white/8 bg-white/5 p-5 xl:w-[460px]">
                 <p className="text-sm font-semibold text-zinc-300">{t("products.editor.productGallery", "Product gallery")}</p>
                 <label className="mt-4 flex min-h-[120px] cursor-pointer items-center justify-center rounded-[24px] border-2 border-dashed border-white/10 bg-zinc-950/60 text-center">
                   <div>
@@ -2721,13 +2724,13 @@ function ProductEdit() {
                 </label>
 
                 {gallery.length > 0 ? (
-                  <div className="mt-4 grid grid-cols-3 gap-3 overflow-visible">
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                     {gallery.map((item) => (
                       <ImageThumbnailActions
                         key={item.id || item.name}
                         image={{ ...item, preview: resolveAssetUrl(item.preview || item.image_url) }}
                         alt={item.name || "Gallery image"}
-                        className="h-20"
+                        className="min-w-0"
                         isPrimary={Boolean(coverImage && (coverImage === item.preview || coverImage === item.image_url))}
                         onPrimary={() => setGalleryItemAsPrimary(item)}
                         deleteDisabled={Boolean(item.uploading)}
@@ -3105,41 +3108,45 @@ function ProductEdit() {
                           }}
                         />
                       </label>
-                      <div className="grid max-w-[180px] grid-cols-4 gap-1.5 overflow-visible">
+                      <div className="grid w-full max-w-[620px] grid-cols-2 gap-2 sm:grid-cols-3 2xl:grid-cols-4">
                         {normalizeColorImages(group.images).map((image, imageIndex) => (
-                          <div key={image.id || `${group.id}-${imageIndex}`} className="group relative z-0 aspect-square overflow-visible hover:z-20 focus-within:z-20">
-                            <ImageThumbnailActions
-                              image={{ ...image, preview: resolveAssetUrl(image.image_url || image.preview) }}
-                              alt={image.name || group.color || "Color image"}
-                              isPrimary={Boolean(image.is_primary)}
-                              onPrimary={() => setPrimaryColorImage(group.id, image.id)}
-                              deleteDisabled={Boolean(image.uploading)}
-                              deleteDisabledReason="Image is still uploading"
-                              onDelete={() => removeColorImage(group.id, image.id)}
-                              className="h-full w-full rounded-[14px]"
-                            />
-                            <div className="absolute left-1 bottom-1 z-50 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-                              <button
-                                type="button"
-                                onClick={() => moveColorImage(group.id, image.id, "up")}
-                                className="rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white disabled:opacity-30"
-                                disabled={imageIndex === 0}
-                              >
-                                ↑
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => moveColorImage(group.id, image.id, "down")}
-                                className="rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white disabled:opacity-30"
-                                disabled={imageIndex === normalizeColorImages(group.images).length - 1}
-                              >
-                                ↓
-                              </button>
-                            </div>
-                          </div>
+                          <ImageThumbnailActions
+                            key={image.id || `${group.id}-${imageIndex}`}
+                            image={{ ...image, preview: resolveAssetUrl(image.image_url || image.preview) }}
+                            alt={image.name || group.color || "Color image"}
+                            isPrimary={Boolean(image.is_primary)}
+                            onPrimary={() => setPrimaryColorImage(group.id, image.id)}
+                            deleteDisabled={Boolean(image.uploading)}
+                            deleteDisabledReason="Image is still uploading"
+                            onDelete={() => removeColorImage(group.id, image.id)}
+                            className="min-w-0 rounded-[14px]"
+                            actions={(
+                              <>
+                                <GripVertical className="h-4 w-4 text-zinc-500" aria-hidden="true" />
+                                <button
+                                  type="button"
+                                  onClick={() => moveColorImage(group.id, image.id, "up")}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/8 text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-30"
+                                  disabled={imageIndex === 0}
+                                  aria-label={t("products.images.moveUp", "Move image up")}
+                                >
+                                  <ArrowUp className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => moveColorImage(group.id, image.id, "down")}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/8 text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-30"
+                                  disabled={imageIndex === normalizeColorImages(group.images).length - 1}
+                                  aria-label={t("products.images.moveDown", "Move image down")}
+                                >
+                                  <ArrowDown className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                          />
                         ))}
                         {normalizeColorImages(group.images).length === 0 ? (
-                          <div className="col-span-4 rounded-[14px] border border-dashed border-white/10 bg-zinc-950/60 px-2 py-3 text-center text-[10px] font-semibold text-zinc-500">
+                          <div className="col-span-full rounded-[14px] border border-dashed border-white/10 bg-zinc-950/60 px-3 py-4 text-center text-[11px] font-semibold text-zinc-500">
                             No images
                           </div>
                         ) : null}
