@@ -4329,6 +4329,7 @@ export const confirmShippingPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: "صورة إثبات التحويل غير صالحة" });
     }
     const paymentMethod = String(currentOrder.payment_method || "").trim().toLowerCase();
+    const effectiveTenantId = currentOrder.tenant_id ?? tenantId ?? getTenantId(req, req.tenant_id || req.user?.tenant_id);
     const totalAmount = Number(currentOrder.total_amount ?? currentOrder.total ?? currentOrder.total_price ?? 0);
     const shippingAmount = Number(currentOrder.shipping_fee ?? currentOrder.delivery_fee ?? currentOrder.service_fee ?? 0);
     const existingPaidAmount = Number(currentOrder.paid_amount || 0);
@@ -4354,8 +4355,8 @@ export const confirmShippingPayment = async (req, res) => {
       `,
       [req.params.id, req.user?.id || null, tenantId, nextPaymentStatus, nextPaidAmount]
     );
-    await processOrderLoyalty(client, {
-      tenantId,
+    const loyaltyResult = await processOrderLoyalty(client, {
+      tenantId: effectiveTenantId,
       orderId: result.rows[0].id,
       customerId: result.rows[0].customer_id,
       orderTotal: result.rows[0].total_amount || result.rows[0].total || result.rows[0].total_price || 0,
@@ -4365,7 +4366,7 @@ export const confirmShippingPayment = async (req, res) => {
       userId: req.user?.id || null,
     });
     await client.query("COMMIT");
-    return res.json({ success: true, order: result.rows[0] });
+    return res.json({ success: true, order: result.rows[0], loyalty: loyaltyResult });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     return res.status(500).json({ success: false, message: "Failed to confirm payment", error: error.message });

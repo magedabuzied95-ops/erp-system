@@ -117,6 +117,7 @@ export const resolveCustomerTier = (lifetimePoints = 0) => {
 };
 
 const isCancelled = (status) => ["cancelled", "canceled", "void", "refunded"].includes(String(status || "").toLowerCase());
+const hasTenantId = (tenantId) => tenantId !== undefined && tenantId !== null && String(tenantId).trim() !== "";
 
 const isPaidOrCompleted = (order = {}) => {
   const status = String(order.status || "").toLowerCase();
@@ -247,6 +248,7 @@ export const applyOrderLoyalty = async (client, order = {}) => {
   const source = normalizeSource(order);
   const orderTotal = Math.max(0, Number(order.total_amount ?? order.total ?? order.total_price ?? order.orderTotal ?? 0));
 
+  if (!hasTenantId(tenantId)) return { applied: false, reason: "missing_tenant" };
   if (!customerId || !orderId) return { applied: false, reason: "missing_customer_or_order" };
   if (isCancelled(order.status) || isCancelled(order.payment_status)) return reverseOrderLoyalty(client, order);
   if (!isPaidOrCompleted(order)) return { applied: false, reason: "order_not_paid_or_completed" };
@@ -319,6 +321,7 @@ export const reverseOrderLoyalty = async (client, order = {}) => {
   const source = normalizeSource(order);
   const orderTotal = Math.max(0, Number(order.total_amount ?? order.total ?? order.total_price ?? order.orderTotal ?? 0));
 
+  if (!hasTenantId(tenantId)) return { reversed: false, reason: "missing_tenant" };
   if (!customerId || !orderId) return { reversed: false, reason: "missing_customer_or_order" };
 
   const earned = await client.query(
@@ -669,6 +672,9 @@ export const processOrderLoyalty = async (client, {
 
   if (!customerId) {
     return { ...emptyResult, reason: "missing_customer" };
+  }
+  if (!hasTenantId(tenantId)) {
+    return { ...emptyResult, reason: "missing_tenant" };
   }
 
   const total = Math.max(0, Number(orderTotal || 0));

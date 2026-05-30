@@ -72,6 +72,9 @@ export const finalizeOrderLoyalty = async (client, {
   userId = null,
 }) => {
   try {
+    if (tenantId === undefined || tenantId === null || String(tenantId).trim() === "") {
+      return { awarded: false, reason: "missing_tenant" };
+    }
     if (!customerId) {
       return { awarded: false, reason: "missing_customer" };
     }
