@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { SALE_MODE_DEFAULTS } from "./saleModeService.js";
 import { buildCacheKey, invalidateCachePattern } from "./cacheService.js";
+import { getSetting, setSetting } from "./settingsService.js";
 
 const DEFAULT_SETTINGS = {
   enable_fake_compare_price: true,
@@ -40,7 +41,10 @@ export const ensureWebsiteSettingsSchema = async (clientOrPool = db) => {
 
 export const getWebsiteSettings = async ({ tenantId = null } = {}) => {
   await ensureWebsiteSettingsSchema();
-  const result = await db.query(
+  const [defaultShippingPrice, shippingZones, result] = await Promise.all([
+    getSetting("storefront.default_shipping_price", 60),
+    getSetting("storefront.shipping_zones", []),
+    db.query(
     `
     SELECT settings
     FROM website_settings
@@ -50,12 +54,24 @@ export const getWebsiteSettings = async ({ tenantId = null } = {}) => {
     LIMIT 1
     `,
     [tenantId]
-  );
-  return { ...DEFAULT_SETTINGS, ...(result.rows[0]?.settings || {}) };
+    ),
+  ]);
+  return {
+    ...DEFAULT_SETTINGS,
+    default_shipping_price: defaultShippingPrice,
+    shipping_zones: Array.isArray(shippingZones) ? shippingZones : [],
+    ...(result.rows[0]?.settings || {}),
+  };
 };
 
 export const updateWebsiteSettings = async ({ tenantId = null, settings = {} } = {}) => {
   await ensureWebsiteSettingsSchema();
+  if (Object.prototype.hasOwnProperty.call(settings, "default_shipping_price")) {
+    await setSetting("storefront.default_shipping_price", settings.default_shipping_price, "shipping");
+  }
+  if (Object.prototype.hasOwnProperty.call(settings, "shipping_zones")) {
+    await setSetting("storefront.shipping_zones", Array.isArray(settings.shipping_zones) ? settings.shipping_zones : [], "shipping");
+  }
   const current = await getWebsiteSettings({ tenantId });
   const next = { ...current, ...(settings || {}) };
   if (tenantId === null || tenantId === undefined) {

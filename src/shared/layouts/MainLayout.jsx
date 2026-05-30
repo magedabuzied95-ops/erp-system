@@ -53,7 +53,7 @@ const SIDEBAR_SUBGROUP_TITLE_KEYS = {
   "System Settings": "sidebar.subgroups.systemSettings",
 };
 
-const SYSTEM_PREFERENCE_ROUTES = new Set(["/settings", "/settings/appearance", "/settings/company"]);
+const SYSTEM_PREFERENCE_ROUTES = new Set(["/settings", "/settings/appearance", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments"]);
 const AI_MARKETING_ROUTES = new Set(["/marketing/ai-center", "/marketing/ai-center/videos", "/admin/ai-inbox", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics"]);
 const AI_SUPPORT_ROUTES = new Set(["/admin/ai-support-console", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"]);
 
@@ -99,8 +99,10 @@ const CONCRETE_SIDEBAR_PATHS = new Set([
   "/employees/advances",
   "/settings/users",
   "/settings/permissions",
-  "/settings/currencies",
   "/settings/company",
+  "/settings/storefront",
+  "/settings/shipping",
+  "/settings/payments",
   "/settings/appearance",
 ]);
 
@@ -191,7 +193,7 @@ const groupForSidebarItem = (sectionTitle, item) => {
   if (to === "/employees" || to.startsWith("/employees/")) return "Employees";
   if (to === "/accounting" || to === "/expenses" || to === "/reports") return "Finance";
   if (to === "/marketing/ai-center" || to === "/admin/ai-inbox" || to === "/admin/ai-followups" || to === "/admin/ai-channels" || to === "/admin/ai-agent-analytics" || to === "/admin/ai-support-knowledge-base" || to === "/admin/ai-agent-settings") return "AI & Marketing";
-  if (to === "/branches" || to === "/settings/users" || to === "/admin/tenants" || to === "/settings/permissions" || to === "/settings/currencies" || to === "/settings/company" || to === "/settings") return "System Settings";
+  if (to === "/branches" || to === "/settings/users" || to === "/admin/tenants" || to === "/settings/permissions" || to === "/settings/company" || to === "/settings/storefront" || to === "/settings/shipping" || to === "/settings/payments" || to === "/settings") return "System Settings";
 
   if (sectionTitle === "Main") return "Main";
   if (sectionTitle === "Products" || sectionTitle === "Inventory") return "Products & Inventory";
@@ -213,7 +215,7 @@ const buildEnterpriseSidebarGroups = (sections) => {
   let canAccessSettings = false;
   sections.forEach((section) => {
     section.items.forEach((item) => {
-      if (item.to === "/settings" || item.to === "/settings/appearance" || item.to === "/settings/company") canAccessSettings = true;
+      if (item.to === "/settings" || item.to === "/settings/appearance" || item.to === "/settings/company" || item.to === "/settings/storefront" || item.to === "/settings/shipping" || item.to === "/settings/payments") canAccessSettings = true;
       const key = item.to || `${section.title}:${item.label}`;
       if (seen.has(key)) return;
       seen.add(key);
@@ -223,7 +225,13 @@ const buildEnterpriseSidebarGroups = (sections) => {
         : item.to === "/settings"
           ? "Settings Center"
         : item.to === "/settings/company"
-          ? "Preferences"
+          ? "General"
+        : item.to === "/settings/storefront"
+          ? "Storefront"
+        : item.to === "/settings/shipping"
+          ? "Shipping"
+        : item.to === "/settings/payments"
+          ? "Payments"
           : undefined;
       const sidebarIcon = item.to === "/settings/appearance"
         ? Paintbrush
@@ -236,17 +244,6 @@ const buildEnterpriseSidebarGroups = (sections) => {
     });
   });
 
-  const systemGroup = byTitle.get("System");
-  if (systemGroup && canAccessSettings && !seen.has("/settings/currencies")) {
-    systemGroup.items.splice(1, 0, {
-      label: "Currency",
-      sourceLabel: "Currency",
-      to: "/settings/currencies",
-      permission: "settings.view",
-      icon: CircleDollarSign,
-      sourceSection: "Settings",
-    });
-  }
   const routeOrders = {
     Main: ["/dashboard", "/workspace", "/notifications"],
     Sales: ["/pos", "/orders", "/orders?channel=website", "/orders/returns", "/customers"],
@@ -255,7 +252,7 @@ const buildEnterpriseSidebarGroups = (sections) => {
     Employees: ["/employees", "/employees/attendance", "/employees/payroll", "/employees/advances"],
     Finance: ["/accounting", "/expenses", "/reports"],
     "AI & Marketing": ["/admin/ai-inbox", "/marketing/ai-center", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"],
-    "System Settings": ["/branches", "/settings/users", "/admin/tenants", "/settings/permissions", "/settings/currencies", "/settings/company", "/settings"],
+    "System Settings": ["/settings", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments", "/branches", "/settings/users", "/admin/tenants", "/settings/permissions"],
   };
   groups.forEach((group) => {
     const routeOrder = routeOrders[group.title] || [];

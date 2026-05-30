@@ -29,6 +29,7 @@ import {
   TestTube2,
   Truck,
   Undo2,
+  WalletCards,
   Warehouse,
   X,
 } from "lucide-react";
@@ -126,6 +127,8 @@ const iconMap = {
   general: Building2,
   orders: ShoppingCart,
   storefront: Store,
+  shipping: Truck,
+  payments: CreditCard,
   pos: CreditCard,
   inventory: Warehouse,
   accounting: Database,
@@ -139,42 +142,72 @@ const navDescriptions = {
   general: "Company profile and locale",
   orders: "Lifecycle and fulfillment",
   storefront: "Public shop and catalog",
+  shipping: "Zones, COD, proof, providers",
+  payments: "COD, wallets, gateways",
   pos: "Cashier defaults",
   inventory: "Stock and warehouse rules",
   accounting: "Ledger and tax defaults",
   employees: "Payroll and attendance",
-  ai_channels: "AI mode and handoff",
+  ai_channels: "AI and marketing automation",
   notifications: "Alerts and channels",
   security: "Access and protection",
 };
 
 const sectionMap = {
   general: [
-    ["Company", ["general.company_name", "general.company_logo_url"]],
-    ["Locale", ["general.default_language", "general.default_currency", "general.currency_symbol", "general.timezone"]],
-    ["Operating defaults", ["general.default_branch_id", "general.default_warehouse_id", "general.default_pos_treasury_account_id"]],
-    ["Business calendar", ["general.business_working_days", "general.business_hours"]],
+    ["Company Information", ["general.company_name", "general.default_country", "general.default_city"]],
+    ["Logo & Branding", ["general.company_logo_url"]],
+    ["Currency", ["general.default_currency", "general.currency_symbol"]],
+    ["Language", ["general.default_language", "general.default_direction"]],
+    ["Timezone", ["general.timezone"]],
+    ["Date & Number Formats", ["general.date_format", "general.time_format", "general.number_format"]],
+    ["Preferences", ["general.default_branch_id", "general.default_warehouse_id", "general.default_pos_treasury_account_id", "general.business_working_days", "general.business_hours"]],
+  ],
+  storefront: [
+    ["Store Identity", ["storefront.enabled", "storefront.store_name", "storefront.public_url", "storefront.store_logo_url", "storefront.favicon_url"]],
+    ["Homepage", ["storefront.homepage_hero", "storefront.featured_collections"]],
+    ["Catalog", ["storefront.product_sorting_default", "storefront.show_sold_out_products"]],
+    ["Search", []],
+    ["Product Cards", ["storefront.show_low_stock_badge", "storefront.show_product_views", "storefront.enable_wishlist", "storefront.enable_product_sharing", "storefront.enable_size_guide"]],
+    ["SEO", ["storefront.seo_title", "storefront.seo_description", "storefront.open_graph_image_url"]],
+    ["Notifications", []],
+  ],
+  shipping: [
+    ["Shipping Overview", ["storefront.default_shipping_price"]],
+    ["Shipping Zones", ["storefront.shipping_zones"]],
+    ["Governorates & Cities", ["storefront.shipping_zones"]],
+    ["Free Shipping Rules", ["storefront.shipping_zones"]],
+    ["COD Rules", ["storefront.shipping_zones"]],
+    ["Shipping Proof Rules", ["storefront.shipping_zones"]],
+    ["Shipping Providers", ["orders.shipping_provider", "orders.shipping_rule_engine_enabled", "orders.shipping_auto_create_ready_to_ship", "orders.bosta_api_key", "orders.mylerz_api_key", "orders.aramex_api_key"]],
+  ],
+  payments: [
+    ["Cash on Delivery", ["orders.allow_cod"]],
+    ["Instapay", ["payments.instapay_enabled", "payments.instapay_handle"]],
+    ["Vodafone Cash", ["payments.vodafone_cash_enabled", "payments.vodafone_cash_number"]],
+    ["Paymob", ["payments.paymob_enabled"]],
+    ["Stripe", ["payments.stripe_enabled"]],
+    ["Payment Instructions", ["payments.instructions"]],
   ],
   orders: [
     ["Order numbering", ["orders.order_number_prefix", "orders.invoice_number_prefix"]],
     ["Checkout", ["orders.default_website_order_status", "orders.default_pos_order_status", "orders.auto_confirm_website_orders", "orders.allow_cod", "orders.allow_store_pickup"]],
-    ["Shipping", ["orders.shipping_provider", "orders.shipping_rule_engine_enabled", "orders.shipping_auto_create_ready_to_ship"]],
     ["Stock reservation", ["orders.reserve_stock_on_website_order", "orders.reserve_stock_expiry_minutes", "orders.cancel_unpaid_after_minutes"]],
   ],
   ai_channels: [
-    ["AI mode", ["ai_channels.ai_support_enabled", "ai_channels.ai_reply_mode", "ai_channels.product_recommendation_strictness"]],
-    ["Human takeover", ["ai_channels.human_takeover_behavior", "ai_channels.auto_return_to_ai_minutes", "ai_channels.handoff_message", "ai_channels.ai_fallback_message"]],
-    ["Meta settings", ["ai_channels.meta_integration_enabled", "ai_channels.allowed_channels", "ai_channels.webhook_url_display"]],
-    ["Media and links", ["ai_channels.storefront_product_link_base", "ai_channels.cloudinary_cloud_name", "ai_channels.cloudinary_api_secret"]],
+    ["AI Assistant", ["ai_channels.ai_support_enabled", "ai_channels.ai_reply_mode", "ai_channels.product_recommendation_strictness"]],
+    ["AI Inbox", ["ai_channels.human_takeover_behavior", "ai_channels.auto_return_to_ai_minutes", "ai_channels.handoff_message", "ai_channels.ai_fallback_message"]],
+    ["Marketing Automation", ["ai_channels.allowed_channels", "ai_channels.storefront_product_link_base"]],
+    ["Meta Integrations", ["ai_channels.meta_integration_enabled", "ai_channels.webhook_url_display", "ai_channels.cloudinary_cloud_name", "ai_channels.cloudinary_api_secret"]],
   ],
 };
 
 const legacyAudit = [
   ["Company, language, currency, tax number", "/settings/company, /settings/currencies", "general"],
-  ["Storefront URL, logo, SEO, sale display", "/website/settings and website settings service", "storefront"],
+  ["Storefront URL, logo, SEO, sale display", "/settings?category=storefront", "storefront"],
   ["AI support mode, channels, handoff messages", "/ai/settings and AI channel settings", "ai_channels"],
   ["POS defaults, discounts, receipt behavior", "POS runtime components", "pos"],
-  ["Shipping provider and carrier credentials", "shipping provider services", "orders"],
+  ["Shipping zones, provider and carrier credentials", "/settings?category=shipping", "shipping"],
 ];
 
 const localized = (value, language = "en") => {
@@ -287,6 +320,9 @@ function SettingsCenterContent({ debugMode = false }) {
     "/settings/company": "general",
     "/settings/currencies": "general",
     "/settings/appearance": "general",
+    "/settings/storefront": "storefront",
+    "/settings/shipping": "shipping",
+    "/settings/payments": "payments",
     "/ai/settings": "ai_channels",
   };
   const initialCategory = normalizeSettingsCategory(params.get("category") || categoryFromPath[location.pathname]) || "general";
@@ -428,7 +464,7 @@ function SettingsCenterContent({ debugMode = false }) {
   }), [activeCategoryMeta?.label, definitions, normalizedSearch]);
 
   const sections = useMemo(() => {
-    if (activeCategory === "storefront") return [];
+    if (activeCategory === "storefront" || activeCategory === "shipping") return [];
     const configured = sectionMap[activeCategory] || [];
     const configuredKeys = new Set(configured.flatMap(([, keys]) => keys));
     const built = configured.map(([title, keys]) => ({
@@ -678,6 +714,13 @@ function SettingsCenterContent({ debugMode = false }) {
                 renderInput={renderInput}
                 renderField={renderField}
               />
+            ) : activeCategory === "shipping" ? (
+              <ShippingSettings
+                setting={setting}
+                value={value}
+                updateValue={updateValue}
+                renderField={renderField}
+              />
             ) : sections.length ? (
               <div className="grid gap-5">
                 {sections.map((section) => (
@@ -717,38 +760,11 @@ function SettingsCenterContent({ debugMode = false }) {
 function StorefrontSettings(props) {
   const { ui, setting, value, hero, featuredCollections, collectionDraft, setCollectionDraft, updateValue, updateHero, renderInput, renderField } = props;
   const publicUrl = value("storefront.public_url");
-  const [activeTab, setActiveTab] = useState("general");
-  const tabs = [
-    ["general", "Storefront", Store],
-    ["shipping", "Shipping", Truck],
-  ];
   return (
     <div className="grid gap-5">
-      <div className={`flex flex-wrap gap-2 rounded-[1.5rem] p-2 ${shellCard}`}>
-        {tabs.map(([id, labelText, Icon]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setActiveTab(id)}
-            className={`inline-flex h-11 items-center gap-2 rounded-2xl px-4 text-sm font-black transition ${activeTab === id ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/8"}`}
-          >
-            <Icon className="h-4 w-4" />
-            {labelText}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "shipping" ? (
-        <VisualSection icon={Truck} title="Shipping" description="Set checkout shipping prices by governorate, city, and optional district.">
-          <div className="grid gap-4">
-            {renderField(setting("storefront.default_shipping_price"), true)}
-            <ShippingZonesEditor value={value("storefront.shipping_zones")} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
-          </div>
-        </VisualSection>
-      ) : (
-        <>
       <VisualSection icon={Store} title="Store Identity" description="Name, URL, logo, and browser identity for the public store.">
         <div className="grid gap-4 xl:grid-cols-2">
+          {renderField(setting("storefront.enabled"), true)}
           {renderField(setting("storefront.store_name"), true)}
           {renderField(setting("storefront.public_url"), true)}
           <VisualUpload title="Logo Upload" value={value("storefront.store_logo_url")} onChange={(next) => updateValue("storefront.store_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
@@ -816,9 +832,72 @@ function StorefrontSettings(props) {
           <PremiumInput label="Google Analytics" value={value("storefront.google_analytics_id")} onChange={(next) => updateValue("storefront.google_analytics_id", next)} />
         </div>
       </VisualSection>
-        </>
-      )}
     </div>
+  );
+}
+
+function ShippingSettings({ setting, value, updateValue, renderField }) {
+  const zones = useMemo(() => (Array.isArray(value("storefront.shipping_zones")) ? value("storefront.shipping_zones") : []).map(normalizeShippingZoneRow), [value]);
+  const defaultPrice = Number(value("storefront.default_shipping_price") || 0);
+  const activeZones = zones.filter((zone) => zone.active).length;
+  const codZones = zones.filter((zone) => zone.cod_allowed).length;
+  const freeShippingRules = zones.filter((zone) => Number(zone.free_shipping_threshold || 0) > 0).length;
+
+  return (
+    <div className="grid gap-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryTile icon={Truck} label="Default Shipping Price" value={`${defaultPrice.toLocaleString()} EGP`} />
+        <SummaryTile icon={Check} label="Active Zones" value={activeZones} />
+        <SummaryTile icon={WalletCards} label="COD Zones" value={codZones} />
+        <SummaryTile icon={Package} label="Free Shipping Rules" value={freeShippingRules} />
+      </div>
+
+      <VisualSection icon={Truck} title="Shipping Overview" description="Default fallback and the zone matrix that checkout uses for governorate, city, and area matching.">
+        <div className="grid gap-4 xl:grid-cols-2">
+          {renderField(setting("storefront.default_shipping_price"), true)}
+          {renderField(setting("orders.shipping_rule_engine_enabled"), true)}
+        </div>
+      </VisualSection>
+
+      <VisualSection icon={Layers3} title="Shipping Zones" description="Exact area rows win first, then city/markaz rows, then governorate rows, then the default price.">
+        <ShippingZonesEditor value={zones} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
+      </VisualSection>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <VisualSection icon={WalletCards} title="COD Rules" description="Global COD availability plus per-zone COD controls in the zone matrix.">
+          <p className={`text-sm leading-6 ${bodyText}`}>Global cash-on-delivery is configured in Payments. Zone-level COD exceptions are controlled directly inside Shipping Zones.</p>
+        </VisualSection>
+        <VisualSection icon={ShieldCheck} title="Shipping Proof Rules" description="Use the per-zone proof toggle to require or skip shipping payment proof for each area.">
+          <p className={`text-sm leading-6 ${bodyText}`}>Proof rules are controlled directly inside Shipping Zones so Damietta, city, and district exceptions stay visible beside their prices.</p>
+        </VisualSection>
+      </div>
+
+      <VisualSection icon={Package} title="Shipping Providers" description="Default provider and carrier credentials for future automatic shipment creation.">
+        <div className="grid gap-4 xl:grid-cols-2">
+          {renderField(setting("orders.shipping_provider"), true)}
+          {renderField(setting("orders.shipping_auto_create_ready_to_ship"), true)}
+          {renderField(setting("orders.bosta_api_key"), true)}
+          {renderField(setting("orders.mylerz_api_key"), true)}
+          {renderField(setting("orders.aramex_api_key"), true)}
+        </div>
+      </VisualSection>
+    </div>
+  );
+}
+
+function SummaryTile({ icon: Icon, label, value }) {
+  return (
+    <article className={`rounded-[1.5rem] p-4 ${shellCard}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className={`text-xs font-black uppercase tracking-[0.14em] ${mutedText}`}>{label}</div>
+          <div className={`mt-2 text-2xl font-black ${headingText}`}>{value}</div>
+        </div>
+        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-100 text-slate-700 dark:bg-white/8 dark:text-slate-200">
+          <Icon className="h-5 w-5" />
+        </span>
+      </div>
+    </article>
   );
 }
 
@@ -839,6 +918,9 @@ const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   cod_allowed: zone.cod_allowed !== false,
   requires_shipping_proof: zone.requires_shipping_proof !== false,
   estimated_delivery_text: String(zone.estimated_delivery_text || zone.estimatedDeliveryText || "").trim(),
+  provider: String(zone.provider || "manual").trim(),
+  free_shipping_threshold: Number.isFinite(Number(zone.free_shipping_threshold ?? zone.freeShippingThreshold)) ? Number(zone.free_shipping_threshold ?? zone.freeShippingThreshold) : 0,
+  minimum_order_for_cod: Number.isFinite(Number(zone.minimum_order_for_cod ?? zone.minimumOrderForCod)) ? Number(zone.minimum_order_for_cod ?? zone.minimumOrderForCod) : 0,
   active: zone.active !== false,
 });
 
@@ -936,7 +1018,7 @@ function ShippingZonesEditor({ value, onChange }) {
           <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400">
             <tr>
               <th className="w-10 px-3 py-3" />
-              {["Governorate", "City / Markaz", "Area / District", "Price", "COD", "Proof", "Estimated delivery", "Active", ""].map((header) => <th key={header} className="px-3 py-3">{header}</th>)}
+              {["Governorate", "City / Markaz", "Area / District", "Price", "COD", "Proof", "Estimated delivery", "Provider", "Free over", "Min COD", "Active", ""].map((header) => <th key={header} className="px-3 py-3">{header}</th>)}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-white/10">
@@ -955,6 +1037,9 @@ function ShippingZonesEditor({ value, onChange }) {
                   </td>
                 ))}
                 <td className="px-3 py-2"><input value={zone.estimated_delivery_text} onChange={(event) => patchRow(zone.id, { estimated_delivery_text: event.target.value })} className={inputClass} /></td>
+                <td className="px-3 py-2"><input value={zone.provider} onChange={(event) => patchRow(zone.id, { provider: event.target.value })} className={`${inputClass} w-32`} /></td>
+                <td className="px-3 py-2"><input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
+                <td className="px-3 py-2"><input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => patchRow(zone.id, { minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
                 <td className="px-3 py-2 text-center">
                   <input type="checkbox" checked={Boolean(zone.active)} onChange={(event) => patchRow(zone.id, { active: event.target.checked })} />
                 </td>

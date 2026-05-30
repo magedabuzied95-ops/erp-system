@@ -176,7 +176,10 @@ export const getSettingsByCategory = async (category) => {
   const normalizedCategory = normalizeSettingsCategory(category);
   if (!normalizedCategory) throw new Error("Unknown settings category");
   const definitions = settingsByCategory[normalizedCategory] || [];
-  const rowsByKey = await loadRows("WHERE category = $1", [normalizedCategory]);
+  const keys = definitions.map((definition) => definition.key);
+  const rowsByKey = keys.length
+    ? await loadRows("WHERE key = ANY($1::text[]) OR category = $2", [keys, normalizedCategory])
+    : await loadRows("WHERE category = $1", [normalizedCategory]);
   return definitions.map((definition) => buildSettingRecord(definition, rowsByKey.get(definition.key)));
 };
 

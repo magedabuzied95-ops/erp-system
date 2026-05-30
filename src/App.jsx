@@ -163,7 +163,6 @@ const Campaigns = lazy(() => import("./modules/marketing/pages/Campaigns"));
 const PostTemplates = lazy(() => import("./modules/marketing/pages/PostTemplates"));
 const MarketingSettings = lazy(() => import("./modules/marketing/pages/MarketingSettings"));
 const CouponsManager = lazy(() => import("./modules/coupons/pages/CouponsManager"));
-const WebsiteSettings = lazy(() => import("./modules/website/pages/WebsiteSettings"));
 
 /* ======================================================
    USERS & ROLES
@@ -483,6 +482,33 @@ function App() {
 
         <Route
           path="settings/currencies"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <SettingsCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="settings/storefront"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <SettingsCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="settings/shipping"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <SettingsCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="settings/payments"
           element={
             <ProtectedRoute requiredPermissions={["settings.view"]}>
               <SettingsCenter />
@@ -955,8 +981,8 @@ function App() {
         <Route
           path="website/settings"
           element={
-            <ProtectedRoute requiredPermissions={["website.settings"]}>
-              <WebsiteSettings />
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <SettingsCenter />
             </ProtectedRoute>
           }
         />

@@ -444,7 +444,7 @@ const RAW_SIDEBAR_SECTIONS = [
     title: "WEBSITE",
     items: [
       { label: "Storefront", to: "/shop", permission: "website.view", icon: Globe, devOnly: true },
-      { label: "Website Settings", to: "/website/settings", permission: "website.settings", icon: Settings, devOnly: true },
+      { label: "Storefront Settings", to: "/settings/storefront", permission: "settings.view", icon: Settings },
     ],
   },
   {
@@ -454,9 +454,10 @@ const RAW_SIDEBAR_SECTIONS = [
       { label: "Users", to: "/settings/users", permission: "users.view", icon: UsersRound },
       { label: "Tenants", to: "/admin/tenants", permission: "settings.view", icon: Building2, adminOnly: true },
       { label: "Permissions", to: "/settings/permissions", permission: "roles.view", icon: Settings2 },
-      { label: "Currency", to: "/settings/currencies", permission: "settings.view", icon: CircleDollarSign },
-      { label: "Preferences", to: "/settings/company", permission: "settings.view", icon: Settings2 },
       { label: "Settings Center", to: "/settings", permission: "settings.view", icon: Settings2 },
+      { label: "General", to: "/settings/company", permission: "settings.view", icon: Settings2 },
+      { label: "Shipping", to: "/settings/shipping", permission: "settings.view", icon: Settings2 },
+      { label: "Payments", to: "/settings/payments", permission: "settings.view", icon: CircleDollarSign },
       { label: "AI Inbox", to: "/admin/ai-inbox", permission: "settings.view", icon: Bot, adminOnly: true },
       { label: "AI Follow Ups", to: "/admin/ai-followups", permission: "settings.view", icon: CalendarClock, adminOnly: true },
       { label: "AI Channels", to: "/admin/ai-channels", permission: "settings.view", icon: Share2, adminOnly: true },
