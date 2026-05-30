@@ -458,6 +458,7 @@ function OrderDetails() {
   const handleSaveShipping = () => {
     saveLocalMeta({
       shipping_provider: shipping.provider,
+      shipping_provider_id: shipping.provider,
       shipping_status: shipping.shipping_status,
       shipment_id: shipping.shipment_id,
       tracking_number: shipping.tracking_number,
@@ -1227,7 +1228,7 @@ function OrderDetails() {
                       onChange={(e) => setShipping((prev) => ({ ...prev, provider: e.target.value }))}
                       className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                     >
-                      {["manual", "bosta", "mylerz", "aramex", "store_pickup"].map((provider) => (
+                      {["bosta", "mylerz", "shipblu", "in_store_delivery"].map((provider) => (
                         <option key={provider} value={provider} className="bg-zinc-950 text-white">
                           {provider}
                         </option>

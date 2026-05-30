@@ -211,6 +211,7 @@ const normalizeShippingQuote = (quote = {}) => ({
   estimated_delivery_text: String(quote.estimated_delivery_text || ""),
   match_level: String(quote.match_level || ""),
   provider: String(quote.provider || "manual"),
+  provider_id: String(quote.provider_id || quote.provider || "in_store_delivery"),
   zone: quote.zone || null,
   free_shipping_threshold: Number.isFinite(Number(quote.free_shipping_threshold)) ? Number(quote.free_shipping_threshold) : 0,
   original_price: Number.isFinite(Number(quote.original_price)) ? Number(quote.original_price) : 0,
@@ -6970,6 +6971,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
         primary_phone: cleanPhone,
         delivery_fee: deliveryFee,
         shipping_fee: deliveryFee,
+        shipping_cost: deliveryFee,
+        shipping_provider: shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery",
+        shipping_provider_id: shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery",
         paid_amount: paidAmount,
         shipping_address: shippingProviderAddress,
         shipping_provider_address: shippingProviderAddress,
@@ -7333,7 +7337,14 @@ const paymentCopy = (value = "") => {
 };
 const shippingProviderCopy = (value = "") => {
   const raw = rawOptionValue(value);
-  return { manual: sfText("storefront.shipping.manual", "Manual delivery"), bosta: "Bosta", mylerz: "Mylerz", aramex: "Aramex" }[raw.toLowerCase()] || raw || sfText("storefront.common.soon", "Soon");
+  return {
+    manual: sfText("storefront.shipping.inStoreDelivery", "In Store Delivery"),
+    store_pickup: sfText("storefront.shipping.inStoreDelivery", "In Store Delivery"),
+    in_store_delivery: sfText("storefront.shipping.inStoreDelivery", "In Store Delivery"),
+    bosta: "Bosta",
+    mylerz: "Mylerz",
+    shipblu: "ShipBlu",
+  }[raw.toLowerCase()] || raw || sfText("storefront.common.soon", "Soon");
 };
 const formatDate = (value) => {
   if (!value) return sfText("storefront.common.soon", "Soon");
@@ -7793,7 +7804,7 @@ function FaqPage() {
     [sfText("storefront.faq.exchangeReturns.question", "Exchange and return?"), sfText("storefront.faq.exchangeReturns.answer", "Available within 14 days under the policy conditions.")],
     [sfText("storefront.faq.sizeHelp.question", "Size help?"), sfText("storefront.faq.sizeHelp.answer", "Use the size guide or contact us on WhatsApp.")],
     [sfText("storefront.faq.trackOrder.question", "Track order?"), sfText("storefront.faq.trackOrder.answer", "Use the tracking page with order number and phone.")],
-    [sfText("storefront.faq.shippingProviders.question", "Shipping providers?"), sfText("storefront.faq.shippingProviders.answer", "The system is ready for Bosta, Mylerz, Aramex, and manual delivery.")],
+    [sfText("storefront.faq.shippingProviders.question", "Shipping providers?"), sfText("storefront.faq.shippingProviders.answer", "The system is ready for Bosta, Mylerz, ShipBlu, and In Store Delivery.")],
   ];
   return <StaticPage title={sfText("storefront.faq.title", "FAQ")} items={items} />;
 }
@@ -8132,7 +8143,7 @@ function CheckoutSummary({ cart, subtotal, discount, deliveryFee, total, codAmou
         ) : null}
         <span className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">{deliveryText}</span>
         {governorate && shippingQuote.cod_allowed === false ? <span className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-amber-100">{t("storefront.checkout.codUnavailableForAddress", "Cash on delivery is not available for this address.")}</span> : null}
-        <span className="rounded-2xl border border-[#a78bfa]/20 bg-[#7c3aed]/12 px-3 py-2 text-[#ddd6fe]">{t("storefront.checkout.shippingProvidersReady", "Shipping data is ready for Bosta / Mylerz / Aramex when the provider is enabled.")}</span>
+        <span className="rounded-2xl border border-[#a78bfa]/20 bg-[#7c3aed]/12 px-3 py-2 text-[#ddd6fe]">{t("storefront.checkout.shippingProvidersReady", "Shipping data is ready for Bosta / Mylerz / ShipBlu / In Store Delivery when the provider is enabled.")}</span>
       </div>
       <div className="mt-4 hidden md:block">
         <SubmitButton submitting={submitting} paymentMethod={paymentMethod} disabled={submitDisabled} label={actionLabel} />

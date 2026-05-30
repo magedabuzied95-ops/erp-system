@@ -187,7 +187,7 @@ const sectionMap = {
     ["Free Shipping Rules", ["storefront.shipping_zones"]],
     ["COD Rules", ["storefront.shipping_zones"]],
     ["Shipping Proof Rules", ["storefront.shipping_zones"]],
-    ["Shipping Providers", ["orders.shipping_provider", "orders.shipping_rule_engine_enabled", "orders.shipping_auto_create_ready_to_ship", "orders.bosta_api_key", "orders.mylerz_api_key", "orders.aramex_api_key"]],
+    ["Shipping Providers", ["orders.shipping_provider", "orders.shipping_rule_engine_enabled", "orders.shipping_auto_create_ready_to_ship", "orders.bosta_api_key", "orders.mylerz_api_key", "orders.shipblu_api_key"]],
   ],
   payments: [
     ["Cash on Delivery", ["orders.allow_cod"]],
@@ -929,7 +929,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
           {renderField(setting("orders.shipping_auto_create_ready_to_ship"), true)}
           {renderField(setting("orders.bosta_api_key"), true)}
           {renderField(setting("orders.mylerz_api_key"), true)}
-          {renderField(setting("orders.aramex_api_key"), true)}
+          {renderField(setting("orders.shipblu_api_key"), true)}
         </div>
       </VisualSection>
     </div>
@@ -1080,15 +1080,27 @@ const shippingZonePresets = [
     cod_allowed,
     requires_shipping_proof,
     estimated_delivery_text,
-    provider: "manual",
+    provider: "in_store_delivery",
+    provider_id: "in_store_delivery",
     free_shipping_threshold: 0,
     minimum_order_for_cod: 0,
     active: true,
   })),
-  { id: "new-damietta", governorate: "Damietta", arabic_alias: "دمياط الجديدة", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "manual", free_shipping_threshold: 0, minimum_order_for_cod: 0, active: true },
+  { id: "new-damietta", governorate: "Damietta", arabic_alias: "دمياط الجديدة", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "in_store_delivery", provider_id: "in_store_delivery", free_shipping_threshold: 0, minimum_order_for_cod: 0, active: true },
 ];
 
 const normalizeZoneKey = (value = "") => String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+const shippingProviderOptions = [
+  { id: "bosta", label: "Bosta" },
+  { id: "mylerz", label: "Mylerz" },
+  { id: "shipblu", label: "ShipBlu" },
+  { id: "in_store_delivery", label: "In Store Delivery" },
+];
+const normalizeProviderKey = (value = "") => {
+  const key = String(value || "in_store_delivery").trim().toLowerCase();
+  if (key === "manual" || key === "store_pickup" || key === "in-store-delivery") return "in_store_delivery";
+  return shippingProviderOptions.some((provider) => provider.id === key) ? key : "in_store_delivery";
+};
 
 const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   id: String(zone.id || `zone-${Date.now()}-${index}`).trim(),
@@ -1100,7 +1112,8 @@ const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   cod_allowed: zone.cod_allowed !== false,
   requires_shipping_proof: zone.requires_shipping_proof !== false,
   estimated_delivery_text: String(zone.estimated_delivery_text || zone.estimatedDeliveryText || "").trim(),
-  provider: String(zone.provider || "manual").trim(),
+  provider: normalizeProviderKey(zone.provider || zone.shipping_provider || zone.provider_id || zone.shipping_provider_id),
+  provider_id: normalizeProviderKey(zone.provider_id || zone.shipping_provider_id || zone.provider || zone.shipping_provider),
   free_shipping_threshold: Number.isFinite(Number(zone.free_shipping_threshold ?? zone.freeShippingThreshold)) ? Number(zone.free_shipping_threshold ?? zone.freeShippingThreshold) : 0,
   minimum_order_for_cod: Number.isFinite(Number(zone.minimum_order_for_cod ?? zone.minimumOrderForCod)) ? Number(zone.minimum_order_for_cod ?? zone.minimumOrderForCod) : 0,
   active: zone.active !== false,
@@ -1140,7 +1153,8 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
       cod_allowed: governorate === "Damietta",
       requires_shipping_proof: governorate !== "Damietta",
       estimated_delivery_text: governorate === "Damietta" ? "1-2 business days" : "2-5 business days",
-      provider: "manual",
+      provider: "in_store_delivery",
+      provider_id: "in_store_delivery",
       active: true,
     }, zones.length);
     updateRows([...zones, row]);
@@ -1206,7 +1220,8 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
           requires_shipping_proof: !["false", "0", "no"].includes(String(row.requires_shipping_proof || "").toLowerCase()),
           estimated_delivery_text: row.estimated_delivery_text || row.eta,
           arabic_alias: row.arabic_alias || row.alias_ar,
-          provider: row.provider || "manual",
+          provider: normalizeProviderKey(row.provider || row.shipping_provider),
+          provider_id: normalizeProviderKey(row.provider_id || row.shipping_provider_id || row.provider || row.shipping_provider),
           free_shipping_threshold: row.free_shipping_threshold,
           minimum_order_for_cod: row.minimum_order_for_cod,
           active: !["false", "0", "no"].includes(String(row.active || "").toLowerCase()),
@@ -1310,7 +1325,11 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
                   </td>
                 ))}
                 <td className="px-4 py-3"><input value={zone.estimated_delivery_text} onChange={(event) => patchRow(zone.id, { estimated_delivery_text: event.target.value })} className={`${inputClass} min-w-44`} /></td>
-                <td className="px-4 py-3"><input value={zone.provider} onChange={(event) => patchRow(zone.id, { provider: event.target.value })} className={`${inputClass} w-32`} /></td>
+                <td className="px-4 py-3">
+                  <select value={zone.provider_id || zone.provider} onChange={(event) => patchRow(zone.id, { provider: event.target.value, provider_id: event.target.value })} className={`${inputClass} w-44`}>
+                    {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+                  </select>
+                </td>
                 <td className="px-4 py-3"><input type="number" min="0" value={zone.free_shipping_threshold} onChange={(event) => patchRow(zone.id, { free_shipping_threshold: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
                 <td className="px-4 py-3"><input type="number" min="0" value={zone.minimum_order_for_cod} onChange={(event) => patchRow(zone.id, { minimum_order_for_cod: Number(event.target.value) })} className={`${inputClass} w-28`} /></td>
                 <td className="px-4 py-3 text-center">

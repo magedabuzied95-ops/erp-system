@@ -1,4 +1,5 @@
 import { getSetting } from "./settingsService.js";
+import { normalizeShippingProviderKey } from "./shippingProviders/index.js";
 
 const text = (value = "") => String(value ?? "").trim();
 
@@ -100,25 +101,28 @@ export const normalizeShippingZone = (zone = {}, index = 0) => ({
   cod_allowed: bool(zone.cod_allowed ?? zone.codAllowed, true),
   requires_shipping_proof: bool(zone.requires_shipping_proof ?? zone.requiresShippingProof, true),
   estimated_delivery_text: text(zone.estimated_delivery_text || zone.estimatedDeliveryText || zone.eta),
-  provider: text(zone.provider || "manual"),
+  provider: normalizeShippingProviderKey(zone.provider || zone.shipping_provider || "in_store_delivery"),
+  provider_id: normalizeShippingProviderKey(zone.provider_id || zone.shipping_provider_id || zone.provider || zone.shipping_provider || "in_store_delivery"),
   free_shipping_threshold: number(zone.free_shipping_threshold ?? zone.freeShippingThreshold, 0),
   minimum_order_for_cod: number(zone.minimum_order_for_cod ?? zone.minimumOrderForCod, 0),
   active: bool(zone.active, true),
 });
 
 export const loadShippingZones = async () => {
-  const [defaultPrice, zones] = await Promise.all([
+  const [defaultPrice, zones, defaultProvider] = await Promise.all([
     getSetting("storefront.default_shipping_price", 60),
     getSetting("storefront.shipping_zones", []),
+    getSetting("orders.shipping_provider", "in_store_delivery"),
   ]);
   return {
     defaultPrice: number(defaultPrice, 0),
+    defaultProvider: normalizeShippingProviderKey(defaultProvider),
     zones: (Array.isArray(zones) ? zones : []).map(normalizeShippingZone).filter((zone) => zone.governorate && zone.active),
   };
 };
 
 export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "", subtotal = 0, order_total = 0 } = {}) => {
-  const { defaultPrice, zones } = await loadShippingZones();
+  const { defaultPrice, defaultProvider, zones } = await loadShippingZones();
   const target = {
     governorate: shippingKey(governorate),
     city: shippingKey(city),
@@ -150,7 +154,8 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
     cod_allowed: match ? Boolean(match.cod_allowed) : true,
     requires_shipping_proof: match ? Boolean(match.requires_shipping_proof) : true,
     estimated_delivery_text: match?.estimated_delivery_text || "",
-    provider: match?.provider || "manual",
+    provider: match?.provider || defaultProvider,
+    provider_id: match?.provider_id || match?.provider || defaultProvider,
     free_shipping_threshold: freeShippingThreshold,
     minimum_order_for_cod: match ? number(match.minimum_order_for_cod, 0) : 0,
     match_level: match ? (zoneArea(match) ? "area" : zoneCity(match) ? "city" : "governorate") : "default",

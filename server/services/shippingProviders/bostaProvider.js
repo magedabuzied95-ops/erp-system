@@ -11,6 +11,7 @@ const bostaProvider = {
       return {
         success: false,
         provider: "bosta",
+        provider_id: "bosta",
         message: "Bosta credentials are missing. Use manual shipping for this order.",
       };
     }
@@ -18,6 +19,7 @@ const bostaProvider = {
     return {
       success: false,
       provider: "bosta",
+      provider_id: "bosta",
       message: "Bosta API adapter is ready for credentials and endpoint mapping.",
     };
   },
@@ -26,6 +28,7 @@ const bostaProvider = {
       return {
         success: false,
         provider: "bosta",
+        provider_id: "bosta",
         message: "Bosta credentials are missing. Manual tracking is available.",
       };
     }
@@ -33,6 +36,7 @@ const bostaProvider = {
     return {
       success: true,
       provider: "bosta",
+      provider_id: "bosta",
       shipping_status: order.shipping_status || "pending",
       tracking_number: order.tracking_number || "",
       tracking_url: order.tracking_url || "",

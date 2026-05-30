@@ -11,7 +11,7 @@ import {
   ensureProductVariantImagesSchema,
   loadProductVariantImages,
 } from "../services/productVariantImagesService.js";
-import { getShippingProvider, shippingProviders } from "../services/shippingProviders/index.js";
+import { getShippingProvider, normalizeShippingProviderKey, shippingProviderCatalog, shippingProviders } from "../services/shippingProviders/index.js";
 import { ensureLoyaltySchema, getCustomerLoyaltySummary, resolveOrCreateCustomerAccount } from "../services/loyaltyService.js";
 import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils/phoneSearch.js";
 import { fetchProductClassificationGroupByKey, getClassificationFilterAliases } from "../services/productClassificationsService.js";
@@ -51,14 +51,14 @@ const getStorefrontOrderSettings = async () => {
     getSetting("orders.allow_store_pickup", true),
     getSetting("orders.default_website_order_status", "pending"),
     getSetting("orders.auto_confirm_website_orders", false),
-    getSetting("orders.shipping_provider", "manual"),
+    getSetting("orders.shipping_provider", "in_store_delivery"),
   ]);
   return {
     allowCod: isEnabledSetting(allowCod),
     allowStorePickup: isEnabledSetting(allowStorePickup),
     defaultWebsiteStatus: normalizeOrderLifecycleStatus(defaultWebsiteStatus, "pending"),
     autoConfirmWebsiteOrders: isEnabledSetting(autoConfirmWebsiteOrders),
-    defaultShippingProvider: String(defaultShippingProvider || "manual").trim().toLowerCase() || "manual",
+    defaultShippingProvider: normalizeShippingProviderKey(defaultShippingProvider),
   };
 };
 const withPaymentProofAliases = (order = {}) => {
@@ -740,6 +740,8 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS public_order_number VARCHAR(40)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS display_order_number VARCHAR(40)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider VARCHAR(80) NOT NULL DEFAULT 'manual'`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider_id VARCHAR(80) NOT NULL DEFAULT 'in_store_delivery'`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(80) NOT NULL DEFAULT 'pending'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(160)`);
@@ -3156,8 +3158,9 @@ export const createWebsiteOrder = async (req, res) => {
     const shippingPaymentMethod = paymentMethod === "shipping_confirmation"
       ? (requestedShippingPaymentMethod === "vodafone_cash" ? "vodafone_cash" : "instapay")
       : "";
-    const requestedShippingMethod = toText(checkout.shipping_method || checkout.shipping_provider || orderSettings.defaultShippingProvider).toLowerCase() || orderSettings.defaultShippingProvider;
-    const shippingMethod = shippingProviders[requestedShippingMethod] ? requestedShippingMethod : orderSettings.defaultShippingProvider;
+    const zoneShippingProviderId = normalizeShippingProviderKey(shippingQuote.provider_id || shippingQuote.provider || orderSettings.defaultShippingProvider);
+    const requestedShippingMethod = normalizeShippingProviderKey(checkout.shipping_method || checkout.shipping_provider || zoneShippingProviderId);
+    const shippingMethod = shippingProviders[zoneShippingProviderId] ? zoneShippingProviderId : requestedShippingMethod;
     if (paymentMethod === "shipping_confirmation" && !["instapay", "vodafone_cash"].includes(requestedShippingPaymentMethod)) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Choose a valid shipping payment method", "shipping_payment_method", {
@@ -3243,6 +3246,7 @@ export const createWebsiteOrder = async (req, res) => {
       discount_amount: discount,
       delivery_fee: deliveryFee,
       shipping_fee: deliveryFee,
+      shipping_cost: deliveryFee,
       service_fee: deliveryFee,
       total_amount: total,
       total_price: total,
@@ -3259,6 +3263,7 @@ export const createWebsiteOrder = async (req, res) => {
       order_notes: checkout.order_notes || "",
       notes: checkout.order_notes || "",
       shipping_provider: shippingMethod,
+      shipping_provider_id: shippingMethod,
       shipping_status: "pending",
     }, checkoutColumns.orders, { step: "create order" });
     order = await assignSequentialInvoiceNumber(client, order);
@@ -3747,8 +3752,9 @@ export const listNotifications = async (req, res) => {
 export const listShippingProviders = async (_req, res) => {
   res.json({
     success: true,
-    providers: Object.values(shippingProviders).map((provider) => ({
+    providers: shippingProviderCatalog.map((provider) => ({
       key: provider.key,
+      id: provider.key,
       name: provider.name,
       configured: provider.isConfigured(),
     })),
@@ -3765,20 +3771,21 @@ export const createShipment = async (req, res) => {
       return res.status(409).json({
         success: false,
         message: "Shipment already exists for this order",
-        provider: order.shipping_provider || "manual",
+        provider: order.shipping_provider || "in_store_delivery",
+        provider_id: order.shipping_provider_id || order.shipping_provider || "in_store_delivery",
         shipping_status: normalizeOrderLifecycleStatus(order.shipping_status || "shipment_created", "shipment_created"),
         shipment_id: order.shipment_id || null,
         tracking_number: order.tracking_number || "",
         tracking_url: order.tracking_url || "",
       });
     }
-    const provider = getShippingProvider(req.body.provider || order.shipping_provider || "manual");
+    const provider = getShippingProvider(req.body.provider || req.body.provider_id || order.shipping_provider_id || order.shipping_provider || "in_store_delivery");
     const result = await provider.createShipment(order);
     if (result.success) {
       const nextShippingStatus = normalizeOrderLifecycleStatus(result.shipping_status || "shipment_created", "shipment_created");
       await db.query(
-        `UPDATE orders SET shipping_provider = $1, shipping_status = $2, shipment_id = $3, tracking_number = $4, tracking_url = $5, last_shipping_sync_at = NOW() WHERE id = $6`,
-        [result.provider, nextShippingStatus, result.shipment_id, result.tracking_number, result.tracking_url, order.id]
+        `UPDATE orders SET shipping_provider = $1, shipping_provider_id = $2, shipping_status = $3, shipment_id = $4, tracking_number = $5, tracking_url = $6, last_shipping_sync_at = NOW() WHERE id = $7`,
+        [result.provider, result.provider_id || result.provider, nextShippingStatus, result.shipment_id, result.tracking_number, result.tracking_url, order.id]
       );
       result.shipping_status = nextShippingStatus;
     }

@@ -371,6 +371,8 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS delivery_notes TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS order_notes TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider VARCHAR(80) NOT NULL DEFAULT 'manual'`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider_id VARCHAR(80) NOT NULL DEFAULT 'in_store_delivery'`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(80) NOT NULL DEFAULT 'pending'`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
@@ -4534,7 +4536,8 @@ export const editOrder = async (req, res) => {
         landmark: Object.prototype.hasOwnProperty.call(req.body, "landmark") ? String(req.body.landmark || "").trim() : loaded.order.landmark,
         delivery_notes: Object.prototype.hasOwnProperty.call(req.body, "delivery_notes") ? String(req.body.delivery_notes || "").trim() : loaded.order.delivery_notes,
         order_notes: Object.prototype.hasOwnProperty.call(req.body, "order_notes") ? String(req.body.order_notes || "").trim() : loaded.order.order_notes,
-        shipping_provider: Object.prototype.hasOwnProperty.call(req.body, "shipping_provider") ? String(req.body.shipping_provider || "").trim() || loaded.order.shipping_provider || "manual" : loaded.order.shipping_provider,
+        shipping_provider: Object.prototype.hasOwnProperty.call(req.body, "shipping_provider") ? String(req.body.shipping_provider || "").trim() || loaded.order.shipping_provider || "in_store_delivery" : loaded.order.shipping_provider,
+        shipping_provider_id: Object.prototype.hasOwnProperty.call(req.body, "shipping_provider_id") ? String(req.body.shipping_provider_id || req.body.shipping_provider || "").trim() || loaded.order.shipping_provider_id || loaded.order.shipping_provider || "in_store_delivery" : loaded.order.shipping_provider_id,
         tracking_number: Object.prototype.hasOwnProperty.call(req.body, "tracking_number") ? String(req.body.tracking_number || "").trim() : loaded.order.tracking_number,
         tracking_url: Object.prototype.hasOwnProperty.call(req.body, "tracking_url") ? String(req.body.tracking_url || "").trim() : loaded.order.tracking_url,
         courier_notes: Object.prototype.hasOwnProperty.call(req.body, "courier_notes") ? String(req.body.courier_notes || "").trim() : loaded.order.courier_notes,
@@ -4558,12 +4561,13 @@ export const editOrder = async (req, res) => {
             delivery_notes = $14,
             order_notes = $15,
             shipping_provider = $16,
-            tracking_number = $17,
-            tracking_url = $18,
-            courier_notes = $19,
+            shipping_provider_id = $17,
+            tracking_number = $18,
+            tracking_url = $19,
+            courier_notes = $20,
             updated_at = NOW()
-        WHERE id = $20
-          AND ($21::bigint IS NULL OR tenant_id = $21::bigint OR tenant_id IS NULL)
+        WHERE id = $21
+          AND ($22::bigint IS NULL OR tenant_id = $22::bigint OR tenant_id IS NULL)
         RETURNING *
         `,
         [
@@ -4583,6 +4587,7 @@ export const editOrder = async (req, res) => {
           safePatch.delivery_notes,
           safePatch.order_notes,
           safePatch.shipping_provider,
+          safePatch.shipping_provider_id,
           safePatch.tracking_number,
           safePatch.tracking_url,
           safePatch.courier_notes,
