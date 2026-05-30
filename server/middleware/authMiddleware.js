@@ -64,10 +64,12 @@ export const protect = async (
                 role: userResult.rows[0].role || userResult.rows[0].role_name || decoded.role,
               }
             : decoded;
-        req.tenant = req.user?.tenant_id ? { id: req.user.tenant_id } : undefined;
+        req.tenantId = req.user?.tenant_id ?? req.user?.tenantId ?? null;
+        req.tenant = req.tenantId ? { id: req.tenantId } : undefined;
       } catch {
         req.user = decoded;
-        req.tenant = req.user?.tenant_id ? { id: req.user.tenant_id } : undefined;
+        req.tenantId = req.user?.tenant_id ?? req.user?.tenantId ?? null;
+        req.tenant = req.tenantId ? { id: req.tenantId } : undefined;
       }
 
       console.log("[auth] user available", {

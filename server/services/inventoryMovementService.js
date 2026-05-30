@@ -187,6 +187,9 @@ export const recordInventoryMovement = async (clientOrPool, data = {}) => {
     note: notes,
     created_by: data.createdBy ?? data.created_by ?? null,
   };
+  if (columns.has("tenant_id") && !values.tenant_id) {
+    throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
+  }
   const entries = Object.entries(values).filter(([column]) => columns.has(column));
   const columnSql = entries.map(([column]) => column).join(", ");
   const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");

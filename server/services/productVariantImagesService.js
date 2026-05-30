@@ -10,6 +10,7 @@ const toNumber = (value, fallback = 0) => {
 const toBool = (value) => value === true || value === 1 || value === "1" || String(value || "").toLowerCase() === "true";
 let productVariantImagesSchemaPromise = null;
 let productVariantImagesSchemaEnsured = false;
+const tableColumnsCache = new Map();
 
 const imageRecordKeys = (record = {}) => {
   const keys = [];
@@ -55,6 +56,22 @@ const getClient = async (clientOrPool = db) => {
   }
   const client = await db.connect();
   return { client, release: true };
+};
+
+const getTableColumns = async (client, tableName) => {
+  if (tableColumnsCache.has(tableName)) return tableColumnsCache.get(tableName);
+  const result = await client.query(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = $1
+    `,
+    [tableName]
+  );
+  const columns = new Set(result.rows.map((row) => row.column_name));
+  tableColumnsCache.set(tableName, columns);
+  return columns;
 };
 
 const normalizeImageInput = (image = {}, fallback = {}) => {
@@ -107,6 +124,7 @@ export const ensureProductVariantImagesSchema = async (clientOrPool = db) => {
     await client.query(`
       CREATE TABLE IF NOT EXISTS product_variant_images (
         id BIGSERIAL PRIMARY KEY,
+        tenant_id BIGINT NULL REFERENCES tenants(id) ON DELETE CASCADE,
         product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
         variant_id BIGINT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
         color_name VARCHAR(255) NOT NULL DEFAULT '',
@@ -117,9 +135,19 @@ export const ensureProductVariantImagesSchema = async (clientOrPool = db) => {
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_product_variant_images_product_color ON product_variant_images (product_id, color_name, sort_order, id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_product_variant_images_variant ON product_variant_images (variant_id, sort_order, id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_product_variant_images_primary ON product_variant_images (product_id, color_name, is_primary)`);
+    await client.query(`ALTER TABLE product_variant_images ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL REFERENCES tenants(id) ON DELETE CASCADE`);
+    tableColumnsCache.delete("product_variant_images");
+    await client.query(`
+      UPDATE product_variant_images pvi
+      SET tenant_id = p.tenant_id
+      FROM products p
+      WHERE pvi.product_id = p.id
+        AND pvi.tenant_id IS NULL
+        AND p.tenant_id IS NOT NULL
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_product_variant_images_tenant_product_color ON product_variant_images (tenant_id, product_id, color_name, sort_order, id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_product_variant_images_tenant_variant ON product_variant_images (tenant_id, variant_id, sort_order, id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_product_variant_images_tenant_primary ON product_variant_images (tenant_id, product_id, color_name, is_primary)`);
     await client.query(`
       DELETE FROM product_variant_images target
       USING product_variant_images duplicate
@@ -139,9 +167,10 @@ export const ensureProductVariantImagesSchema = async (clientOrPool = db) => {
         AND LOWER(TRIM(target.image_url)) = LOWER(TRIM(duplicate.image_url))
         AND TRIM(target.image_url) <> ''
     `);
+    await client.query(`DROP INDEX IF EXISTS product_variant_images_unique_variant_url`);
     await client.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS product_variant_images_unique_variant_url
-      ON product_variant_images (product_id, COALESCE(variant_id, 0), LOWER(TRIM(color_name)), LOWER(TRIM(image_url)))
+      CREATE UNIQUE INDEX IF NOT EXISTS product_variant_images_unique_tenant_variant_url
+      ON product_variant_images (tenant_id, product_id, COALESCE(variant_id, 0), LOWER(TRIM(color_name)), LOWER(TRIM(image_url)))
       WHERE TRIM(image_url) <> ''
     `);
   } finally {
@@ -246,11 +275,25 @@ export const collectProductVariantImagesFromPayload = ({ productId = null, varia
   }));
 };
 
-export const replaceProductVariantImages = async (clientOrPool, { productId, variants = [], colorImages = [] } = {}) => {
+export const replaceProductVariantImages = async (clientOrPool, { tenantId = null, productId, variants = [], colorImages = [] } = {}) => {
   const records = collectProductVariantImagesFromPayload({ productId, variants, colorImages });
   const { client, release } = await getClient(clientOrPool);
   try {
-    await client.query("DELETE FROM product_variant_images WHERE product_id = $1", [productId]);
+    const columns = await getTableColumns(client, "product_variant_images");
+    let effectiveTenantId = tenantId;
+    if (!effectiveTenantId && columns.has("tenant_id")) {
+      const tenantResult = await client.query("SELECT tenant_id FROM products WHERE id = $1 LIMIT 1", [productId]);
+      effectiveTenantId = tenantResult.rows[0]?.tenant_id || null;
+    }
+    if (columns.has("tenant_id") && !effectiveTenantId) {
+      throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
+    }
+
+    if (columns.has("tenant_id")) {
+      await client.query("DELETE FROM product_variant_images WHERE product_id = $1 AND tenant_id = $2", [productId, effectiveTenantId]);
+    } else {
+      await client.query("DELETE FROM product_variant_images WHERE product_id = $1", [productId]);
+    }
     if (!records.length) {
       await indexProductImagesForProduct(client, { productId }).catch((error) => {
         console.warn("[ai-visual-index] product image indexing skipped", {
@@ -266,6 +309,7 @@ export const replaceProductVariantImages = async (clientOrPool, { productId, var
       const result = await client.query(
         `
         INSERT INTO product_variant_images (
+          tenant_id,
           product_id,
           variant_id,
           color_name,
@@ -274,10 +318,11 @@ export const replaceProductVariantImages = async (clientOrPool, { productId, var
           sort_order,
           is_primary
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
         `,
         [
+          effectiveTenantId,
           productId,
           record.variant_id ?? null,
           record.color_name || "",

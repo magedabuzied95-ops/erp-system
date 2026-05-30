@@ -1824,6 +1824,9 @@ const bulkInsertOrderItems = async (client, { tenantId, orderId, items = [], sto
 
 const bulkApplyInventoryChanges = async (client, { tenantId, orderId, items = [], stockByLineKey, branchId, createdBy }) => {
   const numericTenantId = tenantId == null ? null : Number(tenantId);
+  if (!Number.isFinite(numericTenantId) || numericTenantId <= 0) {
+    throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
+  }
   const numericOrderId = Number(orderId);
   const numericBranchId = branchId == null || branchId === "" ? null : Number(branchId);
   const numericCreatedBy = createdBy == null || createdBy === "" ? null : Number(createdBy);

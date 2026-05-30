@@ -8,7 +8,7 @@ import {
   replaceProductVariantImages,
 } from "../services/productVariantImagesService.js";
 import { normalizeClassificationInput } from "../services/productClassificationsService.js";
-import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { getTenantId, isSuperAdminUser, tenantContextMissingResponse } from "../utils/requestScope.js";
 import { slugifyEdition } from "../utils/mirrorProduct.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 
@@ -1554,6 +1554,9 @@ const makeUniqueSku = async (client, { tenantId, sku, productId = null, variantI
 };
 
 const insertProductVariant = async (client, { productId, tenantId, variant, skuPrefix = "", reservedSkus = new Set() }) => {
+  if (!tenantId) {
+    throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
+  }
   const nextVariant = {
     ...variant,
     sku: await makeUniqueSku(client, {
@@ -1691,6 +1694,7 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
       deleted_at = NULL
     WHERE id = $17
       AND product_id = $18
+      AND tenant_id = $19
     RETURNING *
     `,
     [
@@ -1714,6 +1718,7 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
         : Math.max(0, Number(nextVariant.default_purchase_qty || 0)),
       nextVariant.id,
       productId,
+      tenantId,
     ]
   );
   console.log("[product-save] persisted variant image", {
@@ -1753,8 +1758,9 @@ const archiveMissingProductVariants = async (client, { productId, tenantId, save
       DELETE FROM product_variant_images
       WHERE product_id = $1
         AND variant_id = ANY($2::bigint[])
+        AND tenant_id = $3
       `,
-      [productId, result.rows.map((row) => row.id)]
+      [productId, result.rows.map((row) => row.id), tenantId]
     );
   }
 
@@ -1790,8 +1796,9 @@ const archiveProductVariantsByIds = async (client, { productId, tenantId, varian
       DELETE FROM product_variant_images
       WHERE product_id = $1
         AND variant_id = ANY($2::bigint[])
+        AND tenant_id = $3
       `,
-      [productId, result.rows.map((row) => row.id)]
+      [productId, result.rows.map((row) => row.id), tenantId]
     );
   }
 
@@ -2337,9 +2344,13 @@ export const createProduct = async (req, res) => {
       });
     }
 
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    if (!tenantId) {
+      return tenantContextMissingResponse(res);
+    }
+
     await client.query("BEGIN");
     transactionStarted = true;
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     normalizedForeignKeys.category_id = await resolveDefaultCategoryId(client, {
       categoryId: normalizedForeignKeys.category_id,
       category,
@@ -2541,6 +2552,7 @@ export const createProduct = async (req, res) => {
     }
 
     await replaceProductVariantImages(client, {
+      tenantId,
       productId,
       variants: Array.isArray(variants) ? variants : [],
       colorImages: Array.isArray(colorImages) ? colorImages : [],
@@ -2751,9 +2763,13 @@ export const updateProduct = async (req, res) => {
       ...(Array.isArray(variant_image_payload) ? variant_image_payload : []),
     ];
 
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    if (!tenantId) {
+      return tenantContextMissingResponse(res);
+    }
+
     await client.query("BEGIN");
     transactionStarted = true;
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const productId = req.params.id;
     const finalProductSku = await makeUniqueSku(client, {
       tenantId,
@@ -2837,6 +2853,7 @@ export const updateProduct = async (req, res) => {
         product_low_stock_threshold = COALESCE($45, product_low_stock_threshold),
         minimum_distinct_sizes_required = COALESCE($46, minimum_distinct_sizes_required)
       WHERE id = $47
+        AND tenant_id = $49
       RETURNING *
       `,
       [
@@ -2890,6 +2907,7 @@ export const updateProduct = async (req, res) => {
         normalizedMinimumDistinctSizesRequired,
         productId,
         productPricingProvided,
+        tenantId,
       ]
     );
     if (updated.rows.length === 0) {
@@ -3004,6 +3022,7 @@ export const updateProduct = async (req, res) => {
     });
 
     await replaceProductVariantImages(client, {
+      tenantId,
       productId,
       variants: [...variantsToSave, ...activeVariantImagePayloads],
       colorImages: activeColorImages,
@@ -3551,8 +3570,12 @@ export const createVariant = async (req, res) => {
     await ensureProductSchema();
     await ensureProductVariantSchema();
     await ensureProductVariantManufacturerColumn();
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    if (!tenantId) {
+      return tenantContextMissingResponse(res);
+    }
+
     await client.query("BEGIN");
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const {
       color,
       size,
@@ -3576,8 +3599,8 @@ export const createVariant = async (req, res) => {
     } = req.body || {};
     const normalizedManufacturerId = normalizeOptionalForeignKey(manufacturer_id);
     const productResult = await client.query(
-      `SELECT sku, name, brand, category, product_type, gender, grade FROM products WHERE id = $1 LIMIT 1`,
-      [req.params.id]
+      `SELECT sku, name, brand, category, product_type, gender, grade FROM products WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [req.params.id, tenantId]
     );
     const productForSku = productResult.rows[0] || {};
     const skuPrefix = productForSku.sku || buildSmartSkuPrefix(productForSku);

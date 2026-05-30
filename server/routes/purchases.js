@@ -2630,6 +2630,9 @@ const bulkInsertInventoryMovements = async (client, rows = []) => {
   const movements = rows.filter((row) => Number(row.quantity_change || 0) !== 0);
   if (!movements.length) return;
   const availableColumns = await getTableColumns(client, "inventory_movements");
+  if (availableColumns.has("tenant_id") && movements.some((row) => !row.tenant_id)) {
+    throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
+  }
   const candidateColumns = [
     "tenant_id", "product_id", "variant_id", "warehouse_id", "movement_type", "quantity",
     "before_qty", "after_qty", "quantity_before", "quantity_change", "quantity_after",

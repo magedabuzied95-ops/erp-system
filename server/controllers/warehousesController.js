@@ -1,5 +1,5 @@
 import db from "../database/db.js";
-import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { getTenantId, isSuperAdminUser, tenantContextMissingResponse } from "../utils/requestScope.js";
 import { ensureInventoryMovementSchema, recordInventoryMovement } from "../services/inventoryMovementService.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { SINGLE_BRANCH_NAME, ensureSingleBranchMode } from "../utils/singleBranchMode.js";
@@ -356,9 +356,9 @@ export const updateWarehouse = async (req, res) => {
   const client = await db.connect();
   try {
     await ensureWarehouseSchema();
-    await client.query("BEGIN");
-
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+
+    await client.query("BEGIN");
     const warehouseId = Number(req.params.id);
     if (!Number.isFinite(warehouseId)) {
       await client.query("ROLLBACK");
@@ -454,9 +454,9 @@ export const deleteWarehouse = async (req, res) => {
   const client = await db.connect();
   try {
     await ensureWarehouseSchema();
-    await client.query("BEGIN");
-
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+
+    await client.query("BEGIN");
     const warehouseId = Number(req.params.id);
     if (!Number.isFinite(warehouseId)) {
       await client.query("ROLLBACK");
@@ -563,9 +563,12 @@ export const transferStock = async (req, res) => {
 
   try {
     await ensureInventoryMovementSchema();
-    await client.query("BEGIN");
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    if (!tenantId) {
+      return tenantContextMissingResponse(res);
+    }
 
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    await client.query("BEGIN");
     const { variant_id, from_warehouse, to_warehouse, quantity } = req.body;
 
     if (!variant_id || !from_warehouse || !to_warehouse || !quantity) {

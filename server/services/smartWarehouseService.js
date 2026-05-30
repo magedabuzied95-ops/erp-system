@@ -229,6 +229,9 @@ export const completeInventoryCount = async (client, { tenantId, branchId, wareh
     const actualQty = toNumber(item.actual_qty ?? item.actualQty, expectedQty);
     const differenceQty = actualQty - expectedQty;
     const effectiveTenantId = tenantId ?? variant.tenant_id ?? null;
+    if (!effectiveTenantId) {
+      throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
+    }
 
     const itemResult = await client.query(
       `

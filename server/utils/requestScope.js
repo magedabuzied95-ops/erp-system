@@ -1,9 +1,12 @@
 export const getTenantId = (req, fallback = null) => {
   const rawTenant =
+    req?.tenantId ??
+    req?.tenant?.id ??
     req?.user?.tenant_id ??
     req?.user?.tenantId ??
     req?.headers?.["x-tenant-id"] ??
     req?.query?.tenant_id ??
+    req?.query?.tenantId ??
     fallback;
 
   if (rawTenant === null || rawTenant === undefined || rawTenant === "") {
@@ -22,3 +25,9 @@ export const isSuperAdminUser = (user = {}) =>
 
 export const tenantWhereClause = (column = "tenant_id") =>
   `${column} = $1`;
+
+export const tenantContextMissingResponse = (res) =>
+  res.status(400).json({
+    success: false,
+    message: "Tenant context missing",
+  });

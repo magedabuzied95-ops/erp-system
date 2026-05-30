@@ -1,10 +1,13 @@
 import pool from "../database/db.js";
-import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { getTenantId, tenantContextMissingResponse } from "../utils/requestScope.js";
 
 export const addVariant = async (req, res) => {
 
   try {
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    if (!tenantId) {
+      return tenantContextMissingResponse(res);
+    }
 
     const {
       product_id,
