@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Check,
   CheckCircle2,
-  ClipboardCheck,
   Copy,
   Download,
   Eye,
@@ -259,25 +258,6 @@ const getPaymentBadge = (order = {}, fallback = "") => {
   return { label: fallback || order.paymentStatus || "Pending verification", className: "border-zinc-500/25 bg-zinc-500/10 text-zinc-200" };
 };
 
-const buildOperationalEvents = (order = {}, timeline = []) => {
-  const existing = Array.isArray(order.events) ? order.events : Array.isArray(order.activity) ? order.activity : [];
-  const events = existing.length
-    ? existing
-    : timeline.map((event) => ({
-        label: event.label,
-        at: event.at,
-        tone: event.tone,
-      }));
-
-  return events
-    .filter((event) => event?.label || event?.type)
-    .map((event) => ({
-      label: event.label || event.title || event.type,
-      at: event.at || event.created_at || event.timestamp,
-      tone: event.tone || "blue",
-    }));
-};
-
 const buildSmartInsights = (order = {}, items = [], shipping = {}) => {
   const insights = [];
   const total = Number(order.total || order.total_price || 0);
@@ -348,6 +328,7 @@ function OrderDetails() {
   const [paymentProofModalOpen, setPaymentProofModalOpen] = useState(false);
   const [paymentProofImageFailed, setPaymentProofImageFailed] = useState(false);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
+  const [statusTimelineOpen, setStatusTimelineOpen] = useState(false);
   const [packingChecklist, setPackingChecklist] = useState(emptyPackingChecklist);
 
   const loadOrder = useCallback(async () => {
@@ -452,7 +433,6 @@ function OrderDetails() {
         ? t("orders.details.transferProofRejected")
         : "";
   const paymentBadge = getPaymentBadge(order || {}, paymentReviewBadgeText || order?.paymentStatus);
-  const operationalEvents = useMemo(() => (order ? buildOperationalEvents(order, timeline) : []), [order, timeline]);
   const smartInsights = useMemo(() => (order ? buildSmartInsights(order, previewItems, shipping) : []), [order, previewItems, shipping]);
   const bostaCityName = shipping.shipping_city_name_ar || shipping.shipping_city_name_en || order?.shipping_city_name_ar || order?.shipping_city_name_en || order?.city_area || order?.governorate || shipping.shipping_city_id || order?.city_id || "";
   const bostaZoneName = shipping.shipping_zone_name_ar || shipping.shipping_zone_name_en || order?.shipping_zone_name_ar || order?.shipping_zone_name_en || shipping.shipping_zone_id || "";
@@ -876,11 +856,10 @@ function OrderDetails() {
             <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
               <h3 className="text-lg font-black text-white">{t("orders.details.shippingData")}</h3>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <Info label={t("orders.details.customerType")} value={t("orders.details.onlineCustomer")} />
                 <Info label={t("orders.details.governorate")} value={order.governorate || t("orders.fallback.notAvailable")} />
                 <Info label={t("orders.details.cityArea")} value={order.city_area || t("orders.fallback.notAvailable")} />
-                <Info label={t("orders.details.landmark")} value={order.landmark || t("orders.fallback.notAvailable")} />
-                <Info label={t("orders.details.deliveryNotes")} value={order.delivery_notes || t("orders.fallback.notAvailable")} />
+                {order.landmark ? <Info label={t("orders.details.landmark")} value={order.landmark} /> : null}
+                {order.delivery_notes ? <Info label={t("orders.details.deliveryNotes")} value={order.delivery_notes} /> : null}
               </div>
               <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("orders.drawer.address")}</div>
@@ -892,26 +871,37 @@ function OrderDetails() {
           ) : null}
 
           <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-black text-white">{t("orders.details.statusFlow")}</h3>
-              <div className="text-sm text-zinc-400">{t("orders.details.livePaymentHint")}</div>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {ORDER_STATUSES.map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => handleStatusChange(status)}
-                  className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-semibold transition ${
-                    normalizeComparable(order.status) === normalizeComparable(status)
-                      ? "border-blue-300/60 bg-blue-500/20 text-blue-100 shadow-lg shadow-blue-500/20 ring-1 ring-blue-300/40"
-                      : "border-white/10 bg-white/5 text-white hover:bg-white/10"
-                  }`}
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 flex-wrap items-center gap-3">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{t("orders.details.currentStatus", "Current status")}</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <StatusBadge value={order.status} />
+                    <span className="text-sm font-semibold text-zinc-400">{formatDateTime(order.updated_at || order.created_at)}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <select
+                  value={order.status || ""}
+                  onChange={(event) => handleStatusChange(event.target.value)}
+                  className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none"
                 >
-                  {normalizeComparable(order.status) === normalizeComparable(status) ? <CheckCircle2 className="h-4 w-4 text-blue-200" /> : null}
-                  {t(`orders.statusLabels.${normalizeComparable(status).replace(/\s+/g, "_")}`, status)}
+                  {ORDER_STATUSES.map((status) => (
+                    <option key={status} value={status} className="bg-zinc-950 text-white">
+                      {t(`orders.statusLabels.${normalizeComparable(status).replace(/\s+/g, "_")}`, status)}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setStatusTimelineOpen(true)}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {t("orders.drawer.timeline")}
                 </button>
-              ))}
+              </div>
             </div>
           </div>
 
@@ -996,66 +986,20 @@ function OrderDetails() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-black text-white">{t("orders.drawer.timeline")}</h3>
-              <button type="button" onClick={loadOrder} className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white">
-                <RefreshCcw className="h-4 w-4" />
-                {t("orders.details.refresh")}
-              </button>
-            </div>
-            <div className="mt-4 space-y-3">
-              {timeline.map((event, index) => (
-                <div key={`${event.label}-${index}`} className="flex gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
-                  <div className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-400" />
-                  <div>
-                    <div className="font-semibold text-white">{event.label}</div>
-                    <div className="mt-1 text-xs text-zinc-500">{formatDateTime(event.at)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-black text-white">{t("orders.details.operationalTimeline")}</h3>
-              <span className="text-xs font-semibold text-zinc-500">{t("orders.details.eventsCount", { count: operationalEvents.length })}</span>
-            </div>
-            <div className="mt-4 space-y-3">
-              {operationalEvents.length ? (
-                operationalEvents.map((event, index) => (
-                  <div key={`${event.label}-${event.at || index}`} className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full border border-blue-400/20 bg-blue-400/10">
-                      <ClipboardCheck className="h-3.5 w-3.5 text-blue-200" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-white">{event.label}</div>
-                      <div className="mt-1 text-xs text-zinc-500">{formatDateTime(event.at)}</div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-5 text-sm text-zinc-400">
-                  {t("orders.details.noOperationalEvents")}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
 
         <div className="space-y-4 xl:col-span-4">
-          <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-5 shadow-xl shadow-black/10">
-            <div className="flex items-start justify-between gap-3">
-              <div>
+          <details className="group rounded-2xl border border-white/10 bg-zinc-950/90 p-4 shadow-xl shadow-black/10">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+              <div className="min-w-0">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{t("orders.details.packing")}</div>
-                <h3 className="mt-2 text-lg font-black text-white">{t("orders.details.staffChecklist")}</h3>
+                <h3 className="mt-1 truncate text-base font-black text-white">{t("orders.details.staffChecklist")}</h3>
               </div>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300">
+              <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300">
                 {packingCompleteCount}/{PACKING_CHECKLIST_ITEMS.length}
               </span>
-            </div>
-            <div className="mt-4 space-y-2">
+            </summary>
+            <div className="mt-3 space-y-2">
               {PACKING_CHECKLIST_ITEMS.map((item) => (
                 <button
                   key={item.key}
@@ -1076,7 +1020,7 @@ function OrderDetails() {
                 </button>
               ))}
             </div>
-          </div>
+          </details>
 
           {smartInsights.length ? (
             <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-5 shadow-xl shadow-black/10">
@@ -1352,7 +1296,7 @@ function OrderDetails() {
                         <Info label="Apartment" value={shipping.apartment_number || t("orders.fallback.notAvailable")} />
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                        <Info label="Landmark" value={order.landmark || t("orders.fallback.notAvailable")} />
+                        {order.landmark ? <Info label="Landmark" value={order.landmark} /> : null}
                         <Info label="Delivery ID" value={shipping.shipping_provider_delivery_id || shipping.shipment_id || t("orders.fallback.notAvailable")} />
                         <Info label={t("orders.shipping.trackingNumber")} value={shipping.tracking_number || t("orders.fallback.notAvailable")} />
                         <Info label="Label URL" value={shipping.shipping_label_url || t("orders.fallback.notAvailable")} />
@@ -1545,6 +1489,29 @@ function OrderDetails() {
               <ExternalLink className="h-4 w-4" />
               {t("orders.details.openFullImage")}
             </button>
+          </div>
+        </ModalShell>
+      ) : null}
+
+      {statusTimelineOpen ? (
+        <ModalShell title={t("orders.drawer.timeline")} onClose={() => setStatusTimelineOpen(false)} closeLabel={t("common.close")}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <StatusBadge value={order.status} />
+            <button type="button" onClick={loadOrder} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
+              <RefreshCcw className="h-3.5 w-3.5" />
+              {t("orders.details.refresh")}
+            </button>
+          </div>
+          <div className="max-h-[64vh] space-y-2 overflow-auto pr-1">
+            {timeline.map((event, index) => (
+              <div key={`${event.label}-${index}`} className="flex gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-blue-400" />
+                <div className="min-w-0">
+                  <div className="font-semibold text-white">{event.label}</div>
+                  <div className="mt-1 text-xs text-zinc-500">{formatDateTime(event.at)}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </ModalShell>
       ) : null}
