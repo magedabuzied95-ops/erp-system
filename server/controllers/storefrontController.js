@@ -749,6 +749,10 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_zone_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_district_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_address_line TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS street_address TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS building_number VARCHAR(80)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS floor_number VARCHAR(80)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS apartment_number VARCHAR(80)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(80) NOT NULL DEFAULT 'pending'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_tracking_number VARCHAR(160)`);
@@ -3016,6 +3020,10 @@ export const createWebsiteOrder = async (req, res) => {
       city: toText(checkoutRaw.city),
       area: toText(checkoutRaw.area || checkoutRaw.district),
       detailed_address: toText(checkoutRaw.detailed_address || checkoutRaw.customer_address || checkoutRaw.address),
+      street_address: toText(checkoutRaw.street_address || checkoutRaw.streetAddress || checkoutRaw.shipping_address?.street_address || checkoutRaw.shipping_provider_address?.street_address || checkoutRaw.detailed_address || checkoutRaw.customer_address || checkoutRaw.address),
+      building_number: toText(checkoutRaw.building_number || checkoutRaw.buildingNumber || checkoutRaw.shipping_address?.building_number || checkoutRaw.shipping_address?.buildingNumber || checkoutRaw.shipping_provider_address?.building_number || checkoutRaw.shipping_provider_address?.buildingNumber),
+      floor_number: toText(checkoutRaw.floor_number || checkoutRaw.floorNumber || checkoutRaw.floor || checkoutRaw.shipping_address?.floor_number || checkoutRaw.shipping_address?.floorNumber || checkoutRaw.shipping_address?.floor || checkoutRaw.shipping_provider_address?.floor_number || checkoutRaw.shipping_provider_address?.floorNumber || checkoutRaw.shipping_provider_address?.floor),
+      apartment_number: toText(checkoutRaw.apartment_number || checkoutRaw.apartmentNumber || checkoutRaw.apartment || checkoutRaw.shipping_address?.apartment_number || checkoutRaw.shipping_address?.apartmentNumber || checkoutRaw.shipping_address?.apartment || checkoutRaw.shipping_provider_address?.apartment_number || checkoutRaw.shipping_provider_address?.apartmentNumber || checkoutRaw.shipping_provider_address?.apartment),
       payment_method: toText(checkoutRaw.payment_method || checkoutRaw.payment_type || "shipping_confirmation"),
       payment_type: toText(checkoutRaw.payment_type || checkoutRaw.payment_method || "shipping_confirmation"),
       shipping_method: toText(checkoutRaw.shipping_method || checkoutRaw.shipping_provider),
@@ -3267,6 +3275,13 @@ export const createWebsiteOrder = async (req, res) => {
     const paidAmount = paymentMethod === "cod" ? 0 : deliveryFee;
     const token = publicToken();
     const invoiceNumber = buildTemporaryInvoiceNumber();
+    const shippingAddressLine = [
+      checkout.street_address || checkout.detailed_address,
+      checkout.building_number ? `Building ${checkout.building_number}` : "",
+      checkout.floor_number ? `Floor ${checkout.floor_number}` : "",
+      checkout.apartment_number ? `Apartment ${checkout.apartment_number}` : "",
+      checkout.landmark ? `Near ${checkout.landmark}` : "",
+    ].filter(Boolean).join(", ");
     markCheckoutStep("create order", { table: "orders", invoiceNumber, total, orderTenantScoped: checkoutColumns.orders.has("tenant_id") });
     let order = await insertReturning(client, "orders", {
       tenant_id: tenantId,
@@ -3299,7 +3314,7 @@ export const createWebsiteOrder = async (req, res) => {
       cod_amount: codAmount,
       shipping_payment_screenshot: shippingPaymentFile ? `/uploads/payment-proofs/${shippingPaymentFile.filename}` : "",
       shipping_payment_reference: toText(checkout.shipping_payment_reference),
-      customer_address: checkout.detailed_address,
+      customer_address: checkout.detailed_address || shippingAddressLine,
       governorate: checkout.governorate,
       city_area: checkout.city_area,
       governorate_id: checkout.governorate_id,
@@ -3308,6 +3323,10 @@ export const createWebsiteOrder = async (req, res) => {
       district_id: checkout.district_id,
       zone_id: checkout.zone_id,
       landmark: checkout.landmark || "",
+      street_address: checkout.street_address || checkout.detailed_address || "",
+      building_number: checkout.building_number || "",
+      floor_number: checkout.floor_number || "",
+      apartment_number: checkout.apartment_number || "",
       delivery_notes: checkout.delivery_notes || "",
       order_notes: checkout.order_notes || "",
       notes: checkout.order_notes || "",
@@ -3316,7 +3335,7 @@ export const createWebsiteOrder = async (req, res) => {
       shipping_city_id: checkout.shipping_city_id || checkout.city_id || shippingQuote.zone?.city_id || null,
       shipping_zone_id: checkout.shipping_zone_id || checkout.zone_id || shippingQuote.zone?.zone_id || shippingQuote.zone?.id || null,
       shipping_district_id: checkout.shipping_district_id || checkout.district_id || checkout.area_id || shippingQuote.zone?.district_id || null,
-      shipping_address_line: checkout.detailed_address,
+      shipping_address_line: shippingAddressLine || checkout.detailed_address,
       shipping_status: "pending",
       shipment_status: "pending",
     }, checkoutColumns.orders, { step: "create order" });
@@ -3683,6 +3702,10 @@ export const latestShippingAddress = async (req, res) => {
         o.governorate,
         o.city_area,
         o.customer_address AS detailed_address,
+        o.street_address,
+        o.building_number,
+        o.floor_number,
+        o.apartment_number,
         o.landmark,
         o.delivery_notes,
         o.customer_name,
@@ -3717,6 +3740,10 @@ export const latestShippingAddress = async (req, res) => {
         area: row.city_area || "",
         detailed_address: row.detailed_address || "",
         address: row.detailed_address || "",
+        street_address: row.street_address || "",
+        building_number: row.building_number || "",
+        floor_number: row.floor_number || "",
+        apartment_number: row.apartment_number || "",
         landmark: row.landmark || "",
         delivery_notes: row.delivery_notes || "",
         customer_name: row.customer_name || "",

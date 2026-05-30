@@ -326,10 +326,15 @@ function OrderDetails() {
     shipping_provider_delivery_id: "",
     shipping_label_url: "",
     shipping_address_line: "",
+    street_address: "",
+    building_number: "",
+    floor_number: "",
+    apartment_number: "",
     delivery_fee: 0,
     cod_amount: 0,
     courier_notes: "",
   });
+  const [bostaActionError, setBostaActionError] = useState("");
   const [shippingTab, setShippingTab] = useState("shipment");
   const [paymentProofModalOpen, setPaymentProofModalOpen] = useState(false);
   const [paymentProofImageFailed, setPaymentProofImageFailed] = useState(false);
@@ -358,6 +363,10 @@ function OrderDetails() {
         shipping_provider_delivery_id: merged.shipping_provider_delivery_id || merged.shipment_id || "",
         shipping_label_url: merged.shipping_label_url || "",
         shipping_address_line: merged.shipping_address_line || merged.customer_address || "",
+        street_address: merged.street_address || "",
+        building_number: merged.building_number || "",
+        floor_number: merged.floor_number || "",
+        apartment_number: merged.apartment_number || "",
         delivery_fee: merged.delivery_fee || merged.shipping_fee || 0,
         cod_amount: merged.cod_amount || 0,
         courier_notes: merged.courier_notes || "",
@@ -529,6 +538,7 @@ function OrderDetails() {
 
   const handleBostaAction = async (action) => {
     try {
+      setBostaActionError("");
       const result = await api.post(`/orders/${order.id}/shipping/bosta/${action}`, {});
       const updated = normalizeOrder(result.order || order, { items: previewItems });
       setOrder(updated);
@@ -542,10 +552,17 @@ function OrderDetails() {
         tracking_number: updated.shipping_tracking_number || updated.tracking_number || result.tracking_number || prev.tracking_number,
         tracking_url: updated.tracking_url || result.tracking_url || prev.tracking_url,
         shipping_label_url: updated.shipping_label_url || result.label_url || prev.shipping_label_url,
+        shipping_address_line: updated.shipping_address_line || prev.shipping_address_line,
+        street_address: updated.street_address || prev.street_address,
+        building_number: updated.building_number || prev.building_number,
+        floor_number: updated.floor_number || prev.floor_number,
+        apartment_number: updated.apartment_number || prev.apartment_number,
       }));
       toast.success(result.message || (action === "create" ? "Bosta shipment created" : "Bosta shipment updated"));
     } catch (err) {
-      toast.error(err.message || "Bosta shipment action failed");
+      const message = err?.responseBody?.message || err?.responseBody?.details?.message || err.message || "Bosta shipment action failed";
+      setBostaActionError(message);
+      toast.error(message);
     }
   };
 
@@ -1285,6 +1302,9 @@ function OrderDetails() {
                           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">Bosta</div>
                           <div className="mt-1 text-sm font-black text-white">City {shipping.shipping_city_id || order.city_id || "-"} · Zone {shipping.shipping_zone_id || "-"} · District {shipping.shipping_district_id || order.area_id || "-"}</div>
                           <div className="mt-1 text-xs font-semibold text-zinc-400">{shipping.shipping_address_line || order.customer_address || t("orders.fallback.notAvailable")}</div>
+                          <div className="mt-1 text-[11px] font-semibold text-zinc-500">
+                            {[shipping.street_address, shipping.building_number ? `Building ${shipping.building_number}` : "", shipping.floor_number ? `Floor ${shipping.floor_number}` : "", shipping.apartment_number ? `Apartment ${shipping.apartment_number}` : "", order.landmark ? `Near ${order.landmark}` : ""].filter(Boolean).join(" · ") || t("orders.fallback.notAvailable")}
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <button type="button" onClick={() => handleBostaAction("create")} className="h-9 rounded-xl bg-cyan-300 px-3 text-xs font-black text-zinc-950">Create Bosta Shipment</button>
@@ -1297,6 +1317,11 @@ function OrderDetails() {
                         <Info label={t("orders.shipping.trackingNumber")} value={shipping.tracking_number || t("orders.fallback.notAvailable")} />
                         <Info label="Label" value={shipping.shipping_label_url ? "Available" : t("orders.fallback.notAvailable")} />
                       </div>
+                      {bostaActionError ? (
+                        <div className="mt-3 rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 py-2 text-xs font-bold leading-5 text-rose-100">
+                          {bostaActionError}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                   <FieldLabel label={t("orders.shipping.provider")}>

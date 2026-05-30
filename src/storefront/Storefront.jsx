@@ -552,6 +552,10 @@ const sanitizeProfile = (profile = {}) => ({
   governorate: String(profile.governorate || "").slice(0, 120),
   city_area: String(profile.city_area || "").slice(0, 160),
   detailed_address: String(profile.detailed_address || "").slice(0, 500),
+  street_address: String(profile.street_address || "").slice(0, 500),
+  building_number: String(profile.building_number || "").slice(0, 80),
+  floor_number: String(profile.floor_number || "").slice(0, 80),
+  apartment_number: String(profile.apartment_number || "").slice(0, 80),
   landmark: String(profile.landmark || "").slice(0, 180),
 });
 
@@ -6448,6 +6452,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     shipping_district_id: "",
     city_area: "",
     detailed_address: "",
+    street_address: "",
+    building_number: "",
+    floor_number: "",
+    apartment_number: "",
     landmark: "",
     delivery_notes: "",
     payment_method: "shipping_confirmation",
@@ -6809,6 +6817,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       governorate: form.governorate,
       city_area: form.city_area,
       detailed_address: form.detailed_address,
+      street_address: form.street_address,
+      building_number: form.building_number,
+      floor_number: form.floor_number,
+      apartment_number: form.apartment_number,
       landmark: form.landmark,
       delivery_notes: form.delivery_notes,
     };
@@ -6834,6 +6846,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
         const effectiveGovernorate = nextValues.governorate || fieldsSnapshot.governorate;
         applyIfUntouched("city_area", address.city_area || address.city || address.area);
         applyIfUntouched("detailed_address", address.detailed_address || address.address);
+        applyIfUntouched("street_address", address.street_address || address.detailed_address || address.address);
+        applyIfUntouched("building_number", address.building_number);
+        applyIfUntouched("floor_number", address.floor_number);
+        applyIfUntouched("apartment_number", address.apartment_number);
         applyIfUntouched("landmark", address.landmark);
         applyIfUntouched("delivery_notes", address.delivery_notes);
 
@@ -6861,6 +6877,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     form.city_area,
     form.delivery_notes,
     form.detailed_address,
+    form.street_address,
+    form.building_number,
+    form.floor_number,
+    form.apartment_number,
     form.full_name,
     form.governorate,
     form.landmark,
@@ -6935,6 +6955,13 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
         ? ["governorate", "city_area", "detailed_address"]
         : ["payment_method", "shipping_payment_screenshot"];
     const phone = form.primary_phone.replace(/\s/g, "");
+    const composedAddress = [
+      form.street_address || form.detailed_address,
+      form.building_number ? `Building ${form.building_number}` : "",
+      form.floor_number ? `Floor ${form.floor_number}` : "",
+      form.apartment_number ? `Apartment ${form.apartment_number}` : "",
+      form.landmark ? `Near ${form.landmark}` : "",
+    ].filter(Boolean).join(", ");
 
     if (step === 1) {
       if (!form.full_name.trim()) next.full_name = sfText("storefront.validation.fullNameRequired", "Enter your full name");
@@ -6947,6 +6974,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       if (bostaMode && (!form.shipping_city_id || !form.shipping_zone_id || !form.shipping_district_id)) next.city_area = sfText("storefront.validation.cityAreaRequired", "Choose the city or area");
       else if (!form.city_area.trim()) next.city_area = manualCityArea ? sfText("storefront.validation.cityAreaManualRequired", "Enter the city or area") : sfText("storefront.validation.cityAreaRequired", "Choose the city or area");
       if (!form.detailed_address.trim()) next.detailed_address = sfText("storefront.validation.addressRequired", "Enter the full address so the courier can reach you quickly");
+      else if (bostaMode && composedAddress.trim().length < 12) next.detailed_address = sfText("storefront.validation.addressRequired", "Enter the full address so the courier can reach you quickly");
     }
 
     if (step === 3) {
@@ -7060,7 +7088,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
         provider_district_id: shippingQuote.zone?.provider_district_id || "",
         provider_zone_id: shippingQuote.zone?.provider_zone_id || "",
         area: form.area || form.city_area,
-        street_address: form.detailed_address,
+        street_address: form.street_address || form.detailed_address,
+        building_number: form.building_number,
+        floor_number: form.floor_number,
+        apartment_number: form.apartment_number,
         landmark: form.landmark,
         notes: form.delivery_notes,
       };
@@ -7110,7 +7141,16 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       if (data.order?.invoice_number && data.order.invoice_number !== publicNumber) {
         sessionStorage.setItem(`storefront.order.${data.order.invoice_number}`, JSON.stringify(successPayload));
       }
-      setProfile({ full_name: form.full_name, primary_phone: cleanPhone });
+      setProfile({
+        full_name: form.full_name,
+        primary_phone: cleanPhone,
+        street_address: form.street_address,
+        building_number: form.building_number,
+        floor_number: form.floor_number,
+        apartment_number: form.apartment_number,
+        detailed_address: form.detailed_address,
+        landmark: form.landmark,
+      });
       clearCart();
       playSuccess();
       navigate(`/shop/success/${encodeURIComponent(publicNumber)}?phone=${encodeURIComponent(cleanPhone)}`, { state: successPayload });
@@ -7175,6 +7215,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
                 </>
               )}
               <TextField label={sfText("storefront.checkout.fullAddress", "Full address")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder", "Street, building number, floor, apartment")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} />
+              <Field label={sfText("storefront.checkout.streetAddress", "Street address")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder", "Street or neighborhood")} value={form.street_address} onChange={(v) => setField("street_address", v)} />
+              <Field label={sfText("storefront.checkout.buildingNumber", "Building number")} placeholder={sfText("storefront.checkout.buildingNumberPlaceholder", "12")} value={form.building_number} onChange={(v) => setField("building_number", v)} />
+              <Field label={sfText("storefront.checkout.floorNumber", "Floor")} placeholder={sfText("storefront.checkout.floorNumberPlaceholder", "3")} value={form.floor_number} onChange={(v) => setField("floor_number", v)} />
+              <Field label={sfText("storefront.checkout.apartmentNumber", "Apartment")} placeholder={sfText("storefront.checkout.apartmentNumberPlaceholder", "7")} value={form.apartment_number} onChange={(v) => setField("apartment_number", v)} />
               <Field label={sfText("storefront.checkout.landmark", "Landmark")} placeholder={sfText("storefront.checkout.landmarkPlaceholder", "Near...")} value={form.landmark} onChange={(v) => setField("landmark", v)} />
               <TextField label={sfText("storefront.checkout.deliveryNotes", "Delivery notes")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder", "Preferred time or courier note")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} />
             </div>

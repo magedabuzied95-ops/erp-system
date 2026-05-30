@@ -73,8 +73,9 @@ export const normalizeBostaMasterLocations = (payload) => {
 
 export const normalizeBostaDeliveryResponse = (payload = {}) => {
   const data = payload?.data && typeof payload.data === "object" ? payload.data : payload;
+  const errorPayload = payload?.error && typeof payload.error === "object" ? payload.error : {};
   return {
-    success: payload?.success !== false,
+    success: payload?.success !== false && !payload?.errorCode && !errorPayload?.errorCode,
     provider: "bosta",
     shipment_id: text(pick(data, ["_id", "id", "deliveryId", "delivery_id", "shipment_id"])),
     tracking_number: text(pick(data, ["trackingNumber", "tracking_number", "trackingCode", "tracking_code", "trackingNo"])),
@@ -82,8 +83,21 @@ export const normalizeBostaDeliveryResponse = (payload = {}) => {
     label_url: text(pick(data, ["labelUrl", "label_url", "airwayBillUrl", "awbUrl"])),
     status: text(pick(data, ["status", "state", "deliveryStatus"])) || "created",
     raw_response: payload,
-    error: payload?.error || payload?.message || "",
+    error: text(pick(payload, ["message", "errorMessage"])) || text(pick(errorPayload, ["message", "errorMessage", "details"])) || (typeof payload?.error === "string" ? text(payload.error) : ""),
+    error_code: text(pick(payload, ["errorCode", "code"])) || text(pick(errorPayload, ["errorCode", "code"])),
   };
+};
+
+export const buildBostaAddressLine = (order = {}) => {
+  const streetAddress = text(order.street_address || order.shipping_address_line || order.customer_address);
+  const parts = [
+    streetAddress,
+    text(order.building_number) ? `Building ${text(order.building_number)}` : "",
+    text(order.floor_number) ? `Floor ${text(order.floor_number)}` : "",
+    text(order.apartment_number) ? `Apartment ${text(order.apartment_number)}` : "",
+    text(order.landmark) ? `Near ${text(order.landmark)}` : "",
+  ].filter(Boolean);
+  return parts.join(", ");
 };
 
 export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0 }) => {
@@ -91,6 +105,14 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
   const firstName = names.shift() || "Customer";
   const lastName = names.join(" ") || firstName;
   const itemCount = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 1;
+  const cityId = text(city.provider_city_id || order.shipping_city_id || order.city_id);
+  const zoneId = text(zone.provider_zone_id || order.shipping_zone_id || order.zone_id);
+  const districtId = text(district.provider_district_id || order.shipping_district_id || order.district_id || order.area_id);
+  const cityCode = text(city.code || city.city_code || cityId);
+  const fullAddress = buildBostaAddressLine(order);
+  const buildingNumber = text(order.building_number);
+  const floor = text(order.floor_number);
+  const apartment = text(order.apartment_number);
   return {
     type: 10,
     cod: Math.max(0, Number(codAmount || 0)),
@@ -109,11 +131,18 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
       phone: text(order.customer_phone || order.phone || order.primary_phone),
     },
     dropOffAddress: {
-      city: { _id: city.provider_city_id, name: city.name_en },
-      zone: { _id: zone.provider_zone_id, name: zone.name_en },
-      district: { _id: district.provider_district_id, name: district.name_en },
-      firstLine: text(order.shipping_address_line || order.customer_address),
+      cityCode,
+      cityId,
+      zoneId,
+      districtId,
+      city: text(city.name_en || city.name_ar || order.governorate || order.city_area),
+      zone: text(zone.name_en || zone.name_ar || order.zone || order.city_area),
+      district: text(district.name_en || district.name_ar || order.district || order.area || order.city_area),
+      firstLine: fullAddress,
       secondLine: text(order.landmark),
+      ...(buildingNumber ? { buildingNumber } : {}),
+      ...(floor ? { floor } : {}),
+      ...(apartment ? { apartment } : {}),
     },
     businessReference: text(order.invoice_number || order.public_order_number || order.id),
   };

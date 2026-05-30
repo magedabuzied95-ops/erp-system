@@ -1,7 +1,7 @@
 import db from "../../database/db.js";
 import { getSetting, setSetting } from "../../services/settingsService.js";
 import { createBostaClient } from "./providers/bosta.client.js";
-import { mapOrderToBostaDeliveryPayload, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations } from "./providers/bosta.mapper.js";
+import { buildBostaAddressLine, mapOrderToBostaDeliveryPayload, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations } from "./providers/bosta.mapper.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const nowIso = () => new Date().toISOString();
@@ -86,6 +86,10 @@ export const ensureShippingSchema = async (client = db) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_zone_id VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_district_id VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_address_line TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS street_address TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS building_number VARCHAR(80)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS floor_number VARCHAR(80)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS apartment_number VARCHAR(80)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_tracking_number VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider_delivery_id VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_label_url TEXT`);
@@ -353,19 +357,48 @@ export const createBostaShipmentForOrder = async (orderId) => {
     if (!city) missing.push("Bosta city");
     if (!zone) missing.push("Bosta zone");
     if (!district) missing.push("Bosta district");
-    if (!text(order.shipping_address_line || order.customer_address)) missing.push("detailed address");
+    const fullAddress = buildBostaAddressLine(order);
+    if (!fullAddress) missing.push("detailed address");
     if (missing.length) {
       const error = new Error(`Cannot create Bosta shipment. Missing ${missing.join(", ")}`);
       error.status = 400;
+      throw error;
+    }
+    if (fullAddress.length < 12) {
+      const error = new Error("Please enter a detailed delivery address before creating a Bosta shipment.");
+      error.status = 400;
+      error.code = "BOSTA_ADDRESS_TOO_SHORT";
       throw error;
     }
 
     const config = await bostaConfig();
     const bosta = createBostaClient(config);
     const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: orderCodAmount(order) });
+    console.log("[bosta-create-payload]", JSON.stringify(deliveryPayload));
     console.log("[bosta] creating delivery", { orderId: order.id, city: city.provider_city_id, zone: zone.provider_zone_id, district: district.provider_district_id });
-    const response = normalizeBostaDeliveryResponse(await bosta.createDelivery(deliveryPayload));
-    if (!response.success) throw new Error(response.error || "Bosta delivery creation failed");
+    let rawBostaResponse;
+    try {
+      rawBostaResponse = await bosta.createDelivery(deliveryPayload);
+      console.log("[bosta-create-response]", JSON.stringify(rawBostaResponse));
+    } catch (apiError) {
+      const rawErrorPayload = apiError?.payload || { message: apiError?.message, status: apiError?.status };
+      console.error("[bosta-create-response]", JSON.stringify(rawErrorPayload));
+      const nestedError = rawErrorPayload?.error && typeof rawErrorPayload.error === "object" ? rawErrorPayload.error : {};
+      const bostaMessage = text(rawErrorPayload?.message || nestedError?.message || (typeof rawErrorPayload?.error === "string" ? rawErrorPayload.error : "") || apiError?.message);
+      const error = new Error(bostaMessage || "Bosta delivery creation failed");
+      error.status = apiError?.status >= 400 && apiError.status < 500 ? 400 : 502;
+      error.code = rawErrorPayload?.errorCode || rawErrorPayload?.code || "BOSTA_CREATE_FAILED";
+      error.payload = rawErrorPayload;
+      throw error;
+    }
+    const response = normalizeBostaDeliveryResponse(rawBostaResponse);
+    if (!response.success) {
+      const error = new Error(response.error || "Bosta delivery creation failed");
+      error.status = 400;
+      error.code = response.error_code || "BOSTA_CREATE_FAILED";
+      error.payload = response.raw_response;
+      throw error;
+    }
 
     const status = response.status || "created";
     const timelineEvent = { at: nowIso(), action: "bosta_create_delivery", provider: "bosta", status, shipment_id: response.shipment_id, tracking_number: response.tracking_number };
