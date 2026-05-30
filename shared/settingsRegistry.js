@@ -1,4 +1,5 @@
 import { ORDER_LIFECYCLE_STATUSES, ORDER_STATUS_LABELS } from "./orderStatus.js";
+import { defaultEgyptShippingLocations } from "./egyptShippingLocations.js";
 
 const label = (en, ar) => ({ en, ar });
 
@@ -105,6 +106,7 @@ const definitions = [
   ["storefront.homepage_hero", "storefront", "json", { title: "", subtitle: "", imageUrl: "" }, "Homepage hero settings", "واجهة الصفحة الرئيسية", "Hero title, subtitle, and image URL.", "العنوان والوصف وصورة واجهة الصفحة الرئيسية.", { isPublic: true }],
   ["storefront.featured_collections", "storefront", "json", [], "Featured collections", "المجموعات المميزة", "Collection IDs or slugs displayed on home.", "معرفات أو روابط المجموعات الظاهرة في الرئيسية.", { isPublic: true }],
   ["storefront.default_shipping_price", "shipping", "number", 60, "Default shipping price", "سعر الشحن الافتراضي", "Fallback shipping price when no governorate, city, or area zone matches.", "سعر الشحن الاحتياطي عند عدم وجود منطقة أو مدينة أو محافظة مطابقة.", { validation: { min: 0 }, usedBy: ["Storefront", "Checkout"] }],
+  ["storefront.shipping_locations", "shipping", "json", defaultEgyptShippingLocations, "Shipping locations catalog", "كتالوج مناطق الشحن", "Structured Egypt governorate, city/markaz, and area catalog used by zones and checkout.", "كتالوج منظم لمحافظات ومدن ومناطق مصر مستخدم في مناطق الشحن والدفع.", { isPublic: true, usedBy: ["Shipping Zones", "Storefront Checkout"] }],
   ["storefront.shipping_zones", "shipping", "json", defaultStorefrontShippingZones, "Shipping zones", "مناطق الشحن", "Governorate, city, and optional area shipping prices used by checkout.", "أسعار الشحن حسب المحافظة والمدينة والمنطقة المستخدمة في الدفع.", { usedBy: ["Storefront", "Checkout"] }],
   ["storefront.product_sorting_default", "storefront", "select", "newest", "Default product sorting", "ترتيب المنتجات", "Default catalog sorting.", "ترتيب المنتجات الافتراضي.", { options: [option("newest", "Newest", "الأحدث"), option("price_asc", "Price low to high", "السعر من الأقل"), option("price_desc", "Price high to low", "السعر من الأعلى"), option("popular", "Popular", "الأكثر مشاهدة")], isPublic: true }],
   ["storefront.show_sold_out_products", "storefront", "boolean", true, "Show sold out products", "إظهار غير المتوفر", "Display out-of-stock products.", "عرض المنتجات غير المتوفرة.", { isPublic: true }],

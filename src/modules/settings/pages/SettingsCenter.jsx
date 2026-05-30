@@ -51,6 +51,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../shared/api/api";
 import { getCurrentUser } from "../../../shared/auth/authStorage";
 import { normalizeSettingsCategory, settingsCategories, settingsByCategory } from "../../../../shared/settingsRegistry.js";
+import { defaultEgyptShippingLocations } from "../../../../shared/egyptShippingLocations.js";
 
 const copy = {
   en: {
@@ -188,6 +189,7 @@ const sectionMap = {
   ],
   shipping: [
     ["Shipping Overview", ["storefront.default_shipping_price"]],
+    ["Shipping Locations", ["storefront.shipping_locations"]],
     ["Shipping Zones", ["storefront.shipping_zones"]],
     ["Governorates & Cities", ["storefront.shipping_zones"]],
     ["Free Shipping Rules", ["storefront.shipping_zones"]],
@@ -892,6 +894,7 @@ function StorefrontSettings(props) {
 
 function ShippingSettings({ setting, value, language, updateValue, renderField }) {
   const zones = useMemo(() => (Array.isArray(value("storefront.shipping_zones")) ? value("storefront.shipping_zones") : []).map(normalizeShippingZoneRow), [value]);
+  const locations = useMemo(() => normalizeShippingLocations(value("storefront.shipping_locations")), [value]);
   const defaultPrice = Number(value("storefront.default_shipping_price") || 0);
   const defaultProvider = normalizeProviderKey(value("orders.shipping_provider"));
   const [activeTab, setActiveTab] = useState("overview");
@@ -902,6 +905,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
   const copy = { ...shippingUi.en, ...(shippingUi[language] || {}) };
   const tabs = [
     ["overview", copy.tabOverview, Truck],
+    ["locations", copy.tabLocations, MapPin],
     ["zones", copy.tabZones, Layers3],
     ["cod", copy.tabCod, WalletCards],
     ["free", copy.tabFree, Package],
@@ -947,9 +951,15 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
         </div>
       ) : null}
 
+      {activeTab === "locations" ? (
+        <VisualSection icon={MapPin} title={copy.locationsTitle} description={copy.locationsDescription}>
+          <ShippingLocationsCatalog value={locations} language={language} onChange={(next) => updateValue("storefront.shipping_locations", next)} />
+        </VisualSection>
+      ) : null}
+
       {activeTab === "zones" ? (
         <VisualSection icon={Layers3} title={copy.zonesTitle} description={copy.zonesDescription}>
-          <ShippingZonesEditor value={zones} language={language} defaultPrice={defaultPrice} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
+          <ShippingZonesEditor value={zones} locations={locations} language={language} defaultPrice={defaultPrice} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
         </VisualSection>
       ) : null}
 
@@ -985,6 +995,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
           <div className="grid gap-4 xl:grid-cols-2">
             {renderField(setting("orders.shipping_rule_engine_enabled"), true)}
             {renderField(setting("orders.shipping_provider"), true)}
+            {renderField(setting("storefront.shipping_locations"), true)}
             {renderField(setting("storefront.shipping_zones"), true)}
           </div>
         </VisualSection>
@@ -1199,6 +1210,7 @@ const shippingUi = {
     proofZones: "Proof required",
     freeRules: "Free shipping rules",
     tabOverview: "Overview",
+    tabLocations: "Locations",
     tabZones: "Zones",
     tabCod: "COD Rules",
     tabFree: "Free Shipping",
@@ -1235,6 +1247,8 @@ const shippingUi = {
     yes: "Yes",
     no: "No",
     noEta: "No ETA",
+    locationsTitle: "Shipping Locations",
+    locationsDescription: "Structured Egypt governorate, city/markaz, and area catalog for zones and checkout.",
     zonesTitle: "Shipping Zones",
     zonesDescription: "Exact area rows win first, then city/markaz rows, then governorate rows, then the default price.",
     codTitle: "COD Rules",
@@ -1389,11 +1403,12 @@ const shippingProviderOptions = [
   { id: "bosta", label: "Bosta" },
   { id: "mylerz", label: "Mylerz" },
   { id: "shipblu", label: "ShipBlu" },
+  { id: "manual", label: "Manual" },
   { id: "in_store_delivery", label: "In Store Delivery" },
 ];
 const normalizeProviderKey = (value = "") => {
   const key = String(value || "in_store_delivery").trim().toLowerCase();
-  if (key === "manual" || key === "store_pickup" || key === "in-store-delivery") return "in_store_delivery";
+  if (key === "store_pickup" || key === "in-store-delivery") return "in_store_delivery";
   return shippingProviderOptions.some((provider) => provider.id === key) ? key : "in_store_delivery";
 };
 const providerMeta = (value = "") => {
@@ -1508,15 +1523,28 @@ const applyNamedShippingTemplate = (name, zones, defaultPrice) => {
   return rows;
 };
 
-const resolveShippingPreview = (zones, { governorate = "", city = "", area = "", subtotal = 0, defaultPrice = 0, defaultProvider = "in_store_delivery" } = {}) => {
+const resolveShippingPreview = (zones, { governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", subtotal = 0, defaultPrice = 0, defaultProvider = "in_store_delivery" } = {}) => {
   const activeZones = (Array.isArray(zones) ? zones : []).map(normalizeShippingZoneRow).filter((zone) => zone.governorate && zone.active);
   const target = { governorate: normalizeZoneKey(governorate), city: normalizeZoneKey(city), area: normalizeZoneKey(area) };
   const zoneCity = (zone) => normalizeZoneKey(zone.city);
   const zoneArea = (zone) => normalizeZoneKey(zone.area);
+  const zoneDistrict = (zone) => normalizeZoneKey(zone.district || zone.area);
+  const zoneZone = (zone) => normalizeZoneKey(zone.zone || zone.area);
+  const targetIds = { governorate_id: String(governorate_id || ""), city_id: String(city_id || ""), area_id: String(area_id || district_id || ""), district_id: String(district_id || area_id || ""), zone_id: String(zone_id || "") };
+  const matchesZoneId = (zone) => targetIds.zone_id && zone.zone_id === targetIds.zone_id;
+  const matchesDistrictId = (zone) => targetIds.district_id && zone.district_id === targetIds.district_id;
+  const matchesAreaId = (zone) => targetIds.area_id && zone.area_id === targetIds.area_id;
+  const matchesCityId = (zone) => targetIds.city_id && zone.city_id === targetIds.city_id;
+  const matchesGovernorateId = (zone) => targetIds.governorate_id && zone.governorate_id === targetIds.governorate_id;
   const matchesGovernorate = (zone) => normalizeZoneKey(zone.governorate) === target.governorate;
   const matchesCity = (zone) => matchesGovernorate(zone) && zoneCity(zone) && zoneCity(zone) === target.city;
   const matchesArea = (zone) => matchesGovernorate(zone) && zoneArea(zone) && zoneArea(zone) === target.area && (!zoneCity(zone) || !target.city || zoneCity(zone) === target.city);
   const match =
+    activeZones.find(matchesZoneId) ||
+    activeZones.find((zone) => matchesDistrictId(zone) && !zone.zone_id && !zoneZone(zone)) ||
+    activeZones.find(matchesAreaId) ||
+    activeZones.find((zone) => matchesCityId(zone) && !zone.district_id && !zone.zone_id && !zone.area_id && !zoneDistrict(zone) && !zoneArea(zone)) ||
+    activeZones.find((zone) => matchesGovernorateId(zone) && !zone.city_id && !zone.district_id && !zone.zone_id && !zone.area_id && !zoneCity(zone) && !zoneDistrict(zone) && !zoneArea(zone)) ||
     activeZones.find(matchesArea) ||
     activeZones.find((zone) => matchesCity(zone) && !zoneArea(zone)) ||
     activeZones.find((zone) => matchesGovernorate(zone) && !zoneCity(zone) && !zoneArea(zone));
@@ -1537,10 +1565,21 @@ const resolveShippingPreview = (zones, { governorate = "", city = "", area = "",
 
 const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   id: String(zone.id || `zone-${Date.now()}-${index}`).trim(),
+  governorate_id: String(zone.governorate_id || zone.governorateId || "").trim(),
   governorate: String(zone.governorate || "").trim(),
   arabic_alias: String(zone.arabic_alias || zone.arabicAlias || "").trim(),
+  city_id: String(zone.city_id || zone.cityId || "").trim(),
   city: String(zone.city || zone.markaz || "").trim(),
-  area: String(zone.area || zone.district || "").trim(),
+  area_id: String(zone.area_id || zone.areaId || zone.location_id || zone.locationId || zone.district_id || zone.districtId || "").trim(),
+  district_id: String(zone.district_id || zone.districtId || zone.area_id || zone.areaId || zone.location_id || zone.locationId || "").trim(),
+  zone_id: String(zone.zone_id || zone.zoneId || "").trim(),
+  area: String(zone.area || zone.district || zone.zone || "").trim(),
+  district: String(zone.district || zone.area || "").trim(),
+  zone: String(zone.zone || zone.area || "").trim(),
+  provider_location_code: String(zone.provider_location_code || zone.zone_code || zone.providerLocationCode || "").trim(),
+  provider_city_id: String(zone.provider_city_id || zone.providerCityId || "").trim(),
+  provider_district_id: String(zone.provider_district_id || zone.providerDistrictId || "").trim(),
+  provider_zone_id: String(zone.provider_zone_id || zone.providerZoneId || "").trim(),
   price: Number.isFinite(Number(zone.price ?? zone.shipping_price)) ? Number(zone.price ?? zone.shipping_price) : 0,
   cod_allowed: zone.cod_allowed !== false,
   requires_shipping_proof: zone.requires_shipping_proof !== false,
@@ -1552,10 +1591,290 @@ const normalizeShippingZoneRow = (zone = {}, index = 0) => ({
   active: zone.active !== false,
 });
 
-function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
+const locationName = (location = {}, language = "en", scope = "area") => {
+  const prefix = scope === "governorate" ? "governorate" : scope === "city" ? "city" : scope === "district" ? "district" : scope === "zone" ? "zone" : "area";
+  return language === "ar"
+    ? location[`${prefix}_name_ar`] || location[`${prefix}_name_en`] || ""
+    : location[`${prefix}_name_en`] || location[`${prefix}_name_ar`] || "";
+};
+
+const normalizeShippingLocation = (location = {}, index = 0) => {
+  const governorateId = String(location.governorate_id || location.governorateId || location.governorate_code || location.governorate || "").trim();
+  const cityId = String(location.city_id || location.cityId || location.city_code || location.city || location.markaz || "").trim();
+  const districtId = String(location.district_id || location.districtId || location.area_id || location.areaId || location.location_id || location.locationId || location.district || location.area || "").trim();
+  const zoneId = String(location.zone_id || location.zoneId || location.provider_zone_id || location.providerZoneId || location.provider_location_code || location.zone_code || location.zone || "").trim();
+  const areaId = String(location.area_id || location.areaId || districtId || location.location_id || location.locationId || location.provider_location_code || location.zone_code || location.area || location.district || "").trim();
+  return {
+    id: String(location.id || zoneId || areaId || `location-${index + 1}`).trim(),
+    governorate_id: governorateId,
+    governorate_name_en: String(location.governorate_name_en || location.governorateEn || location.governorate || location.province || "").trim(),
+    governorate_name_ar: String(location.governorate_name_ar || location.governorateAr || location.governorate_ar || "").trim(),
+    city_id: cityId,
+    city_name_en: String(location.city_name_en || location.cityEn || location.city || location.markaz || "").trim(),
+    city_name_ar: String(location.city_name_ar || location.cityAr || location.city_ar || "").trim(),
+    district_id: districtId,
+    district_name_en: String(location.district_name_en || location.districtEn || location.district || location.area_name_en || location.area || "").trim(),
+    district_name_ar: String(location.district_name_ar || location.districtAr || location.district_ar || location.area_name_ar || "").trim(),
+    zone_id: zoneId,
+    zone_name_en: String(location.zone_name_en || location.zoneEn || location.zone || location.area_name_en || location.area || location.district || "").trim(),
+    zone_name_ar: String(location.zone_name_ar || location.zoneAr || location.zone_ar || location.area_name_ar || location.district_ar || "").trim(),
+    area_id: areaId,
+    area_name_en: String(location.area_name_en || location.areaEn || location.area || location.district_name_en || location.district || location.zone || "").trim(),
+    area_name_ar: String(location.area_name_ar || location.areaAr || location.area_ar || location.district_name_ar || location.district_ar || "").trim(),
+    provider_location_code: String(location.provider_location_code || location.zone_code || location.providerLocationCode || location.code || "").trim(),
+    provider_city_id: String(location.provider_city_id || location.providerCityId || "").trim(),
+    provider_district_id: String(location.provider_district_id || location.providerDistrictId || "").trim(),
+    provider_zone_id: String(location.provider_zone_id || location.providerZoneId || location.bosta_zone_id || location.bostaZoneId || "").trim(),
+    provider: normalizeProviderKey(location.provider || "manual"),
+    active: location.active !== false,
+  };
+};
+
+const normalizeShippingLocations = (locations = []) => {
+  const source = Array.isArray(locations) && locations.length ? locations : defaultEgyptShippingLocations;
+  return source.map(normalizeShippingLocation).filter((location) => location.governorate_name_en || location.governorate_name_ar);
+};
+
+const locationSearchText = (location = {}) =>
+  [
+    location.governorate_name_en,
+    location.governorate_name_ar,
+    location.city_name_en,
+    location.city_name_ar,
+    location.district_name_en,
+    location.district_name_ar,
+    location.zone_name_en,
+    location.zone_name_ar,
+    location.area_name_en,
+    location.area_name_ar,
+    location.provider,
+    location.provider_location_code,
+    location.provider_city_id,
+    location.provider_district_id,
+    location.provider_zone_id,
+  ].join(" ").toLowerCase();
+
+const uniqueLocationsBy = (locations, key, extraFilter = () => true) => {
+  const seen = new Set();
+  return locations.filter((location) => {
+    if (!extraFilter(location)) return false;
+    const value = location[key];
+    if (!value || seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
+};
+
+const slugifyLocation = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[^a-z0-9\u0600-\u06FF]+/gi, "-")
+    .replace(/^-+|-+$/g, "") || `location-${Date.now()}`;
+
+const parseCsvLine = (line = "") => {
+  const cells = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"' && line[index + 1] === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+};
+
+const parseLocationImport = (text = "") => {
+  try {
+    const parsed = JSON.parse(text);
+    const rows = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.locations) ? parsed.locations : [];
+    return rows.map(normalizeShippingLocation);
+  } catch {
+    const [headerLine, ...lines] = String(text || "").split(/\r?\n/).filter((line) => line.trim());
+    const headers = parseCsvLine(headerLine).map((header) => header.trim().toLowerCase());
+    return lines.map((line, index) => {
+      const cells = parseCsvLine(line);
+      const row = Object.fromEntries(headers.map((header, cellIndex) => [header, cells[cellIndex] || ""]));
+      return normalizeShippingLocation({
+        id: row.id || row.zone_id || row.area_id || row.district_id || row.location_id || row.zone_code || `import-${Date.now()}-${index}`,
+        governorate_id: row.governorate_id || row.governorate_code || slugifyLocation(row.governorate_name_en || row.governorate || row.province),
+        governorate_name_en: row.governorate_name_en || row.governorate_en || row.governorate || row.province,
+        governorate_name_ar: row.governorate_name_ar || row.governorate_ar,
+        city_id: row.city_id || row.city_code || slugifyLocation(`${row.governorate || row.governorate_name_en}-${row.city_name_en || row.city || row.markaz}`),
+        city_name_en: row.city_name_en || row.city_en || row.city || row.markaz,
+        city_name_ar: row.city_name_ar || row.city_ar,
+        district_id: row.district_id || row.area_id || row.location_id || slugifyLocation(`${row.city || row.city_name_en}-${row.district_name_en || row.area_name_en || row.area || row.district || row.zone}`),
+        district_name_en: row.district_name_en || row.district_en || row.area_name_en || row.area_en || row.area || row.district,
+        district_name_ar: row.district_name_ar || row.district_ar || row.area_name_ar || row.area_ar,
+        zone_id: row.zone_id || row.provider_zone_id || row.zone_code || slugifyLocation(`${row.city || row.city_name_en}-${row.zone_name_en || row.zone || row.area_name_en || row.area || row.district}`),
+        zone_name_en: row.zone_name_en || row.zone_en || row.zone || row.area_name_en || row.area || row.district,
+        zone_name_ar: row.zone_name_ar || row.zone_ar || row.area_name_ar || row.area_ar || row.district_ar,
+        area_id: row.area_id || row.district_id || row.location_id || row.zone_code || slugifyLocation(`${row.city || row.city_name_en}-${row.area_name_en || row.area || row.district || row.zone}`),
+        area_name_en: row.area_name_en || row.area_en || row.area || row.district || row.zone,
+        area_name_ar: row.area_name_ar || row.area_ar || row.district_ar,
+        provider_location_code: row.provider_location_code || row.zone_code || row.code || row.bosta_code,
+        provider_city_id: row.provider_city_id || row.bosta_city_id || row.cityid || row.city_id_provider,
+        provider_district_id: row.provider_district_id || row.bosta_district_id || row.districtid || row.district_id_provider,
+        provider_zone_id: row.provider_zone_id || row.bosta_zone_id || row.zoneid || row.zone_id_provider,
+        provider: row.provider || (row.bosta_code || row.zone_code ? "bosta" : "manual"),
+        active: !["false", "0", "no"].includes(String(row.active || "").toLowerCase()),
+      });
+    });
+  }
+};
+
+function ShippingLocationsCatalog({ value, language, onChange }) {
+  const [query, setQuery] = useState("");
+  const [governorateFilter, setGovernorateFilter] = useState("");
+  const [providerFilter, setProviderFilter] = useState("");
+  const [draft, setDraft] = useState({
+    governorate_name_en: "",
+    governorate_name_ar: "",
+    city_name_en: "",
+    city_name_ar: "",
+    district_name_en: "",
+    district_name_ar: "",
+    zone_name_en: "",
+    zone_name_ar: "",
+    area_name_en: "",
+    area_name_ar: "",
+    provider_location_code: "",
+    provider_city_id: "",
+    provider_district_id: "",
+    provider_zone_id: "",
+    provider: "manual",
+    active: true,
+  });
+  const locations = useMemo(() => normalizeShippingLocations(value), [value]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const governorates = useMemo(() => uniqueLocationsBy(locations, "governorate_id"), [locations]);
+  const visible = locations.filter((location) => {
+    const matchesQuery = !normalizedQuery || locationSearchText(location).includes(normalizedQuery);
+    const matchesGovernorate = !governorateFilter || location.governorate_id === governorateFilter;
+    const matchesProvider = !providerFilter || location.provider === providerFilter;
+    return matchesQuery && matchesGovernorate && matchesProvider;
+  });
+  const updateRows = (next) => onChange(normalizeShippingLocations(next));
+  const patchLocation = (id, patch) => updateRows(locations.map((location) => (location.id === id ? normalizeShippingLocation({ ...location, ...patch }) : location)));
+  const deleteLocation = (id) => updateRows(locations.filter((location) => location.id !== id));
+  const addLocation = () => {
+    const row = normalizeShippingLocation({
+      ...draft,
+      id: `manual-${Date.now()}`,
+      governorate_id: draft.governorate_id || slugifyLocation(draft.governorate_name_en || draft.governorate_name_ar),
+      city_id: draft.city_id || slugifyLocation(`${draft.governorate_name_en}-${draft.city_name_en || draft.city_name_ar}`),
+      district_id: draft.district_id || draft.area_id || slugifyLocation(`${draft.city_name_en}-${draft.district_name_en || draft.area_name_en || draft.area_name_ar}`),
+      zone_id: draft.zone_id || slugifyLocation(`${draft.city_name_en}-${draft.zone_name_en || draft.area_name_en || draft.area_name_ar}`),
+      area_id: draft.area_id || draft.district_id || slugifyLocation(`${draft.city_name_en}-${draft.area_name_en || draft.area_name_ar || draft.district_name_en}`),
+    });
+    if (!row.governorate_name_en && !row.governorate_name_ar) return;
+    updateRows([...locations, row]);
+    setDraft((current) => ({ ...current, city_name_en: "", city_name_ar: "", district_name_en: "", district_name_ar: "", zone_name_en: "", zone_name_ar: "", area_name_en: "", area_name_ar: "", provider_location_code: "", provider_city_id: "", provider_district_id: "", provider_zone_id: "" }));
+  };
+  const importLocations = async (file) => {
+    if (!file) return;
+    const text = await file.text();
+    updateRows(parseLocationImport(text));
+    toast.success("Locations imported");
+  };
+  const exportLocations = () => {
+    const blob = new Blob([JSON.stringify(locations, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "egypt-shipping-locations.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+  const importEgypt = () => {
+    updateRows(defaultEgyptShippingLocations);
+    toast.success("Egypt locations imported");
+  };
+  return (
+    <div className="grid gap-4">
+      <div className={`rounded-2xl p-3.5 ${fieldSurface}`}>
+        <div className="grid gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(12rem,0.35fr)_minmax(12rem,0.3fr)_auto] xl:items-center">
+          <label className="relative min-w-0">
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search governorate, city, area" className={`${inputClass} ps-10`} />
+          </label>
+          <select value={governorateFilter} onChange={(event) => setGovernorateFilter(event.target.value)} className={inputClass}>
+            <option value="">All governorates</option>
+            {governorates.map((location) => <option key={location.governorate_id} value={location.governorate_id}>{locationName(location, language, "governorate")}</option>)}
+          </select>
+          <select value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} className={inputClass}>
+            <option value="">All providers</option>
+            {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+          </select>
+          <div className="flex flex-wrap gap-2 xl:justify-end">
+            <button type="button" onClick={importEgypt} className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-white dark:text-slate-950"><MapPin className="h-4 w-4" />Import Egypt locations</button>
+            <button type="button" onClick={exportLocations} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200"><Download className="h-4 w-4" />Export</button>
+            <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200">
+              <Upload className="h-4 w-4" />Import Bosta locations CSV
+              <input type="file" accept=".json,.csv,application/json,text/csv" className="sr-only" onChange={(event) => importLocations(event.target.files?.[0])} />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className={`rounded-2xl p-4 ${fieldSurface}`}>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {["governorate_name_en", "governorate_name_ar", "city_name_en", "city_name_ar", "district_name_en", "district_name_ar", "zone_name_en", "zone_name_ar", "provider_city_id", "provider_district_id", "provider_zone_id"].map((key) => (
+            <input key={key} value={draft[key] || ""} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))} placeholder={key.replaceAll("_", " ")} className={inputClass} />
+          ))}
+          <select value={draft.provider} onChange={(event) => setDraft((current) => ({ ...current, provider: event.target.value }))} className={inputClass}>
+            {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+          </select>
+        </div>
+        <button type="button" onClick={addLocation} className="mt-3 inline-flex h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-xs font-black text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" />Add location</button>
+      </div>
+
+      <div className="overflow-auto rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950/70">
+        <table className="min-w-[1320px] w-full border-separate border-spacing-0 text-sm">
+          <thead className="sticky top-0 bg-slate-50 text-[11px] font-black uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+            <tr>{["Governorate", "City / Markaz", "District", "Zone", "Provider", "Provider IDs", "Active", ""].map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr>
+          </thead>
+          <tbody>
+            {visible.map((location) => (
+              <tr key={location.id} className="border-b border-slate-100 dark:border-white/10">
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.governorate_name_en} onChange={(event) => patchLocation(location.id, { governorate_name_en: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`} /><input value={location.governorate_name_ar} onChange={(event) => patchLocation(location.id, { governorate_name_ar: event.target.value })} className={`${inputClass} mt-1 h-9 rounded-xl text-xs`} /></td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.city_name_en} onChange={(event) => patchLocation(location.id, { city_name_en: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`} /><input value={location.city_name_ar} onChange={(event) => patchLocation(location.id, { city_name_ar: event.target.value })} className={`${inputClass} mt-1 h-9 rounded-xl text-xs`} /></td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.district_name_en} onChange={(event) => patchLocation(location.id, { district_name_en: event.target.value, area_name_en: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`} /><input value={location.district_name_ar} onChange={(event) => patchLocation(location.id, { district_name_ar: event.target.value, area_name_ar: event.target.value })} className={`${inputClass} mt-1 h-9 rounded-xl text-xs`} /></td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><input value={location.zone_name_en} onChange={(event) => patchLocation(location.id, { zone_name_en: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`} /><input value={location.zone_name_ar} onChange={(event) => patchLocation(location.id, { zone_name_ar: event.target.value })} className={`${inputClass} mt-1 h-9 rounded-xl text-xs`} /></td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><select value={location.provider} onChange={(event) => patchLocation(location.id, { provider: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`}>{shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10">
+                  <input value={location.provider_city_id} onChange={(event) => patchLocation(location.id, { provider_city_id: event.target.value })} className={`${inputClass} h-9 rounded-xl text-xs`} placeholder="provider city id" />
+                  <input value={location.provider_district_id} onChange={(event) => patchLocation(location.id, { provider_district_id: event.target.value })} className={`${inputClass} mt-1 h-9 rounded-xl text-xs`} placeholder="provider district id" />
+                  <input value={location.provider_zone_id} onChange={(event) => patchLocation(location.id, { provider_zone_id: event.target.value, provider_location_code: event.target.value })} className={`${inputClass} mt-1 h-9 rounded-xl text-xs`} placeholder="provider zone id" />
+                </td>
+                <td className="border-b border-slate-100 p-2 dark:border-white/10"><TogglePill compact label="Active" checked={location.active} onChange={(active) => patchLocation(location.id, { active })} /></td>
+                <td className="border-b border-slate-100 p-2 text-end dark:border-white/10"><button type="button" onClick={() => deleteLocation(location.id)} className="grid h-9 w-9 place-items-center rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200"><Trash2 className="h-4 w-4" /></button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!visible.length ? <div className={`p-8 text-center text-sm font-bold ${bodyText}`}>No locations match the current filters.</div> : null}
+      </div>
+    </div>
+  );
+}
+
+function ShippingZonesEditor({ value, locations = [], language, defaultPrice, onChange }) {
   const copy = { ...shippingUi.en, ...(shippingUi[language] || {}) };
   const [query, setQuery] = useState("");
   const [governorateFilter, setGovernorateFilter] = useState("");
+  const [providerFilter, setProviderFilter] = useState("");
   const [selected, setSelected] = useState([]);
   const [expandedRules, setExpandedRules] = useState({});
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -1577,10 +1896,16 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   }, new Map()), [zones]);
   const normalizedQuery = query.trim().toLowerCase();
   const governorateOptions = useMemo(() => Array.from(new Set([...egyptGovernorates.map(([, name]) => name), ...zones.map((zone) => zone.governorate).filter(Boolean)])).sort(), [zones]);
+  const activeLocations = useMemo(() => normalizeShippingLocations(locations).filter((location) => location.active), [locations]);
+  const catalogGovernorates = useMemo(() => uniqueLocationsBy(activeLocations, "governorate_id"), [activeLocations]);
+  const catalogCities = useMemo(() => uniqueLocationsBy(activeLocations, "city_id", (location) => !draft.governorate_id || location.governorate_id === draft.governorate_id), [activeLocations, draft.governorate_id]);
+  const catalogDistricts = useMemo(() => uniqueLocationsBy(activeLocations, "district_id", (location) => !draft.city_id || location.city_id === draft.city_id), [activeLocations, draft.city_id]);
+  const catalogZones = useMemo(() => uniqueLocationsBy(activeLocations, "zone_id", (location) => !draft.district_id || location.district_id === draft.district_id), [activeLocations, draft.district_id]);
   const visibleZones = zones.filter((zone) => {
-    const matchesQuery = !normalizedQuery || [zone.governorate, zone.arabic_alias, zone.city, zone.area, zone.provider, zone.estimated_delivery_text].join(" ").toLowerCase().includes(normalizedQuery);
+    const matchesQuery = !normalizedQuery || [zone.governorate, zone.arabic_alias, zone.city, zone.district, zone.area, zone.zone, zone.provider, zone.provider_location_code, zone.provider_city_id, zone.provider_district_id, zone.provider_zone_id, zone.estimated_delivery_text].join(" ").toLowerCase().includes(normalizedQuery);
     const matchesGovernorate = !governorateFilter || normalizeZoneKey(zone.governorate) === normalizeZoneKey(governorateFilter);
-    return matchesQuery && matchesGovernorate;
+    const matchesProvider = !providerFilter || normalizeProviderKey(zone.provider_id || zone.provider) === providerFilter;
+    return matchesQuery && matchesGovernorate && matchesProvider;
   });
   const selectedSet = new Set(selected);
   const selectedCount = selected.filter((id) => zones.some((zone) => zone.id === id)).length;
@@ -1653,16 +1978,27 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
     const [, governorate = draft.governorate, arabic_alias = ""] = selectedGovernorate || [];
     const row = normalizeShippingZoneRow({
       id: `zone-${Date.now()}-${zones.length}`,
+      governorate_id: draft.governorate_id || "",
       governorate,
       arabic_alias,
-      city: scope === "city" || scope === "area" ? draft.city : "",
+      city_id: scope !== "governorate" ? draft.city_id || "" : "",
+      city: scope !== "governorate" ? draft.city : "",
+      district_id: scope === "area" ? draft.district_id || draft.area_id || "" : "",
+      zone_id: scope === "area" ? draft.zone_id || "" : "",
+      area_id: scope === "area" ? draft.area_id || draft.district_id || "" : "",
+      district: scope === "area" ? draft.district || draft.area : "",
       area: scope === "area" ? draft.area : "",
+      zone: scope === "area" ? draft.zone || draft.area : "",
+      provider_location_code: scope === "area" ? draft.provider_location_code || draft.provider_zone_id || "" : "",
+      provider_city_id: draft.provider_city_id || "",
+      provider_district_id: scope === "area" ? draft.provider_district_id || "" : "",
+      provider_zone_id: scope === "area" ? draft.provider_zone_id || "" : "",
       price: Number.isFinite(Number(draft.price)) ? Number(draft.price) : defaultPrice || 0,
       cod_allowed: governorate === "Damietta",
       requires_shipping_proof: governorate !== "Damietta",
       estimated_delivery_text: governorate === "Damietta" ? "1-2 business days" : "2-5 business days",
-      provider: "in_store_delivery",
-      provider_id: "in_store_delivery",
+      provider: draft.provider || "in_store_delivery",
+      provider_id: draft.provider || "in_store_delivery",
       active: true,
     }, zones.length);
     if (zones.some((zone) => ruleIdentity(zone) === ruleIdentity(row))) {
@@ -1671,6 +2007,32 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
     }
     updateRows([...zones, row]);
     setDraft((current) => ({ ...current, city: "", area: "" }));
+  };
+  const applyDraftLocation = (scope, id) => {
+    const location = activeLocations.find((item) => item[`${scope}_id`] === id);
+    if (!location) return;
+    setDraft((current) => ({
+      ...current,
+      governorate_id: location.governorate_id,
+      governorate: location.governorate_name_en || location.governorate_name_ar,
+      city_id: scope === "governorate" ? "" : location.city_id,
+      city: scope === "governorate" ? "" : location.city_name_en || location.city_name_ar,
+      district_id: scope === "area" || scope === "district" ? location.district_id : "",
+      district: scope === "area" || scope === "district" ? location.district_name_en || location.district_name_ar || location.area_name_en || location.area_name_ar : "",
+      zone_id: scope === "area" ? location.zone_id : "",
+      zone: scope === "area" ? location.zone_name_en || location.zone_name_ar || location.area_name_en || location.area_name_ar : "",
+      district_id: scope === "area" ? location.district_id : "",
+      zone_id: scope === "area" ? location.zone_id : "",
+      area_id: scope === "area" ? location.area_id || location.district_id : "",
+      district: scope === "area" ? location.district_name_en || location.district_name_ar || location.area_name_en || location.area_name_ar : "",
+      area: scope === "area" ? location.area_name_en || location.area_name_ar || location.district_name_en || location.district_name_ar : "",
+      zone: scope === "area" ? location.zone_name_en || location.zone_name_ar || location.area_name_en || location.area_name_ar : "",
+      provider_location_code: scope === "area" ? location.provider_location_code || location.provider_zone_id : "",
+      provider_city_id: scope === "governorate" ? "" : location.provider_city_id || "",
+      provider_district_id: scope === "area" ? location.provider_district_id || "" : "",
+      provider_zone_id: scope === "area" ? location.provider_zone_id || "" : "",
+      provider: location.provider || current.provider,
+    }));
   };
   const deleteRow = (id) => {
     updateRows(zones.filter((zone) => zone.id !== id));
@@ -1724,9 +2086,13 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
         const row = Object.fromEntries(headers.map((header, cellIndex) => [header, cells[cellIndex] || ""]));
         return normalizeShippingZoneRow({
           id: row.id || `import-${Date.now()}-${index}`,
+          governorate_id: row.governorate_id,
           governorate: row.governorate,
+          city_id: row.city_id,
           city: row.city || row.markaz,
+          area_id: row.area_id || row.location_id,
           area: row.area || row.district,
+          provider_location_code: row.provider_location_code || row.zone_code,
           price: row.price || row.shipping_price,
           cod_allowed: !["false", "0", "no"].includes(String(row.cod_allowed || "").toLowerCase()),
           requires_shipping_proof: !["false", "0", "no"].includes(String(row.requires_shipping_proof || "").toLowerCase()),
@@ -1772,6 +2138,8 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
                 key={zone.id}
                 zone={zone}
                 zones={zones}
+                locations={activeLocations}
+                language={language}
                 copy={copy}
                 defaultPrice={defaultPrice}
                 selected={selectedSet.has(zone.id)}
@@ -1794,7 +2162,7 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   return (
     <article className="grid gap-4">
       <div className={`rounded-2xl p-3.5 ${fieldSurface}`}>
-        <div className="grid gap-3 xl:grid-cols-[minmax(24rem,1fr)_minmax(14rem,0.35fr)_auto] xl:items-center">
+        <div className="grid gap-3 xl:grid-cols-[minmax(20rem,1fr)_minmax(12rem,0.3fr)_minmax(12rem,0.3fr)_auto] xl:items-center">
           <label className="relative min-w-0">
             <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} className={`${inputClass} ps-10`} />
@@ -1806,6 +2174,10 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
               {governorateOptions.map((governorate) => <option key={governorate} value={governorate}>{governorate}</option>)}
             </select>
           </label>
+          <select value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} className={inputClass}>
+            <option value="">Provider: {copy.all}</option>
+            {shippingProviderOptions.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+          </select>
           <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
             <button type="button" onClick={addAllGovernorates} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"><Plus className="h-4 w-4" />{copy.allGovernorates}</button>
             <button type="button" onClick={exportZones} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.035] dark:text-slate-300 dark:hover:bg-white/[0.08]"><Download className="h-3.5 w-3.5" />{copy.export}</button>
@@ -1824,12 +2196,23 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
           <span className="grid h-8 w-8 place-items-center rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" /></span>
           <h3 className={`text-sm font-black ${headingText}`}>{copy.quickTitle}</h3>
         </div>
-        <div className="grid gap-3 lg:grid-cols-[minmax(12rem,1fr)_minmax(11rem,1fr)_minmax(11rem,1fr)_7rem_auto] lg:items-center">
-          <select value={draft.governorate} onChange={(event) => setDraft((current) => ({ ...current, governorate: event.target.value }))} className={inputClass}>
-            {egyptGovernorates.map(([, name, ar]) => <option key={name} value={name}>{name} / {ar}</option>)}
+        <div className="grid gap-3 lg:grid-cols-[minmax(10rem,1fr)_minmax(10rem,1fr)_minmax(10rem,1fr)_minmax(10rem,1fr)_7rem_auto] lg:items-center">
+          <select value={draft.governorate_id || ""} onChange={(event) => applyDraftLocation("governorate", event.target.value)} className={inputClass}>
+            <option value="">Governorate</option>
+            {catalogGovernorates.map((location) => <option key={location.governorate_id} value={location.governorate_id}>{locationName(location, language, "governorate")}</option>)}
           </select>
-          <input value={draft.city} onChange={(event) => setDraft((current) => ({ ...current, city: event.target.value }))} placeholder="City / Markaz" className={inputClass} />
-          <input value={draft.area} onChange={(event) => setDraft((current) => ({ ...current, area: event.target.value }))} placeholder="Area / District" className={inputClass} />
+          <select value={draft.city_id || ""} onChange={(event) => applyDraftLocation("city", event.target.value)} className={inputClass} disabled={!draft.governorate_id}>
+            <option value="">City / Markaz</option>
+            {catalogCities.map((location) => <option key={location.city_id} value={location.city_id}>{locationName(location, language, "city")}</option>)}
+          </select>
+          <select value={draft.district_id || ""} onChange={(event) => applyDraftLocation("district", event.target.value)} className={inputClass} disabled={!draft.city_id}>
+            <option value="">District</option>
+            {catalogDistricts.map((location) => <option key={location.district_id} value={location.district_id}>{locationName(location, language, "district")}</option>)}
+          </select>
+          <select value={draft.zone_id || ""} onChange={(event) => applyDraftLocation("area", event.target.value)} className={inputClass} disabled={!draft.district_id}>
+            <option value="">Zone</option>
+            {catalogZones.map((location) => <option key={location.zone_id} value={location.zone_id}>{locationName(location, language, "zone")}</option>)}
+          </select>
           <input type="number" min="0" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} placeholder="Price" className={inputClass} />
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => addRow("governorate")} className="h-11 rounded-xl bg-slate-950 px-4 text-xs font-black text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">{copy.addZone}</button>
@@ -1922,7 +2305,7 @@ function ShippingZonesEditor({ value, language, defaultPrice, onChange }) {
   );
 }
 
-function ZoneRuleTableRow({ zone, zones, copy, defaultPrice, selected, expanded, duplicate, density, freezeColumns, onSelect, onPatch, onDelete, onExpand }) {
+function ZoneRuleTableRow({ zone, zones, locations = [], language = "en", copy, defaultPrice, selected, expanded, duplicate, density, freezeColumns, onSelect, onPatch, onDelete, onExpand }) {
   const provider = normalizeProviderKey(zone.provider_id || zone.provider);
   const isUltra = density === "ultra";
   const isCompact = density === "compact" || isUltra;
@@ -1949,6 +2332,46 @@ function ZoneRuleTableRow({ zone, zones, copy, defaultPrice, selected, expanded,
       ))}
     </select>
   );
+  const governorateLocations = uniqueLocationsBy(locations, "governorate_id");
+  const cityLocations = uniqueLocationsBy(locations, "city_id", (location) => !zone.governorate_id || location.governorate_id === zone.governorate_id);
+  const areaLocations = uniqueLocationsBy(locations, "area_id", (location) => !zone.city_id || location.city_id === zone.city_id);
+  const applyLocationPatch = (scope, id) => {
+    const location = locations.find((item) => item[`${scope}_id`] === id);
+    if (!location) return;
+    if (scope === "governorate") {
+      onPatch({
+        governorate_id: location.governorate_id,
+        governorate: location.governorate_name_en || location.governorate_name_ar,
+        city_id: "",
+        city: "",
+        area_id: "",
+        area: "",
+        provider_location_code: "",
+      });
+    } else if (scope === "city") {
+      onPatch({
+        governorate_id: location.governorate_id,
+        governorate: location.governorate_name_en || location.governorate_name_ar,
+        city_id: location.city_id,
+        city: location.city_name_en || location.city_name_ar,
+        area_id: "",
+        area: "",
+        provider_location_code: "",
+      });
+    } else {
+      onPatch({
+        governorate_id: location.governorate_id,
+        governorate: location.governorate_name_en || location.governorate_name_ar,
+        city_id: location.city_id,
+        city: location.city_name_en || location.city_name_ar,
+        area_id: location.area_id,
+        area: location.area_name_en || location.area_name_ar,
+        provider_location_code: location.provider_location_code,
+        provider: location.provider || zone.provider,
+        provider_id: location.provider || zone.provider_id,
+      });
+    }
+  };
   const advancedPanel = expanded ? (
     <div className="grid gap-3 border-t border-slate-100 p-3 dark:border-white/10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
       <div className="grid gap-2">
@@ -1976,9 +2399,9 @@ function ZoneRuleTableRow({ zone, zones, copy, defaultPrice, selected, expanded,
         <td className={`${cellPadding} ${stickyCell} left-0 border-b border-slate-100 bg-inherit dark:border-white/10`}>
           <input type="checkbox" className="h-4 w-4" checked={selected} onChange={(event) => onSelect(event.target.checked)} />
         </td>
-        <td className={`${cellPadding} ${stickyCell} left-10 w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><input value={zone.governorate} onChange={(event) => onPatch({ governorate: event.target.value })} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`} placeholder="Governorate" /></td>
-        <td className={`${cellPadding} ${stickyCell} left-[11.5rem] w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><input value={zone.city} onChange={(event) => onPatch({ city: event.target.value })} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`} placeholder="City / Markaz" /></td>
-        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input value={zone.area} onChange={(event) => onPatch({ area: event.target.value })} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`} placeholder="Area / District" /></td>
+        <td className={`${cellPadding} ${stickyCell} left-10 w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><select value={zone.governorate_id || ""} onChange={(event) => applyLocationPatch("governorate", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}><option value="">{zone.governorate || "Governorate"}</option>{governorateLocations.map((location) => <option key={location.governorate_id} value={location.governorate_id}>{locationName(location, language, "governorate")}</option>)}</select></td>
+        <td className={`${cellPadding} ${stickyCell} left-[11.5rem] w-36 border-b border-slate-100 bg-inherit dark:border-white/10`}><select value={zone.city_id || ""} onChange={(event) => applyLocationPatch("city", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}><option value="">{zone.city || "City / Markaz"}</option>{cityLocations.map((location) => <option key={location.city_id} value={location.city_id}>{locationName(location, language, "city")}</option>)}</select></td>
+        <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><select value={zone.area_id || ""} onChange={(event) => applyLocationPatch("area", event.target.value)} className={`${inputClass} ${inputHeight} rounded-xl ${inputText}`}><option value="">{zone.area || "Area / District"}</option>{areaLocations.map((location) => <option key={location.area_id} value={location.area_id}>{locationName(location, language, "area")}</option>)}</select></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}>{providerSelect}</td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><input type="number" min="0" value={zone.price} onChange={(event) => onPatch({ price: Number(event.target.value) })} className={`${inputClass} ${inputHeight} w-20 rounded-xl text-center ${inputText}`} /></td>
         <td className={`${cellPadding} border-b border-slate-100 dark:border-white/10`}><TogglePill compact={pillCompact} label="COD" checked={Boolean(zone.cod_allowed)} onChange={(checked) => onPatch({ cod_allowed: checked })} /></td>

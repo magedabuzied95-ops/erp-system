@@ -721,6 +721,9 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_address TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS governorate VARCHAR(120)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS city_area VARCHAR(160)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS governorate_id VARCHAR(160)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS city_id VARCHAR(160)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS area_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS landmark TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS delivery_notes TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS order_notes TEXT`);
@@ -2952,6 +2955,9 @@ export const getShippingQuote = async (req, res) => {
       governorate: req.query?.governorate || req.query?.province || "",
       city: req.query?.city || req.query?.markaz || req.query?.city_area || "",
       area: req.query?.area || req.query?.district || req.query?.city_area || "",
+      governorate_id: req.query?.governorate_id || "",
+      city_id: req.query?.city_id || "",
+      area_id: req.query?.area_id || req.query?.location_id || "",
       subtotal: req.query?.subtotal || req.query?.order_subtotal || req.query?.order_total || 0,
     });
     return res.json({ success: true, quote });
@@ -2987,6 +2993,11 @@ export const createWebsiteOrder = async (req, res) => {
       primary_phone: toText(checkoutRaw.primary_phone || checkoutRaw.customer_phone || checkoutRaw.phone),
       governorate: toText(checkoutRaw.governorate || checkoutRaw.province),
       city_area: toText(checkoutRaw.city_area || checkoutRaw.city || checkoutRaw.area),
+      governorate_id: toText(checkoutRaw.governorate_id || checkoutRaw.governorateId),
+      city_id: toText(checkoutRaw.city_id || checkoutRaw.cityId),
+      area_id: toText(checkoutRaw.area_id || checkoutRaw.areaId || checkoutRaw.location_id || checkoutRaw.locationId),
+      city: toText(checkoutRaw.city),
+      area: toText(checkoutRaw.area || checkoutRaw.district),
       detailed_address: toText(checkoutRaw.detailed_address || checkoutRaw.customer_address || checkoutRaw.address),
       payment_method: toText(checkoutRaw.payment_method || checkoutRaw.payment_type || "shipping_confirmation"),
       payment_type: toText(checkoutRaw.payment_type || checkoutRaw.payment_method || "shipping_confirmation"),
@@ -3142,8 +3153,11 @@ export const createWebsiteOrder = async (req, res) => {
     const orderSettings = await getStorefrontOrderSettings();
     const shippingQuote = await resolveStorefrontShippingQuote({
       governorate: checkout.governorate,
-      city: checkout.city_area,
-      area: checkout.area || checkout.district || checkout.city_area || "",
+      city: checkout.city || checkout.city_area,
+      area: checkout.area || checkout.city_area || "",
+      governorate_id: checkout.governorate_id,
+      city_id: checkout.city_id,
+      area_id: checkout.area_id,
       subtotal,
     });
     const deliveryFee = roundMoney(shippingQuote.price);
@@ -3269,6 +3283,9 @@ export const createWebsiteOrder = async (req, res) => {
       customer_address: checkout.detailed_address,
       governorate: checkout.governorate,
       city_area: checkout.city_area,
+      governorate_id: checkout.governorate_id,
+      city_id: checkout.city_id,
+      area_id: checkout.area_id,
       landmark: checkout.landmark || "",
       delivery_notes: checkout.delivery_notes || "",
       order_notes: checkout.order_notes || "",

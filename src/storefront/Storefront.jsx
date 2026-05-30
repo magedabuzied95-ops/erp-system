@@ -62,6 +62,7 @@ import { classificationGroupsToFieldOptions } from "../modules/products/lib/prod
 import { isMirrorProduct, mirrorProductTitle } from "../shared/lib/mirrorProduct";
 import { applyProductSocialMeta, productToSocialMeta } from "../shared/lib/socialMeta";
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
+import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
 import instaPayLogo from "../assets/payments/instapay.png";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
@@ -166,6 +167,42 @@ const governorateCityAreas = {
   "مطروح": ["مرسى مطروح", "الحمام", "العلمين", "الضبعة", "النجيلة", "سيدي براني", "السلوم", "سيوة"],
 };
 const governorates = Object.keys(governorateCityAreas);
+const normalizeCheckoutLocations = (locations = []) => {
+  const source = Array.isArray(locations) && locations.length ? locations : defaultEgyptShippingLocations;
+  return source
+    .map((location, index) => ({
+      id: String(location.id || location.area_id || `location-${index + 1}`).trim(),
+      governorate_id: String(location.governorate_id || "").trim(),
+      governorate_name_en: String(location.governorate_name_en || location.governorate || "").trim(),
+      governorate_name_ar: String(location.governorate_name_ar || "").trim(),
+      city_id: String(location.city_id || "").trim(),
+      city_name_en: String(location.city_name_en || location.city || "").trim(),
+      city_name_ar: String(location.city_name_ar || "").trim(),
+      area_id: String(location.area_id || location.location_id || "").trim(),
+      area_name_en: String(location.area_name_en || location.area || location.district || "").trim(),
+      area_name_ar: String(location.area_name_ar || "").trim(),
+      provider_location_code: String(location.provider_location_code || location.zone_code || "").trim(),
+      provider: String(location.provider || "manual").trim(),
+      active: location.active !== false,
+    }))
+    .filter((location) => location.active && (location.governorate_name_en || location.governorate_name_ar));
+};
+const checkoutLocationName = (location = {}, lang = "ar", scope = "area") => {
+  const prefix = scope === "governorate" ? "governorate" : scope === "city" ? "city" : "area";
+  return normalizeLanguage(lang) === "ar"
+    ? location[`${prefix}_name_ar`] || location[`${prefix}_name_en`] || ""
+    : location[`${prefix}_name_en`] || location[`${prefix}_name_ar`] || "";
+};
+const uniqueCheckoutLocations = (locations, key, filter = () => true) => {
+  const seen = new Set();
+  return locations.filter((location) => {
+    if (!filter(location)) return false;
+    const value = location[key];
+    if (!value || seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
+};
 const getPaymentMethods = () => [
   {
     id: "cod",
@@ -6768,7 +6805,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     full_name: profile.full_name || "",
     primary_phone: profile.primary_phone || "",
     secondary_phone: "",
+    governorate_id: "",
     governorate: "",
+    city_id: "",
+    city: "",
+    area_id: "",
+    area: "",
     city_area: "",
     detailed_address: "",
     landmark: "",
@@ -6790,6 +6832,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
   const [paymentProofUploaded, setPaymentProofUploaded] = useState(false);
   const [latestAddressApplied, setLatestAddressApplied] = useState(false);
   const [shippingQuote, setShippingQuote] = useState(normalizeShippingQuote());
+  const [shippingLocations, setShippingLocations] = useState(() => normalizeCheckoutLocations());
   const editedCheckoutFieldsRef = useRef(new Set());
   const latestAddressLookupsRef = useRef(new Set());
   const pricedCart = useMemo(() => cart.map((item) => ({ ...item, price: displayCartItemPrice(item) })), [cart]);
@@ -6822,6 +6865,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
   const codAmount = normalizedFormPaymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
   const paymentMethods = getPaymentMethods();
   const paymentCopy = paymentMethods.find((method) => method.id === normalizedFormPaymentMethod)?.text || "";
+  const locationGovernorates = useMemo(() => uniqueCheckoutLocations(shippingLocations, "governorate_id"), [shippingLocations]);
+  const locationCities = useMemo(() => uniqueCheckoutLocations(shippingLocations, "city_id", (item) => !form.governorate_id || item.governorate_id === form.governorate_id), [shippingLocations, form.governorate_id]);
+  const locationAreas = useMemo(() => uniqueCheckoutLocations(shippingLocations, "area_id", (item) => !form.city_id || item.city_id === form.city_id), [shippingLocations, form.city_id]);
   const cityAreaOptions = governorateCityAreas[form.governorate] || [];
   const activeTransferValue = shippingTransferMethod === "instapay" ? INSTA_PAY_HANDLE : VODAFONE_CASH_NUMBER;
   const activePaymentDeepLink = shippingTransferMethod === "instapay" ? "instapay://" : "tel:*9%23";
@@ -6832,6 +6878,18 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     document.documentElement.style.setProperty("--checkout-sticky-actions-height", "88px");
     return () => {
       document.documentElement.style.setProperty("--checkout-sticky-actions-height", "0px");
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/settings/public", { suppressErrorStatuses: [404, 500] })
+      .then((data) => {
+        if (!cancelled) setShippingLocations(normalizeCheckoutLocations(data?.settings?.["storefront.shipping_locations"]));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -6854,8 +6912,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     setShippingQuote((prev) => ({ ...prev, loading: true }));
     const params = new URLSearchParams({
       governorate: form.governorate,
-      city: form.city_area || "",
-      area: form.city_area || "",
+      city: form.city || form.city_area || "",
+      area: form.area || form.city_area || "",
+      governorate_id: form.governorate_id || "",
+      city_id: form.city_id || "",
+      area_id: form.area_id || "",
       subtotal: String(subtotal),
     });
     api
@@ -6881,7 +6942,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     return () => {
       cancelled = true;
     };
-  }, [form.governorate, form.city_area, subtotal]);
+  }, [form.governorate, form.city_area, form.governorate_id, form.city_id, form.area_id, form.city, form.area, subtotal]);
 
   const setField = (key, value, options = {}) => {
     if (options.markDirty !== false) editedCheckoutFieldsRef.current.add(key);
@@ -6895,7 +6956,21 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       editedCheckoutFieldsRef.current.add("city_area");
     }
     setManualCityArea(false);
-    setForm((prev) => ({ ...prev, governorate: value, city_area: "" }));
+    const selected = shippingLocations.find((location) => location.governorate_id === value);
+    if (selected) {
+      setForm((prev) => ({
+        ...prev,
+        governorate_id: selected.governorate_id,
+        governorate: selected.governorate_name_ar || selected.governorate_name_en,
+        city_id: "",
+        city: "",
+        area_id: "",
+        area: "",
+        city_area: "",
+      }));
+    } else {
+      setForm((prev) => ({ ...prev, governorate_id: "", governorate: value, city_id: "", city: "", area_id: "", area: "", city_area: "" }));
+    }
     setErrors((prev) => ({ ...prev, governorate: "", city_area: "" }));
   };
 
@@ -6903,7 +6978,39 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     if (options.markDirty !== false) editedCheckoutFieldsRef.current.add("city_area");
     if (value === MANUAL_CITY_AREA) {
       setManualCityArea(true);
-      setField("city_area", "");
+      setForm((prev) => ({ ...prev, city_id: "", city: "", area_id: "", area: "", city_area: "" }));
+      return;
+    }
+    const selectedCity = shippingLocations.find((location) => location.city_id === value);
+    if (selectedCity) {
+      setManualCityArea(false);
+      setForm((prev) => ({
+        ...prev,
+        governorate_id: selectedCity.governorate_id,
+        governorate: selectedCity.governorate_name_ar || selectedCity.governorate_name_en,
+        city_id: selectedCity.city_id,
+        city: selectedCity.city_name_ar || selectedCity.city_name_en,
+        area_id: "",
+        area: "",
+        city_area: selectedCity.city_name_ar || selectedCity.city_name_en,
+      }));
+      setErrors((prev) => ({ ...prev, city_area: "" }));
+      return;
+    }
+    const selectedArea = shippingLocations.find((location) => location.area_id === value);
+    if (selectedArea) {
+      setManualCityArea(false);
+      setForm((prev) => ({
+        ...prev,
+        governorate_id: selectedArea.governorate_id,
+        governorate: selectedArea.governorate_name_ar || selectedArea.governorate_name_en,
+        city_id: selectedArea.city_id,
+        city: selectedArea.city_name_ar || selectedArea.city_name_en,
+        area_id: selectedArea.area_id,
+        area: selectedArea.area_name_ar || selectedArea.area_name_en,
+        city_area: selectedArea.area_name_ar || selectedArea.area_name_en,
+      }));
+      setErrors((prev) => ({ ...prev, city_area: "" }));
       return;
     }
     setManualCityArea(false);
@@ -7193,9 +7300,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       const shippingProviderAddress = {
         country: "EG",
         country_code: "EG",
+        governorate_id: form.governorate_id,
         governorate: form.governorate,
-        city: form.city_area,
-        area: form.city_area,
+        city_id: form.city_id,
+        city: form.city || form.city_area,
+        area_id: form.area_id,
+        area: form.area || form.city_area,
         street_address: form.detailed_address,
         landmark: form.landmark,
         notes: form.delivery_notes,
@@ -7288,8 +7398,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
               </p>
             ) : null}
             <div className="grid gap-2.5 md:grid-cols-2">
-              <SelectField label={sfText("storefront.checkout.governorate", "Governorate")} value={form.governorate} onChange={setGovernorate} options={governorates} required error={errors.governorate} />
-              <CityAreaField governorate={form.governorate} options={cityAreaOptions} value={form.city_area} onChange={setCityArea} manual={manualCityArea} onManualChange={(value) => setField("city_area", value)} required error={errors.city_area} />
+              <SelectField label={sfText("storefront.checkout.governorate", "Governorate")} value={form.governorate_id || form.governorate} onChange={setGovernorate} options={locationGovernorates.length ? locationGovernorates.map((item) => item.governorate_id) : governorates} labels={Object.fromEntries(locationGovernorates.map((item) => [item.governorate_id, checkoutLocationName(item, i18n.language, "governorate")]))} required error={errors.governorate} />
+              <SelectField label={sfText("storefront.checkout.city", "City / Markaz")} value={form.city_id || ""} onChange={setCityArea} options={locationCities.map((item) => item.city_id)} labels={Object.fromEntries(locationCities.map((item) => [item.city_id, checkoutLocationName(item, i18n.language, "city")]))} required error={!form.city_id && errors.city_area ? errors.city_area : ""} />
+              <SelectField label={sfText("storefront.checkout.area", "Area / District")} value={form.area_id || ""} onChange={setCityArea} options={locationAreas.map((item) => item.area_id)} labels={Object.fromEntries(locationAreas.map((item) => [item.area_id, checkoutLocationName(item, i18n.language, "area")]))} required error={errors.city_area} />
+              {!locationGovernorates.length ? <CityAreaField governorate={form.governorate} options={cityAreaOptions} value={form.city_area} onChange={setCityArea} manual={manualCityArea} onManualChange={(value) => setField("city_area", value)} required error={errors.city_area} /> : null}
               <TextField label={sfText("storefront.checkout.fullAddress", "Full address")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder", "Street, building number, floor, apartment")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} />
               <Field label={sfText("storefront.checkout.landmark", "Landmark")} placeholder={sfText("storefront.checkout.landmarkPlaceholder", "Near...")} value={form.landmark} onChange={(v) => setField("landmark", v)} />
               <TextField label={sfText("storefront.checkout.deliveryNotes", "Delivery notes")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder", "Preferred time or courier note")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} />
