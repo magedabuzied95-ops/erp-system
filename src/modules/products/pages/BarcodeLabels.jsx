@@ -939,7 +939,6 @@ function BarcodeShopLabel({ item, print = false }) {
   const qrValue = safeText(item.qrValue, qrToken);
   const effectivePrice = Number(item.effectivePrice ?? item.displayPrice ?? item.salePrice ?? 0);
   const price = formatCurrency(effectivePrice);
-  const comparePrice = Number(item.comparePrice || 0) > effectivePrice ? formatCurrency(item.comparePrice) : "";
 
   return (
     <article className={`w-full rounded-[28px] border border-zinc-200 bg-white p-6 text-center text-zinc-900 ${print ? "" : "shadow-[0_18px_60px_rgba(0,0,0,0.16)]"}`}>
@@ -949,9 +948,6 @@ function BarcodeShopLabel({ item, print = false }) {
       </div>
       <div className="mt-6">
         <p className="text-3xl font-black leading-none tracking-tight text-zinc-950">{price}</p>
-        {comparePrice ? (
-          <p className="mt-2 text-sm font-bold text-zinc-400 line-through">{comparePrice}</p>
-        ) : null}
       </div>
       <div className="mt-3 truncate rounded-full bg-zinc-100 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">
         {qrToken}

@@ -152,33 +152,27 @@ const resolveLabelPrice = (source = {}, fallbackSource = {}) => {
 
 const resolveProductFirstLabelPrice = (product = {}, variant = {}) => {
   const productSalePrice = positiveNumber(product.sale_price, product.salePrice);
-  const productSaleEnabled = truthyFlag(product.sale_price_enabled ?? product.salePriceEnabled);
   const productSellingPrice = positiveNumber(product.selling_price, product.sellingPrice);
   const productRegularPrice = positiveNumber(product.regular_price, product.regularPrice);
   const productBasePrice = positiveNumber(product.price);
 
-  const variantSalePrice = positiveNumber(variant.sale_price, variant.salePrice);
-  const variantSaleEnabled = truthyFlag(variant.sale_price_enabled ?? variant.salePriceEnabled);
   const variantSellingPrice = positiveNumber(variant.selling_price, variant.sellingPrice);
   const variantRegularPrice = positiveNumber(variant.regular_price, variant.regularPrice);
   const variantBasePrice = positiveNumber(variant.price, variant.variant_price);
-
-  const productSaleActive = productSaleEnabled && productSalePrice > 0;
-  const variantSaleActive = variantSaleEnabled && variantSalePrice > 0;
-  const effectivePrice = productSaleActive
-    ? productSalePrice
-    : positiveNumber(productSellingPrice, productRegularPrice, productBasePrice) ||
-      (variantSaleActive ? variantSalePrice : positiveNumber(variantSellingPrice, variantRegularPrice, variantBasePrice));
-  const comparePrice = productSaleActive
-    ? positiveNumber(productSellingPrice, productRegularPrice, productBasePrice)
-    : variantSaleActive
-      ? positiveNumber(variantSellingPrice, variantRegularPrice, variantBasePrice)
-      : 0;
+  const effectivePrice = positiveNumber(
+    productSellingPrice,
+    productRegularPrice,
+    productBasePrice,
+    variantSellingPrice,
+    variantRegularPrice,
+    variantBasePrice,
+    productSalePrice
+  );
 
   return {
     price: effectivePrice,
-    comparePrice: comparePrice > effectivePrice ? comparePrice : 0,
-    saleActive: Boolean(productSaleActive || (!positiveNumber(productSellingPrice, productRegularPrice, productBasePrice) && variantSaleActive)),
+    comparePrice: 0,
+    saleActive: false,
   };
 };
 
