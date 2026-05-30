@@ -810,6 +810,22 @@ const cleanDisplayText = (value = "") =>
     .replace(/\u0637\u0152/g, "،")
     .replace(/\s+/g, " ")
     .trim();
+function storefrontPathFromLink(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw, typeof window !== "undefined" ? window.location.origin : "https://storefront.local");
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    if (path.startsWith("/shop/")) return path;
+    if (path.startsWith("/product/")) return `/shop${path}`;
+    return "";
+  } catch {
+    if (raw.startsWith("/shop/")) return raw;
+    if (raw.startsWith("shop/")) return `/${raw}`;
+    if (raw.startsWith("/product/")) return `/shop${raw}`;
+    return "";
+  }
+}
 const productBaseUrl = (product = {}) => `/shop/product/${product.slug || product.id}`;
 const appendProductUrlParams = (url = "", entries = []) => {
   const [path, query = ""] = String(url || "").split("?");
@@ -824,7 +840,8 @@ const appendProductUrlParams = (url = "", entries = []) => {
 const productUrl = (product = {}) => {
   const variantId = product.selected_variant_id || product.display_variant_id || product.matched_variant_id || "";
   const color = product.color_key || product.display_color_key || product.color || product.display_color || "";
-  return appendProductUrlParams(productBaseUrl(product), [
+  const linkedPath = storefrontPathFromLink(product.link || product.product_url || product.url);
+  return appendProductUrlParams(linkedPath || productBaseUrl(product), [
     ["variant", variantId],
     ["color", color],
   ]);
@@ -1593,17 +1610,6 @@ const useProducts = (params = {}) => {
   }, [queryString]);
 
   return state;
-};
-
-const storefrontPathFromLink = (value = "") => {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  try {
-    const url = new URL(raw, typeof window !== "undefined" ? window.location.origin : "https://storefront.local");
-    return `${url.pathname}${url.search}${url.hash}`;
-  } catch {
-    return raw.startsWith("/") ? raw : "";
-  }
 };
 
 const normalizeHomeProduct = (product = {}) => {
@@ -3516,19 +3522,22 @@ class VisualSearchCardBoundary extends Component {
 
 function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd }) {
   const { t } = useTranslation();
-  if (!product || typeof product !== "object") return null;
-  const variants = Array.isArray(product?.variants) ? product.variants : [];
-  const variant = firstDisplayVariant(variants);
-  const stock = productTotalStock(product);
+  const safeProduct = product && typeof product === "object" ? product : {};
+  const variants = Array.isArray(safeProduct?.variants) ? safeProduct.variants : [];
+  const [selectedVariantId, setSelectedVariantId] = useState("");
+  const [showSizes, setShowSizes] = useState(false);
+  const variant = variants.find((item) => String(item.id) === String(selectedVariantId)) || firstDisplayVariant(variants);
+  if (!safeProduct?.id && !safeProduct?.name) return null;
+  const stock = productTotalStock(safeProduct);
   const variantStock = safeStockNumber(variant?.stock ?? variant?.quantity ?? variant?.inventory_stock ?? variant?.available_stock);
   const isAvailable = stock > 0 && (!variant || variantStock > 0);
-  const activePrice = displaySellingPrice(product, variant);
-  const comparePrice = displayComparePrice(product, variant);
-  const meta = [product?.brand, product?.category, product?.gender, product?.style].filter(Boolean).join(" / ") || t("storefront.products.storeProduct", "Store product");
+  const activePrice = displaySellingPrice(safeProduct, variant);
+  const comparePrice = displayComparePrice(safeProduct, variant);
+  const meta = [safeProduct?.brand, safeProduct?.category, safeProduct?.gender, safeProduct?.style].filter(Boolean).join(" / ") || t("storefront.products.storeProduct", "Store product");
 
   const viewProduct = (event) => {
     event.stopPropagation();
-    if (product?.id && onPickProduct) onPickProduct(product);
+    if (safeProduct?.id && onPickProduct) onPickProduct({ ...safeProduct, selected_variant_id: variant?.id || safeProduct.selected_variant_id });
   };
 
   const quickAdd = (event) => {
@@ -3537,17 +3546,21 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd }) 
       toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
       return;
     }
-    onQuickAdd(product, variant, 1);
+    onQuickAdd(safeProduct, variant, 1);
+  };
+  const toggleSizes = (event) => {
+    event.stopPropagation();
+    setShowSizes((value) => !value);
   };
 
   return (
     <article className="sf-visual-card" style={{ animationDelay: `${index * 45}ms` }}>
       <button type="button" onClick={viewProduct} className="sf-visual-card-main">
         <span className="sf-visual-card-image-wrap">
-          <img src={imageFor(displayImageForProduct(product, variant))} alt={product?.name || ""} className="sf-visual-card-image" loading="lazy" decoding="async" />
+          <img src={imageFor(displayImageForProduct(safeProduct, variant))} alt={safeProduct?.name || ""} className="sf-visual-card-image" loading="lazy" decoding="async" />
         </span>
         <span className="min-w-0 flex-1 text-right">
-          <span className="sf-visual-card-name">{product?.name}</span>
+          <span className="sf-visual-card-name">{safeProduct?.name}</span>
           <span className="sf-visual-card-meta">{meta}</span>
           <span className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-sm font-black text-stone-950 dark:text-white">{money(activePrice)}</span>
@@ -3561,8 +3574,31 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd }) 
       <div className="sf-visual-actions">
         <button type="button" onClick={viewProduct} className="sf-visual-action-primary">{t("storefront.products.viewProduct", "View product")}</button>
         <button type="button" onClick={quickAdd} disabled={!isAvailable} className="sf-visual-action-soft">{t("storefront.cart.addToCart", "Add to cart")}</button>
-        <button type="button" onClick={viewProduct} className="sf-visual-action-soft">{t("storefront.products.sizes", "Sizes")}</button>
+        <button type="button" onClick={toggleSizes} className="sf-visual-action-soft">{t("storefront.products.sizes", "Sizes")}</button>
       </div>
+      {showSizes ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {(variants.length ? variants : [variant]).filter(Boolean).map((item) => {
+            const selected = String(item.id) === String(variant?.id);
+            const size = item.size || item.size_label || t("storefront.products.oneSize", "One size");
+            const hasStock = variantHasStock(item);
+            return (
+              <button
+                key={item.id || size}
+                type="button"
+                disabled={!hasStock}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSelectedVariantId(item.id || "");
+                }}
+                className={`rounded-full border px-2.5 py-1 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "border-[#7c3aed] bg-[#7c3aed] text-white" : "border-stone-200 bg-white text-stone-700 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/8 dark:text-stone-200"}`}
+              >
+                {size}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -3703,7 +3739,7 @@ function HomePage(props) {
   const heroTheme = heroThemeForProduct(heroProduct, heroVariant);
   const heroPrice = homeHero ? Number(homeHero.price || homeHero.final_price || homeHero.selling_price || 0) || 0 : displaySellingPrice(heroProduct, heroVariant);
   const conversionTrustPoints = getConversionTrustPoints();
-  const heroDetailsUrl = heroProduct?.link || (allowLegacyHomeFallback && heroProduct?.id ? productUrl(heroProduct) : "/shop/products");
+  const heroDetailsUrl = heroProduct?.id ? productUrl(heroProduct) : "/shop/products";
   const homeCollections = storefrontHome.collections;
   const rawHomeCollections = Array.isArray(storefrontHome.rawHome?.featured_collections) ? storefrontHome.rawHome.featured_collections : [];
   const rawHomeSectionCounts = useMemo(
@@ -3973,7 +4009,7 @@ function HomeCollectionRail({ collection = {} }) {
         {products.slice(0, 10).map((product, index) => (
           <Link
             key={product.card_id || product.id || index}
-            to={product.link || productUrl(product)}
+            to={productUrl(product)}
             className="group/product min-w-0 overflow-hidden rounded-[1.1rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(250,248,244,0.9)_48%,rgba(245,241,234,0.78))] shadow-[0_10px_28px_rgba(39,20,75,0.06),inset_0_1px_0_rgba(255,255,255,0.82)] ring-1 ring-stone-200/60 transition duration-300 hover:-translate-y-1.5 hover:border-[#a78bfa]/40 hover:ring-[#7c3aed]/30 hover:shadow-[0_20px_58px_rgba(39,20,75,0.15)] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.92),rgba(11,16,32,0.9)_52%,rgba(8,13,25,0.96))] dark:ring-white/[0.05]"
           >
             <div className="relative aspect-[1.14/1] overflow-hidden bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.16),transparent_30%),linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] p-2 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.12),transparent_30%),linear-gradient(180deg,#101426_0%,#0b1020_100%)]">
@@ -4020,7 +4056,7 @@ function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false
           return (
             <Link
               key={product.card_id || product.id || index}
-              to={product.link || productUrl(product)}
+              to={productUrl(product)}
               className="group min-w-0 overflow-hidden rounded-[1.15rem] border border-stone-200 bg-white text-right shadow-[0_12px_30px_rgba(39,20,75,0.07)] transition duration-300 hover:-translate-y-1 hover:border-[#a78bfa]/45 hover:shadow-[0_20px_50px_rgba(39,20,75,0.14)] active:scale-[0.99] dark:border-white/10 dark:bg-[#0b1020]"
             >
               <div className="aspect-[1.05/1] overflow-hidden bg-stone-100 p-2 dark:bg-white/5">
