@@ -805,7 +805,7 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   `);
   await clientOrPool.query(`
     CREATE INDEX IF NOT EXISTS idx_products_storefront_filters
-    ON products (tenant_id, gender, product_type, style, grade, id DESC)
+    ON products (tenant_id, gender, product_type, grade, id DESC)
     WHERE COALESCE(NULLIF(LOWER(TRIM(status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
   `);
   await clientOrPool.query(`
@@ -1265,9 +1265,7 @@ const productAudienceSearchSql = `
   )
 `;
 
-const queryProducts = (tenantId, q, category, filters, saleOnly, limit, offset) =>
-  db.query(
-    `
+const storefrontProductsSql = `
     ${catalogQuery}
       AND ($2 = '' OR LOWER(CONCAT_WS(' ', p.name, p.sku, p.barcode, p.gender, p.product_type, c.name, b.name, pv.size, pv.color, pv.sku, pv.article_code, pv.edition_name, pv.edition_slug)) LIKE '%' || $2 || '%' OR ${productAudienceSearchSql})
       AND ($3 = '' OR LOWER(CONCAT_WS(' ', c.name, p.gender, p.product_type)) LIKE '%' || $3 || '%' OR EXISTS (SELECT 1 FROM product_audiences pa_category WHERE pa_category.product_id = p.id AND pa_category.audience LIKE '%' || $3 || '%'))
@@ -1288,35 +1286,44 @@ const queryProducts = (tenantId, q, category, filters, saleOnly, limit, offset) 
       )
       AND ${productAudienceFilterSql("$5")}
       AND (COALESCE(array_length($6::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($6::text[]))
-      AND (COALESCE(array_length($8::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($8::text[]))
+      AND (COALESCE(array_length($7::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($7::text[]))
       AND (
-        COALESCE(array_length($11::text[], 1), 0) = 0
-        OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($11::text[])
-        OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($11::text[])
+        COALESCE(array_length($10::text[], 1), 0) = 0
+        OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($10::text[])
+        OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($10::text[])
       )
-      AND ($9 = '' OR EXISTS (
+      AND ($8 = '' OR EXISTS (
         SELECT 1
         FROM product_variants pv_size
         WHERE pv_size.product_id = p.id
           AND pv_size.is_active IS DISTINCT FROM FALSE
           AND pv_size.deleted_at IS NULL
-          AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = LOWER(TRIM($9))
-          AND ($10::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
+          AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = LOWER(TRIM($8))
+          AND ($9::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
       ))
-      AND ($10::boolean = FALSE OR COALESCE(p.stock, 0) > 0 OR EXISTS (
+      AND ($9::boolean = FALSE OR COALESCE(p.stock, 0) > 0 OR EXISTS (
         SELECT 1
         FROM product_variants pv_stock
         WHERE pv_stock.product_id = p.id
           AND pv_stock.is_active IS DISTINCT FROM FALSE
           AND pv_stock.deleted_at IS NULL
           AND COALESCE(pv_stock.stock, 0) > 0
-      ))
+    ))
     GROUP BY p.id, c.name, b.name
     ORDER BY p.id DESC
-    LIMIT $12 OFFSET $13
-    `,
-    [tenantId, q, category, saleOnly, filters.gender, filters.productType, [], filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset]
-  );
+    LIMIT $11 OFFSET $12
+`;
+
+const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset) => {
+  const params = [tenantId, q, category, saleOnly, filters.gender, filters.productType, filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset];
+  try {
+    return await db.query(storefrontProductsSql, params);
+  } catch (error) {
+    error.sql = storefrontProductsSql;
+    error.params = params;
+    throw error;
+  }
+};
 
 const queryProductsByIds = async (tenantId, productIds = [], pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
   const ids = productIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
@@ -2167,7 +2174,16 @@ export const listProducts = async (req, res) => {
     if (ERP_PERF_DEBUG) console.log("[erp-perf] storefront.products", { total_ms: Date.now() - startedAt, rows: payload.products?.length || 0, limit: payload.limit });
     res.json(payload);
   } catch (error) {
-    console.error("[storefront] list products", error);
+    console.error("[storefront/products] failed", {
+      query: req.query || {},
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+      code: error?.code || "",
+      detail: error?.detail || "",
+      position: error?.position || "",
+      sql: error?.sql || "",
+      params: error?.params || [],
+    });
     res.status(500).json({ success: false, message: "Failed to load products" });
   }
 };
