@@ -857,12 +857,6 @@ const pickHomeProducts = ({ preferred = [], fallback = [], exclude = new Set(), 
   [...preferred, ...fallback].forEach((product, index) => add(product, index));
   return picked.slice(0, limit);
 };
-const homeSectionKey = (collection = {}) => String(collection.key || collection.slug || collection.id || collection.title || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-const isFeaturedHomeCollection = (collection = {}) => ["featured", "featured_products", "manual_featured", "selected", "selected_products"].includes(homeSectionKey(collection));
-const isNewHomeCollection = (collection = {}) => ["new", "new_arrivals", "latest", "latest_products"].includes(homeSectionKey(collection));
-const isSaleHomeCollection = (collection = {}) => ["sale", "sales", "discount", "discounts", "discounted", "discounted_products"].includes(homeSectionKey(collection));
-const uniqueHomeSectionProducts = (products = [], exclude = new Set(), limit = 8) => pickHomeProducts({ preferred: products, exclude, limit });
-const productIdSet = (products = []) => new Set((Array.isArray(products) ? products : []).map((product, index) => productIdentityKey(product, index)).filter(Boolean));
 const STOREFRONT_COLOR_WORDS = new Set([
   "black", "white", "red", "blue", "green", "yellow", "orange", "purple", "pink", "brown", "beige", "grey", "gray", "silver", "gold", "navy", "burgundy", "maroon", "olive", "cream", "ivory", "tan", "camel", "mocha", "coffee", "charcoal", "volt", "cobalt", "aqua", "mint", "rose", " سلفر", "اسود", "أسود", "ابيض", "أبيض", "احمر", "أحمر", "ازرق", "أزرق", "اخضر", "أخضر", "اصفر", "أصفر", "برتقالي", "بنفسجي", "وردي", "بني", "بيج", "رمادي", "فضي", "ذهبي", "كحلي", "نبيتي", "زيتي", "كريمي", "اوف", "أوف", "جملي", "كافيه"
 ]);
@@ -1720,8 +1714,7 @@ const useStorefrontHome = () => {
         const home = getStorefrontHomeFromResponse(json);
         const hero = home.hero ? normalizeHomeProduct(home.hero) : null;
         const collections = (Array.isArray(home.featured_collections) ? home.featured_collections : [])
-          .map(normalizeHomeCollection)
-          .filter((collection) => collection.products.length);
+          .map(normalizeHomeCollection);
         if (!cancelled) setState({ loading: false, loaded: true, error: "", hero: hero?.id ? hero : null, collections, rawHome: home || null, requestUrl: homeRequestUrl });
       })
       .catch((error) => {
@@ -2812,6 +2805,24 @@ function Header({ cart, wishlist, onCart, addToCart }) {
     if (visualPreviewUrlRef.current) URL.revokeObjectURL(visualPreviewUrlRef.current);
   }, []);
 
+  const clearVisualSearch = useCallback(() => {
+    if (visualPreviewUrlRef.current) {
+      URL.revokeObjectURL(visualPreviewUrlRef.current);
+      visualPreviewUrlRef.current = "";
+    }
+    selectedVisualImageRef.current = null;
+    setVisualSearch({ active: false, keywords: [], message: "", error: "", previewUrl: "", fileName: "" });
+  }, []);
+
+  useEffect(() => {
+    setSearchOpen(false);
+    setMobileSearchOpen(false);
+    setActiveSearchIndex(-1);
+    setSearchLoading(false);
+    setSuggestions([]);
+    clearVisualSearch();
+  }, [clearVisualSearch, location.pathname, location.search]);
+
   useEffect(() => {
     if (visualSearch.active) {
       return;
@@ -2854,11 +2865,7 @@ function Header({ cart, wishlist, onCart, addToCart }) {
   const handleSearchChange = (value) => {
     setSearch(value);
     if (visualSearch.active) {
-      if (visualPreviewUrlRef.current) {
-        URL.revokeObjectURL(visualPreviewUrlRef.current);
-        visualPreviewUrlRef.current = "";
-      }
-      setVisualSearch({ active: false, keywords: [], message: "", error: "", previewUrl: "", fileName: "" });
+      clearVisualSearch();
     }
   };
 
@@ -2876,6 +2883,8 @@ function Header({ cart, wishlist, onCart, addToCart }) {
     setSearchOpen(false);
     setMobileSearchOpen(false);
     setActiveSearchIndex(-1);
+    setSearchLoading(false);
+    clearVisualSearch();
   };
 
   const submit = (event) => {
@@ -2899,12 +2908,7 @@ function Header({ cart, wishlist, onCart, addToCart }) {
   const pickProduct = (product, options = {}) => {
     if (!product?.id) return;
     rememberSearch(product.name || search);
-    if (options.keepOpen) {
-      setSearchOpen(true);
-      setMobileSearchOpen(true);
-    } else {
-      closeSearch();
-    }
+    closeSearch();
     if (!options.keepQuery) setSearch("");
     navigate(productUrl(product));
   };
@@ -3106,7 +3110,10 @@ function Header({ cart, wishlist, onCart, addToCart }) {
           setActiveIndex={setActiveSearchIndex}
           onPickTerm={pickSearchTerm}
           onPickProduct={pickProduct}
-          onQuickAdd={addToCart}
+          onQuickAdd={(...args) => {
+            closeSearch();
+            addToCart(...args);
+          }}
           onVoice={handleVoiceSearch}
           onImage={handleImageSearch}
           className="hidden md:block"
@@ -3167,7 +3174,10 @@ function Header({ cart, wishlist, onCart, addToCart }) {
         setActiveIndex={setActiveSearchIndex}
         onPickTerm={pickSearchTerm}
         onPickProduct={pickProduct}
-        onQuickAdd={addToCart}
+        onQuickAdd={(...args) => {
+          closeSearch();
+          addToCart(...args);
+        }}
         onVoice={handleVoiceSearch}
         onImage={handleImageSearch}
         mobileOnly
@@ -3244,6 +3254,15 @@ function PremiumSearch({
     };
   }, [mobileOnly, mobileOpen]);
 
+  useEffect(() => {
+    if (!open && !mobileOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileOpen, onClose, open]);
+
   const handleKeyDown = (event) => {
     if (event.key === "Escape") {
       onClose();
@@ -3304,7 +3323,15 @@ function PremiumSearch({
   );
 
   const resultsPanel = (
-    <div className="sf-search-results-panel overflow-visible rounded-[1.6rem] border border-white/60 bg-white/92 p-3 text-stone-950 shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#090d18]/96 dark:text-white sm:p-4">
+    <div className="sf-search-results-panel relative overflow-visible rounded-[1.6rem] border border-white/60 bg-white/92 p-3 pt-12 text-stone-950 shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#090d18]/96 dark:text-white sm:p-4 sm:pt-12">
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 shadow-sm transition hover:bg-stone-950 hover:text-white dark:border-white/10 dark:bg-white/8 dark:text-white/72 dark:hover:bg-white/14"
+        aria-label={t("storefront.search.close", "Close search")}
+      >
+        <X className="h-4 w-4" />
+      </button>
       <SearchQuickSections
         value={value}
         loading={loading}
@@ -3323,7 +3350,7 @@ function PremiumSearch({
     if (!mobileOpen) return null;
     return createPortal(
       <div className="sf-mobile-search-overlay fixed inset-0 z-[2147483000] overflow-hidden bg-[#030712] text-white md:hidden" dir="rtl" role="dialog" aria-modal="true">
-        <div className="sf-mobile-search-backdrop absolute inset-0" aria-hidden="true" />
+        <button type="button" onClick={onClose} className="sf-mobile-search-backdrop absolute inset-0 cursor-default" aria-label={t("storefront.search.close", "Close search")} />
         <div className="sf-mobile-search-panel relative mx-auto flex h-dvh max-w-xl flex-col overflow-hidden px-4 pb-0 pt-[calc(1rem+env(safe-area-inset-top))]">
           <div className="sf-mobile-search-head sticky top-0 z-10 flex shrink-0 items-center gap-2 pb-4">
             <div className="min-w-0 flex-1">{searchInput}</div>
@@ -3501,7 +3528,7 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd }) 
 
   const viewProduct = (event) => {
     event.stopPropagation();
-    if (product?.id && onPickProduct) onPickProduct(product, { keepOpen: true, keepQuery: true });
+    if (product?.id && onPickProduct) onPickProduct(product);
   };
 
   const quickAdd = (event) => {
@@ -3679,42 +3706,23 @@ function HomePage(props) {
   const heroDetailsUrl = heroProduct?.link || (allowLegacyHomeFallback && heroProduct?.id ? productUrl(heroProduct) : "/shop/products");
   const homeCollections = storefrontHome.collections;
   const rawHomeCollections = Array.isArray(storefrontHome.rawHome?.featured_collections) ? storefrontHome.rawHome.featured_collections : [];
-  const manualFeaturedProducts = useMemo(() => {
-    const rawFeatured = rawHomeCollections
-      .filter(isFeaturedHomeCollection)
-      .flatMap((collection) => Array.isArray(collection?.products) ? collection.products : [])
-      .map(normalizeHomeProduct)
-      .filter((product) => product.id && product.name);
-    const normalizedFeatured = homeCollections
-      .filter(isFeaturedHomeCollection)
-      .flatMap((collection) => Array.isArray(collection.products) ? collection.products : []);
-    return uniqueProductsByIdentity([...rawFeatured, ...normalizedFeatured]);
-  }, [homeCollections, rawHomeCollections]);
+  const rawHomeSectionCounts = useMemo(
+    () => rawHomeCollections.map((collection, index) => ({
+      key: collection?.key || collection?.id || collection?.slug || collection?.title || collection?.name || index,
+      title: collection?.title || collection?.name || collection?.label || `Section ${index + 1}`,
+      count: Array.isArray(collection?.products) ? collection.products.length : 0,
+    })),
+    [rawHomeCollections]
+  );
   const stableHomeProducts = useMemo(() => {
     const exclude = new Set([...heroExcluded, ...saleIds, ...freshIds]);
     return pickHomeProducts({
-      preferred: manualFeaturedProducts.length ? manualFeaturedProducts : bestBase,
+      preferred: bestBase,
       exclude,
       limit: 8,
     });
-  }, [bestBase, freshIds, heroExcluded, manualFeaturedProducts, saleIds]);
-  const featuredIds = useMemo(() => productIdSet(stableHomeProducts), [stableHomeProducts]);
-  const visibleHomeCollections = useMemo(() => {
-    const used = new Set([...heroExcluded, ...featuredIds]);
-    return homeCollections.filter((collection) => !isFeaturedHomeCollection(collection)).map((collection) => {
-      const sortedProducts = isNewHomeCollection(collection)
-        ? [...(collection.products || [])].sort((a, b) => newestScore(b) - newestScore(a))
-        : collection.products || [];
-      const eligibleProducts = isSaleHomeCollection(collection) ? sortedProducts.filter(hasSale) : sortedProducts;
-      const products = uniqueHomeSectionProducts(eligibleProducts, used, 8);
-      products.forEach((product, index) => {
-        const key = productIdentityKey(product, index);
-        if (key) used.add(key);
-      });
-      return { ...collection, products };
-    }).filter((collection) => collection.products.length);
-  }, [featuredIds, heroExcluded, homeCollections]);
-  const hasHomeCollections = visibleHomeCollections.length > 0;
+  }, [bestBase, freshIds, heroExcluded, saleIds]);
+  const hasHomeCollections = homeCollections.some((collection) => Array.isArray(collection.products) && collection.products.length);
   const categoryPreviewCards = useMemo(() => {
     const genderOptions = storefrontGenderOptions.length ? storefrontGenderOptions : classificationOptions.gender;
     return uniqueClassificationOptions(genderOptions)
@@ -3865,6 +3873,28 @@ function HomePage(props) {
       <section className="relative z-10 mx-auto min-h-[84px] max-w-[1200px] px-4 py-1.5 md:min-h-[120px] md:py-2">
         <StoryStrip products={railProducts} categories={categoryPreviewCards} loading={loading} onLastPiece={() => setLastPieceOpen(true)} />
       </section>
+      <section className="mx-auto max-w-[1200px] px-4 pb-2">
+        <div className="rounded-2xl border border-[#a78bfa]/20 bg-white/80 px-4 py-3 text-xs font-black text-stone-700 shadow-[0_12px_28px_rgba(39,20,75,0.06)] dark:border-white/10 dark:bg-white/[0.055] dark:text-stone-200">
+          <div>SECTIONS COUNT: {rawHomeSectionCounts.length}</div>
+          <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-bold text-stone-500 dark:text-stone-400">
+            {rawHomeSectionCounts.length ? rawHomeSectionCounts.map((collection) => (
+              <span key={collection.key} className="rounded-full border border-stone-200 bg-white px-2 py-1 dark:border-white/10 dark:bg-white/[0.06]">
+                {collection.title}: {collection.count}
+              </span>
+            )) : (
+              <span>home.featured_collections: 0</span>
+            )}
+          </div>
+        </div>
+      </section>
+      {hasHomeCollections ? homeCollections.map((collection) => (
+        <HomeCollectionRail
+          key={collection.key || collection.title}
+          collection={collection}
+        />
+      )) : (
+        <ProductRail title={t("storefront.home.bestsellers", "Best sellers")} subtitle={t("storefront.home.bestsellersSubtitle", "Best sellers this week")} loading={loading || storefrontHome.loading} products={best} railType="bestseller" featuredFirst {...props} />
+      )}
       <section className="mx-auto max-w-[1200px] px-4 py-1.5 md:py-2">
         {categoryPreviewCards.length ? (
           <div>
@@ -3909,14 +3939,6 @@ function HomePage(props) {
           </div>
         ) : null}
       </section>
-      {hasHomeCollections ? visibleHomeCollections.map((collection) => (
-        <HomeCollectionRail
-          key={collection.key || collection.title}
-          collection={collection}
-        />
-      )) : (
-        <ProductRail title={t("storefront.home.bestsellers", "Best sellers")} subtitle={t("storefront.home.bestsellersSubtitle", "Best sellers this week")} loading={loading || storefrontHome.loading} products={best} railType="bestseller" featuredFirst {...props} />
-      )}
       {allowLegacyHomeFallback ? (
         <>
           <ProductRail title={t("storefront.nav.sale", "Sale")} subtitle={t("storefront.home.saleSubtitle", "Selected discounts for a limited time")} loading={saleLoading && !saleUnique.length} products={saleUnique} railType="sale" {...props} />
@@ -3931,7 +3953,7 @@ function HomePage(props) {
 
 function HomeCollectionRail({ collection = {} }) {
   const { t } = useTranslation();
-  const products = Array.isArray(collection.products) ? collection.products.filter((product) => product?.id && product?.image_url) : [];
+  const products = Array.isArray(collection.products) ? collection.products.filter((product) => product?.id && product?.name) : [];
   if (!products.length) return null;
 
   return (
