@@ -94,6 +94,19 @@ const normalizeProductAudiences = (...sources) => {
   return PRODUCT_AUDIENCES.filter((audience) => seen.has(audience));
 };
 
+const normalizeGalleryImages = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  const text = value.trim();
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 const normalizeOptionalForeignKey = (value) => {
   if (value === undefined || value === null) return null;
   const text = String(value).trim();
@@ -768,6 +781,11 @@ const firstPositiveNumber = (...values) => {
 const normalizeProductRow = (row = {}) => {
   const regularPrice = firstPositiveNumber(row.selling_price, row.regular_price, row.price, row.sale_price);
   const audiences = normalizeProductAudiences(row.audiences, row.product_audiences, row.gender);
+  const imageUrl = row.image_url || "";
+  const thumbnailUrl = row.thumbnail_url || "";
+  const photoUrl = row.photo_url || "";
+  const image = row.image || "";
+  const galleryImages = normalizeGalleryImages(row.gallery_images);
   return ({
   ...row,
   selling_price: regularPrice,
@@ -821,9 +839,12 @@ const normalizeProductRow = (row = {}) => {
   unit_id: row.unit_id ?? "",
   unit_name: row.unit_name || row.unit || row.unit_abbreviation || "",
   unit_abbreviation: row.unit_abbreviation || "",
-  product_image_url: row.product_image_url || row.image_url || row.image || row.photo_url || row.thumbnail_url || "",
-  image_url: row.image_url || row.product_image_url || row.image || row.photo_url || row.thumbnail_url || "",
-  gallery_images: Array.isArray(row.gallery_images) ? row.gallery_images : [],
+  image_url: imageUrl,
+  thumbnail_url: thumbnailUrl,
+  photo_url: photoUrl,
+  image,
+  product_image_url: row.product_image_url || thumbnailUrl || imageUrl || photoUrl || image || "",
+  gallery_images: galleryImages,
   category: row.category || "Uncategorized",
   brand: row.brand || "Unbranded",
 });
@@ -1856,6 +1877,11 @@ export const getProducts = async (req, res) => {
       text: `
         SELECT
           p.*,
+          COALESCE(p.image_url, '') AS image_url,
+          COALESCE(p.thumbnail_url, '') AS thumbnail_url,
+          COALESCE(p.photo_url, '') AS photo_url,
+          COALESCE(p.image, '') AS image,
+          COALESCE(p.gallery_images, '[]'::jsonb) AS gallery_images,
           c.name AS category_name,
           b.name AS brand_name,
           u.name AS unit_name,
@@ -1956,6 +1982,11 @@ export const getProductsWithVariants = async (req, res) => {
       text: `
         SELECT
           p.*,
+          COALESCE(p.image_url, '') AS image_url,
+          COALESCE(p.thumbnail_url, '') AS thumbnail_url,
+          COALESCE(p.photo_url, '') AS photo_url,
+          COALESCE(p.image, '') AS image,
+          COALESCE(p.gallery_images, '[]'::jsonb) AS gallery_images,
           c.name AS category_name,
           b.name AS brand_name,
           u.name AS unit_name,
