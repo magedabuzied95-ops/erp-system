@@ -138,6 +138,28 @@ const configuredCorsOrigins = [
   .map(normalizeOrigin)
   .filter(Boolean);
 const allowedCorsOrigins = new Set(configuredCorsOrigins);
+const corsAllowedHeaderNames = [
+  "Content-Type",
+  "Authorization",
+  "Accept",
+  "Origin",
+  "Cache-Control",
+  "Pragma",
+  "Expires",
+  "X-Requested-With",
+  "Idempotency-Key",
+  "X-Tenant-Id",
+  "X-Branch-Id",
+  "X-Device-Id",
+  "X-Request-Id",
+  "X-Storefront-Customer-Token",
+  "X-Customer-Token",
+];
+
+const corsAllowedHeaders = Array.from(
+  new Set(corsAllowedHeaderNames.flatMap((header) => [header, header.toLowerCase()]))
+);
+
 const corsOptions = {
   origin(origin, callback) {
     if (!origin) {
@@ -153,26 +175,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-Requested-With",
-    "Accept",
-    "Origin",
-    "Cache-Control",
-    "cache-control",
-    "Pragma",
-    "Expires",
-    "idempotency-key",
-    "X-Tenant-Id",
-    "x-tenant-id",
-    "X-Request-Id",
-    "x-request-id",
-    "X-Storefront-Customer-Token",
-    "x-storefront-customer-token",
-    "X-Customer-Token",
-    "x-customer-token",
-  ],
+  allowedHeaders: corsAllowedHeaders,
   optionsSuccessStatus: 204,
 };
 
