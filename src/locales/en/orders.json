@@ -45,7 +45,11 @@
     "awaiting_verification": "Awaiting Verification",
     "cod": "COD",
     "in_transit": "In Transit",
-    "out_for_delivery": "Out for Delivery"
+    "out_for_delivery": "Out for Delivery",
+    "ready_to_ship": "Ready to Ship",
+    "created": "Created",
+    "picked_up": "Picked Up",
+    "failed": "Failed"
   },
   "kpis": {
     "totalOrders": "Total orders",
@@ -279,7 +283,14 @@
     "deliveryFee": "Delivery fee",
     "createShipment": "Create shipment",
     "printLabel": "Print label",
-    "trackShipment": "Track shipment"
+    "trackShipment": "Track shipment",
+    "retryShipment": "Retry shipment",
+    "markShipped": "Mark as shipped",
+    "markDelivered": "Mark as delivered",
+    "cancelShipment": "Cancel shipment",
+    "shipmentUpdated": "Shipment updated",
+    "updateFailed": "Failed to update shipment",
+    "timeline": "Shipment timeline"
   },
   "details": {
     "title": "Order Details",

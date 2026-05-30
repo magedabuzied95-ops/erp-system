@@ -316,6 +316,7 @@ function OrderDetails() {
   const [shipping, setShipping] = useState({
     provider: "",
     shipping_status: "pending",
+    shipment_status: "pending",
     shipment_id: "",
     tracking_number: "",
     tracking_url: "",
@@ -341,6 +342,7 @@ function OrderDetails() {
       setShipping({
         provider: merged.shipping_provider || "",
         shipping_status: merged.shipping_status || "pending",
+        shipment_status: merged.shipment_status || merged.shipping_status || "pending",
         shipment_id: merged.shipment_id || "",
         tracking_number: merged.tracking_number || "",
         tracking_url: merged.tracking_url || "",
@@ -455,43 +457,63 @@ function OrderDetails() {
     toast.success(t("orders.details.notesSaved"));
   };
 
-  const handleSaveShipping = () => {
-    saveLocalMeta({
-      shipping_provider: shipping.provider,
-      shipping_provider_id: shipping.provider,
-      shipping_status: shipping.shipping_status,
-      shipment_id: shipping.shipment_id,
-      tracking_number: shipping.tracking_number,
-      tracking_url: shipping.tracking_url,
-      delivery_fee: Number(shipping.delivery_fee || 0),
-      cod_amount: Number(shipping.cod_amount || 0),
-      courier_notes: shipping.courier_notes,
-    });
-    toast.success(t("orders.details.shippingSaved"));
+  const handleSaveShipping = async () => {
+    try {
+      const payload = {
+        shipping_provider: shipping.provider,
+        shipping_provider_id: shipping.provider,
+        shipping_status: shipping.shipment_status || shipping.shipping_status,
+        shipment_status: shipping.shipment_status || shipping.shipping_status,
+        shipment_id: shipping.shipment_id,
+        tracking_number: shipping.tracking_number,
+        tracking_url: shipping.tracking_url,
+        shipping_cost: Number(shipping.delivery_fee || 0),
+        courier_notes: shipping.courier_notes,
+        reason: "Shipping details updated",
+      };
+      const result = await api.patch(`/orders/${order.id}`, payload);
+      const updated = normalizeOrder(result.order || { ...order, ...payload }, { items: previewItems });
+      setOrder(updated);
+      setShipping((prev) => ({
+        ...prev,
+        shipping_status: updated.shipping_status || payload.shipping_status,
+        shipment_status: updated.shipment_status || updated.shipping_status || payload.shipment_status,
+      }));
+      toast.success(t("orders.details.shippingSaved"));
+    } catch (err) {
+      toast.error(err.message || t("orders.shipping.updateFailed", "Failed to save shipping"));
+    }
   };
 
-  const handleCreateShipment = async () => {
+  const handleShipmentAction = async (action) => {
     try {
-      const result = await api.post(`/storefront/shipping/orders/${order.id}/create-shipment`, {
+      const result = await api.post(`/orders/${order.id}/shipment/${action}`, {
         provider: shipping.provider || "manual",
+        shipment_id: shipping.shipment_id,
+        tracking_number: shipping.tracking_number,
+        tracking_url: shipping.tracking_url,
       });
       if (result.success) {
         setShipping((prev) => ({
           ...prev,
           provider: result.provider || prev.provider,
           shipping_status: result.shipping_status || prev.shipping_status,
+          shipment_status: result.status || result.shipping_status || prev.shipment_status,
           shipment_id: result.shipment_id || prev.shipment_id,
           tracking_number: result.tracking_number || prev.tracking_number,
           tracking_url: result.tracking_url || prev.tracking_url,
         }));
-        toast.success(t("orders.shipping.shipmentCreated"));
+        setOrder((prev) => (prev ? normalizeOrder({ ...prev, ...(result.order || {}), shipping_status: result.shipping_status || result.status }, { items: previewItems }) : prev));
+        toast.success(t(`orders.shipping.${action}Success`, result.message || t("orders.shipping.shipmentUpdated", "Shipment updated")));
       } else {
-        toast.error(result.message || t("orders.shipping.providerNotConfigured"));
+        toast.error(result.error || result.message || t("orders.shipping.providerNotConfigured"));
       }
     } catch (err) {
-      toast.error(err.message || t("orders.shipping.createFailed"));
+      toast.error(err.message || t("orders.shipping.updateFailed", "Failed to update shipment"));
     }
   };
+
+  const handleCreateShipment = () => handleShipmentAction("create");
 
   const handleShippingPaymentReview = async (action) => {
     try {
@@ -1237,8 +1259,8 @@ function OrderDetails() {
                   </FieldLabel>
                   <FieldLabel label={t("orders.shipping.status")}>
                     <select
-                      value={shipping.shipping_status}
-                      onChange={(e) => setShipping((prev) => ({ ...prev, shipping_status: e.target.value }))}
+                      value={shipping.shipment_status || shipping.shipping_status}
+                      onChange={(e) => setShipping((prev) => ({ ...prev, shipping_status: e.target.value, shipment_status: e.target.value }))}
                       className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
                     >
                       {SHIPPING_STATUSES.map((status) => (
@@ -1324,8 +1346,17 @@ function OrderDetails() {
               <button type="button" onClick={handleCreateShipment} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
                 {t("orders.shipping.createShipment")}
               </button>
-              <button type="button" onClick={handlePrint} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
-                {t("orders.shipping.printLabel")}
+              <button type="button" onClick={() => handleShipmentAction("retry")} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
+                {t("orders.shipping.retryShipment", "Retry shipment")}
+              </button>
+              <button type="button" onClick={() => handleShipmentAction("mark_shipped")} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
+                {t("orders.shipping.markShipped", "Mark as shipped")}
+              </button>
+              <button type="button" onClick={() => handleShipmentAction("mark_delivered")} className="h-10 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/15">
+                {t("orders.shipping.markDelivered", "Mark as delivered")}
+              </button>
+              <button type="button" onClick={() => handleShipmentAction("cancel")} className="h-10 rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15">
+                {t("orders.shipping.cancelShipment", "Cancel shipment")}
               </button>
               <button
                 type="button"
@@ -1334,6 +1365,21 @@ function OrderDetails() {
               >
                 {t("orders.shipping.trackShipment")}
               </button>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{t("orders.shipping.timeline", "Shipment timeline")}</div>
+              <div className="mt-3 grid gap-2">
+                {(Array.isArray(order.shipment_timeline) && order.shipment_timeline.length ? order.shipment_timeline : [{ status: shipping.shipment_status || shipping.shipping_status || "pending", action: "current", at: order.updated_at || order.created_at }]).slice().reverse().map((event, index) => (
+                  <div key={`${event.status || "shipment"}-${event.at || index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+                    <div>
+                      <div className="text-sm font-black text-white">{t(`orders.statusLabels.${String(event.status || "pending").replace(/\s+/g, "_")}`, event.status || "pending")}</div>
+                      <div className="mt-0.5 text-xs text-zinc-500">{event.action || "shipment"} · {event.provider || shipping.provider || "in_store_delivery"}</div>
+                    </div>
+                    <div className="shrink-0 text-xs font-semibold text-zinc-400">{formatDateTime(event.at)}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

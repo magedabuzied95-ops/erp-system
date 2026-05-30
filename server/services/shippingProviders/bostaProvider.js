@@ -1,3 +1,5 @@
+import { normalizeProviderResponse } from "./response.js";
+
 const hasCredentials = () =>
   Boolean(String(process.env.BOSTA_API_KEY || "").trim()) &&
   Boolean(String(process.env.BOSTA_BASE_URL || "").trim());
@@ -7,40 +9,46 @@ const bostaProvider = {
   name: "Bosta",
   isConfigured: hasCredentials,
   async createShipment() {
+    // TODO: Add Bosta shipment API request mapping, credentials validation, and webhook handlers.
     if (!hasCredentials()) {
-      return {
+      return normalizeProviderResponse({
         success: false,
         provider: "bosta",
         provider_id: "bosta",
-        message: "Bosta credentials are missing. Use manual shipping for this order.",
-      };
+        status: "failed",
+        error: "Bosta credentials are missing. Use manual shipping for this order.",
+      });
     }
 
-    return {
+    return normalizeProviderResponse({
       success: false,
       provider: "bosta",
       provider_id: "bosta",
-      message: "Bosta API adapter is ready for credentials and endpoint mapping.",
-    };
+      status: "failed",
+      error: "Bosta API adapter is ready for credentials and endpoint mapping.",
+    });
   },
   async trackShipment(order = {}) {
+    // TODO: Replace this with Bosta tracking API polling plus webhook-driven updates.
     if (!hasCredentials()) {
-      return {
+      return normalizeProviderResponse({
         success: false,
         provider: "bosta",
         provider_id: "bosta",
-        message: "Bosta credentials are missing. Manual tracking is available.",
-      };
+        status: order.shipment_status || order.shipping_status || "pending",
+        error: "Bosta credentials are missing. Manual tracking is available.",
+      });
     }
 
-    return {
+    return normalizeProviderResponse({
       success: true,
       provider: "bosta",
       provider_id: "bosta",
-      shipping_status: order.shipping_status || "pending",
+      status: order.shipment_status || order.shipping_status || "pending",
+      shipment_id: order.shipment_id || null,
       tracking_number: order.tracking_number || "",
       tracking_url: order.tracking_url || "",
-    };
+    });
   },
 };
 

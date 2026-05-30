@@ -2,7 +2,9 @@ export { formatCurrency } from "../../../shared/lib/currency";
 import { displayPublicOrderNumber } from "../../../shared/utils/publicOrderNumber";
 import {
   ORDER_LIFECYCLE_STATUSES,
+  SHIPPING_LIFECYCLE_STATUSES,
   normalizeOrderLifecycleStatus,
+  normalizeShippingLifecycleStatus,
 } from "../../../../shared/orderStatus.js";
 
 const ORDERS_META_KEY = "erp.orders.meta";
@@ -10,7 +12,7 @@ const RETURNS_KEY = "erp.orders.returns";
 
 export const ORDER_STATUSES = ORDER_LIFECYCLE_STATUSES;
 
-export const SHIPPING_STATUSES = ORDER_STATUSES;
+export const SHIPPING_STATUSES = SHIPPING_LIFECYCLE_STATUSES;
 
 const safeWindow = () =>
   typeof window !== "undefined" ? window : null;
@@ -176,11 +178,16 @@ export const normalizeOrder = (order, details = {}) => {
     branch: meta.branch || order.branch || "Main",
     notes: meta.notes || order.notes || "",
     shipping_provider: meta.shipping_provider || order.shipping_provider || "",
-    shipping_status: normalizeOrderLifecycleStatus(meta.shipping_status || order.shipping_status || order.delivery_status, "pending"),
+    shipping_provider_id: order.shipping_provider_id || meta.shipping_provider_id || order.shipping_provider || "",
+    shipping_zone_id: order.shipping_zone_id || "",
+    shipping_cost: Number(order.shipping_cost ?? order.shipping_fee ?? order.delivery_fee ?? 0),
+    shipping_status: normalizeShippingLifecycleStatus(meta.shipping_status || order.shipment_status || order.shipping_status || order.delivery_status, "pending"),
+    shipment_status: normalizeShippingLifecycleStatus(meta.shipment_status || order.shipment_status || order.shipping_status || order.delivery_status, "pending"),
     shipment_id: order.shipment_id || "",
     tracking_number: meta.tracking_number || order.tracking_number || "",
     tracking_url: order.tracking_url || "",
     courier_notes: order.courier_notes || "",
+    shipment_timeline: Array.isArray(order.shipment_timeline) ? order.shipment_timeline : [],
     shipping_fee: Number(meta.shipping_fee ?? order.shipping_fee ?? order.delivery_fee ?? 0),
     shipping_payment_method: order.shipping_payment_method || meta.shipping_payment_method || "",
     shipping_payment_screenshot: order.shipping_payment_screenshot || order.payment_proof_url || order.shipping_proof_url || order.proof_image_url || order.payment_screenshot_url || "",

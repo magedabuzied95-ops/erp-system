@@ -33,7 +33,7 @@ import {
   buildTemporaryInvoiceNumber,
 } from "../utils/invoiceNumber.js";
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
-import { normalizeOrderLifecycleStatus } from "../../shared/orderStatus.js";
+import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../shared/orderStatus.js";
 
 const DEFAULT_TENANT_ID = 1;
 const LOW_STOCK_LIMIT = 2;
@@ -397,7 +397,7 @@ const normalizeClassificationToken = (value = "") =>
 
 const activeStorefrontClassificationSets = async () => {
   const entries = [];
-  for (const key of ["product_type", "style", "grade"]) {
+  for (const key of ["product_type", "grade"]) {
     const group = await fetchProductClassificationGroupByKey(key);
     const aliases = new Set();
     (group?.options || []).forEach((option) => {
@@ -419,7 +419,6 @@ const scrubInactiveClassifications = async (products = []) => {
       next.product_type = "";
       next.productType = "";
     }
-    if (!sets.style?.has(normalizeClassificationToken(next.style))) next.style = "";
     if (!sets.grade?.has(normalizeClassificationToken(next.grade))) next.grade = "";
     return next;
   });
@@ -741,12 +740,15 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS display_order_number VARCHAR(40)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider VARCHAR(80) NOT NULL DEFAULT 'manual'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider_id VARCHAR(80) NOT NULL DEFAULT 'in_store_delivery'`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_zone_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(80) NOT NULL DEFAULT 'pending'`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_status VARCHAR(80)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS courier_notes TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS expected_delivery_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS product_image TEXT`);
@@ -1037,7 +1039,6 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     product_audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
     product_type: row.product_type || "",
     productType: row.product_type || "",
-    style: row.style || "",
     grade: row.grade || "",
     brand: row.brand_name || "",
     image_url: firstText(productImage, variants.find((variant) => variant.image_url)?.image_url),
@@ -1268,8 +1269,8 @@ const queryProducts = (tenantId, q, category, filters, saleOnly, limit, offset) 
   db.query(
     `
     ${catalogQuery}
-      AND ($2 = '' OR LOWER(CONCAT_WS(' ', p.name, p.sku, p.barcode, p.gender, p.product_type, p.style, c.name, b.name, pv.size, pv.color, pv.sku, pv.article_code, pv.edition_name, pv.edition_slug)) LIKE '%' || $2 || '%' OR ${productAudienceSearchSql})
-      AND ($3 = '' OR LOWER(CONCAT_WS(' ', c.name, p.gender, p.product_type, p.style)) LIKE '%' || $3 || '%' OR EXISTS (SELECT 1 FROM product_audiences pa_category WHERE pa_category.product_id = p.id AND pa_category.audience LIKE '%' || $3 || '%'))
+      AND ($2 = '' OR LOWER(CONCAT_WS(' ', p.name, p.sku, p.barcode, p.gender, p.product_type, c.name, b.name, pv.size, pv.color, pv.sku, pv.article_code, pv.edition_name, pv.edition_slug)) LIKE '%' || $2 || '%' OR ${productAudienceSearchSql})
+      AND ($3 = '' OR LOWER(CONCAT_WS(' ', c.name, p.gender, p.product_type)) LIKE '%' || $3 || '%' OR EXISTS (SELECT 1 FROM product_audiences pa_category WHERE pa_category.product_id = p.id AND pa_category.audience LIKE '%' || $3 || '%'))
       AND (
         $4::boolean = FALSE
         OR (
@@ -1287,13 +1288,11 @@ const queryProducts = (tenantId, q, category, filters, saleOnly, limit, offset) 
       )
       AND ${productAudienceFilterSql("$5")}
       AND (COALESCE(array_length($6::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($6::text[]))
-      AND (COALESCE(array_length($7::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.style, ''))) = ANY($7::text[]))
       AND (COALESCE(array_length($8::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($8::text[]))
       AND (
         COALESCE(array_length($11::text[], 1), 0) = 0
         OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($11::text[])
         OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($11::text[])
-        OR LOWER(TRIM(COALESCE(p.style, ''))) = ANY($11::text[])
       )
       AND ($9 = '' OR EXISTS (
         SELECT 1
@@ -1316,7 +1315,7 @@ const queryProducts = (tenantId, q, category, filters, saleOnly, limit, offset) 
     ORDER BY p.id DESC
     LIMIT $12 OFFSET $13
     `,
-    [tenantId, q, category, saleOnly, filters.gender, filters.productType, filters.style, filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset]
+    [tenantId, q, category, saleOnly, filters.gender, filters.productType, [], filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset]
   );
 
 const queryProductsByIds = async (tenantId, productIds = [], pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
@@ -1381,7 +1380,6 @@ const visualSearchColumns = async () => {
     "p.description",
     "p.gender",
     "p.product_type",
-    "p.style",
     "p.grade",
     "c.name",
     "b.name",
@@ -1716,7 +1714,6 @@ const slimProductForList = (product = {}) => ({
   product_audiences: product.product_audiences,
   product_type: product.product_type,
   productType: product.productType,
-  style: product.style,
   grade: product.grade,
   brand: product.brand,
   image_url: product.image_url,
@@ -1850,7 +1847,7 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
   await ensureStorefrontSchema();
   await ensureProductVariantImagesSchema();
   const pricingSettings = normalizeStorefrontPricingSettings(settings || await getWebsiteSettings({ tenantId }));
-  const filters = { gender: [], productType: [], style: [], grade: [], quality: [], size: "", inStock: true };
+  const filters = { gender: [], productType: [], grade: [], quality: [], size: "", inStock: true };
   let result = await queryProducts(tenantId, "", "", filters, false, 80, 0);
   let usedTenantFallback = false;
   if (!result.rows.length && tenantId !== null) {
@@ -2025,7 +2022,6 @@ const normalizeStorefrontProductsQuery = (query = {}) => ({
   category: queryText(query.category).toLowerCase(),
   gender: queryText(query.gender),
   productType: queryText(query.product_type || query.productType),
-  style: queryText(query.style),
   grade: queryText(query.grade),
   quality: queryText(query.quality),
   size: queryText(query.size),
@@ -2077,7 +2073,6 @@ export const listProducts = async (req, res) => {
       const { q, category, saleOnly, sort, limit, offset, scope, groupingMode, size, inStock } = normalizedQuery;
       const genderAliases = await getClassificationFilterAliases("gender", normalizedQuery.gender);
       const productType = await getActiveClassificationFilterAliases("product_type", normalizedQuery.productType);
-      const style = await getActiveClassificationFilterAliases("style", normalizedQuery.style);
       const grade = await getActiveClassificationFilterAliases("grade", normalizedQuery.grade);
       const quality = storefrontQualityAliases(normalizedQuery.quality);
       const gender = normalizeProductAudiences(genderAliases, normalizedQuery.gender);
@@ -2097,10 +2092,10 @@ export const listProducts = async (req, res) => {
         ? Math.min(Math.max(limit + offset + 500, 1000), 5000)
         : limit;
       const queryOffset = shouldOrderAfterExpansion ? 0 : offset;
-      let result = await queryProducts(tenantId, q, category, { gender, productType, style, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
+      let result = await queryProducts(tenantId, q, category, { gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
       let usedTenantFallback = false;
       if (!result.rows.length && tenantId !== null) {
-        const fallback = await queryProducts(null, q, category, { gender, productType, style, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
+        const fallback = await queryProducts(null, q, category, { gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
         if (fallback.rows.length) {
           result = fallback;
           usedTenantFallback = true;
@@ -2108,7 +2103,7 @@ export const listProducts = async (req, res) => {
       }
       let products = result.rows.map((row) => normalizeProduct(row, pricingSettings));
       if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
-        const fallback = await queryProducts(null, q, category, { gender, productType, style, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
+        const fallback = await queryProducts(null, q, category, { gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
         const fallbackProducts = fallback.rows.map((row) => normalizeProduct(row, pricingSettings));
         if (fallbackProducts.some((product) => product.total_stock > 0)) {
           products = fallbackProducts;
@@ -2149,7 +2144,7 @@ export const listProducts = async (req, res) => {
       });
       products = pagedProducts.map(slimProductForList);
       if (ERP_PERF_DEBUG) {
-        console.log("[storefront] products", { tenantId, usedTenantFallback, q, category, saleOnly, sort: sort || "random", scope, groupingMode, filters: { gender, productType, style, grade }, count: products.length, total, hasMore, usedOrderingFallback });
+        console.log("[storefront] products", { tenantId, usedTenantFallback, q, category, saleOnly, sort: sort || "random", scope, groupingMode, filters: { gender, productType, grade }, count: products.length, total, hasMore, usedOrderingFallback });
       }
       return {
         success: true,
@@ -2350,9 +2345,9 @@ export const listGenderClassifications = async (req, res) => {
 
 const lastPieceCategorySql = `
   CASE
-    WHEN LOWER(CONCAT_WS(' ', p.gender, p.product_type, p.style, c.name)) LIKE ANY (ARRAY['%رجال%', '%male%', '%men%']) THEN 'رجالي'
-    WHEN LOWER(CONCAT_WS(' ', p.gender, p.product_type, p.style, c.name)) LIKE ANY (ARRAY['%حريمي%', '%نساء%', '%نسائي%', '%female%', '%women%']) THEN 'حريمي'
-    WHEN LOWER(CONCAT_WS(' ', p.gender, p.product_type, p.style, c.name)) LIKE ANY (ARRAY['%أطفال%', '%اطفال%', '%طفل%', '%kids%', '%children%']) THEN 'أطفال'
+    WHEN LOWER(CONCAT_WS(' ', p.gender, p.product_type, c.name)) LIKE ANY (ARRAY['%رجال%', '%male%', '%men%']) THEN 'رجالي'
+    WHEN LOWER(CONCAT_WS(' ', p.gender, p.product_type, c.name)) LIKE ANY (ARRAY['%حريمي%', '%نساء%', '%نسائي%', '%female%', '%women%']) THEN 'حريمي'
+    WHEN LOWER(CONCAT_WS(' ', p.gender, p.product_type, c.name)) LIKE ANY (ARRAY['%أطفال%', '%اطفال%', '%طفل%', '%kids%', '%children%']) THEN 'أطفال'
     ELSE COALESCE(NULLIF(c.name, ''), NULLIF(p.product_type, ''), NULLIF(p.gender, ''), '')
   END
 `;
@@ -3264,7 +3259,9 @@ export const createWebsiteOrder = async (req, res) => {
       notes: checkout.order_notes || "",
       shipping_provider: shippingMethod,
       shipping_provider_id: shippingMethod,
+      shipping_zone_id: shippingQuote.zone?.id || null,
       shipping_status: "pending",
+      shipment_status: "pending",
     }, checkoutColumns.orders, { step: "create order" });
     order = await assignSequentialInvoiceNumber(client, order);
     order = attachPublicOrderNumber(order);
@@ -3479,13 +3476,13 @@ export const trackOrder = async (req, res) => {
 
 const buildOrderTimeline = (order = {}) => {
   const status = normalizeOrderLifecycleStatus(order.status || "", "pending");
-  const shipping = normalizeOrderLifecycleStatus(order.shipping_status || "", "pending");
+  const shipping = normalizeShippingLifecycleStatus(order.shipment_status || order.shipping_status || "", "pending");
   return [
     { key: "received", label: "تم استلام الطلب", done: true },
-    { key: "confirmed", label: "Confirmed", done: ["confirmed", "ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(status) || ["ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(shipping) },
-    { key: "ready_to_ship", label: "Ready to ship", done: ["ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(status) || ["ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(shipping) },
-    { key: "shipment_created", label: "Shipment created", done: ["shipment_created", "out_for_delivery", "delivered"].includes(shipping) || ["shipment_created", "out_for_delivery", "delivered"].includes(status) },
-    { key: "out_for_delivery", label: "Out for delivery", done: ["out_for_delivery", "delivered"].includes(shipping) || ["out_for_delivery", "delivered"].includes(status) },
+    { key: "confirmed", label: "Confirmed", done: ["confirmed", "ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(status) || ["ready_to_ship", "created", "picked_up", "in_transit", "delivered"].includes(shipping) },
+    { key: "ready_to_ship", label: "Ready to ship", done: ["ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(status) || ["ready_to_ship", "created", "picked_up", "in_transit", "delivered"].includes(shipping) },
+    { key: "shipment_created", label: "Shipment created", done: ["created", "picked_up", "in_transit", "delivered"].includes(shipping) || ["shipment_created", "out_for_delivery", "delivered"].includes(status) },
+    { key: "out_for_delivery", label: "Out for delivery", done: ["picked_up", "in_transit", "delivered"].includes(shipping) || ["out_for_delivery", "delivered"].includes(status) },
     { key: "delivered", label: "تم التسليم", done: status === "delivered" || shipping === "delivered" },
   ];
 };
@@ -3768,12 +3765,14 @@ export const createShipment = async (req, res) => {
     const order = orderResult.rows[0];
     if (!order) return res.status(404).json({ success: false, message: "Order not found" });
     if (order.shipment_id || order.tracking_number) {
+      const status = normalizeShippingLifecycleStatus(order.shipment_status || order.shipping_status || "created", "created");
       return res.status(409).json({
         success: false,
         message: "Shipment already exists for this order",
         provider: order.shipping_provider || "in_store_delivery",
         provider_id: order.shipping_provider_id || order.shipping_provider || "in_store_delivery",
-        shipping_status: normalizeOrderLifecycleStatus(order.shipping_status || "shipment_created", "shipment_created"),
+        status,
+        shipping_status: status,
         shipment_id: order.shipment_id || null,
         tracking_number: order.tracking_number || "",
         tracking_url: order.tracking_url || "",
@@ -3782,11 +3781,24 @@ export const createShipment = async (req, res) => {
     const provider = getShippingProvider(req.body.provider || req.body.provider_id || order.shipping_provider_id || order.shipping_provider || "in_store_delivery");
     const result = await provider.createShipment(order);
     if (result.success) {
-      const nextShippingStatus = normalizeOrderLifecycleStatus(result.shipping_status || "shipment_created", "shipment_created");
+      const nextShippingStatus = normalizeShippingLifecycleStatus(result.status || result.shipping_status || "created", "created");
       await db.query(
-        `UPDATE orders SET shipping_provider = $1, shipping_provider_id = $2, shipping_status = $3, shipment_id = $4, tracking_number = $5, tracking_url = $6, last_shipping_sync_at = NOW() WHERE id = $7`,
+        `
+        UPDATE orders
+        SET shipping_provider = $1,
+            shipping_provider_id = $2,
+            shipping_status = $3,
+            shipment_status = $3,
+            shipment_id = $4,
+            tracking_number = $5,
+            tracking_url = $6,
+            last_shipping_sync_at = NOW(),
+            shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('status', $3, 'action', 'create', 'provider', $1, 'at', NOW()))
+        WHERE id = $7
+        `,
         [result.provider, result.provider_id || result.provider, nextShippingStatus, result.shipment_id, result.tracking_number, result.tracking_url, order.id]
       );
+      result.status = nextShippingStatus;
       result.shipping_status = nextShippingStatus;
     }
     res.json(result);

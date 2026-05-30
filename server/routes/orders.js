@@ -24,6 +24,7 @@ import {
   rejectShippingPayment,
   startPosEditTiming,
   getShiftReport,
+  updateOrderShipment,
 } from "../controllers/ordersController.js";
 
 const router = express.Router();
@@ -115,6 +116,13 @@ router.post(
   protect,
   permit("orders", "edit"),
   rejectShippingPayment
+);
+
+router.post(
+  "/:id/shipment/:action",
+  protect,
+  permit("orders", "edit"),
+  updateOrderShipment
 );
 
 router.patch(

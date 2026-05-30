@@ -28,7 +28,8 @@ import {
 import { attachPublicOrderNumber } from "../utils/publicOrderNumber.js";
 import { buildBulkOrderItemInsertQuery, buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
 import { canOverridePosSeller, ensurePosUserShiftSchema, resolvePosBranch } from "./posController.js";
-import { normalizeOrderLifecycleStatus } from "../../shared/orderStatus.js";
+import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../shared/orderStatus.js";
+import { getShippingProvider, normalizeShippingProviderKey } from "../services/shippingProviders/index.js";
 
 const POS_CHECKOUT_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.POS_CHECKOUT_DEBUG || "").trim().toLowerCase());
 const POS_DEBUG = POS_CHECKOUT_DEBUG || ["1", "true", "yes", "on"].includes(String(process.env.POS_DEBUG || "").trim().toLowerCase());
@@ -372,11 +373,16 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS order_notes TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider VARCHAR(80) NOT NULL DEFAULT 'manual'`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider_id VARCHAR(80) NOT NULL DEFAULT 'in_store_delivery'`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_zone_id VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(80) NOT NULL DEFAULT 'pending'`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_status VARCHAR(80)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_id VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_number VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS courier_notes TEXT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMP NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS marketing_source TEXT NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS marketing_platform TEXT NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS marketing_post_id TEXT NULL`);
@@ -3542,9 +3548,10 @@ export const getOrders = async (req, res) => {
 const BLOCKED_OPERATION_STATUSES = new Set(["cancelled", "returned"]);
 
 const normalizeOrderStatus = (value = "") => normalizeOrderLifecycleStatus(value, "pending");
+const normalizeShipmentStatus = (value = "") => normalizeShippingLifecycleStatus(value, "pending");
 const isDeliveredOrder = (order = {}) => {
   const status = normalizeOrderStatus(order.status || order.payment_status);
-  const shippingStatus = normalizeOrderStatus(order.shipping_status);
+  const shippingStatus = normalizeShipmentStatus(order.shipment_status || order.shipping_status);
   return status === "delivered" || shippingStatus === "delivered";
 };
 
@@ -4528,7 +4535,7 @@ export const editOrder = async (req, res) => {
         source: Object.prototype.hasOwnProperty.call(req.body, "source") ? String(req.body.source || "").trim() || loaded.order.source || loaded.order.channel : loaded.order.source,
         channel: Object.prototype.hasOwnProperty.call(req.body, "channel") ? String(req.body.channel || "").trim() || loaded.order.channel || loaded.order.source : loaded.order.channel,
         branch_id: Object.prototype.hasOwnProperty.call(req.body, "branch_id") && req.body.branch_id !== "" ? req.body.branch_id : loaded.order.branch_id,
-        shipping_status: Object.prototype.hasOwnProperty.call(req.body, "shipping_status") ? String(req.body.shipping_status || "").trim() || loaded.order.shipping_status : loaded.order.shipping_status,
+        shipping_status: Object.prototype.hasOwnProperty.call(req.body, "shipping_status") ? normalizeShipmentStatus(req.body.shipping_status || loaded.order.shipment_status || loaded.order.shipping_status) : normalizeShipmentStatus(loaded.order.shipment_status || loaded.order.shipping_status),
         notes: Object.prototype.hasOwnProperty.call(req.body, "notes") ? String(req.body.notes || "").trim() : loaded.order.notes,
         customer_address: Object.prototype.hasOwnProperty.call(req.body, "customer_address") ? String(req.body.customer_address || "").trim() : loaded.order.customer_address,
         governorate: Object.prototype.hasOwnProperty.call(req.body, "governorate") ? String(req.body.governorate || "").trim() : loaded.order.governorate,
@@ -4538,6 +4545,9 @@ export const editOrder = async (req, res) => {
         order_notes: Object.prototype.hasOwnProperty.call(req.body, "order_notes") ? String(req.body.order_notes || "").trim() : loaded.order.order_notes,
         shipping_provider: Object.prototype.hasOwnProperty.call(req.body, "shipping_provider") ? String(req.body.shipping_provider || "").trim() || loaded.order.shipping_provider || "in_store_delivery" : loaded.order.shipping_provider,
         shipping_provider_id: Object.prototype.hasOwnProperty.call(req.body, "shipping_provider_id") ? String(req.body.shipping_provider_id || req.body.shipping_provider || "").trim() || loaded.order.shipping_provider_id || loaded.order.shipping_provider || "in_store_delivery" : loaded.order.shipping_provider_id,
+        shipping_cost: Object.prototype.hasOwnProperty.call(req.body, "shipping_cost") ? Number(req.body.shipping_cost || 0) : Number(loaded.order.shipping_cost ?? loaded.order.shipping_fee ?? loaded.order.delivery_fee ?? 0),
+        shipment_status: Object.prototype.hasOwnProperty.call(req.body, "shipment_status") ? normalizeShipmentStatus(req.body.shipment_status || req.body.shipping_status || loaded.order.shipment_status || loaded.order.shipping_status) : normalizeShipmentStatus(loaded.order.shipment_status || loaded.order.shipping_status),
+        shipment_id: Object.prototype.hasOwnProperty.call(req.body, "shipment_id") ? String(req.body.shipment_id || "").trim() : loaded.order.shipment_id,
         tracking_number: Object.prototype.hasOwnProperty.call(req.body, "tracking_number") ? String(req.body.tracking_number || "").trim() : loaded.order.tracking_number,
         tracking_url: Object.prototype.hasOwnProperty.call(req.body, "tracking_url") ? String(req.body.tracking_url || "").trim() : loaded.order.tracking_url,
         courier_notes: Object.prototype.hasOwnProperty.call(req.body, "courier_notes") ? String(req.body.courier_notes || "").trim() : loaded.order.courier_notes,
@@ -4562,12 +4572,17 @@ export const editOrder = async (req, res) => {
             order_notes = $15,
             shipping_provider = $16,
             shipping_provider_id = $17,
-            tracking_number = $18,
-            tracking_url = $19,
-            courier_notes = $20,
+            shipping_cost = $18,
+            delivery_fee = $18,
+            shipping_fee = $18,
+            shipment_status = $19,
+            shipment_id = $20,
+            tracking_number = $21,
+            tracking_url = $22,
+            courier_notes = $23,
             updated_at = NOW()
-        WHERE id = $21
-          AND ($22::bigint IS NULL OR tenant_id = $22::bigint OR tenant_id IS NULL)
+        WHERE id = $24
+          AND ($25::bigint IS NULL OR tenant_id = $25::bigint OR tenant_id IS NULL)
         RETURNING *
         `,
         [
@@ -4588,6 +4603,9 @@ export const editOrder = async (req, res) => {
           safePatch.order_notes,
           safePatch.shipping_provider,
           safePatch.shipping_provider_id,
+          safePatch.shipping_cost,
+          safePatch.shipment_status,
+          safePatch.shipment_id,
           safePatch.tracking_number,
           safePatch.tracking_url,
           safePatch.courier_notes,
@@ -4900,6 +4918,127 @@ export const editOrder = async (req, res) => {
       paramsCount: error.paramsCount,
       sqlSnippetLabel: error.sqlSnippetLabel,
     });
+  } finally {
+    client.release();
+  }
+};
+
+const shipmentActionStatus = (action = "") => {
+  const normalized = String(action || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["create", "create_shipment", "manual_create"].includes(normalized)) return "created";
+  if (["retry", "retry_shipment"].includes(normalized)) return "created";
+  if (["mark_shipped", "shipped", "ship"].includes(normalized)) return "in_transit";
+  if (["mark_delivered", "delivered", "deliver"].includes(normalized)) return "delivered";
+  if (["cancel", "cancel_shipment", "cancelled", "canceled"].includes(normalized)) return "cancelled";
+  if (["ready", "ready_to_ship"].includes(normalized)) return "ready_to_ship";
+  if (["picked_up", "pickup"].includes(normalized)) return "picked_up";
+  if (["failed", "mark_failed"].includes(normalized)) return "failed";
+  return "";
+};
+
+export const updateOrderShipment = async (req, res) => {
+  const client = await db.connect();
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    await ensurePosShiftOrderColumns(client, tenantId);
+    await client.query("BEGIN");
+
+    const loaded = await loadOrderWithItems(client, { tenantId, orderId: req.params.id });
+    if (!loaded) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    assertOrderBranchScope(req, loaded.order);
+    assertOrderEditable(loaded.order);
+
+    const action = String(req.params.action || req.body?.action || "").trim();
+    let nextStatus = shipmentActionStatus(action);
+    let providerResult = null;
+    const providerKey = normalizeShippingProviderKey(req.body?.provider || req.body?.provider_id || loaded.order.shipping_provider_id || loaded.order.shipping_provider || "in_store_delivery");
+
+    if (["create", "create_shipment", "manual_create", "retry", "retry_shipment"].includes(action.toLowerCase().replace(/[\s-]+/g, "_"))) {
+      const provider = getShippingProvider(providerKey);
+      providerResult = await provider.createShipment(loaded.order);
+      if (!providerResult.success && providerKey !== "in_store_delivery") {
+        await client.query("ROLLBACK");
+        return res.status(409).json(providerResult);
+      }
+      nextStatus = normalizeShipmentStatus(providerResult.status || providerResult.shipping_status || "created");
+    }
+
+    if (!nextStatus) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, message: "Unsupported shipment action" });
+    }
+
+    const shipmentId = String(req.body?.shipment_id || providerResult?.shipment_id || loaded.order.shipment_id || (providerKey === "in_store_delivery" ? `in-store-${loaded.order.id}` : "") || "").trim() || null;
+    const trackingNumber = String(req.body?.tracking_number || providerResult?.tracking_number || loaded.order.tracking_number || "").trim() || null;
+    const trackingUrl = String(req.body?.tracking_url || providerResult?.tracking_url || loaded.order.tracking_url || "").trim() || null;
+    const providerId = String(providerResult?.provider_id || req.body?.provider_id || providerKey).trim() || providerKey;
+    const providerName = String(providerResult?.provider || providerKey).trim() || providerKey;
+    const rawResponse = providerResult?.raw_response ? JSON.stringify(providerResult.raw_response) : null;
+
+    const updateResult = await client.query(
+      `
+      UPDATE orders
+      SET shipping_provider = $1,
+          shipping_provider_id = $2,
+          shipping_status = $3,
+          shipment_status = $3,
+          shipment_id = $4,
+          tracking_number = $5,
+          tracking_url = $6,
+          last_shipping_sync_at = NOW(),
+          shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || jsonb_build_array(
+            jsonb_build_object(
+              'status', $3,
+              'action', $7,
+              'provider', $1,
+              'shipment_id', $4,
+              'tracking_number', $5,
+              'raw_response', $8::jsonb,
+              'at', NOW(),
+              'user_id', $9::bigint
+            )
+          ),
+          updated_at = NOW()
+      WHERE id = $10
+        AND ($11::bigint IS NULL OR tenant_id = $11::bigint OR tenant_id IS NULL)
+      RETURNING *
+      `,
+      [
+        providerName,
+        providerId,
+        nextStatus,
+        shipmentId,
+        trackingNumber,
+        trackingUrl,
+        action,
+        rawResponse,
+        req.user?.id || null,
+        loaded.order.id,
+        tenantId,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return res.json({
+      success: true,
+      order: updateResult.rows[0],
+      provider: providerName,
+      provider_id: providerId,
+      shipment_id: shipmentId,
+      tracking_number: trackingNumber,
+      tracking_url: trackingUrl,
+      status: nextStatus,
+      shipping_status: nextStatus,
+      raw_response: providerResult?.raw_response || null,
+      error: providerResult?.error || null,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[orders.shipment] action failed", { order_id: req.params.id, action: req.params.action, message: error?.message || String(error) });
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update shipment" });
   } finally {
     client.release();
   }
@@ -5777,6 +5916,7 @@ export const createReturn = async (req, res) => {
 export const getSingleOrder = async (req, res) => {
   try {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    await ensurePosShiftOrderColumns(db, tenantId);
     const { id } = req.params;
     const [hasSalesEmployeesTable, hasEmployeesTable] = await Promise.all([
       tableExists(db, "sales_employees"),

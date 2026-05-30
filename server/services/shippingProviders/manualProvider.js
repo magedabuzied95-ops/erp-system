@@ -1,26 +1,33 @@
+import { normalizeProviderResponse } from "./response.js";
+
 const manualProvider = {
   key: "manual",
   name: "Manual delivery",
   isConfigured: () => true,
   async createShipment(order = {}) {
-    return {
+    return normalizeProviderResponse({
       success: true,
       provider: "manual",
-      shipping_status: "shipment_created",
+      provider_id: "manual",
+      status: "created",
       shipment_id: order.shipment_id || `manual-${order.id || Date.now()}`,
       tracking_number: order.tracking_number || "",
       tracking_url: order.tracking_url || "",
+      raw_response: { mode: "offline" },
       message: "Manual delivery is ready. Add tracking details when available.",
-    };
+    });
   },
   async trackShipment(order = {}) {
-    return {
+    return normalizeProviderResponse({
       success: true,
       provider: "manual",
-      shipping_status: order.shipping_status || "shipment_created",
+      provider_id: "manual",
+      status: order.shipment_status || order.shipping_status || "created",
+      shipment_id: order.shipment_id || null,
       tracking_number: order.tracking_number || "",
       tracking_url: order.tracking_url || "",
-    };
+      raw_response: { mode: "offline" },
+    });
   },
 };
 

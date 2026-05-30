@@ -1,28 +1,34 @@
 import bostaProvider from "./bostaProvider.js";
 import inStoreDeliveryProvider from "./inStoreDeliveryProvider.js";
+import { normalizeProviderResponse } from "./response.js";
+
+export { normalizeProviderResponse } from "./response.js";
 
 const placeholderProvider = (key, name) => ({
   key,
   name,
   isConfigured: () => false,
   async createShipment() {
-    return {
+    // TODO: Add ${name} API credentials, endpoint mapping, label creation, and webhook handlers.
+    return normalizeProviderResponse({
       success: false,
       provider: key,
       provider_id: key,
-      message: `${name} credentials are not configured yet. Use In Store Delivery for now.`,
-    };
+      status: "failed",
+      error: `${name} credentials are not configured yet. Use In Store Delivery for now.`,
+    });
   },
   async trackShipment(order = {}) {
-    return {
+    // TODO: Replace this placeholder with ${name} tracking API and webhook status sync.
+    return normalizeProviderResponse({
       success: false,
       provider: key,
       provider_id: key,
-      shipping_status: order.shipping_status || "pending",
+      status: order.shipment_status || order.shipping_status || "pending",
       tracking_number: order.tracking_number || "",
       tracking_url: order.tracking_url || "",
-      message: `${name} tracking is not configured yet.`,
-    };
+      error: `${name} tracking is not configured yet.`,
+    });
   },
 });
 
