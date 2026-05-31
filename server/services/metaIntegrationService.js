@@ -1677,7 +1677,12 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
     subscribed_apps_verified: result.subscribed_apps_verified,
     error: result.error || "",
   });
-  return result;
+  return {
+    ...(result || {}),
+    timeline_message_id: inserted?.id || null,
+    delivery_status: inserted?.delivery_status || "sent",
+    external_message_id: inserted?.external_message_id || result?.message_id || "",
+  };
 };
 
 export const verifyMetaWebhookEnablement = async ({ tenantId } = {}) => {
@@ -5401,6 +5406,67 @@ const checkoutMissingPrompt = (missing = []) => {
   return "";
 };
 
+const sendCheckoutConfirmationMetaMessage = async ({
+  config,
+  message,
+  replyText = "",
+  detectedIntent = "",
+  metadata = {},
+} = {}) => {
+  console.log("ai_checkout_confirmation_prepare_send", {
+    tenant_id: config?.tenant_id,
+    conversation_id: message?.external_conversation_id || "",
+    order_id: metadata?.order_id || null,
+    checkout_stage: metadata?.checkout_stage || "",
+    stock_conflict: Boolean(metadata?.stock_conflict),
+    recipient_id: maskIdForLog(message?.external_customer_id || ""),
+  });
+  try {
+    console.log("ai_checkout_confirmation_meta_send_attempt", {
+      tenant_id: config?.tenant_id,
+      conversation_id: message?.external_conversation_id || "",
+      order_id: metadata?.order_id || null,
+      channel: message?.channel || "",
+      recipient_id: maskIdForLog(message?.external_customer_id || ""),
+    });
+    const result = await sendAndLogMetaText({
+      config,
+      message,
+      text: replyText,
+      detectedIntent,
+      metadata,
+    });
+    console.log("ai_checkout_confirmation_meta_send_success", {
+      tenant_id: config?.tenant_id,
+      conversation_id: message?.external_conversation_id || "",
+      order_id: metadata?.order_id || null,
+      message_id: result?.message_id || result?.external_message_id || "",
+      delivery_status: result?.delivery_status || "",
+    });
+    console.log("ai_checkout_confirmation_timeline_inserted", {
+      tenant_id: config?.tenant_id,
+      conversation_id: message?.external_conversation_id || "",
+      order_id: metadata?.order_id || null,
+      timeline_message_id: result?.timeline_message_id || null,
+      external_message_id: result?.external_message_id || result?.message_id || "",
+      delivery_status: result?.delivery_status || "",
+    });
+    return result;
+  } catch (error) {
+    console.error("ai_checkout_confirmation_meta_send_error", {
+      tenant_id: config?.tenant_id,
+      conversation_id: message?.external_conversation_id || "",
+      order_id: metadata?.order_id || null,
+      channel: message?.channel || "",
+      recipient_id: maskIdForLog(message?.external_customer_id || ""),
+      status: error?.status || "",
+      code: error?.code || "",
+      message: error?.message || "Meta checkout confirmation send failed",
+    });
+    throw error;
+  }
+};
+
 const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
   const conversationId = message.external_conversation_id;
   const memory = getConversationMemory(conversationId) || {};
@@ -5649,12 +5715,12 @@ const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
   const displayName = merged.customer_name || "\u0641\u0646\u062f\u0645";
   const replyText = stockConflict
     ? "\u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0628\u0633 \u0638\u0647\u0631 \u062a\u0639\u0627\u0631\u0636 \u0641\u064a \u0627\u0644\u0645\u062e\u0632\u0648\u0646 \u0644\u0644\u0645\u0642\u0627\u0633 \u062f\u0647.\n\u0647\u0631\u0627\u062c\u0639 \u0627\u0644\u0637\u0644\u0628 \u0648\u0623\u0631\u062c\u0639\u0644\u0643 \u062d\u0627\u0644\u0627\u064b."
-    : `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\u060c \u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0647\u0623\u0643\u062f \u0627\u0644\u0623\u0648\u0631\u062f\u0631 \u0648\u0623\u062c\u0647\u0632\u0647\u0648\u0644\u0643.`;
+    : `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\u060c \u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0627\u0644\u0623\u0648\u0631\u062f\u0631 \u0627\u062a\u0623\u0643\u062f \u0648\u0647\u0646\u062a\u0648\u0627\u0635\u0644 \u0645\u0639\u0627\u0643 \u0644\u0644\u062a\u0623\u0643\u064a\u062f \u0627\u0644\u0646\u0647\u0627\u0626\u064a.`;
   const nextStage = stockConflict ? "stock_conflict" : "order_confirmed";
-  const result = await sendAndLogMetaText({
+  const result = await sendCheckoutConfirmationMetaMessage({
     config,
     message,
-    text: replyText,
+    replyText,
     detectedIntent: stockConflict ? "checkout_stock_conflict" : "checkout_order_confirmed",
     metadata: {
       order_id: order.id,
