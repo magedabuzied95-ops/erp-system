@@ -7,6 +7,7 @@ import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { validateMetaToken } from "./metaTokenService.js";
 import { syncMarketingAnalyticsForTenant } from "./marketingAnalyticsService.js";
 import { getPublicBackendUrl } from "../utils/publicUrl.js";
+import { getSetting } from "./settingsService.js";
 
 const GRAPH_API_VERSION = "v25.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -1643,6 +1644,7 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
 
   const rawImages = rawStoryImageUrls(item);
   const design = item.design_json || {};
+  const storeName = cleanText(await getSetting("storefront.store_name", "M1 STORE").catch(() => "M1 STORE")) || "M1 STORE";
   console.log("[story-source-images]", {
     queueId: item.id || null,
     count: rawImages.length,
@@ -1667,11 +1669,13 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
         currency: item.currency || design.currency,
         strategy_type: item.strategy_type || design.strategy_type,
         layout_type: item.layout_type || design.layout_type,
+        store_name: storeName,
         design_json: {
           ...design,
           image_url: rawImages[0] || design.image_url || item.image_url || "",
           media_urls: rawImages,
           source_media_urls: rawImages,
+          store_name: storeName,
         },
       },
     });
