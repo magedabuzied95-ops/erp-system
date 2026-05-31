@@ -266,7 +266,7 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
   const categories = detectedCustomerCategories(messageText);
   const orderNumber = text((messageText.match(/(?:#|order|اوردر|أوردر|طلب|رقم)\s*([A-Z0-9-]{3,})/i) || [])[1] || "");
   const color = text((messageText.match(/(اسود|أسود|ابيض|أبيض|جراي|رمادي|احمر|أحمر|اخضر|أخضر|ازرق|أزرق|بيج|black|white|grey|gray|red|green|blue|beige)/i) || [])[1] || "");
-  const stage = normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || "");
+  const stage = normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || memory.conversationStage || memory.currentConversationStage || "");
   const hasProductEntity = Boolean(brands.length || models.length || productName);
   const hasSizeCheckSignal = Boolean(
     size ||
@@ -331,6 +331,10 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     intent = AI_INTENTS.ALTERNATIVES;
     confidence = 0.93;
     reason = "alternatives_keyword";
+  } else if (checkoutStageAtLeast(stage, "buying_intent") && (detectReservationAffirmation(messageText) || detectCheckoutConfirmation(messageText) || detectExplicitCheckoutIntent(messageText))) {
+    intent = AI_INTENTS.CHECKOUT;
+    confidence = 0.93;
+    reason = "stage_lock_confirmation_to_checkout";
   } else if (stage === "order_ready" && detectSalesFinalConfirmation(messageText)) {
     intent = AI_INTENTS.ORDER_CONFIRMATION;
     confidence = 0.92;
@@ -407,7 +411,7 @@ const AI_CHECKOUT_STATES = new Set([
 ]);
 
 const normalizeCheckoutStage = (stage = "") => {
-  const normalized = text(stage);
+  const normalized = text(stage).toLowerCase().replace(/\s+/g, "_");
   if (normalized === "checkout_confirmed" || normalized === "confirmed") return "order_confirmed";
   if (normalized === "handoff" || normalized === "checkout_review") return "human_review";
   return AI_CHECKOUT_STATES.has(normalized) ? normalized : normalized;
@@ -6367,12 +6371,24 @@ const questionTypeToOrchestratorIntent = (questionType = "", detectedIntent = ""
 const buildOrchestratedReply = ({ message = {}, intent = "", categoryContext = {}, overrides = {} } = {}) => {
   const conversationId = message.external_conversation_id || message.conversation_id || "";
   const memory = getConversationMemory(conversationId) || {};
+  const classification = message.orchestratorIntent || {};
+  const contextManager = message.contextManager || {};
+  const hasNewImage = imageAttachments(message.attachments || []).length > 0;
+  const hasNewProductEntity = Boolean(
+    classification.entities?.brand ||
+    classification.entities?.model ||
+    classification.entities?.product_name ||
+    contextManager.switched === true
+  );
   const orchestrated = orchestrateAiResponse({
     intent,
     conversationStage: memory.conversationStage || memory.checkoutStage || memory.buyingStage || "",
     customerMessage: message.message_text || "",
     customerMemory: memory,
     customerProfile: memory.customerContext || {},
+    contextSwitchDetected: contextManager.switched === true,
+    newProductDetected: hasNewProductEntity,
+    newImageDetected: hasNewImage,
     ...categoryContext,
     ...overrides,
   });
@@ -6380,17 +6396,27 @@ const buildOrchestratedReply = ({ message = {}, intent = "", categoryContext = {
   return orchestrated;
 };
 
+const greetingOrchestratorMemory = (memory = {}) => ({
+  lastReplyTemplateId: memory.lastReplyTemplateId || "",
+  recentReplyTemplateIds: Array.isArray(memory.recentReplyTemplateIds) ? memory.recentReplyTemplateIds : [],
+  recentReplyCategories: Array.isArray(memory.recentReplyCategories) ? memory.recentReplyCategories : [],
+  customerContext: memory.customerContext || {},
+});
+
 const buildReplyOwnershipContext = ({ message = {}, detectedIntent = "", metadata = {}, fallbackText = "" } = {}) => {
   const conversationId = message.external_conversation_id || message.conversation_id || "";
   const memory = getConversationMemory(conversationId) || {};
   const resolvedQuestionType = text(metadata.resolvedQuestionType || memory.resolvedQuestionType || memory.resolvedQuestion?.intent || "");
   const intent = questionTypeToOrchestratorIntent(resolvedQuestionType, detectedIntent || metadata.detectedIntent || metadata.trigger);
-  const lastCard = metadata.selectedProduct || metadata.product || memory.lastProductCard || {};
+  const greetingOnly = resolvedQuestionType === QUESTION_TYPES.GREETING || intent === "GREETING";
+  const lastCard = greetingOnly ? {} : (metadata.selectedProduct || metadata.product || memory.lastProductCard || {});
   const availableSizes = Array.isArray(metadata.available_sizes)
     ? metadata.available_sizes
     : Array.isArray(metadata.availableSizes)
       ? metadata.availableSizes
-      : Array.isArray(lastCard.sizes)
+      : greetingOnly
+        ? []
+        : Array.isArray(lastCard.sizes)
         ? lastCard.sizes
         : Array.isArray(lastCard.available_sizes)
           ? lastCard.available_sizes
@@ -6409,15 +6435,15 @@ const buildReplyOwnershipContext = ({ message = {}, detectedIntent = "", metadat
     categoryContext: {
       selectedProduct: lastCard,
       selectedSize: allowSize ? text(metadata.selected_size || metadata.selectedSize || explicitSize || "") : "",
-      selectedColor: text(metadata.color || metadata.selectedColor || memory.selectedColor || ""),
+      selectedColor: greetingOnly ? "" : text(metadata.color || metadata.selectedColor || memory.selectedColor || ""),
       availableSizes,
-      availableColors,
-      price: text(metadata.price || lastCard.price || lastCard.product_price || ""),
+      availableColors: greetingOnly ? [] : availableColors,
+      price: greetingOnly ? "" : text(metadata.price || lastCard.price || lastCard.product_price || ""),
       productContext: {
-        productName: lastCard.name || lastCard.title || memory.activeTopic || "",
-        sizeAvailable: metadata.available === false ? false : undefined,
-        weakVisualMatch: metadata.weak_visual_match === true || metadata.weakVisualMatch === true,
-        productUnavailable: metadata.product_unavailable === true || metadata.productUnavailable === true,
+        productName: greetingOnly ? "" : (lastCard.name || lastCard.title || memory.activeTopic || ""),
+        sizeAvailable: greetingOnly ? undefined : (metadata.available === false ? false : undefined),
+        weakVisualMatch: greetingOnly ? false : (metadata.weak_visual_match === true || metadata.weakVisualMatch === true),
+        productUnavailable: greetingOnly ? false : (metadata.product_unavailable === true || metadata.productUnavailable === true),
         legacyReplyPreview: text(fallbackText).slice(0, 160),
       },
     },
@@ -12800,6 +12826,7 @@ const handleGreetingIfMatched = async ({ config, message } = {}) => {
   const resolved = message.resolvedQuestion || {};
   const classification = message.orchestratorIntent || {};
   if (resolved.intent !== QUESTION_TYPES.GREETING && classification.intent !== AI_INTENTS.GREETING && !detectGreetingMessage(message.message_text)) return null;
+  const memory = getConversationMemory(message.external_conversation_id) || {};
   const blockedHandlers = [
     "product_presentation",
     "checkout_continuation",
@@ -12807,10 +12834,13 @@ const handleGreetingIfMatched = async ({ config, message } = {}) => {
     "color_flow",
     "link_flow",
   ];
-  console.log("[greeting-guard]", {
-    message: message.message_text || "",
-    blockedHandlers,
-  });
+  const blockedProductContext = {
+    activeProductId: memory.activeProductId || null,
+    selectedProductId: memory.selectedProductId || null,
+    activeSize: memory.activeSize || "",
+    selectedSize: memory.selectedSize || "",
+    lastPresentedProductId: memory.lastPresentedProductId || null,
+  };
   updateConversationMemory(message.external_conversation_id, {
     pendingReplyAction: null,
     pendingAction: null,
@@ -12824,15 +12854,38 @@ const handleGreetingIfMatched = async ({ config, message } = {}) => {
     buyingStage: "browsing",
     conversationStage: "GREETING",
   });
+  const orchestratedGreeting = buildOrchestratedReply({
+    message,
+    intent: "GREETING",
+    overrides: {
+      customerMemory: greetingOrchestratorMemory(memory),
+      selectedProduct: null,
+      selectedColor: "",
+      selectedSize: "",
+      availableSizes: [],
+      availableColors: [],
+      price: "",
+      productContext: {},
+    },
+  });
+  console.log("[greeting-guard]", {
+    message: message.message_text || "",
+    blockedProductContext,
+    blockedHandlers,
+    templateId: orchestratedGreeting.templateId || "",
+  });
   await sendAndLogMetaText({
     config,
     message,
-    text: "\u0648\u0639\u0644\u064a\u0643\u0645 \u0627\u0644\u0633\u0644\u0627\u0645\n\u0623\u0642\u062f\u0631 \u0623\u0633\u0627\u0639\u062f\u0643 \u0641\u064a \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0627\u0644\u0645\u0648\u062f\u064a\u0644\u0627\u062a \u0623\u0648 \u0627\u0644\u0628\u062d\u062b \u0628\u0635\u0648\u0631\u0629.",
+    text: orchestratedGreeting.replyText || "",
     detectedIntent: "greeting",
     metadata: {
+      ...orchestratedReplyMetadata(orchestratedGreeting),
+      preserveReplyText: true,
       replyCategory: "GREETING",
       replyType: "greeting",
       resolvedQuestionType: QUESTION_TYPES.GREETING,
+      blockedProductContext,
       blockedHandlers,
       handler: "greeting_guard",
     },
@@ -14059,6 +14112,16 @@ export const processMetaWebhook = async ({ req } = {}) => {
             intent: AI_INTENTS.MORE_IMAGES,
             confidence: Math.max(Number(classification.confidence || 0), 0.97),
             reason: "question_resolver_more_images_priority",
+          };
+        } else if (
+          resolvedQuestion.intent === QUESTION_TYPES.BUYING_INTENT &&
+          checkoutStageAtLeast(runtimeMemory.conversationStage || runtimeMemory.checkoutStage || runtimeMemory.buyingStage || "", "buying_intent")
+        ) {
+          classification = {
+            ...classification,
+            intent: AI_INTENTS.CHECKOUT,
+            confidence: Math.max(Number(classification.confidence || 0), 0.94),
+            reason: "stage_manager_buying_confirmation_to_checkout",
           };
         }
         latestDebugClassification = classification;

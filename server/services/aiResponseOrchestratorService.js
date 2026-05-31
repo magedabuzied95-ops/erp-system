@@ -43,6 +43,102 @@ const joinSizes = (items = [], fallback = "") => {
 };
 const joinList = (items = [], fallback = "") => unique(items, 8).join(", ") || fallback;
 
+const STAGE_RANK = Object.freeze({
+  GREETING: 0,
+  DISCOVERY: 1,
+  PRODUCT_SEARCH: 2,
+  PRODUCT_AVAILABILITY: 2,
+  PRODUCT_PRESENTATION: 3,
+  PRODUCT_PRESENTATION_FOLLOWUP: 3,
+  COLOR_SELECTION: 4,
+  SIZE_SELECTION: 5,
+  SIZE_SELECTED: 6,
+  BUYING_INTENT: 7,
+  CHECKOUT_COLLECTING: 8,
+  CHECKOUT: 8,
+  ORDER_CONFIRMATION: 9,
+  HUMAN_HANDOFF: 10,
+  browsing: 1,
+  product_selected: 3,
+  product_details: 3,
+  selecting_size: 5,
+  size_selected: 6,
+  buying_intent: 7,
+  awaiting_booking_confirmation: 7,
+  checkout_collecting: 8,
+  checkout: 8,
+  collecting_contact: 8,
+  awaiting_checkout_info: 8,
+  order_ready: 9,
+  checkout_data_collected: 9,
+  order_created: 9,
+  order_confirmed: 9,
+});
+
+const normalizedStageKey = (stage = "") => text(stage).replace(/\s+/g, "_");
+const stageRank = (stage = "") => {
+  const key = normalizedStageKey(stage);
+  return STAGE_RANK[key] ?? STAGE_RANK[key.toUpperCase()] ?? STAGE_RANK[key.toLowerCase()] ?? 0;
+};
+const stageAtLeast = (stage = "", minimum = "") => stageRank(stage) >= stageRank(minimum);
+const isProductStage = (stage = "") => ["PRODUCT_PRESENTATION", "PRODUCT_SEARCH", "PRODUCT_AVAILABILITY", "PRODUCT_PRESENTATION_FOLLOWUP"].includes(normalizedStageKey(stage).toUpperCase());
+const isConfirmationMessage = (message = "") => {
+  const normalized = text(message)
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
+    .replace(/\u0649/g, "\u064a")
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return /^(?:ايوه|ايوا|اه|تمام|ماشي|يلا|احجزه|احجزها|احجز|اطلبه|اطلبها|اطلب|هاته|هاتها|هات|اكمل|كمل|yes|ok|okay|continue|book|reserve)(?:\s+(?:تمام|ماشي|يلا|please|بليز|لو سمحت))*$/.test(normalized);
+};
+
+const applyStageLock = ({
+  previousStage = "",
+  proposedStage = "",
+  replyCategory = "",
+  intent = "",
+  customerMessage = "",
+  contextSwitchDetected = false,
+  newProductDetected = false,
+  newImageDetected = false,
+} = {}) => {
+  const bypassLock = contextSwitchDetected || newProductDetected || newImageDetected;
+  const locked = stageAtLeast(previousStage, RESPONSE_CONVERSATION_STAGES.BUYING_INTENT);
+  const productRegression = locked && !bypassLock && (isProductStage(proposedStage) || isProductStage(replyCategory) || ["PRODUCT_SEARCH", "VISUAL_SEARCH"].includes(intent));
+  const confirmation = isConfirmationMessage(customerMessage);
+  if (!productRegression) {
+    console.log("[stage-manager]", {
+      previousStage: previousStage || "",
+      newStage: proposedStage || "",
+      reason: "normal_progression",
+    });
+    return { replyCategory, nextConversationStage: proposedStage, stageLockApplied: false, stageRegressionBlocked: false };
+  }
+
+  const nextConversationStage = RESPONSE_CONVERSATION_STAGES.CHECKOUT_COLLECTING;
+  const nextReplyCategory = "CHECKOUT_COLLECTING";
+  const reason = confirmation
+    ? "confirmation_after_buying_intent"
+    : "blocked_product_stage_regression_to_checkout";
+  console.log("[stage-regression-blocked]", {
+    previousStage,
+    attemptedStage: proposedStage,
+    attemptedReplyCategory: replyCategory,
+    intent,
+    message: customerMessage,
+    newStage: nextConversationStage,
+    reason,
+  });
+  console.log("[stage-manager]", {
+    previousStage,
+    newStage: nextConversationStage,
+    reason,
+  });
+  return { replyCategory: nextReplyCategory, nextConversationStage, stageLockApplied: true, stageRegressionBlocked: true, reason };
+};
+
 const TEMPLATES = Object.freeze({
   GREETING: [
     { id: "greeting_1", weight: 4, text: "\u0648\u0639\u0644\u064a\u0643\u0645 \u0627\u0644\u0633\u0644\u0627\u0645\n\u0623\u0642\u062f\u0631 \u0623\u0633\u0627\u0639\u062f\u0643 \u0641\u064a \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0627\u0644\u0645\u0648\u062f\u064a\u0644\u0627\u062a \u0623\u0648 \u0627\u0644\u0628\u062d\u062b \u0628\u0635\u0648\u0631\u0629." },
@@ -169,18 +265,33 @@ export const orchestrateAiResponse = ({
   customerMemory = {},
   previousReplies = [],
   customerProfile = {},
+  contextSwitchDetected = false,
+  newProductDetected = false,
+  newImageDetected = false,
 } = {}) => {
-  const replyCategory = inferReplyCategory({ intent, customerMessage, selectedSize, availableSizes, productContext });
+  let replyCategory = inferReplyCategory({ intent, customerMessage, selectedSize, availableSizes, productContext });
   const recentReplyTemplateIds = asArray(customerMemory.recentReplyTemplateIds || previousReplies.map((reply) => reply.templateId)).slice(-8);
   const recentReplyCategories = asArray(customerMemory.recentReplyCategories).slice(-8);
-  const { template, antiRepetitionApplied } = chooseWeightedTemplate(replyCategory, recentReplyTemplateIds);
-  const nextConversationStage =
+  const proposedConversationStage =
     replyCategory === "OBJECTION_PRICE" ? RESPONSE_CONVERSATION_STAGES.OBJECTION_HANDLING :
     replyCategory === "PRODUCT_PRESENTATION_FOLLOWUP" ? RESPONSE_CONVERSATION_STAGES.PRODUCT_PRESENTATION_FOLLOWUP :
     replyCategory === "COLOR_SELECTION" ? RESPONSE_CONVERSATION_STAGES.COLOR_SELECTION :
     replyCategory === "ASK_SIZE" || replyCategory.startsWith("SIZE_") ? RESPONSE_CONVERSATION_STAGES.SIZE_SELECTION :
     replyCategory === "CHECKOUT_COLLECTING" ? RESPONSE_CONVERSATION_STAGES.CHECKOUT_COLLECTING :
     STAGE_BY_INTENT[intent] || conversationStage || RESPONSE_CONVERSATION_STAGES.DISCOVERY;
+  const stageDecision = applyStageLock({
+    previousStage: conversationStage,
+    proposedStage: proposedConversationStage,
+    replyCategory,
+    intent,
+    customerMessage,
+    contextSwitchDetected,
+    newProductDetected,
+    newImageDetected,
+  });
+  replyCategory = stageDecision.replyCategory;
+  const nextConversationStage = stageDecision.nextConversationStage;
+  const { template, antiRepetitionApplied } = chooseWeightedTemplate(replyCategory, recentReplyTemplateIds);
   const sizeList = joinSizes(availableSizes, "هراجعهولك");
   const colorList = joinList(availableColors, "المتاح هبعتهولك");
   const replyText = interpolate(template.text, {
@@ -212,6 +323,11 @@ export const orchestrateAiResponse = ({
       recentReplyTemplateIds: unique([...recentReplyTemplateIds, template.id], 8),
       recentReplyCategories: unique([...recentReplyCategories, replyCategory], 8),
       conversationStage: nextConversationStage,
+      ...(nextConversationStage === RESPONSE_CONVERSATION_STAGES.CHECKOUT_COLLECTING
+        ? { checkoutStage: "checkout_collecting", buyingStage: "checkout_collecting" }
+        : nextConversationStage === RESPONSE_CONVERSATION_STAGES.BUYING_INTENT
+          ? { buyingStage: "buying_intent" }
+          : {}),
     },
     debug: {
       responseOrchestratorUsed: true,
@@ -220,6 +336,8 @@ export const orchestrateAiResponse = ({
       ctaType: shouldStartCheckout ? "checkout_details" : shouldSuggestAlternatives ? "suggest_alternatives" : shouldAskSize ? "ask_size" : "none",
       nextConversationStage,
       antiRepetitionApplied,
+      stageLockApplied: stageDecision.stageLockApplied === true,
+      stageRegressionBlocked: stageDecision.stageRegressionBlocked === true,
     },
   };
 };
