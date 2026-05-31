@@ -1833,7 +1833,14 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         code: "CHANNEL_SEND_UNAVAILABLE",
       });
     }
-    const recipientId = envText(conversation.external_customer_id || conversation.customer_id);
+    const channelMetadata = conversation.channel_metadata || {};
+    const recipientId = envText(
+      channelMetadata.customer_psid ||
+        channelMetadata.sender_psid ||
+        channelMetadata.resolved_customer_id ||
+        conversation.external_customer_id ||
+        conversation.customer_id
+    );
     if (!recipientId) throw Object.assign(new Error("Conversation has no Meta recipient id."), { status: 409, code: "META_RECIPIENT_MISSING" });
 
     const sendResult = await sendMetaInboxOutboundMessage({
@@ -1842,8 +1849,8 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       recipientId,
       messageText,
       conversationId,
-      facebookPageId: conversation.channel_metadata?.page_id || conversation.channel_metadata?.facebook_page_id || "",
-      instagramBusinessAccountId: conversation.channel_metadata?.instagram_business_account_id || conversation.channel_metadata?.instagram_account_id || "",
+      facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+      instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
     });
     const message = await appendManualAiSupportReply({
       tenantId,

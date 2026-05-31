@@ -2910,6 +2910,11 @@ const logIncomingToInbox = async ({ message, config }) => {
     source: channel,
     channel,
     external_customer_id: message.external_customer_id,
+    sender_psid: message.raw?.sender_psid || message.external_customer_id || "",
+    customer_psid: message.raw?.customer_psid || message.external_customer_id || "",
+    resolved_sender_id: message.raw?.sender_psid || message.external_customer_id || "",
+    resolved_customer_id: message.external_customer_id || "",
+    resolved_page_id: message.raw?.page_id || "",
     external_message_id: externalMessageId || null,
     dedupe_key: dedupeKey,
   });
@@ -3006,9 +3011,13 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
   return payload;
 };
 
-const postMetaMessage = async ({ token, recipientId, messageText }) => {
+const postMetaMessage = async ({ token, recipientId, messageText, sendContext = {} }) => {
   console.log("ai_inbox_send_graph_request", {
     recipient_id: maskIdForLog(recipientId),
+    resolved_recipient_psid: maskIdForLog(sendContext.resolved_recipient_psid || recipientId),
+    resolved_page_id: maskIdForLog(sendContext.resolved_page_id || ""),
+    resolved_customer_id: maskIdForLog(sendContext.resolved_customer_id || recipientId),
+    resolved_sender_id: maskIdForLog(sendContext.resolved_sender_id || recipientId),
     message_length: text(messageText).length,
     message_type: "text",
   });
@@ -3045,9 +3054,13 @@ const postMetaMessage = async ({ token, recipientId, messageText }) => {
   return payload;
 };
 
-const postMetaImageMessage = async ({ token, recipientId, imageUrl }) => {
+const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext = {} }) => {
   console.log("ai_inbox_send_graph_request", {
     recipient_id: maskIdForLog(recipientId),
+    resolved_recipient_psid: maskIdForLog(sendContext.resolved_recipient_psid || recipientId),
+    resolved_page_id: maskIdForLog(sendContext.resolved_page_id || ""),
+    resolved_customer_id: maskIdForLog(sendContext.resolved_customer_id || recipientId),
+    resolved_sender_id: maskIdForLog(sendContext.resolved_sender_id || recipientId),
     message_type: "image",
     image_url_exists: Boolean(text(imageUrl)),
   });
@@ -5465,6 +5478,36 @@ const resolveMetaSendConfig = async ({
   });
 };
 
+const resolveMessengerRecipientPsid = ({ recipientId = "", conversationId = "", config = {}, facebookPageId = "" } = {}) => {
+  let safeRecipientId = text(recipientId);
+  const pageIds = new Set([
+    text(facebookPageId),
+    text(config.facebook_page_id),
+    text(config.page_id),
+  ].filter(Boolean));
+  const conversationSuffix = text(conversationId).includes(":") ? text(conversationId).split(":").pop() : "";
+  const resolved = safeRecipientId;
+  const recipientIsPage = pageIds.has(resolved) || (conversationSuffix && pageIds.has(conversationSuffix) && resolved === conversationSuffix);
+  console.log("ai_inbox_recipient_resolution", {
+    channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+    conversation_id: conversationId || "",
+    resolved_recipient_psid: maskIdForLog(resolved),
+    resolved_page_id: maskIdForLog([...pageIds][0] || ""),
+    resolved_customer_id: maskIdForLog(resolved),
+    resolved_sender_id: maskIdForLog(resolved),
+    recipient_matches_page_id: recipientIsPage,
+  });
+  if (!resolved || recipientIsPage) {
+    throw Object.assign(new Error("Messenger recipient resolved to the Page ID, not a customer PSID. Refusing to send."), {
+      status: 409,
+      code: "META_RECIPIENT_IS_PAGE_ID",
+      recipient_id: resolved,
+      page_id: [...pageIds][0] || "",
+    });
+  }
+  return resolved;
+};
+
 export const sendMetaInboxOutboundMessage = async ({
   tenantId,
   channel = "",
@@ -5495,6 +5538,20 @@ export const sendMetaInboxOutboundMessage = async ({
     instagramBusinessAccountId,
     preferredConfigId,
   });
+  if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
+    safeRecipientId = resolveMessengerRecipientPsid({
+      recipientId: safeRecipientId,
+      conversationId,
+      config,
+      facebookPageId,
+    });
+  }
+  const sendContext = {
+    resolved_recipient_psid: safeRecipientId,
+    resolved_page_id: text(facebookPageId || config.facebook_page_id || config.page_id),
+    resolved_customer_id: safeRecipientId,
+    resolved_sender_id: safeRecipientId,
+  };
   console.log("ai_inbox_send_start", {
     tenant_id: scopedTenantId,
     config_id: config.id || null,
@@ -5502,6 +5559,10 @@ export const sendMetaInboxOutboundMessage = async ({
     channel: normalizedChannel,
     conversation_id: conversationId || "",
     recipient_id: maskIdForLog(safeRecipientId),
+    resolved_recipient_psid: maskIdForLog(sendContext.resolved_recipient_psid),
+    resolved_page_id: maskIdForLog(sendContext.resolved_page_id),
+    resolved_customer_id: maskIdForLog(sendContext.resolved_customer_id),
+    resolved_sender_id: maskIdForLog(sendContext.resolved_sender_id),
     payload_metadata: {
       message_length: safeMessage.length,
       product_card_count: cards.length,
@@ -5525,7 +5586,7 @@ export const sendMetaInboxOutboundMessage = async ({
       let imageMessageId = "";
       if (product.image_url) {
         try {
-          const imageResult = await postMetaImageMessage({ token, recipientId: safeRecipientId, imageUrl: product.image_url });
+          const imageResult = await postMetaImageMessage({ token, recipientId: safeRecipientId, imageUrl: product.image_url, sendContext });
           imageResults.push(imageResult);
           imageMessageId = imageResult?.message_id || "";
           console.log("ai_inbox_messenger_send_image_success", {
@@ -5549,7 +5610,7 @@ export const sendMetaInboxOutboundMessage = async ({
           });
         }
       }
-      meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: productCardReplyText(product) });
+      meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: productCardReplyText(product), sendContext });
       productCardMessages.push({
         message_id: meta?.message_id || "",
         meta_mid: meta?.message_id || "",
@@ -5565,7 +5626,7 @@ export const sendMetaInboxOutboundMessage = async ({
       });
     }
     if ((Array.isArray(suggestedActions) ? suggestedActions : []).length) {
-      meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: META_COMMERCE_ACTION_FALLBACK });
+      meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: META_COMMERCE_ACTION_FALLBACK, sendContext });
       console.log("ai_inbox_suggested_action_generated", {
         tenant_id: scopedTenantId,
         config_id: config.id || null,
@@ -5598,7 +5659,7 @@ export const sendMetaInboxOutboundMessage = async ({
   try {
     for (const imageUrl of imageAttachmentUrls(attachments)) {
       try {
-        const imageResult = await postMetaImageMessage({ token, recipientId: safeRecipientId, imageUrl });
+        const imageResult = await postMetaImageMessage({ token, recipientId: safeRecipientId, imageUrl, sendContext });
         imageResults.push(imageResult);
         console.log("ai_inbox_messenger_send_image_success", {
           tenant_id: scopedTenantId,
@@ -5620,7 +5681,7 @@ export const sendMetaInboxOutboundMessage = async ({
         });
       }
     }
-    meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: safeMessage });
+    meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: safeMessage, sendContext });
   } catch (error) {
     console.error("ai_inbox_send_failed", {
       tenant_id: scopedTenantId,
@@ -5718,18 +5779,23 @@ export const processMetaWebhook = async ({ req } = {}) => {
       tenantId: config.tenant_id,
       channel: message.channel,
       direction: "inbound",
-      externalCustomerId: message.external_customer_id,
-      conversationId: message.external_conversation_id,
-      messagePreview: message.message_text || "[attachment]",
-      status: "received",
-      metadata: {
-        channel: alias,
-        page_id: pageIds[0] || "",
-        instagram_business_account_id: instagramBusinessAccountIds[0] || "",
-        external_message_id: message.external_message_id || "",
-        dedupe_key: message.dedupe_key || inboxResult?.dedupe_key || "",
-      },
-    }).catch(() => {});
+        externalCustomerId: message.external_customer_id,
+        conversationId: message.external_conversation_id,
+        messagePreview: message.message_text || "[attachment]",
+        status: "received",
+        metadata: {
+          channel: alias,
+          page_id: pageIds[0] || "",
+          instagram_business_account_id: instagramBusinessAccountIds[0] || "",
+          external_message_id: message.external_message_id || "",
+          sender_psid: message.raw?.sender_psid || message.external_customer_id || "",
+          customer_psid: message.raw?.customer_psid || message.external_customer_id || "",
+          resolved_sender_id: message.raw?.sender_psid || message.external_customer_id || "",
+          resolved_customer_id: message.external_customer_id || "",
+          resolved_page_id: message.raw?.page_id || pageIds[0] || "",
+          dedupe_key: message.dedupe_key || inboxResult?.dedupe_key || "",
+        },
+      }).catch(() => {});
     await upsertChannelConversationMapping({
       tenantId: config.tenant_id,
       channel: message.channel,
@@ -5741,6 +5807,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
         instagram_business_account_id: config.instagram_business_account_id || "",
         account_id: pageIds[0] || instagramBusinessAccountIds[0] || "",
         channel: alias,
+        sender_psid: message.raw?.sender_psid || message.external_customer_id || "",
+        customer_psid: message.raw?.customer_psid || message.external_customer_id || "",
+        resolved_sender_id: message.raw?.sender_psid || message.external_customer_id || "",
+        resolved_customer_id: message.external_customer_id || "",
       },
       lastMessageAt: message.timestamp,
     }).catch(() => {});

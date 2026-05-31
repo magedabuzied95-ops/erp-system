@@ -377,6 +377,21 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
       const channel = metaEventChannel({ body, event });
       const senderId = toText(event.sender?.id);
       if (!senderId) return;
+      const recipientId = toText(event.recipient?.id);
+      const pageId = toText(entry.id || recipientId);
+      const isEcho = event.message?.is_echo === true || event.message?.app_id || event.message?.metadata;
+      const senderLooksLikePage = channel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && pageId && senderId === pageId;
+      if (isEcho || senderLooksLikePage) {
+        console.log("[meta-webhook] skipped page-origin messenger event", {
+          channel,
+          sender_id: senderId ? "***" : "",
+          recipient_id: recipientId ? "***" : "",
+          page_id: pageId ? "***" : "",
+          is_echo: Boolean(isEcho),
+          sender_equals_page: Boolean(senderLooksLikePage),
+        });
+        return;
+      }
       const messageText = extractMetaMessageText(event);
       const attachments = extractMetaAttachments(event);
       const externalMessageId = toText(event.message?.mid || event.message?.id || event.postback?.mid || event.postback?.payload || event.read?.watermark || event.delivery?.watermark);
@@ -403,7 +418,15 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
         externalMessageId,
         replyToMessageId,
         dedupeKey: externalMessageId || dedupeHash([channel, senderId, event.recipient?.id, event.timestamp, messageText].map(toText).join("|")),
-        raw: { event, object: body.object || "", page_id: entry.id || event.recipient?.id || "", reply_to_message_id: replyToMessageId },
+        raw: {
+          event,
+          object: body.object || "",
+          page_id: pageId,
+          sender_psid: senderId,
+          customer_psid: senderId,
+          recipient_page_id: recipientId,
+          reply_to_message_id: replyToMessageId,
+        },
       }));
     });
   });
