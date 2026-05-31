@@ -41,6 +41,7 @@ import { getConversationMemory, updateConversationMemory } from "./aiConversatio
 import { extractShoeSize } from "./aiMessageExtractors.js";
 import { ensureAiSalesAgentSchema, getAiAgentSettings, upsertAiCustomerProfile } from "./aiSalesAgentService.js";
 import { evaluateProductDecisionGate } from "./aiProductDecisionGate.js";
+import { orchestrateAiResponse } from "./aiResponseOrchestratorService.js";
 import { findSimilarProductsForAi } from "./aiSimilarProductsService.js";
 import {
   buildSizeAvailabilityStorefrontUrl,
@@ -406,6 +407,66 @@ const checkoutStageRank = (stage = "") => ({
 const checkoutStageAtLeast = (stage = "", minimum = "browsing") =>
   checkoutStageRank(stage) >= checkoutStageRank(minimum);
 
+const SALES_CONVERSATION_STAGES = Object.freeze({
+  DISCOVERY: "DISCOVERY",
+  INTEREST: "INTEREST",
+  PRODUCT_PRESENTATION: "PRODUCT_PRESENTATION",
+  SIZE_SELECTION: "SIZE_SELECTION",
+  OBJECTION_HANDLING: "OBJECTION_HANDLING",
+  BUYING_INTENT: "BUYING_INTENT",
+  CHECKOUT: "CHECKOUT",
+  ORDER_CONFIRMATION: "ORDER_CONFIRMATION",
+});
+
+const salesDesignerNextStage = (stage = "") => ({
+  [SALES_CONVERSATION_STAGES.DISCOVERY]: SALES_CONVERSATION_STAGES.INTEREST,
+  [SALES_CONVERSATION_STAGES.INTEREST]: SALES_CONVERSATION_STAGES.PRODUCT_PRESENTATION,
+  [SALES_CONVERSATION_STAGES.PRODUCT_PRESENTATION]: SALES_CONVERSATION_STAGES.SIZE_SELECTION,
+  [SALES_CONVERSATION_STAGES.SIZE_SELECTION]: SALES_CONVERSATION_STAGES.BUYING_INTENT,
+  [SALES_CONVERSATION_STAGES.OBJECTION_HANDLING]: SALES_CONVERSATION_STAGES.PRODUCT_PRESENTATION,
+  [SALES_CONVERSATION_STAGES.BUYING_INTENT]: SALES_CONVERSATION_STAGES.CHECKOUT,
+  [SALES_CONVERSATION_STAGES.CHECKOUT]: SALES_CONVERSATION_STAGES.ORDER_CONFIRMATION,
+  [SALES_CONVERSATION_STAGES.ORDER_CONFIRMATION]: SALES_CONVERSATION_STAGES.ORDER_CONFIRMATION,
+}[stage] || SALES_CONVERSATION_STAGES.DISCOVERY);
+
+const updateSalesConversationStage = ({ tenantId = null, conversationId = "", stage = "", reason = "", nextStage = "" } = {}) => {
+  if (!conversationId || !stage) return null;
+  const nextRecommendedStage = nextStage || salesDesignerNextStage(stage);
+  const memory = updateConversationMemory(conversationId, {
+    conversationStage: stage,
+    currentConversationStage: stage,
+    stageReason: reason,
+    nextRecommendedStage,
+    conversationStageUpdatedAt: nowIso(),
+  });
+  console.log("[sales-designer] stage", {
+    tenant_id: tenantId || null,
+    conversation_id: conversationId,
+    currentConversationStage: stage,
+    stageReason: reason,
+    nextRecommendedStage,
+  });
+  return memory;
+};
+
+const salesDesignerProductIntro = ({ card = {}, sizes = [] } = {}) => {
+  const rawPrice = text(card.price || card.product_price || card.sale_price || "");
+  const priceLine = rawPrice
+    ? `\u0627\u0644\u0633\u0639\u0631: ${rawPrice}${/\u062c\u0646\u064a\u0647|egp|جنيه/i.test(rawPrice) ? "" : " \u062c\u0646\u064a\u0647"}`
+    : "";
+  const sizeLines = Array.isArray(sizes) && sizes.length
+    ? ["\u0627\u0644\u0645\u062a\u0627\u062d \u062d\u0627\u0644\u064a\u064b\u0627:", sizes.join(" - ")]
+    : [];
+  return [
+    "\u0623\u064a\u0648\u0647 \u0645\u062a\u0627\u062d \u2705",
+    "",
+    priceLine,
+    "",
+    ...sizeLines,
+    "",
+  ].filter((line) => line !== "").join("\n");
+};
+
 const logAiStateTransition = ({ tenantId, conversationId, orderId = null, from = "", to = "", reason = "" } = {}) => {
   if (!to || normalizeCheckoutStage(from) === normalizeCheckoutStage(to)) return;
   console.log("ai_state_transition", {
@@ -606,6 +667,259 @@ export const evaluateMetaCheckoutContinuation = ({ memory = {}, messageText = ""
     bookingConfirmationAsked,
     confirmationDetected: false,
     repeatedSameSize: false,
+  };
+};
+
+const normalizeCheckoutGuardText = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
+    .replace(/\u0649/g, "\u064a")
+    .replace(/\u0629/g, "ه")
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const checkoutConfirmationOnly = (message = "") => {
+  const normalized = normalizeCheckoutGuardText(message);
+  if (!normalized) return false;
+  return /^(?:تمام|اوكي|اوك|ايوه|ايوا|ماشي|احجزه|احجزها|احجزهولي|احجزهولي|هاته|هاتها|هات|اكمل|كمل|yes|ok|okay|continue|book it|reserve it)(?:\s+(?:تمام|اوكي|اوك|ايوه|ايوا|ماشي|احجزه|احجزها|احجزهولي|هاته|هاتها|هات|اكمل|كمل|please|بليز|لو سمحت))*$/.test(normalized);
+};
+
+const QUESTION_TYPES = Object.freeze({
+  AVAILABILITY_QUESTION: "AVAILABILITY_QUESTION",
+  PRICE_QUESTION: "PRICE_QUESTION",
+  SIZE_QUESTION: "SIZE_QUESTION",
+  COLOR_QUESTION: "COLOR_QUESTION",
+  LINK_QUESTION: "LINK_QUESTION",
+  ALTERNATIVES_QUESTION: "ALTERNATIVES_QUESTION",
+  BUYING_INTENT: "BUYING_INTENT",
+  GENERAL_PRODUCT_QUESTION: "GENERAL_PRODUCT_QUESTION",
+});
+
+const resolveCustomerQuestion = ({ message = {}, memory = {} } = {}) => {
+  const messageText = text(typeof message === "string" ? message : message?.message_text || "");
+  const normalized = normalizeCheckoutGuardText(messageText);
+  const hasImage = typeof message === "object" && imageAttachments(message.attachments || []).length > 0;
+  const explicitSize = extractShoeSize(messageText) || "";
+  const hasSizeKeyword = /\bsize\b/i.test(messageText) || hasTerm(messageText, ["مقاس", "مقاسات"]);
+  const topicEntities = detectContextTopicEntities(messageText);
+  let intent = QUESTION_TYPES.GENERAL_PRODUCT_QUESTION;
+  let reason = "general_product_question";
+
+  if (detectOtherColorsRequest(messageText) || detectAllColorsRequest(messageText) || detectSelectionColor(messageText) || detectExplicitColor(messageText)) {
+    intent = QUESTION_TYPES.COLOR_QUESTION;
+    reason = "color_request";
+  } else if (detectAlternativesRequest(messageText)) {
+    intent = QUESTION_TYPES.ALTERNATIVES_QUESTION;
+    reason = "alternatives_request";
+  } else if (/لينك|اللينك|رابط|الرابط|link|url/i.test(messageText)) {
+    intent = QUESTION_TYPES.LINK_QUESTION;
+    reason = "link_request";
+  } else if (explicitSize || (hasSizeKeyword && !topicEntities.topic)) {
+    intent = QUESTION_TYPES.SIZE_QUESTION;
+    reason = explicitSize ? "explicit_size_question" : "size_keyword_question";
+  } else if (/كام|بكام|السعر|سعره|price|how much/i.test(messageText)) {
+    intent = QUESTION_TYPES.PRICE_QUESTION;
+    reason = "price_question";
+  } else if (checkoutConfirmationOnly(messageText) || detectBuyingIntent(messageText)) {
+    intent = QUESTION_TYPES.BUYING_INTENT;
+    reason = "buying_or_checkout_confirmation";
+  } else if (hasImage || topicEntities.topic || /فيه|موجود|متاح|available|عندك/i.test(normalized)) {
+    intent = QUESTION_TYPES.AVAILABILITY_QUESTION;
+    reason = hasImage ? "image_availability_question" : topicEntities.topic ? "product_availability_question" : "availability_keyword";
+  }
+
+  return {
+    intent,
+    reason,
+    message: messageText,
+    explicitSize,
+    usedPreferredSize: false,
+    usedSelectedSize: intent === QUESTION_TYPES.SIZE_QUESTION && Boolean(memory.selectedSize),
+    usedActiveSize: intent === QUESTION_TYPES.SIZE_QUESTION && Boolean(memory.activeSize),
+  };
+};
+
+const logQuestionResolver = (resolved = {}) => {
+  console.log("[question-resolver]", {
+    message: resolved.message || "",
+    intent: resolved.intent || "",
+    usedPreferredSize: resolved.usedPreferredSize === true,
+    usedSelectedSize: resolved.usedSelectedSize === true,
+    usedActiveSize: resolved.usedActiveSize === true,
+  });
+};
+
+const sizeGuardProductRequestTerms = [
+  "jordan",
+  "air jordan",
+  "aj4",
+  "j4",
+  "nike",
+  "adidas",
+  "superstar",
+  "super star",
+  "north face",
+  "northface",
+  "\u062c\u0648\u0631\u062f\u0646",
+  "\u0646\u0627\u064a\u0643",
+  "\u0627\u062f\u064a\u062f\u0627\u0633",
+  "\u0623\u062f\u064a\u062f\u0627\u0633",
+  "\u0633\u0648\u0628\u0631 \u0633\u062a\u0627\u0631",
+  "\u0646\u0648\u0631\u062b \u0641\u064a\u0633",
+  "\u0646\u0648\u0631\u062a \u0641\u064a\u0633",
+];
+
+const sizeGuardSignals = (message = "", memory = {}) => {
+  const messageText = text(message);
+  const explicitSize = extractShoeSize(messageText) || "";
+  const hasSizeKeyword = /\bsize\b/i.test(messageText) || hasTerm(messageText, ["\u0645\u0642\u0627\u0633", "\u0645\u0642\u0627\u0633\u0627\u062a"]);
+  const topicEntities = detectContextTopicEntities(messageText);
+  const hasNewProductContext = Boolean(topicEntities.productName || topicEntities.model || topicEntities.brand);
+  const hasProductRequest = Boolean(
+    hasNewProductContext ||
+    detectModelNameSearch(messageText) ||
+    detectNorthFaceCorrection(messageText) ||
+    hasTerm(messageText, sizeGuardProductRequestTerms)
+  );
+  const hasColorRequest = Boolean(
+    detectOtherColorsRequest(messageText) ||
+    detectAllColorsRequest(messageText) ||
+    detectSelectionColor(messageText) ||
+    detectExplicitColor(messageText)
+  );
+  const hasVisualCorrection = Boolean(detectVisualCorrectionTextV3(messageText));
+  const hasExplicitSize = Boolean(explicitSize || hasSizeKeyword);
+  const confirmationOnly = checkoutConfirmationOnly(messageText);
+  const memorySize = text(memory?.selectedSize || memory?.activeSize || "");
+  const checkoutStage = normalizeCheckoutStage(memory?.checkoutStage || memory?.buyingStage || "");
+  return {
+    messageText,
+    explicitSize,
+    hasExplicitSize,
+    hasSizeKeyword,
+    hasProductRequest,
+    hasColorRequest,
+    hasVisualCorrection,
+    confirmationOnly,
+    memorySize,
+    checkoutStage,
+  };
+};
+
+const logSizeGuard = ({
+  message = "",
+  hasExplicitSize = false,
+  reusedMemorySize = false,
+  blockedOldSize = false,
+  reason = "",
+  memorySize = "",
+} = {}) => {
+  console.log("[size-guard]", {
+    message: text(message),
+    hasExplicitSize: Boolean(hasExplicitSize),
+    reusedMemorySize: Boolean(reusedMemorySize),
+    blockedOldSize: Boolean(blockedOldSize),
+    reason: reason || "",
+    memorySize: text(memorySize),
+  });
+};
+
+const shouldRunSizeCheck = (message = "", memory = {}) => {
+  const signals = sizeGuardSignals(typeof message === "string" ? message : message?.message_text || "", memory);
+  const resolved = memory?.resolvedQuestion || resolveCustomerQuestion({ message: typeof message === "string" ? { message_text: message } : message, memory });
+  let reason = "no_explicit_size_intent";
+  let allowed = false;
+  if (resolved.intent !== QUESTION_TYPES.SIZE_QUESTION) reason = `resolved_${resolved.intent || "UNKNOWN"}`;
+  else if (signals.hasColorRequest) reason = "color_request";
+  else if ((signals.hasProductRequest || signals.hasVisualCorrection) && !signals.hasExplicitSize) reason = "product_search_without_size";
+  else if (signals.hasExplicitSize) {
+    allowed = true;
+    reason = signals.explicitSize ? "explicit_size" : "size_keyword";
+  }
+  logSizeGuard({
+    message: signals.messageText,
+    hasExplicitSize: signals.hasExplicitSize,
+    reusedMemorySize: false,
+    blockedOldSize: Boolean(!allowed && signals.memorySize),
+    reason,
+    memorySize: signals.memorySize,
+  });
+  return { allowed, reason, ...signals };
+};
+
+const shouldReuseSelectedSize = (message = "", memory = {}) => {
+  const signals = sizeGuardSignals(typeof message === "string" ? message : message?.message_text || "", memory);
+  const resolved = memory?.resolvedQuestion || resolveCustomerQuestion({ message: typeof message === "string" ? { message_text: message } : message, memory });
+  let reason = "no_memory_size";
+  let allowed = false;
+  if (!signals.memorySize) reason = "no_memory_size";
+  else if (resolved.intent === QUESTION_TYPES.SIZE_QUESTION && signals.hasExplicitSize) {
+    allowed = true;
+    reason = "explicit_size_in_message";
+  } else if (![QUESTION_TYPES.SIZE_QUESTION, QUESTION_TYPES.BUYING_INTENT].includes(resolved.intent) && !signals.confirmationOnly) {
+    reason = `resolved_${resolved.intent || "UNKNOWN"}`;
+  } else if (signals.hasColorRequest) reason = "color_request";
+  else if (signals.hasProductRequest || signals.hasVisualCorrection) reason = "new_product_search";
+  else if (
+    signals.confirmationOnly &&
+    (memory?.bookingConfirmationAsked === true || checkoutStageAtLeast(signals.checkoutStage, "size_selected") || checkoutStageAtLeast(signals.checkoutStage, "product_details"))
+  ) {
+    allowed = true;
+    reason = "checkout_confirmation";
+  } else if (checkoutStageAtLeast(signals.checkoutStage, "checkout") && !signals.hasColorRequest && !signals.hasProductRequest) {
+    allowed = true;
+    reason = "active_checkout";
+  } else {
+    reason = "not_checkout_confirmation";
+  }
+  logSizeGuard({
+    message: signals.messageText,
+    hasExplicitSize: signals.hasExplicitSize,
+    reusedMemorySize: allowed && Boolean(signals.memorySize),
+    blockedOldSize: !allowed && Boolean(signals.memorySize),
+    reason,
+    memorySize: signals.memorySize,
+  });
+  return { allowed, reason, ...signals };
+};
+
+const shouldContinueCheckout = (message = {}, memory = {}) => {
+  const messageText = text(typeof message === "string" ? message : message?.message_text || "");
+  const attachments = typeof message === "object" ? message.attachments || [] : [];
+  const topicEntities = detectContextTopicEntities(messageText);
+  const hasImage = imageAttachments(attachments).length > 0;
+  const hasNewProductContext = Boolean(topicEntities.productName || topicEntities.model || topicEntities.brand);
+  const hasColorRequest = Boolean(detectOtherColorsRequest(messageText) || detectAllColorsRequest(messageText) || detectSelectionColor(messageText) || detectExplicitColor(messageText));
+  const hasAlternatives = Boolean(detectAlternativesRequest(messageText));
+  const hasVisualSearch = hasImage || Boolean(detectVisualCorrectionTextV3(messageText));
+  const confirmationOnly = checkoutConfirmationOnly(messageText);
+  const reuseSize = shouldReuseSelectedSize(messageText, memory);
+  let reason = "not_confirmation";
+  let continueCheckout = false;
+
+  if (!memory?.selectedSize && !memory?.activeSize) reason = "no_selected_size";
+  else if (hasImage) reason = "image_message";
+  else if (hasVisualSearch) reason = "visual_search_message";
+  else if (hasNewProductContext) reason = "new_product_brand_or_model";
+  else if (hasColorRequest) reason = "color_request";
+  else if (hasAlternatives) reason = "alternatives_request";
+  else if (confirmationOnly && reuseSize.allowed) {
+    reason = "checkout_confirmation";
+    continueCheckout = true;
+  }
+
+  return {
+    continueCheckout,
+    reason,
+    message: messageText,
+    confirmationOnly,
+    hasNewProductContext,
+    hasColorRequest,
+    hasAlternatives,
+    hasVisualSearch,
   };
 };
 
@@ -822,11 +1136,14 @@ const maskPhoneForDebug = (value = "") => {
 };
 
 const compactMemoryForDebug = (memory = {}) => ({
+  currentConversationStage: text(memory.currentConversationStage || memory.conversationStage || ""),
+  stageReason: text(memory.stageReason || ""),
+  nextRecommendedStage: text(memory.nextRecommendedStage || ""),
   buyingStage: text(memory.buyingStage || memory.checkoutStage || ""),
   activeTopic: text(memory.activeTopic || ""),
   activeProductId: memory.activeProductId || memory.selectedProductId || null,
   activeVariantId: memory.activeVariantId || memory.selectedVariantId || null,
-  activeSize: text(memory.activeSize || memory.selectedSize || ""),
+  activeSize: text(memory.activeSize || ""),
   activeColor: text(memory.activeColor || memory.selectedColor || ""),
   activeBrand: text(memory.activeBrand || ""),
   activeCategory: text(memory.activeCategory || ""),
@@ -834,6 +1151,8 @@ const compactMemoryForDebug = (memory = {}) => ({
   lastTopicChangeAt: text(memory.lastTopicChangeAt || ""),
   contextSwitchConfidence: memory.contextSwitchConfidence ?? null,
   switched: memory.switched === true,
+  resolvedQuestionType: text(memory.resolvedQuestionType || memory.resolvedQuestion?.intent || ""),
+  replyDecisionReason: text(memory.replyDecisionReason || memory.resolvedQuestion?.reason || ""),
   lastShownProductIds: Array.isArray(memory.lastShownProductIds) ? memory.lastShownProductIds.slice(0, 12) : [],
   preferredSizes: Array.isArray(memory.preferredSizes) ? memory.preferredSizes.slice(0, 8) : [],
   preferredBrands: Array.isArray(memory.preferredBrands) ? memory.preferredBrands.slice(0, 12) : [],
@@ -857,6 +1176,9 @@ const storeAiDebugEvent = async ({ tenantId, channel = "", conversationId = "", 
     reply_preview: text(event.reply_preview || "").slice(0, 260),
     skipped_duplicate: event.skipped_duplicate === true,
     handled_reason: text(event.handled_reason || ""),
+    currentConversationStage: text(event.currentConversationStage || event.current_conversation_stage || event.memory_changes?.currentConversationStage || ""),
+    stageReason: text(event.stageReason || event.stage_reason || event.memory_changes?.stageReason || ""),
+    nextRecommendedStage: text(event.nextRecommendedStage || event.next_recommended_stage || event.memory_changes?.nextRecommendedStage || ""),
     inbound_key: text(event.inbound_key || event.inboundKey || "").slice(0, 180),
     outbound_signature: text(event.outbound_signature || event.outboundSignature || "").slice(0, 180),
     skip_reason: text(event.skip_reason || event.skipReason || ""),
@@ -867,6 +1189,8 @@ const storeAiDebugEvent = async ({ tenantId, channel = "", conversationId = "", 
       ? Number(event.contextSwitchConfidence ?? event.context_switch_confidence)
       : null,
     switched: event.switched === true || event.context_switched === true,
+    resolvedQuestionType: text(event.resolvedQuestionType || event.resolved_question_type || event.memory_changes?.resolvedQuestionType || ""),
+    replyDecisionReason: text(event.replyDecisionReason || event.reply_decision_reason || event.memory_changes?.replyDecisionReason || ""),
   };
   const next = [safeEvent, ...current].slice(0, 20);
   await db.query(
@@ -5288,7 +5612,7 @@ const persistentAiMemoryFromRuntime = (memory = {}) => {
     activeProductId,
     activeVariantId,
     activeColor,
-    activeSize: text(memory.activeSize || memory.selectedSize || ""),
+    activeSize: text(memory.activeSize || ""),
     lastShownProductIds: [...new Set(cards.map((card) => card.product_id || card.id).filter(Boolean).map(String))],
     lastShownVariantIds: [...new Set(cards.map((card) => card.variant_id).filter(Boolean).map(String))],
     lastProductQuery: text(memory.lastProductQuery || memory.lastVisualQuery || ""),
@@ -5303,6 +5627,13 @@ const persistentAiMemoryFromRuntime = (memory = {}) => {
     lastTopicChangeAt: text(memory.lastTopicChangeAt || ""),
     contextSwitchConfidence: Number.isFinite(Number(memory.contextSwitchConfidence)) ? Number(memory.contextSwitchConfidence) : 0,
     switched: memory.switched === true,
+    resolvedQuestion: memory.resolvedQuestion && typeof memory.resolvedQuestion === "object" ? memory.resolvedQuestion : null,
+    resolvedQuestionType: text(memory.resolvedQuestionType || memory.resolvedQuestion?.intent || ""),
+    replyDecisionReason: text(memory.replyDecisionReason || memory.resolvedQuestion?.reason || ""),
+    lastReplyTemplateId: text(memory.lastReplyTemplateId || ""),
+    recentReplyTemplateIds: Array.isArray(memory.recentReplyTemplateIds) ? memory.recentReplyTemplateIds.map(text).filter(Boolean).slice(-8) : [],
+    recentReplyCategories: Array.isArray(memory.recentReplyCategories) ? memory.recentReplyCategories.map(text).filter(Boolean).slice(-8) : [],
+    conversationStage: text(memory.conversationStage || ""),
     lastImageUrl: text(memory.lastImageUrl || ""),
     lastVisualClarifiedImageUrl: text(memory.lastVisualClarifiedImageUrl || ""),
     lastVisualAttributes: memory.lastVisualAttributes || memory.lastVisualAnalysis || null,
@@ -5336,7 +5667,7 @@ const persistentAiMemoryFromRuntime = (memory = {}) => {
     selectedProductId: memory.selectedProductId || activeProductId || null,
     selectedVariantId: memory.selectedVariantId || activeVariantId || null,
     selectedColor: text(memory.selectedColor || activeColor || ""),
-    selectedSize: text(memory.selectedSize || memory.activeSize || ""),
+    selectedSize: text(memory.selectedSize || ""),
     selectedProductName: text(memory.selectedProductName || activeCard.name || activeCard.title || ""),
     selectedVariantTitle: text(memory.selectedVariantTitle || activeCard.title || activeCard.name || ""),
     selectedAvailableSizes: Array.isArray(memory.selectedAvailableSizes) ? memory.selectedAvailableSizes : (activeCard.sizes || activeCard.available_sizes || []),
@@ -5369,11 +5700,11 @@ const runtimeMemoryFromPersistent = (state = {}) => {
     activeProductId: state.activeProductId || state.selectedProductId || null,
     activeVariantId: state.activeVariantId || state.selectedVariantId || null,
     activeColor: text(state.activeColor || state.selectedColor || ""),
-    activeSize: text(state.activeSize || state.selectedSize || ""),
+    activeSize: text(state.activeSize || ""),
     selectedProductId: state.selectedProductId || state.activeProductId || null,
     selectedVariantId: state.selectedVariantId || state.activeVariantId || null,
     selectedColor: text(state.selectedColor || state.activeColor || ""),
-    selectedSize: text(state.selectedSize || state.activeSize || ""),
+    selectedSize: text(state.selectedSize || ""),
     selectionStage: state.selectionStage || normalizeCheckoutStage(state.buyingStage || "browsing"),
     selectedProductName: text(state.selectedProductName || ""),
     selectedVariantTitle: text(state.selectedVariantTitle || ""),
@@ -5405,6 +5736,13 @@ const runtimeMemoryFromPersistent = (state = {}) => {
     lastTopicChangeAt: text(state.lastTopicChangeAt || ""),
     contextSwitchConfidence: Number.isFinite(Number(state.contextSwitchConfidence)) ? Number(state.contextSwitchConfidence) : 0,
     switched: state.switched === true,
+    resolvedQuestion: state.resolvedQuestion && typeof state.resolvedQuestion === "object" ? state.resolvedQuestion : null,
+    resolvedQuestionType: text(state.resolvedQuestionType || state.resolvedQuestion?.intent || ""),
+    replyDecisionReason: text(state.replyDecisionReason || state.resolvedQuestion?.reason || ""),
+    lastReplyTemplateId: text(state.lastReplyTemplateId || ""),
+    recentReplyTemplateIds: Array.isArray(state.recentReplyTemplateIds) ? state.recentReplyTemplateIds.map(text).filter(Boolean) : [],
+    recentReplyCategories: Array.isArray(state.recentReplyCategories) ? state.recentReplyCategories.map(text).filter(Boolean) : [],
+    conversationStage: text(state.conversationStage || ""),
     lastImageUrl: text(state.lastImageUrl || ""),
     lastVisualClarifiedImageUrl: text(state.lastVisualClarifiedImageUrl || ""),
     lastVisualAttributes: state.lastVisualAttributes || null,
@@ -5691,6 +6029,36 @@ const visualSearchQueryFromUnderstanding = (understanding = {}) => {
   if (/nike|\u0646\u0627\u064a\u0643/.test(normalized)) aliases.push("nike", "\u0646\u0627\u064a\u0643");
   if (/adidas|\u0627\u062f\u064a\u062f\u0627\u0633/.test(normalized)) aliases.push("adidas", "\u0627\u062f\u064a\u062f\u0627\u0633");
   return [...new Set([...aliases, ...baseTerms])].join(" ").replace(/\s+/g, " ").trim();
+};
+
+const applyOrchestratedReplyMemory = ({ conversationId = "", orchestrated = null } = {}) => {
+  if (!conversationId || !orchestrated?.memoryPatch) return null;
+  return updateConversationMemory(conversationId, orchestrated.memoryPatch);
+};
+
+const orchestratedReplyMetadata = (orchestrated = null) => ({
+  responseOrchestratorUsed: Boolean(orchestrated),
+  replyCategory: orchestrated?.replyCategory || "",
+  templateId: orchestrated?.templateId || "",
+  ctaType: orchestrated?.ctaType || "",
+  nextConversationStage: orchestrated?.nextConversationStage || "",
+  antiRepetitionApplied: orchestrated?.antiRepetitionApplied === true,
+});
+
+const buildOrchestratedReply = ({ message = {}, intent = "", categoryContext = {}, overrides = {} } = {}) => {
+  const conversationId = message.external_conversation_id || message.conversation_id || "";
+  const memory = getConversationMemory(conversationId) || {};
+  const orchestrated = orchestrateAiResponse({
+    intent,
+    conversationStage: memory.conversationStage || memory.checkoutStage || memory.buyingStage || "",
+    customerMessage: message.message_text || "",
+    customerMemory: memory,
+    customerProfile: memory.customerContext || {},
+    ...categoryContext,
+    ...overrides,
+  });
+  applyOrchestratedReplyMemory({ conversationId, orchestrated });
+  return orchestrated;
 };
 
 const clearProductSpecificContextPatch = () => ({
@@ -7033,6 +7401,43 @@ const handleProductSearchIfMatched = async ({ config, message } = {}) => {
     });
     return handleVisualSearchIfMatched({ config, message });
   }
+  if (memory.selectedSize || memory.activeSize || memory.selectedProductId || memory.activeProductId) {
+    updateConversationMemory(message.external_conversation_id, {
+      selectedSize: "",
+      activeSize: "",
+      selectedProductId: null,
+      selectedVariantId: null,
+      selectedColor: "",
+      selectedProductName: "",
+      selectedVariantTitle: "",
+      selectedAvailableSizes: [],
+      selectedImageUrl: "",
+      activeProductId: null,
+      activeVariantId: null,
+      activeColor: "",
+      checkoutStage: "browsing",
+      buyingStage: "browsing",
+      selectionStage: "browsing",
+      bookingConfirmationAsked: false,
+      buyIntentDetected: false,
+      contextLocked: false,
+      lastIntent: "product_search",
+    });
+    persistAiConversationMemory({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+      reason: "product_search_cleared_old_size_context",
+    });
+    console.log("[size-guard]", {
+      message: text(message.message_text),
+      hasExplicitSize: Boolean(extractShoeSize(message.message_text)),
+      reusedMemorySize: false,
+      blockedOldSize: Boolean(memory.selectedSize || memory.activeSize),
+      reason: "new_product_search_cleared_old_context",
+      memorySize: text(memory.selectedSize || memory.activeSize || ""),
+    });
+  }
   const query = productSearchQueryForMessage(message);
   const keywords = productSearchKeywordsForClassification(classification);
   console.log("[product-search-handler] executed", {
@@ -7064,13 +7469,38 @@ const handleProductSearchIfMatched = async ({ config, message } = {}) => {
     });
     return { handled: true, reason: "product_search_no_results" };
   }
+  const firstCard = cards[0] || {};
+  const firstCardSizes = distinctTextArray([...(firstCard.sizes || []), ...(firstCard.available_sizes || [])].map(text).filter(Boolean), 12);
+  const firstCardPrice = text(firstCard.price || firstCard.product_price || firstCard.sale_price || "");
+  const modelNameProductSearch = detectModelNameSearch(message.message_text || "");
+  const orchestrated = buildOrchestratedReply({
+    message,
+    intent: AI_INTENTS.PRODUCT_SEARCH,
+    categoryContext: {
+      selectedProduct: firstCard,
+      availableSizes: firstCardSizes,
+      price: firstCardPrice,
+      productContext: { productName: firstCard.name || firstCard.title || query },
+    },
+  });
+  const productSearchIntro = modelNameProductSearch && orchestrated?.replyText
+    ? orchestrated.replyText
+    : modelNameProductSearch
+    ? [
+        "\u0623\u064a\u0648\u0647 \u0645\u062a\u0627\u062d \u2705",
+        firstCardPrice ? `\u0627\u0644\u0633\u0639\u0631: ${firstCardPrice}${/\u062c\u0646\u064a\u0647|egp|جنيه/i.test(firstCardPrice) ? "" : " \u062c\u0646\u064a\u0647"}` : "",
+        firstCardSizes.length ? `\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0627\u0644\u0645\u062a\u0627\u062d\u0629: ${firstCardSizes.join("\u060c ")}` : "",
+        "",
+        "\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646\u061f",
+      ].filter((line) => line !== "").join("\n")
+    : "أيوه، دي أقرب نتيجة عندي للموديل ده:";
   const result = await sendAndLogProductCards({
     config,
     message,
     productCards: cards,
     detectedIntent: "product_search",
-    introText: "أيوه، دي أقرب نتيجة عندي للموديل ده:",
-    metadata: { product_search_query: query, keywords, product_card_limit: detectModelNameSearch(message.message_text || "") ? 1 : 6 },
+    introText: productSearchIntro,
+    metadata: { product_search_query: query, keywords, product_card_limit: detectModelNameSearch(message.message_text || "") ? 1 : 6, ...orchestratedReplyMetadata(orchestrated) },
   });
   return result ? { handled: true, reason: "product_search", sent: true } : { handled: true, reason: "product_search_no_send" };
 };
@@ -7101,12 +7531,16 @@ const handleNegativeIntentIfMatched = async ({ config, message } = {}) => {
     reason: "negative_intent",
     product_id: memory.selectedProductId || memory.lastProductCard?.product_id || null,
   });
+  const priceObjection = /غالي|غالية|السعر عالي|expensive/i.test(message.message_text || "");
+  const orchestrated = priceObjection
+    ? buildOrchestratedReply({ message, intent: "PRICE_OBJECTION" })
+    : null;
   await sendAndLogMetaText({
     config,
     message,
-    text: "\u062a\u0645\u0627\u0645\u060c \u0648\u0644\u0627 \u064a\u0647\u0645\u0643. \u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0648\u0627\u0644\u0633\u0639\u0631 \u0628\u0633\u061f",
+    text: orchestrated?.replyText || "\u062a\u0645\u0627\u0645\u060c \u0648\u0644\u0627 \u064a\u0647\u0645\u0643. \u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0648\u0627\u0644\u0633\u0639\u0631 \u0628\u0633\u061f",
     detectedIntent: "negative_objection",
-    metadata: { reservation_cta_suppressed: true },
+    metadata: { reservation_cta_suppressed: true, ...orchestratedReplyMetadata(orchestrated) },
   });
   return { handled: true, reason: "negative_objection" };
 };
@@ -7739,7 +8173,9 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
       : (visualSearchSession?.images || []).map((image) => ({ imageUrl: image.url })),
     correctionText: visualCorrection?.query || "",
     previousVisualAttributes: memory.lastVisualAttributes || memory.lastVisualAnalysis || null,
-    preferredSize: memory.activeSize || memory.selectedSize || memory.preferredSize || "",
+    preferredSize: (memory.resolvedQuestionType === QUESTION_TYPES.SIZE_QUESTION)
+      ? (memory.activeSize || memory.selectedSize || "")
+      : (Array.isArray(memory.preferredSizes) ? memory.preferredSizes[0] : memory.preferredSize || ""),
     customerPreferenceProfile: {
       ...memory,
       customerContext: memory.customerContext || {},
@@ -8449,6 +8885,38 @@ const handleAlternativesIfMatched = async ({ config, message } = {}) => {
   return { handled: true, reason: "visual_alternatives_sent" };
 };
 
+const handleProductLinkIfMatched = async ({ config, message } = {}) => {
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  const resolved = message.resolvedQuestion || memory.resolvedQuestion || resolveCustomerQuestion({ message, memory });
+  if (resolved.intent !== QUESTION_TYPES.LINK_QUESTION) return null;
+  const baseCard = memory.lastProductCard || (Array.isArray(memory.lastProductCards) ? memory.lastProductCards[0] : null);
+  if (!baseCard) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: "لينك لأنهي موديل؟ ابعتلي اسمه أو صورته.",
+      detectedIntent: "product_link_missing_context",
+      metadata: { resolvedQuestionType: resolved.intent, replyDecisionReason: "missing_product_context" },
+    });
+    return { handled: true, reason: "product_link_missing_context" };
+  }
+  const [card] = await resolveProductCardLinks(normalizeProductCards([baseCard], { limit: 1 }), { tenantId: config.tenant_id });
+  const url = text(card?.product_url || card?.url || baseCard.product_url || baseCard.url || "");
+  await sendAndLogMetaText({
+    config,
+    message,
+    text: url ? `ده اللينك:\n${url}` : "اللينك مش جاهز عندي حالًا، ابعتلي اسم الموديل وأجيبهولك.",
+    detectedIntent: "product_link_request",
+    metadata: {
+      resolvedQuestionType: resolved.intent,
+      replyDecisionReason: url ? "product_link_sent" : "missing_product_url",
+      product_id: baseCard.product_id || baseCard.id || null,
+      product_url: url,
+    },
+  });
+  return { handled: true, reason: url ? "product_link_sent" : "product_link_missing_url" };
+};
+
 const handleOtherColorsIfMatched = async ({ config, message } = {}) => {
   if (!detectOtherColorsRequest(message.message_text) && !detectAllColorsRequest(message.message_text)) return null;
   const context = resolveContextProductCard({ message, allowAmbiguous: true });
@@ -8500,12 +8968,18 @@ const handleOtherColorsIfMatched = async ({ config, message } = {}) => {
     });
     return { handled: true, reason: "other_colors_empty" };
   }
+  const orchestrated = buildOrchestratedReply({
+    message,
+    intent: AI_INTENTS.COLOR_REQUEST,
+    categoryContext: { availableColors: cards.map((card) => card.color).filter(Boolean) },
+  });
   await sendAndLogProductCards({
     config,
     message,
     productCards: cards,
     detectedIntent: "other_colors",
-    metadata: { product_card_limit: limit, other_colors_requested: true },
+    introText: orchestrated.replyText,
+    metadata: { product_card_limit: limit, other_colors_requested: true, ...orchestratedReplyMetadata(orchestrated) },
   });
   return { handled: true, reason: "other_colors_sent" };
 };
@@ -8583,13 +9057,18 @@ const handleColorSelectionIfMatched = async ({ config, message } = {}) => {
     color: matchedCard.color || requestedColor,
     selection_stage: "color_selected",
   });
+  const orchestrated = buildOrchestratedReply({
+    message,
+    intent: AI_INTENTS.COLOR_REQUEST,
+    categoryContext: { selectedColor: matchedCard.color || requestedColor, availableSizes: matchedCard.sizes || matchedCard.available_sizes || [] },
+  });
   await sendAndLogProductCards({
     config,
     message,
     productCards: [matchedCard],
     detectedIntent: "selection_color_selected",
-    introText: `\u062a\u0645\u0627\u0645\u060c \u062f\u0647 \u0627\u0644\u0644\u0648\u0646 ${selectionColorDisplay(requestedColor)}`,
-    metadata: { product_card_limit: 1, selected_color: matchedCard.color || requestedColor },
+    introText: orchestrated.replyText || `\u062a\u0645\u0627\u0645\u060c \u062f\u0647 \u0627\u0644\u0644\u0648\u0646 ${selectionColorDisplay(requestedColor)}`,
+    metadata: { product_card_limit: 1, selected_color: matchedCard.color || requestedColor, ...orchestratedReplyMetadata(orchestrated) },
   });
   return { handled: true, reason: "selection_color_selected" };
 };
@@ -8620,9 +9099,14 @@ const handleSizesIfMatched = async ({ config, message } = {}) => {
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
   const sizes = availableSizesForProduct(product, baseCard);
   const colorLabel = text(baseCard.color);
-  const replyText = sizes.length
+  const orchestrated = buildOrchestratedReply({
+    message,
+    intent: AI_INTENTS.SIZE_CHECK,
+    categoryContext: { availableSizes: sizes, selectedProduct: baseCard, selectedColor: colorLabel },
+  });
+  const replyText = orchestrated?.replyText || (sizes.length
     ? `\u0627\u0644\u0645\u062a\u0627\u062d ${colorLabel ? `\u0641\u064a \u0627\u0644\u0644\u0648\u0646 ${colorLabel}` : "\u0641\u064a \u0627\u0644\u0644\u0648\u0646 \u062f\u0647"}: ${sizes.join("\u060c ")}.\n\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629 \u0644\u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f\n\u0648\u0644\u0627 \u0623\u0648\u0631\u064a\u0643 \u0628\u0627\u0642\u064a \u0627\u0644\u0623\u0644\u0648\u0627\u0646\u061f`
-    : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
+    : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f");
   updateConversationMemory(message.external_conversation_id, {
     checkoutStage: "product_details",
     buyingStage: "product_details",
@@ -8662,7 +9146,7 @@ const handleSizesIfMatched = async ({ config, message } = {}) => {
     message,
     text: replyText,
     detectedIntent: "sizes_request",
-    metadata: { checkout_stage: "product_details", sizes },
+    metadata: { checkout_stage: "product_details", sizes, ...orchestratedReplyMetadata(orchestrated) },
   });
   return { handled: true, reason: "sizes_answered" };
 };
@@ -8674,13 +9158,22 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     channel: message?.channel,
     text: message?.message_text || "",
   });
+  const memoryForSize = getConversationMemory(message.external_conversation_id) || {};
+  const sizeGuard = shouldRunSizeCheck(message.message_text, memoryForSize);
+  if (!sizeGuard.allowed) {
+    console.log("[size-check] blocked", {
+      tenant_id: config?.tenant_id,
+      conversation_id: message?.external_conversation_id,
+      reason: sizeGuard.reason,
+      message_text: message?.message_text || "",
+    });
+    return null;
+  }
   const explicitRequestedSize = extractShoeSize(message.message_text);
   let requestedSize = explicitRequestedSize;
-  const memoryForSize = getConversationMemory(message.external_conversation_id) || {};
-  const usedPreferredSize = !explicitRequestedSize && Array.isArray(memoryForSize.preferredSizes) && memoryForSize.preferredSizes[0];
-  if (!requestedSize && Array.isArray(memoryForSize.preferredSizes) && memoryForSize.preferredSizes[0]) {
-    requestedSize = text(memoryForSize.preferredSizes[0]);
-  }
+  const reuseSize = shouldReuseSelectedSize(message.message_text, memoryForSize);
+  if (!requestedSize && reuseSize.allowed && memoryForSize.selectedSize) requestedSize = text(memoryForSize.selectedSize);
+  if (!requestedSize && reuseSize.allowed && memoryForSize.activeSize) requestedSize = text(memoryForSize.activeSize);
   console.log("[size-check] requested size", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -8688,7 +9181,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     explicit: Boolean(explicitRequestedSize),
   });
   const availabilityKeyword = hasTerm(message.message_text, ["\u0645\u062a\u0648\u0641\u0631", "\u0641\u064a\u0647", "\u0641\u064a", "\u0645\u0648\u062c\u0648\u062f", "available"]);
-  if (!explicitRequestedSize && !availabilityKeyword) return null;
+  if (!requestedSize && !availabilityKeyword) return null;
   const context = resolveContextProductCard({ message });
   if (!context.card && !context.ambiguous) {
     console.log("[selection-state] clarification needed", {
@@ -8805,6 +9298,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     stock_check_source: memorySizes.length ? "memory_product_card_sizes_from_product_variants" : "product_variants.stock",
     available: hasSize,
   });
+  const usedPreferredSize = false;
   let replyText = hasSize
     ? [
       customerFirstName ? `تمام يا ${customerFirstName}.` : "",
@@ -8824,10 +9318,22 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
       ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
       : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
   const selectedColorLabel = selectionColorDisplay(canonicalColor(selectedVariantForSize?.color || baseCard.color || colorLabel || ""));
+  const orchestrated = buildOrchestratedReply({
+    message,
+    intent: AI_INTENTS.SIZE_CHECK,
+    categoryContext: {
+      selectedProduct: baseCard,
+      selectedSize: requestedSize,
+      selectedColor: selectedColorLabel,
+      availableSizes: sizes,
+      price: priceText,
+      productContext: { sizeAvailable: hasSize },
+    },
+  });
   replyText = hasSize
-    ? `\u0623\u064a\u0648\u0647 \u0645\u0642\u0627\u0633 ${requestedSize} \u0645\u062a\u0648\u0641\u0631 \u0641\u064a \u0627\u0644\u0644\u0648\u0646 ${selectedColorLabel} \u2705\n\u062a\u062d\u0628 \u0623\u062d\u062c\u0632\u0647\u0648\u0644\u0643\u061f`
+    ? orchestrated.replyText
     : sizes.length
-      ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a \u0627\u0644\u0644\u0648\u0646 ${selectedColorLabel}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
+      ? orchestrated.replyText
       : replyText;
   console.log("[size-check] reply built", {
     tenant_id: config.tenant_id,
@@ -8926,7 +9432,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
       message,
       text: replyText,
       detectedIntent: hasSize ? "contextual_size_available" : "contextual_size_unavailable",
-      metadata: { product_id: baseCard.product_id || null, variant_id: baseCard.variant_id || null, color: baseCard.color || "", requested_size: requestedSize, available_sizes: sizes, available: hasSize },
+      metadata: { product_id: baseCard.product_id || null, variant_id: baseCard.variant_id || null, color: baseCard.color || "", requested_size: requestedSize, available_sizes: sizes, available: hasSize, ...orchestratedReplyMetadata(orchestrated) },
     });
     console.log(sendResult?.dedupe_skipped ? "[size-check] skipped" : "[size-check] sent", {
       tenant_id: config.tenant_id,
@@ -10295,7 +10801,38 @@ const handleSalesCloserV2IfMatched = async ({ config, message } = {}) => {
 
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
   if (!product) return null;
-  const selectedSize = text(memory.activeSize || memory.selectedSize || extractShoeSize(message.message_text) || "");
+  const explicitSize = extractShoeSize(message.message_text) || "";
+  const reuseSize = shouldReuseSelectedSize(message.message_text, memory);
+  const selectedSize = text(explicitSize || (reuseSize.allowed ? (memory.activeSize || memory.selectedSize) : "") || "");
+  if (shouldStartCheckout && !selectedSize) {
+    const sizes = availableSizesForProduct(product, baseCard);
+    if (sizes.length > 1) {
+      updateConversationMemory(conversationId, {
+        buyingStage: "buying_intent",
+        checkoutStage: "buying_intent",
+        selectedProductId: product.id || baseCard.product_id || null,
+        activeProductId: product.id || baseCard.product_id || null,
+        selectedVariantId: baseCard.variant_id || null,
+        activeVariantId: baseCard.variant_id || null,
+        selectedColor: baseCard.color || "",
+        activeColor: baseCard.color || "",
+        selectedSize: "",
+        activeSize: "",
+        buyIntentDetected: true,
+        bookingConfirmationAsked: false,
+        lastIntent: "checkout_select_size",
+      });
+      const orchestrated = buildOrchestratedReply({ message, intent: "BUYING_INTENT", categoryContext: { availableSizes: sizes, selectedProduct: baseCard } });
+      await sendAndLogMetaText({
+        config,
+        message,
+        text: orchestrated.replyText,
+        detectedIntent: "checkout_select_size",
+        metadata: { checkout_stage: "buying_intent", sizes, ...orchestratedReplyMetadata(orchestrated) },
+      });
+      return { handled: true, reason: "checkout_size_requested" };
+    }
+  }
   const variant = chooseVariantForSize(product, selectedSize, memory.activeVariantId || memory.selectedVariantId || baseCard.variant_id);
   const selectedColor = variant?.color || memory.activeColor || memory.selectedColor || baseCard.color || "";
   const priceText = formatSalesCloserV2Price(variant?.price || product.product_price || baseCard.price);
@@ -10542,12 +11079,13 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
       conversationId,
       reason: "sales_brain_price_objection",
     });
+    const orchestrated = buildOrchestratedReply({ message, intent: "PRICE_OBJECTION" });
     await sendAndLogMetaText({
       config,
       message,
-      text: "فاهمك، السعر مقابل الخامة والتقفيل والمقاس المتاح. تحب أوريك بدائل قريبة في نفس الميزانية؟",
+      text: orchestrated.replyText,
       detectedIntent: "sales_price_objection",
-      metadata: { buying_stage: stage, product_id: baseCard?.product_id || baseCard?.id || null },
+      metadata: { buying_stage: stage, product_id: baseCard?.product_id || baseCard?.id || null, ...orchestratedReplyMetadata(orchestrated) },
     });
     return { handled: true, reason: "sales_price_objection" };
   }
@@ -10560,7 +11098,38 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
 
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
   if (!product) return null;
-  const selectedSize = text(memory.activeSize || memory.selectedSize || extractShoeSize(message.message_text) || "");
+  const explicitSize = extractShoeSize(message.message_text) || "";
+  const reuseSize = shouldReuseSelectedSize(message.message_text, memory);
+  const selectedSize = text(explicitSize || (reuseSize.allowed ? (memory.activeSize || memory.selectedSize) : "") || "");
+  if (!shouldCollect && !shouldFinalize && buyingSignal && detectReservationAffirmation(message.message_text) && !selectedSize) {
+    const sizes = availableSizesForProduct(product, baseCard);
+    if (sizes.length > 1) {
+      updateConversationMemory(conversationId, {
+        buyingStage: "buying_intent",
+        checkoutStage: "buying_intent",
+        selectedProductId: product.id || baseCard.product_id || null,
+        activeProductId: product.id || baseCard.product_id || null,
+        selectedVariantId: baseCard.variant_id || null,
+        activeVariantId: baseCard.variant_id || null,
+        selectedColor: baseCard.color || "",
+        activeColor: baseCard.color || "",
+        selectedSize: "",
+        activeSize: "",
+        buyIntentDetected: true,
+        bookingConfirmationAsked: false,
+        lastIntent: "checkout_select_size",
+      });
+      const orchestrated = buildOrchestratedReply({ message, intent: "BUYING_INTENT", categoryContext: { availableSizes: sizes, selectedProduct: baseCard } });
+      await sendAndLogMetaText({
+        config,
+        message,
+        text: orchestrated.replyText,
+        detectedIntent: "checkout_select_size",
+        metadata: { checkout_stage: "buying_intent", sizes, ...orchestratedReplyMetadata(orchestrated) },
+      });
+      return { handled: true, reason: "checkout_size_requested" };
+    }
+  }
   const variant = chooseVariantForSize(product, selectedSize, memory.activeVariantId || memory.selectedVariantId || baseCard.variant_id);
   const selectedColor = variant?.color || memory.activeColor || memory.selectedColor || baseCard.color || "";
   const priceText = formatSalesPrice(variant?.price || product.product_price || baseCard.price);
@@ -10866,6 +11435,15 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
 
 const handleCheckoutContinuationIfMatched = async ({ config, message } = {}) => {
   const memory = getConversationMemory(message.external_conversation_id) || {};
+  const checkoutGuard = shouldContinueCheckout(message, memory);
+  console.log("[checkout-guard]", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    message: checkoutGuard.message,
+    continueCheckout: checkoutGuard.continueCheckout,
+    reason: checkoutGuard.reason,
+  });
+  if (!checkoutGuard.continueCheckout) return null;
   const decision = evaluateMetaCheckoutContinuation({ memory, messageText: message.message_text });
   if (!decision.handled) return null;
 
@@ -10921,10 +11499,13 @@ const handleCheckoutContinuationIfMatched = async ({ config, message } = {}) => 
     });
   }
 
+  const orchestrated = decision.nextCheckoutStage === "checkout"
+    ? buildOrchestratedReply({ message, intent: "CHECKOUT", categoryContext: { selectedSize: decision.selectedSize } })
+    : null;
   const checkoutMessageResult = await sendAndLogMetaText({
     config,
     message,
-    text: decision.replyText,
+    text: orchestrated?.replyText || decision.replyText,
     detectedIntent: decision.nextCheckoutStage === "checkout" ? "checkout_info_requested" : "booking_confirmation_requested",
     metadata: {
       previous_checkout_stage: decision.previousCheckoutStage,
@@ -10937,6 +11518,7 @@ const handleCheckoutContinuationIfMatched = async ({ config, message } = {}) => 
       generic_size_flow_skipped: true,
       generic_size_flow_skipped_reason: decision.skipGenericSizeFlowReason || "checkout_continuation",
       order_id: draftResult.order_id || null,
+      ...orchestratedReplyMetadata(orchestrated),
     },
   });
   if (decision.nextCheckoutStage === "checkout") {
@@ -10978,10 +11560,11 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
   });
   const memory = getConversationMemory(message.external_conversation_id) || {};
   const previousCheckoutStage = text(memory.checkoutStage || "browsing");
-  const selectedSizeFromMemory = text(memory.selectedSize || "");
   const confirmationDetected = detectCheckoutConfirmation(message.message_text);
   const explicitSizeChange = detectExplicitSizeChange(message.message_text);
   const requestedSize = extractShoeSize(message.message_text) || "";
+  const reuseSize = shouldReuseSelectedSize(message.message_text, memory);
+  const selectedSizeFromMemory = text(reuseSize.allowed ? (memory.selectedSize || memory.activeSize || "") : "");
   const sizeFlowReopenedReason = explicitSizeChange
     ? "explicit_size_change"
     : !checkoutStageAtLeast(previousCheckoutStage, "product_details")
@@ -11079,12 +11662,14 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     return null;
   }
   const availableSizes = availableSizesForProduct(product, baseCard);
-  if (!requestedSize && availableSizes.length > 1 && !checkoutStageAtLeast(previousCheckoutStage, "product_details")) {
+  if (!requestedSize && !selectedSizeFromMemory && availableSizes.length > 1) {
     updateConversationMemory(message.external_conversation_id, {
       checkoutStage: "buying_intent",
       selectedProductId: product.id || baseCard.product_id || null,
       selectedVariantId: baseCard.variant_id || null,
       selectedColor: baseCard.color || "",
+      selectedSize: "",
+      activeSize: "",
       buyIntentDetected: true,
     });
     console.log("ai_inbox_checkout_stage", {
@@ -11102,16 +11687,17 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
       sessionId: message.external_conversation_id,
       checkout_stage: "buying_intent",
     });
+    const orchestrated = buildOrchestratedReply({ message, intent: "BUYING_INTENT", categoryContext: { availableSizes: availableSizes, selectedProduct: baseCard } });
     await sendAndLogMetaText({
       config,
       message,
-      text: `تمام، تحب مقاس كام؟\nالمتاح: ${availableSizes.join("، ")}.`,
+      text: orchestrated.replyText,
       detectedIntent: "checkout_select_size",
-      metadata: { checkout_stage: "buying_intent", sizes: availableSizes },
+      metadata: { checkout_stage: "buying_intent", sizes: availableSizes, ...orchestratedReplyMetadata(orchestrated) },
     });
     return { handled: true, reason: "checkout_size_requested" };
   }
-  if (!requestedSize && availableSizes.length > 1 && checkoutStageAtLeast(previousCheckoutStage, "product_details")) {
+  if (!requestedSize && !selectedSizeFromMemory && availableSizes.length > 1 && checkoutStageAtLeast(previousCheckoutStage, "product_details")) {
     console.log("ai_inbox_checkout_size_flow_blocked", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
@@ -11394,6 +11980,7 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
     handleBrandCorrectionIfMatched,
     handleNegativeIntentIfMatched,
     handleCheckoutDataIfMatched,
+    handleProductLinkIfMatched,
     handleColorSelectionIfMatched,
     handleContextualSizeCheckIfMatched,
     handleSalesCloserV2IfMatched,
@@ -11410,7 +11997,7 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
   ];
   const routeMap = {
     [AI_INTENTS.VISUAL_SEARCH]: [handleVisualSearchIfMatched],
-    [AI_INTENTS.PRODUCT_SEARCH]: [handleColorSelectionIfMatched, handleProductSearchIfMatched],
+    [AI_INTENTS.PRODUCT_SEARCH]: [handleProductLinkIfMatched, handleColorSelectionIfMatched, handleProductSearchIfMatched],
     [AI_INTENTS.PRICE_CHECK]: [handleSalesCloserV2IfMatched, handleSalesBrainBuyingStageIfMatched, handleOrderDraftIfMatched],
     [AI_INTENTS.SIZE_CHECK]: [handleContextualSizeCheckIfMatched, handleSizesIfMatched, handleSizeAvailabilityLinkIfMatched],
     [AI_INTENTS.COLOR_REQUEST]: [handleColorSelectionIfMatched, handleOtherColorsIfMatched],
@@ -12510,6 +13097,15 @@ export const processMetaWebhook = async ({ req } = {}) => {
           message,
         });
         runtimeMemory = getConversationMemory(message.external_conversation_id) || runtimeMemory;
+        const resolvedQuestion = resolveCustomerQuestion({ message, memory: runtimeMemory });
+        logQuestionResolver(resolvedQuestion);
+        updateConversationMemory(message.external_conversation_id, {
+          resolvedQuestion,
+          resolvedQuestionType: resolvedQuestion.intent,
+          replyDecisionReason: resolvedQuestion.reason,
+        });
+        runtimeMemory = getConversationMemory(message.external_conversation_id) || runtimeMemory;
+        message.resolvedQuestion = resolvedQuestion;
         const classification = classifyMetaConversationIntent({ message, memory: runtimeMemory });
         latestDebugClassification = classification;
         message.contextManager = contextDecision;
@@ -12587,6 +13183,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
               lastTopicChangeAt: (getConversationMemory(message.external_conversation_id) || {}).lastTopicChangeAt || "",
               contextSwitchConfidence: contextDecision.confidence,
               switched: contextDecision.switched,
+              resolvedQuestionType: resolvedQuestion.intent,
+              replyDecisionReason: resolvedQuestion.reason,
               reply_preview: handled.reply_preview || handled.answer || "",
               skipped_duplicate: false,
               handled_reason: handled.reason || "",
@@ -12737,7 +13335,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
         product_ids: productCards.map((product) => product.product_id || product.id || null).filter(Boolean),
       });
       const memory = getConversationMemory(message.external_conversation_id) || {};
-      const selectedSize = text(memory.selectedSize);
+      const reuseSize = shouldReuseSelectedSize(message.message_text, memory);
+      const selectedSize = text(reuseSize.allowed ? memory.selectedSize : "");
       const prompt = checkoutStageAtLeast(memory.checkoutStage, "checkout")
         ? CHECKOUT_INFO_REPLY
         : memory.bookingConfirmationAsked === true && selectedSize
