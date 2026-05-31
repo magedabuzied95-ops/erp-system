@@ -4846,7 +4846,7 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
     selectedVariantTitle: current.selectedVariantTitle || (selectedCard ? selectedCard.title || selectedCard.name || "" : ""),
     selectedAvailableSizes: current.selectedAvailableSizes || (selectedCard ? selectedCard.sizes || [] : []),
     selectedImageUrl: current.selectedImageUrl || (selectedCard ? selectedCard.image_url || "" : ""),
-    selectionStage: shouldLockSingleCard ? "product_found" : "product_found",
+    selectionStage: text(lastIntent).includes("color") ? "color_selected" : "product_found",
     lastShownProductIds: [...viewedProductIds],
     lastShownVariantIds: [...new Set(cards.map((card) => card.variant_id).filter(Boolean).map(String))],
     buyingStage: checkoutStageAtLeast(current.checkoutStage, "buying_intent")
@@ -5033,7 +5033,16 @@ const colorsClarificationText = (cards = []) => {
 const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}) => {
   const conversationId = message.external_conversation_id;
   const memory = getConversationMemory(conversationId) || {};
-  const cards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
+  const cards = (Array.isArray(memory.lastProductCards) && memory.lastProductCards.length ? memory.lastProductCards : [])
+    .concat(!Array.isArray(memory.lastProductCards) || memory.lastProductCards.length ? [] : (Array.isArray(memory.lastShownCards) ? memory.lastShownCards.map((card) => ({
+      product_id: card.productId || null,
+      variant_id: card.variantId || null,
+      color: card.color || "",
+      title: card.title || "",
+      name: card.title || "",
+      sizes: card.sizes || [],
+      image_url: card.imageUrl || "",
+    })) : []));
   const replyTo = inboundReplyToMessageId(message);
   if (replyTo) {
     console.log("[reply-context] detected", {
@@ -5204,7 +5213,17 @@ const lockProductContext = ({ conversationId, card = {}, stage = "product_select
 };
 
 const persistentAiMemoryFromRuntime = (memory = {}) => {
-  const cards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
+  const cards = Array.isArray(memory.lastProductCards) && memory.lastProductCards.length
+    ? memory.lastProductCards
+    : (Array.isArray(memory.lastShownCards) ? memory.lastShownCards.map((card) => ({
+        product_id: card.productId || null,
+        variant_id: card.variantId || null,
+        color: card.color || "",
+        title: card.title || "",
+        name: card.title || "",
+        sizes: card.sizes || [],
+        image_url: card.imageUrl || "",
+      })) : []);
   const activeCard = memory.lastProductCard || cards[0] || {};
   const activeProductId = memory.activeProductId || memory.selectedProductId || activeCard.product_id || activeCard.id || null;
   const activeVariantId = memory.activeVariantId || memory.selectedVariantId || activeCard.variant_id || null;
@@ -5278,14 +5297,14 @@ const runtimeMemoryFromPersistent = (state = {}) => {
     };
   }
   return {
-    activeProductId: state.activeProductId || null,
-    activeVariantId: state.activeVariantId || null,
-    activeColor: text(state.activeColor || ""),
-    activeSize: text(state.activeSize || ""),
-    selectedProductId: state.activeProductId || null,
-    selectedVariantId: state.activeVariantId || null,
-    selectedColor: text(state.activeColor || ""),
-    selectedSize: text(state.activeSize || ""),
+    activeProductId: state.activeProductId || state.selectedProductId || null,
+    activeVariantId: state.activeVariantId || state.selectedVariantId || null,
+    activeColor: text(state.activeColor || state.selectedColor || ""),
+    activeSize: text(state.activeSize || state.selectedSize || ""),
+    selectedProductId: state.selectedProductId || state.activeProductId || null,
+    selectedVariantId: state.selectedVariantId || state.activeVariantId || null,
+    selectedColor: text(state.selectedColor || state.activeColor || ""),
+    selectedSize: text(state.selectedSize || state.activeSize || ""),
     selectionStage: state.selectionStage || normalizeCheckoutStage(state.buyingStage || "browsing"),
     selectedProductName: text(state.selectedProductName || ""),
     selectedVariantTitle: text(state.selectedVariantTitle || ""),
@@ -7675,6 +7694,89 @@ const handleOtherColorsIfMatched = async ({ config, message } = {}) => {
   return { handled: true, reason: "other_colors_sent" };
 };
 
+const handleColorSelectionIfMatched = async ({ config, message } = {}) => {
+  const requestedColor = detectSelectionColor(message.message_text) || detectExplicitColor(message.message_text);
+  if (!requestedColor) return null;
+  const conversationId = message.external_conversation_id;
+  const memory = getConversationMemory(conversationId) || {};
+  const cards = Array.isArray(memory.lastProductCards) && memory.lastProductCards.length
+    ? memory.lastProductCards
+    : (Array.isArray(memory.lastShownCards) ? memory.lastShownCards.map((card) => ({
+        product_id: card.productId || null,
+        variant_id: card.variantId || null,
+        color: card.color || "",
+        title: card.title || "",
+        name: card.title || "",
+        sizes: card.sizes || [],
+        image_url: card.imageUrl || "",
+      })) : []);
+  if (!cards.length) return null;
+  const matchedCard = cards.find((card) => selectionCardMatchesColor(card, requestedColor) || cardMatchesColor(card, requestedColor));
+  if (!matchedCard) {
+    const availableColors = [...new Set(cards.map((card) => text(card.color)).filter(Boolean))].slice(0, 6);
+    console.log("[selection-state] clarification needed", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      reason: "color_not_in_last_shown_cards",
+      requested_color: requestedColor,
+      available_colors: availableColors,
+    });
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: availableColors.length
+        ? `\u0627\u0644\u0644\u0648\u0646 \u062f\u0647 \u0645\u0634 \u0638\u0627\u0647\u0631 \u0641\u064a \u0627\u0644\u0645\u062a\u0627\u062d. \u0627\u0644\u0623\u0644\u0648\u0627\u0646 \u0627\u0644\u0645\u0648\u062c\u0648\u062f\u0629: ${availableColors.join("\u060c ")}`
+        : "\u0627\u0644\u0644\u0648\u0646 \u062f\u0647 \u0645\u0634 \u0648\u0627\u0636\u062d \u0639\u0646\u062f\u064a \u062d\u0627\u0644\u064a\u064b\u0627.",
+      detectedIntent: "selection_color_clarification",
+      metadata: { requested_color: requestedColor, available_colors: availableColors },
+    });
+    return { handled: true, reason: "selection_color_clarification" };
+  }
+  updateConversationMemory(conversationId, {
+    selectedProductId: matchedCard.product_id || matchedCard.id || null,
+    selectedVariantId: matchedCard.variant_id || null,
+    selectedColor: matchedCard.color || requestedColor,
+    selectedSize: "",
+    selectedProductName: matchedCard.title || matchedCard.name || "",
+    selectedVariantTitle: matchedCard.title || matchedCard.name || "",
+    selectedAvailableSizes: matchedCard.sizes || matchedCard.available_sizes || [],
+    selectedImageUrl: matchedCard.image_url || "",
+    activeProductId: matchedCard.product_id || matchedCard.id || null,
+    activeVariantId: matchedCard.variant_id || null,
+    activeColor: matchedCard.color || requestedColor,
+    activeSize: "",
+    selectionStage: "color_selected",
+    buyingStage: "product_details",
+    checkoutStage: "product_details",
+    lastProductCard: matchedCard,
+    contextLocked: true,
+    lastIntent: "color_selection",
+  });
+  persistAiConversationMemory({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId,
+    reason: "selection_color_selected",
+  });
+  console.log("[selection-state] color selected", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    product_id: matchedCard.product_id || matchedCard.id || null,
+    variant_id: matchedCard.variant_id || null,
+    color: matchedCard.color || requestedColor,
+    selection_stage: "color_selected",
+  });
+  await sendAndLogProductCards({
+    config,
+    message,
+    productCards: [matchedCard],
+    detectedIntent: "selection_color_selected",
+    introText: `\u062a\u0645\u0627\u0645\u060c \u062f\u0647 \u0627\u0644\u0644\u0648\u0646 ${selectionColorDisplay(requestedColor)}`,
+    metadata: { product_card_limit: 1, selected_color: matchedCard.color || requestedColor },
+  });
+  return { handled: true, reason: "selection_color_selected" };
+};
+
 const handleSizesIfMatched = async ({ config, message } = {}) => {
   const keyword = detectSizesRequest(message.message_text);
   if (!keyword) return null;
@@ -7772,6 +7874,12 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   if (!explicitRequestedSize && !availabilityKeyword) return null;
   const context = resolveContextProductCard({ message });
   if (!context.card && !context.ambiguous) {
+    console.log("[selection-state] clarification needed", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      reason: "size_check_without_product_context",
+      requested_size: requestedSize || "",
+    });
     console.log("[ai-memory] missing active product", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
@@ -7898,6 +8006,12 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     : sizes.length
       ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
       : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
+  const selectedColorLabel = selectionColorDisplay(canonicalColor(selectedVariantForSize?.color || baseCard.color || colorLabel || ""));
+  replyText = hasSize
+    ? `\u0623\u064a\u0648\u0647 \u0645\u0642\u0627\u0633 ${requestedSize} \u0645\u062a\u0648\u0641\u0631 \u0641\u064a \u0627\u0644\u0644\u0648\u0646 ${selectedColorLabel} \u2705\n\u062a\u062d\u0628 \u0623\u062d\u062c\u0632\u0647\u0648\u0644\u0643\u061f`
+    : sizes.length
+      ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a \u0627\u0644\u0644\u0648\u0646 ${selectedColorLabel}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
+      : replyText;
   console.log("[size-check] reply built", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -7920,6 +8034,13 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
       activeVariantId: selectedVariantForSize?.id || baseCard.variant_id || null,
       selectedColor: selectedVariantForSize?.color || baseCard.color || "",
       activeColor: selectedVariantForSize?.color || baseCard.color || "",
+      selectedProductId: baseCard.product_id || baseCard.id || null,
+      activeProductId: baseCard.product_id || baseCard.id || null,
+      selectedProductName: baseCard.title || baseCard.name || "",
+      selectedVariantTitle: baseCard.title || baseCard.name || "",
+      selectedAvailableSizes: sizes,
+      selectedImageUrl: baseCard.image_url || "",
+      selectionStage: "size_selected",
       buyingStage: "size_selected",
       checkoutStage: "size_selected",
       bookingConfirmationAsked: true,
@@ -7937,6 +8058,15 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
       from: "product_details",
       to: "size_selected",
       selected_size: requestedSize,
+    });
+    console.log("[selection-state] size selected", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      product_id: baseCard.product_id || baseCard.id || null,
+      variant_id: selectedVariantForSize?.id || baseCard.variant_id || null,
+      color: selectedVariantForSize?.color || baseCard.color || "",
+      selected_size: requestedSize,
+      selection_stage: "size_selected",
     });
   }
   persistAiConversationMemory({
@@ -9258,6 +9388,7 @@ const handleSalesCloserV2IfMatched = async ({ config, message } = {}) => {
       updateConversationMemory(conversationId, {
         buyingStage: "checkout_collecting",
         checkoutStage: "checkout_collecting",
+        selectionStage: "checkout_collecting",
       });
       console.log("[sales-closer-v2] stage changed", {
         tenant_id: config.tenant_id,
@@ -9317,6 +9448,7 @@ const handleSalesCloserV2IfMatched = async ({ config, message } = {}) => {
       orderDraftId: draft?.order?.id || null,
       buyingStage: "order_created",
       checkoutStage: "order_created",
+      selectionStage: "order_ready",
       lastIntent: "sales_closer_v2_order_created",
     });
     persistAiConversationMemory({
@@ -9382,6 +9514,7 @@ const handleSalesCloserV2IfMatched = async ({ config, message } = {}) => {
     activeSize: selectedSize,
     buyingStage: nextStage,
     checkoutStage: nextStage,
+    selectionStage: nextStage === "order_ready" ? "order_ready" : "checkout_collecting",
     pendingAction: reusedAddressNeedsConfirmation ? "confirm_reused_checkout_fields" : "",
     reusedCheckoutFieldsConfirmed: confirmingReusedCheckoutFields || memory.reusedCheckoutFieldsConfirmed === true,
     bookingConfirmationAsked: true,
@@ -10333,6 +10466,7 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
     handleBrandCorrectionIfMatched,
     handleNegativeIntentIfMatched,
     handleCheckoutDataIfMatched,
+    handleColorSelectionIfMatched,
     handleContextualSizeCheckIfMatched,
     handleSalesCloserV2IfMatched,
     handleSalesBrainBuyingStageIfMatched,
@@ -10348,10 +10482,10 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
   ];
   const routeMap = {
     [AI_INTENTS.VISUAL_SEARCH]: [handleVisualSearchIfMatched],
-    [AI_INTENTS.PRODUCT_SEARCH]: [handleProductSearchIfMatched],
+    [AI_INTENTS.PRODUCT_SEARCH]: [handleColorSelectionIfMatched, handleProductSearchIfMatched],
     [AI_INTENTS.PRICE_CHECK]: [handleSalesCloserV2IfMatched, handleSalesBrainBuyingStageIfMatched, handleOrderDraftIfMatched],
     [AI_INTENTS.SIZE_CHECK]: [handleContextualSizeCheckIfMatched, handleSizesIfMatched, handleSizeAvailabilityLinkIfMatched],
-    [AI_INTENTS.COLOR_REQUEST]: [handleOtherColorsIfMatched],
+    [AI_INTENTS.COLOR_REQUEST]: [handleColorSelectionIfMatched, handleOtherColorsIfMatched],
     [AI_INTENTS.MORE_IMAGES]: [handleMoreImagesIfMatched],
     [AI_INTENTS.ALTERNATIVES]: [handleAlternativesIfMatched],
     [AI_INTENTS.BUYING_INTENT]: [handleSalesCloserV2IfMatched, handleSalesBrainBuyingStageIfMatched, handleCheckoutContinuationIfMatched, handleOrderDraftIfMatched],
