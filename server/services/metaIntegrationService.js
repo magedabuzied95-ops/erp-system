@@ -238,9 +238,10 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
   const imageCount = imageAttachments(message.attachments || []).length;
   const size = extractShoeSize(messageText) || "";
   const aliasMatch = resolveExactModelAlias(messageText);
-  const brands = detectedCustomerBrands(messageText);
-  const models = distinctTextArray([aliasMatch.canonical_model, ...detectedCustomerModels(messageText)], 8);
-  const productName = aliasMatch.canonical_model || detectedCustomerProductName(messageText);
+  const contextEntities = detectContextTopicEntities(messageText);
+  const brands = distinctTextArray([...detectedCustomerBrands(messageText), ...(contextEntities.brand ? [contextEntities.brand] : [])], 8);
+  const models = distinctTextArray([aliasMatch.canonical_model, ...detectedCustomerModels(messageText), ...(contextEntities.model ? [contextEntities.model] : [])], 8);
+  const productName = aliasMatch.canonical_model || contextEntities.productName || detectedCustomerProductName(messageText);
   const categories = detectedCustomerCategories(messageText);
   const orderNumber = text((messageText.match(/(?:#|order|اوردر|أوردر|طلب|رقم)\s*([A-Z0-9-]{3,})/i) || [])[1] || "");
   const color = text((messageText.match(/(اسود|أسود|ابيض|أبيض|جراي|رمادي|احمر|أحمر|اخضر|أخضر|ازرق|أزرق|بيج|black|white|grey|gray|red|green|blue|beige)/i) || [])[1] || "");
@@ -822,10 +823,17 @@ const maskPhoneForDebug = (value = "") => {
 
 const compactMemoryForDebug = (memory = {}) => ({
   buyingStage: text(memory.buyingStage || memory.checkoutStage || ""),
+  activeTopic: text(memory.activeTopic || ""),
   activeProductId: memory.activeProductId || memory.selectedProductId || null,
   activeVariantId: memory.activeVariantId || memory.selectedVariantId || null,
   activeSize: text(memory.activeSize || memory.selectedSize || ""),
   activeColor: text(memory.activeColor || memory.selectedColor || ""),
+  activeBrand: text(memory.activeBrand || ""),
+  activeCategory: text(memory.activeCategory || ""),
+  activeVisualSession: text(memory.activeVisualSession || memory.visualSearchSession?.id || ""),
+  lastTopicChangeAt: text(memory.lastTopicChangeAt || ""),
+  contextSwitchConfidence: memory.contextSwitchConfidence ?? null,
+  switched: memory.switched === true,
   lastShownProductIds: Array.isArray(memory.lastShownProductIds) ? memory.lastShownProductIds.slice(0, 12) : [],
   preferredSizes: Array.isArray(memory.preferredSizes) ? memory.preferredSizes.slice(0, 8) : [],
   preferredBrands: Array.isArray(memory.preferredBrands) ? memory.preferredBrands.slice(0, 12) : [],
@@ -853,6 +861,12 @@ const storeAiDebugEvent = async ({ tenantId, channel = "", conversationId = "", 
     outbound_signature: text(event.outbound_signature || event.outboundSignature || "").slice(0, 180),
     skip_reason: text(event.skip_reason || event.skipReason || ""),
     graph_api_called: event.graph_api_called === true || event.graphApiCalled === true,
+    activeTopic: text(event.activeTopic || event.active_topic || event.memory_changes?.activeTopic || ""),
+    lastTopicChangeAt: text(event.lastTopicChangeAt || event.last_topic_change_at || event.memory_changes?.lastTopicChangeAt || ""),
+    contextSwitchConfidence: Number.isFinite(Number(event.contextSwitchConfidence ?? event.context_switch_confidence))
+      ? Number(event.contextSwitchConfidence ?? event.context_switch_confidence)
+      : null,
+    switched: event.switched === true || event.context_switched === true,
   };
   const next = [safeEvent, ...current].slice(0, 20);
   await db.query(
@@ -4853,6 +4867,10 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
     imageUrl: card.image_url || "",
   }));
   const selectedCard = shouldLockSingleCard ? cards[0] : null;
+  const topicInfo = productTopicFromCard(selectedCard || cards[0] || {});
+  const topicChangedAt = topicInfo.topic && normalizeDedupeText(topicInfo.topic) !== normalizeDedupeText(current.activeTopic || "")
+    ? nowIso()
+    : current.lastTopicChangeAt || "";
   const nextMemory = updateConversationMemory(conversationId, {
     lastProductCards: cards,
     lastProductCard: cards[0],
@@ -4866,6 +4884,13 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
     viewedProductIds: [...viewedProductIds],
     lastProductQuery: messageText || current.lastProductQuery || current.lastVisualQuery || "",
     lastIntent: lastIntent || current.lastIntent || "",
+    activeTopic: topicInfo.topic || current.activeTopic || "",
+    activeBrand: topicInfo.brand || current.activeBrand || "",
+    activeCategory: topicInfo.category || current.activeCategory || "",
+    activeVisualSession: text(current.activeVisualSession || current.visualSearchSession?.id || ""),
+    lastTopicChangeAt: topicChangedAt,
+    contextSwitchConfidence: current.contextSwitchConfidence || 0,
+    switched: current.switched === true,
     contextLocked: current.contextLocked === true || shouldLockSingleCard,
     activeProductId: current.activeProductId || current.selectedProductId || (selectedCard ? selectedCard.product_id || null : null),
     activeVariantId: current.activeVariantId || current.selectedVariantId || (selectedCard ? selectedCard.variant_id || null : null),
@@ -5271,6 +5296,13 @@ const persistentAiMemoryFromRuntime = (memory = {}) => {
     buyingStage: normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || "browsing"),
     pendingAction: text(memory.pendingAction || ""),
     updatedAt: memory.updatedAt || nowIso(),
+    activeTopic: text(memory.activeTopic || ""),
+    activeBrand: text(memory.activeBrand || ""),
+    activeCategory: text(memory.activeCategory || ""),
+    activeVisualSession: text(memory.activeVisualSession || memory.visualSearchSession?.id || ""),
+    lastTopicChangeAt: text(memory.lastTopicChangeAt || ""),
+    contextSwitchConfidence: Number.isFinite(Number(memory.contextSwitchConfidence)) ? Number(memory.contextSwitchConfidence) : 0,
+    switched: memory.switched === true,
     lastImageUrl: text(memory.lastImageUrl || ""),
     lastVisualClarifiedImageUrl: text(memory.lastVisualClarifiedImageUrl || ""),
     lastVisualAttributes: memory.lastVisualAttributes || memory.lastVisualAnalysis || null,
@@ -5366,6 +5398,13 @@ const runtimeMemoryFromPersistent = (state = {}) => {
     buyingStage: normalizeCheckoutStage(state.buyingStage || "browsing"),
     checkoutStage: normalizeCheckoutStage(state.buyingStage || "browsing"),
     pendingAction: text(state.pendingAction || ""),
+    activeTopic: text(state.activeTopic || ""),
+    activeBrand: text(state.activeBrand || ""),
+    activeCategory: text(state.activeCategory || ""),
+    activeVisualSession: text(state.activeVisualSession || state.visualSearchSession?.id || ""),
+    lastTopicChangeAt: text(state.lastTopicChangeAt || ""),
+    contextSwitchConfidence: Number.isFinite(Number(state.contextSwitchConfidence)) ? Number(state.contextSwitchConfidence) : 0,
+    switched: state.switched === true,
     lastImageUrl: text(state.lastImageUrl || ""),
     lastVisualClarifiedImageUrl: text(state.lastVisualClarifiedImageUrl || ""),
     lastVisualAttributes: state.lastVisualAttributes || null,
@@ -5652,6 +5691,34 @@ const visualSearchQueryFromUnderstanding = (understanding = {}) => {
   if (/nike|\u0646\u0627\u064a\u0643/.test(normalized)) aliases.push("nike", "\u0646\u0627\u064a\u0643");
   if (/adidas|\u0627\u062f\u064a\u062f\u0627\u0633/.test(normalized)) aliases.push("adidas", "\u0627\u062f\u064a\u062f\u0627\u0633");
   return [...new Set([...aliases, ...baseTerms])].join(" ").replace(/\s+/g, " ").trim();
+};
+
+const clearProductSpecificContextPatch = () => ({
+  activeProductId: null,
+  activeVariantId: null,
+  activeColor: "",
+  activeSize: "",
+  selectedProductId: null,
+  selectedVariantId: null,
+  selectedColor: "",
+  selectedSize: "",
+  selectedProductName: "",
+  selectedVariantTitle: "",
+  selectedAvailableSizes: [],
+  selectedImageUrl: "",
+  lastProductCard: null,
+  contextLocked: false,
+});
+
+const productTopicFromCard = (card = {}) => {
+  const name = text(card.name || card.title || "");
+  const brand = text(card.brand || card.sourceBrand || card.vendor || "");
+  const category = text(card.category || card.product_type || card.type || "");
+  return {
+    topic: text([brand, name].filter(Boolean).join(" ")) || name || brand || category,
+    brand,
+    category,
+  };
 };
 
 const normalizedSearchText = (value = "") => text(value).toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, " ");
@@ -6940,6 +7007,9 @@ const productSearchKeywordsForClassification = (classification = {}) => {
   if (/north\s*face|نورث\s*فيس/i.test(keywords.join(" "))) {
     keywords.push("north face", "northface", "نورث فيس");
   }
+  if (/super\s*star|superstar|سوبر\s*ستار/i.test(keywords.join(" "))) {
+    keywords.push("adidas superstar", "superstar", "سوبر ستار");
+  }
   return distinctTextArray(keywords, 12);
 };
 
@@ -7400,6 +7470,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   updateConversationMemory(message.external_conversation_id, {
     lastImageUrl: imageUrl,
     visualSearchSession,
+    activeVisualSession: visualSearchSession?.id || "",
     pendingAction: "visual_search",
     ...(visualCorrection ? { lastVisualClarification: visualCorrection.query } : {}),
   });
@@ -7633,6 +7704,13 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     lastVisualAnalysis: visualAnalysis,
     lastVisualConfidence: visualAnalysis.confidence / 100,
     visualSearchSession,
+    activeVisualSession: visualSearchSession?.id || "",
+    activeTopic: visualSearchSession?.mergedAttributes
+      ? [visualSearchSession.mergedAttributes.brand, visualSearchSession.mergedAttributes.model, visualSearchSession.mergedAttributes.category].filter(Boolean).join(" ") || memory.activeTopic || "visual_search_image"
+      : memory.activeTopic || "visual_search_image",
+    activeBrand: visualSearchSession?.mergedAttributes?.brand || memory.activeBrand || "",
+    activeCategory: visualSearchSession?.mergedAttributes?.category || memory.activeCategory || "",
+    lastTopicChangeAt: memory.lastTopicChangeAt || nowIso(),
   });
   persistAiConversationMemory({ tenantId: config.tenant_id, channel: message.channel, conversationId: message.external_conversation_id, reason: "visual_attributes_extracted" });
   const searchQuery = visualCorrection
@@ -7856,6 +7934,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
         lastVisualAttributes: visualAnalysis,
         lastVisualMatches: exactCards.map((product) => product.product_id || product.id).filter(Boolean),
         visualSearchSession,
+        activeVisualSession: visualSearchSession?.id || "",
         visualSearchStage: decision.replyType,
         preferredColors: distinctTextArray([...(memory.preferredColors || []), exactCards[0]?.matched_variant_color, exactCards[0]?.color], 12),
         preferredBrands: distinctTextArray([...(memory.preferredBrands || []), exactCards[0]?.brand], 12),
@@ -8055,6 +8134,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     lastVisualAttributes: visualAnalysis,
     lastVisualMatches: selectedCards.map((product) => product.product_id || product.id).filter(Boolean),
     visualSearchSession,
+    activeVisualSession: visualSearchSession?.id || "",
     visualSearchStage: decision.replyType,
     preferredColors: distinctTextArray([...(memory.preferredColors || []), selectedCards[0]?.matched_variant_color, selectedCards[0]?.color], 12),
     preferredBrands: distinctTextArray([...(memory.preferredBrands || []), selectedCards[0]?.brand], 12),
@@ -9322,6 +9402,108 @@ const detectedCustomerCategories = (message = "") => {
   if (raw.includes("كروكس") || raw.includes("crocs")) categories.push("crocs");
   if (raw.includes("شنطة") || raw.includes("bag")) categories.push("bags");
   return distinctTextArray(categories, 8);
+};
+
+const detectContextTopicEntities = (message = "") => {
+  const raw = text(message).toLowerCase().replace(/\s+/g, " ");
+  const entity = { brand: "", model: "", productName: "", category: "" };
+  if (/\bsuper\s*star\b|\bsuperstar\b|سوبر\s*ستار|سوبرستار/.test(raw)) {
+    entity.brand = "Adidas";
+    entity.model = "Superstar";
+    entity.productName = "Adidas Superstar";
+  } else if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|جوردن\s*(?:4|٤|فور)/.test(raw)) {
+    entity.brand = "Jordan";
+    entity.model = "Jordan 4";
+    entity.productName = "Jordan 4";
+  } else if (/\bair\s*force\b|اير\s*فورس|إير\s*فورس/.test(raw)) {
+    entity.brand = "Nike";
+    entity.model = "Air Force";
+    entity.productName = "Air Force";
+  } else if (/\bnorth\s*face\b|\bnorthface\b|نورث\s*فيس|نورثفيس/.test(raw)) {
+    entity.brand = "North Face";
+    entity.productName = "North Face";
+  } else if (/\bskechers\b|skecher|سكتشر|سكتشرز|سكيتشر|سكيتشرز/.test(raw)) {
+    entity.brand = "Skechers";
+    entity.productName = "Skechers";
+  }
+  const brands = detectedCustomerBrands(message);
+  const models = detectedCustomerModels(message);
+  entity.brand = entity.brand || brands[0] || "";
+  entity.model = entity.model || models[0] || "";
+  entity.productName = entity.productName || detectedCustomerProductName(message) || [entity.brand, entity.model].filter(Boolean).join(" ");
+  entity.category = detectedCustomerCategories(message)[0] || "";
+  entity.topic = text(entity.productName || [entity.brand, entity.model, entity.category].filter(Boolean).join(" "));
+  return entity;
+};
+
+const normalizeTopic = (value = "") => normalizeDedupeText(value);
+
+const evaluateConversationContextSwitch = ({ message = {}, memory = {} } = {}) => {
+  const imageCount = imageAttachments(message.attachments || []).length;
+  const entities = detectContextTopicEntities(message.message_text || "");
+  const oldTopic = text(memory.activeTopic || memory.selectedProductName || memory.lastProductQuery || memory.lastVisualQueryText || "");
+  const oldBrand = text(memory.activeBrand || memory.lastProductCard?.brand || "");
+  const oldVisualSession = text(memory.activeVisualSession || memory.visualSearchSession?.id || "");
+  const newTopic = text(entities.topic || "");
+  let confidence = 0;
+  const reasons = [];
+  if (newTopic) {
+    confidence = Math.max(confidence, entities.model || entities.productName ? 0.86 : 0.76);
+    reasons.push("new_product_or_model_mention");
+  }
+  if (oldBrand && entities.brand && normalizeTopic(oldBrand) !== normalizeTopic(entities.brand)) {
+    confidence = Math.max(confidence, 0.9);
+    reasons.push("new_brand_mention");
+  }
+  if (oldTopic && newTopic && normalizeTopic(oldTopic) !== normalizeTopic(newTopic)) {
+    confidence = Math.max(confidence, 0.88);
+    reasons.push("topic_changed");
+  }
+  if (imageCount && (memory.activeProductId || memory.selectedProductId || oldVisualSession || oldTopic)) {
+    confidence = Math.max(confidence, newTopic ? 0.9 : 0.78);
+    reasons.push("new_image_with_existing_product_context");
+  }
+  if (!oldTopic && !memory.activeProductId && !memory.selectedProductId && !oldVisualSession) confidence = 0;
+  return {
+    oldTopic,
+    newTopic: newTopic || (imageCount ? "visual_search_image" : ""),
+    activeBrand: entities.brand || "",
+    activeCategory: entities.category || "",
+    confidence: Math.max(0, Math.min(1, confidence)),
+    reasons,
+    switched: confidence >= 0.75,
+  };
+};
+
+const applyConversationContextManager = ({ tenantId, channel = "", conversationId = "", message = {} } = {}) => {
+  if (!conversationId) return { switched: false, confidence: 0, oldTopic: "", newTopic: "" };
+  const memory = getConversationMemory(conversationId) || {};
+  const decision = evaluateConversationContextSwitch({ message, memory });
+  const now = nowIso();
+  const patch = {
+    contextSwitchConfidence: decision.confidence,
+    switched: decision.switched,
+    activeTopic: decision.switched ? decision.newTopic : (memory.activeTopic || decision.newTopic || ""),
+    activeBrand: decision.switched ? decision.activeBrand : (memory.activeBrand || decision.activeBrand || ""),
+    activeCategory: decision.switched ? decision.activeCategory : (memory.activeCategory || decision.activeCategory || ""),
+    lastTopicChangeAt: decision.switched ? now : (memory.lastTopicChangeAt || ""),
+    ...(decision.switched ? clearProductSpecificContextPatch() : {}),
+    ...(decision.switched ? { visualSearchSession: null, activeVisualSession: "", lastImageUrl: "", lastVisualAttributes: null, lastVisualAnalysis: null, lastVisualConfidence: null } : {}),
+  };
+  updateConversationMemory(conversationId, patch);
+  console.log("[context-manager]", {
+    tenant_id: tenantId || null,
+    conversation_id: conversationId,
+    old_topic: decision.oldTopic,
+    new_topic: decision.newTopic,
+    confidence: decision.confidence,
+    switched: decision.switched,
+    reasons: decision.reasons,
+  });
+  if (tenantId && decision.switched) {
+    persistAiConversationMemory({ tenantId, channel, conversationId, reason: "context_switch" });
+  }
+  return decision;
 };
 
 const fullNameFromProfile = (profile = {}) =>
@@ -12320,9 +12502,17 @@ export const processMetaWebhook = async ({ req } = {}) => {
     let latestDebugRoute = "";
     if (!["suggest_only", "auto_reply_after_approval"].includes(autoReplyMode)) {
       try {
-        const runtimeMemory = getConversationMemory(message.external_conversation_id) || {};
+        let runtimeMemory = getConversationMemory(message.external_conversation_id) || {};
+        const contextDecision = applyConversationContextManager({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          message,
+        });
+        runtimeMemory = getConversationMemory(message.external_conversation_id) || runtimeMemory;
         const classification = classifyMetaConversationIntent({ message, memory: runtimeMemory });
         latestDebugClassification = classification;
+        message.contextManager = contextDecision;
         message.orchestratorIntent = classification;
         console.log("[orchestrator] classified intent", {
           tenant_id: config.tenant_id,
@@ -12393,6 +12583,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
               confidence: classification.confidence,
               selected_route: handled.reason || latestDebugRoute || classification.route || "",
               memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
+              activeTopic: contextDecision.newTopic || runtimeMemory.activeTopic || "",
+              lastTopicChangeAt: (getConversationMemory(message.external_conversation_id) || {}).lastTopicChangeAt || "",
+              contextSwitchConfidence: contextDecision.confidence,
+              switched: contextDecision.switched,
               reply_preview: handled.reply_preview || handled.answer || "",
               skipped_duplicate: false,
               handled_reason: handled.reason || "",
