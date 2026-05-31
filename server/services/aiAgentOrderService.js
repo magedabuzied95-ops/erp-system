@@ -623,6 +623,26 @@ export const createAiOrderDraft = async (payload = {}) => {
   }
   const quantity = Math.max(1, integer(payload.quantity, 1));
   const selectedVariant = payload.variant || selectVariant(product, { size: payload.size, color: payload.color });
+  console.log("draft_stock_source", {
+    tenantId,
+    conversation_id: conversationId,
+    product_id: product.id || product.product_id || null,
+    variant_id: selectedVariant?.id || selectedVariant?.variant_id || null,
+    requested_size: text(payload.size || ""),
+    requested_color: text(payload.color || ""),
+    source: "product_variants.stock",
+    stock: numeric(selectedVariant?.stock, -1),
+    quantity,
+  });
+  console.log("stock_consistency_check", {
+    tenantId,
+    conversation_id: conversationId,
+    product_id: product.id || product.product_id || null,
+    variant_id: selectedVariant?.id || selectedVariant?.variant_id || null,
+    requested_size: text(payload.size || ""),
+    source: "product_variants.stock",
+    available: Boolean(selectedVariant && numeric(selectedVariant.stock, 0) >= quantity),
+  });
   if (!selectedVariant || numeric(selectedVariant.stock, 0) < quantity) {
     throw Object.assign(new Error("Selected variant is unavailable"), { status: 409, code: "OUT_OF_STOCK", product });
   }
@@ -755,6 +775,26 @@ export const confirmAiOrder = async (payload = {}) => {
         [item.variant_id, tenantId]
       );
       const currentStock = numeric(variant.rows[0]?.stock, -1);
+      console.log("stock_check_source", {
+        tenantId,
+        order_id: order.id,
+        conversation_id: order.ai_agent_conversation_id || conversationId,
+        product_id: item.product_id || null,
+        variant_id: item.variant_id || null,
+        source: "product_variants.stock_for_update",
+        stock: currentStock,
+        quantity: numeric(item.quantity, 0),
+      });
+      console.log("stock_consistency_check", {
+        tenantId,
+        order_id: order.id,
+        conversation_id: order.ai_agent_conversation_id || conversationId,
+        product_id: item.product_id || null,
+        variant_id: item.variant_id || null,
+        stock_check_source: "product_variants.stock_for_update",
+        draft_stock_source: "product_variants.stock",
+        consistent: currentStock >= numeric(item.quantity, 0),
+      });
       if (currentStock < numeric(item.quantity, 0)) throw Object.assign(new Error("Selected variant is out of stock"), { status: 409, code: "OUT_OF_STOCK" });
       await adjustVariantStock(client, {
         tenantId,

@@ -39,7 +39,7 @@ import {
 import { searchIndexedProductImageMatches } from "./aiVisualProductImageIndexService.js";
 import { getConversationMemory, updateConversationMemory } from "./aiConversationMemory.js";
 import { extractShoeSize } from "./aiMessageExtractors.js";
-import { getAiAgentSettings, upsertAiCustomerProfile } from "./aiSalesAgentService.js";
+import { ensureAiSalesAgentSchema, getAiAgentSettings, upsertAiCustomerProfile } from "./aiSalesAgentService.js";
 import { evaluateProductDecisionGate } from "./aiProductDecisionGate.js";
 import {
   buildSizeAvailabilityStorefrontUrl,
@@ -114,7 +114,7 @@ const detectHumanHandoff = (message = "") =>
   hasTerm(message, ["موظف", "خدمة عملاء", "حد يكلمني", "مش فاهم", "كلموني"]);
 
 const detectMoreImagesRequest = (message = "") =>
-  hasAnyArabicCommerceTerm(message, ["\u0635\u0648\u0631 \u0623\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0627\u0643\u062a\u0631", "\u0635\u0648\u0631\u0629 \u062a\u0627\u0646\u064a\u0629", "\u0635\u0648\u0631 \u062a\u0627\u0646\u064a\u0629", "\u0648\u0631\u064a\u0646\u064a \u0623\u0644\u0648\u0627\u0646", "\u0648\u0631\u064a\u0646\u064a \u0627\u0644\u0648\u0627\u0646", "more photos", "more images"]) ||
+  hasAnyArabicCommerceTerm(message, ["\u0635\u0648\u0631 \u0623\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0627\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629", "\u0635\u0648\u0631 \u0627\u0636\u0627\u0641\u064a\u0629", "\u0627\u0628\u0639\u062a \u0635\u0648\u0631", "\u0648\u0631\u064a\u0646\u064a \u0635\u0648\u0631", "\u0635\u0648\u0631\u0629 \u062a\u0627\u0646\u064a\u0629", "\u0635\u0648\u0631 \u062a\u0627\u0646\u064a\u0629", "\u0648\u0631\u064a\u0646\u064a \u0623\u0644\u0648\u0627\u0646", "\u0648\u0631\u064a\u0646\u064a \u0627\u0644\u0648\u0627\u0646", "more photos", "more images"]) ||
   hasTerm(message, ["صور أكتر", "صور اكتر", "صورة تانية", "وريني ألوان", "وريني الوان", "ألوانه ايه", "الوانه ايه"]);
 
 const detectNorthFaceCorrection = (message = "") => {
@@ -532,6 +532,348 @@ const callMetaGet = async ({ endpoint, token, params = {} }) => {
     });
   }
   return payload;
+};
+
+const ensureMessengerProfileStorage = async () => {
+  await ensureAiSupportLogSchema();
+  await ensureAiSalesAgentSchema();
+  await db.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_name TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS source_channel TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS external_customer_id TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS profile_pic_url TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMP NULL`);
+};
+
+const messengerDisplayName = ({ firstName = "", lastName = "", fallback = "" } = {}) =>
+  [text(firstName), text(lastName)].filter(Boolean).join(" ") || text(fallback);
+
+const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, psid } = {}) => {
+  await ensureMessengerProfileStorage();
+  const result = await db.query(
+    `
+    SELECT
+      c.customer_name AS channel_customer_name,
+      c.customer_avatar_url AS channel_customer_avatar_url,
+      c.customer_profile_id,
+      c.metadata AS channel_metadata,
+      s.customer_name AS session_customer_name,
+      s.customer_avatar_url AS session_customer_avatar_url,
+      p.first_name,
+      p.last_name,
+      p.profile_pic_url
+    FROM ai_channel_conversations c
+    FULL OUTER JOIN ai_support_sessions s
+      ON s.tenant_id = c.tenant_id
+      AND s.session_id = c.external_conversation_id
+    LEFT JOIN ai_customer_profiles p
+      ON p.id = c.customer_profile_id
+      AND p.tenant_id = COALESCE(c.tenant_id, s.tenant_id)
+    WHERE COALESCE(c.tenant_id, s.tenant_id) = $1
+      AND (
+        c.external_conversation_id = $2
+        OR s.session_id = $2
+        OR c.external_customer_id = $4
+      )
+      AND ($3::text = '' OR c.channel = $3 OR s.channel = $3 OR s.source = $3)
+    ORDER BY COALESCE(c.updated_at, s.updated_at) DESC NULLS LAST
+    LIMIT 1
+    `,
+    [numberOrNull(tenantId), text(conversationId), text(channel), text(psid)]
+  ).catch(() => ({ rows: [] }));
+  const row = result.rows[0] || {};
+  const metadataProfile = row.channel_metadata?.messenger_profile || {};
+  const firstName = text(row.first_name || metadataProfile.first_name);
+  const lastName = text(row.last_name || metadataProfile.last_name);
+  const name = messengerDisplayName({
+    firstName,
+    lastName,
+    fallback: row.channel_customer_name || row.session_customer_name,
+  });
+  const avatarUrl = text(row.profile_pic_url || row.channel_customer_avatar_url || row.session_customer_avatar_url || metadataProfile.profile_pic);
+  if (!name && !avatarUrl) return null;
+  return {
+    first_name: firstName,
+    last_name: lastName,
+    name,
+    profile_pic: avatarUrl,
+    profile_id: row.customer_profile_id || null,
+    source: "cache",
+  };
+};
+
+const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid, profile = {} } = {}) => {
+  const firstName = text(profile.first_name);
+  const lastName = text(profile.last_name);
+  const name = messengerDisplayName({ firstName, lastName, fallback: profile.name || psid });
+  const profilePic = text(profile.profile_pic);
+  if (!tenantId || !psid || (!name && !profilePic)) return null;
+  await ensureMessengerProfileStorage();
+  const profileResult = await db.query(
+    `
+    INSERT INTO ai_customer_profiles (
+      tenant_id, first_name, last_name, phone, source_channel, external_customer_id, profile_pic_url,
+      conversation_summary, customer_sentiment, memory_score, last_profile_sync_at, last_seen_at, updated_at
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'neutral',20,NOW(),NOW(),NOW())
+    ON CONFLICT (tenant_id, phone) DO UPDATE SET
+      first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), ai_customer_profiles.first_name),
+      last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''), ai_customer_profiles.last_name),
+      source_channel = COALESCE(NULLIF(EXCLUDED.source_channel, ''), ai_customer_profiles.source_channel),
+      external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_customer_profiles.external_customer_id),
+      profile_pic_url = COALESCE(NULLIF(EXCLUDED.profile_pic_url, ''), ai_customer_profiles.profile_pic_url),
+      conversation_summary = COALESCE(NULLIF(EXCLUDED.conversation_summary, ''), ai_customer_profiles.conversation_summary),
+      last_profile_sync_at = NOW(),
+      last_seen_at = NOW(),
+      updated_at = NOW()
+    RETURNING id
+    `,
+    [
+      numberOrNull(tenantId),
+      firstName,
+      lastName,
+      `meta:${text(channel)}:${psid}`,
+      text(channel),
+      psid,
+      profilePic,
+      name ? `Meta profile: ${name}` : "",
+    ]
+  );
+  const profileId = profileResult.rows[0]?.id || null;
+  await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET customer_name = CASE
+          WHEN $3::text <> '' AND (customer_name = '' OR customer_name = $4 OR customer_name = session_id OR LOWER(customer_name) IN ('anonymous','unknown customer')) THEN $3::text
+          ELSE customer_name
+        END,
+        customer_avatar_url = COALESCE(NULLIF($5::text, ''), customer_avatar_url),
+        updated_at = NOW()
+    WHERE tenant_id = $1
+      AND session_id = $2
+    `,
+    [numberOrNull(tenantId), text(conversationId), name, psid, profilePic]
+  ).catch(() => {});
+  await db.query(
+    `
+    UPDATE ai_support_messages
+    SET customer_name = CASE
+          WHEN $3::text <> '' AND (customer_name = '' OR customer_name = $4 OR LOWER(customer_name) IN ('anonymous','unknown customer')) THEN $3::text
+          ELSE customer_name
+        END,
+        customer_avatar_url = COALESCE(NULLIF($5::text, ''), customer_avatar_url)
+    WHERE tenant_id = $1
+      AND session_id = $2
+      AND sender_type = 'customer'
+    `,
+    [numberOrNull(tenantId), text(conversationId), name, psid, profilePic]
+  ).catch(() => {});
+  return { id: profileId, name, first_name: firstName, last_name: lastName, profile_pic: profilePic };
+};
+
+const enrichMessengerProfile = async ({ message, config, facebookPageId = "", instagramBusinessAccountId = "", forceRefresh = false } = {}) => {
+  const channel = message?.channel;
+  const normalizedChannel = adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
+  if (normalizedChannel !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) return message;
+  const psid = text(message?.raw?.sender_psid || message?.external_customer_id);
+  if (!psid) return message;
+  const cached = await getCachedMessengerProfile({
+    tenantId: config.tenant_id,
+    channel: normalizedChannel,
+    conversationId: message.external_conversation_id,
+    psid,
+  }).catch(() => null);
+  if (!forceRefresh && cached?.name && cached?.profile_pic) {
+    return {
+      ...message,
+      customer_name: cached.name,
+      customer_avatar_url: cached.profile_pic,
+      customer_profile_id: cached.profile_id || null,
+      raw: { ...(message.raw || {}), messenger_profile: cached },
+    };
+  }
+  console.log("messenger_profile_fetch_start", {
+    tenant_id: config.tenant_id,
+    config_id: config.id || null,
+    psid: maskIdForLog(psid),
+    conversation_id: message.external_conversation_id,
+  });
+  try {
+    const { token } = await resolveMetaSendConfig({
+      tenantId: config.tenant_id,
+      channel: normalizedChannel,
+      facebookPageId: facebookPageId || config.facebook_page_id || message.raw?.page_id || "",
+      instagramBusinessAccountId,
+      preferredConfigId: config.id || null,
+    });
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(psid)}`,
+      token,
+      params: { fields: "first_name,last_name,profile_pic" },
+    });
+    const profile = {
+      first_name: text(payload.first_name),
+      last_name: text(payload.last_name),
+      profile_pic: text(payload.profile_pic),
+    };
+    const persisted = await persistMessengerProfile({
+      tenantId: config.tenant_id,
+      channel: normalizedChannel,
+      conversationId: message.external_conversation_id,
+      psid,
+      profile,
+    });
+    console.log("messenger_profile_fetch_success", {
+      tenant_id: config.tenant_id,
+      config_id: config.id || null,
+      psid: maskIdForLog(psid),
+      conversation_id: message.external_conversation_id,
+      has_name: Boolean(persisted?.name),
+      has_profile_pic: Boolean(persisted?.profile_pic),
+      profile_id: persisted?.id || null,
+    });
+    return {
+      ...message,
+      customer_name: persisted?.name || cached?.name || psid,
+      customer_avatar_url: persisted?.profile_pic || cached?.profile_pic || "",
+      customer_profile_id: persisted?.id || cached?.profile_id || null,
+      raw: { ...(message.raw || {}), messenger_profile: persisted || profile },
+    };
+  } catch (error) {
+    console.warn("messenger_profile_fetch_failed", {
+      tenant_id: config.tenant_id,
+      config_id: config.id || null,
+      psid: maskIdForLog(psid),
+      conversation_id: message.external_conversation_id,
+      message: error?.message || "Messenger profile lookup failed",
+      code: error?.code || "",
+      status: error?.status || null,
+    });
+    return {
+      ...message,
+      customer_name: cached?.name || message.customer_name || psid,
+      customer_avatar_url: cached?.profile_pic || message.customer_avatar_url || "",
+      customer_profile_id: cached?.profile_id || null,
+      raw: { ...(message.raw || {}), messenger_profile: cached || null },
+    };
+  }
+};
+
+export const syncMessengerProfileForConversation = async ({ tenantId, conversationId = "", externalCustomerId = "" } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const safeConversationId = text(conversationId);
+  if (!scopedTenantId || !safeConversationId) {
+    throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400, code: "MESSENGER_PROFILE_SYNC_INPUT_REQUIRED" });
+  }
+  await ensureMessengerProfileStorage();
+  const lookup = await db.query(
+    `
+    SELECT
+      s.session_id,
+      COALESCE(c.channel, s.channel, s.source) AS channel,
+      COALESCE(NULLIF(c.external_customer_id, ''), NULLIF($3::text, ''), regexp_replace(s.session_id, '^[^:]+:', '')) AS external_customer_id,
+      c.external_conversation_id,
+      c.metadata AS channel_metadata
+    FROM ai_support_sessions s
+    LEFT JOIN ai_channel_conversations c
+      ON c.tenant_id = s.tenant_id
+      AND c.external_conversation_id = s.session_id
+    WHERE s.tenant_id = $1
+      AND s.session_id = $2
+    LIMIT 1
+    `,
+    [scopedTenantId, safeConversationId, text(externalCustomerId)]
+  );
+  const row = lookup.rows[0];
+  if (!row) {
+    throw Object.assign(new Error("Conversation not found"), { status: 404, code: "CONVERSATION_NOT_FOUND" });
+  }
+  const channel = row.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
+  if (adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook") !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
+    throw Object.assign(new Error("Messenger profile sync is only available for Facebook Messenger conversations."), { status: 400, code: "NOT_MESSENGER_CONVERSATION" });
+  }
+  const psid = text(row.external_customer_id);
+  if (!psid) {
+    throw Object.assign(new Error("Messenger PSID is missing for this conversation."), { status: 400, code: "MESSENGER_PSID_MISSING" });
+  }
+  const facebookPageId = text(row.channel_metadata?.page_id || row.channel_metadata?.resolved_page_id || row.channel_metadata?.account_id);
+  console.log("messenger_profile_manual_sync_start", {
+    tenant_id: scopedTenantId,
+    conversation_id: safeConversationId,
+    psid: maskIdForLog(psid),
+    facebook_page_id: maskIdForLog(facebookPageId),
+  });
+  try {
+    const message = await enrichMessengerProfile({
+      message: {
+        channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+        external_conversation_id: safeConversationId,
+        external_customer_id: psid,
+        raw: {
+          sender_psid: psid,
+          customer_psid: psid,
+          page_id: facebookPageId,
+        },
+      },
+      config: { tenant_id: scopedTenantId, facebook_page_id: facebookPageId },
+      facebookPageId,
+      forceRefresh: true,
+    });
+    await upsertChannelConversationMapping({
+      tenantId: scopedTenantId,
+      channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      externalConversationId: safeConversationId,
+      externalCustomerId: psid,
+      customerName: message.customer_name,
+      customerAvatarUrl: message.customer_avatar_url,
+      customerProfileId: message.customer_profile_id || null,
+      metadata: {
+        ...(row.channel_metadata || {}),
+        page_id: facebookPageId,
+        channel: "facebook",
+        sender_psid: psid,
+        customer_psid: psid,
+        resolved_sender_id: psid,
+        resolved_customer_id: psid,
+        messenger_profile: message.raw?.messenger_profile || null,
+      },
+      lastMessageAt: new Date().toISOString(),
+    });
+    emitToRooms([`tenant:${scopedTenantId}`], "ai_inbox:refresh", {
+      tenant_id: scopedTenantId,
+      session_id: safeConversationId,
+      reason: "messenger_profile_manual_sync",
+      at: nowIso(),
+    });
+    console.log("messenger_profile_manual_sync_success", {
+      tenant_id: scopedTenantId,
+      conversation_id: safeConversationId,
+      psid: maskIdForLog(psid),
+      has_name: Boolean(text(message.customer_name)),
+      has_profile_pic: Boolean(text(message.customer_avatar_url)),
+      profile_id: message.customer_profile_id || null,
+    });
+    return {
+      success: Boolean(text(message.customer_name) || text(message.customer_avatar_url)),
+      conversation_id: safeConversationId,
+      external_customer_id: psid,
+      customer_name: message.customer_name || psid,
+      customer_avatar_url: message.customer_avatar_url || "",
+      customer_profile_id: message.customer_profile_id || null,
+    };
+  } catch (error) {
+    console.warn("messenger_profile_manual_sync_failed", {
+      tenant_id: scopedTenantId,
+      conversation_id: safeConversationId,
+      psid: maskIdForLog(psid),
+      message: error?.message || "Messenger profile manual sync failed",
+      code: error?.code || "",
+      status: error?.status || null,
+    });
+    throw error;
+  }
 };
 
 const callMetaPost = async ({ endpoint, token, body = {} }) => {
@@ -3053,9 +3395,11 @@ const webhookAccountIdsFromBody = (body = {}) => {
 
 const logIncomingToInbox = async ({ message, config }) => {
   await ensureAiSupportLogSchema();
+  await ensureMessengerProfileStorage();
   const sessionId = message.external_conversation_id;
   const channel = channelAlias(message.channel);
   const customerName = text(message.customer_name);
+  const customerAvatarUrl = text(message.customer_avatar_url || message.raw?.messenger_profile?.profile_pic || "");
   const lastMessage = text(message.message_text) || "[attachment]";
   const externalMessageId = text(message.external_message_id || message.raw?.event?.message?.mid || message.raw?.event?.message?.id);
   const dedupeKey = text(message.dedupe_key) || crypto
@@ -3078,17 +3422,18 @@ const logIncomingToInbox = async ({ message, config }) => {
   });
   const session = await db.query(
     `
-    INSERT INTO ai_support_sessions (tenant_id, session_id, source, channel, customer_name, last_message, updated_at)
-    VALUES ($1,$2,$3::text,$4::text,$5::text,$6::text,NOW())
+    INSERT INTO ai_support_sessions (tenant_id, session_id, source, channel, customer_name, customer_avatar_url, last_message, updated_at)
+    VALUES ($1,$2,$3::text,$4::text,$5::text,$6::text,$7::text,NOW())
     ON CONFLICT (tenant_id, session_id) DO UPDATE SET
       source = EXCLUDED.source,
       channel = EXCLUDED.channel,
       customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
+      customer_avatar_url = COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_support_sessions.customer_avatar_url),
       last_message = EXCLUDED.last_message,
       updated_at = NOW()
     RETURNING id
     `,
-    [config.tenant_id, sessionId, channel, channel, customerName, lastMessage]
+    [config.tenant_id, sessionId, channel, channel, customerName, customerAvatarUrl, lastMessage]
   );
   console.log("[meta-inbox] meta_inbox_session_upsert_success", {
     tenant_id: config.tenant_id,
@@ -3098,15 +3443,15 @@ const logIncomingToInbox = async ({ message, config }) => {
   const inserted = await db.query(
     `
     INSERT INTO ai_support_messages (
-      session_ref_id, tenant_id, session_id, channel, customer_name, last_message, message_text,
+      session_ref_id, tenant_id, session_id, channel, customer_name, customer_avatar_url, last_message, message_text,
       customer_message, ai_answer, confidence, needs_human_support, sources_used, suggested_products,
       visual_attachments, suggested_actions, detected_intent, fallback_reason, sender_type, external_message_id, dedupe_key
     )
-    VALUES ($1,$2,$3::text,$4::text,$5::text,$6::text,$6::text,$6::text,'',0,FALSE,'[]'::jsonb,'[]'::jsonb,$7::jsonb,'[]'::jsonb,'','ai_status:pending','customer',$8,$9)
+    VALUES ($1,$2,$3::text,$4::text,$5::text,$6::text,$7::text,$7::text,$7::text,'',0,FALSE,'[]'::jsonb,'[]'::jsonb,$8::jsonb,'[]'::jsonb,'','ai_status:pending','customer',$9,$10)
     ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO NOTHING
     RETURNING *
     `,
-    [session.rows[0]?.id || null, config.tenant_id, sessionId, channel, customerName, lastMessage, json(message.attachments || []), externalMessageId, dedupeKey]
+    [session.rows[0]?.id || null, config.tenant_id, sessionId, channel, customerName, customerAvatarUrl, lastMessage, json(message.attachments || []), externalMessageId, dedupeKey]
   );
   if (!inserted.rows[0]) {
     console.log("[meta-inbox] meta_message_duplicate_skipped", {
@@ -3381,6 +3726,13 @@ const rememberLastProductCards = ({ conversationId, productCards = [], sentMessa
       variant_id: cards[0]?.variant_id || null,
       color: cards[0]?.color || "",
     });
+    console.log("ai_context_color_locked", {
+      conversation_id: conversationId,
+      reason: "single_product_card_sent",
+      product_id: cards[0]?.product_id || null,
+      variant_id: cards[0]?.variant_id || null,
+      color: cards[0]?.color || "",
+    });
   }
   return nextMemory;
 };
@@ -3455,6 +3807,22 @@ const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}
     }
     return { card, source: cards.length === 1 ? "single_last_card" : "first_last_card", ambiguous: false, cards };
   }
+  if (memory.selectedProductId && memory.selectedColor && memory.lastProductCard) {
+    const lockedCard = {
+      ...memory.lastProductCard,
+      product_id: memory.selectedProductId || memory.lastProductCard.product_id,
+      variant_id: memory.selectedVariantId || memory.lastProductCard.variant_id,
+      color: memory.selectedColor || memory.lastProductCard.color || "",
+    };
+    console.log("ai_context_color_reused", {
+      conversation_id: conversationId,
+      product_id: lockedCard.product_id || null,
+      variant_id: lockedCard.variant_id || null,
+      color: lockedCard.color || "",
+      source: "locked_memory_fallback",
+    });
+    return { card: lockedCard, source: "locked_memory_fallback", ambiguous: false, cards };
+  }
   if (cards.length > 1) return { card: null, source: "multiple_last_cards", ambiguous: true, cards };
   return { card: memory.lastProductCard || null, source: "lastProductCard", ambiguous: false, cards };
 };
@@ -3482,6 +3850,15 @@ const lockProductContext = ({ conversationId, card = {}, stage = "product_select
     variant_id: card.variant_id || null,
     color: card.color || "",
   });
+  if (card.color || card.variant_id) {
+    console.log("ai_context_color_locked", {
+      conversation_id: conversationId,
+      reason,
+      product_id: card.product_id || card.id || null,
+      variant_id: card.variant_id || null,
+      color: card.color || "",
+    });
+  }
   return nextMemory;
 };
 
@@ -4127,7 +4504,7 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
 
 const sendAndLogProductCards = async ({ config, message, productCards = [], detectedIntent = "", introText = "", metadata = {} } = {}) => {
   const modelNameSearch = detectModelNameSearch(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
-  const cardLimit = Number(metadata.product_card_limit || 0) || (modelNameSearch ? (detectOtherColorsRequest(message.message_text || "") ? 3 : 2) : 6);
+  const cardLimit = Number(metadata.product_card_limit || 0) || (modelNameSearch ? (detectOtherColorsRequest(message.message_text || "") ? 3 : 1) : 6);
   const cards = await resolveProductCardLinks(normalizeProductCards(productCards, { limit: cardLimit }), { tenantId: config.tenant_id });
   if (!cards.length) return null;
   const gate = evaluateProductDecisionGate({
@@ -4187,7 +4564,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
       console.log("model_initial_color_hard_cap_applied", {
         tenant_id: config.tenant_id,
         conversation_id: message.external_conversation_id,
-        requested_limit: 2,
+        requested_limit: 1,
         resulting_card_count: gatedCards.length,
       });
     }
@@ -4265,7 +4642,7 @@ const sendAiGenerationFailedProductFallback = async ({ config, message, error } 
     });
     return [];
   });
-  const cards = normalizeProductCards(products, { limit: 2 });
+  const cards = normalizeProductCards(products, { limit: 1 });
   if (!cards.length) {
     console.log("ai_generation_failed_no_fallback", {
       tenant_id: config?.tenant_id,
@@ -4286,7 +4663,7 @@ const sendAiGenerationFailedProductFallback = async ({ config, message, error } 
   console.log("model_initial_color_hard_cap_applied", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
-    requested_limit: 2,
+    requested_limit: 1,
     resulting_card_count: cards.length,
     fallback: true,
   });
@@ -4298,7 +4675,7 @@ const sendAiGenerationFailedProductFallback = async ({ config, message, error } 
     detectedIntent: "ai_generation_failed_product_fallback",
     introText: fallbackIntro,
     metadata: {
-      product_card_limit: 2,
+      product_card_limit: 1,
       ai_generation_fallback: true,
       ai_generation_error_status: error?.status || "",
       ai_generation_error_code: error?.code || "",
@@ -4365,7 +4742,7 @@ const handleBrandCorrectionIfMatched = async ({ config, message } = {}) => {
     productCards: northFaceProducts,
     detectedIntent: "brand_correction_north_face",
     introText: "\u062a\u0645\u0627\u0645\u060c \u0647\u062f\u0648\u0631\u0644\u0643 \u0639\u0644\u0649 North Face \u0628\u0633.",
-    metadata: { product_card_limit: 2, brand_correction: "north_face" },
+    metadata: { product_card_limit: 1, brand_correction: "north_face" },
   });
   return { handled: true, reason: "brand_correction_north_face" };
 };
@@ -5068,6 +5445,15 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
   const context = resolveContextProductCard({ message });
   const baseCard = context.card;
   const includeOtherColors = false;
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  console.log("ai_action_images_requested", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    keyword,
+    selected_product_id: memory.selectedProductId || null,
+    selected_variant_id: memory.selectedVariantId || null,
+    selected_color: memory.selectedColor || "",
+  });
   console.log("ai_inbox_more_images_requested", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -5085,7 +5471,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     color: baseCard?.color || "",
     include_other_colors: includeOtherColors,
   });
-  if (context.ambiguous) {
+  if (context.ambiguous && !(memory.selectedProductId && memory.selectedColor)) {
     await sendAndLogMetaText({
       config,
       message,
@@ -5111,6 +5497,16 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     stage: "product_details",
     reason: "more_images_same_color",
   });
+  if (baseCard.color || memory.selectedColor) {
+    console.log("ai_context_color_reused", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      product_id: baseCard.product_id || null,
+      variant_id: baseCard.variant_id || null,
+      color: baseCard.color || memory.selectedColor || "",
+      action: "more_images",
+    });
+  }
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
   const moreImageCards = normalizeProductCards(await buildMoreImageCards({
     tenantId: config.tenant_id,
@@ -5149,6 +5545,14 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     reason: "same_color_images_sent",
   });
   console.log("ai_same_color_images", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    product_id: baseCard.product_id || null,
+    variant_id: baseCard.variant_id || null,
+    color: baseCard.color || "",
+    image_count: moreImageCards.length,
+  });
+  console.log("ai_action_images_sent", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
     product_id: baseCard.product_id || null,
@@ -5364,6 +5768,16 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   }
   const baseCard = context.card;
   const sizes = [...new Set((Array.isArray(baseCard.sizes) ? baseCard.sizes : baseCard.available_sizes || []).map(text).filter(Boolean))];
+  console.log("stock_check_source", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    product_id: baseCard.product_id || null,
+    variant_id: baseCard.variant_id || null,
+    color: baseCard.color || "",
+    requested_size: requestedSize || "",
+    source: "memory_product_card_sizes_from_product_variants",
+    sizes,
+  });
   const colorLabel = text(baseCard.color);
   const colorPhrase = colorLabel ? `\u0627\u0644\u0644\u0648\u0646 ${colorLabel}` : "\u0627\u0644\u0644\u0648\u0646 \u062f\u0647";
   if (!requestedSize) {
@@ -5386,6 +5800,15 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   }
   const requestedDigits = sizeDigits(requestedSize);
   const hasSize = sizes.some((size) => sizeDigits(size) === requestedDigits);
+  console.log("stock_consistency_check", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    product_id: baseCard.product_id || null,
+    variant_id: baseCard.variant_id || null,
+    requested_size: requestedSize,
+    stock_check_source: "memory_product_card_sizes_from_product_variants",
+    available: hasSize,
+  });
   const replyText = hasSize
     ? `\u0623\u064a\u0648\u0647\u060c \u0645\u0642\u0627\u0633 ${requestedSize} \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase} \u2705\n\n\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629 \u0644\u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f\n\u0648\u0644\u0627 \u0623\u0648\u0631\u064a\u0643 \u0628\u0627\u0642\u064a \u0627\u0644\u0623\u0644\u0648\u0627\u0646\u061f`
     : sizes.length
@@ -5948,8 +6371,8 @@ const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
 
   const displayName = merged.customer_name || "\u0641\u0646\u062f\u0645";
   const replyText = stockConflict
-    ? "\u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0628\u0633 \u0638\u0647\u0631 \u062a\u0639\u0627\u0631\u0636 \u0641\u064a \u0627\u0644\u0645\u062e\u0632\u0648\u0646 \u0644\u0644\u0645\u0642\u0627\u0633 \u062f\u0647.\n\u0647\u0631\u0627\u062c\u0639 \u0627\u0644\u0637\u0644\u0628 \u0648\u0623\u0631\u062c\u0639\u0644\u0643 \u062d\u0627\u0644\u0627\u064b."
-    : `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\u060c \u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0627\u0644\u0623\u0648\u0631\u062f\u0631 \u0627\u062a\u0623\u0643\u062f \u0648\u0647\u0646\u062a\u0648\u0627\u0635\u0644 \u0645\u0639\u0627\u0643 \u0644\u0644\u062a\u0623\u0643\u064a\u062f \u0627\u0644\u0646\u0647\u0627\u0626\u064a.`;
+    ? `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\n\u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0628\u0633 \u0638\u0647\u0631 \u062a\u0639\u0627\u0631\u0636 \u0641\u064a \u0627\u0644\u0645\u062e\u0632\u0648\u0646 \u0644\u0644\u0645\u0642\u0627\u0633 \u062f\u0647.\n\u0647\u0631\u0627\u062c\u0639 \u0627\u0644\u0637\u0644\u0628 \u0648\u0623\u0631\u062c\u0639\u0644\u0643 \u062d\u0627\u0644\u0627\u064b.`
+    : `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\n\u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u0648\u0647\u0623\u0643\u062f \u0627\u0644\u0623\u0648\u0631\u062f\u0631 \u0645\u0639\u0627\u0643.`;
   const nextStage = stockConflict ? "stock_conflict" : "order_confirmed";
   const result = await sendCheckoutConfirmationMetaMessage({
     config,
@@ -5996,6 +6419,27 @@ const ensureCheckoutDraftForMemory = async ({ config, message, memory = {}, sele
   const variant = chooseVariantForSize(product, selectedSize, memory.selectedVariantId || baseCard.variant_id);
   if (!variant) return { order_id: null, created: false, reason: "missing_variant" };
   const selectedColor = variant.color || memory.selectedColor || baseCard.color || "";
+  console.log("draft_stock_source", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    product_id: product.id || baseCard.product_id || null,
+    variant_id: variant.id || baseCard.variant_id || null,
+    selected_size: selectedSize || variant.size || "",
+    selected_color: selectedColor,
+    source: "searchAiOrderProducts.product_variants.stock",
+    stock: Number(variant.stock || 0),
+  });
+  console.log("stock_consistency_check", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    product_id: product.id || baseCard.product_id || null,
+    variant_id: variant.id || baseCard.variant_id || null,
+    selected_size: selectedSize || variant.size || "",
+    selected_color: selectedColor,
+    stock_check_source: "product_variants.stock",
+    draft_stock_source: "product_variants.stock",
+    consistent: Number(variant.stock || 0) > 0,
+  });
   const draft = await createAiOrderDraft({
     tenant_id: config.tenant_id,
     channel: channelAlias(message.channel),
@@ -6291,6 +6735,26 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
   }
   const effectiveSize = requestedSize || selectedSizeFromMemory || availableSizes[0] || "";
   const variant = chooseVariantForSize(product, effectiveSize, baseCard.variant_id);
+  console.log("draft_stock_source", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    product_id: product.id || baseCard.product_id || null,
+    variant_id: variant?.id || baseCard.variant_id || null,
+    selected_size: effectiveSize,
+    selected_color: variant?.color || baseCard.color || "",
+    source: "searchAiOrderProducts.product_variants.stock",
+    stock: Number(variant?.stock || 0),
+  });
+  console.log("stock_consistency_check", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    product_id: product.id || baseCard.product_id || null,
+    variant_id: variant?.id || baseCard.variant_id || null,
+    selected_size: effectiveSize,
+    stock_check_source: "product_variants.stock",
+    draft_stock_source: "product_variants.stock",
+    consistent: Boolean(variant && Number(variant.stock || 0) > 0),
+  });
   console.log("ai_inbox_selected_variant", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -6908,7 +7372,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
   if (!signatureOk) throw Object.assign(new Error("Invalid Meta webhook signature"), { status: 403 });
   const messages = extractMetaWebhookMessages({ body: req.body, tenantId: config.tenant_id }).filter((message) => message.message_text || message.attachments?.length);
   const results = [];
-  for (const message of messages) {
+  for (const incomingMessage of messages) {
+    const message = await enrichMessengerProfile({
+      message: incomingMessage,
+      config,
+      facebookPageId: pageIds[0] || "",
+      instagramBusinessAccountId: instagramBusinessAccountIds[0] || "",
+    });
     const alias = channelAlias(message.channel);
     const messageId = text(message.external_message_id || message.dedupe_key || "");
     const previousDedupeStatus = getMessageProcessingStatus(messageId);
@@ -6959,6 +7429,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           resolved_sender_id: message.raw?.sender_psid || message.external_customer_id || "",
           resolved_customer_id: message.external_customer_id || "",
           resolved_page_id: message.raw?.page_id || pageIds[0] || "",
+          messenger_profile: message.raw?.messenger_profile || null,
           dedupe_key: message.dedupe_key || inboxResult?.dedupe_key || "",
         },
       }).catch(() => {});
@@ -6968,6 +7439,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
       externalConversationId: message.external_conversation_id,
       externalCustomerId: message.external_customer_id,
       customerName: message.customer_name,
+      customerAvatarUrl: message.customer_avatar_url,
+      customerProfileId: message.customer_profile_id || null,
       metadata: {
         page_id: config.facebook_page_id || pageIds[0] || "",
         instagram_business_account_id: config.instagram_business_account_id || "",
@@ -6977,6 +7450,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         customer_psid: message.raw?.customer_psid || message.external_customer_id || "",
         resolved_sender_id: message.raw?.sender_psid || message.external_customer_id || "",
         resolved_customer_id: message.external_customer_id || "",
+        messenger_profile: message.raw?.messenger_profile || null,
       },
       lastMessageAt: message.timestamp,
     }).catch(() => {});
@@ -7140,7 +7614,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
     }
     const reply = aiPayload.channel_reply || normalizeOutgoingChannelReply({ channel: message.channel, response: aiPayload });
     const modelNameSearch = detectModelNameSearch(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
-    const productCardLimit = modelNameSearch ? (detectOtherColorsRequest(message.message_text || "") ? 3 : 2) : 6;
+    const productCardLimit = modelNameSearch ? (detectOtherColorsRequest(message.message_text || "") ? 3 : 1) : 6;
     let productCards = normalizeProductCards(reply.product_cards || aiPayload.suggested_products || [], { limit: productCardLimit });
     if (modelNameSearch && productCards.length > productCardLimit) productCards = productCards.slice(0, productCardLimit);
     if (modelNameSearch) {
@@ -7156,7 +7630,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         console.log("model_initial_color_hard_cap_applied", {
           tenant_id: config.tenant_id,
           conversation_id: message.external_conversation_id,
-          requested_limit: 2,
+          requested_limit: 1,
           resulting_card_count: productCards.length,
         });
       }
