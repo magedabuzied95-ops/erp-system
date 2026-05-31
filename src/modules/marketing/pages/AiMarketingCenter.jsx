@@ -34,6 +34,7 @@ import {
 import { hasPermission } from "../../permissions/lib/rbacStore";
 import AiMarketingCenterNav from "../components/AiMarketingCenterNav";
 import PostEditorModal, { StoryCreativePreview, buildStoryCreativeSlides, getPreviewContentFlags, normalizeMarketingPostInput } from "../components/PostEditorModal";
+import { canApproveQueueItem, canPublishQueueItem, getQueueStatusInfo, isPublishedQueueItem } from "../lib/queueStatus";
 
 const EMPTY_SETTINGS = {
   stories_per_day: 12,
@@ -60,6 +61,11 @@ const logQueueDeleteDebug = (payload) => {
 const logInsightsSyncDebug = (payload) => {
   if (!isDev() || typeof console === "undefined") return;
   console.debug("[ai-insights-sync-response]", payload);
+};
+
+const logQueueAuditDebug = (label, payload) => {
+  if (typeof console === "undefined" || typeof console.debug !== "function") return;
+  console.debug(label, payload);
 };
 
 const formatApiError = (error, fallback) => {
@@ -145,15 +151,6 @@ const groupedBySchedule = (items = []) => {
   return order.map((label) => ({ label, items: groups.get(label) || [] })).filter((group) => group.items.length);
 };
 
-const statusLabel = (item = {}, publishing = false) => {
-  if (publishing) return "Publishing";
-  const status = String(item.publish_status || item.status || "").replaceAll("_", " ");
-  if (!status || status === "draft") return String(item.status || "pending approval").replaceAll("_", " ");
-  if (item.status === "pending_approval") return "pending approval";
-  if (item.status === "scheduled") return "approved";
-  return status;
-};
-
 const platformLabel = (item = {}) => {
   const design = item.design_json || {};
   const value = item.channel || design.channel || design.platform || design.platform_hint || (item.content_type === "story" ? "instagram/facebook" : "facebook/instagram");
@@ -217,7 +214,20 @@ function AiMarketingCenter() {
         },
       });
       setOverview(unwrapOverview(overviewPayload));
-      setQueue(nextQueue);
+      setQueue((current) => {
+        const previousIds = current.map((item) => item.id);
+        const nextIds = nextQueue.map((item) => item.id);
+        logQueueAuditDebug("[queue-status]", {
+          source: "api-load",
+          queueType: "all",
+          count: nextQueue.length,
+          previousIds,
+          nextIds,
+          staleRemainingIds: previousIds.filter((id) => !nextIds.some((nextId) => String(nextId) === String(id))),
+          items: nextQueue.map((item) => getQueueStatusInfo(item, { source: "api-load", queueType: item.content_type || item.strategy_type || "queue" })),
+        });
+        return nextQueue;
+      });
       if (logQueueCount) logQueueDeleteDebug({ queueReloadResultCount: nextQueue.length });
       return nextQueue;
     } catch (error) {
@@ -294,11 +304,33 @@ function AiMarketingCenter() {
   };
 
   const updateQueueItem = async (target, action) => {
-    const id = typeof target === "object" && target !== null ? target.id : target;
+    const targetItem = typeof target === "object" && target !== null ? target : queue.find((item) => String(item.id) === String(target));
+    const id = targetItem?.id || target;
+    const statusInfo = getQueueStatusInfo(targetItem || { id }, { source: "action", queueType: targetItem?.content_type || targetItem?.strategy_type || "queue" });
+    logQueueAuditDebug("[queue-action]", {
+      ...statusInfo,
+      action,
+      endpointId: id,
+      canApprove: canApproveQueueItem(targetItem),
+      canPublish: canPublishQueueItem(targetItem),
+      matchedStateItem: Boolean(targetItem),
+    });
     let reloaded = false;
     if (!id) {
       toast.error("Queue item is missing an id. Queue updated.");
       await load({ logQueueCount: true });
+      return;
+    }
+    if (action === "publish" && !canPublishQueueItem(targetItem)) {
+      toast(isPublishedQueueItem(targetItem) ? "This queue item is already published." : "Approve this queue item before publishing.");
+      const nextQueue = await load();
+      setPreview((current) => (current && String(current.id) === String(id) ? nextQueue.find((item) => String(item.id) === String(id)) || current : current));
+      return;
+    }
+    if (action === "approve" && !canApproveQueueItem(targetItem)) {
+      toast(isPublishedQueueItem(targetItem) ? "This queue item is already published." : "This queue item is not pending approval.");
+      const nextQueue = await load();
+      setPreview((current) => (current && String(current.id) === String(id) ? nextQueue.find((item) => String(item.id) === String(id)) || current : current));
       return;
     }
     try {
@@ -315,7 +347,8 @@ function AiMarketingCenter() {
           setQueue((current) => current.filter((item) => String(item.id) !== String(id)));
         }
       }
-      await load({ logQueueCount: action === "delete" });
+      const nextQueue = await load({ logQueueCount: action === "delete" });
+      setPreview((current) => (current && String(current.id) === String(id) ? nextQueue.find((item) => String(item.id) === String(id)) || current : current));
       reloaded = true;
     } catch (error) {
       if (isStaleQueueError(error)) {
@@ -378,6 +411,9 @@ function AiMarketingCenter() {
             AI Marketing Engine
           </div>
           <h1 className="mt-3 text-3xl font-black md:text-4xl">Stories and posts that stay clean</h1>
+          <div className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-xs font-black text-amber-100">
+            AI Queue Fix Build: 2026-05-31-2017
+          </div>
           <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
             Focused generation for new arrivals, real last-piece variants, and premium AI product posts.
           </p>
@@ -458,8 +494,8 @@ function AiMarketingCenter() {
         <PreviewModal
           item={preview}
           onClose={() => setPreview(null)}
-          onApprove={() => updateQueueItem(preview.id, "approve")}
-          onPublish={() => updateQueueItem(preview.id, "publish")}
+          onApprove={() => updateQueueItem(preview, "approve")}
+          onPublish={() => updateQueueItem(preview, "publish")}
         />
       ) : null}
     </div>
@@ -602,6 +638,7 @@ function InsightCard({ insights, syncing = false, onSync }) {
 
 function QueueSection({ title, icon, items, empty, onPreview, onAction, publishingIds, actionDisabled = false }) {
   const groups = groupedBySchedule(items);
+  const queueType = title.toLowerCase();
   return (
     <section className={`${cardClass} p-5`}>
       <div className="flex items-center justify-between gap-3">
@@ -616,7 +653,7 @@ function QueueSection({ title, icon, items, empty, onPreview, onAction, publishi
               <Badge>{group.items.length}</Badge>
             </div>
             {group.items.map((item) => (
-              <QueueItem key={item.id} item={item} publishing={publishingIds?.has(String(item.id))} actionDisabled={actionDisabled} onPreview={() => onPreview(item)} onApprove={() => onAction(item.id, "approve")} onPublish={() => onAction(item.id, "publish")} onDelete={() => onAction(item, "delete")} />
+              <QueueItem key={item.id} item={item} queueType={queueType} publishing={publishingIds?.has(String(item.id))} actionDisabled={actionDisabled} onPreview={() => onPreview(item)} onApprove={() => onAction(item, "approve")} onPublish={() => onAction(item, "publish")} onDelete={() => onAction(item, "delete")} />
             ))}
           </div>
         )) : (
@@ -636,7 +673,7 @@ function ScheduleBadge({ item }) {
   return <Badge tone="cyan">{formatSchedule(item)}</Badge>;
 }
 
-function QueueItem({ item, publishing, actionDisabled = false, onPreview, onApprove, onPublish, onDelete }) {
+function QueueItem({ item, queueType = "queue", publishing, actionDisabled = false, onPreview, onApprove, onPublish, onDelete }) {
   const design = item.design_json || {};
   const isLastPiece = item.strategy_type === "last_size";
   const { isStoryContent, isFeedContent } = getPreviewContentFlags(item);
@@ -646,7 +683,22 @@ function QueueItem({ item, publishing, actionDisabled = false, onPreview, onAppr
   const hasFacebook = publishedPlatforms.includes("facebook") || platformResults.facebook?.status === "published";
   const hasInstagram = publishedPlatforms.includes("instagram") || platformResults.instagram?.status === "published";
   const sizesLabel = sizesLabelFrom(design, item);
-  const normalizedStatus = statusLabel(item, publishing);
+  const statusInfo = getQueueStatusInfo(item, { source: "card", queueType, publishing });
+  const normalizedStatus = statusInfo.normalizedStatus;
+  const displayStatus = statusInfo.displayStatus;
+  const showApprove = canApproveQueueItem(item);
+  const showPublish = canPublishQueueItem(item);
+  useEffect(() => {
+    logQueueAuditDebug("[queue-card]", {
+      ...statusInfo,
+      badgeStatus: displayStatus,
+      approveVisible: showApprove,
+      publishVisible: showPublish,
+      approveEndpointId: item.id,
+      publishEndpointId: item.id,
+    });
+    logQueueAuditDebug("[queue-status]", statusInfo);
+  }, [displayStatus, item.id, item.publish_status, item.status, item.post_status, item.state, normalizedStatus, queueType, showApprove, showPublish, statusInfo]);
   return (
     <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-center">
       <Thumb item={item} />
@@ -656,7 +708,7 @@ function QueueItem({ item, publishing, actionDisabled = false, onPreview, onAppr
           <Badge>{contentLabel}</Badge>
           {isFeedContent && (design.color_name || item.color) ? <Badge>{design.color_name || item.color}</Badge> : null}
           <Badge>{platformLabel(item)}</Badge>
-          <Badge tone={normalizedStatus === "published" ? "emerald" : normalizedStatus === "failed" ? "rose" : normalizedStatus === "Publishing" || normalizedStatus === "publishing" ? "amber" : "slate"}>{normalizedStatus}</Badge>
+          <Badge tone={normalizedStatus === "published" ? "emerald" : normalizedStatus === "failed" ? "rose" : displayStatus === "Publishing" || normalizedStatus === "publishing" ? "amber" : "slate"}>{displayStatus}</Badge>
           {sizesLabel ? <Badge tone={isLastPiece ? "amber" : "slate"}>{sizesLabel}</Badge> : null}
           {isLastPiece && design.stock ? <Badge tone="amber">stock {design.stock}</Badge> : null}
           {design.audio ? <Badge tone="cyan"><Music2 className="h-3 w-3" /> Arabic Trend</Badge> : null}
@@ -672,8 +724,8 @@ function QueueItem({ item, publishing, actionDisabled = false, onPreview, onAppr
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
           <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
-          <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button>
-          <button type="button" onClick={onPublish} disabled={publishing || actionDisabled} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>{publishing ? "Publishing..." : "Publish"}</button>
+          {showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button> : null}
+          {showPublish ? <button type="button" onClick={onPublish} disabled={publishing || actionDisabled} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>{publishing ? "Publishing..." : "Publish"}</button> : null}
           <button type="button" title="Delete" onClick={onDelete} className="grid h-10 w-10 place-items-center rounded-xl border border-rose-300/20 bg-rose-400/10 text-rose-100">
             <Trash2 className="h-4 w-4" />
           </button>
@@ -697,6 +749,21 @@ function Thumb({ item }) {
 function PreviewModal({ item, onClose, onApprove, onPublish }) {
   const design = item.design_json || {};
   const { isStoryContent, isFeedContent } = getPreviewContentFlags(item);
+  const statusInfo = getQueueStatusInfo(item, { source: "preview-modal", queueType: isFeedContent ? "posts" : "stories" });
+  const showApprove = canApproveQueueItem(item);
+  const showPublish = canPublishQueueItem(item);
+  const showPublished = isPublishedQueueItem(item);
+  useEffect(() => {
+    logQueueAuditDebug("[queue-card]", {
+      ...statusInfo,
+      badgeStatus: statusInfo.displayStatus,
+      approveVisible: showApprove,
+      publishVisible: showPublish,
+      approveEndpointId: item.id,
+      publishEndpointId: item.id,
+    });
+    logQueueAuditDebug("[queue-status]", statusInfo);
+  }, [item.id, item.publish_status, item.status, item.post_status, item.state, showApprove, showPublish, statusInfo]);
   if (isFeedContent) {
     const post = normalizeMarketingPostInput(item);
     return (
@@ -704,18 +771,21 @@ function PreviewModal({ item, onClose, onApprove, onPublish }) {
         open
         post={post}
         onClose={onClose}
-        onPublish={onPublish ? () => onPublish(item) : null}
+        onPublish={showPublish && onPublish ? () => onPublish(item) : null}
         title="AI post preview"
         actionSlot={
           <div className="grid gap-3">
-            <button
-              type="button"
-              onClick={() => onApprove?.(item)}
-              className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/20`}
-            >
-              <Check className="h-4 w-4" />
-              Approve
-            </button>
+            {showPublished ? <Badge tone="emerald">Published</Badge> : null}
+            {showApprove ? (
+              <button
+                type="button"
+                onClick={() => onApprove?.(item)}
+                className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/20`}
+              >
+                <Check className="h-4 w-4" />
+                Approve
+              </button>
+            ) : null}
             <details className="rounded-2xl border border-white/10 bg-black/25 p-3">
               <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-400">Technical JSON</summary>
               <pre className="mt-3 max-h-56 overflow-auto rounded-xl border border-white/10 bg-black/40 p-3 text-xs text-slate-300">
@@ -755,22 +825,27 @@ function PreviewModal({ item, onClose, onApprove, onPublish }) {
               <ScheduleBadge item={item} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => onApprove?.(item)}
-                className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/20`}
-              >
-                <Check className="h-4 w-4" />
-                Approve
-              </button>
-              <button
-                type="button"
-                onClick={() => onPublish?.(item)}
-                className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/20`}
-              >
-                <Send className="h-4 w-4" />
-                Publish
-              </button>
+              {showPublished ? <Badge tone="emerald">Published</Badge> : null}
+              {showApprove ? (
+                <button
+                  type="button"
+                  onClick={() => onApprove?.(item)}
+                  className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/20`}
+                >
+                  <Check className="h-4 w-4" />
+                  Approve
+                </button>
+              ) : null}
+              {showPublish ? (
+                <button
+                  type="button"
+                  onClick={() => onPublish?.(item)}
+                  className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/20`}
+                >
+                  <Send className="h-4 w-4" />
+                  Publish
+                </button>
+              ) : null}
             </div>
           </div>
           {storyAudio ? (

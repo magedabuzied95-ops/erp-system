@@ -15,6 +15,7 @@ import {
   resumeAutonomousAiMarketing,
 } from "../services/marketingApi";
 import { hasPermission } from "../../permissions/lib/rbacStore";
+import { canApproveQueueItem, canPublishQueueItem, getQueueStatusInfo, isPublishedQueueItem, normalizeQueueStatus } from "../lib/queueStatus";
 
 const cardClass = "rounded-2xl border border-white/10 bg-white/[0.055] shadow-2xl shadow-black/20 backdrop-blur-xl";
 const buttonClass = "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50";
@@ -52,10 +53,15 @@ const scheduledLabel = (item = {}) => {
     : "Not scheduled";
 };
 const statusTone = (status = "") => {
-  if (["published", "ready", "approved"].includes(status)) return "emerald";
-  if (["failed"].includes(status)) return "rose";
-  if (["generating", "publishing", "pending_generation"].includes(status)) return "amber";
+  const normalized = normalizeQueueStatus(status);
+  if (["published", "ready", "approved"].includes(normalized)) return "emerald";
+  if (["failed"].includes(normalized)) return "rose";
+  if (["generating", "publishing", "pending_generation"].includes(normalized)) return "amber";
   return "slate";
+};
+const logQueueAuditDebug = (label, payload) => {
+  if (typeof console === "undefined" || typeof console.debug !== "function") return;
+  console.debug(label, payload);
 };
 const durationFor = (design = {}) => {
   const stored = Number(design.duration_seconds || 0);
@@ -173,8 +179,22 @@ export default function AiMarketingVideos() {
         getAutonomousAiMarketingQueue({ content_type: "video" }),
       ]);
       const nextSettings = unwrapSettings(settingsPayload);
+      const nextQueue = Array.isArray(queueRows) ? queueRows : [];
       setSettings(nextSettings);
-      setQueue(Array.isArray(queueRows) ? queueRows : []);
+      setQueue((current) => {
+        const previousIds = current.map((item) => item.id);
+        const nextIds = nextQueue.map((item) => item.id);
+        logQueueAuditDebug("[queue-status]", {
+          source: "api-load",
+          queueType: "videos",
+          count: nextQueue.length,
+          previousIds,
+          nextIds,
+          staleRemainingIds: previousIds.filter((id) => !nextIds.some((nextId) => String(nextId) === String(id))),
+          items: nextQueue.map((item) => getQueueStatusInfo(item, { source: "api-load", queueType: "videos" })),
+        });
+        return nextQueue;
+      });
     } catch (error) {
       toast.error(formatApiError(error, "Failed to load AI video queue"));
     } finally {
@@ -211,10 +231,30 @@ export default function AiMarketingVideos() {
   };
 
   const action = async (item, type) => {
+    const statusInfo = getQueueStatusInfo(item || {}, { source: "action", queueType: "videos" });
+    logQueueAuditDebug("[queue-action]", {
+      ...statusInfo,
+      action: type,
+      endpointId: item?.id,
+      canApprove: canApproveQueueItem(item),
+      canPublish: canPublishQueueItem(item),
+      matchedStateItem: Boolean(item),
+    });
+    if (type === "publish" && !canPublishQueueItem(item)) {
+      toast(isPublishedQueueItem(item) ? "This queue item is already published." : "Approve this queue item before publishing.");
+      await load();
+      return;
+    }
+    if (type === "approve" && !canApproveQueueItem(item)) {
+      toast(isPublishedQueueItem(item) ? "This queue item is already published." : "This queue item is not pending approval.");
+      await load();
+      return;
+    }
     try {
       if (type === "approve") await approveAutonomousAiMarketingQueueItem(item.id);
       if (type === "publish") await publishAutonomousAiMarketingQueueItemNow(item.id);
       await load();
+      setPreview((current) => (current && String(current.id) === String(item.id) ? { ...current, status: type === "publish" ? "published" : "approved" } : current));
     } catch (error) {
       toast.error(formatApiError(error, type === "publish" ? "Video publishing is not ready yet" : "Unable to update video"));
       await load();
@@ -339,6 +379,20 @@ function Kpi({ label, value, tone = "cyan" }) {
 }
 
 function VideoQueueRow({ item, onPreview, onApprove, onPublish }) {
+  const statusInfo = getQueueStatusInfo(item, { source: "card", queueType: "videos" });
+  const showApprove = canApproveQueueItem(item);
+  const showPublish = canPublishQueueItem(item);
+  useEffect(() => {
+    logQueueAuditDebug("[queue-card]", {
+      ...statusInfo,
+      badgeStatus: statusInfo.displayStatus,
+      approveVisible: showApprove,
+      publishVisible: showPublish,
+      approveEndpointId: item.id,
+      publishEndpointId: item.id,
+    });
+    logQueueAuditDebug("[queue-status]", statusInfo);
+  }, [item.id, item.publish_status, item.status, item.post_status, item.state, showApprove, showPublish, statusInfo]);
   return (
     <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-center">
       <div className="relative aspect-[9/16] w-16 overflow-hidden rounded-xl border border-white/10 bg-slate-950">
@@ -359,8 +413,8 @@ function VideoQueueRow({ item, onPreview, onApprove, onPublish }) {
       </div>
       <div className="flex flex-wrap gap-2 md:justify-end">
         <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
-        <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button>
-        <button type="button" onClick={onPublish} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>Publish</button>
+        {showApprove ? <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button> : null}
+        {showPublish ? <button type="button" onClick={onPublish} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>Publish</button> : null}
       </div>
     </div>
   );
@@ -368,6 +422,21 @@ function VideoQueueRow({ item, onPreview, onApprove, onPublish }) {
 
 function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
   const design = item.design_json || {};
+  const statusInfo = getQueueStatusInfo(item, { source: "preview-modal", queueType: "videos" });
+  const showApprove = canApproveQueueItem(item);
+  const showPublish = canPublishQueueItem(item);
+  const showPublished = isPublishedQueueItem(item);
+  useEffect(() => {
+    logQueueAuditDebug("[queue-card]", {
+      ...statusInfo,
+      badgeStatus: statusInfo.displayStatus,
+      approveVisible: showApprove,
+      publishVisible: showPublish,
+      approveEndpointId: item.id,
+      publishEndpointId: item.id,
+    });
+    logQueueAuditDebug("[queue-status]", statusInfo);
+  }, [item.id, item.publish_status, item.status, item.post_status, item.state, showApprove, showPublish, statusInfo]);
   const audio = audioForVideo(item);
   const scenes = scenesFor(item);
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
@@ -766,14 +835,19 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             <pre className="mt-3 max-h-72 overflow-auto text-xs text-slate-300">{JSON.stringify(design, null, 2)}</pre>
           </details>
           <div className="mt-5 flex flex-wrap gap-2">
-            <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>
-              <Check className="h-4 w-4" />
-              Approve
-            </button>
-            <button type="button" onClick={onPublish} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>
-              <Send className="h-4 w-4" />
-              Publish
-            </button>
+            {showPublished ? <Badge tone="emerald">Published</Badge> : null}
+            {showApprove ? (
+              <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>
+                <Check className="h-4 w-4" />
+                Approve
+              </button>
+            ) : null}
+            {showPublish ? (
+              <button type="button" onClick={onPublish} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>
+                <Send className="h-4 w-4" />
+                Publish
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
