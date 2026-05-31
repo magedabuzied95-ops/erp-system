@@ -131,7 +131,31 @@ const channelLabel = (value = "") => {
 };
 const customerAvatarUrl = (item = {}) => {
   const source = item || {};
-  return clean(source.customer_avatar_url || source.avatar_url || source.profile_pic_url || source.customer_profile?.avatar_url || source.customer_profile?.profile_pic_url || source.channel_metadata?.messenger_profile?.profile_pic);
+  return clean(
+    source.customer_avatar_url ||
+    source.profile_pic_url ||
+    source.profile_pic ||
+    source.avatar_url ||
+    source.customer_profile?.customer_avatar_url ||
+    source.customer_profile?.avatar_url ||
+    source.customer_profile?.profile_pic_url ||
+    source.customer_profile?.profile_pic ||
+    source.channel_metadata?.profile_pic ||
+    source.channel_metadata?.messenger_profile?.profile_pic
+  );
+};
+const customerDisplayName = (item = {}) => {
+  const source = item || {};
+  const profile = source.customer_profile || {};
+  const fullName = [source.first_name || profile.first_name, source.last_name || profile.last_name].map(clean).filter(Boolean).join(" ");
+  return clean(
+    source.customer_name ||
+    fullName ||
+    profile.name ||
+    profile.full_name ||
+    source.external_customer_id ||
+    source.phone
+  );
 };
 const isRtlText = (value = "") => /[\u0600-\u06ff]/.test(String(value || ""));
 const needsHumanAttention = (conversation = {}) =>
@@ -297,7 +321,7 @@ function ProductCards({ products = [] }) {
 const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
-  const customerName = clean(item.customer_name || item.first_name || item.phone || item.external_customer_id) || "Unknown customer";
+  const customerName = customerDisplayName(item) || "Unknown customer";
   const avatarUrl = customerAvatarUrl(item);
   const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "No messages yet.";
   const mainStatus = item.conversation_status === "closed"
@@ -720,6 +744,7 @@ function CustomerContextCard({ conversation = {} }) {
   const messages = uniqueMessages(conversation?.messages);
   const latest = [...messages].reverse().find((message) => message.detected_intent || message.customer_message || message.ai_answer) || {};
   const profile = conversation?.customer_profile || {};
+  const identityName = customerDisplayName(conversation) || "Unknown customer";
   const avatarUrl = customerAvatarUrl(conversation);
   const lastProduct = conversation?.current_product || conversation?.product || conversation?.channel_metadata?.current_product || conversation?.channel_metadata?.last_viewed_product || null;
   const lastSize = profile.preferred_size || conversation?.channel_metadata?.last_size || "";
@@ -732,7 +757,7 @@ function CustomerContextCard({ conversation = {} }) {
         <SectionTitle icon={User} title="Customer context" />
       </div>
       <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
-        <Info label="Customer" value={conversation?.customer_name || profile.name || conversation?.external_customer_id || "Unknown customer"} />
+        <Info label="Customer" value={identityName} />
         <Info label="Phone / external ID" value={profile.phone || conversation?.phone || conversation?.external_customer_id || "No phone yet"} />
         <Info label="Channel" value={channelLabel(conversation?.channel || conversation?.source)} />
         <Info label="Last intent" value={latest.detected_intent || conversation?.detected_intent || "Unknown"} />
@@ -750,7 +775,10 @@ function CustomerContextCard({ conversation = {} }) {
 
 function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing = false, onSyncMessengerProfile }) {
   const profile = conversation?.customer_profile || {};
+  const identityName = customerDisplayName(conversation);
   const avatarUrl = customerAvatarUrl(conversation);
+  const hasMessengerProfile = Boolean(identityName || avatarUrl || clean(conversation?.external_customer_id));
+  const crmLabel = profile.id ? `Linked profile #${profile.id}` : hasMessengerProfile ? "Messenger Profile Only" : "No matched CRM customer";
   const viewed = asArray(profile.viewed_products);
   const abandoned = asArray(profile.abandoned_products);
   const previousOrders = asArray(profile.previous_orders);
@@ -772,9 +800,9 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
           />
         </div>
         <div className="space-y-3">
-          <Info label="Name" value={profile.name || "Anonymous"} />
+          <Info label="Name" value={identityName || "Unknown customer"} />
           <Info label="Phone" value={profile.phone || "No phone yet"} />
-          <Info label="CRM customer" value={profile.id ? `Linked profile #${profile.id}` : "No matched CRM customer"} />
+          <Info label="CRM customer" value={crmLabel} />
           <Info label="City / area" value={profile.city_area || "Unknown customer"} />
           <Info label="Preferred size" value={profile.preferred_size || "Unknown"} />
           <TagRow label="Colors" values={profile.preferred_colors} />
@@ -910,6 +938,7 @@ export default function AiInbox() {
   const [suggestedReplies, setSuggestedReplies] = useState({ sessionId: "", items: [], intent: "", confidence: 0, error: "" });
   const [suggesting, setSuggesting] = useState(false);
   const [profileSyncing, setProfileSyncing] = useState(false);
+  const [profileDebugging, setProfileDebugging] = useState(false);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1271,6 +1300,64 @@ export default function AiInbox() {
     }
   };
 
+  const debugMessengerProfile = async () => {
+    if (!selectedConversation?.session_id) return;
+    const sessionId = selectedConversation.session_id;
+    setProfileDebugging(true);
+    setError("");
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/debug-messenger-profile"), {
+        tenant_id: tenantId,
+        external_customer_id: selectedConversation.external_customer_id || "",
+      }, { headers, perfComponent: "AiInbox.debugMessengerProfile" });
+      console.log("[messenger-profile-debug]", payload);
+      window.alert(JSON.stringify(payload, null, 2));
+      patchConversation(sessionId, (conversation) => ({
+        ...conversation,
+        customer_avatar_url:
+          payload.stored_ai_channel_conversations_customer_avatar_url ||
+          payload.stored_ai_support_sessions_customer_avatar_url ||
+          payload.stored_profile_pic_url ||
+          payload.profile_pic ||
+          conversation.customer_avatar_url,
+        customer_profile: {
+          ...(conversation.customer_profile || {}),
+          profile_pic:
+            payload.stored_customer_profile_profile_pic ||
+            payload.stored_profile_pic_url ||
+            payload.profile_pic ||
+            conversation.customer_profile?.profile_pic ||
+            "",
+          profile_pic_url:
+            payload.stored_profile_pic_url ||
+            payload.profile_pic ||
+            conversation.customer_profile?.profile_pic_url ||
+            "",
+          avatar_url:
+            payload.stored_profile_pic_url ||
+            payload.profile_pic ||
+            conversation.customer_profile?.avatar_url ||
+            "",
+        },
+        channel_metadata: {
+          ...(conversation.channel_metadata || {}),
+          profile_pic:
+            payload.stored_channel_metadata_profile_pic ||
+            payload.profile_pic ||
+            conversation.channel_metadata?.profile_pic ||
+            "",
+        },
+      }));
+      await loadAll({ silent: true });
+    } catch (err) {
+      console.error("[messenger-profile-debug] failed", err);
+      window.alert(JSON.stringify({ success: false, message: err?.message || "Could not debug Messenger profile" }, null, 2));
+      setError(err?.message || "Could not debug Messenger profile");
+    } finally {
+      setProfileDebugging(false);
+    }
+  };
+
   const persistDraftReply = async (message) => {
     const sessionId = selectedConversation?.session_id;
     if (!sessionId || !clean(message)) return;
@@ -1601,17 +1688,24 @@ export default function AiInbox() {
                 title="Conversation detail"
                 action={selectedConversation ? (
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    {canSyncMessengerProfile(selectedConversation) ? (
-                      <button
-                        type="button"
-                        onClick={syncMessengerProfile}
-                        disabled={profileSyncing}
-                        className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"
-                      >
-                        {profileSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                        Sync Messenger Profile
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={syncMessengerProfile}
+                      disabled={profileSyncing}
+                      className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"
+                    >
+                      {profileSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      Sync Messenger Profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={debugMessengerProfile}
+                      disabled={profileDebugging}
+                      className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50"
+                    >
+                      {profileDebugging ? <Loader2 className="h-4 w-4 animate-spin" /> : <InfoIcon className="h-4 w-4" />}
+                      Debug Messenger Profile
+                    </button>
                     <button type="button" onClick={() => setProfileOpen((value) => !value)} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100">
                       {profileOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                       Profile
@@ -1629,7 +1723,7 @@ export default function AiInbox() {
                         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>
                       )}
                       <div className="min-w-0">
-                        <div className="truncate text-xl font-black text-white">{safeConversation.customer_name || safeConversation.first_name || safeConversation.external_customer_id || "Unknown customer"}</div>
+                        <div className="truncate text-xl font-black text-white">{customerDisplayName(safeConversation) || "Unknown customer"}</div>
                         <div className="mt-1 truncate text-sm text-slate-500">{channelLabel(safeConversation.channel || safeConversation.source)} / {safeConversation.external_customer_id || safeConversation.session_id}</div>
                       </div>
                     </div>
