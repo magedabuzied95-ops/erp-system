@@ -46,6 +46,7 @@ router.post("/videos/generate/weekly", protect, permit("marketing", "create"), g
 router.post("/videos/generate/monthly", protect, permit("marketing", "create"), generateAutonomousAiMarketingVideosMonthly);
 router.post("/queue/:id/approve", protect, permit("marketing", "update"), approveAutonomousAiMarketingQueueItem);
 router.post("/queue/:id/generate-story-asset", protect, permit("marketing", "create"), generateAutonomousAiMarketingQueueStoryAsset);
+console.log("[route] generate-story-asset registered");
 router.post("/queue/:id/publish-now", protect, permit("marketing", "publish"), publishAutonomousAiMarketingQueueItemNow);
 router.delete("/queue/:id", protect, permit("marketing", "delete"), deleteAutonomousAiMarketingQueueItem);
 router.post("/pause", protect, permit("marketing", "update"), pauseAutonomousAiMarketing);

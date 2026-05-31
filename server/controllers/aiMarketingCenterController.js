@@ -129,9 +129,24 @@ export const generateAutonomousAiMarketingQueueStoryAsset = async (req, res) => 
     if (!id) return res.status(400).json({ success: false, message: "Invalid queue item id" });
     const item = await generateAiMarketingQueueStoryAsset(tenantScope(req), id);
     if (!item) return res.status(404).json({ success: false, message: "Queue item not found" });
-    return res.json({ success: true, item });
+    return res.json({
+      success: true,
+      rendered_image_url: item.rendered_image_url || "",
+      story_image_url: item.story_image_url || item.rendered_image_url || "",
+      final_asset_url: item.final_asset_url || item.story_image_url || item.rendered_image_url || "",
+      item,
+    });
   } catch (error) {
-    return sendError(res, error, "Failed to generate story asset");
+    if (Number(error?.status || error?.statusCode) === 404) {
+      return res.status(404).json({ success: false, message: "Queue item not found" });
+    }
+    if (Number(error?.status || error?.statusCode) === 400) {
+      return sendError(res, error, "Failed to generate story asset");
+    }
+    return res.status(500).json({
+      success: false,
+      message: error?.message || "Failed to generate story asset",
+    });
   }
 };
 
