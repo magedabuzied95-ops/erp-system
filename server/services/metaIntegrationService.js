@@ -6441,6 +6441,31 @@ const logReplyOwner = ({ handler = "", intent = "", message = {}, replyText = ""
   });
 };
 
+const staleProductPresentationPatterns = [
+  /لقيته\s+عندي/i,
+  /هراجعهمولك/i,
+  /المقاسات\s*:\s*هراجع/i,
+  /السعر\s+1750(?:\s+جنيه)?/i,
+  /ظ„ظ‚ظٹطھظ‡\s+ط¹ظ†ط¯ظٹ/i,
+  /ظ‡ط±ط§ط¬ط¹ظ‡ظ…ظˆظ„ظƒ/i,
+  /ط§ظ„ظ…ظ‚ط§ط³ط§طھ\s*:\s*ظ‡ط±ط§ط¬ط¹/i,
+  /ط§ظ„ط³ط¹ط±\s+1750/i,
+];
+
+const detectStaleProductPresentationReply = (reply = "") => {
+  const safe = text(reply);
+  if (!safe) return false;
+  return staleProductPresentationPatterns.some((pattern) => pattern.test(safe));
+};
+
+const logStaleReplyPath = ({ source = "", message = {}, replyText = "" } = {}) => {
+  console.warn("[stale-reply-path]", {
+    source: source || "unknown",
+    message: text(message.message_text || "").slice(0, 180),
+    reply_preview: text(replyText).slice(0, 180),
+  });
+};
+
 const clearProductSpecificContextPatch = () => ({
   activeProductId: null,
   activeVariantId: null,
@@ -7380,8 +7405,31 @@ const rememberPresentedProductSnapshot = ({ conversationId = "", snapshot = {}, 
 
 const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIntent = "", metadata = {}, inboundKey: explicitInboundKey = "", inboundMetaMid: explicitInboundMetaMid = "" } = {}) => {
   const orchestrated = orchestrateFinalReply({ message, replyText, detectedIntent, metadata });
-  const finalReplyText = orchestrated.text;
-  const finalMetadata = orchestrated.metadata;
+  let finalReplyText = orchestrated.text;
+  let finalMetadata = orchestrated.metadata;
+  if (detectStaleProductPresentationReply(finalReplyText)) {
+    logStaleReplyPath({
+      source: metadata.handler || metadata.replySource || detectedIntent || "sendAndLogMetaText",
+      message,
+      replyText: finalReplyText,
+    });
+    const ownership = buildReplyOwnershipContext({ message, detectedIntent: detectedIntent || "product_search", metadata, fallbackText: finalReplyText });
+    const replacement = buildOrchestratedReply({
+      message,
+      intent: "PRODUCT_SEARCH",
+      categoryContext: ownership.categoryContext,
+    });
+    finalReplyText = replacement.replyText || "";
+    finalMetadata = {
+      ...finalMetadata,
+      ...orchestratedReplyMetadata(replacement),
+      staleReplyBlocked: true,
+      staleReplySource: metadata.handler || metadata.replySource || detectedIntent || "sendAndLogMetaText",
+      replyOwner: "response_orchestrator",
+      replySource: "response_orchestrator",
+      replyPath: ["stale_reply_guard", "response_orchestrator", "final_reply"],
+    };
+  }
   const finalization = finalizeInboundReplyPipeline({
     message,
     owner: finalMetadata.replyOwner || "response_orchestrator",
@@ -12984,7 +13032,15 @@ export const sendMetaInboxOutboundMessage = async ({
   const scopedTenantId = numberOrNull(tenantId);
   const normalizedChannel = adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
   let safeRecipientId = text(recipientId);
-  const safeMessage = text(messageText);
+  let safeMessage = text(messageText);
+  if (detectStaleProductPresentationReply(safeMessage)) {
+    logStaleReplyPath({
+      source: replySource || replyOwner || "sendMetaInboxOutboundMessage",
+      message: { message_text: "" },
+      replyText: safeMessage,
+    });
+    safeMessage = "";
+  }
   const cards = await resolveProductCardLinks(normalizeProductCards(productCards, { limit: productCardLimit }), { tenantId: scopedTenantId });
   if (!scopedTenantId || !safeRecipientId || (!safeMessage && !cards.length)) {
     throw Object.assign(new Error("tenant_id, recipient id, and message are required"), { status: 400, code: "META_SEND_INPUT_REQUIRED" });
