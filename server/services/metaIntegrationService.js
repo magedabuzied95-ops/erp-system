@@ -5207,8 +5207,17 @@ const handleCheckoutContinuationIfMatched = async ({ config, message } = {}) => 
     order_id: draftResult.order_id || null,
     draft_reason: draftResult.reason || "",
   });
+  if (decision.nextCheckoutStage === "checkout") {
+    console.log("ai_checkout_started", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      checkout_stage: "checkout",
+      trigger: "checkout_continuation",
+      order_id: draftResult.order_id || null,
+    });
+  }
 
-  await sendAndLogMetaText({
+  const checkoutMessageResult = await sendAndLogMetaText({
     config,
     message,
     text: decision.replyText,
@@ -5226,6 +5235,16 @@ const handleCheckoutContinuationIfMatched = async ({ config, message } = {}) => 
       order_id: draftResult.order_id || null,
     },
   });
+  if (decision.nextCheckoutStage === "checkout") {
+    console.log("ai_checkout_message_sent", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      order_id: draftResult.order_id || null,
+      message_id: checkoutMessageResult?.message_id || checkoutMessageResult?.id || "",
+      checkout_stage: "checkout",
+      recipient_id: message.external_customer_id || "",
+    });
+  }
   return { handled: true, reason: decision.branch };
 };
 
@@ -5287,7 +5306,14 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
       size_flow_reopened: false,
       size_flow_reopened_reason: "",
     });
-    await sendAndLogMetaText({
+    console.log("ai_checkout_started", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      checkout_stage: "checkout",
+      trigger: "buying_intent_confirmation",
+      order_id: nextMemory?.orderDraftId || null,
+    });
+    const checkoutMessageResult = await sendAndLogMetaText({
       config,
       message,
       text: CHECKOUT_INFO_COLLECTION_REPLY,
@@ -5299,6 +5325,14 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
         selected_product_id: nextMemory?.selectedProductId || null,
         selected_variant_id: nextMemory?.selectedVariantId || null,
       },
+    });
+    console.log("ai_checkout_message_sent", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      order_id: nextMemory?.orderDraftId || null,
+      message_id: checkoutMessageResult?.message_id || checkoutMessageResult?.id || "",
+      checkout_stage: "checkout",
+      recipient_id: message.external_customer_id || "",
     });
     return { handled: true, reason: "checkout_info_requested_after_confirmation" };
   }
@@ -5314,9 +5348,26 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     return { handled: true, reason: "order_color_clarification" };
   }
   const baseCard = context.card;
-  if (!baseCard) return null;
+  if (!baseCard) {
+    console.log("ai_checkout_blocked", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      reason: "missing_product_context_for_checkout",
+      message_text: message.message_text || "",
+    });
+    return null;
+  }
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
-  if (!product) return null;
+  if (!product) {
+    console.log("ai_checkout_blocked", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      reason: "missing_product_for_checkout",
+      product_id: baseCard.product_id || null,
+      variant_id: baseCard.variant_id || null,
+    });
+    return null;
+  }
   const availableSizes = availableSizesForProduct(product, baseCard);
   if (!requestedSize && availableSizes.length > 1 && !checkoutStageAtLeast(previousCheckoutStage, "product_details")) {
     updateConversationMemory(message.external_conversation_id, {
@@ -5373,6 +5424,14 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     requested_size: effectiveSize,
   });
   if (!variant) {
+    console.log("ai_checkout_blocked", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      reason: "selected_variant_unavailable",
+      product_id: product.id || baseCard.product_id || null,
+      requested_size: effectiveSize,
+      selected_color: baseCard.color || "",
+    });
     await sendAndLogMetaText({
       config,
       message,
@@ -5391,7 +5450,7 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     selectedVariantId: variant.id || baseCard.variant_id || null,
     selectedSize,
     selectedColor,
-    checkoutStage: "buying_intent",
+    checkoutStage: "checkout",
     bookingConfirmationAsked: true,
     buyIntentDetected: true,
   });
@@ -5407,8 +5466,8 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
     previous_checkout_stage: previousCheckoutStage,
-    next_checkout_stage: "buying_intent",
-    checkout_stage: "buying_intent",
+    next_checkout_stage: "checkout",
+    checkout_stage: "checkout",
     trigger: "size_selected",
     selected_product_id: product.id || null,
     selected_variant_id: variant.id || null,
@@ -5449,21 +5508,33 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     variant_id: variant.id || null,
     status: "pending_confirmation",
   });
-  updateConversationMemory(message.external_conversation_id, {
-    orderDraftId: draft?.order?.id || null,
-  });
-  console.log("ai_inbox_booking_confirmation_requested", {
+  console.log("ai_draft_order_created", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
-    checkout_stage: "buying_intent",
-    booking_confirmation_asked: true,
+    order_id: draft?.order?.id || null,
+    duplicate: draft?.duplicate === true,
+    product_id: product.id || null,
+    variant_id: variant.id || null,
+    selected_size: selectedSize,
+    selected_color: selectedColor,
+  });
+  updateConversationMemory(message.external_conversation_id, {
+    orderDraftId: draft?.order?.id || null,
+    checkoutStage: "checkout",
+  });
+  console.log("ai_checkout_started", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    checkout_stage: "checkout",
+    trigger: "draft_order_created",
     order_id: draft?.order?.id || null,
   });
   emitAiInboxEvent(config.tenant_id, "ai_inbox:checkout_started", {
     sessionId: message.external_conversation_id,
-    checkout_stage: "buying_intent",
+    checkout_stage: "checkout",
     product_id: product.id || null,
     variant_id: variant.id || null,
+    order_id: draft?.order?.id || null,
   });
   emitAiInboxEvent(config.tenant_id, "ai_inbox:draft_order_created", {
     sessionId: message.external_conversation_id,
@@ -5471,26 +5542,35 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     product_id: product.id || null,
     variant_id: variant.id || null,
   });
-  await sendAndLogMetaText({
+  const checkoutMessageResult = await sendAndLogMetaText({
     config,
     message,
-    legacyText: selectedSize
-      ? `تمام، متوفر مقاس ${selectedSize}.\n${closerLine}\n\nابعت:\n- الاسم\n- رقم الموبايل\n- العنوان\nعشان أجهز الطلب`
-      : ORDER_DRAFT_REPLY,
-    text: selectedSize ? `${bookingConfirmationPrompt(selectedSize)}${closerLine ? `\n${closerLine}` : ""}` : ORDER_DRAFT_REPLY,
-    detectedIntent: "booking_confirmation_requested",
+    text: [
+      selectedSize ? `\u062a\u0645\u0627\u0645\u060c \u0645\u0642\u0627\u0633 ${selectedSize} \u0645\u062a\u0627\u062d \u2705` : "",
+      closerLine,
+      CHECKOUT_INFO_COLLECTION_REPLY,
+    ].filter(Boolean).join("\n"),
+    detectedIntent: "checkout_info_requested",
     metadata: {
       order_id: draft?.order?.id || null,
       product_id: product.id || null,
       variant_id: variant.id || null,
       selected_size: selectedSize,
       selected_color: selectedColor,
-      checkout_stage: "buying_intent",
-      booking_confirmation_asked: true,
+      checkout_stage: "checkout",
+      draft_order_created: true,
       status: "pending_confirmation",
     },
   });
-  return { handled: true, reason: "booking_confirmation_requested" };
+  console.log("ai_checkout_message_sent", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    order_id: draft?.order?.id || null,
+    message_id: checkoutMessageResult?.message_id || checkoutMessageResult?.id || "",
+    checkout_stage: "checkout",
+    recipient_id: message.external_customer_id || "",
+  });
+  return { handled: true, reason: "checkout_info_requested_after_draft" };
 };
 
 const recordLeadSignals = async ({ config, message, reason = "inbound" } = {}) => {
