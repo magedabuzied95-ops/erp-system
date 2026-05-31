@@ -117,6 +117,31 @@ const detectMoreImagesRequest = (message = "") =>
   hasAnyArabicCommerceTerm(message, ["\u0635\u0648\u0631 \u0623\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0627\u0643\u062a\u0631", "\u0635\u0648\u0631\u0629 \u062a\u0627\u0646\u064a\u0629", "\u0635\u0648\u0631 \u062a\u0627\u0646\u064a\u0629", "\u0648\u0631\u064a\u0646\u064a \u0623\u0644\u0648\u0627\u0646", "\u0648\u0631\u064a\u0646\u064a \u0627\u0644\u0648\u0627\u0646", "more photos", "more images"]) ||
   hasTerm(message, ["صور أكتر", "صور اكتر", "صورة تانية", "وريني ألوان", "وريني الوان", "ألوانه ايه", "الوانه ايه"]);
 
+const detectNorthFaceCorrection = (message = "") => {
+  const raw = text(message).toLowerCase().replace(/\s+/g, " ");
+  return Boolean(
+    /\bnorth\s*face\b|\bnorthface\b|\bthe\s+north\s+face\b/.test(raw) ||
+      raw.includes("\u0646\u0648\u0631\u062b \u0641\u064a\u0633") ||
+      raw.includes("\u0646\u0648\u0631\u062b\u0641\u064a\u0633") ||
+      raw.includes("\u0630\u0627 \u0646\u0648\u0631\u062b \u0641\u064a\u0633")
+  );
+};
+
+const detectNegativeCommerceIntent = (message = "") => {
+  const raw = text(message).toLowerCase().replace(/\s+/g, " ");
+  return Boolean(
+    /^(no|nah|لا|لأ|لاء)\b/.test(raw) ||
+      raw.includes("\u0644\u0627 \u0639\u0627\u064a\u0632") ||
+      raw.includes("\u0644\u0623 \u0639\u0627\u064a\u0632") ||
+      raw.includes("\u0645\u0634 \u0639\u0627\u064a\u0632") ||
+      raw.includes("\u0645\u0634 \u0639\u0627\u0648\u0632") ||
+      raw.includes("\u0639\u0627\u0648\u0632 \u0635\u0648\u0631 \u0644\u064a\u0647") ||
+      raw.includes("\u0639\u0627\u064a\u0632 \u0635\u0648\u0631 \u0644\u064a\u0647") ||
+      raw.includes("\u0644\u064a\u0647 \u0635\u0648\u0631") ||
+      raw.includes("\u0645\u0634 \u0645\u062d\u062a\u0627\u062c \u0635\u0648\u0631")
+  );
+};
+
 const detectSizesRequest = (message = "") =>
   hasAnyArabicCommerceTerm(message, ["\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a", "\u0645\u0642\u0627\u0633\u0627\u062a", "\u0641\u064a\u0647 \u0645\u0642\u0627\u0633", "\u0645\u062a\u0627\u062d \u0645\u0642\u0627\u0633", "\u0645\u0642\u0627\u0633\u0627\u062a\u0647", "sizes", "size"]) ||
   hasTerm(message, ["المقاسات", "مقاسات", "فيه مقاس", "متاح مقاس", "مقاساته"]);
@@ -219,7 +244,9 @@ const logAiStateTransition = ({ tenantId, conversationId, orderId = null, from =
 
 const detectCheckoutConfirmation = (message = "") =>
   Boolean(hasTerm(message, [
-    "\u062a\u0645\u0627\u0645",
+    "\u062a\u0645\u0627\u0645 \u0627\u062d\u062c\u0632",
+    "\u062a\u0645\u0627\u0645 \u0639\u0627\u064a\u0632\u0647",
+    "\u062a\u0645\u0627\u0645 \u0639\u0627\u064a\u0632\u0647\u0627",
     "\u0645\u0627\u0634\u064a",
     "\u0623\u064a\u0648\u0647",
     "\u0627\u064a\u0648\u0647",
@@ -235,6 +262,17 @@ const detectCheckoutConfirmation = (message = "") =>
     "\u0627\u0637\u0644\u0628",
     "\u0627\u0637\u0644\u0628\u0647",
     "\u0627\u0637\u0644\u0628\u0647\u0627",
+    "ok",
+    "yes",
+  ]));
+
+const detectReservationAffirmation = (message = "") =>
+  Boolean(hasTerm(message, [
+    "\u062a\u0645\u0627\u0645",
+    "\u0645\u0627\u0634\u064a",
+    "\u0623\u064a\u0648\u0647",
+    "\u0627\u064a\u0648\u0647",
+    "\u0627\u0647",
     "ok",
     "yes",
   ]));
@@ -322,7 +360,8 @@ export const evaluateMetaCheckoutContinuation = ({ memory = {}, messageText = ""
     sizeDigits(requestedSize) === sizeDigits(selectedSize) &&
     isOnlyShoeSizeMessage(messageText, requestedSize)
   );
-  const confirmationDetected = detectExplicitCheckoutIntent(messageText);
+  const confirmationDetected = detectExplicitCheckoutIntent(messageText) ||
+    (bookingConfirmationAsked && detectReservationAffirmation(messageText) && !requestedSize);
   const explicitSizeChange = detectExplicitSizeChange(messageText);
   const eligible = Boolean(
     selectedProductId &&
@@ -345,10 +384,10 @@ export const evaluateMetaCheckoutContinuation = ({ memory = {}, messageText = ""
     };
   }
 
-  if (confirmationDetected || (sameSizeRepeated && bookingConfirmationAsked)) {
+  if (confirmationDetected) {
     return {
       handled: true,
-      branch: sameSizeRepeated && bookingConfirmationAsked ? "repeated_size_treated_as_confirmation" : "booking_confirmation_to_checkout_info",
+      branch: "booking_confirmation_to_checkout_info",
       previousCheckoutStage,
       nextCheckoutStage: "checkout",
       selectedProductId,
@@ -366,13 +405,13 @@ export const evaluateMetaCheckoutContinuation = ({ memory = {}, messageText = ""
       handled: true,
       branch: "repeat_same_size_booking_prompt",
       previousCheckoutStage,
-      nextCheckoutStage: "buying_intent",
+      nextCheckoutStage: "product_details",
       selectedProductId,
       selectedSize,
-      bookingConfirmationAsked: true,
+      bookingConfirmationAsked,
       confirmationDetected: false,
       repeatedSameSize: true,
-      replyText: bookingConfirmationPrompt(selectedSize),
+      replyText: "\u0623\u064a\u0648\u0647\u060c \u0627\u0644\u0645\u0642\u0627\u0633 \u0645\u062a\u0648\u0641\u0631 \u2705\n\u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0633\u0639\u0631 \u0623\u0648 \u0623\u0648\u0631\u064a\u0643 \u0644\u0648\u0646 \u062a\u0627\u0646\u064a\u061f",
       skipGenericSizeFlowReason: "same_selected_size_repeated",
     };
   }
@@ -4268,6 +4307,105 @@ const sendAiGenerationFailedProductFallback = async ({ config, message, error } 
   return result ? { handled: true, reason: "ai_generation_failed_fallback" } : null;
 };
 
+const productLooksLikeNorthFace = (product = {}) => {
+  const haystack = text([
+    product.name,
+    product.title,
+    product.product_name,
+    product.base_name,
+    product.brand,
+    product.model,
+    product.search_text,
+    product.slug,
+    product.canonical_slug,
+  ].filter(Boolean).join(" ")).toLowerCase();
+  return /\bnorth\s*face\b|\bnorthface\b/.test(haystack) ||
+    haystack.includes("\u0646\u0648\u0631\u062b \u0641\u064a\u0633") ||
+    haystack.includes("\u0646\u0648\u0631\u062b\u0641\u064a\u0633");
+};
+
+const handleBrandCorrectionIfMatched = async ({ config, message } = {}) => {
+  if (!detectNorthFaceCorrection(message.message_text)) return null;
+  console.log("ai_intent_priority_selected", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    priority: "correction_new_product_request",
+    detected_brand: "north_face",
+  });
+  console.log("ai_brand_correction_applied", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    message_text: message.message_text || "",
+  });
+  unlockProductContext({ conversationId: message.external_conversation_id, reason: "brand_correction_north_face" });
+  console.log("ai_context_unlocked_by_correction", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    correction: "north_face",
+  });
+  const products = await searchAiOrderProducts({
+    tenantId: config.tenant_id,
+    message: "North Face نورث فيس",
+    metadata: { keywords: ["north face", "northface", "\u0646\u0648\u0631\u062b \u0641\u064a\u0633"] },
+  }).catch(() => []);
+  const northFaceProducts = products.filter(productLooksLikeNorthFace);
+  if (!northFaceProducts.length) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: "\u062a\u0645\u0627\u0645\u060c \u0647\u062f\u0648\u0631\u0644\u0643 \u0639\u0644\u0649 North Face \u0628\u0633. \u0645\u0645\u0643\u0646 \u062a\u0628\u0639\u062a\u0644\u064a \u0635\u0648\u0631\u0629 \u0623\u0648 \u0645\u0648\u062f\u064a\u0644 \u0645\u0639\u064a\u0646\u061f",
+      detectedIntent: "brand_correction_no_results",
+      metadata: { correction: "north_face" },
+    });
+    return { handled: true, reason: "brand_correction_no_results" };
+  }
+  await sendAndLogProductCards({
+    config,
+    message,
+    productCards: northFaceProducts,
+    detectedIntent: "brand_correction_north_face",
+    introText: "\u062a\u0645\u0627\u0645\u060c \u0647\u062f\u0648\u0631\u0644\u0643 \u0639\u0644\u0649 North Face \u0628\u0633.",
+    metadata: { product_card_limit: 2, brand_correction: "north_face" },
+  });
+  return { handled: true, reason: "brand_correction_north_face" };
+};
+
+const handleNegativeIntentIfMatched = async ({ config, message } = {}) => {
+  if (!detectNegativeCommerceIntent(message.message_text)) return null;
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  updateConversationMemory(message.external_conversation_id, {
+    checkoutStage: checkoutStageAtLeast(memory.checkoutStage, "checkout") ? memory.checkoutStage : "product_details",
+    bookingConfirmationAsked: false,
+    buyIntentDetected: false,
+    reservationCtaSuppressed: true,
+    reservationCtaSuppressedAt: nowIso(),
+  });
+  console.log("ai_intent_priority_selected", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    priority: "negative_objection",
+  });
+  console.log("ai_negative_intent_detected", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    message_text: message.message_text || "",
+  });
+  console.log("ai_reservation_cta_suppressed", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    reason: "negative_intent",
+    product_id: memory.selectedProductId || memory.lastProductCard?.product_id || null,
+  });
+  await sendAndLogMetaText({
+    config,
+    message,
+    text: "\u062a\u0645\u0627\u0645\u060c \u0648\u0644\u0627 \u064a\u0647\u0645\u0643. \u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0648\u0627\u0644\u0633\u0639\u0631 \u0628\u0633\u061f",
+    detectedIntent: "negative_objection",
+    metadata: { reservation_cta_suppressed: true },
+  });
+  return { handled: true, reason: "negative_objection" };
+};
+
 const repeatedProductCards = ({ conversationId, productCards = [] } = {}) => {
   const memory = getConversationMemory(conversationId) || {};
   const previousCards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
@@ -5208,6 +5346,12 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   if (!requestedSize && !availabilityKeyword) return null;
   const context = resolveContextProductCard({ message });
   if (!context.card && !context.ambiguous) return null;
+  console.log("ai_intent_priority_selected", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    priority: "product_detail_size_availability",
+    requested_size: requestedSize || "",
+  });
   if (context.ambiguous) {
     await sendAndLogMetaText({
       config,
@@ -5910,8 +6054,8 @@ const handleCheckoutContinuationIfMatched = async ({ config, message } = {}) => 
     selectedColor: memory.selectedColor || memory.lastProductCard?.color || draftResult.selected_color || "",
     selectedSize: decision.selectedSize,
     checkoutStage: decision.nextCheckoutStage,
-    bookingConfirmationAsked: true,
-    buyIntentDetected: true,
+    bookingConfirmationAsked: decision.nextCheckoutStage === "checkout" ? true : memory.bookingConfirmationAsked === true,
+    buyIntentDetected: decision.nextCheckoutStage === "checkout",
     orderDraftId: draftResult.order_id || memory.orderDraftId || null,
   });
 
@@ -5986,6 +6130,12 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     }
     return null;
   }
+  console.log("ai_intent_priority_selected", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    priority: "clear_buying_intent",
+    message_text: message.message_text || "",
+  });
   console.log("ai_checkout_trigger", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -6899,6 +7049,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
     if (!["suggest_only", "auto_reply_after_approval"].includes(autoReplyMode)) {
       try {
         const preAiHandlers = [
+          handleBrandCorrectionIfMatched,
+          handleNegativeIntentIfMatched,
           handleCheckoutDataIfMatched,
           handleContextualSizeCheckIfMatched,
           handleCheckoutContinuationIfMatched,
@@ -7025,17 +7177,17 @@ export const processMetaWebhook = async ({ req } = {}) => {
       const prompt = checkoutStageAtLeast(memory.checkoutStage, "checkout")
         ? CHECKOUT_INFO_REPLY
         : memory.bookingConfirmationAsked === true && selectedSize
-          ? repeatedBookingConfirmationPrompt()
+          ? "\u062a\u062d\u0628 \u0623\u0633\u0627\u0639\u062f\u0643 \u0641\u064a \u062d\u0627\u062c\u0629 \u062a\u0627\u0646\u064a\u0629\u061f"
           : selectedSize
-            ? bookingConfirmationPrompt(selectedSize)
+            ? `\u0645\u0642\u0627\u0633 ${selectedSize} \u0645\u062a\u0627\u062d \u2705\n\u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0633\u0639\u0631 \u0623\u0648 \u0623\u0648\u0631\u064a\u0643 \u0644\u0648\u0646 \u062a\u0627\u0646\u064a\u061f`
             : null;
       const legacyPrompt = selectedSize
         ? `مقاس ${selectedSize} متاح. ${CHECKOUT_INFO_REPLY}`
-        : "موجود معايا. تحب أحجزهولك؟ ابعت المقاس المناسب.";
+        : "\u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627. \u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0623\u0648\u0631\u064a\u0643 \u0644\u0648\u0646 \u062a\u0627\u0646\u064a\u061f";
       await sendAndLogMetaText({
         config,
         message,
-        text: prompt || legacyPrompt,
+        text: prompt || "\u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627. \u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0623\u0648\u0631\u064a\u0643 \u0644\u0648\u0646 \u062a\u0627\u0646\u064a\u061f",
         detectedIntent: "repeated_product_card_prevented",
         metadata: { repeated_product_card_prevented: true, checkout_stage: memory.checkoutStage || "" },
       });
