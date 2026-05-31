@@ -45,10 +45,8 @@ const joinList = (items = [], fallback = "") => unique(items, 8).join(", ") || f
 
 const TEMPLATES = Object.freeze({
   PRODUCT_PRESENTATION: [
-    { id: "product_presentation_1", weight: 4, text: "أيوه متاح ✅\nالسعر: {price} جنيه\nالمتاح حاليًا: {sizes}\nتحب أشوفلك مقاس معين؟" },
-    { id: "product_presentation_2", weight: 3, text: "موجود حاليًا\nسعره {price} جنيه\nالمقاسات المتاحة: {sizes}" },
-    { id: "product_presentation_3", weight: 3, text: "أيوه موجود، ودي التفاصيل\nالسعر: {price}\nالمتاح: {sizes}" },
-    { id: "product_presentation_4", weight: 2, text: "لقيته عندي ✅\nالسعر {price} جنيه\nالمقاسات: {sizes}" },
+    { id: "product_presentation_1", weight: 4, text: "أيوه متاح ✅\n\nالسعر: {price} جنيه" },
+    { id: "product_presentation_2", weight: 3, text: "موجود حاليًا ✅\n\nالسعر: {price} جنيه" },
   ],
   PRODUCT_PRESENTATION_FOLLOWUP: [
     { id: "product_presentation_followup_1", weight: 3, text: "\u0644\u0648 \u0639\u0646\u062f\u0643 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646 \u0642\u0648\u0644\u064a \u0639\u0644\u064a\u0647." },

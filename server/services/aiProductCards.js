@@ -336,7 +336,14 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     availability: text(product?.stock_status || product?.availability),
     visual_confidence_score: product?.visual_confidence_score ?? product?.confidence ?? null,
     visual_score_breakdown: product?.visual_score_breakdown || null,
+    matched_visual_candidate: product?.matched_visual_candidate || null,
+    matched_image_url: product?.matched_image_url || "",
+    matched_image_source: product?.matched_image_source || "",
+    matched_variant_id: product?.matched_variant_id || null,
+    matched_variant_color: product?.matched_variant_color || "",
+    matched_variant_image: product?.matched_variant_image || "",
     inventory_search_query: product?.inventory_search_query || "",
+    card_reply_mode: product?.card_reply_mode || product?.reply_mode || product?.replyMode || "",
   };
 };
 
@@ -408,13 +415,24 @@ export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
 const formatPrice = (price) =>
   Number(price || 0) > 0 ? `${Number(price).toLocaleString("en-US", { useGrouping: false })} \u062c` : "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f";
 
+const formatCloserPrice = (price) =>
+  Number(price || 0) > 0 ? `${Math.round(Number(price))} \u062c\u0646\u064a\u0647` : "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f";
+
 export const productCardReplyText = (product = {}) => {
+  const replyMode = text(product.card_reply_mode || product.replyMode || product.reply_mode);
+  if (replyMode === "image_only") return "";
+  if (replyMode === "color_only") {
+    return [
+      product.color ? `\u0627\u0644\u0644\u0648\u0646: ${product.color}` : "",
+      product.product_url || product.url ? product.product_url || product.url : "",
+    ].filter(Boolean).join("\n");
+  }
   const sizes = asArray(product.available_sizes || product.sizes).map(text).filter(Boolean);
-  const url = text(product.product_url || product.url);
   return [
-    text(product.name || product.title),
-    `${formatPrice(product.price)}`,
-    sizes.length ? sizes.join("\u060c ") : "",
-    url ? `\u0644\u064a\u0646\u0643 \u0627\u0644\u0645\u0646\u062a\u062c\n${url}` : "",
+    "\u0623\u064a\u0648\u0647 \u0645\u0648\u062c\u0648\u062f \u2705",
+    `\u0627\u0644\u0633\u0639\u0631: ${formatCloserPrice(product.price)}`,
+    sizes.length ? `\u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c")}` : "",
+    "",
+    "\u062a\u062d\u0628 \u0623\u062d\u062c\u0632\u0647\u0648\u0644\u0643\u061f",
   ].filter(Boolean).join("\n");
 };

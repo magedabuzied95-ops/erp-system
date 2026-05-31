@@ -1371,6 +1371,9 @@ const compactMemoryForDebug = (memory = {}) => ({
   replyDecisionReason: text(memory.replyDecisionReason || memory.resolvedQuestion?.reason || ""),
   lastReplyCategory: text(memory.lastReplyCategory || ""),
   lastPresentedProductId: text(memory.lastPresentedProductId || ""),
+  lastPresentedPrice: text(memory.lastPresentedPrice || ""),
+  lastPresentedSizes: Array.isArray(memory.lastPresentedSizes) ? memory.lastPresentedSizes.slice(0, 12) : [],
+  lastPresentedColors: Array.isArray(memory.lastPresentedColors) ? memory.lastPresentedColors.slice(0, 12) : [],
   lastPresentationTimestamp: text(memory.lastPresentationTimestamp || ""),
   lastShownProductIds: Array.isArray(memory.lastShownProductIds) ? memory.lastShownProductIds.slice(0, 12) : [],
   preferredSizes: Array.isArray(memory.preferredSizes) ? memory.preferredSizes.slice(0, 8) : [],
@@ -5382,6 +5385,7 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
     price: product.price || product.final_price || product.sale_price || product.product_price || null,
     image_url: product.image_url || "",
     product_url: product.product_url || product.url || "",
+    card_reply_mode: product.card_reply_mode || product.reply_mode || product.replyMode || "",
   }));
   if (!conversationId || !cards.length) return null;
   const sentCardByMessageId = { ...previousByMessageId };
@@ -5860,6 +5864,9 @@ const persistentAiMemoryFromRuntime = (memory = {}) => {
     recentReplyCategories: Array.isArray(memory.recentReplyCategories) ? memory.recentReplyCategories.map(text).filter(Boolean).slice(-8) : [],
     lastReplyCategory: text(memory.lastReplyCategory || ""),
     lastPresentedProductId: text(memory.lastPresentedProductId || ""),
+    lastPresentedPrice: text(memory.lastPresentedPrice || ""),
+    lastPresentedSizes: Array.isArray(memory.lastPresentedSizes) ? memory.lastPresentedSizes.map(text).filter(Boolean) : [],
+    lastPresentedColors: Array.isArray(memory.lastPresentedColors) ? memory.lastPresentedColors.map(text).filter(Boolean) : [],
     lastPresentationTimestamp: text(memory.lastPresentationTimestamp || ""),
     conversationStage: text(memory.conversationStage || ""),
     lastImageUrl: text(memory.lastImageUrl || ""),
@@ -5972,6 +5979,9 @@ const runtimeMemoryFromPersistent = (state = {}) => {
     recentReplyCategories: Array.isArray(state.recentReplyCategories) ? state.recentReplyCategories.map(text).filter(Boolean) : [],
     lastReplyCategory: text(state.lastReplyCategory || ""),
     lastPresentedProductId: text(state.lastPresentedProductId || ""),
+    lastPresentedPrice: text(state.lastPresentedPrice || ""),
+    lastPresentedSizes: Array.isArray(state.lastPresentedSizes) ? state.lastPresentedSizes.map(text).filter(Boolean) : [],
+    lastPresentedColors: Array.isArray(state.lastPresentedColors) ? state.lastPresentedColors.map(text).filter(Boolean) : [],
     lastPresentationTimestamp: text(state.lastPresentationTimestamp || ""),
     conversationStage: text(state.conversationStage || ""),
     lastImageUrl: text(state.lastImageUrl || ""),
@@ -6360,6 +6370,22 @@ const buildReplyOwnershipContext = ({ message = {}, detectedIntent = "", metadat
 
 const ensureResponseOrchestratorReply = ({ message = {}, replyText = "", detectedIntent = "", metadata = {} } = {}) => {
   const alreadyOrchestrated = metadata.responseOrchestratorUsed === true || metadata.replyOwner === "response_orchestrator";
+  if (metadata.preserveReplyText === true) {
+    return {
+      text: replyText,
+      metadata: {
+        ...metadata,
+        responseOrchestratorUsed: true,
+        replyOwner: "response_orchestrator",
+        replySource: metadata.replySource || "response_orchestrator",
+        replyPath: metadata.replyPath || [detectedIntent || metadata.trigger || "preserved_reply", "response_orchestrator"].filter(Boolean).join(">"),
+      },
+      owner: "response_orchestrator",
+      source: metadata.replySource || "response_orchestrator",
+      path: metadata.replyPath || [detectedIntent || metadata.trigger || "preserved_reply", "response_orchestrator"].filter(Boolean).join(">"),
+      rewritten: false,
+    };
+  }
   if (alreadyOrchestrated) {
     return {
       text: replyText,
@@ -7288,6 +7314,70 @@ const rememberProductPresentation = ({ conversationId = "", productId = "", repl
   });
 };
 
+const normalizedValueList = (items = []) => [...new Set((Array.isArray(items) ? items : [items]).map(text).filter(Boolean).map((item) => item.toLowerCase()))].sort();
+const sameValueList = (a = [], b = []) => {
+  const left = normalizedValueList(a);
+  const right = normalizedValueList(b);
+  return left.length === right.length && left.every((item, index) => item === right[index]);
+};
+const cardPresentedSnapshot = (card = {}) => ({
+  productId: presentationGuardProductId(card),
+  price: text(card.price || card.final_price || card.sale_price || card.product_price || ""),
+  sizes: normalizedValueList(card.available_sizes || card.sizes || []),
+  colors: normalizedValueList([card.color, card.matched_variant_color, card.selectedColor].filter(Boolean)),
+});
+const explicitPresentationRepeatRequest = (message = "") =>
+  /(?:أكد|اتأكد|لسه|تاني|تانى|again|repeat|available again|price again|sizes again)/i.test(text(message));
+
+const evaluateResponseDeduplication = ({ conversationId = "", productCards = [], replyCategory = "", detectedIntent = "", message = {} } = {}) => {
+  const memory = getConversationMemory(conversationId) || {};
+  const firstCard = normalizeProductCards(productCards, { limit: 1 })[0] || productCards[0] || {};
+  const snapshot = cardPresentedSnapshot(firstCard);
+  const category = text(replyCategory || "");
+  const blockedFields = [];
+  let reason = "";
+
+  if (/more_images/i.test(detectedIntent) || category === "MORE_IMAGES") {
+    blockedFields.push("availability", "price", "sizes");
+    reason = "more_images_images_only";
+  } else if (/link/i.test(detectedIntent) || category === "LINK_ONLY") {
+    blockedFields.push("availability", "price", "sizes");
+    reason = "link_only";
+  } else if (/color|other_colors/i.test(detectedIntent) || category === "COLOR_SELECTION") {
+    blockedFields.push("availability", "price", "sizes", "product_presentation");
+    reason = "colors_only";
+  } else if (category === "PRODUCT_PRESENTATION") {
+    const sameProduct = snapshot.productId && text(memory.lastPresentedProductId || "") === snapshot.productId;
+    const samePrice = text(memory.lastPresentedPrice || "") === snapshot.price;
+    const sameSizes = sameValueList(memory.lastPresentedSizes || [], snapshot.sizes);
+    const sameColors = sameValueList(memory.lastPresentedColors || [], snapshot.colors);
+    const explicitlyAskedAgain = explicitPresentationRepeatRequest(message.message_text || "");
+    if (sameProduct && samePrice && sameSizes && sameColors && !explicitlyAskedAgain) {
+      blockedFields.push("availability", "price", "sizes");
+      reason = "unchanged_product_presentation";
+    }
+  }
+
+  console.log("[dedupe-response]", {
+    blockedFields,
+    replyCategory: category || detectedIntent || "",
+    reason,
+  });
+  return { blocked: reason === "unchanged_product_presentation", blockedFields, reason, snapshot };
+};
+
+const rememberPresentedProductSnapshot = ({ conversationId = "", snapshot = {}, replyCategory = "" } = {}) => {
+  if (!conversationId || !snapshot.productId || replyCategory !== "PRODUCT_PRESENTATION") return null;
+  return updateConversationMemory(conversationId, {
+    lastPresentedProductId: snapshot.productId,
+    lastPresentedPrice: snapshot.price,
+    lastPresentedSizes: snapshot.sizes,
+    lastPresentedColors: snapshot.colors,
+    lastReplyCategory: replyCategory,
+    lastPresentationTimestamp: nowIso(),
+  });
+};
+
 const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIntent = "", metadata = {}, inboundKey: explicitInboundKey = "", inboundMetaMid: explicitInboundMetaMid = "" } = {}) => {
   const orchestrated = orchestrateFinalReply({ message, replyText, detectedIntent, metadata });
   const finalReplyText = orchestrated.text;
@@ -7491,6 +7581,23 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   });
   const finalCardIntroText = orchestratedCardsReply.text;
   const finalCardMetadata = orchestratedCardsReply.metadata;
+  const responseDedup = evaluateResponseDeduplication({
+    conversationId: message.external_conversation_id,
+    productCards: gatedCards,
+    replyCategory: finalCardMetadata.replyCategory,
+    detectedIntent,
+    message,
+  });
+  if (responseDedup.blocked) {
+    return {
+      blocked: true,
+      handled: true,
+      reason: "duplicate_unchanged_product_presentation_blocked",
+      product_id: responseDedup.snapshot.productId,
+      blocked_fields: responseDedup.blockedFields,
+      graph_api_called: false,
+    };
+  }
   const presentationGuard = evaluatePresentationGuard({
     conversationId: message.external_conversation_id,
     productCards: gatedCards,
@@ -7601,6 +7708,11 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   rememberProductPresentation({
     conversationId: message.external_conversation_id,
     productId: presentationGuard.productId,
+    replyCategory: finalCardMetadata.replyCategory,
+  });
+  rememberPresentedProductSnapshot({
+    conversationId: message.external_conversation_id,
+    snapshot: responseDedup.snapshot,
     replyCategory: finalCardMetadata.replyCategory,
   });
   if (productPresentationReply) {
@@ -8006,7 +8118,7 @@ const handleProductSearchIfMatched = async ({ config, message } = {}) => {
     ? [
         "\u0623\u064a\u0648\u0647 \u0645\u062a\u0627\u062d \u2705",
         firstCardPrice ? `\u0627\u0644\u0633\u0639\u0631: ${firstCardPrice}${/\u062c\u0646\u064a\u0647|egp|جنيه/i.test(firstCardPrice) ? "" : " \u062c\u0646\u064a\u0647"}` : "",
-        firstCardSizes.length ? `\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0627\u0644\u0645\u062a\u0627\u062d\u0629: ${firstCardSizes.join("\u060c ")}` : "",
+        firstCardSizes.length ? `\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0627\u0644\u0645\u062a\u0627\u062d\u0629: ${formatSalesDesignerSizes(firstCardSizes)}` : "",
         "",
         "\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646\u061f",
       ].filter((line) => line !== "").join("\n")
@@ -9276,14 +9388,39 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     replyType: "more_images",
   });
   const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
+  const imageOnlyCards = moreImageCards.map((card) => ({
+    ...card,
+    card_reply_mode: "image_only",
+  }));
+  evaluateResponseDeduplication({
+    conversationId: message.external_conversation_id,
+    productCards: imageOnlyCards,
+    replyCategory: "MORE_IMAGES",
+    detectedIntent: "more_images",
+    message,
+  });
+  await sendAndLogMetaText({
+    config,
+    message,
+    text: "\u0623\u0643\u064a\u062f",
+    detectedIntent: "more_images_intro",
+    metadata: {
+      preserveReplyText: true,
+      replyCategory: "MORE_IMAGES",
+      replyType: "more_images",
+      replyPipelineId: moreImagesPipelineId,
+    },
+    inboundKey,
+    inboundMetaMid,
+  });
   const result = await sendMetaInboxOutboundMessage({
     tenantId: config.tenant_id,
     channel: message.channel,
     recipientId: message.external_customer_id,
     conversationId: message.external_conversation_id,
-    productCards: moreImageCards,
-    productCardLimit: moreImageCards.length,
-    suggestedActions: META_COMMERCE_ACTIONS,
+    productCards: imageOnlyCards,
+    productCardLimit: imageOnlyCards.length,
+    suggestedActions: [],
     facebookPageId: config.facebook_page_id,
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
@@ -9302,7 +9439,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     tenantId: config.tenant_id,
     channel: message.channel,
     conversationId: message.external_conversation_id,
-    productCards: moreImageCards,
+    productCards: imageOnlyCards,
     sentMessages: result?.product_card_messages || [],
     messageText: message.message_text || "",
     lastIntent: "more_images",
@@ -9329,7 +9466,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     color: baseCard.color || "",
     image_count: moreImageCards.length,
   });
-  const preview = moreImageCards.map(productCardReplyText).join("\n\n").slice(0, 500);
+  const preview = "\u0623\u0643\u064a\u062f";
   await appendAiGeneratedSupportReply({
     tenantId: config.tenant_id,
     sessionId: message.external_conversation_id,
@@ -9465,12 +9602,21 @@ const handleProductLinkIfMatched = async ({ config, message } = {}) => {
   }
   const [card] = await resolveProductCardLinks(normalizeProductCards([baseCard], { limit: 1 }), { tenantId: config.tenant_id });
   const url = text(card?.product_url || card?.url || baseCard.product_url || baseCard.url || "");
+  evaluateResponseDeduplication({
+    conversationId: message.external_conversation_id,
+    productCards: [card || baseCard],
+    replyCategory: "LINK_ONLY",
+    detectedIntent: "product_link_request",
+    message,
+  });
   await sendAndLogMetaText({
     config,
     message,
     text: url ? `ده اللينك:\n${url}` : "اللينك مش جاهز عندي حالًا، ابعتلي اسم الموديل وأجيبهولك.",
     detectedIntent: "product_link_request",
     metadata: {
+      preserveReplyText: true,
+      replyCategory: "LINK_ONLY",
       resolvedQuestionType: resolved.intent,
       replyDecisionReason: url ? "product_link_sent" : "missing_product_url",
       product_id: baseCard.product_id || baseCard.id || null,
@@ -9517,7 +9663,8 @@ const handleOtherColorsIfMatched = async ({ config, message } = {}) => {
   const limit = 3;
   const cards = normalizeProductCards([product], { limit })
     .filter((card) => imageIdentity(card.image_url) !== imageIdentity(baseCard.image_url) || text(card.color).toLowerCase() !== text(baseCard.color).toLowerCase())
-    .slice(0, limit);
+    .slice(0, limit)
+    .map((card) => ({ ...card, card_reply_mode: "color_only" }));
   console.log("ai_model_color_limit_applied", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -9673,7 +9820,7 @@ const handleSizesIfMatched = async ({ config, message } = {}) => {
     categoryContext: { availableSizes: sizes, selectedProduct: baseCard, selectedColor: colorLabel },
   });
   const replyText = orchestrated?.replyText || (sizes.length
-    ? `\u0627\u0644\u0645\u062a\u0627\u062d ${colorLabel ? `\u0641\u064a \u0627\u0644\u0644\u0648\u0646 ${colorLabel}` : "\u0641\u064a \u0627\u0644\u0644\u0648\u0646 \u062f\u0647"}: ${sizes.join("\u060c ")}.\n\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629 \u0644\u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f\n\u0648\u0644\u0627 \u0623\u0648\u0631\u064a\u0643 \u0628\u0627\u0642\u064a \u0627\u0644\u0623\u0644\u0648\u0627\u0646\u061f`
+    ? `\u0627\u0644\u0645\u062a\u0627\u062d ${colorLabel ? `\u0641\u064a \u0627\u0644\u0644\u0648\u0646 ${colorLabel}` : "\u0641\u064a \u0627\u0644\u0644\u0648\u0646 \u062f\u0647"}: ${formatSalesDesignerSizes(sizes)}.\n\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629 \u0644\u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f\n\u0648\u0644\u0627 \u0623\u0648\u0631\u064a\u0643 \u0628\u0627\u0642\u064a \u0627\u0644\u0623\u0644\u0648\u0627\u0646\u061f`
     : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f");
   updateConversationMemory(message.external_conversation_id, {
     checkoutStage: "product_details",
@@ -9843,7 +9990,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
       config,
       message,
       text: sizes.length
-        ? `\u0623\u064a\u0648\u0647\u060c \u0627\u0644\u0645\u062a\u0627\u062d \u0641\u064a ${colorPhrase}: ${sizes.join("\u060c ")}`
+        ? `\u0623\u064a\u0648\u0647\u060c \u0627\u0644\u0645\u062a\u0627\u062d \u0641\u064a ${colorPhrase}: ${formatSalesDesignerSizes(sizes)}`
         : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f",
       detectedIntent: "contextual_availability_check",
       metadata: { product_id: baseCard.product_id || null, variant_id: baseCard.variant_id || null, color: baseCard.color || "", sizes },
@@ -9883,7 +10030,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
       "• المنطقة",
     ].filter((line) => line !== "").join("\n")
     : sizes.length
-      ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
+      ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${formatSalesDesignerSizes(sizes)}`
       : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
   const selectedColorLabel = selectionColorDisplay(canonicalColor(selectedVariantForSize?.color || baseCard.color || colorLabel || ""));
   const orchestrated = buildOrchestratedReply({
@@ -13175,7 +13322,10 @@ export const sendMetaInboxOutboundMessage = async ({
           });
         }
       }
-      meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: productCardReplyText(product), sendContext });
+      const cardReplyText = productCardReplyText(product);
+      if (cardReplyText) {
+        meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: cardReplyText, sendContext });
+      }
     productCardMessages.push({
         message_id: meta?.message_id || "",
         meta_mid: meta?.message_id || "",
