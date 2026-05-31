@@ -5468,6 +5468,11 @@ const sendCheckoutConfirmationMetaMessage = async ({
 };
 
 const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
+  console.log("CHECKOUT_HANDLER_ENTERED", {
+    tenant_id: config?.tenant_id,
+    conversation_id: message?.external_conversation_id || "",
+    channel: message?.channel || "",
+  });
   const conversationId = message.external_conversation_id;
   const memory = getConversationMemory(conversationId) || {};
   const stage = normalizeCheckoutStage(memory.checkoutStage);
