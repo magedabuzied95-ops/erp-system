@@ -583,7 +583,7 @@ const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitl
   const headingLines = storyAssetTextLines(badge || "NEW COLLECTION", { maxChars: 22, maxLines: 1 });
   const audioLines = storyAssetTextLines(audioTitle, { maxChars: 34, maxLines: 1 });
   const safeBrandName = trimString(brandName || "M1 STORE").slice(0, 32);
-  const sizesWidth = Math.min(930, Math.max(320, sizes.length * 17 + 98));
+  const sizesWidth = Math.min(930, Math.max(360, sizes.length * 22 + 116));
   const audioWidth = Math.min(656, Math.max(280, audioTitle.length * 13 + 100));
   return `
 <svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" viewBox="0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
@@ -601,7 +601,7 @@ const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitl
       <stop offset="0.45" stop-color="#f1eee8"/>
       <stop offset="1" stop-color="#121826"/>
     </linearGradient>
-    <linearGradient id="bottomFade" x1="0" y1="830" x2="0" y2="1920" gradientUnits="userSpaceOnUse">
+    <linearGradient id="bottomFade" x1="0" y1="760" x2="0" y2="1920" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#000000" stop-opacity="0"/>
       <stop offset="0.36" stop-color="#000000" stop-opacity="0.44"/>
       <stop offset="1" stop-color="#000000" stop-opacity="0.82"/>
@@ -626,7 +626,7 @@ const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitl
   <rect width="100%" height="100%" fill="url(#storyBase)"/>
   <rect width="100%" height="100%" fill="url(#cyanGlow)"/>
   <rect width="100%" height="100%" fill="url(#goldGlow)"/>
-  <rect y="830" width="1080" height="1090" fill="url(#bottomFade)"/>
+  <rect y="760" width="1080" height="1160" fill="url(#bottomFade)"/>
 
   <g opacity="0.96">
     <rect x="60" y="72" width="${Math.min(410, Math.max(172, safeBrandName.length * 17 + 72))}" height="52" rx="26" fill="#ffffff" fill-opacity="0.72" stroke="#ffffff" stroke-opacity="0.34"/>
@@ -642,21 +642,21 @@ const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitl
     </g>
   ` : ""}
 
-  <circle cx="540" cy="600" r="286" fill="#ffffff" fill-opacity="0.46" filter="url(#whiteGlow)"/>
-  <circle cx="540" cy="620" r="218" fill="#67e8f9" fill-opacity="0.16" filter="url(#cyanStageGlow)"/>
-  <ellipse cx="540" cy="1104" rx="430" ry="58" fill="#000000" fill-opacity="0.34" filter="url(#stageShadow)"/>
-  <ellipse cx="540" cy="1058" rx="480" ry="116" fill="#ffffff" fill-opacity="0.11" filter="url(#stageShadow)"/>
+  <circle cx="540" cy="548" r="250" fill="#ffffff" fill-opacity="0.46" filter="url(#whiteGlow)"/>
+  <circle cx="540" cy="570" r="192" fill="#67e8f9" fill-opacity="0.16" filter="url(#cyanStageGlow)"/>
+  <ellipse cx="540" cy="1016" rx="390" ry="50" fill="#000000" fill-opacity="0.34" filter="url(#stageShadow)"/>
+  <ellipse cx="540" cy="974" rx="430" ry="98" fill="#ffffff" fill-opacity="0.11" filter="url(#stageShadow)"/>
 
-  <rect x="60" y="1188" width="${Math.min(390, Math.max(220, (badge || "NEW COLLECTION").length * 13 + 72))}" height="44" rx="22" fill="#ffffff" fill-opacity="0.16" stroke="#ffffff" stroke-opacity="0.22"/>
-  ${storySvgText({ lines: headingLines, x: 94, y: 1217, size: 22, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
-  <rect x="60" y="1262" width="${sizesWidth}" height="54" rx="27" fill="#ffffff" fill-opacity="0.94" stroke="#ffffff" stroke-opacity="0.12"/>
-  ${storySvgText({ lines: sizesLines, x: 96, y: 1297, size: 25, weight: 950, color: "#0f172a", anchor: "start", lineHeight: 1 })}
-  ${storySvgText({ lines: titleLines, x: 60, y: 1382, size: titleLines.length > 1 ? 45 : 49, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1.1 })}
-  ${storySvgText({ lines: priceLines, x: 60, y: 1530, size: 71, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
+  <rect x="60" y="1088" width="${Math.min(390, Math.max(220, (badge || "NEW COLLECTION").length * 13 + 72))}" height="44" rx="22" fill="#ffffff" fill-opacity="0.16" stroke="#ffffff" stroke-opacity="0.22"/>
+  ${storySvgText({ lines: headingLines, x: 94, y: 1117, size: 22, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
+  ${storySvgText({ lines: titleLines, x: 60, y: 1212, size: 68, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1.03 })}
+  ${storySvgText({ lines: priceLines, x: 60, y: 1416, size: 98, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
   <g filter="url(#ctaGlow)">
-    <rect x="704" y="1480" width="316" height="70" rx="35" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.30"/>
-    <text x="862" y="1525" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="950" fill="#0f172a">${escapeXml(cta || "View details")}</text>
+    <rect x="640" y="1360" width="380" height="78" rx="39" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.30"/>
+    <text x="830" y="1410" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="#0f172a">${escapeXml(cta || "View details")}</text>
   </g>
+  <rect x="60" y="1504" width="${sizesWidth}" height="68" rx="34" fill="#ffffff" fill-opacity="0.94" stroke="#ffffff" stroke-opacity="0.12"/>
+  ${storySvgText({ lines: sizesLines, x: 100, y: 1548, size: 31, weight: 950, color: "#0f172a", anchor: "start", lineHeight: 1 })}
 </svg>`;
 };
 
@@ -979,11 +979,11 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
       };
       let imageComposite = await createContainedImageComposite({
         source: slideSource,
-        boxX: 36,
-        boxY: 170,
-        boxWidth: 1008,
-        boxHeight: 1000,
-        maxImageHeight: 1000,
+        boxX: 70,
+        boxY: 160,
+        boxWidth: 940,
+        boxHeight: 900,
+        maxImageHeight: 900,
         useSafeLimit: false,
       });
       logStoryMemory("slide-before-write-upload", {
