@@ -738,6 +738,7 @@ const QUESTION_TYPES = Object.freeze({
   PRICE_QUESTION: "PRICE_QUESTION",
   SIZE_QUESTION: "SIZE_QUESTION",
   COLOR_QUESTION: "COLOR_QUESTION",
+  MORE_IMAGES: "MORE_IMAGES",
   LINK_QUESTION: "LINK_QUESTION",
   ALTERNATIVES_QUESTION: "ALTERNATIVES_QUESTION",
   BUYING_INTENT: "BUYING_INTENT",
@@ -755,7 +756,11 @@ const resolveCustomerQuestion = ({ message = {}, memory = {} } = {}) => {
   let reason = "general_product_question";
 
   const resolvedColorQuestion = isColorQuestionMessage(messageText) || Boolean(detectSelectionColor(messageText) || detectExplicitColor(messageText));
-  if (resolvedColorQuestion) {
+  const resolvedMoreImages = Boolean(detectMoreImagesRequest(messageText) && !resolvedColorQuestion);
+  if (resolvedMoreImages) {
+    intent = QUESTION_TYPES.MORE_IMAGES;
+    reason = "more_images_request";
+  } else if (resolvedColorQuestion) {
     intent = QUESTION_TYPES.COLOR_QUESTION;
     reason = "color_request";
   } else if (detectAlternativesRequest(messageText)) {
@@ -782,6 +787,12 @@ const resolveCustomerQuestion = ({ message = {}, memory = {} } = {}) => {
     message: messageText,
     resolvedColorQuestion,
     activeProductId: memory.activeProductId || memory.selectedProductId || memory.lastProductCard?.product_id || memory.lastProductCard?.id || null,
+  });
+  console.log("[more-images-router]", {
+    message: messageText,
+    resolvedQuestionType: intent,
+    blockedPresentation: intent === QUESTION_TYPES.MORE_IMAGES,
+    imageCount: 0,
   });
 
   return {
@@ -1109,6 +1120,7 @@ const shouldContinueCheckout = (message = {}, memory = {}) => {
   const hasImage = imageAttachments(attachments).length > 0;
   const hasNewProductContext = Boolean(topicEntities.productName || topicEntities.model || topicEntities.brand);
   const hasColorRequest = Boolean(isColorQuestionMessage(messageText) || detectSelectionColor(messageText) || detectExplicitColor(messageText));
+  const hasMoreImages = Boolean(detectMoreImagesRequest(messageText) && !hasColorRequest);
   const hasAlternatives = Boolean(detectAlternativesRequest(messageText));
   const hasVisualSearch = hasImage || Boolean(detectVisualCorrectionTextV3(messageText));
   const confirmationOnly = checkoutConfirmationOnly(messageText);
@@ -1120,6 +1132,7 @@ const shouldContinueCheckout = (message = {}, memory = {}) => {
   else if (hasImage) reason = "image_message";
   else if (hasVisualSearch) reason = "visual_search_message";
   else if (hasNewProductContext) reason = "new_product_brand_or_model";
+  else if (hasMoreImages) reason = "more_images_request";
   else if (hasColorRequest) reason = "color_request";
   else if (hasAlternatives) reason = "alternatives_request";
   else if (confirmationOnly && reuseSize.allowed) {
@@ -1133,6 +1146,7 @@ const shouldContinueCheckout = (message = {}, memory = {}) => {
     message: messageText,
     confirmationOnly,
     hasNewProductContext,
+    hasMoreImages,
     hasColorRequest,
     hasAlternatives,
     hasVisualSearch,
@@ -6293,6 +6307,8 @@ const questionTypeToOrchestratorIntent = (questionType = "", detectedIntent = ""
       return "SIZE_CHECK";
     case QUESTION_TYPES.COLOR_QUESTION:
       return "COLOR_REQUEST";
+    case QUESTION_TYPES.MORE_IMAGES:
+      return "MORE_IMAGES";
     case QUESTION_TYPES.PRICE_QUESTION:
       return "PRICE_CHECK";
     case QUESTION_TYPES.BUYING_INTENT:
@@ -7363,7 +7379,7 @@ const evaluateResponseDeduplication = ({ conversationId = "", productCards = [],
   let reason = "";
 
   if (/more_images/i.test(detectedIntent) || category === "MORE_IMAGES") {
-    blockedFields.push("availability", "price", "sizes");
+    blockedFields.push("availability", "price", "sizes", "product_pitch");
     reason = "more_images_images_only";
   } else if (/link/i.test(detectedIntent) || category === "LINK_ONLY") {
     blockedFields.push("availability", "price", "sizes");
@@ -9440,6 +9456,12 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     ...card,
     card_reply_mode: "image_only",
   }));
+  console.log("[more-images-router]", {
+    message: message.message_text || "",
+    resolvedQuestionType: message.resolvedQuestion?.intent || QUESTION_TYPES.MORE_IMAGES,
+    blockedPresentation: true,
+    imageCount: imageOnlyCards.length,
+  });
   evaluateResponseDeduplication({
     conversationId: message.external_conversation_id,
     productCards: imageOnlyCards,
@@ -12741,6 +12763,7 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
     handleOrchestratorClarificationIfNeeded,
     handleVisualCorrectionIfMatched,
     handleBrandCorrectionIfMatched,
+    handleMoreImagesIfMatched,
     handleNegativeIntentIfMatched,
     handleCheckoutDataIfMatched,
     handleProductLinkIfMatched,
@@ -12752,7 +12775,6 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
     handleHumanHandoffIfMatched,
     answerFaqIfMatched,
     handleOtherColorsIfMatched,
-    handleMoreImagesIfMatched,
     handleAlternativesIfMatched,
     handleSizesIfMatched,
     handleOrderDraftIfMatched,
@@ -12760,7 +12782,7 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
   ];
   const routeMap = {
     [AI_INTENTS.VISUAL_SEARCH]: [handleVisualSearchIfMatched],
-    [AI_INTENTS.PRODUCT_SEARCH]: [handleProductLinkIfMatched, handleOtherColorsIfMatched, handleColorSelectionIfMatched, handleProductSearchIfMatched],
+    [AI_INTENTS.PRODUCT_SEARCH]: [handleMoreImagesIfMatched, handleProductLinkIfMatched, handleOtherColorsIfMatched, handleColorSelectionIfMatched, handleProductSearchIfMatched],
     [AI_INTENTS.PRICE_CHECK]: [handleSalesCloserV2IfMatched, handleSalesBrainBuyingStageIfMatched, handleOrderDraftIfMatched],
     [AI_INTENTS.SIZE_CHECK]: [handleContextualSizeCheckIfMatched, handleSizesIfMatched, handleSizeAvailabilityLinkIfMatched],
     [AI_INTENTS.COLOR_REQUEST]: [handleOtherColorsIfMatched, handleColorSelectionIfMatched],
@@ -13938,7 +13960,15 @@ export const processMetaWebhook = async ({ req } = {}) => {
         });
         runtimeMemory = getConversationMemory(message.external_conversation_id) || runtimeMemory;
         message.resolvedQuestion = resolvedQuestion;
-        const classification = classifyMetaConversationIntent({ message, memory: runtimeMemory });
+        let classification = classifyMetaConversationIntent({ message, memory: runtimeMemory });
+        if (resolvedQuestion.intent === QUESTION_TYPES.MORE_IMAGES) {
+          classification = {
+            ...classification,
+            intent: AI_INTENTS.MORE_IMAGES,
+            confidence: Math.max(Number(classification.confidence || 0), 0.97),
+            reason: "question_resolver_more_images_priority",
+          };
+        }
         latestDebugClassification = classification;
         message.contextManager = contextDecision;
         message.orchestratorIntent = classification;
