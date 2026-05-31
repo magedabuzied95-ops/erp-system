@@ -13642,14 +13642,11 @@ export const processMetaWebhook = async ({ req } = {}) => {
         product_ids: productCards.map((product) => product.product_id || product.id || null).filter(Boolean),
       });
       const memory = getConversationMemory(message.external_conversation_id) || {};
-      const selectedSize = "";
       const repeatedProductFallbackText = "\u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627. \u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0623\u0648\u0631\u064a\u0643 \u0644\u0648\u0646 \u062a\u0627\u0646\u064a\u061f";
       const prompt = checkoutStageAtLeast(memory.checkoutStage, "checkout")
         ? CHECKOUT_INFO_REPLY
         : null;
-      const legacyPrompt = selectedSize
-        ? `مقاس ${selectedSize} متاح. ${CHECKOUT_INFO_REPLY}`
-        : "\u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627. \u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0623\u0648\u0631\u064a\u0643 \u0644\u0648\u0646 \u062a\u0627\u0646\u064a\u061f";
+      const legacyPrompt = repeatedProductFallbackText;
       const repeatedGuardSend = await sendAndLogMetaText({
         config,
         message,
