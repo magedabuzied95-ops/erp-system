@@ -720,6 +720,48 @@ const storeProcessedInboundKey = async ({ tenantId, channel = "", conversationId
   return recent;
 };
 
+const storeSentProductMessages = async ({ tenantId, channel = "", conversationId = "", sentProductMessages = [] } = {}) => {
+  if (!tenantId || !conversationId || !sentProductMessages.length) return null;
+  const metadata = await loadConversationMetadata({ tenantId, channel, conversationId });
+  const current = recentMetaArray(metadata, "ai_sent_product_messages")
+    .filter((item) => text(item?.outbound_message_id))
+    .slice(-80);
+  const byMessageId = new Map(current.map((item) => [text(item.outbound_message_id), item]));
+  for (const item of sentProductMessages) {
+    const outboundMessageId = text(item.outbound_message_id);
+    if (!outboundMessageId) continue;
+    byMessageId.set(outboundMessageId, {
+      outbound_message_id: outboundMessageId,
+      productId: item.productId || null,
+      variantId: item.variantId || null,
+      color: text(item.color),
+      imageUrl: text(item.imageUrl),
+      title: text(item.title),
+      sizes: Array.isArray(item.sizes) ? item.sizes.map(text).filter(Boolean) : [],
+      sentAt: item.sentAt || nowIso(),
+    });
+  }
+  const next = [...byMessageId.values()].slice(-100);
+  await db.query(
+    `
+    UPDATE ai_channel_conversations
+    SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{ai_sent_product_messages}', $4::jsonb, true),
+        updated_at = NOW()
+    WHERE tenant_id = $1
+      AND external_conversation_id = $2
+      AND ($3::text = '' OR channel = $3 OR channel = 'facebook_messenger' OR $3 = 'facebook_messenger')
+    `,
+    [numberOrNull(tenantId), text(conversationId), text(channel), json(next)]
+  ).catch((error) => {
+    console.warn("[reply-context] sent product metadata store failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      message: error?.message || "",
+    });
+  });
+  return next;
+};
+
 const outboundDedupeContextFromMessage = (message = {}, overrides = {}) => {
   const inboundMetaMid = text(overrides.inboundMetaMid || message.external_message_id || message.raw?.event?.message?.mid || message.dedupe_key || "");
   let inboundKey = text(overrides.inboundKey || inboundIdempotencyKey(message));
@@ -4740,6 +4782,7 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
     product_id: product.product_id || product.id || null,
     variant_id: product.variant_id || null,
     name: product.name || "",
+    title: product.name || product.title || "",
     color: product.color || "",
     sizes: Array.isArray(product.available_sizes) ? product.available_sizes : [],
     price: product.price || product.final_price || product.sale_price || product.product_price || null,
@@ -4748,6 +4791,7 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
   }));
   if (!conversationId || !cards.length) return null;
   const sentCardByMessageId = { ...previousByMessageId };
+  const sentProductMessages = [];
   for (const card of cards) {
     const key = imageIdentity(card.image_url);
     if (key) viewedImageUrls.add(key);
@@ -4755,23 +4799,54 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
     if (card.message_id) sentCardByMessageId[card.message_id] = card;
     if (card.meta_mid) sentCardByMessageId[card.meta_mid] = card;
     if (card.image_message_id) sentCardByMessageId[card.image_message_id] = card;
+    for (const outboundMessageId of [card.message_id, card.meta_mid, card.image_message_id].map(text).filter(Boolean)) {
+      sentProductMessages.push({
+        outbound_message_id: outboundMessageId,
+        productId: card.product_id || null,
+        variantId: card.variant_id || null,
+        color: card.color || "",
+        imageUrl: card.image_url || "",
+        title: card.title || card.name || "",
+        sizes: card.sizes || [],
+        sentAt: nowIso(),
+      });
+    }
   }
   const shouldLockSingleCard = cards.length === 1 && Boolean(cards[0]?.product_id || cards[0]?.variant_id || cards[0]?.color);
+  const lastShownCards = cards.map((card) => ({
+    productId: card.product_id || null,
+    variantId: card.variant_id || null,
+    color: card.color || "",
+    title: card.title || card.name || "",
+    sizes: card.sizes || [],
+    imageUrl: card.image_url || "",
+  }));
+  const selectedCard = shouldLockSingleCard ? cards[0] : null;
   const nextMemory = updateConversationMemory(conversationId, {
     lastProductCards: cards,
     lastProductCard: cards[0],
+    lastShownCards,
     sentCardByMessageId,
+    ai_sent_product_messages: [
+      ...(Array.isArray(current.ai_sent_product_messages) ? current.ai_sent_product_messages : []),
+      ...sentProductMessages,
+    ].slice(-100),
     viewedImageUrls: [...viewedImageUrls],
     viewedProductIds: [...viewedProductIds],
     lastProductQuery: messageText || current.lastProductQuery || current.lastVisualQuery || "",
     lastIntent: lastIntent || current.lastIntent || "",
     contextLocked: current.contextLocked === true || shouldLockSingleCard,
-    activeProductId: current.activeProductId || current.selectedProductId || (shouldLockSingleCard ? cards[0]?.product_id || null : null),
-    activeVariantId: current.activeVariantId || current.selectedVariantId || (shouldLockSingleCard ? cards[0]?.variant_id || null : null),
-    activeColor: current.activeColor || current.selectedColor || (shouldLockSingleCard ? cards[0]?.color || "" : ""),
-    selectedProductId: current.selectedProductId || (shouldLockSingleCard ? cards[0]?.product_id || null : null),
-    selectedVariantId: current.selectedVariantId || (shouldLockSingleCard ? cards[0]?.variant_id || null : null),
-    selectedColor: current.selectedColor || (shouldLockSingleCard ? cards[0]?.color || "" : ""),
+    activeProductId: current.activeProductId || current.selectedProductId || (selectedCard ? selectedCard.product_id || null : null),
+    activeVariantId: current.activeVariantId || current.selectedVariantId || (selectedCard ? selectedCard.variant_id || null : null),
+    activeColor: current.activeColor || current.selectedColor || (selectedCard ? selectedCard.color || "" : ""),
+    selectedProductId: current.selectedProductId || (selectedCard ? selectedCard.product_id || null : null),
+    selectedVariantId: current.selectedVariantId || (selectedCard ? selectedCard.variant_id || null : null),
+    selectedColor: current.selectedColor || (selectedCard ? selectedCard.color || "" : ""),
+    selectedProductName: current.selectedProductName || (selectedCard ? selectedCard.title || selectedCard.name || "" : ""),
+    selectedVariantTitle: current.selectedVariantTitle || (selectedCard ? selectedCard.title || selectedCard.name || "" : ""),
+    selectedAvailableSizes: current.selectedAvailableSizes || (selectedCard ? selectedCard.sizes || [] : []),
+    selectedImageUrl: current.selectedImageUrl || (selectedCard ? selectedCard.image_url || "" : ""),
+    selectionStage: shouldLockSingleCard ? "product_found" : "product_found",
     lastShownProductIds: [...viewedProductIds],
     lastShownVariantIds: [...new Set(cards.map((card) => card.variant_id).filter(Boolean).map(String))],
     buyingStage: checkoutStageAtLeast(current.checkoutStage, "buying_intent")
@@ -4781,6 +4856,18 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
       ? current.checkoutStage
       : "product_selected",
   });
+  console.log("[selection-state] product cards saved", {
+    tenant_id: tenantId || null,
+    conversation_id: conversationId,
+    card_count: cards.length,
+    auto_selected: shouldLockSingleCard,
+    selected_product_id: selectedCard?.product_id || null,
+    selected_variant_id: selectedCard?.variant_id || null,
+    selection_stage: "product_found",
+  });
+  if (tenantId && channel && sentProductMessages.length) {
+    storeSentProductMessages({ tenantId, channel, conversationId, sentProductMessages }).catch(() => {});
+  }
   if (shouldLockSingleCard) {
     console.log("ai_context_locked", {
       conversation_id: conversationId,
@@ -4811,15 +4898,130 @@ const inboundReplyToMessageId = (message = {}) =>
   text(
     message.reply_to_message_id ||
       message.raw?.reply_to_message_id ||
+      message.raw?.reply_to?.mid ||
+      message.raw?.reply_to?.id ||
+      message.raw?.reply_to?.message_id ||
+      message.raw?.reply_to?.parent_mid ||
       message.raw?.event?.message?.reply_to?.mid ||
       message.raw?.event?.message?.reply_to?.id ||
+      message.raw?.event?.message?.reply_to?.message_id ||
+      message.raw?.event?.message?.reply_to?.parent_mid ||
       message.raw?.event?.message?.reply_to_message?.mid ||
       message.raw?.event?.message?.reply_to_message?.id ||
+      message.raw?.event?.message?.reply_to_message?.message_id ||
+      message.raw?.event?.message?.reply_to_message?.parent_mid ||
       message.raw?.event?.message?.replied_message?.mid ||
       message.raw?.event?.message?.replied_message?.id ||
+      message.raw?.event?.message?.replied_message?.message_id ||
+      message.raw?.event?.message?.replied_message?.parent_mid ||
       message.raw?.event?.message?.context?.mid ||
-      message.raw?.event?.message?.context?.id
+      message.raw?.event?.message?.context?.id ||
+      message.raw?.event?.message?.context?.message_id ||
+      message.raw?.event?.message?.context?.parent_mid ||
+      message.raw?.event?.message?.reply_to_mid ||
+      message.raw?.event?.message?.parent_mid
   );
+
+const colorAliases = [
+  ["black", ["black", "اسود", "أسود", "سودا", "سوداء", "الاسود", "الأسود"]],
+  ["green", ["green", "اخضر", "أخضر", "الاخضر", "الأخضر"]],
+  ["white", ["white", "ابيض", "أبيض", "الابيض", "الأبيض"]],
+  ["red", ["red", "احمر", "أحمر", "الاحمر", "الأحمر"]],
+  ["blue", ["blue", "ازرق", "أزرق", "الازرق", "الأزرق"]],
+  ["grey", ["grey", "gray", "جراي", "رمادي", "رصاصي"]],
+  ["beige", ["beige", "بيج"]],
+  ["brown", ["brown", "بني"]],
+];
+
+const canonicalColor = (value = "") => {
+  const raw = text(value).toLowerCase();
+  if (!raw) return "";
+  const normalized = raw.replace(/[\u064b-\u065f\u0670\u0640]/g, "").replace(/[أإآ]/g, "ا");
+  const matched = colorAliases.find(([, aliases]) => aliases.some((alias) => normalized.includes(alias.toLowerCase().replace(/[أإآ]/g, "ا"))));
+  return matched?.[0] || normalized;
+};
+
+const colorDisplayAr = (value = "") => ({
+  black: "الأسود",
+  green: "الأخضر",
+  white: "الأبيض",
+  red: "الأحمر",
+  blue: "الأزرق",
+  grey: "الجراي",
+  beige: "البيج",
+  brown: "البني",
+}[canonicalColor(value)] || text(value));
+
+const detectExplicitColor = (message = "") => {
+  const raw = text(message);
+  return colorAliases.find(([, aliases]) => aliases.some((alias) => new RegExp(`(^|\\s)${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$|[؟?.,،])`, "i").test(raw)))?.[0] || "";
+};
+
+const cardMatchesColor = (card = {}, color = "") => {
+  const wanted = canonicalColor(color);
+  if (!wanted) return false;
+  return canonicalColor(card.color) === wanted || canonicalColor(card.name).includes(wanted) || canonicalColor(card.title).includes(wanted);
+};
+
+const selectionColorAliases = [
+  ["black", ["black", "\u0628\u0644\u0627\u0643", "\u0627\u0633\u0648\u062f", "\u0623\u0633\u0648\u062f", "\u0627\u0644\u0627\u0633\u0648\u062f", "\u0627\u0644\u0623\u0633\u0648\u062f"]],
+  ["grey", ["grey", "gray", "\u062c\u0631\u0627\u064a", "\u0631\u0645\u0627\u062f\u064a", "\u0631\u0635\u0627\u0635\u064a"]],
+  ["white", ["white", "\u0648\u0627\u064a\u062a", "\u0627\u0628\u064a\u0636", "\u0623\u0628\u064a\u0636", "\u0627\u0644\u0627\u0628\u064a\u0636", "\u0627\u0644\u0623\u0628\u064a\u0636"]],
+  ["green", ["green", "\u062c\u0631\u064a\u0646", "\u0627\u062e\u0636\u0631", "\u0623\u062e\u0636\u0631", "\u0627\u0644\u0627\u062e\u0636\u0631", "\u0627\u0644\u0623\u062e\u0636\u0631"]],
+  ["red", ["red", "\u0631\u064a\u062f", "\u0627\u062d\u0645\u0631", "\u0623\u062d\u0645\u0631", "\u0627\u0644\u0627\u062d\u0645\u0631", "\u0627\u0644\u0623\u062d\u0645\u0631"]],
+];
+
+const normalizeReadableArabic = (value = "") =>
+  text(value).toLowerCase().replace(/[\u064b-\u065f\u0670\u0640]/g, "").replace(/[أإآ]/g, "ا");
+
+const detectSelectionColor = (message = "") => {
+  const normalized = normalizeReadableArabic(message);
+  const matched = selectionColorAliases.find(([, aliases]) =>
+    aliases.some((alias) => normalized.includes(normalizeReadableArabic(alias)))
+  );
+  return matched?.[0] || "";
+};
+
+const selectionColorDisplay = (color = "") => ({
+  black: "\u0627\u0644\u0623\u0633\u0648\u062f",
+  grey: "\u0627\u0644\u062c\u0631\u0627\u064a",
+  white: "\u0627\u0644\u0623\u0628\u064a\u0636",
+  green: "\u0627\u0644\u0623\u062e\u0636\u0631",
+  red: "\u0627\u0644\u0623\u062d\u0645\u0631",
+}[color] || colorDisplayAr(color));
+
+const selectionCardMatchesColor = (card = {}, color = "") => {
+  const wanted = detectSelectionColor(color) || canonicalColor(color);
+  const haystack = normalizeReadableArabic([card.color, card.name, card.title].filter(Boolean).join(" "));
+  return Boolean(wanted && (
+    detectSelectionColor(haystack) === wanted ||
+    canonicalColor(card.color) === wanted ||
+    canonicalColor(card.name).includes(wanted) ||
+    canonicalColor(card.title).includes(wanted)
+  ));
+};
+
+const lockResolvedReplyContext = ({ conversationId = "", card = {}, source = "" } = {}) => {
+  if (!conversationId || !card) return null;
+  return updateConversationMemory(conversationId, {
+    activeProductId: card.product_id || card.id || null,
+    activeVariantId: card.variant_id || null,
+    activeColor: card.color || "",
+    activeSize: "",
+    selectedProductId: card.product_id || card.id || null,
+    selectedVariantId: card.variant_id || null,
+    selectedColor: card.color || "",
+    selectedSize: "",
+    selectedProductName: card.title || card.name || "",
+    selectedVariantTitle: card.title || card.name || "",
+    selectedAvailableSizes: card.sizes || card.available_sizes || [],
+    selectedImageUrl: card.image_url || "",
+    selectionStage: card.color || card.variant_id ? "color_selected" : "product_found",
+    lastProductCard: card,
+    contextLocked: true,
+    replyContextSource: source,
+  });
+};
 
 const colorsClarificationText = (cards = []) => {
   const colors = [...new Set(cards.map((card) => text(card.color)).filter(Boolean))].slice(0, 4);
@@ -4833,15 +5035,54 @@ const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}
   const memory = getConversationMemory(conversationId) || {};
   const cards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
   const replyTo = inboundReplyToMessageId(message);
-  if (replyTo && memory.sentCardByMessageId?.[replyTo]) {
-    console.log("ai_context_reply_to_resolved", {
+  if (replyTo) {
+    console.log("[reply-context] detected", {
       conversation_id: conversationId,
       reply_to_message_id: replyTo,
-      product_id: memory.sentCardByMessageId[replyTo]?.product_id || null,
-      variant_id: memory.sentCardByMessageId[replyTo]?.variant_id || null,
-      color: memory.sentCardByMessageId[replyTo]?.color || "",
     });
-    return { card: memory.sentCardByMessageId[replyTo], source: "reply_to", ambiguous: false, cards };
+  }
+  const metadataMappings = Array.isArray(memory.ai_sent_product_messages) ? memory.ai_sent_product_messages : [];
+  const metadataMatch = replyTo
+    ? metadataMappings.find((item) => text(item.outbound_message_id) === replyTo)
+    : null;
+  const mappedCard = replyTo
+    ? memory.sentCardByMessageId?.[replyTo] || (metadataMatch ? {
+        message_id: metadataMatch.outbound_message_id,
+        meta_mid: metadataMatch.outbound_message_id,
+        product_id: metadataMatch.productId || null,
+        variant_id: metadataMatch.variantId || null,
+        name: metadataMatch.title || "",
+        title: metadataMatch.title || "",
+        color: metadataMatch.color || "",
+        sizes: metadataMatch.sizes || [],
+        image_url: metadataMatch.imageUrl || "",
+      } : null)
+    : null;
+  if (replyTo && mappedCard) {
+    console.log("[reply-context] resolved product card", {
+      conversation_id: conversationId,
+      reply_to_message_id: replyTo,
+      product_id: mappedCard.product_id || null,
+      variant_id: mappedCard.variant_id || null,
+      color: mappedCard.color || "",
+    });
+    lockResolvedReplyContext({ conversationId, card: mappedCard, source: "reply_to" });
+    return { card: mappedCard, source: "reply_to", ambiguous: false, cards };
+  }
+  if (replyTo) {
+    console.log("[reply-context] no mapping found", {
+      conversation_id: conversationId,
+      reply_to_message_id: replyTo,
+    });
+  }
+
+  const explicitColor = detectSelectionColor(message.message_text) || detectExplicitColor(message.message_text);
+  if (explicitColor) {
+    const colorCard = cards.find((card) => selectionCardMatchesColor(card, explicitColor) || cardMatchesColor(card, explicitColor));
+    if (colorCard) {
+      lockResolvedReplyContext({ conversationId, card: colorCard, source: "explicit_color" });
+      return { card: colorCard, source: "explicit_color", ambiguous: false, cards };
+    }
   }
   const selected = cards.find((card) =>
     (memory.selectedProductId && String(card.product_id || "") === String(memory.selectedProductId)) ||
@@ -4856,7 +5097,7 @@ const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}
       variant_id: selected.variant_id || null,
       color: selected.color || "",
     });
-    return { card: selected, source: "selected_memory", ambiguous: false, cards };
+    return { card: selected, source: "active_memory", ambiguous: false, cards };
   }
   if (cards.length === 1 || allowAmbiguous) {
     const card = cards[0] || memory.lastProductCard || null;
@@ -4869,7 +5110,7 @@ const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}
         color: card.color || "",
       });
     }
-    return { card, source: cards.length === 1 ? "single_last_card" : "first_last_card", ambiguous: false, cards };
+    return { card, source: cards.length === 1 ? "last_shown" : "last_shown", ambiguous: false, cards };
   }
   if (memory.selectedProductId && memory.selectedColor && memory.lastProductCard) {
     const lockedCard = {
@@ -4885,7 +5126,7 @@ const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}
       color: lockedCard.color || "",
       source: "locked_memory_fallback",
     });
-    return { card: lockedCard, source: "locked_memory_fallback", ambiguous: false, cards };
+    return { card: lockedCard, source: "active_memory", ambiguous: false, cards };
   }
   const activeProductId = memory.activeProductId || memory.selectedProductId || null;
   if (activeProductId) {
@@ -4909,10 +5150,10 @@ const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}
       variant_id: activeCard.variant_id || null,
       color: activeCard.color || "",
     });
-    return { card: activeCard, source: "active_product_memory_fallback", ambiguous: false, cards };
+    return { card: activeCard, source: "active_memory", ambiguous: false, cards };
   }
   if (cards.length > 1) return { card: null, source: "multiple_last_cards", ambiguous: true, cards };
-  return { card: memory.lastProductCard || null, source: "lastProductCard", ambiguous: false, cards };
+  return { card: memory.lastProductCard || null, source: "last_shown", ambiguous: false, cards };
 };
 
 const lockProductContext = ({ conversationId, card = {}, stage = "product_selected", reason = "", tenantId = null, channel = "", lastIntent = "" } = {}) => {
@@ -4931,6 +5172,11 @@ const lockProductContext = ({ conversationId, card = {}, stage = "product_select
     selectedProductId: card.product_id || card.id || null,
     selectedVariantId: card.variant_id || null,
     selectedColor: card.color || "",
+    selectedProductName: card.title || card.name || "",
+    selectedVariantTitle: card.title || card.name || "",
+    selectedAvailableSizes: card.sizes || card.available_sizes || [],
+    selectedImageUrl: card.image_url || "",
+    selectionStage: stage === "size_selected" ? "size_selected" : card.color || card.variant_id ? "color_selected" : "product_found",
     buyingStage: stage,
     checkoutStage: stage,
   });
@@ -4988,7 +5234,25 @@ const persistentAiMemoryFromRuntime = (memory = {}) => {
     customerContext: memory.customerContext || null,
     lastProductCards: cards,
     lastProductCard: activeCard?.product_id || activeCard?.id || activeCard?.variant_id ? activeCard : null,
+    lastShownCards: Array.isArray(memory.lastShownCards) ? memory.lastShownCards : cards.map((card) => ({
+      productId: card.product_id || null,
+      variantId: card.variant_id || null,
+      color: card.color || "",
+      title: card.title || card.name || "",
+      sizes: card.sizes || card.available_sizes || [],
+      imageUrl: card.image_url || "",
+    })),
     sentCardByMessageId: memory.sentCardByMessageId || {},
+    ai_sent_product_messages: Array.isArray(memory.ai_sent_product_messages) ? memory.ai_sent_product_messages.slice(-100) : [],
+    selectionStage: memory.selectionStage || normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || "browsing"),
+    selectedProductId: memory.selectedProductId || activeProductId || null,
+    selectedVariantId: memory.selectedVariantId || activeVariantId || null,
+    selectedColor: text(memory.selectedColor || activeColor || ""),
+    selectedSize: text(memory.selectedSize || memory.activeSize || ""),
+    selectedProductName: text(memory.selectedProductName || activeCard.name || activeCard.title || ""),
+    selectedVariantTitle: text(memory.selectedVariantTitle || activeCard.title || activeCard.name || ""),
+    selectedAvailableSizes: Array.isArray(memory.selectedAvailableSizes) ? memory.selectedAvailableSizes : (activeCard.sizes || activeCard.available_sizes || []),
+    selectedImageUrl: text(memory.selectedImageUrl || activeCard.image_url || ""),
     viewedImageUrls: Array.isArray(memory.viewedImageUrls) ? memory.viewedImageUrls : [],
     viewedProductIds: Array.isArray(memory.viewedProductIds) ? memory.viewedProductIds : [],
   };
@@ -4996,6 +5260,23 @@ const persistentAiMemoryFromRuntime = (memory = {}) => {
 
 const runtimeMemoryFromPersistent = (state = {}) => {
   const cards = Array.isArray(state.lastProductCards) ? state.lastProductCards : [];
+  const sentProductMessages = Array.isArray(state.ai_sent_product_messages) ? state.ai_sent_product_messages.slice(-100) : [];
+  const sentCardByMessageId = { ...(state.sentCardByMessageId || {}) };
+  for (const item of sentProductMessages) {
+    const outboundMessageId = text(item.outbound_message_id);
+    if (!outboundMessageId || sentCardByMessageId[outboundMessageId]) continue;
+    sentCardByMessageId[outboundMessageId] = {
+      message_id: outboundMessageId,
+      meta_mid: outboundMessageId,
+      product_id: item.productId || null,
+      variant_id: item.variantId || null,
+      name: item.title || "",
+      title: item.title || "",
+      color: item.color || "",
+      sizes: item.sizes || [],
+      image_url: item.imageUrl || "",
+    };
+  }
   return {
     activeProductId: state.activeProductId || null,
     activeVariantId: state.activeVariantId || null,
@@ -5005,9 +5286,23 @@ const runtimeMemoryFromPersistent = (state = {}) => {
     selectedVariantId: state.activeVariantId || null,
     selectedColor: text(state.activeColor || ""),
     selectedSize: text(state.activeSize || ""),
+    selectionStage: state.selectionStage || normalizeCheckoutStage(state.buyingStage || "browsing"),
+    selectedProductName: text(state.selectedProductName || ""),
+    selectedVariantTitle: text(state.selectedVariantTitle || ""),
+    selectedAvailableSizes: Array.isArray(state.selectedAvailableSizes) ? state.selectedAvailableSizes : [],
+    selectedImageUrl: text(state.selectedImageUrl || ""),
     lastProductCards: cards,
     lastProductCard: state.lastProductCard || cards[0] || null,
-    sentCardByMessageId: state.sentCardByMessageId || {},
+    lastShownCards: Array.isArray(state.lastShownCards) ? state.lastShownCards : cards.map((card) => ({
+      productId: card.product_id || null,
+      variantId: card.variant_id || null,
+      color: card.color || "",
+      title: card.title || card.name || "",
+      sizes: card.sizes || card.available_sizes || [],
+      imageUrl: card.image_url || "",
+    })),
+    sentCardByMessageId,
+    ai_sent_product_messages: sentProductMessages,
     viewedImageUrls: Array.isArray(state.viewedImageUrls) ? state.viewedImageUrls : [],
     viewedProductIds: Array.isArray(state.viewedProductIds) ? state.viewedProductIds : [],
     lastProductQuery: text(state.lastProductQuery || ""),
@@ -5035,7 +5330,7 @@ const loadPersistentAiConversationMemory = async ({ tenantId, channel = "", conv
   if (!tenantId || !conversationId) return null;
   const result = await db.query(
     `
-    SELECT metadata->'ai_memory' AS ai_memory
+    SELECT metadata->'ai_memory' AS ai_memory, metadata->'ai_sent_product_messages' AS ai_sent_product_messages
     FROM ai_channel_conversations
     WHERE tenant_id = $1
       AND external_conversation_id = $2
@@ -5054,7 +5349,12 @@ const loadPersistentAiConversationMemory = async ({ tenantId, channel = "", conv
   });
   const state = result.rows[0]?.ai_memory || null;
   if (state && typeof state === "object") {
-    const runtime = runtimeMemoryFromPersistent(state);
+    const runtime = runtimeMemoryFromPersistent({
+      ...state,
+      ai_sent_product_messages: Array.isArray(state.ai_sent_product_messages)
+        ? state.ai_sent_product_messages
+        : result.rows[0]?.ai_sent_product_messages || [],
+    });
     updateConversationMemory(conversationId, runtime);
     console.log("[ai-memory] loaded state", {
       tenant_id: tenantId,
@@ -5065,6 +5365,12 @@ const loadPersistentAiConversationMemory = async ({ tenantId, channel = "", conv
       buyingStage: runtime.buyingStage || runtime.checkoutStage || "",
       lastShownProductCount: runtime.lastProductCards?.length || 0,
     });
+    return runtime;
+  }
+  const sentProductMessages = result.rows[0]?.ai_sent_product_messages || [];
+  if (Array.isArray(sentProductMessages) && sentProductMessages.length) {
+    const runtime = runtimeMemoryFromPersistent({ ai_sent_product_messages: sentProductMessages });
+    updateConversationMemory(conversationId, runtime);
     return runtime;
   }
   console.log("[ai-memory] loaded state", {
@@ -7500,6 +7806,11 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     return { handled: true, reason: "size_check_color_clarification" };
   }
   const baseCard = context.card;
+  console.log("[size-check] context source", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    source: context.source === "reply_to" ? "reply_to" : context.source === "active_memory" ? "active_memory" : "last_shown",
+  });
   console.log("[size-check] active product", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -7533,7 +7844,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     source: memorySizes.length ? "memory_product_card_sizes_from_product_variants" : "searchAiOrderProducts.product_variants.stock",
     sizes,
   });
-  const colorLabel = text(baseCard.color);
+  const colorLabel = colorDisplayAr(baseCard.color);
   const colorPhrase = colorLabel ? `\u0627\u0644\u0644\u0648\u0646 ${colorLabel}` : "\u0627\u0644\u0644\u0648\u0646 \u062f\u0647";
   if (!requestedSize) {
     lockProductContext({
@@ -7587,11 +7898,6 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     : sizes.length
       ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
       : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
-  replyText = hasSize
-    ? `\u0623\u064a\u0648\u0647 \u0645\u0642\u0627\u0633 ${requestedSize} \u0645\u062a\u0648\u0641\u0631 \u2705\n\u062a\u062d\u0628 \u0623\u062d\u062c\u0632\u0647\u0648\u0644\u0643\u061f`
-    : sizes.length
-      ? `\u0644\u0644\u0623\u0633\u0641 \u0645\u0642\u0627\u0633 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
-      : replyText;
   console.log("[size-check] reply built", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -10596,13 +10902,14 @@ export const sendMetaInboxOutboundMessage = async ({
         }
       }
       meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: productCardReplyText(product), sendContext });
-      productCardMessages.push({
+    productCardMessages.push({
         message_id: meta?.message_id || "",
         meta_mid: meta?.message_id || "",
         image_message_id: imageMessageId,
         image_mid: imageMessageId,
         product_id: product.product_id || product.id || null,
         variant_id: product.variant_id || null,
+        title: product.name || product.title || "",
         color: product.color || "",
         sizes: product.sizes || product.available_sizes || [],
         price: product.price || null,

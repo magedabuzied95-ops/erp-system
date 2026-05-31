@@ -425,12 +425,22 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
       const replyToMessageId = toText(
         event.message?.reply_to?.mid ||
           event.message?.reply_to?.id ||
+          event.message?.reply_to?.message_id ||
+          event.message?.reply_to?.parent_mid ||
           event.message?.reply_to_message?.mid ||
           event.message?.reply_to_message?.id ||
+          event.message?.reply_to_message?.message_id ||
+          event.message?.reply_to_message?.parent_mid ||
           event.message?.replied_message?.mid ||
           event.message?.replied_message?.id ||
+          event.message?.replied_message?.message_id ||
+          event.message?.replied_message?.parent_mid ||
           event.message?.context?.mid ||
-          event.message?.context?.id
+          event.message?.context?.id ||
+          event.message?.context?.message_id ||
+          event.message?.context?.parent_mid ||
+          event.message?.reply_to_mid ||
+          event.message?.parent_mid
       );
       const timestamp = event.timestamp ? new Date(Number(event.timestamp)).toISOString() : new Date().toISOString();
       messages.push(normalizeBaseIncomingMessage({
@@ -453,6 +463,7 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
           customer_psid: senderId,
           recipient_page_id: recipientId,
           reply_to_message_id: replyToMessageId,
+          reply_to: event.message?.reply_to || event.message?.reply_to_message || event.message?.replied_message || event.message?.context || null,
         },
       }));
     });
