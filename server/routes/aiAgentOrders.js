@@ -4,7 +4,7 @@ import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { emitToRooms } from "../utils/socket.js";
-import { sendMetaInboxOutboundMessage } from "../services/metaIntegrationService.js";
+import { sendMetaInboxOutboundMessage, syncMessengerProfileForConversation } from "../services/metaIntegrationService.js";
 import { getAIEvents, pushAIEvent } from "../services/aiEventLogger.js";
 import { resolveIntent } from "../services/aiIntentResolver.js";
 import { buildProductContext, ensureProductLinkInReply } from "../services/aiProductContext.js";
@@ -1518,6 +1518,23 @@ router.get("/conversations/:conversationId/messages", protect, permit("settings"
     return res.json({ success: true, conversation_id: conversationId, ...payload });
   } catch (error) {
     return sendError(res, error, "Failed to load AI inbox messages");
+  }
+});
+
+router.post("/conversations/:conversationId/sync-messenger-profile", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = decodeRouteId(req.params.conversationId);
+  try {
+    const result = await syncMessengerProfileForConversation({
+      tenantId,
+      conversationId,
+      externalCustomerId: req.body?.external_customer_id || req.body?.psid || "",
+    });
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000, messageLimit: 30 });
+    const conversation = (inbox.conversations || []).find((item) => item.session_id === conversationId) || null;
+    return res.json({ success: true, ...result, conversation });
+  } catch (error) {
+    return sendError(res, error, "Could not fetch Messenger profile");
   }
 });
 

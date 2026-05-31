@@ -151,6 +151,7 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS status VARCHAR(40) NOT NULL DEFAULT 'ai_active'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'web_chat'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS assigned_user_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS assigned_user_name TEXT NOT NULL DEFAULT ''`);
@@ -166,6 +167,7 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS delivery_error TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'web_chat'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS detected_intent TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2)`);
@@ -196,7 +198,11 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
           id BIGSERIAL PRIMARY KEY,
           tenant_id BIGINT NOT NULL,
           first_name TEXT NOT NULL DEFAULT '',
+          last_name TEXT NOT NULL DEFAULT '',
           phone TEXT NOT NULL DEFAULT '',
+          source_channel TEXT NOT NULL DEFAULT '',
+          external_customer_id TEXT NOT NULL DEFAULT '',
+          profile_pic_url TEXT NOT NULL DEFAULT '',
           preferred_size TEXT NOT NULL DEFAULT '',
           preferred_colors JSONB NOT NULL DEFAULT '[]'::jsonb,
           preferred_models JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -210,6 +216,7 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
           conversation_summary TEXT NOT NULL DEFAULT '',
           customer_sentiment TEXT NOT NULL DEFAULT 'neutral',
           memory_score INTEGER NOT NULL DEFAULT 0,
+          last_profile_sync_at TIMESTAMP NULL,
           last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -289,6 +296,11 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_interactions ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'web_chat'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_interactions ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_interactions ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_name TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS source_channel TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS external_customer_id TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS profile_pic_url TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMP NULL`);
       await clientOrPool.query(`UPDATE ai_customer_interactions SET detected_intent = intent_type WHERE COALESCE(detected_intent, '') = '' AND COALESCE(intent_type, '') <> ''`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_customer_profiles_tenant_seen ON ai_customer_profiles (tenant_id, last_seen_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_interactions_tenant_created ON ai_customer_interactions (tenant_id, created_at DESC)`);
@@ -314,6 +326,7 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
         external_conversation_id TEXT NOT NULL,
         external_customer_id TEXT NOT NULL DEFAULT '',
         customer_name TEXT NOT NULL DEFAULT '',
+        customer_avatar_url TEXT NOT NULL DEFAULT '',
         last_message TEXT NOT NULL DEFAULT '',
         customer_profile_id BIGINT NULL,
         metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -325,6 +338,7 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
     `);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS external_customer_id TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
+    await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP NULL`);
@@ -467,9 +481,18 @@ export const normalizeInboxMessage = (row = {}) => ({
 const buildCustomerProfilePayload = ({ conversation = {}, memories = [] } = {}) => {
   const profile = conversation.customer_profile || {};
   const memoryValues = memories.map((item) => item.memory_value || {});
+  const firstName = text(profile.first_name || conversation.first_name || "");
+  const lastName = text(profile.last_name || conversation.last_name || "");
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
   return {
     id: profile.id || conversation.profile_id || null,
-    name: profile.first_name || conversation.first_name || "",
+    name: fullName || firstName || conversation.customer_name || "",
+    first_name: firstName,
+    last_name: lastName,
+    avatar_url: profile.profile_pic_url || conversation.profile_pic_url || conversation.customer_avatar_url || conversation.session_customer_avatar_url || conversation.channel_metadata?.profile_pic || conversation.channel_metadata?.messenger_profile?.profile_pic || "",
+    profile_pic_url: profile.profile_pic_url || conversation.profile_pic_url || conversation.customer_avatar_url || conversation.session_customer_avatar_url || conversation.channel_metadata?.profile_pic || conversation.channel_metadata?.messenger_profile?.profile_pic || "",
+    external_customer_id: profile.external_customer_id || conversation.external_customer_id || "",
+    source_channel: profile.source_channel || conversation.channel || conversation.source || "",
     phone: profile.phone || conversation.phone || "",
     city_area: profile.city_area || conversation.city_area || "",
     preferred_size: profile.preferred_size || uniqueArray(memoryValues.flatMap((item) => item.sizes || item.preferred_sizes || [])).join(", "),
@@ -823,6 +846,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       s.source,
       s.channel AS session_channel,
       s.customer_name AS session_customer_name,
+      s.customer_avatar_url AS session_customer_avatar_url,
       s.last_message AS session_last_message,
       s.status AS conversation_status,
       s.assigned_user_id,
@@ -837,6 +861,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       COALESCE(c.channel, s.channel, s.source) AS channel,
       c.external_customer_id,
       c.external_conversation_id,
+      c.customer_avatar_url,
       c.metadata AS channel_metadata,
       COALESCE(c.last_message_at, s.updated_at) AS last_message_at,
       e.last_webhook_event_at,
@@ -853,6 +878,10 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       m.visual_attachments,
       p.id AS profile_id,
       p.first_name,
+      p.last_name,
+      p.profile_pic_url,
+      p.external_customer_id AS profile_external_customer_id,
+      p.source_channel AS profile_source_channel,
       p.phone,
       p.customer_sentiment,
       p.memory_score,
@@ -872,7 +901,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     LEFT JOIN ai_channel_conversations c ON c.tenant_id = s.tenant_id AND c.external_conversation_id = s.session_id
     LEFT JOIN latest_event e ON e.conversation_id = s.session_id
     LEFT JOIN latest_interaction li ON li.session_id = s.session_id
-    LEFT JOIN ai_customer_profiles p ON p.id = li.profile_id AND p.tenant_id = s.tenant_id
+    LEFT JOIN ai_customer_profiles p ON p.id = COALESCE(c.customer_profile_id, li.profile_id) AND p.tenant_id = s.tenant_id
     LEFT JOIN (
       SELECT ai_agent_conversation_id, COUNT(*) FILTER (WHERE ai_agent_status = 'ai_draft') AS draft_count, COUNT(*) FILTER (WHERE ai_agent_status = 'confirmed') AS confirmed_count
       FROM orders
@@ -1023,6 +1052,10 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         customer_profile: {
           id: conversation.profile_id,
           first_name: conversation.first_name,
+          last_name: conversation.last_name,
+          profile_pic_url: conversation.profile_pic_url || conversation.customer_avatar_url || conversation.channel_metadata?.messenger_profile?.profile_pic || "",
+          external_customer_id: conversation.profile_external_customer_id || conversation.external_customer_id || "",
+          source_channel: conversation.profile_source_channel || conversation.channel || "",
           phone: conversation.phone,
           city_area: conversation.city_area,
           preferred_size: conversation.preferred_size,
@@ -1067,6 +1100,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       source: conversation.source || conversation.channel || "web_chat",
       channel: conversation.channel || conversation.session_channel || conversation.source || "web_chat",
       customer_name: customerProfile.name || conversation.session_customer_name || conversation.first_name || conversation.external_customer_id || "",
+      customer_avatar_url: customerProfile.avatar_url || conversation.customer_avatar_url || "",
       last_message: conversation.customer_message || conversation.message_text || conversation.session_last_message || "",
       latest_message_preview: conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "",
       external_customer_id: conversation.external_customer_id || "",

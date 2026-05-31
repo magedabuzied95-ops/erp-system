@@ -44,6 +44,7 @@ export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
           external_conversation_id TEXT NOT NULL,
           external_customer_id TEXT NOT NULL DEFAULT '',
           customer_name TEXT NOT NULL DEFAULT '',
+          customer_avatar_url TEXT NOT NULL DEFAULT '',
           last_message TEXT NOT NULL DEFAULT '',
           customer_profile_id BIGINT NULL,
           metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -54,6 +55,7 @@ export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
         )
       `);
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_customer ON ai_channel_conversations (tenant_id, channel, external_customer_id)`);
       await clientOrPool.query(`
@@ -496,6 +498,7 @@ export const upsertChannelConversationMapping = async ({
   externalConversationId,
   externalCustomerId = "",
   customerName = "",
+  customerAvatarUrl = "",
   customerProfileId = null,
   metadata = {},
   lastMessageAt = null,
@@ -504,12 +507,13 @@ export const upsertChannelConversationMapping = async ({
   const result = await db.query(
     `
     INSERT INTO ai_channel_conversations (
-      tenant_id, channel, external_conversation_id, external_customer_id, customer_name, last_message, customer_profile_id, metadata, last_message_at, updated_at
+      tenant_id, channel, external_conversation_id, external_customer_id, customer_name, customer_avatar_url, last_message, customer_profile_id, metadata, last_message_at, updated_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::timestamp, NOW())
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::timestamp, NOW())
     ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
       external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_channel_conversations.external_customer_id),
       customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_channel_conversations.customer_name),
+      customer_avatar_url = COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_channel_conversations.customer_avatar_url),
       last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_channel_conversations.last_message),
       customer_profile_id = COALESCE(EXCLUDED.customer_profile_id, ai_channel_conversations.customer_profile_id),
       metadata = ai_channel_conversations.metadata || EXCLUDED.metadata,
@@ -523,6 +527,7 @@ export const upsertChannelConversationMapping = async ({
       toText(externalConversationId),
       toText(externalCustomerId),
       toText(customerName),
+      toText(customerAvatarUrl),
       toText(metadata?.last_message || metadata?.message_text || metadata?.messagePreview),
       numberOrNull(customerProfileId),
       json(metadata || {}),

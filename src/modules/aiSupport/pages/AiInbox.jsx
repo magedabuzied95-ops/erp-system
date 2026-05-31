@@ -105,6 +105,22 @@ const relativeTime = (value) => {
 
 const absoluteTime = (value) => (value ? new Date(value).toLocaleString() : "");
 const isMetaChannel = (value = "") => ["facebook_messenger", "instagram"].includes(clean(value).toLowerCase());
+const isFacebookMessengerChannel = (value = "") => ["facebook_messenger", "facebook", "messenger"].includes(clean(value).toLowerCase());
+const canSyncMessengerProfile = (conversation) => {
+  const channel = clean(conversation?.channel || conversation?.source).toLowerCase();
+  const source = clean(conversation?.source).toLowerCase();
+  const provider = clean(conversation?.provider || conversation?.platform).toLowerCase();
+  const sessionId = clean(conversation?.session_id || conversation?.conversation_id || conversation?.id).toLowerCase();
+  const externalConversationId = clean(conversation?.external_conversation_id).toLowerCase();
+
+  return (
+    isFacebookMessengerChannel(channel) ||
+    isFacebookMessengerChannel(source) ||
+    isFacebookMessengerChannel(provider) ||
+    sessionId.startsWith("facebook_messenger:") ||
+    externalConversationId.startsWith("facebook_messenger:")
+  );
+};
 const channelLabel = (value = "") => {
   const key = clean(value).toLowerCase();
   if (key === "facebook_messenger") return "Facebook Messenger";
@@ -112,6 +128,10 @@ const channelLabel = (value = "") => {
   if (key === "whatsapp") return "WhatsApp";
   if (key === "web_chat") return "Web chat";
   return key || "Unknown channel";
+};
+const customerAvatarUrl = (item = {}) => {
+  const source = item || {};
+  return clean(source.customer_avatar_url || source.avatar_url || source.profile_pic_url || source.customer_profile?.avatar_url || source.customer_profile?.profile_pic_url || source.channel_metadata?.messenger_profile?.profile_pic);
 };
 const isRtlText = (value = "") => /[\u0600-\u06ff]/.test(String(value || ""));
 const needsHumanAttention = (conversation = {}) =>
@@ -278,6 +298,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const customerName = clean(item.customer_name || item.first_name || item.phone || item.external_customer_id) || "Unknown customer";
+  const avatarUrl = customerAvatarUrl(item);
   const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "No messages yet.";
   const mainStatus = item.conversation_status === "closed"
     ? { tone: "rose", label: "Closed", icon: LockKeyhole }
@@ -294,7 +315,11 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${liveMeta ? "bg-cyan-300/15 text-cyan-100" : "bg-white/[0.07] text-slate-200"}`}><User className="h-4 w-4" /></span>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-white/10" loading="lazy" />
+            ) : (
+              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${liveMeta ? "bg-cyan-300/15 text-cyan-100" : "bg-white/[0.07] text-slate-200"}`}><User className="h-4 w-4" /></span>
+            )}
             <span className="min-w-0">
               <span className="block truncate font-black text-white">{customerName}</span>
               <span className="block truncate text-xs font-bold text-slate-500">{channelLabel(channel)} / {item.external_customer_id || item.session_id}</span>
@@ -695,13 +720,17 @@ function CustomerContextCard({ conversation = {} }) {
   const messages = uniqueMessages(conversation?.messages);
   const latest = [...messages].reverse().find((message) => message.detected_intent || message.customer_message || message.ai_answer) || {};
   const profile = conversation?.customer_profile || {};
+  const avatarUrl = customerAvatarUrl(conversation);
   const lastProduct = conversation?.current_product || conversation?.product || conversation?.channel_metadata?.current_product || conversation?.channel_metadata?.last_viewed_product || null;
   const lastSize = profile.preferred_size || conversation?.channel_metadata?.last_size || "";
   const escalation = clean(conversation?.escalation_reason || conversation?.ai_escalation_reason);
 
   return (
     <div className="mb-4 rounded-2xl bg-slate-950/55 p-4 ring-1 ring-white/10">
-      <SectionTitle icon={User} title="Customer context" />
+      <div className="mb-3 flex items-center gap-3">
+        {avatarUrl ? <img src={avatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" /> : <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>}
+        <SectionTitle icon={User} title="Customer context" />
+      </div>
       <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
         <Info label="Customer" value={conversation?.customer_name || profile.name || conversation?.external_customer_id || "Unknown customer"} />
         <Info label="Phone / external ID" value={profile.phone || conversation?.phone || conversation?.external_customer_id || "No phone yet"} />
@@ -719,8 +748,9 @@ function CustomerContextCard({ conversation = {} }) {
   );
 }
 
-function CustomerProfilePanel({ conversation }) {
+function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing = false, onSyncMessengerProfile }) {
   const profile = conversation?.customer_profile || {};
+  const avatarUrl = customerAvatarUrl(conversation);
   const viewed = asArray(profile.viewed_products);
   const abandoned = asArray(profile.abandoned_products);
   const previousOrders = asArray(profile.previous_orders);
@@ -728,7 +758,19 @@ function CustomerProfilePanel({ conversation }) {
   return (
     <aside className="space-y-4">
       <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-        <SectionTitle icon={User} title="Customer profile" />
+        <div className="mb-3 flex items-center gap-3">
+          {avatarUrl ? <img src={avatarUrl} alt="" className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" /> : <span className="grid h-14 w-14 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-6 w-6" /></span>}
+          <SectionTitle
+            icon={User}
+            title="Customer profile"
+            action={canSyncMessenger ? (
+              <button type="button" onClick={onSyncMessengerProfile} disabled={syncing} className="inline-flex h-8 items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2 text-[11px] font-black text-cyan-100 disabled:opacity-50">
+                {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                Sync
+              </button>
+            ) : null}
+          />
+        </div>
         <div className="space-y-3">
           <Info label="Name" value={profile.name || "Anonymous"} />
           <Info label="Phone" value={profile.phone || "No phone yet"} />
@@ -867,6 +909,7 @@ export default function AiInbox() {
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
   const [suggestedReplies, setSuggestedReplies] = useState({ sessionId: "", items: [], intent: "", confidence: 0, error: "" });
   const [suggesting, setSuggesting] = useState(false);
+  const [profileSyncing, setProfileSyncing] = useState(false);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1186,6 +1229,45 @@ export default function AiInbox() {
       setError(err?.message || "Failed to update conversation");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const syncMessengerProfile = async () => {
+    if (!selectedConversation?.session_id || !canSyncMessengerProfile(selectedConversation)) return;
+    const sessionId = selectedConversation.session_id;
+    setProfileSyncing(true);
+    setError("");
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/sync-messenger-profile"), {
+        tenant_id: tenantId,
+        external_customer_id: selectedConversation.external_customer_id || "",
+      }, { headers, perfComponent: "AiInbox.syncMessengerProfile" });
+      if (payload.conversation) {
+        patchConversation(sessionId, (conversation) => ({
+          ...conversation,
+          ...payload.conversation,
+          messages: asArray(payload.conversation.messages).length ? payload.conversation.messages : conversation.messages,
+        }));
+      } else {
+        patchConversation(sessionId, (conversation) => ({
+          ...conversation,
+          customer_name: payload.customer_name || conversation.customer_name,
+          customer_avatar_url: payload.customer_avatar_url || conversation.customer_avatar_url,
+          customer_profile: {
+            ...(conversation.customer_profile || {}),
+            name: payload.customer_name || conversation.customer_profile?.name || "",
+            avatar_url: payload.customer_avatar_url || conversation.customer_profile?.avatar_url || "",
+            profile_pic_url: payload.customer_avatar_url || conversation.customer_profile?.profile_pic_url || "",
+          },
+        }));
+      }
+      setToast({ tone: "emerald", text: "Profile synced" });
+      await loadAll({ silent: true });
+    } catch (err) {
+      setToast({ tone: "rose", text: "Could not fetch Messenger profile" });
+      setError(err?.message || "Could not fetch Messenger profile");
+    } finally {
+      setProfileSyncing(false);
     }
   };
 
@@ -1518,18 +1600,38 @@ export default function AiInbox() {
                 icon={Bot}
                 title="Conversation detail"
                 action={selectedConversation ? (
-                  <button type="button" onClick={() => setProfileOpen((value) => !value)} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100">
-                    {profileOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                    Profile
-                  </button>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {canSyncMessengerProfile(selectedConversation) ? (
+                      <button
+                        type="button"
+                        onClick={syncMessengerProfile}
+                        disabled={profileSyncing}
+                        className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"
+                      >
+                        {profileSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                        Sync Messenger Profile
+                      </button>
+                    ) : null}
+                    <button type="button" onClick={() => setProfileOpen((value) => !value)} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100">
+                      {profileOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+                      Profile
+                    </button>
+                  </div>
                 ) : null}
               />
               {selectedConversation ? (
                 <>
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                    <div>
-                      <div className="text-xl font-black text-white">{safeConversation.customer_name || safeConversation.first_name || safeConversation.external_customer_id || "Unknown customer"}</div>
-                      <div className="mt-1 text-sm text-slate-500">{channelLabel(safeConversation.channel || safeConversation.source)} / {safeConversation.external_customer_id || safeConversation.session_id}</div>
+                    <div className="flex min-w-0 items-center gap-3">
+                      {customerAvatarUrl(safeConversation) ? (
+                        <img src={customerAvatarUrl(safeConversation)} alt="" className="h-12 w-12 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+                      ) : (
+                        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>
+                      )}
+                      <div className="min-w-0">
+                        <div className="truncate text-xl font-black text-white">{safeConversation.customer_name || safeConversation.first_name || safeConversation.external_customer_id || "Unknown customer"}</div>
+                        <div className="mt-1 truncate text-sm text-slate-500">{channelLabel(safeConversation.channel || safeConversation.source)} / {safeConversation.external_customer_id || safeConversation.session_id}</div>
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <AIStatusBadge status={selectedAIStatus} />
@@ -1608,7 +1710,14 @@ export default function AiInbox() {
             {selectedConversation?.draft_orders?.length ? <OrderDraftPanel conversation={selectedConversation} drafts={drafts} onAction={updateDraft} busy={loading} /> : null}
           </main>
 
-          {profileOpen ? <CustomerProfilePanel conversation={selectedConversation} /> : null}
+          {profileOpen ? (
+            <CustomerProfilePanel
+              conversation={selectedConversation}
+              canSyncMessenger={canSyncMessengerProfile(selectedConversation)}
+              syncing={profileSyncing}
+              onSyncMessengerProfile={syncMessengerProfile}
+            />
+          ) : null}
         </section>
       </div>
     </div>
