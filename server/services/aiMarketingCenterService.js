@@ -1435,11 +1435,16 @@ const rawStoryImageUrls = (item = {}) => {
 };
 
 const storyProductImageUrl = (item = {}) => rawStoryImageUrls(item)[0] || "";
+const AI_MARKETING_STORY_RENDERER = "ai_marketing_story_preview_parity_v2";
 
 const isValidRenderedStoryAsset = (item = {}, assetUrl = "") => {
   const selectedAsset = cleanImageUrl(assetUrl);
   if (!selectedAsset) return false;
   if (!isPublicStoryAssetUrl(selectedAsset)) return false;
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  const renderer = cleanText(metadata.story_asset_renderer || design.story_asset_renderer);
+  if (renderer !== AI_MARKETING_STORY_RENDERER) return false;
   return !rawStoryImageUrls(item).some((productImageUrl) => sameImageUrl(selectedAsset, productImageUrl));
 };
 
@@ -1470,6 +1475,12 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
 
   const rawImages = rawStoryImageUrls(item);
   const design = item.design_json || {};
+  console.log("[story-source-images]", {
+    queueId: item.id || null,
+    count: rawImages.length,
+    image_urls: rawImages,
+    design_slides_length: Array.isArray(design.slides) ? design.slides.length : 0,
+  });
   let renderedAssetUrl = "";
   let renderedAssetUrls = [];
   let renderedSlides = [];
@@ -1505,11 +1516,22 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
       slide_number: index + 1,
     })) : [];
     renderedAssetUrl = renderedAssetUrls[0] || absoluteStoryAssetUrl(rendered.final_asset_url);
+    console.log("[story-generated-assets]", {
+      queueId: item.id || null,
+      count: renderedAssetUrls.length,
+      generated_asset_urls: renderedAssetUrls,
+      generated_media_urls_length: renderedAssetUrls.length,
+      rendered_slides_length: renderedSlides.length,
+    });
   } catch (error) {
     await markQueueStoryRenderFailure(tenantId, item, error);
     throw error;
   }
-  if (!isValidRenderedStoryAsset({ ...item, design_json: design }, renderedAssetUrl)) {
+  if (!isValidRenderedStoryAsset({
+    ...item,
+    design_json: { ...design, story_asset_renderer: AI_MARKETING_STORY_RENDERER },
+    metadata: { ...(item.metadata || {}), story_asset_renderer: AI_MARKETING_STORY_RENDERER },
+  }, renderedAssetUrl)) {
     const error = serviceError("Story asset URL is not a public image URL.", 500, {
       queue_id: item.id,
       rendered_asset_url: renderedAssetUrl,
@@ -1528,6 +1550,7 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     story_image_url: renderedAssetUrl,
     final_asset_url: renderedAssetUrl,
     source_product_image_url: rawImages[0] || "",
+    story_asset_renderer: AI_MARKETING_STORY_RENDERER,
     media_urls: renderedAssetUrls,
     slides: (renderedSlides.length ? renderedSlides : renderedAssetUrls.map((url, index) => ({
       image_url: url,
@@ -1552,10 +1575,14 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     rendered_image_url: renderedAssetUrl,
     story_image_url: renderedAssetUrl,
     final_asset_url: renderedAssetUrl,
+    source_image_count: rawImages.length,
+    source_image_urls: rawImages,
     generated_media_urls: renderedAssetUrls,
+    generated_asset_count: renderedAssetUrls.length,
+    generated_asset_urls: renderedAssetUrls,
     generated_slide_count: renderedAssetUrls.length,
     story_asset_error: "",
-    story_asset_renderer: "ai_marketing_center_v1",
+    story_asset_renderer: AI_MARKETING_STORY_RENDERER,
     story_asset_generated_at: new Date().toISOString(),
   };
   const updated = await db.query(
@@ -1580,8 +1607,13 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     story_image_url: renderedAssetUrl,
     final_asset_url: renderedAssetUrl,
     selectedPublishUrl: renderedAssetUrl,
+    source_image_count: rawImages.length,
+    source_image_urls: rawImages,
     generated_media_urls: renderedAssetUrls,
+    generated_asset_count: renderedAssetUrls.length,
+    generated_asset_urls: renderedAssetUrls,
     generated_slide_count: renderedAssetUrls.length,
+    design_slides_length: nextDesign.slides.length,
     rendered_image_url_valid: isPublicStoryAssetUrl(renderedAssetUrl),
     final_asset_url_valid: isPublicStoryAssetUrl(renderedAssetUrl),
   });

@@ -362,6 +362,10 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
 
   const candidates = getStoryImageCandidates(story);
   const publishCandidates = candidates.length ? candidates : [getStoryImageCandidate(story)].filter((candidate) => candidate.publicUrl);
+  console.log("[story-generated-assets]", {
+    publish_candidate_count: publishCandidates.length,
+    generated_asset_urls: publishCandidates.map((candidate) => candidate.raw || candidate.publicUrl).filter(Boolean),
+  });
 
   if (shouldRequireGeneratedStoryAsset(story)) {
     for (const candidate of publishCandidates) {

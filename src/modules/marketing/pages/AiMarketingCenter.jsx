@@ -85,7 +85,10 @@ const uniqueMediaUrls = (item = {}) =>
         item.variant_image_url,
         item.image_url,
         ...(Array.isArray(item.media_urls) ? item.media_urls : []),
+        ...(Array.isArray(item.metadata?.generated_media_urls) ? item.metadata.generated_media_urls : []),
         ...(Array.isArray(item.design_json?.media_urls) ? item.design_json.media_urls : []),
+        ...(Array.isArray(item.design_json?.generated_media_urls) ? item.design_json.generated_media_urls : []),
+        ...(Array.isArray(item.design_json?.slides) ? item.design_json.slides.map((slide) => slide?.rendered_asset_url || slide?.final_asset_url || slide?.story_image_url) : []),
         ...(Array.isArray(item.design_json?.slides) ? item.design_json.slides.map((slide) => slide?.image_url) : []),
         ...(Array.isArray(item.design_json?.carousel) ? item.design_json.carousel.map((slide) => slide?.image_url) : []),
       ]
@@ -113,10 +116,48 @@ const queueStoryAssetUrl = (item = {}) => {
   );
 };
 
-const isGeneratedStoryAssetUrl = (value = "") => /(^|\/)uploads\/stories\//.test(String(value || ""));
+const isGeneratedStoryAssetUrl = (value = "") => {
+  const url = String(value || "");
+  return /(^|\/)uploads\/stories\//.test(url) || /\/(?:erp\/)?stories\//i.test(url);
+};
 
 const storyProductImageUrl = (item = {}) =>
   uniqueMediaUrls(item).find((url) => !isGeneratedStoryAssetUrl(url)) || "";
+
+const generatedStoryAssetUrls = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return Array.from(new Set([
+    ...(Array.isArray(design.generated_media_urls) ? design.generated_media_urls : []),
+    ...(Array.isArray(metadata.generated_media_urls) ? metadata.generated_media_urls : []),
+    ...(Array.isArray(metadata.generated_asset_urls) ? metadata.generated_asset_urls : []),
+    ...(Array.isArray(design.slides) ? design.slides.flatMap((slide) => [
+      slide?.rendered_asset_url,
+      slide?.final_asset_url,
+      slide?.story_image_url,
+      isGeneratedStoryAssetUrl(slide?.image_url) ? slide?.image_url : "",
+    ]) : []),
+    ...(Array.isArray(item.media_urls) ? item.media_urls.filter(isGeneratedStoryAssetUrl) : []),
+  ].map((url) => String(url || "").trim()).filter(Boolean)));
+};
+
+const sourceStoryImageUrls = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return Array.from(new Set([
+    ...(Array.isArray(metadata.source_image_urls) ? metadata.source_image_urls : []),
+    ...(Array.isArray(design.source_media_urls) ? design.source_media_urls : []),
+    ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.source_product_image_url || slide?.original_image_url).filter(Boolean) : []),
+    item.variant_image_url,
+    design.variant_image_url,
+    ...(Array.isArray(item.media_urls) ? item.media_urls : []),
+    ...(Array.isArray(design.media_urls) ? design.media_urls : []),
+    item.primary_image_url,
+    item.image_url,
+    design.primary_image_url,
+    design.image_url,
+  ].map((url) => String(url || "").trim()).filter((url) => url && !isGeneratedStoryAssetUrl(url))));
+};
 
 const storyDebugUrls = (item = {}) => {
   const design = item.design_json || {};
@@ -963,10 +1004,23 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
   const mediaUrls = uniqueMediaUrls(item);
   const storySlides = buildStoryCreativeSlides({ item, mediaUrls });
   const renderedStoryAssetUrl = queueStoryAssetUrl(item);
-  const generatedStorySlides = storySlides.filter((slide) =>
-    firstText(slide.rendered_asset_url, slide.final_asset_url, slide.story_image_url) ||
-    isGeneratedStoryAssetUrl(slide.image_url)
-  );
+  const generatedAssetUrls = generatedStoryAssetUrls(item);
+  const sourceImageUrls = sourceStoryImageUrls(item);
+  const backendSourceImageCount = Number(item.metadata?.source_image_count || design.source_image_count || sourceImageUrls.length || 0);
+  const backendGeneratedAssetCount = Number(item.metadata?.generated_asset_count || item.metadata?.generated_slide_count || design.generated_asset_count || generatedAssetUrls.length || 0);
+  const generatedStorySlides = generatedAssetUrls.length
+    ? generatedAssetUrls.map((url, index) => ({
+        ...(storySlides[index] || storySlides[0] || {}),
+        image_url: url,
+        rendered_asset_url: url,
+        final_asset_url: url,
+        story_image_url: url,
+        position: index + 1,
+      }))
+    : storySlides.filter((slide) =>
+        firstText(slide.rendered_asset_url, slide.final_asset_url, slide.story_image_url) ||
+        isGeneratedStoryAssetUrl(slide.image_url)
+      );
   const hasMultipleGeneratedStorySlides = generatedStorySlides.length > 1;
   const storyAudio = storySlides[0]?.audio || design.audio || null;
   const sizesLabel = sizesLabelFrom(storySlides[0], design, item);
@@ -1020,6 +1074,9 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
               </button>
             </div>
             <div className="grid gap-2">
+              <Info label="Frontend preview source slides count" value={storySlides.length} />
+              <Info label="Backend source images count" value={backendSourceImageCount} />
+              <Info label="Generated story assets count" value={backendGeneratedAssetCount || generatedAssetUrls.length || generatedStorySlides.length} />
               <DebugUrlRow label="productImageUrl" value={debugUrls.productImageUrl} />
               <DebugUrlRow label="rendered_image_url" value={debugUrls.rendered_image_url} />
               <DebugUrlRow label="story_image_url" value={debugUrls.story_image_url} />
@@ -1027,6 +1084,12 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
               <DebugUrlRow label="selectedPublishUrl" value={debugUrls.selectedPublishUrl} />
               <DebugUrlRow label="final_asset_url_raw" value={debugUrls.final_asset_url_raw} />
               <DebugUrlRow label="selectedPublishUrl_raw" value={debugUrls.selectedPublishUrl_raw} />
+              {sourceImageUrls.map((url, index) => (
+                <DebugUrlRow key={`source-image-${url}-${index}`} label={`source image ${index + 1}`} value={url} />
+              ))}
+              {generatedAssetUrls.map((url, index) => (
+                <DebugUrlRow key={`generated-story-asset-${url}-${index}`} label={`generated story asset ${index + 1}`} value={url} />
+              ))}
             </div>
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/80 p-4">

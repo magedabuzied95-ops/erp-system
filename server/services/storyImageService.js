@@ -160,7 +160,7 @@ const storyTemplates = [
   },
 ];
 
-const FIXED_FAST_STORY_TEMPLATE = storyTemplates.find((template) => template.id === "minimal-white") || storyTemplates[0];
+const FIXED_FAST_STORY_TEMPLATE = storyTemplates.find((template) => template.id === "dark-premium") || storyTemplates[0];
 
 const trimString = (value) => String(value || "").trim();
 const trimSlashes = (value = "") => String(value).replace(/^\/+|\/+$/g, "");
@@ -359,6 +359,11 @@ const readImageBuffer = async (source) => {
     return Buffer.from(await response.arrayBuffer());
   }
 
+  const dataMatch = value.match(/^data:image\/[a-z0-9.+-]+;base64,(.+)$/i);
+  if (dataMatch?.[1]) {
+    return Buffer.from(dataMatch[1], "base64");
+  }
+
   for (const candidate of localUploadCandidates(value)) {
     try {
       return await fs.readFile(candidate);
@@ -461,14 +466,32 @@ const storyAssetBadge = (story = {}, design = {}) => {
 const storyAssetTitle = (story = {}, design = {}) =>
   trimString(story.product_name || story.title || design.product_name || design.title || "New product");
 
-const storyAssetCta = (story = {}, design = {}) => trimString(story.cta_text || design.cta_text || "View details");
+const storyAssetCta = () => "View details";
 
-const storySlideImages = (design = {}) => [
-  ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.source_product_image_url || slide?.variant_image_url || slide?.image_url) : []),
-  ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.source_product_image_url || slide?.variant_image_url || slide?.image_url) : []),
-];
+const storyPreviewSlideImages = (design = {}) => [
+  ...(Array.isArray(design.slides) ? design.slides : []),
+  ...(Array.isArray(design.carousel) ? design.carousel : []),
+].map((slide) =>
+  slide?.source_product_image_url ||
+  slide?.original_image_url ||
+  slide?.variant_image_url ||
+  slide?.image_url ||
+  slide?.primary_image_url ||
+  slide?.url ||
+  slide?.image ||
+  ""
+);
 
 const storyAssetImageSources = (story = {}, design = {}) => {
+  const previewSlideImages = uniqueList(storyPreviewSlideImages(design)).filter((source) => !isGeneratedStoryImageUrl(source));
+  if (previewSlideImages.length) return previewSlideImages;
+
+  const previewFallbackImages = uniqueList([
+    story.image_url,
+    ...(Array.isArray(story.media_urls) ? story.media_urls : []),
+  ]).filter((source) => !isGeneratedStoryImageUrl(source));
+  if (previewFallbackImages.length) return previewFallbackImages;
+
   const variantImages = uniqueList([
     story.source_product_image_url,
     story.variant_image_url,
@@ -476,7 +499,6 @@ const storyAssetImageSources = (story = {}, design = {}) => {
     design.variant_image_url,
     ...(Array.isArray(story.variant_media_urls) ? story.variant_media_urls : []),
     ...(Array.isArray(design.variant_media_urls) ? design.variant_media_urls : []),
-    ...storySlideImages(design),
     ...(Array.isArray(story.media_urls) ? story.media_urls : []),
     ...(Array.isArray(design.source_media_urls) ? design.source_media_urls : []),
     ...(Array.isArray(design.media_urls) ? design.media_urls : []),
@@ -492,19 +514,20 @@ const storyAssetImageSources = (story = {}, design = {}) => {
 
 const storyAssetImageSource = (story = {}, design = {}) => storyAssetImageSources(story, design)[0] || "";
 
-const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta }) => {
-  const titleLines = storyAssetTextLines(title, { maxChars: 28, maxLines: 2 });
-  const sizesLines = storyAssetTextLines(sizes, { maxChars: 34, maxLines: 1 });
+const storyAssetAudioTitle = (story = {}, design = {}) =>
+  trimString(story.audio?.title || design.audio?.title || story.audio_title || design.audio_title);
+
+const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitle = "" }) => {
+  const titleLines = storyAssetTextLines(title, { maxChars: 30, maxLines: 2 });
+  const sizesLines = storyAssetTextLines(sizes, { maxChars: 40, maxLines: 1 });
   const priceLines = storyAssetTextLines(price || "Available now", { maxChars: 20, maxLines: 1 });
   const headingLines = storyAssetTextLines(badge || "NEW COLLECTION", { maxChars: 18, maxLines: 1 });
+  const audioLines = storyAssetTextLines(audioTitle, { maxChars: 34, maxLines: 1 });
+  const sizesWidth = Math.min(960, Math.max(360, sizes.length * 16 + 112));
+  const audioWidth = Math.min(756, Math.max(310, audioTitle.length * 14 + 112));
   return `
 <svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" viewBox="0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="storyBg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#050816"/>
-      <stop offset="0.46" stop-color="#101827"/>
-      <stop offset="1" stop-color="#020617"/>
-    </linearGradient>
     <radialGradient id="cyanGlow" cx="22%" cy="18%" r="30%">
       <stop offset="0" stop-color="#22d3ee" stop-opacity="0.24"/>
       <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
@@ -513,7 +536,12 @@ const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta }) => {
       <stop offset="0" stop-color="#fbbf24" stop-opacity="0.28"/>
       <stop offset="1" stop-color="#fbbf24" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="bottomFade" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="storyBase" x1="0.08" y1="0" x2="0.92" y2="1">
+      <stop offset="0" stop-color="#fbf7ef"/>
+      <stop offset="0.45" stop-color="#f1eee8"/>
+      <stop offset="1" stop-color="#121826"/>
+    </linearGradient>
+    <linearGradient id="bottomFade" x1="0" y1="922" x2="0" y2="1920" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#000000" stop-opacity="0"/>
       <stop offset="0.36" stop-color="#000000" stop-opacity="0.44"/>
       <stop offset="1" stop-color="#000000" stop-opacity="0.82"/>
@@ -530,46 +558,56 @@ const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta }) => {
       <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="#67e8f9" flood-opacity="0.22"/>
       <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#082f49" flood-opacity="0.30"/>
     </filter>
-    <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="38"/>
-    </filter>
+    <filter id="whiteGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="80"/></filter>
+    <filter id="cyanStageGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="74"/></filter>
+    <filter id="stageShadow" x="-70%" y="-120%" width="240%" height="340%"><feGaussianBlur stdDeviation="28"/></filter>
   </defs>
-  <rect width="100%" height="100%" fill="url(#storyBg)"/>
+  <rect width="100%" height="100%" fill="#f6f2ea"/>
+  <rect width="100%" height="100%" fill="url(#storyBase)"/>
   <rect width="100%" height="100%" fill="url(#cyanGlow)"/>
   <rect width="100%" height="100%" fill="url(#goldGlow)"/>
   <rect y="922" width="1080" height="998" fill="url(#bottomFade)"/>
 
   <g opacity="0.95">
-    <rect x="48" y="36" width="315" height="8" rx="4" fill="#ffffff"/>
-    <rect x="381" y="36" width="315" height="8" rx="4" fill="#ffffff" fill-opacity="0.35"/>
-    <rect x="714" y="36" width="315" height="8" rx="4" fill="#ffffff" fill-opacity="0.35"/>
+    <rect x="48" y="36" width="315" height="12" rx="6" fill="#000000" fill-opacity="0.15"/>
+    <rect x="48" y="36" width="315" height="12" rx="6" fill="#ffffff"/>
+    <rect x="381" y="36" width="315" height="12" rx="6" fill="#000000" fill-opacity="0.15"/>
+    <rect x="381" y="36" width="315" height="12" rx="6" fill="#ffffff" fill-opacity="0.35"/>
+    <rect x="714" y="36" width="315" height="12" rx="6" fill="#000000" fill-opacity="0.15"/>
+    <rect x="714" y="36" width="315" height="12" rx="6" fill="#ffffff" fill-opacity="0.35"/>
   </g>
 
   <g>
-    <circle cx="94" cy="102" r="36" fill="#020617"/>
-    <text x="94" y="113" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="950" fill="#ffffff">ERP</text>
-    <text x="144" y="94" text-anchor="start" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="950" fill="#ffffff">ERP Store</text>
-    <text x="144" y="121" text-anchor="start" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="800" fill="#cbd5e1">Story preview</text>
-    <rect x="769" y="78" width="260" height="48" rx="24" fill="#ffffff" fill-opacity="0.80"/>
-    <text x="899" y="110" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="950" fill="#0f172a">${escapeXml(badge || "NEW COLLECTION")}</text>
+    <circle cx="103" cy="146" r="54" fill="#020617"/>
+    <text x="103" y="160" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="950" fill="#ffffff">ERP</text>
+    <text x="174" y="133" text-anchor="start" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="950" fill="#0f172a">erp.store</text>
+    <text x="174" y="168" text-anchor="start" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="800" fill="#475569" text-transform="uppercase">Story preview</text>
+    <rect x="728" y="104" width="301" height="54" rx="27" fill="#ffffff" fill-opacity="0.80"/>
+    <text x="879" y="139" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="950" fill="#0f172a">${escapeXml(badge || "NEW COLLECTION")}</text>
   </g>
 
-  <g filter="url(#softBlur)">
-    <circle cx="540" cy="548" r="235" fill="#ffffff" fill-opacity="0.50"/>
-    <circle cx="540" cy="564" r="178" fill="#67e8f9" fill-opacity="0.18"/>
-    <ellipse cx="540" cy="1088" rx="360" ry="52" fill="#000000" fill-opacity="0.34"/>
-    <ellipse cx="540" cy="1040" rx="360" ry="100" fill="#ffffff" fill-opacity="0.12"/>
-  </g>
+  ${audioTitle ? `
+    <g>
+      <rect x="60" y="216" width="${audioWidth}" height="48" rx="24" fill="#000000" fill-opacity="0.38" stroke="#ffffff" stroke-opacity="0.10"/>
+      <text x="88" y="247" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="950" fill="#a5f3fc">M</text>
+      ${storySvgText({ lines: audioLines, x: 116, y: 247, size: 21, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
+    </g>
+  ` : ""}
 
-  ${storySvgText({ lines: headingLines, x: 54, y: 1248, size: 76, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1.04 })}
-  <rect x="54" y="1308" width="${Math.min(760, Math.max(310, sizes.length * 13 + 80))}" height="44" rx="22" fill="#ffffff" fill-opacity="0.92" stroke="#ffffff" stroke-opacity="0.12"/>
-  ${storySvgText({ lines: sizesLines, x: 86, y: 1337, size: 21, weight: 950, color: "#0f172a", anchor: "start", lineHeight: 1 })}
-  ${storySvgText({ lines: titleLines, x: 54, y: 1408, size: titleLines.length > 1 ? 50 : 58, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1.12 })}
-  ${storySvgText({ lines: priceLines, x: 54, y: 1580, size: 72, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
-  <text x="54" y="1638" text-anchor="start" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="900" fill="#ffffff" fill-opacity="0.84">Available now</text>
+  <circle cx="540" cy="640" r="278" fill="#ffffff" fill-opacity="0.50" filter="url(#whiteGlow)"/>
+  <circle cx="540" cy="650" r="210" fill="#67e8f9" fill-opacity="0.18" filter="url(#cyanStageGlow)"/>
+  <ellipse cx="540" cy="1156" rx="430" ry="60" fill="#000000" fill-opacity="0.34" filter="url(#stageShadow)"/>
+  <ellipse cx="540" cy="1110" rx="480" ry="120" fill="#ffffff" fill-opacity="0.12" filter="url(#stageShadow)"/>
+
+  ${storySvgText({ lines: headingLines, x: 60, y: 1280, size: 62, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1.04 })}
+  <rect x="60" y="1322" width="${sizesWidth}" height="50" rx="25" fill="#ffffff" fill-opacity="0.92" stroke="#ffffff" stroke-opacity="0.12"/>
+  ${storySvgText({ lines: sizesLines, x: 96, y: 1355, size: 23, weight: 950, color: "#0f172a", anchor: "start", lineHeight: 1 })}
+  ${storySvgText({ lines: titleLines, x: 60, y: 1440, size: titleLines.length > 1 ? 41 : 44, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1.12 })}
+  ${storySvgText({ lines: priceLines, x: 60, y: 1580, size: 62, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
+  <text x="60" y="1642" text-anchor="start" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="900" fill="#ffffff" fill-opacity="0.84">Available now</text>
   <g filter="url(#ctaGlow)">
-    <rect x="682" y="1576" width="336" height="90" rx="45" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.30"/>
-    <text x="850" y="1632" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="950" fill="#0f172a">${escapeXml(cta || "View details")}</text>
+    <rect x="626" y="1552" width="394" height="88" rx="44" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.30"/>
+    <text x="823" y="1608" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="#0f172a">${escapeXml(cta || "View details")}</text>
   </g>
 </svg>`;
 };
@@ -803,6 +841,10 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
   const design = story.design_json || {};
   const sources = storyAssetImageSources(story, design);
   const source = sources[0] || "";
+  console.log("[story-source-images]", {
+    count: sources.length,
+    image_urls: sources,
+  });
   console.log("[story-render-start]", {
     queueId: story.id || postId || null,
     tenantId: tenantId || story.tenant_id || null,
@@ -858,6 +900,7 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
           price: storyAssetPrice(slideStory, slideDesign),
           sizes: storyAssetSizes(slideStory, slideDesign),
           cta: storyAssetCta(slideStory, slideDesign),
+          audioTitle: storyAssetAudioTitle(slideStory, slideDesign),
         }),
         composites: [imageComposite],
       });
@@ -871,6 +914,11 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
       });
     }
     const outputUrl = outputSlides[0]?.rendered_asset_url || "";
+    const generatedAssetUrls = outputSlides.map((slide) => slide.rendered_asset_url).filter(Boolean);
+    console.log("[story-generated-assets]", {
+      count: generatedAssetUrls.length,
+      generated_asset_urls: generatedAssetUrls,
+    });
     console.log("[story-render-success]", {
       queueId: story.id || postId || null,
       tenantId: tenantId || story.tenant_id || null,
@@ -883,7 +931,7 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
       final_asset_url: outputUrl,
       rendered_image_url: outputUrl,
       story_image_url: outputUrl,
-      media_urls: outputSlides.map((slide) => slide.rendered_asset_url).filter(Boolean),
+      media_urls: generatedAssetUrls,
       slides: outputSlides,
       source_media_urls: sources,
     };
