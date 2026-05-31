@@ -482,6 +482,11 @@ const storyAssetTextLines = (value, { maxChars = 24, maxLines = 2 } = {}) => {
   return lines.length ? lines : [trimString(value).slice(0, maxChars)].filter(Boolean);
 };
 
+const roundedRectMaskSvg = ({ width, height, radius }) => `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="#ffffff"/>
+</svg>`;
+
 const storySvgText = ({ lines, x, y, size, weight = 700, color = "#111827", anchor = "middle", lineHeight = 1.18 }) => `
   <text x="${x}" y="${y}" text-anchor="${anchor}" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${weight}" letter-spacing="0" fill="${color}">
     ${lines.map((line, index) => `<tspan x="${x}" dy="${index === 0 ? 0 : Math.round(size * lineHeight)}">${escapeXml(line)}</tspan>`).join("")}
@@ -577,13 +582,14 @@ const storyAssetBrandName = (story = {}, design = {}) =>
   trimString(story.store_name || story.storeName || story.brand_name || design.store_name || design.storeName || design.brand_name || process.env.STORY_BRAND_NAME || "M1 STORE");
 
 const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitle = "", brandName = "M1 STORE" }) => {
-  const titleLines = storyAssetTextLines(title, { maxChars: 28, maxLines: 2 });
-  const sizesLines = storyAssetTextLines(sizes, { maxChars: 42, maxLines: 1 });
+  const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*â€¢\s*/g, " \u2022 ");
+  const titleLines = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 });
+  const sizesLines = storyAssetTextLines(cleanSizes, { maxChars: 40, maxLines: 1 });
   const priceLines = storyAssetTextLines(price || "Available now", { maxChars: 20, maxLines: 1 });
   const headingLines = storyAssetTextLines(badge || "NEW COLLECTION", { maxChars: 22, maxLines: 1 });
   const audioLines = storyAssetTextLines(audioTitle, { maxChars: 34, maxLines: 1 });
   const safeBrandName = trimString(brandName || "M1 STORE").slice(0, 32);
-  const sizesWidth = Math.min(930, Math.max(360, sizes.length * 22 + 116));
+  const sizesWidth = Math.min(952, Math.max(420, cleanSizes.length * 24 + 132));
   const audioWidth = Math.min(656, Math.max(280, audioTitle.length * 13 + 100));
   return `
 <svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" viewBox="0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
@@ -644,19 +650,21 @@ const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitl
 
   <circle cx="540" cy="548" r="250" fill="#ffffff" fill-opacity="0.46" filter="url(#whiteGlow)"/>
   <circle cx="540" cy="570" r="192" fill="#67e8f9" fill-opacity="0.16" filter="url(#cyanStageGlow)"/>
+  <rect x="70" y="160" width="940" height="900" rx="32" ry="32" fill="#ffffff" fill-opacity="0.96" stroke="#ffffff" stroke-opacity="0.38" filter="url(#productShadow)"/>
+  <rect x="70" y="160" width="940" height="900" rx="32" ry="32" fill="#ffffff" fill-opacity="0.90"/>
   <ellipse cx="540" cy="1016" rx="390" ry="50" fill="#000000" fill-opacity="0.34" filter="url(#stageShadow)"/>
   <ellipse cx="540" cy="974" rx="430" ry="98" fill="#ffffff" fill-opacity="0.11" filter="url(#stageShadow)"/>
 
-  <rect x="60" y="1088" width="${Math.min(390, Math.max(220, (badge || "NEW COLLECTION").length * 13 + 72))}" height="44" rx="22" fill="#ffffff" fill-opacity="0.16" stroke="#ffffff" stroke-opacity="0.22"/>
-  ${storySvgText({ lines: headingLines, x: 94, y: 1117, size: 22, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
-  ${storySvgText({ lines: titleLines, x: 60, y: 1212, size: 68, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1.03 })}
-  ${storySvgText({ lines: priceLines, x: 60, y: 1416, size: 98, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
+  <rect x="60" y="1074" width="${Math.min(390, Math.max(220, (badge || "NEW COLLECTION").length * 13 + 72))}" height="44" rx="22" fill="#ffffff" fill-opacity="0.16" stroke="#ffffff" stroke-opacity="0.22"/>
+  ${storySvgText({ lines: headingLines, x: 94, y: 1103, size: 22, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
+  ${storySvgText({ lines: titleLines, x: 60, y: 1200, size: 86, weight: 980, color: "#ffffff", anchor: "start", lineHeight: 1.02 })}
+  ${storySvgText({ lines: priceLines, x: 60, y: 1424, size: 110, weight: 980, color: "#ffffff", anchor: "start", lineHeight: 1 })}
   <g filter="url(#ctaGlow)">
-    <rect x="640" y="1360" width="380" height="78" rx="39" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.30"/>
-    <text x="830" y="1410" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="950" fill="#0f172a">${escapeXml(cta || "View details")}</text>
+    <rect x="604" y="1352" width="416" height="90" rx="45" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.30"/>
+    <text x="812" y="1409" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="950" fill="#0f172a">${escapeXml(cta || "View details")}</text>
   </g>
-  <rect x="60" y="1504" width="${sizesWidth}" height="68" rx="34" fill="#ffffff" fill-opacity="0.94" stroke="#ffffff" stroke-opacity="0.12"/>
-  ${storySvgText({ lines: sizesLines, x: 100, y: 1548, size: 31, weight: 950, color: "#0f172a", anchor: "start", lineHeight: 1 })}
+  <rect x="60" y="1500" width="${sizesWidth}" height="82" rx="41" fill="#ffffff" fill-opacity="0.94" stroke="#ffffff" stroke-opacity="0.12"/>
+  ${storySvgText({ lines: sizesLines, x: 104, y: 1554, size: 37, weight: 950, color: "#0f172a", anchor: "start", lineHeight: 1 })}
 </svg>`;
 };
 
@@ -686,7 +694,7 @@ const normalizeInputImage = async (source) => {
   }
 };
 
-const createContainedImageComposite = async ({ source, boxX, boxY, boxWidth, boxHeight, maxImageHeight = boxHeight, useSafeLimit = true }) => {
+const createContainedImageComposite = async ({ source, boxX, boxY, boxWidth, boxHeight, maxImageHeight = boxHeight, useSafeLimit = true, borderRadius = 0 }) => {
   const normalized = await normalizeInputImage(source);
   let buffer = normalized.buffer;
   const { imageWidth, imageHeight } = normalized;
@@ -703,10 +711,21 @@ const createContainedImageComposite = async ({ source, boxX, boxY, boxWidth, box
   const outputX = Math.round(boxX + (boxWidth - outputWidth) / 2);
   const outputY = Math.round(boxY + (boxHeight - outputHeight) / 2);
   try {
-    const outputBuffer = await sharp(buffer)
+    let outputBuffer = await sharp(buffer)
       .resize(outputWidth, outputHeight, { fit: "contain", withoutEnlargement: false })
       .png()
       .toBuffer();
+    if (borderRadius > 0) {
+      const mask = Buffer.from(roundedRectMaskSvg({
+        width: outputWidth,
+        height: outputHeight,
+        radius: Math.min(borderRadius, Math.floor(Math.min(outputWidth, outputHeight) / 2)),
+      }));
+      outputBuffer = await sharp(outputBuffer)
+        .composite([{ input: mask, blend: "dest-in" }])
+        .png()
+        .toBuffer();
+    }
     logStoryMemory("after-contained-image-composite", { source, outputBytes: outputBuffer.length });
     return { input: outputBuffer, left: outputX, top: outputY };
   } finally {
@@ -985,6 +1004,7 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         boxHeight: 900,
         maxImageHeight: 900,
         useSafeLimit: false,
+        borderRadius: 32,
       });
       logStoryMemory("slide-before-write-upload", {
         queueId: story.id || postId || null,
