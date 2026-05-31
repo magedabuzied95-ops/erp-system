@@ -389,10 +389,15 @@ const detectCheckoutConfirmation = (message = "") =>
 const detectReservationAffirmation = (message = "") =>
   Boolean(hasTerm(message, [
     "\u062a\u0645\u0627\u0645",
+    "\u0627\u062d\u062c\u0632",
+    "\u0627\u062d\u062c\u0632\u0647",
+    "\u0627\u062d\u062c\u0632\u0647\u0627",
     "\u0645\u0627\u0634\u064a",
     "\u0623\u064a\u0648\u0647",
     "\u0627\u064a\u0648\u0647",
     "\u0627\u0647",
+    "\u0647\u0627\u062a\u0647",
+    "\u0647\u0627\u062a\u0647\u0627",
     "ok",
     "yes",
   ]));
@@ -8762,6 +8767,266 @@ const ensureCheckoutDraftForMemory = async ({ config, message, memory = {}, sele
   };
 };
 
+const salesCloserV2MissingPrompt = (missing = []) => {
+  const labels = [];
+  if (missing.includes("first_name")) labels.push("\u0627\u0644\u0627\u0633\u0645");
+  if (missing.includes("phone")) labels.push("\u0631\u0642\u0645 \u0627\u0644\u062a\u0644\u064a\u0641\u0648\u0646");
+  if (missing.includes("governorate")) labels.push("\u0627\u0644\u0645\u062d\u0627\u0641\u0638\u0629/\u0627\u0644\u0645\u062f\u064a\u0646\u0629");
+  if (missing.includes("address")) labels.push("\u0627\u0644\u0639\u0646\u0648\u0627\u0646/\u0627\u0644\u0645\u0646\u0637\u0642\u0629");
+  return labels.length ? `\u062a\u0645\u0627\u0645\u060c \u0627\u0628\u0639\u062a\u0644\u064a ${labels.join(" \u0648 ")}.` : "";
+};
+
+const buildSalesCloserV2OrderSummary = ({ productName = "", size = "", price = "", address = "" } = {}) =>
+  [
+    "\u062a\u0645\u0627\u0645",
+    "",
+    `\u0627\u0644\u0645\u0646\u062a\u062c: ${productName || "\u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0627\u0644\u0645\u062e\u062a\u0627\u0631"}`,
+    size ? `\u0627\u0644\u0645\u0642\u0627\u0633: ${size}` : "",
+    price ? `\u0627\u0644\u0633\u0639\u0631: ${price}` : "",
+    `\u0627\u0644\u0639\u0646\u0648\u0627\u0646: ${address || "\u0627\u0644\u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u0644\u064a \u0628\u0639\u062a\u0647"}`,
+    "",
+    "\u0623\u0623\u0643\u062f \u0627\u0644\u0637\u0644\u0628\u061f",
+  ].filter((line) => line !== "").join("\n");
+
+const formatSalesCloserV2Price = (value = null) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return "";
+  return `${Math.round(amount)} \u062c\u0646\u064a\u0647`;
+};
+
+const handleSalesCloserV2IfMatched = async ({ config, message } = {}) => {
+  const conversationId = message.external_conversation_id;
+  const memory = getConversationMemory(conversationId) || {};
+  const stage = normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || "browsing");
+  const context = resolveContextProductCard({ message, allowAmbiguous: false });
+  const baseCard = context.card || memory.lastProductCard || null;
+  const hasProductContext = Boolean(baseCard?.product_id || baseCard?.id || memory.activeProductId || memory.selectedProductId);
+  if (!hasProductContext) return null;
+
+  const shouldStartCheckout = checkoutStageAtLeast(stage, "product_selected") && detectReservationAffirmation(message.message_text);
+  const shouldCollect = stage === "checkout_collecting";
+  const shouldConfirm = stage === "order_ready" && detectSalesFinalConfirmation(message.message_text);
+  if (!shouldStartCheckout && !shouldCollect && !shouldConfirm) return null;
+
+  const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
+  if (!product) return null;
+  const selectedSize = text(memory.activeSize || memory.selectedSize || extractShoeSize(message.message_text) || "");
+  const variant = chooseVariantForSize(product, selectedSize, memory.activeVariantId || memory.selectedVariantId || baseCard.variant_id);
+  const selectedColor = variant?.color || memory.activeColor || memory.selectedColor || baseCard.color || "";
+  const priceText = formatSalesCloserV2Price(variant?.price || product.product_price || baseCard.price);
+
+  if (shouldConfirm) {
+    const known = mergeSalesCustomerInfo({
+      known: memory,
+      parsed: {
+        customer_name: memory.customerName,
+        customer_phone: memory.customerPhone,
+        customer_address: memory.customerAddress,
+      },
+      messageText: memory.customerAddress || "",
+    });
+    const missing = missingSalesCheckoutFields(known);
+    if (missing.length) {
+      updateConversationMemory(conversationId, {
+        buyingStage: "checkout_collecting",
+        checkoutStage: "checkout_collecting",
+      });
+      console.log("[sales-closer-v2] stage changed", {
+        tenant_id: config.tenant_id,
+        conversation_id: conversationId,
+        from: stage,
+        to: "checkout_collecting",
+        reason: "missing_fields_before_confirmation",
+      });
+      console.log("[sales-closer-v2] asking missing fields", {
+        tenant_id: config.tenant_id,
+        conversation_id: conversationId,
+        missing_fields: missing,
+      });
+      await sendAndLogMetaText({
+        config,
+        message,
+        text: salesCloserV2MissingPrompt(missing),
+        detectedIntent: "sales_closer_v2_missing_fields",
+        metadata: { missing_fields: missing, buying_stage: "checkout_collecting" },
+      });
+      return { handled: true, reason: "sales_closer_v2_missing_fields" };
+    }
+    const draft = await createAiOrderDraft({
+      tenant_id: config.tenant_id,
+      channel: channelAlias(message.channel),
+      source: channelAlias(message.channel),
+      conversation_id: conversationId,
+      session_id: conversationId,
+      external_customer_id: message.external_customer_id,
+      customer_name: known.customerName || message.customer_name || "",
+      customer_phone: known.customerPhone,
+      customer_address: known.customerAddress,
+      governorate: known.governorate,
+      city_area: known.area || known.customerAddress,
+      product,
+      variant,
+      size: selectedSize,
+      color: selectedColor,
+      original_customer_message: message.message_text,
+      metadata: {
+        source: channelAlias(message.channel),
+        sales_intent: "sales_closer_v2_confirmed",
+        external_customer_id: message.external_customer_id,
+      },
+    });
+    await upsertCheckoutCustomerProfile({
+      config,
+      message,
+      parsed: {
+        customer_name: known.customerName,
+        customer_phone: known.customerPhone,
+        customer_address: known.customerAddress,
+      },
+      orderId: draft?.order?.id || null,
+    });
+    updateConversationMemory(conversationId, {
+      orderDraftId: draft?.order?.id || null,
+      buyingStage: "order_created",
+      checkoutStage: "order_created",
+      lastIntent: "sales_closer_v2_order_created",
+    });
+    persistAiConversationMemory({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId,
+      reason: "sales_closer_v2_order_created",
+    });
+    console.log("[sales-closer-v2] draft order created", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      order_id: draft?.order?.id || null,
+      product_id: product.id || null,
+      variant_id: variant?.id || null,
+      selected_size: selectedSize,
+    });
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: `\u062a\u0645 \u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u0637\u0644\u0628 \u2705\n\u0631\u0642\u0645 \u0627\u0644\u0637\u0644\u0628: ${draft?.order?.public_order_number || draft?.order?.order_number || draft?.order?.id || ""}`,
+      detectedIntent: "sales_closer_v2_draft_order_created",
+      metadata: { order_id: draft?.order?.id || null, buying_stage: "order_created" },
+    });
+    return { handled: true, reason: "sales_closer_v2_draft_order_created" };
+  }
+
+  const knownCustomer = await loadKnownSalesCustomerInfo({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId,
+  });
+  const parsed = parseCheckoutCustomerDetails(message.message_text);
+  const confirmingReusedCheckoutFields = memory.pendingAction === "confirm_reused_checkout_fields" &&
+    detectReservationAffirmation(message.message_text) &&
+    !parsed.customer_address &&
+    !parsed.customer_phone;
+  const merged = mergeSalesCustomerInfo({
+    known: { ...knownCustomer, ...memory },
+    parsed,
+    messageText: message.message_text,
+  });
+  const missing = missingSalesCheckoutFields(merged);
+  const reusedAddressNeedsConfirmation = !missing.length &&
+    !confirmingReusedCheckoutFields &&
+    memory.reusedCheckoutFieldsConfirmed !== true &&
+    Boolean(knownCustomer.customerAddress || memory.lastAddressSummary || memory.customerContext?.address) &&
+    !parsed.customer_address;
+  const nextStage = missing.length || reusedAddressNeedsConfirmation ? "checkout_collecting" : "order_ready";
+  updateConversationMemory(conversationId, {
+    customerName: merged.customerName,
+    customerFirstName: merged.customerFirstName,
+    customerPhone: merged.customerPhone,
+    customerAddress: merged.customerAddress,
+    governorate: merged.governorate,
+    area: merged.area,
+    selectedProductId: product.id || baseCard.product_id || null,
+    activeProductId: product.id || baseCard.product_id || null,
+    selectedVariantId: variant?.id || baseCard.variant_id || null,
+    activeVariantId: variant?.id || baseCard.variant_id || null,
+    selectedColor,
+    activeColor: selectedColor,
+    selectedSize,
+    activeSize: selectedSize,
+    buyingStage: nextStage,
+    checkoutStage: nextStage,
+    pendingAction: reusedAddressNeedsConfirmation ? "confirm_reused_checkout_fields" : "",
+    reusedCheckoutFieldsConfirmed: confirmingReusedCheckoutFields || memory.reusedCheckoutFieldsConfirmed === true,
+    bookingConfirmationAsked: true,
+    lastIntent: nextStage === "order_ready" ? "sales_closer_v2_order_ready" : "sales_closer_v2_checkout_collecting",
+  });
+  console.log("[sales-closer-v2] stage changed", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    from: stage,
+    to: nextStage,
+  });
+  persistAiConversationMemory({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId,
+    reason: nextStage === "order_ready" ? "sales_closer_v2_order_ready" : "sales_closer_v2_checkout_collecting",
+  });
+
+  if (reusedAddressNeedsConfirmation) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: `\u062a\u0645\u0627\u0645 \u064a\u0627 ${merged.customerFirstName || merged.customerName}\u060c \u0646\u0641\u0633 \u0627\u0644\u0639\u0646\u0648\u0627\u0646 \u0648\u0644\u0627 \u0639\u0646\u0648\u0627\u0646 \u062c\u062f\u064a\u062f\u061f`,
+      detectedIntent: "sales_closer_v2_reuse_address_confirm",
+      metadata: { buying_stage: "checkout_collecting", reused_checkout_fields: true },
+    });
+    return { handled: true, reason: "sales_closer_v2_reuse_address_confirm" };
+  }
+
+  if (missing.length) {
+    console.log("[sales-closer-v2] asking missing fields", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      missing_fields: missing,
+    });
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: salesCloserV2MissingPrompt(missing),
+      detectedIntent: "sales_closer_v2_checkout_collecting",
+      metadata: { missing_fields: missing, buying_stage: "checkout_collecting" },
+    });
+    return { handled: true, reason: "sales_closer_v2_checkout_collecting" };
+  }
+
+  console.log("[sales-closer-v2] order summary sent", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    product_id: product.id || null,
+    variant_id: variant?.id || null,
+    selected_size: selectedSize,
+  });
+  await sendAndLogMetaText({
+    config,
+    message,
+    text: buildSalesCloserV2OrderSummary({
+      productName: product.name || baseCard.name || "",
+      size: selectedSize,
+      price: priceText,
+      address: merged.customerAddress || merged.area,
+    }),
+    detectedIntent: "sales_closer_v2_order_summary",
+    metadata: {
+      buying_stage: "order_ready",
+      product_id: product.id || null,
+      variant_id: variant?.id || null,
+      selected_size: selectedSize,
+      selected_color: selectedColor,
+    },
+  });
+  return { handled: true, reason: "sales_closer_v2_order_summary" };
+};
+
 const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) => {
   const conversationId = message.external_conversation_id;
   const memory = getConversationMemory(conversationId) || {};
@@ -9641,6 +9906,7 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
     handleNegativeIntentIfMatched,
     handleCheckoutDataIfMatched,
     handleContextualSizeCheckIfMatched,
+    handleSalesCloserV2IfMatched,
     handleSalesBrainBuyingStageIfMatched,
     handleCheckoutContinuationIfMatched,
     handleHumanHandoffIfMatched,
@@ -9655,14 +9921,14 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
   const routeMap = {
     [AI_INTENTS.VISUAL_SEARCH]: [handleVisualSearchIfMatched],
     [AI_INTENTS.PRODUCT_SEARCH]: [handleBrandCorrectionIfMatched],
-    [AI_INTENTS.PRICE_CHECK]: [handleSalesBrainBuyingStageIfMatched, handleOrderDraftIfMatched],
+    [AI_INTENTS.PRICE_CHECK]: [handleSalesCloserV2IfMatched, handleSalesBrainBuyingStageIfMatched, handleOrderDraftIfMatched],
     [AI_INTENTS.SIZE_CHECK]: [handleContextualSizeCheckIfMatched, handleSizesIfMatched, handleSizeAvailabilityLinkIfMatched],
     [AI_INTENTS.COLOR_REQUEST]: [handleOtherColorsIfMatched],
     [AI_INTENTS.MORE_IMAGES]: [handleMoreImagesIfMatched],
     [AI_INTENTS.ALTERNATIVES]: [handleAlternativesIfMatched],
-    [AI_INTENTS.BUYING_INTENT]: [handleSalesBrainBuyingStageIfMatched, handleCheckoutContinuationIfMatched, handleOrderDraftIfMatched],
-    [AI_INTENTS.CHECKOUT]: [handleCheckoutDataIfMatched, handleSalesBrainBuyingStageIfMatched, handleCheckoutContinuationIfMatched],
-    [AI_INTENTS.ORDER_CONFIRMATION]: [handleSalesBrainBuyingStageIfMatched, handleCheckoutDataIfMatched],
+    [AI_INTENTS.BUYING_INTENT]: [handleSalesCloserV2IfMatched, handleSalesBrainBuyingStageIfMatched, handleCheckoutContinuationIfMatched, handleOrderDraftIfMatched],
+    [AI_INTENTS.CHECKOUT]: [handleSalesCloserV2IfMatched, handleCheckoutDataIfMatched, handleSalesBrainBuyingStageIfMatched, handleCheckoutContinuationIfMatched],
+    [AI_INTENTS.ORDER_CONFIRMATION]: [handleSalesCloserV2IfMatched, handleSalesBrainBuyingStageIfMatched, handleCheckoutDataIfMatched],
     [AI_INTENTS.ORDER_STATUS]: [handleOrderStatusIfMatched],
     [AI_INTENTS.FAQ]: [answerFaqIfMatched],
     [AI_INTENTS.HUMAN_AGENT]: [handleHumanHandoffIfMatched],
@@ -11025,7 +11291,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         conversationId: message.external_conversation_id,
         productCards,
         productCardLimit: productCards.length || productCardLimit,
-        suggestedActions: productCards.length ? META_COMMERCE_ACTIONS : [],
+        suggestedActions: [],
         facebookPageId: config.facebook_page_id || pageIds[0] || "",
         instagramBusinessAccountId: config.instagram_business_account_id || instagramBusinessAccountIds[0] || "",
         preferredConfigId: config.id,
@@ -11064,7 +11330,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         continue;
       }
       if (productCards.length) {
-        rememberLastProductCards({
+        const rememberedProductMemory = rememberLastProductCards({
           tenantId: config.tenant_id,
           channel: message.channel,
           conversationId: message.external_conversation_id,
@@ -11072,6 +11338,23 @@ export const processMetaWebhook = async ({ req } = {}) => {
           sentMessages: sendResult?.product_card_messages || [],
           messageText: message.message_text || "",
           lastIntent: aiPayload.detected_intent || "ai_product_cards",
+        });
+        updateConversationMemory(message.external_conversation_id, {
+          bookingConfirmationAsked: true,
+          lastIntent: aiPayload.detected_intent || "ai_product_cards",
+        });
+        persistAiConversationMemory({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          reason: "sales_closer_v2_product_prompt",
+        });
+        console.log("[sales-closer-v2] stage changed", {
+          tenant_id: config.tenant_id,
+          conversation_id: message.external_conversation_id,
+          from: rememberedProductMemory?.previousCheckoutStage || "",
+          to: (getConversationMemory(message.external_conversation_id) || {}).buyingStage || "product_selected",
+          reason: "matched_product_reserve_prompt",
         });
         await recordLeadSignals({ config, message, reason: "product_cards_sent" }).catch(() => {});
         console.log("ai_inbox_suggested_action_generated", {

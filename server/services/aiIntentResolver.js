@@ -1,6 +1,10 @@
 export function resolveIntent(message = "") {
   const text = String(message).toLowerCase();
 
+  if (["السلام", "وعليكم", "اهلا", "أهلا", "ازيك", "هاي", "hi", "hello", "hey"].some((term) => text.includes(term))) {
+    return "GREETING";
+  }
+
   if (text.includes("مقاس") || text.includes("size") || text.includes("fit")) {
     return "SIZE_INQUIRY";
   }
