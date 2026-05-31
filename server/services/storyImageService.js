@@ -387,7 +387,10 @@ export const getStoryImageMetadata = async (source) => {
   };
 };
 
-export const isGeneratedStoryImageUrl = (value) => /(^|\/)uploads\/stories\//.test(trimString(value));
+export const isGeneratedStoryImageUrl = (value) => {
+  const text = trimString(value);
+  return /(^|\/)uploads\/stories\//.test(text) || /\/(?:erp\/)?stories\//i.test(text);
+};
 
 const uniqueList = (items = []) => Array.from(new Set(items.map(trimString).filter(Boolean)));
 

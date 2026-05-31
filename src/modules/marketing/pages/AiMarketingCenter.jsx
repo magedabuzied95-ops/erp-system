@@ -121,24 +121,76 @@ const isGeneratedStoryAssetUrl = (value = "") => {
   return /(^|\/)uploads\/stories\//.test(url) || /\/(?:erp\/)?stories\//i.test(url);
 };
 
+const normalizeUrlList = (...values) =>
+  Array.from(
+    new Set(
+      values
+        .flatMap((value) => {
+          if (Array.isArray(value)) return value;
+          if (typeof value === "string" && value.trim().startsWith("[")) {
+            try {
+              const parsed = JSON.parse(value);
+              return Array.isArray(parsed) ? parsed : [value];
+            } catch {
+              return [value];
+            }
+          }
+          return [value];
+        })
+        .map((url) => String(url || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+const slideGeneratedAssetUrls = (slides = []) =>
+  Array.isArray(slides)
+    ? slides.flatMap((slide) => [
+        slide?.rendered_asset_url,
+        slide?.final_asset_url,
+        slide?.story_image_url,
+        slide?.generated_asset_url,
+        ...(Array.isArray(slide?.generated_asset_urls) ? slide.generated_asset_urls : []),
+        ...(Array.isArray(slide?.generated_media_urls) ? slide.generated_media_urls : []),
+        isGeneratedStoryAssetUrl(slide?.image_url) ? slide.image_url : "",
+      ])
+    : [];
+
 const storyProductImageUrl = (item = {}) =>
   uniqueMediaUrls(item).find((url) => !isGeneratedStoryAssetUrl(url)) || "";
 
 const generatedStoryAssetUrls = (item = {}) => {
   const design = item.design_json || {};
   const metadata = item.metadata || {};
-  return Array.from(new Set([
-    ...(Array.isArray(design.generated_media_urls) ? design.generated_media_urls : []),
-    ...(Array.isArray(metadata.generated_media_urls) ? metadata.generated_media_urls : []),
-    ...(Array.isArray(metadata.generated_asset_urls) ? metadata.generated_asset_urls : []),
-    ...(Array.isArray(design.slides) ? design.slides.flatMap((slide) => [
-      slide?.rendered_asset_url,
-      slide?.final_asset_url,
-      slide?.story_image_url,
-      isGeneratedStoryAssetUrl(slide?.image_url) ? slide?.image_url : "",
-    ]) : []),
-    ...(Array.isArray(item.media_urls) ? item.media_urls.filter(isGeneratedStoryAssetUrl) : []),
-  ].map((url) => String(url || "").trim()).filter(Boolean)));
+  const explicitGeneratedUrls = normalizeUrlList(
+    item.final_asset_urls,
+    item.generated_asset_urls,
+    item.generated_media_urls,
+    design.final_asset_urls,
+    design.generated_asset_urls,
+    design.generated_media_urls,
+    metadata.final_asset_urls,
+    metadata.generated_asset_urls,
+    metadata.generated_media_urls,
+    slideGeneratedAssetUrls(design.slides),
+    item.final_asset_url,
+    item.rendered_image_url,
+    item.story_image_url,
+    design.final_asset_url,
+    design.rendered_image_url,
+    design.story_image_url,
+    metadata.final_asset_url,
+    metadata.rendered_image_url,
+    metadata.story_image_url
+  );
+  const explicitSet = new Set(explicitGeneratedUrls);
+  const sourceSet = new Set(sourceStoryImageUrls(item));
+  const mediaUrls = normalizeUrlList(item.media_urls, design.media_urls, metadata.media_urls);
+  const expectedGeneratedCount = Number(metadata.generated_asset_count || metadata.generated_slide_count || design.generated_asset_count || 0);
+  const countedGeneratedMediaSet = new Set(expectedGeneratedCount > 0 ? mediaUrls.slice(0, expectedGeneratedCount) : []);
+  const generatedMediaUrls = mediaUrls.filter((url) =>
+    explicitSet.has(url) || countedGeneratedMediaSet.has(url) || (isGeneratedStoryAssetUrl(url) && !sourceSet.has(url))
+  );
+  return normalizeUrlList(explicitGeneratedUrls, generatedMediaUrls.filter((url) => countedGeneratedMediaSet.has(url) || !sourceSet.has(url)));
 };
 
 const sourceStoryImageUrls = (item = {}) => {
@@ -304,10 +356,14 @@ function AiMarketingCenter() {
     const flags = getPreviewContentFlags(item);
     return flags.isFeedContent;
   }), [queue]);
+  const activeGenerationCount = useMemo(
+    () => queue.filter((item) => ["queued", "generating_copy", "generating_image", "uploading"].includes(getQueueStatusInfo(item).normalizedStatus)).length,
+    [queue]
+  );
 
-  const load = async ({ logQueueCount = false } = {}) => {
+  const load = async ({ logQueueCount = false, silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [settingsPayload, overviewPayload, queueRows] = await Promise.all([
         getAutonomousAiMarketingSettings(),
         getAutonomousAiMarketingOverview(),
@@ -345,13 +401,22 @@ function AiMarketingCenter() {
       toast.error(formatApiError(error, "Failed to load AI Marketing Center"));
       return [];
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    const hasActiveGeneration = queue.some((item) => ["queued", "generating_copy", "generating_image", "uploading"].includes(getQueueStatusInfo(item).normalizedStatus));
+    if (!running && generatingStoryAssetIds.size === 0 && !hasActiveGeneration) return undefined;
+    const timer = setInterval(() => {
+      load({ silent: true });
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [queue, running, generatingStoryAssetIds]);
 
   const patchSettings = (patch) => setSettings((current) => ({ ...current, ...patch }));
 
@@ -405,7 +470,7 @@ function AiMarketingCenter() {
         : mode === "weekly"
           ? await generateAutonomousAiMarketingWeekly()
           : await generateAutonomousAiMarketingDaily();
-      toast.success(`Generated ${result?.generated_stories || 0} stories and ${result?.generated_posts || 0} posts`);
+      toast.success(result?.queued ? "Generation queued" : `Generated ${result?.generated_stories || 0} stories and ${result?.generated_posts || 0} posts`);
       await load();
     } catch (error) {
       toast.error(formatApiError(error, "Generation failed"));
@@ -529,7 +594,7 @@ function AiMarketingCenter() {
         : updatedItem;
       setQueue((current) => current.map((row) => (String(row.id) === String(id) ? itemWithTopLevelUrls : row)));
       setPreview((current) => (current && String(current.id) === String(id) ? itemWithTopLevelUrls : current));
-      toast.success("Story asset generated");
+      toast.success(payload?.queued ? "Story asset queued" : "Story asset generated");
     } catch (error) {
       const message = formatApiError(error, "Story asset generation failed");
       setPreview((current) =>
@@ -609,10 +674,16 @@ function AiMarketingCenter() {
           </button>
           <button type="button" onClick={() => runGeneration("daily")} disabled={running || !canCreateMarketing} className={`${buttonClass} bg-white text-slate-950 hover:bg-cyan-100`}>
             <Wand2 className="h-4 w-4" />
-            {running ? "Generating..." : canCreateMarketing ? "Generate Queue" : "No create permission"}
+            {running ? "Queued..." : canCreateMarketing ? "Generate Queue" : "No create permission"}
           </button>
         </div>
       </div>
+
+      {activeGenerationCount ? (
+        <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-sm font-bold text-cyan-100">
+          {activeGenerationCount} generation job{activeGenerationCount === 1 ? "" : "s"} running in the background. This page will update automatically.
+        </div>
+      ) : null}
 
       <section className="grid gap-3 md:grid-cols-4">
         <Kpi label="AI Status" value={overview.ai_status || (settings.active ? "Active" : "Paused")} tone={settings.active ? "emerald" : "amber"} />
@@ -665,8 +736,8 @@ function AiMarketingCenter() {
         </aside>
 
         <main className="space-y-4">
-          <QueueSection title="Stories" icon={<Image className="h-4 w-4" />} items={stories} empty="No story candidates queued." onPreview={setPreview} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading || running} />
-          <QueueSection title="Posts" icon={<Send className="h-4 w-4" />} items={posts} empty="No AI posts queued." onPreview={setPreview} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading || running} />
+          <QueueSection title="Stories" icon={<Image className="h-4 w-4" />} items={stories} empty="No story candidates queued." onPreview={setPreview} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
+          <QueueSection title="Posts" icon={<Send className="h-4 w-4" />} items={posts} empty="No AI posts queued." onPreview={setPreview} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
         </main>
       </div>
 
@@ -868,6 +939,7 @@ function QueueItem({ item, queueType = "queue", publishing, actionDisabled = fal
   const statusInfo = getQueueStatusInfo(item, { source: "card", queueType, publishing });
   const normalizedStatus = statusInfo.normalizedStatus;
   const displayStatus = statusInfo.displayStatus;
+  const isGenerating = ["queued", "generating_copy", "generating_image", "uploading"].includes(normalizedStatus);
   const showApprove = canApproveQueueItem(item);
   const showPublish = canPublishQueueItem(item);
   const postUrl = queuePostUrl(item);
@@ -906,10 +978,11 @@ function QueueItem({ item, queueType = "queue", publishing, actionDisabled = fal
           <ScheduleBadge item={item} />
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
-          <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
+          <button type="button" onClick={onPreview} disabled={isGenerating} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white disabled:opacity-50`}>Preview</button>
           {normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
           {showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button> : null}
           {showPublish ? <button type="button" onClick={onPublish} disabled={publishing || actionDisabled} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>{publishing ? "Publishing..." : "Publish"}</button> : null}
+          {normalizedStatus === "failed" ? <button type="button" onClick={onPreview} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>Retry</button> : null}
           {normalizedStatus !== "published" ? (
             <button type="button" title="Delete" onClick={onDelete} className="grid h-10 w-10 place-items-center rounded-xl border border-rose-300/20 bg-rose-400/10 text-rose-100">
               <Trash2 className="h-4 w-4" />
@@ -948,14 +1021,63 @@ function DebugUrlRow({ label, value }) {
   );
 }
 
+function GeneratedStoryAssetPreview({ urls = [], selectedIndex = 0, onSelect }) {
+  const selectedUrl = urls[selectedIndex] || urls[0] || "";
+  return (
+    <div className="grid gap-4 rounded-3xl border border-white/10 bg-black/30 p-4 md:grid-cols-[minmax(0,1fr)_150px]">
+      <div>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">Generated story asset</h3>
+          <Badge tone="emerald">{urls.length} rendered</Badge>
+        </div>
+        <div className="mx-auto aspect-[9/16] max-h-[72vh] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950 shadow-2xl">
+          {selectedUrl ? (
+            <img src={selectedUrl} alt={`Generated story slide ${selectedIndex + 1}`} className="h-full w-full object-cover" />
+          ) : (
+            <div className="grid h-full place-items-center p-6 text-center text-sm font-bold text-slate-400">No generated story asset</div>
+          )}
+        </div>
+      </div>
+      <div className="min-w-0">
+        <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-400">Story Slides</div>
+        <div className="grid max-h-[72vh] gap-3 overflow-y-auto pr-1">
+          {urls.map((url, index) => (
+            <button
+              key={`${url}-${index}`}
+              type="button"
+              onClick={() => onSelect?.(index)}
+              className={`overflow-hidden rounded-2xl border bg-slate-950 text-left transition ${
+                index === selectedIndex ? "border-cyan-300 ring-2 ring-cyan-300/30" : "border-white/10 hover:border-white/30"
+              }`}
+            >
+              <div className="aspect-[9/16] w-full overflow-hidden bg-slate-900">
+                <img src={url} alt={`Generated thumbnail ${index + 1}`} className="h-full w-full object-cover" />
+              </div>
+              <div className="truncate px-2 py-2 text-xs font-black text-white">Slide {index + 1}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsset, generatingStoryAsset = false }) {
   const design = item.design_json || {};
-  const { isStoryContent, isFeedContent } = getPreviewContentFlags(item);
+  const { isFeedContent } = getPreviewContentFlags(item);
   const statusInfo = getQueueStatusInfo(item, { source: "preview-modal", queueType: isFeedContent ? "posts" : "stories" });
   const showApprove = canApproveQueueItem(item);
   const showPublish = canPublishQueueItem(item);
   const showPublished = isPublishedQueueItem(item);
   const postUrl = queuePostUrl(item);
+  const generatedAssetUrls = generatedStoryAssetUrls(item);
+  const [selectedGeneratedStoryAssetIndex, setSelectedGeneratedStoryAssetIndex] = useState(0);
+  useEffect(() => {
+    setSelectedGeneratedStoryAssetIndex(0);
+  }, [item.id]);
+  useEffect(() => {
+    setSelectedGeneratedStoryAssetIndex((current) => Math.min(current, Math.max(generatedAssetUrls.length - 1, 0)));
+  }, [generatedAssetUrls.length]);
   useEffect(() => {
     logQueueAuditDebug("[queue-card]", {
       ...statusInfo,
@@ -1004,24 +1126,9 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
   const mediaUrls = uniqueMediaUrls(item);
   const storySlides = buildStoryCreativeSlides({ item, mediaUrls });
   const renderedStoryAssetUrl = queueStoryAssetUrl(item);
-  const generatedAssetUrls = generatedStoryAssetUrls(item);
   const sourceImageUrls = sourceStoryImageUrls(item);
   const backendSourceImageCount = Number(item.metadata?.source_image_count || design.source_image_count || sourceImageUrls.length || 0);
   const backendGeneratedAssetCount = Number(item.metadata?.generated_asset_count || item.metadata?.generated_slide_count || design.generated_asset_count || generatedAssetUrls.length || 0);
-  const generatedStorySlides = generatedAssetUrls.length
-    ? generatedAssetUrls.map((url, index) => ({
-        ...(storySlides[index] || storySlides[0] || {}),
-        image_url: url,
-        rendered_asset_url: url,
-        final_asset_url: url,
-        story_image_url: url,
-        position: index + 1,
-      }))
-    : storySlides.filter((slide) =>
-        firstText(slide.rendered_asset_url, slide.final_asset_url, slide.story_image_url) ||
-        isGeneratedStoryAssetUrl(slide.image_url)
-      );
-  const hasMultipleGeneratedStorySlides = generatedStorySlides.length > 1;
   const storyAudio = storySlides[0]?.audio || design.audio || null;
   const sizesLabel = sizesLabelFrom(storySlides[0], design, item);
   const storyLink = storySlides[0]?.cta_url || storySlides[0]?.product_url || item.cta_url || item.product_url || design.cta_url || design.product_url || "";
@@ -1030,7 +1137,13 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
       <div className="grid max-h-[92vh] w-full max-w-6xl gap-5 overflow-y-auto rounded-[28px] border border-white/10 bg-[#090d17] p-5 shadow-2xl lg:grid-cols-[minmax(0,760px)_minmax(300px,1fr)]">
-        {renderedStoryAssetUrl && !hasMultipleGeneratedStorySlides ? (
+        {generatedAssetUrls.length ? (
+          <GeneratedStoryAssetPreview
+            urls={generatedAssetUrls}
+            selectedIndex={selectedGeneratedStoryAssetIndex}
+            onSelect={setSelectedGeneratedStoryAssetIndex}
+          />
+        ) : renderedStoryAssetUrl ? (
           <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">Story asset</h3>
@@ -1041,7 +1154,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             </div>
           </div>
         ) : (
-          <StoryCreativePreview slides={hasMultipleGeneratedStorySlides ? generatedStorySlides : storySlides} title="Story slides" />
+          <StoryCreativePreview slides={storySlides} title="Story slides" />
         )}
         <div>
           <div className="flex items-start justify-between gap-3">
@@ -1076,7 +1189,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             <div className="grid gap-2">
               <Info label="Frontend preview source slides count" value={storySlides.length} />
               <Info label="Backend source images count" value={backendSourceImageCount} />
-              <Info label="Generated story assets count" value={backendGeneratedAssetCount || generatedAssetUrls.length || generatedStorySlides.length} />
+              <Info label="Generated story assets count" value={generatedAssetUrls.length || backendGeneratedAssetCount || 0} />
               <DebugUrlRow label="productImageUrl" value={debugUrls.productImageUrl} />
               <DebugUrlRow label="rendered_image_url" value={debugUrls.rendered_image_url} />
               <DebugUrlRow label="story_image_url" value={debugUrls.story_image_url} />

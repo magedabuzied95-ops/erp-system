@@ -21,6 +21,11 @@ const DEFAULT_QUOTAS = [
   { id: "premium-engine", department_name: "All", segment_name: "All", stories_per_day: 12, posts_per_day: 3, priority: 100, active: true },
 ];
 
+const GENERATION_JOB_TIMEOUT_MS = Math.max(30000, Math.round(Number(process.env.AI_MARKETING_GENERATION_JOB_TIMEOUT_MS) || 180000));
+const GENERATION_JOB_CONCURRENCY = Math.min(2, Math.max(1, Math.round(Number(process.env.AI_MARKETING_GENERATION_CONCURRENCY) || 1)));
+const generationJobQueue = [];
+let activeGenerationJobs = 0;
+
 const ARABIC_TREND_AUDIO_LIBRARY = [
   {
     id: "arabic-energetic-sneakers-beat",
@@ -422,7 +427,23 @@ const absoluteStoryAssetUrl = (value = "") => {
 const uniqueImageUrls = (items = []) => {
   const seen = new Set();
   const output = [];
-  for (const item of items) {
+  const queue = [...items];
+  for (const item of queue) {
+    if (Array.isArray(item)) {
+      queue.push(...item);
+      continue;
+    }
+    if (typeof item === "string" && item.trim().startsWith("[")) {
+      try {
+        const parsed = JSON.parse(item);
+        if (Array.isArray(parsed)) {
+          queue.push(...parsed);
+          continue;
+        }
+      } catch {
+        // Keep malformed JSON strings as plain URL candidates below.
+      }
+    }
     const imageUrl = cleanImageUrl(item);
     if (!imageUrl) continue;
     const key = imageUrl.toLowerCase();
@@ -1251,6 +1272,46 @@ const serviceError = (message, status = 500, details = {}) => {
   return error;
 };
 
+const withTimeout = (promise, timeoutMs, label = "generation job") =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(serviceError(`${label} timed out after ${timeoutMs}ms`, 504)), timeoutMs);
+    }),
+  ]);
+
+const processGenerationJobs = () => {
+  while (activeGenerationJobs < GENERATION_JOB_CONCURRENCY && generationJobQueue.length) {
+    const job = generationJobQueue.shift();
+    activeGenerationJobs += 1;
+    Promise.resolve()
+      .then(() => withTimeout(job.run(), job.timeoutMs || GENERATION_JOB_TIMEOUT_MS, job.label || "AI marketing generation job"))
+      .catch((error) => {
+        console.error("[ai-marketing-generation-job-failed]", {
+          type: job.type || "",
+          tenantId: job.tenantId || null,
+          runId: job.runId || null,
+          queueId: job.queueId || null,
+          error: error?.message || "Generation job failed",
+        });
+      })
+      .finally(() => {
+        activeGenerationJobs = Math.max(0, activeGenerationJobs - 1);
+        setImmediate(processGenerationJobs);
+      });
+  }
+};
+
+const enqueueGenerationJob = (job) => {
+  generationJobQueue.push(job);
+  setImmediate(processGenerationJobs);
+  return {
+    queued: true,
+    queue_depth: generationJobQueue.length,
+    active_generation_jobs: activeGenerationJobs,
+  };
+};
+
 const logPublishQueueNotFound = async (tenantId, queueId, reason = "not_found") => {
   const sample = await db.query(
     `
@@ -1294,13 +1355,50 @@ const queueItemPostPayload = (item = {}) => {
 
 const queueItemStoryPayload = (item = {}) => {
   const design = item.design_json || {};
+  const metadata = item.metadata || {};
   const productLink = cleanText(item.cta_url || design.cta_url || item.product_url || design.product_url);
   const finalAssetUrl = storySelectedPublishUrl(item);
+  const slideGeneratedAssetUrls = Array.isArray(design.slides)
+    ? design.slides.flatMap((slide) => [
+        slide?.rendered_asset_url,
+        slide?.final_asset_url,
+        slide?.story_image_url,
+        slide?.generated_asset_url,
+        slide?.generated_asset_urls,
+        slide?.generated_media_urls,
+        slide?.image_url,
+      ])
+    : [];
+  const expectedGeneratedCount = Number(metadata.generated_asset_count || metadata.generated_slide_count || design.generated_asset_count || 0);
+  const countedGeneratedMediaSet = new Set(
+    expectedGeneratedCount > 0
+      ? uniqueImageUrls([item.media_urls, design.media_urls, metadata.media_urls]).slice(0, expectedGeneratedCount).map((url) => cleanImageUrl(url).toLowerCase())
+      : []
+  );
   const generatedMediaUrls = uniqueImageUrls([
+    item.final_asset_urls,
+    item.generated_asset_urls,
+    item.generated_media_urls,
+    design.final_asset_urls,
+    design.generated_asset_urls,
     ...(Array.isArray(design.generated_media_urls) ? design.generated_media_urls : []),
+    metadata.final_asset_urls,
+    metadata.generated_asset_urls,
+    ...(Array.isArray(metadata.generated_media_urls) ? metadata.generated_media_urls : []),
+    item.final_asset_url,
+    item.rendered_image_url,
+    item.story_image_url,
+    design.final_asset_url,
+    design.rendered_image_url,
+    design.story_image_url,
+    metadata.final_asset_url,
+    metadata.rendered_image_url,
+    metadata.story_image_url,
     ...(Array.isArray(item.media_urls) ? item.media_urls : []),
-    ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.rendered_asset_url || slide?.final_asset_url || slide?.story_image_url || slide?.image_url) : []),
-  ]).filter((url) => isKnownRenderedStoryUrl(url, item) || sameImageUrl(url, finalAssetUrl));
+    ...(Array.isArray(design.media_urls) ? design.media_urls : []),
+    ...(Array.isArray(metadata.media_urls) ? metadata.media_urls : []),
+    ...slideGeneratedAssetUrls,
+  ]).filter((url) => isKnownRenderedStoryUrl(url, item) || sameImageUrl(url, finalAssetUrl) || countedGeneratedMediaSet.has(cleanImageUrl(url).toLowerCase()));
   const slideImages = [
     ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.source_product_image_url || slide?.original_image_url || slide?.image_url) : []),
     ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.image_url) : []),
@@ -1406,10 +1504,17 @@ const isKnownRenderedStoryUrl = (url = "", item = {}) => {
     metadata.final_asset_url,
     metadata.rendered_image_url,
     metadata.story_image_url,
+    item.final_asset_urls,
+    item.generated_asset_urls,
+    item.generated_media_urls,
+    design.final_asset_urls,
+    design.generated_asset_urls,
     ...(Array.isArray(design.generated_media_urls) ? design.generated_media_urls : []),
+    metadata.final_asset_urls,
+    metadata.generated_asset_urls,
     ...(Array.isArray(metadata.generated_media_urls) ? metadata.generated_media_urls : []),
-  ].map(cleanImageUrl).filter(Boolean);
-  return /(^|\/)uploads\/stories\//.test(value) || knownAssets.some((asset) => sameImageUrl(asset, value));
+  ].flatMap((candidate) => Array.isArray(candidate) ? candidate : [candidate]).map(cleanImageUrl).filter(Boolean);
+  return /(^|\/)uploads\/stories\//.test(value) || /\/(?:erp\/)?stories\//i.test(value) || knownAssets.some((asset) => sameImageUrl(asset, value));
 };
 
 const rawStoryImageUrls = (item = {}) => {
@@ -1454,11 +1559,13 @@ const markQueueStoryRenderFailure = async (tenantId, item = {}, error) => {
     ...(item.metadata || {}),
     story_asset_error: error?.message || "Story render failed",
     story_asset_failed_at: new Date().toISOString(),
+    generation_stage: "failed",
   };
   const updated = await db.query(
     `
     UPDATE ai_marketing_content_queue
-    SET metadata = $3::jsonb,
+    SET status = 'failed',
+        metadata = $3::jsonb,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = $1 AND tenant_id = $2
     RETURNING *
@@ -1466,6 +1573,26 @@ const markQueueStoryRenderFailure = async (tenantId, item = {}, error) => {
     [item.id, tenantId, JSON.stringify(nextMetadata)]
   );
   return updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : normalizeQueueRow({ ...item, metadata: nextMetadata });
+};
+
+const updateQueueGenerationStage = async (tenantId, id, stage, extraMetadata = {}) => {
+  const nextMetadata = {
+    generation_stage: stage,
+    generation_stage_updated_at: new Date().toISOString(),
+    ...extraMetadata,
+  };
+  const updated = await db.query(
+    `
+    UPDATE ai_marketing_content_queue
+    SET status = $3::varchar,
+        metadata = metadata || $4::jsonb,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND tenant_id = $2
+    RETURNING *
+    `,
+    [id, tenantId, stage, JSON.stringify(nextMetadata)]
+  );
+  return updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : null;
 };
 
 const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = false } = {}) => {
@@ -1584,11 +1711,13 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     story_asset_error: "",
     story_asset_renderer: AI_MARKETING_STORY_RENDERER,
     story_asset_generated_at: new Date().toISOString(),
+    generation_stage: "ready",
   };
   const updated = await db.query(
     `
     UPDATE ai_marketing_content_queue
-    SET rendered_image_url = $3,
+    SET status = 'ready',
+        rendered_image_url = $3,
         story_image_url = $3,
         final_asset_url = $3,
         media_urls = $6::jsonb,
@@ -1633,6 +1762,109 @@ export const generateAiMarketingQueueStoryAsset = async (tenantId, id) => {
   }
   const hydrated = await hydrateQueueStoryMetadata(tenantId, currentItem);
   return ensureQueueStoryRenderedAsset(tenantId, hydrated, { force: true });
+};
+
+export const enqueueAiMarketingQueueStoryAssetGeneration = async (tenantId, id, { force = false } = {}) => {
+  await ensureAiMarketingCenterSchema();
+  const current = await db.query(`SELECT * FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [id, tenantId]);
+  const currentItem = current.rows[0] ? normalizeQueueRow(current.rows[0]) : null;
+  if (!currentItem) {
+    await logPublishQueueNotFound(tenantId, id, "story_asset_queue_not_found");
+    throw serviceError("Queue item not found", 404, { queue_id: id, reason: "not_found_or_tenant_mismatch" });
+  }
+  if (!isStoryQueueItem(currentItem)) {
+    throw serviceError("Queue item is not a story.", 400, { queue_id: id, content_type: currentItem.content_type || "" });
+  }
+  if (!force && isValidRenderedStoryAsset(currentItem, queueStoryFinalAssetUrl(currentItem))) {
+    return { queued: false, reused: true, item: currentItem };
+  }
+  if (!force) {
+    const design = currentItem.design_json || {};
+    const reusable = await db.query(
+      `
+      SELECT *
+      FROM ai_marketing_content_queue
+      WHERE tenant_id = $1
+        AND id <> $2
+        AND content_type = $3
+        AND product_id = $4
+        AND COALESCE(strategy_type, '') = COALESCE($5, '')
+        AND COALESCE(design_json->>'layout_type', '') = COALESCE($6, '')
+        AND created_at::date = CURRENT_DATE
+        AND final_asset_url <> ''
+        AND status = 'ready'
+      ORDER BY updated_at DESC
+      LIMIT 1
+      `,
+      [tenantId, id, currentItem.content_type, currentItem.product_id, currentItem.strategy_type || "", design.layout_type || ""]
+    );
+    const reusableItem = reusable.rows[0] ? normalizeQueueRow(reusable.rows[0]) : null;
+    const reusableUrl = queueStoryFinalAssetUrl(reusableItem || {});
+    if (reusableItem && isValidRenderedStoryAsset(reusableItem, reusableUrl)) {
+      const nextDesign = {
+        ...design,
+        rendered_image_url: reusableUrl,
+        story_image_url: reusableUrl,
+        final_asset_url: reusableUrl,
+        story_asset_renderer: AI_MARKETING_STORY_RENDERER,
+      };
+      const nextMetadata = {
+        ...(currentItem.metadata || {}),
+        rendered_image_url: reusableUrl,
+        story_image_url: reusableUrl,
+        final_asset_url: reusableUrl,
+        story_asset_error: "",
+        story_asset_reused_from_queue_id: reusableItem.id,
+        story_asset_reused_at: new Date().toISOString(),
+        story_asset_renderer: AI_MARKETING_STORY_RENDERER,
+        generation_stage: "ready",
+      };
+      const updated = await db.query(
+        `
+        UPDATE ai_marketing_content_queue
+        SET status = 'ready',
+            rendered_image_url = $3,
+            story_image_url = $3,
+            final_asset_url = $3,
+            image_url = $3,
+            design_json = $4::jsonb,
+            metadata = $5::jsonb,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND tenant_id = $2
+        RETURNING *
+        `,
+        [id, tenantId, reusableUrl, JSON.stringify(nextDesign), JSON.stringify(nextMetadata)]
+      );
+      return { queued: false, reused: true, item: normalizeQueueRow(updated.rows[0]) };
+    }
+  }
+
+  const queuedItem = await updateQueueGenerationStage(tenantId, id, "queued", {
+    story_asset_error: "",
+    story_asset_queued_at: new Date().toISOString(),
+  });
+  const queueState = enqueueGenerationJob({
+    type: "story_asset",
+    tenantId,
+    queueId: id,
+    label: `AI marketing story asset ${id}`,
+    run: async () => {
+      try {
+        await updateQueueGenerationStage(tenantId, id, "generating_image");
+        const hydratedCurrent = await db.query(`SELECT * FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [id, tenantId]);
+        const hydratedItem = hydratedCurrent.rows[0] ? normalizeQueueRow(hydratedCurrent.rows[0]) : null;
+        if (!hydratedItem) throw serviceError("Queue item not found", 404);
+        await updateQueueGenerationStage(tenantId, id, "uploading");
+        await generateAiMarketingQueueStoryAsset(tenantId, id);
+      } catch (error) {
+        const latest = await db.query(`SELECT * FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [id, tenantId]);
+        const latestItem = latest.rows[0] ? normalizeQueueRow(latest.rows[0]) : queuedItem;
+        await markQueueStoryRenderFailure(tenantId, latestItem, error);
+        throw error;
+      }
+    },
+  });
+  return { queued: true, reused: false, item: queuedItem, ...queueState };
 };
 
 const logStoryPublishAsset = ({ item = {}, selectedPublishUrl = "", reason = "" } = {}) => {
@@ -3118,25 +3350,62 @@ const buildGenerationPlan = async ({ tenantId, runType, settings }) => {
   return plan;
 };
 
-export const generateAiMarketingBatch = async ({ tenantId, runType = "daily" } = {}) => {
+export const enqueueAiMarketingBatchGeneration = async ({ tenantId, runType = "daily" } = {}) => {
   await ensureAiMarketingCenterSchema();
-  await clearInvalidLastPieceQueueItems(tenantId);
   const settings = await getAiMarketingSettings(tenantId);
   const requestedStories = settings.daily_content_quotas.reduce((sum, row) => sum + (row.active === false ? 0 : positiveInt(row.stories_per_day, 0)), 0) * (runType === "weekly" ? 7 : runType === "monthly" ? 30 : 1);
   const requestedPosts = settings.daily_content_quotas.reduce((sum, row) => sum + (row.active === false ? 0 : positiveInt(row.posts_per_day, 0)), 0) * (runType === "weekly" ? 7 : runType === "monthly" ? 30 : 1);
   const run = await db.query(
     `
     INSERT INTO ai_marketing_generation_runs (tenant_id, run_type, status, requested_stories, requested_posts, metadata)
-    VALUES ($1,$2,'running',$3,$4,$5::jsonb)
+    VALUES ($1,$2,'queued',$3,$4,$5::jsonb)
     RETURNING *
     `,
-    [tenantId, runType, requestedStories, requestedPosts, JSON.stringify({ settings_id: settings.id })]
+    [tenantId, runType, requestedStories, requestedPosts, JSON.stringify({ settings_id: settings.id, queue_stage: "queued" })]
   );
   const runId = run.rows[0].id;
+  const queueState = enqueueGenerationJob({
+    type: "batch",
+    tenantId,
+    runId,
+    label: `AI marketing ${runType} batch`,
+    run: () => generateAiMarketingBatch({ tenantId, runType, runId }),
+  });
+  return { run_id: runId, run_status: "queued", requested_stories: requestedStories, requested_posts: requestedPosts, ...queueState };
+};
+
+export const generateAiMarketingBatch = async ({ tenantId, runType = "daily", runId: existingRunId = null } = {}) => {
+  await ensureAiMarketingCenterSchema();
+  await clearInvalidLastPieceQueueItems(tenantId);
+  const settings = await getAiMarketingSettings(tenantId);
+  const requestedStories = settings.daily_content_quotas.reduce((sum, row) => sum + (row.active === false ? 0 : positiveInt(row.stories_per_day, 0)), 0) * (runType === "weekly" ? 7 : runType === "monthly" ? 30 : 1);
+  const requestedPosts = settings.daily_content_quotas.reduce((sum, row) => sum + (row.active === false ? 0 : positiveInt(row.posts_per_day, 0)), 0) * (runType === "weekly" ? 7 : runType === "monthly" ? 30 : 1);
+  let runId = existingRunId;
+  if (runId) {
+    await db.query(
+      `
+      UPDATE ai_marketing_generation_runs
+      SET status = 'running',
+          metadata = metadata || $2::jsonb
+      WHERE id = $1 AND tenant_id = $3
+      `,
+      [runId, JSON.stringify({ queue_stage: "generating_copy", started_at: new Date().toISOString() }), tenantId]
+    );
+  } else {
+    const run = await db.query(
+      `
+      INSERT INTO ai_marketing_generation_runs (tenant_id, run_type, status, requested_stories, requested_posts, metadata)
+      VALUES ($1,$2,'running',$3,$4,$5::jsonb)
+      RETURNING *
+      `,
+      [tenantId, runType, requestedStories, requestedPosts, JSON.stringify({ settings_id: settings.id })]
+    );
+    runId = run.rows[0].id;
+  }
 
   try {
     const plan = await buildGenerationPlan({ tenantId, runType, settings });
-    const status = settings.require_approval ? "pending_approval" : "scheduled";
+    const status = "ready";
     const inserted = [];
     const postingInsights = await syncAiMarketingPostingInsights({ tenantId });
     const scheduleState = createScheduleState(runType, postingInsights);
@@ -3208,7 +3477,13 @@ export const generateAiMarketingBatch = async ({ tenantId, runType = "daily" } =
           JSON.stringify(scheduledDesign),
           status,
           scheduledAt,
-          JSON.stringify({ ...item.metadata, run_id: runId }),
+          JSON.stringify({
+            ...item.metadata,
+            run_id: runId,
+            generation_stage: "ready",
+            approval_required: settings.require_approval !== false,
+            next_status_after_ready: settings.require_approval ? "pending_approval" : "scheduled",
+          }),
         ]
       );
       if (result.rows[0]) inserted.push(normalizeQueueRow(result.rows[0]));
