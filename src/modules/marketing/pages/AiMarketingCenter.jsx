@@ -111,6 +111,26 @@ const queueStoryAssetUrl = (item = {}) => {
   );
 };
 
+const isGeneratedStoryAssetUrl = (value = "") => /(^|\/)uploads\/stories\//.test(String(value || ""));
+
+const storyProductImageUrl = (item = {}) =>
+  uniqueMediaUrls(item).find((url) => !isGeneratedStoryAssetUrl(url)) || "";
+
+const storyDebugUrls = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  const finalAssetUrl = firstText(item.final_asset_url, design.final_asset_url, metadata.final_asset_url);
+  const renderedImageUrl = firstText(item.rendered_image_url, design.rendered_image_url, metadata.rendered_image_url);
+  const storyImageUrl = firstText(item.story_image_url, design.story_image_url, metadata.story_image_url);
+  return {
+    productImageUrl: storyProductImageUrl(item),
+    rendered_image_url: renderedImageUrl,
+    story_image_url: storyImageUrl,
+    final_asset_url: finalAssetUrl,
+    selectedPublishUrl: firstText(finalAssetUrl, renderedImageUrl, storyImageUrl),
+  };
+};
+
 const queuePostUrl = (item = {}) => {
   const design = item.design_json || {};
   const results = item.platform_publish_results || {};
@@ -796,6 +816,22 @@ function Thumb({ item }) {
   );
 }
 
+function DebugUrlRow({ label, value }) {
+  const displayValue = String(value || "").trim();
+  return (
+    <div className="grid gap-1 rounded-xl border border-white/10 bg-black/25 p-3">
+      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
+      {displayValue ? (
+        <a href={displayValue} target="_blank" rel="noreferrer" className="break-all text-xs font-bold text-cyan-200 underline decoration-cyan-300/40 underline-offset-4">
+          {displayValue}
+        </a>
+      ) : (
+        <div className="text-xs font-black text-rose-200">{label}: MISSING</div>
+      )}
+    </div>
+  );
+}
+
 function PreviewModal({ item, onClose, onApprove, onPublish }) {
   const design = item.design_json || {};
   const { isStoryContent, isFeedContent } = getPreviewContentFlags(item);
@@ -855,6 +891,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish }) {
   const storyAudio = storySlides[0]?.audio || design.audio || null;
   const sizesLabel = sizesLabelFrom(storySlides[0], design, item);
   const storyLink = storySlides[0]?.cta_url || storySlides[0]?.product_url || item.cta_url || item.product_url || design.cta_url || design.product_url || "";
+  const debugUrls = storyDebugUrls(item);
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
       <div className="grid max-h-[92vh] w-full max-w-6xl gap-5 overflow-y-auto rounded-[28px] border border-white/10 bg-[#090d17] p-5 shadow-2xl lg:grid-cols-[minmax(0,760px)_minmax(300px,1fr)]">
@@ -884,6 +921,16 @@ function PreviewModal({ item, onClose, onApprove, onPublish }) {
             <Info label="Layout" value={design.layout_type} />
             <Info label="Sizes" value={sizesLabel || "n/a"} />
             <Info label="Story link" value={storyLink || "n/a"} />
+          </div>
+          <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4">
+            <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-amber-100">Story publish asset debug</div>
+            <div className="grid gap-2">
+              <DebugUrlRow label="productImageUrl" value={debugUrls.productImageUrl} />
+              <DebugUrlRow label="rendered_image_url" value={debugUrls.rendered_image_url} />
+              <DebugUrlRow label="story_image_url" value={debugUrls.story_image_url} />
+              <DebugUrlRow label="final_asset_url" value={debugUrls.final_asset_url} />
+              <DebugUrlRow label="selectedPublishUrl" value={debugUrls.selectedPublishUrl} />
+            </div>
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/80 p-4">
             <div className="mb-3 flex">
@@ -931,7 +978,20 @@ function PreviewModal({ item, onClose, onApprove, onPublish }) {
           <details className="mt-5 rounded-2xl border border-white/10 bg-black/30 p-4">
             <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-400">Admin / debug</summary>
             <div className="mt-3 grid gap-3">
+              <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.08] p-3 text-xs font-black uppercase tracking-[0.14em] text-amber-100">
+                DEBUG ASSET URLS BUILD: 2026-05-31
+              </div>
               <Info label="Stored product URL" value={storyLink || "n/a"} />
+              <div className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-3">
+                <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-amber-100">Published image asset URLs</div>
+                <div className="grid gap-2">
+                  <DebugUrlRow label="productImageUrl" value={debugUrls.productImageUrl} />
+                  <DebugUrlRow label="rendered_image_url" value={debugUrls.rendered_image_url} />
+                  <DebugUrlRow label="story_image_url" value={debugUrls.story_image_url} />
+                  <DebugUrlRow label="final_asset_url" value={debugUrls.final_asset_url} />
+                  <DebugUrlRow label="selectedPublishUrl" value={debugUrls.selectedPublishUrl} />
+                </div>
+              </div>
               <details className="rounded-xl border border-white/10 bg-black/30 p-3">
                 <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-500">Technical JSON</summary>
                 <pre className="mt-3 max-h-72 overflow-auto text-xs text-slate-300">

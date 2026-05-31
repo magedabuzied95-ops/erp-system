@@ -2,7 +2,7 @@ import db from "../database/db.js";
 import { ensureProductVariantImagesSchema } from "./productVariantImagesService.js";
 import { publishPost as publishPostService } from "./socialPublisherService.js";
 import { publishStoryEverywhere as publishStoryEverywhereService } from "./storyPublisherService.js";
-import { generateDesignedAiMarketingStoryImage } from "./storyImageService.js";
+import { generateDesignedAiMarketingStoryImage, isGeneratedStoryImageUrl } from "./storyImageService.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { validateMetaToken } from "./metaTokenService.js";
 import { syncMarketingAnalyticsForTenant } from "./marketingAnalyticsService.js";
@@ -356,6 +356,23 @@ const uniqueImageUrls = (items = []) => {
     output.push(imageUrl);
   }
   return output;
+};
+
+const comparableImageUrl = (value = "") => {
+  const text = cleanImageUrl(value);
+  if (!text) return "";
+  try {
+    const parsed = new URL(text, "https://local.invalid");
+    return decodeURIComponent(parsed.pathname || text).replace(/\/+/g, "/").replace(/^\/+/, "").toLowerCase();
+  } catch {
+    return text.split("?")[0].split("#")[0].replace(/\/+/g, "/").replace(/^\/+/, "").toLowerCase();
+  }
+};
+
+const sameImageUrl = (left = "", right = "") => {
+  const leftKey = comparableImageUrl(left);
+  const rightKey = comparableImageUrl(right);
+  return Boolean(leftKey && rightKey && leftKey === rightKey);
 };
 
 const slugify = (value = "") =>
@@ -1195,7 +1212,7 @@ const queueItemPostPayload = (item = {}) => {
 const queueItemStoryPayload = (item = {}) => {
   const design = item.design_json || {};
   const productLink = cleanText(item.cta_url || design.cta_url || item.product_url || design.product_url);
-  const finalAssetUrl = cleanText(item.rendered_image_url || item.story_image_url || item.final_asset_url || design.rendered_image_url || design.story_image_url || design.final_asset_url);
+  const finalAssetUrl = storySelectedPublishUrl(item);
   const slideImages = [
     ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.image_url) : []),
     ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.image_url) : []),
@@ -1254,6 +1271,22 @@ const queueStoryFinalAssetUrl = (item = {}) => {
   );
 };
 
+const storySelectedPublishUrl = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return cleanText(
+    item.final_asset_url ||
+      design.final_asset_url ||
+      metadata.final_asset_url ||
+      item.rendered_image_url ||
+      design.rendered_image_url ||
+      metadata.rendered_image_url ||
+      item.story_image_url ||
+      design.story_image_url ||
+      metadata.story_image_url
+  );
+};
+
 const rawStoryImageUrls = (item = {}) => {
   const design = item.design_json || {};
   const slideImages = [
@@ -1273,10 +1306,19 @@ const rawStoryImageUrls = (item = {}) => {
   ]).filter((url) => !/(^|\/)uploads\/stories\//.test(url));
 };
 
+const storyProductImageUrl = (item = {}) => rawStoryImageUrls(item)[0] || "";
+
+const isValidRenderedStoryAsset = (item = {}, assetUrl = "") => {
+  const selectedAsset = cleanImageUrl(assetUrl);
+  if (!selectedAsset) return false;
+  if (!isGeneratedStoryImageUrl(selectedAsset)) return false;
+  return !rawStoryImageUrls(item).some((productImageUrl) => sameImageUrl(selectedAsset, productImageUrl));
+};
+
 const ensureQueueStoryRenderedAsset = async (tenantId, item = {}) => {
   if (!isStoryQueueItem(item)) return item;
   const existingAsset = queueStoryFinalAssetUrl(item);
-  if (existingAsset) return normalizeQueueRow(item);
+  if (isValidRenderedStoryAsset(item, existingAsset)) return normalizeQueueRow(item);
 
   const rawImages = rawStoryImageUrls(item);
   const design = item.design_json || {};
@@ -1301,6 +1343,13 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}) => {
       },
     },
   });
+  if (!isValidRenderedStoryAsset({ ...item, design_json: design }, renderedAssetUrl)) {
+    throw serviceError("Rendered story asset missing; refusing to publish raw product image.", 500, {
+      queue_id: item.id,
+      rendered_asset_url: renderedAssetUrl,
+      product_image_url: rawImages[0] || "",
+    });
+  }
 
   const nextDesign = {
     ...design,
@@ -1332,6 +1381,44 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}) => {
     [item.id, tenantId, renderedAssetUrl, JSON.stringify(nextDesign), JSON.stringify(nextMetadata)]
   );
   return updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : normalizeQueueRow({ ...item, ...nextMetadata, design_json: nextDesign });
+};
+
+const logStoryPublishAsset = ({ item = {}, selectedPublishUrl = "", reason = "" } = {}) => {
+  const design = item.design_json || {};
+  const productImageUrl = storyProductImageUrl(item);
+  console.log("[story-publish-asset]", {
+    queueId: item.id || null,
+    productImageUrl,
+    rendered_image_url: cleanText(item.rendered_image_url || design.rendered_image_url),
+    story_image_url: cleanText(item.story_image_url || design.story_image_url),
+    final_asset_url: cleanText(item.final_asset_url || design.final_asset_url),
+    selectedPublishUrl,
+    selectedPublishUrlReason: reason,
+    contentType: item.content_type || "",
+    layout: item.layout_type || design.layout_type || "",
+  });
+};
+
+const assertStoryPublishAsset = (item = {}) => {
+  const selectedPublishUrl = storySelectedPublishUrl(item);
+  const productImageUrl = storyProductImageUrl(item);
+  const reason = selectedPublishUrl
+    ? selectedPublishUrl === cleanText(item.final_asset_url || item.design_json?.final_asset_url)
+      ? "final_asset_url"
+      : selectedPublishUrl === cleanText(item.rendered_image_url || item.design_json?.rendered_image_url)
+        ? "rendered_image_url"
+        : "story_image_url"
+    : "missing";
+  logStoryPublishAsset({ item, selectedPublishUrl, reason });
+  if (!selectedPublishUrl || !isValidRenderedStoryAsset(item, selectedPublishUrl) || sameImageUrl(selectedPublishUrl, productImageUrl)) {
+    throw serviceError("Rendered story asset missing; refusing to publish raw product image.", 500, {
+      queue_id: item.id,
+      product_image_url: productImageUrl,
+      selected_publish_url: selectedPublishUrl,
+      selected_publish_url_reason: reason,
+    });
+  }
+  return selectedPublishUrl;
 };
 
 const persistQueuePublishResult = async ({ tenantId, id, item, result, platformResults, statusOverride = null, errorOverride = null }) => {
@@ -3413,6 +3500,7 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
       return persistQueuePublishResult({ tenantId, id, item: publishItem, result, platformResults, statusOverride: "failed", errorOverride: result.error_message });
     }
     const isStory = isStoryQueueItem(publishItem);
+    if (isStory) assertStoryPublishAsset(publishItem);
     const publishResult = isStory
       ? await publishStoryEverywhereService({ story: queueItemStoryPayload(publishItem), settings })
       : await publishPostService(queueItemPostPayload(publishItem), settings);
