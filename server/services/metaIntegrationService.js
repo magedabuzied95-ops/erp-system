@@ -218,13 +218,25 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
   const imageCount = imageAttachments(message.attachments || []).length;
   const size = extractShoeSize(messageText) || "";
   const brands = detectedCustomerBrands(messageText);
+  const models = detectedCustomerModels(messageText);
+  const productName = detectedCustomerProductName(messageText);
   const categories = detectedCustomerCategories(messageText);
   const orderNumber = text((messageText.match(/(?:#|order|اوردر|أوردر|طلب|رقم)\s*([A-Z0-9-]{3,})/i) || [])[1] || "");
   const color = text((messageText.match(/(اسود|أسود|ابيض|أبيض|جراي|رمادي|احمر|أحمر|اخضر|أخضر|ازرق|أزرق|بيج|black|white|grey|gray|red|green|blue|beige)/i) || [])[1] || "");
   const stage = normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || "");
+  const hasProductEntity = Boolean(brands.length || models.length || productName);
+  const hasSizeCheckSignal = Boolean(
+    size ||
+      /\bsize\b/i.test(messageText) ||
+      /مقاس/i.test(messageText) ||
+      /\bavailable\s+in\s+(2[0-9]|3[0-9]|4[0-8])\b/i.test(messageText) ||
+      /\b(2[0-9]|3[0-9]|4[0-8])\s+(?:موجود|متاح|available|in\s*stock)\b/i.test(messageText)
+  );
   const entities = {
-    product: brands.length ? messageText : "",
+    product: hasProductEntity ? messageText : "",
     brand: brands[0] || "",
+    model: models[0] || "",
+    product_name: productName,
     size,
     color,
     category: categories[0] || "",
@@ -270,14 +282,18 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     intent = AI_INTENTS.CHECKOUT;
     confidence = 0.88;
     reason = "checkout_stage_customer_data";
-  } else if (!size && (brands.length || categories.length)) {
+  } else if (hasProductEntity) {
     intent = AI_INTENTS.PRODUCT_SEARCH;
-    confidence = brands.length ? 0.86 : 0.76;
-    reason = brands.length ? "brand_entity_product_query" : "category_entity_product_query";
-  } else if (size || hasAnyArabicCommerceTerm(messageText, ["متاح", "موجود", "فيه", "available"])) {
+    confidence = brands.length || models.length ? 0.88 : 0.8;
+    reason = models.length ? "model_entity_product_query" : brands.length ? "brand_entity_product_query" : "product_name_query";
+  } else if (categories.length) {
+    intent = AI_INTENTS.PRODUCT_SEARCH;
+    confidence = 0.76;
+    reason = "category_entity_product_query";
+  } else if (hasSizeCheckSignal) {
     intent = AI_INTENTS.SIZE_CHECK;
     confidence = size ? 0.9 : 0.72;
-    reason = size ? "size_entity" : "availability_keyword";
+    reason = size ? "size_entity" : "size_keyword";
   } else if (detectExplicitCheckoutIntent(messageText)) {
     intent = checkoutStageAtLeast(stage, "checkout_collecting") ? AI_INTENTS.CHECKOUT : AI_INTENTS.BUYING_INTENT;
     confidence = 0.86;
@@ -299,6 +315,14 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     confidence = brands.length || categories.length ? 0.78 : 0.5;
     reason = brands.length ? "brand_entity" : "text_product_query";
   }
+
+  console.log("[classifier]", {
+    message: messageText,
+    matched_brand: brands[0] || "",
+    matched_model: models[0] || "",
+    matched_size: size || "",
+    final_intent: intent,
+  });
 
   return { intent, confidence, entities, reason };
 };
@@ -8016,6 +8040,26 @@ const detectedCustomerBrands = (message = "") => {
   if (/\bnorth\s*face\b|\bnorthface\b|نورث فيس|نورثفيس/.test(raw)) brands.push("North Face");
   if (/\bcrocs\b|كروكس/.test(raw)) brands.push("Crocs");
   return distinctTextArray(brands, 8);
+};
+
+const detectedCustomerModels = (message = "") => {
+  const raw = text(message).toLowerCase().replace(/\s+/g, " ");
+  const models = [];
+  if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|جورد[نا]\s*(?:فور|4|٤)|بلاك\s*كات/.test(raw)) models.push("Jordan 4");
+  if (/\bair\s*force\b|اير\s*فورس/.test(raw)) models.push("Air Force");
+  if (/\bshox\b|شوك[سx]?|شوكسات/.test(raw)) models.push("Shox");
+  if (/\bsamba\b|سامبا/.test(raw)) models.push("Samba");
+  if (/\bcampus\b|كامبس/.test(raw)) models.push("Campus");
+  if (/\bdunk\b|دانك/.test(raw)) models.push("Dunk");
+  if (/\byezy\b|yeezy|ييزي/.test(raw)) models.push("Yeezy");
+  return distinctTextArray(models, 8);
+};
+
+const detectedCustomerProductName = (message = "") => {
+  const raw = text(message).toLowerCase().replace(/\s+/g, " ");
+  if (/\bnorth\s*face\b|\bnorthface\b|نورث\s*فيس|نورثفيس/.test(raw)) return "North Face";
+  if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|جورد[نا]\s*(?:فور|4|٤)|بلاك\s*كات/.test(raw)) return "Jordan 4";
+  return "";
 };
 
 const detectedCustomerCategories = (message = "") => {
