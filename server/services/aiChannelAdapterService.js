@@ -362,11 +362,36 @@ const metaEventChannel = ({ body = {}, event = {} } = {}) => {
 const extractMetaMessageText = (event = {}) =>
   toText(event.message?.text || event.postback?.title || event.postback?.payload || event.message?.quick_reply?.payload || "");
 
+const extractMetaAttachmentUrl = (attachment = {}) => {
+  if (!attachment || typeof attachment !== "object") return "";
+  const direct = toText(
+    attachment.url ||
+      attachment.image_url ||
+      attachment.imageUrl ||
+      attachment.payload?.url ||
+      attachment.payload?.image_url ||
+      attachment.payload?.imageUrl ||
+      attachment.media?.image?.src ||
+      attachment.media?.src ||
+      attachment.image?.url ||
+      attachment.image?.src
+  );
+  if (direct) return direct;
+  for (const value of Object.values(attachment)) {
+    if (value && typeof value === "object") {
+      const nested = extractMetaAttachmentUrl(value);
+      if (nested) return nested;
+    }
+  }
+  return "";
+};
+
 const extractMetaAttachments = (event = {}) =>
   asArray(event.message?.attachments)
     .map((attachment) => ({
       type: attachment.type || "file",
-      url: attachment.payload?.url || "",
+      url: extractMetaAttachmentUrl(attachment),
+      image_url: extractMetaAttachmentUrl(attachment),
       title: attachment.title || attachment.type || "",
       metadata: { sticker_id: attachment.payload?.sticker_id || "" },
     }))

@@ -160,6 +160,9 @@ const detectExplicitCheckoutIntent = (message = "") =>
     "\u0627\u062d\u062c\u0632",
     "\u0647\u0634\u062a\u0631\u064a\u0647",
     "\u0647\u0634\u062a\u0631\u064a\u0647\u0627",
+    "\u0647\u0637\u0644\u0628",
+    "\u0647\u0637\u0644\u0628\u0647",
+    "\u0647\u0637\u0644\u0628\u0647\u0627",
     "\u0647\u0627\u062e\u062f\u0647",
     "\u0647\u0627\u062e\u062f\u0647\u0627",
     "\u062a\u0645\u0627\u0645",
@@ -187,6 +190,114 @@ const detectProductDetailQuestion = (message = "") =>
         "\u0627\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629",
       ])
   );
+
+const AI_INTENTS = Object.freeze({
+  PRODUCT_SEARCH: "PRODUCT_SEARCH",
+  VISUAL_SEARCH: "VISUAL_SEARCH",
+  PRICE_CHECK: "PRICE_CHECK",
+  SIZE_CHECK: "SIZE_CHECK",
+  COLOR_REQUEST: "COLOR_REQUEST",
+  MORE_IMAGES: "MORE_IMAGES",
+  ALTERNATIVES: "ALTERNATIVES",
+  BUYING_INTENT: "BUYING_INTENT",
+  CHECKOUT: "CHECKOUT",
+  ORDER_CONFIRMATION: "ORDER_CONFIRMATION",
+  ORDER_STATUS: "ORDER_STATUS",
+  FAQ: "FAQ",
+  HUMAN_AGENT: "HUMAN_AGENT",
+  COMPLAINT: "COMPLAINT",
+  GREETING: "GREETING",
+  UNKNOWN: "UNKNOWN",
+});
+
+const ORCHESTRATOR_CONFIDENCE_THRESHOLD = 0.58;
+
+const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {}) => {
+  const messageText = text(message.message_text);
+  const normalized = messageText.toLowerCase().replace(/\s+/g, " ");
+  const imageCount = imageAttachments(message.attachments || []).length;
+  const size = extractShoeSize(messageText) || "";
+  const brands = detectedCustomerBrands(messageText);
+  const categories = detectedCustomerCategories(messageText);
+  const orderNumber = text((messageText.match(/(?:#|order|اوردر|أوردر|طلب|رقم)\s*([A-Z0-9-]{3,})/i) || [])[1] || "");
+  const color = text((messageText.match(/(اسود|أسود|ابيض|أبيض|جراي|رمادي|احمر|أحمر|اخضر|أخضر|ازرق|أزرق|بيج|black|white|grey|gray|red|green|blue|beige)/i) || [])[1] || "");
+  const stage = normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || "");
+  const entities = {
+    product: brands.length ? messageText : "",
+    brand: brands[0] || "",
+    size,
+    color,
+    category: categories[0] || "",
+    order_number: orderNumber,
+  };
+  let intent = AI_INTENTS.UNKNOWN;
+  let confidence = 0.35;
+  let reason = "no_rule_matched";
+
+  if (imageCount) {
+    intent = AI_INTENTS.VISUAL_SEARCH;
+    confidence = 0.96;
+    reason = "image_attachment";
+  } else if (detectHumanHandoff(messageText)) {
+    intent = AI_INTENTS.HUMAN_AGENT;
+    confidence = 0.94;
+    reason = "human_agent_keyword";
+  } else if (detectNegativeCommerceIntent(messageText)) {
+    intent = AI_INTENTS.COMPLAINT;
+    confidence = 0.76;
+    reason = "negative_or_objection";
+  } else if (hasAnyArabicCommerceTerm(messageText, ["الأوردر وصل", "الاوردر وصل", "طلبي فين", "اوردر فين", "الأوردر فين", "وصل لفين", "تتبع", "tracking", "order status"])) {
+    intent = AI_INTENTS.ORDER_STATUS;
+    confidence = 0.91;
+    reason = "order_status_keyword";
+  } else if (detectMoreImagesRequest(messageText) && !detectOtherColorsRequest(messageText)) {
+    intent = AI_INTENTS.MORE_IMAGES;
+    confidence = 0.92;
+    reason = "more_images_keyword";
+  } else if (detectOtherColorsRequest(messageText) || detectAllColorsRequest(messageText)) {
+    intent = AI_INTENTS.COLOR_REQUEST;
+    confidence = 0.93;
+    reason = "color_request_keyword";
+  } else if (detectAlternativesRequest(messageText)) {
+    intent = AI_INTENTS.ALTERNATIVES;
+    confidence = 0.93;
+    reason = "alternatives_keyword";
+  } else if (stage === "order_ready" && detectSalesFinalConfirmation(messageText)) {
+    intent = AI_INTENTS.ORDER_CONFIRMATION;
+    confidence = 0.92;
+    reason = "order_ready_confirmation";
+  } else if (checkoutStageAtLeast(stage, "checkout_collecting") && (normalizeEgyptPhone(messageText) || parseCheckoutCustomerDetails(messageText).customer_address || detectReservationAffirmation(messageText))) {
+    intent = AI_INTENTS.CHECKOUT;
+    confidence = 0.88;
+    reason = "checkout_stage_customer_data";
+  } else if (size || hasAnyArabicCommerceTerm(messageText, ["متاح", "موجود", "فيه", "available"])) {
+    intent = AI_INTENTS.SIZE_CHECK;
+    confidence = size ? 0.9 : 0.72;
+    reason = size ? "size_entity" : "availability_keyword";
+  } else if (detectExplicitCheckoutIntent(messageText)) {
+    intent = checkoutStageAtLeast(stage, "checkout_collecting") ? AI_INTENTS.CHECKOUT : AI_INTENTS.BUYING_INTENT;
+    confidence = 0.86;
+    reason = "buying_keyword";
+  } else if (hasAnyArabicCommerceTerm(messageText, ["كام", "بكام", "السعر", "price"])) {
+    intent = AI_INTENTS.PRICE_CHECK;
+    confidence = 0.86;
+    reason = "price_keyword";
+  } else if (detectFaqIntent(messageText)) {
+    intent = AI_INTENTS.FAQ;
+    confidence = 0.82;
+    reason = "faq_keyword";
+  } else if (hasAnyArabicCommerceTerm(messageText, ["اهلا", "أهلا", "السلام عليكم", "هاي", "hello", "hi"])) {
+    intent = AI_INTENTS.GREETING;
+    confidence = 0.72;
+    reason = "greeting_keyword";
+  } else if (brands.length || categories.length || messageText.length >= 3) {
+    intent = AI_INTENTS.PRODUCT_SEARCH;
+    confidence = brands.length || categories.length ? 0.78 : 0.5;
+    reason = brands.length ? "brand_entity" : "text_product_query";
+  }
+
+  return { intent, confidence, entities, reason };
+};
 
 const AI_CHECKOUT_STATES = new Set([
   "browsing",
@@ -4008,6 +4119,7 @@ const logIncomingToInbox = async ({ message, config }) => {
 const routeMessageThroughAi = async ({ req, message, config }) => {
   const channel = channelAlias(message.channel);
   const aiMemory = persistentAiMemoryFromRuntime(getConversationMemory(message.external_conversation_id) || {});
+  const customerContext = aiMemory.customerContext || null;
   const response = await fetch(`${text(process.env.INTERNAL_AI_SUPPORT_URL) || `${req.protocol || "http"}://${req.get("host")}`}/api/ai-support/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-tenant-id": String(config.tenant_id) },
@@ -4032,6 +4144,12 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
         active_color: aiMemory.activeColor || "",
         active_size: aiMemory.activeSize || "",
         buying_stage: aiMemory.buyingStage || "",
+        customer_context: customerContext,
+        customer_id: customerContext?.customerId || aiMemory.customerId || message.external_customer_id,
+        known_name: aiMemory.knownName || customerContext?.fullName || "",
+        known_phone: aiMemory.knownPhone || customerContext?.phone || "",
+        preferred_sizes: aiMemory.preferredSizes || customerContext?.preferredSizes || [],
+        preferred_brands: aiMemory.preferredBrands || customerContext?.preferredBrands || [],
       },
     }),
   });
@@ -4427,6 +4545,13 @@ const persistentAiMemoryFromRuntime = (memory = {}) => {
     lastVisualClarifiedImageUrl: text(memory.lastVisualClarifiedImageUrl || ""),
     lastVisualAttributes: memory.lastVisualAttributes || memory.lastVisualAnalysis || null,
     lastVisualConfidence: memory.lastVisualConfidence ?? null,
+    knownName: text(memory.knownName || memory.customerName || ""),
+    knownPhone: normalizeEgyptPhone(memory.knownPhone || memory.customerPhone || ""),
+    preferredSizes: Array.isArray(memory.preferredSizes) ? memory.preferredSizes.map(text).filter(Boolean).slice(0, 8) : [],
+    preferredBrands: Array.isArray(memory.preferredBrands) ? memory.preferredBrands.map(text).filter(Boolean).slice(0, 12) : [],
+    lastAddressSummary: text(memory.lastAddressSummary || memory.customerAddress || ""),
+    customerId: memory.customerId || null,
+    customerContext: memory.customerContext || null,
     lastProductCards: cards,
     lastProductCard: activeCard?.product_id || activeCard?.id || activeCard?.variant_id ? activeCard : null,
     sentCardByMessageId: memory.sentCardByMessageId || {},
@@ -4461,6 +4586,13 @@ const runtimeMemoryFromPersistent = (state = {}) => {
     lastVisualAttributes: state.lastVisualAttributes || null,
     lastVisualAnalysis: state.lastVisualAttributes || null,
     lastVisualConfidence: state.lastVisualConfidence ?? null,
+    knownName: text(state.knownName || ""),
+    knownPhone: normalizeEgyptPhone(state.knownPhone || ""),
+    preferredSizes: Array.isArray(state.preferredSizes) ? state.preferredSizes.map(text).filter(Boolean) : [],
+    preferredBrands: Array.isArray(state.preferredBrands) ? state.preferredBrands.map(text).filter(Boolean) : [],
+    lastAddressSummary: text(state.lastAddressSummary || ""),
+    customerId: state.customerId || null,
+    customerContext: state.customerContext || null,
     contextLocked: Boolean(state.activeProductId || state.activeVariantId || state.activeColor),
   };
 };
@@ -6746,9 +6878,15 @@ const handleSizesIfMatched = async ({ config, message } = {}) => {
 };
 
 const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
-  const requestedSize = extractShoeSize(message.message_text);
+  const explicitRequestedSize = extractShoeSize(message.message_text);
+  let requestedSize = explicitRequestedSize;
+  const memoryForSize = getConversationMemory(message.external_conversation_id) || {};
+  const usedPreferredSize = !explicitRequestedSize && Array.isArray(memoryForSize.preferredSizes) && memoryForSize.preferredSizes[0];
+  if (!requestedSize && Array.isArray(memoryForSize.preferredSizes) && memoryForSize.preferredSizes[0]) {
+    requestedSize = text(memoryForSize.preferredSizes[0]);
+  }
   const availabilityKeyword = hasTerm(message.message_text, ["\u0645\u062a\u0648\u0641\u0631", "\u0641\u064a\u0647", "\u0641\u064a", "\u0645\u0648\u062c\u0648\u062f", "available"]);
-  if (!requestedSize && !availabilityKeyword) return null;
+  if (!explicitRequestedSize && !availabilityKeyword) return null;
   const context = resolveContextProductCard({ message });
   if (!context.card && !context.ambiguous) {
     console.log("[ai-memory] missing active product", {
@@ -6836,6 +6974,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   const lowStockLine = hasSize && selectedVariantForSize && Number(selectedVariantForSize.stock || 0) > 0 && Number(selectedVariantForSize.stock || 0) <= LOW_STOCK_THRESHOLD
     ? "المقاس ده الكمية منه محدودة."
     : "";
+  const customerFirstName = text(memoryForSize.customerContext?.firstName || splitFirstName(memoryForSize.knownName || ""));
   console.log("stock_consistency_check", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -6847,6 +6986,8 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   });
   const replyText = hasSize
     ? [
+      customerFirstName ? `تمام يا ${customerFirstName}.` : "",
+      usedPreferredSize ? `هشوفهولك على مقاسك ${requestedSize}.` : "",
       `أيوه ${requestedSize} متوفر في ${colorPhrase} ✅`,
       priceText ? `السعر ${priceText}.` : "",
       lowStockLine,
@@ -6903,8 +7044,8 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   console.log("ai_checkout_blocked", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
-    reason: "size_check_is_product_detail",
-    checkout_stage: "product_details",
+    reason: hasSize ? "size_available_waiting_checkout_confirmation" : "size_check_is_product_detail",
+    checkout_stage: hasSize ? "size_selected" : "product_details",
     requested_size: requestedSize,
   });
   console.log("ai_size_check_result", {
@@ -7278,6 +7419,17 @@ const salesMissingPrompt = (missing = []) => {
 
 const loadKnownSalesCustomerInfo = async ({ tenantId, channel = "", conversationId = "" } = {}) => {
   if (!tenantId || !conversationId) return {};
+  const memory = getConversationMemory(conversationId) || {};
+  const customerContext = memory.customerContext && typeof memory.customerContext === "object" ? memory.customerContext : {};
+  if (customerContext.customerId || customerContext.phone || customerContext.fullName || customerContext.address) {
+    return {
+      customerName: text(customerContext.fullName || customerContext.firstName || memory.knownName || ""),
+      customerPhone: normalizeEgyptPhone(customerContext.phone || memory.knownPhone || ""),
+      customerAddress: text(customerContext.address || customerContext.area || memory.lastAddressSummary || ""),
+      governorate: text(customerContext.governorate || customerContext.city || ""),
+      area: text(customerContext.area || customerContext.address || ""),
+    };
+  }
   const result = await db.query(
     `
     SELECT customer_name, metadata
@@ -7313,6 +7465,367 @@ const buildSalesOrderSummary = ({ productName = "", size = "", price = "", addre
     "",
     "أأكد الطلب؟",
   ].filter((line) => line !== "").join("\n");
+
+const distinctTextArray = (items = [], limit = 12) =>
+  [...new Set((Array.isArray(items) ? items : [items]).map(text).filter(Boolean))]
+    .slice(0, limit);
+
+const parseJsonArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  if (typeof value === "object") return Array.isArray(value) ? value : [];
+  try {
+    const parsed = JSON.parse(String(value));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const detectedCustomerBrands = (message = "") => {
+  const raw = text(message).toLowerCase().replace(/\s+/g, " ");
+  const brands = [];
+  if (/\bjordan\b|جوردن|چوردن/.test(raw)) brands.push("Jordan");
+  if (/\bnike\b|نايك|نايكي/.test(raw)) brands.push("Nike");
+  if (/\badidas\b|اديداس|أديداس/.test(raw)) brands.push("Adidas");
+  if (/\bnorth\s*face\b|\bnorthface\b|نورث فيس|نورثفيس/.test(raw)) brands.push("North Face");
+  if (/\bcrocs\b|كروكس/.test(raw)) brands.push("Crocs");
+  return distinctTextArray(brands, 8);
+};
+
+const detectedCustomerCategories = (message = "") => {
+  const raw = text(message).toLowerCase();
+  const categories = [];
+  if (raw.includes("كوتشي") || raw.includes("سنيكر") || raw.includes("sneaker") || raw.includes("shoe")) categories.push("sneakers");
+  if (raw.includes("كروكس") || raw.includes("crocs")) categories.push("crocs");
+  if (raw.includes("شنطة") || raw.includes("bag")) categories.push("bags");
+  return distinctTextArray(categories, 8);
+};
+
+const fullNameFromProfile = (profile = {}) =>
+  [profile.first_name, profile.last_name].map(text).filter(Boolean).join(" ").trim();
+
+const customerProfileToContext = ({ profile = {}, orders = [], memory = {}, matchedBy = "" } = {}) => {
+  const preferredSizes = distinctTextArray([
+    ...text(profile.preferred_size).split(/[,\s]+/),
+    ...(Array.isArray(memory.preferredSizes) ? memory.preferredSizes : []),
+  ], 8);
+  const preferredBrands = distinctTextArray([
+    ...parseJsonArray(profile.favorite_brands),
+    ...(Array.isArray(memory.preferredBrands) ? memory.preferredBrands : []),
+  ], 12);
+  const fullName = fullNameFromProfile(profile) || text(memory.knownName || "");
+  const phone = normalizeEgyptPhone(profile.phone || memory.knownPhone || "");
+  const lastOrder = orders[0] || {};
+  const address = text(profile.city_area || lastOrder.customer_address || lastOrder.city_area || memory.lastAddressSummary || "");
+  const governorate = text(lastOrder.governorate || extractSalesGovernorate(address));
+  const lastPurchasedProducts = distinctTextArray(
+    orders.flatMap((order) => Array.isArray(order.items) ? order.items.map((item) => item.product_name || item.name) : []),
+    10
+  );
+  const orderCount = orders.length;
+  return {
+    customerId: profile.id || null,
+    firstName: splitFirstName(fullName || profile.first_name || ""),
+    fullName,
+    phone,
+    city: text(lastOrder.city_area || profile.city_area || ""),
+    governorate,
+    area: text(lastOrder.city_area || profile.city_area || ""),
+    address,
+    preferredSizes,
+    preferredBrands,
+    preferredCategories: Array.isArray(memory.preferredCategories) ? memory.preferredCategories : [],
+    lastOrders: orders.slice(0, 5).map((order) => ({
+      id: order.id,
+      invoice_number: order.invoice_number || order.public_order_number || "",
+      status: order.status || "",
+      total: order.total_amount || order.total_price || order.total || 0,
+      created_at: order.created_at || null,
+    })),
+    lastPurchasedProducts,
+    lastViewedProducts: distinctTextArray(memory.lastShownProductIds || memory.viewedProductIds || [], 12),
+    trustStatus: orderCount > 0 ? "existing_customer" : "new_customer",
+    codEligibility: orderCount > 0 ? "eligible_existing_customer" : "",
+    matchedBy,
+  };
+};
+
+const loadRecentOrdersForCustomer = async ({ tenantId, phone = "", customerName = "" } = {}) => {
+  if (!tenantId && !phone && !customerName) return [];
+  const result = await db.query(
+    `
+    SELECT
+      o.id,
+      o.invoice_number,
+      o.status,
+      o.total_amount,
+      o.total_price,
+      o.total,
+      o.customer_address,
+      o.governorate,
+      o.city_area,
+      o.created_at,
+      COALESCE(
+        jsonb_agg(
+          DISTINCT jsonb_build_object('product_name', oi.product_name, 'product_id', oi.product_id)
+        ) FILTER (WHERE oi.id IS NOT NULL),
+        '[]'::jsonb
+      ) AS items
+    FROM orders o
+    LEFT JOIN order_items oi ON oi.order_id = o.id
+    WHERE o.tenant_id = $1
+      AND (
+        ($2::text <> '' AND regexp_replace(COALESCE(o.customer_phone, ''), '[^0-9]', '', 'g') = $2)
+        OR ($3::text <> '' AND LOWER(COALESCE(o.customer_name, '')) = LOWER($3))
+      )
+    GROUP BY o.id
+    ORDER BY o.created_at DESC
+    LIMIT 5
+    `,
+    [tenantId, normalizeEgyptPhone(phone), text(customerName)]
+  ).catch(() => ({ rows: [] }));
+  return result.rows;
+};
+
+const findAiCustomerProfile = async ({ tenantId, channel = "", conversationId = "", externalCustomerId = "", phone = "" } = {}) => {
+  await ensureAiSalesAgentSchema();
+  const bySender = await db.query(
+    `
+    SELECT p.*
+    FROM ai_channel_conversations c
+    LEFT JOIN ai_customer_profiles p ON p.id = c.customer_profile_id
+    WHERE c.tenant_id = $1
+      AND (
+        c.external_conversation_id = $2
+        OR ($3::text <> '' AND c.external_customer_id = $3)
+      )
+      AND p.id IS NOT NULL
+    ORDER BY c.updated_at DESC
+    LIMIT 1
+    `,
+    [tenantId, text(conversationId), text(externalCustomerId)]
+  ).catch(() => ({ rows: [] }));
+  if (bySender.rows[0]) {
+    console.log("[customer-brain] customer matched by sender", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      customer_id: bySender.rows[0].id || null,
+      channel,
+    });
+    return { profile: bySender.rows[0], matchedBy: "sender" };
+  }
+  if (text(externalCustomerId)) {
+    const byExternal = await db.query(
+      `
+      SELECT *
+      FROM ai_customer_profiles
+      WHERE tenant_id = $1
+        AND external_customer_id = $2
+      ORDER BY updated_at DESC
+      LIMIT 1
+      `,
+      [tenantId, text(externalCustomerId)]
+    ).catch(() => ({ rows: [] }));
+    if (byExternal.rows[0]) {
+      console.log("[customer-brain] customer matched by sender", {
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        customer_id: byExternal.rows[0].id || null,
+        channel,
+        source: "profile_external_customer_id",
+      });
+      return { profile: byExternal.rows[0], matchedBy: "sender" };
+    }
+  }
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (normalizedPhone) {
+    const byPhone = await db.query(
+      `
+      SELECT *
+      FROM ai_customer_profiles
+      WHERE tenant_id = $1
+        AND regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') = $2
+      ORDER BY updated_at DESC
+      LIMIT 1
+      `,
+      [tenantId, normalizedPhone]
+    ).catch(() => ({ rows: [] }));
+    if (byPhone.rows[0]) {
+      console.log("[customer-brain] customer matched by phone", {
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        customer_id: byPhone.rows[0].id || null,
+      });
+      return { profile: byPhone.rows[0], matchedBy: "phone" };
+    }
+  }
+  return { profile: null, matchedBy: "metadata" };
+};
+
+const loadCustomerBrainContext = async ({ config, message } = {}) => {
+  const conversationId = message.external_conversation_id;
+  const memory = getConversationMemory(conversationId) || {};
+  const parsed = parseCheckoutCustomerDetails(message.message_text || "");
+  const phone = parsed.customer_phone || memory.knownPhone || memory.customerPhone || "";
+  const match = await findAiCustomerProfile({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId,
+    externalCustomerId: message.external_customer_id,
+    phone,
+  });
+  const fallbackProfile = {
+    id: match.profile?.id || memory.customerId || null,
+    first_name: match.profile?.first_name || splitFirstName(memory.knownName || message.customer_name || ""),
+    last_name: match.profile?.last_name || "",
+    phone: match.profile?.phone || phone || "",
+    city_area: match.profile?.city_area || memory.lastAddressSummary || "",
+    preferred_size: match.profile?.preferred_size || "",
+    favorite_brands: match.profile?.favorite_brands || [],
+    viewed_products: match.profile?.viewed_products || [],
+  };
+  const orders = await loadRecentOrdersForCustomer({
+    tenantId: config.tenant_id,
+    phone: fallbackProfile.phone,
+    customerName: fullNameFromProfile(fallbackProfile) || message.customer_name || "",
+  });
+  const customerContext = customerProfileToContext({
+    profile: fallbackProfile,
+    orders,
+    memory,
+    matchedBy: match.matchedBy,
+  });
+  updateConversationMemory(conversationId, {
+    customerId: customerContext.customerId || null,
+    knownName: customerContext.fullName || memory.knownName || "",
+    knownPhone: customerContext.phone || memory.knownPhone || "",
+    preferredSizes: customerContext.preferredSizes,
+    preferredBrands: customerContext.preferredBrands,
+    preferredCategories: customerContext.preferredCategories,
+    lastAddressSummary: customerContext.address || "",
+    customerContext,
+  });
+  console.log("[customer-brain] profile loaded", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    customer_id: customerContext.customerId || null,
+    matched_by: match.matchedBy,
+    trust_status: customerContext.trustStatus,
+    has_phone: Boolean(customerContext.phone),
+    has_address: Boolean(customerContext.address),
+    preferred_sizes: customerContext.preferredSizes,
+    preferred_brands: customerContext.preferredBrands,
+  });
+  return customerContext;
+};
+
+const learnCustomerBrainPreferences = async ({ config, message } = {}) => {
+  const conversationId = message.external_conversation_id;
+  const memory = getConversationMemory(conversationId) || {};
+  const parsed = parseCheckoutCustomerDetails(message.message_text || "");
+  const size = extractShoeSize(message.message_text || "");
+  const brands = detectedCustomerBrands(message.message_text || "");
+  const categories = detectedCustomerCategories(message.message_text || "");
+  const preferredSizes = distinctTextArray([...(memory.preferredSizes || []), size], 8);
+  const preferredBrands = distinctTextArray([...(memory.preferredBrands || []), ...brands], 12);
+  const preferredCategories = distinctTextArray([...(memory.preferredCategories || []), ...categories], 12);
+  const knownName = isSalesControlWordName(parsed.customer_name) ? memory.knownName : (parsed.customer_name || memory.knownName || "");
+  const knownPhone = normalizeEgyptPhone(parsed.customer_phone || memory.knownPhone || "");
+  const lastAddressSummary = parsed.customer_address || memory.lastAddressSummary || "";
+  const learned = Boolean(size || brands.length || categories.length || parsed.customer_name || parsed.customer_phone || parsed.customer_address);
+
+  updateConversationMemory(conversationId, {
+    preferredSizes,
+    preferredBrands,
+    preferredCategories,
+    knownName,
+    knownPhone,
+    lastAddressSummary,
+  });
+
+  if (learned) {
+    console.log("[customer-brain] preferences learned", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      preferred_sizes: preferredSizes,
+      preferred_brands: preferredBrands,
+      preferred_categories: preferredCategories,
+      has_name: Boolean(knownName),
+      has_phone: Boolean(knownPhone),
+      has_address: Boolean(lastAddressSummary),
+    });
+  }
+
+  const profileId = memory.customerId || memory.customerContext?.customerId || null;
+  const updatePayload = {
+    first_name: splitFirstName(knownName),
+    phone: knownPhone,
+    city_area: lastAddressSummary,
+    preferred_size: preferredSizes[0] || "",
+    favorite_brands: preferredBrands,
+    viewed_products: distinctTextArray(memory.lastShownProductIds || memory.viewedProductIds || [], 20),
+  };
+  if (profileId) {
+    await db.query(
+      `
+      UPDATE ai_customer_profiles
+      SET first_name = COALESCE(NULLIF($2, ''), first_name),
+          phone = COALESCE(NULLIF($3, ''), phone),
+          city_area = COALESCE(NULLIF($4, ''), city_area),
+          preferred_size = COALESCE(NULLIF($5, ''), preferred_size),
+          favorite_brands = (
+            SELECT COALESCE(jsonb_agg(DISTINCT item), '[]'::jsonb)
+            FROM jsonb_array_elements(COALESCE(favorite_brands, '[]'::jsonb) || $6::jsonb) AS item
+          ),
+          viewed_products = (
+            SELECT COALESCE(jsonb_agg(DISTINCT item), '[]'::jsonb)
+            FROM jsonb_array_elements(COALESCE(viewed_products, '[]'::jsonb) || $7::jsonb) AS item
+          ),
+          last_seen_at = NOW(),
+          updated_at = NOW()
+      WHERE tenant_id = $1 AND id = $8
+      `,
+      [config.tenant_id, updatePayload.first_name, updatePayload.phone, updatePayload.city_area, updatePayload.preferred_size, json(updatePayload.favorite_brands), json(updatePayload.viewed_products), profileId]
+    ).catch(() => {});
+    console.log("[customer-brain] customer profile updated", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      customer_id: profileId,
+      update_source: "profile_id",
+    });
+  } else if (knownPhone) {
+    const profile = await upsertAiCustomerProfile({
+      tenantId: config.tenant_id,
+      sessionId: conversationId,
+      metadata: {
+        customer_name: knownName,
+        customer_phone: knownPhone,
+        city_area: lastAddressSummary,
+        area: lastAddressSummary,
+        channel: message.channel,
+      },
+      message: message.message_text,
+      response: { answer: "", suggested_products: [] },
+    }).catch(() => null);
+    if (profile?.id) {
+      updateConversationMemory(conversationId, { customerId: profile.id });
+      console.log("[customer-brain] customer profile updated", {
+        tenant_id: config.tenant_id,
+        conversation_id: conversationId,
+        customer_id: profile.id,
+        update_source: "phone_upsert",
+      });
+    }
+  }
+
+  persistAiConversationMemory({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId,
+    reason: "customer_brain_preferences_learned",
+  });
+};
 
 const sendCheckoutConfirmationMetaMessage = async ({
   config,
@@ -7771,7 +8284,6 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
   const shouldCollect = stage === "checkout_collecting" ||
     (checkoutStageAtLeast(stage, "size_selected") && detectSalesCheckoutStart(message.message_text, memory));
   const shouldFinalize = stage === "order_ready" && detectSalesFinalConfirmation(message.message_text);
-  if (!shouldCollect && !shouldFinalize) return null;
 
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
   if (!product) return null;
@@ -7779,6 +8291,51 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
   const variant = chooseVariantForSize(product, selectedSize, memory.activeVariantId || memory.selectedVariantId || baseCard.variant_id);
   const selectedColor = variant?.color || memory.activeColor || memory.selectedColor || baseCard.color || "";
   const priceText = formatSalesPrice(variant?.price || product.product_price || baseCard.price);
+
+  if (!shouldCollect && !shouldFinalize) {
+    const priceQuestion = hasAnyArabicCommerceTerm(message.message_text, ["كام", "السعر", "بكام", "price"]);
+    if (!buyingSignal || !priceQuestion) return null;
+    updateConversationMemory(conversationId, {
+      buyingStage: "interested",
+      checkoutStage: "interested",
+      selectedProductId: product.id || baseCard.product_id || null,
+      activeProductId: product.id || baseCard.product_id || null,
+      selectedVariantId: variant?.id || baseCard.variant_id || null,
+      activeVariantId: variant?.id || baseCard.variant_id || null,
+      selectedColor,
+      activeColor: selectedColor,
+      lastIntent: "sales_price_question",
+    });
+    persistAiConversationMemory({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId,
+      reason: "sales_brain_price_question",
+    });
+    console.log("[sales-brain] buying intent detected", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      signal: "price_question",
+      buying_stage: stage,
+    });
+    console.log("[sales-brain] stage changed", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      from: stage,
+      to: "interested",
+    });
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: [
+        priceText ? `السعر ${priceText}.` : "السعر محتاج أراجعهولك حالًا.",
+        selectedSize ? "تحب أحجزهولك؟" : "تحب مقاس كام؟",
+      ].join("\n"),
+      detectedIntent: "sales_price_question",
+      metadata: { buying_stage: "interested", product_id: product.id || null, variant_id: variant?.id || null },
+    });
+    return { handled: true, reason: "sales_price_question" };
+  }
 
   if (shouldFinalize) {
     const known = mergeSalesCustomerInfo({
@@ -7912,12 +8469,21 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
     conversationId,
   });
   const parsed = parseCheckoutCustomerDetails(message.message_text);
+  const confirmingReusedCheckoutFields = memory.pendingAction === "confirm_reused_checkout_fields" &&
+    detectReservationAffirmation(message.message_text) &&
+    !parsed.customer_address &&
+    !parsed.customer_phone;
   const merged = mergeSalesCustomerInfo({
     known: { ...knownCustomer, ...memory },
     parsed,
     messageText: message.message_text,
   });
   const missing = missingSalesCheckoutFields(merged);
+  const reusedAddressNeedsConfirmation = !missing.length &&
+    !confirmingReusedCheckoutFields &&
+    memory.reusedCheckoutFieldsConfirmed !== true &&
+    Boolean(knownCustomer.customerAddress || memory.lastAddressSummary || memory.customerContext?.address) &&
+    !parsed.customer_address;
 
   console.log("[sales-brain] buying intent detected", {
     tenant_id: config.tenant_id,
@@ -7940,8 +8506,10 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
     activeColor: selectedColor,
     selectedSize,
     activeSize: selectedSize,
-    buyingStage: missing.length ? "checkout_collecting" : "order_ready",
-    checkoutStage: missing.length ? "checkout_collecting" : "order_ready",
+    buyingStage: missing.length || reusedAddressNeedsConfirmation ? "checkout_collecting" : "order_ready",
+    checkoutStage: missing.length || reusedAddressNeedsConfirmation ? "checkout_collecting" : "order_ready",
+    pendingAction: reusedAddressNeedsConfirmation ? "confirm_reused_checkout_fields" : "",
+    reusedCheckoutFieldsConfirmed: confirmingReusedCheckoutFields || memory.reusedCheckoutFieldsConfirmed === true,
     lastIntent: missing.length ? "sales_checkout_collecting" : "sales_order_ready",
   });
   console.log("[sales-brain] collecting customer info", {
@@ -7956,14 +8524,33 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
     tenant_id: config.tenant_id,
     conversation_id: conversationId,
     from: stage,
-    to: missing.length ? "checkout_collecting" : "order_ready",
+    to: missing.length || reusedAddressNeedsConfirmation ? "checkout_collecting" : "order_ready",
   });
   persistAiConversationMemory({
     tenantId: config.tenant_id,
     channel: message.channel,
     conversationId,
-    reason: missing.length ? "sales_brain_checkout_collecting" : "sales_brain_order_ready",
+    reason: reusedAddressNeedsConfirmation ? "customer_brain_checkout_fields_reused" : (missing.length ? "sales_brain_checkout_collecting" : "sales_brain_order_ready"),
   });
+
+  if (reusedAddressNeedsConfirmation) {
+    console.log("[customer-brain] checkout fields reused", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      customer_id: memory.customerId || memory.customerContext?.customerId || null,
+      reused_name: Boolean(merged.customerName),
+      reused_phone: Boolean(merged.customerPhone),
+      reused_address: Boolean(merged.customerAddress),
+    });
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: `تمام${merged.customerFirstName ? ` يا ${merged.customerFirstName}` : ""}.\nنفس عنوان ${merged.customerAddress} ولا عنوان جديد؟`,
+      detectedIntent: "sales_checkout_reuse_confirm",
+      metadata: { buying_stage: "checkout_collecting", reused_checkout_fields: true },
+    });
+    return { handled: true, reason: "sales_checkout_reuse_confirm" };
+  }
 
   if (missing.length) {
     await sendAndLogMetaText({
@@ -8441,6 +9028,130 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     recipient_id: message.external_customer_id || "",
   });
   return { handled: true, reason: "checkout_info_requested_after_draft" };
+};
+
+const handleOrderStatusIfMatched = async ({ config, message } = {}) => {
+  const classification = message.orchestratorIntent || {};
+  const orderNumber = text(classification.entities?.order_number || "");
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  const customerContext = memory.customerContext && typeof memory.customerContext === "object" ? memory.customerContext : {};
+  const phone = normalizeEgyptPhone(customerContext.phone || memory.knownPhone || memory.customerPhone || parseCheckoutCustomerDetails(message.message_text).customer_phone || "");
+  if (!orderNumber && !phone) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: "ابعتلي رقم الأوردر أو رقم الموبايل اللي اتعمل بيه الطلب، وأقولك وصل لفين.",
+      detectedIntent: "order_status_missing_reference",
+      metadata: { orchestrator_intent: classification.intent || AI_INTENTS.ORDER_STATUS },
+    });
+    return { handled: true, reason: "order_status_missing_reference" };
+  }
+  const result = await db.query(
+    `
+    SELECT id, invoice_number, status, payment_status, shipping_status, tracking_number, shipping_tracking_number, created_at
+    FROM orders
+    WHERE tenant_id = $1
+      AND (
+        ($2::text <> '' AND (
+          LOWER(COALESCE(invoice_number, '')) = LOWER($2)
+          OR id::text = $2
+        ))
+        OR ($3::text <> '' AND regexp_replace(COALESCE(customer_phone, ''), '[^0-9]', '', 'g') = $3)
+      )
+    ORDER BY created_at DESC
+    LIMIT 1
+    `,
+    [config.tenant_id, orderNumber, phone]
+  ).catch(() => ({ rows: [] }));
+  const order = result.rows[0] || null;
+  if (!order) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: "مش لاقي الطلب بالبيانات دي. ابعتلي رقم الأوردر أو رقم الموبايل تاني.",
+      detectedIntent: "order_status_not_found",
+      metadata: { order_number: orderNumber, has_phone: Boolean(phone) },
+    });
+    return { handled: true, reason: "order_status_not_found" };
+  }
+  const tracking = text(order.shipping_tracking_number || order.tracking_number || "");
+  const statusLine = text(order.shipping_status || order.status || "");
+  await sendAndLogMetaText({
+    config,
+    message,
+    text: [
+      `طلبك ${order.invoice_number || `#${order.id}`} حالته: ${statusLine || "قيد المتابعة"}.`,
+      tracking ? `رقم التتبع: ${tracking}` : "",
+      "لو محتاج تفاصيل أكتر هخلي حد من الفريق يراجعها معاك.",
+    ].filter(Boolean).join("\n"),
+    detectedIntent: "order_status_answered",
+    metadata: { order_id: order.id, order_number: orderNumber, shipping_status: order.shipping_status || "", orchestrator_intent: AI_INTENTS.ORDER_STATUS },
+  });
+  return { handled: true, reason: "order_status_answered" };
+};
+
+const handleOrchestratorClarificationIfNeeded = async ({ config, message } = {}) => {
+  const classification = message.orchestratorIntent || {};
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  const hasContext = Boolean(memory.activeProductId || memory.selectedProductId || memory.lastProductCard || memory.lastImageUrl);
+  if ((classification.confidence || 0) >= ORCHESTRATOR_CONFIDENCE_THRESHOLD || hasContext) return null;
+  if (![AI_INTENTS.UNKNOWN, AI_INTENTS.PRODUCT_SEARCH].includes(classification.intent)) return null;
+  console.log("[orchestrator] fallback", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    intent: classification.intent,
+    reason: "low_confidence_clarification",
+  });
+  await sendAndLogMetaText({
+    config,
+    message,
+    text: "ابعتلي اسم الموديل أو صورة أوضح وأنا أجيبهولك.",
+    detectedIntent: "orchestrator_low_confidence_clarification",
+    metadata: { orchestrator_intent: classification.intent, confidence: classification.confidence },
+  });
+  return { handled: true, reason: "orchestrator_low_confidence_clarification" };
+};
+
+const handlerNames = (handlers = []) => handlers.map((handler) => handler?.name || "anonymous_handler").filter(Boolean);
+
+const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
+  const fallbackHandlers = [
+    handleOrchestratorClarificationIfNeeded,
+    handleBrandCorrectionIfMatched,
+    handleNegativeIntentIfMatched,
+    handleCheckoutDataIfMatched,
+    handleContextualSizeCheckIfMatched,
+    handleSalesBrainBuyingStageIfMatched,
+    handleCheckoutContinuationIfMatched,
+    handleHumanHandoffIfMatched,
+    answerFaqIfMatched,
+    handleOtherColorsIfMatched,
+    handleMoreImagesIfMatched,
+    handleAlternativesIfMatched,
+    handleSizesIfMatched,
+    handleOrderDraftIfMatched,
+    handleSizeAvailabilityLinkIfMatched,
+  ];
+  const routeMap = {
+    [AI_INTENTS.VISUAL_SEARCH]: [handleVisualSearchIfMatched],
+    [AI_INTENTS.PRODUCT_SEARCH]: [handleBrandCorrectionIfMatched],
+    [AI_INTENTS.PRICE_CHECK]: [handleSalesBrainBuyingStageIfMatched, handleOrderDraftIfMatched],
+    [AI_INTENTS.SIZE_CHECK]: [handleContextualSizeCheckIfMatched, handleSizesIfMatched, handleSizeAvailabilityLinkIfMatched],
+    [AI_INTENTS.COLOR_REQUEST]: [handleOtherColorsIfMatched],
+    [AI_INTENTS.MORE_IMAGES]: [handleMoreImagesIfMatched],
+    [AI_INTENTS.ALTERNATIVES]: [handleAlternativesIfMatched],
+    [AI_INTENTS.BUYING_INTENT]: [handleSalesBrainBuyingStageIfMatched, handleCheckoutContinuationIfMatched, handleOrderDraftIfMatched],
+    [AI_INTENTS.CHECKOUT]: [handleCheckoutDataIfMatched, handleSalesBrainBuyingStageIfMatched, handleCheckoutContinuationIfMatched],
+    [AI_INTENTS.ORDER_CONFIRMATION]: [handleSalesBrainBuyingStageIfMatched, handleCheckoutDataIfMatched],
+    [AI_INTENTS.ORDER_STATUS]: [handleOrderStatusIfMatched],
+    [AI_INTENTS.FAQ]: [answerFaqIfMatched],
+    [AI_INTENTS.HUMAN_AGENT]: [handleHumanHandoffIfMatched],
+    [AI_INTENTS.COMPLAINT]: [handleNegativeIntentIfMatched, handleHumanHandoffIfMatched],
+    [AI_INTENTS.GREETING]: [],
+    [AI_INTENTS.UNKNOWN]: [],
+  };
+  const primary = routeMap[classification.intent] || [];
+  return [...new Set([...primary, ...fallbackHandlers])];
 };
 
 const recordLeadSignals = async ({ config, message, reason = "inbound" } = {}) => {
@@ -9115,26 +9826,59 @@ export const processMetaWebhook = async ({ req } = {}) => {
       channel: message.channel,
       conversationId: message.external_conversation_id,
     });
+    await loadCustomerBrainContext({ config, message }).catch((error) => {
+      console.warn("[customer-brain] profile load failed", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        message: error?.message || "",
+      });
+      return null;
+    });
+    await learnCustomerBrainPreferences({ config, message }).catch((error) => {
+      console.warn("[customer-brain] preferences learn failed", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        message: error?.message || "",
+      });
+    });
     await recordLeadSignals({ config, message, reason: "inbound_message" }).catch(() => {});
     if (!["suggest_only", "auto_reply_after_approval"].includes(autoReplyMode)) {
       try {
-        const preAiHandlers = [
-          handleVisualSearchIfMatched,
-          handleBrandCorrectionIfMatched,
-          handleNegativeIntentIfMatched,
-          handleCheckoutDataIfMatched,
-          handleContextualSizeCheckIfMatched,
-          handleSalesBrainBuyingStageIfMatched,
-          handleCheckoutContinuationIfMatched,
-          handleHumanHandoffIfMatched,
-          answerFaqIfMatched,
-          handleOtherColorsIfMatched,
-          handleMoreImagesIfMatched,
-          handleAlternativesIfMatched,
-          handleSizesIfMatched,
-          handleOrderDraftIfMatched,
-          handleSizeAvailabilityLinkIfMatched,
-        ];
+        const runtimeMemory = getConversationMemory(message.external_conversation_id) || {};
+        const classification = classifyMetaConversationIntent({ message, memory: runtimeMemory });
+        message.orchestratorIntent = classification;
+        console.log("[orchestrator] intent classified", {
+          tenant_id: config.tenant_id,
+          conversation_id: message.external_conversation_id,
+          intent: classification.intent,
+          confidence: classification.confidence,
+          entities: classification.entities,
+          reason: classification.reason,
+        });
+        console.log("[orchestrator] confidence", {
+          tenant_id: config.tenant_id,
+          conversation_id: message.external_conversation_id,
+          intent: classification.intent,
+          confidence: classification.confidence,
+          threshold: ORCHESTRATOR_CONFIDENCE_THRESHOLD,
+          below_threshold: classification.confidence < ORCHESTRATOR_CONFIDENCE_THRESHOLD,
+        });
+        if (classification.confidence < ORCHESTRATOR_CONFIDENCE_THRESHOLD) {
+          console.log("[orchestrator] fallback", {
+            tenant_id: config.tenant_id,
+            conversation_id: message.external_conversation_id,
+            intent: classification.intent,
+            reason: "low_confidence_using_memory_or_ai_fallback",
+            active_product_id: runtimeMemory.activeProductId || runtimeMemory.selectedProductId || null,
+          });
+        }
+        const preAiHandlers = routeMetaIntentHandlers({ classification });
+        console.log("[orchestrator] routed", {
+          tenant_id: config.tenant_id,
+          conversation_id: message.external_conversation_id,
+          intent: classification.intent,
+          handlers: handlerNames(preAiHandlers),
+        });
         let handled = null;
         for (const handler of preAiHandlers) {
           handled = await handler({ config, message });
