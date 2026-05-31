@@ -3,6 +3,11 @@ import crypto from "node:crypto";
 import db from "../database/db.js";
 import { getAiAgentSettings } from "./aiSalesAgentService.js";
 import { adjustVariantStock } from "./inventoryService.js";
+import {
+  compactAliasText,
+  expandSearchAliasTerms,
+  generateProductAliases,
+} from "./productAliasEngine.js";
 import { assignSequentialInvoiceNumber, buildTemporaryInvoiceNumber } from "../utils/invoiceNumber.js";
 import { attachPublicOrderNumber, displayPublicOrderNumber } from "../utils/publicOrderNumber.js";
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
@@ -309,6 +314,14 @@ const buildProductQueryTerms = (message = "", metadata = {}) => compact([
   ...(Array.isArray(metadata?.keywords) ? metadata.keywords : []),
 ], 14);
 
+const buildProductAliasTerms = (message = "", metadata = {}) => compact([
+  ...expandSearchAliasTerms(message, { limit: 40 }),
+  ...expandSearchAliasTerms(metadata?.matched_product_name || "", { limit: 20 }),
+  ...expandSearchAliasTerms(metadata?.product_name || "", { limit: 20 }),
+  ...expandSearchAliasTerms(metadata?.image_search_query || "", { limit: 20 }),
+  ...(Array.isArray(metadata?.keywords) ? metadata.keywords.flatMap((keyword) => expandSearchAliasTerms(keyword, { limit: 12 })) : []),
+], 80);
+
 const productSearchVectorSql = (productColumns, variantColumns) => {
   const productFields = ["name", "name_ar", "description", "seo_keywords", "ai_keywords", "style_tags", "slug", "canonical_slug", "sku", "barcode", "product_code"]
     .filter((column) => productColumns.has(column))
@@ -317,6 +330,19 @@ const productSearchVectorSql = (productColumns, variantColumns) => {
     .filter((column) => variantColumns.has(column))
     .map((column) => `COALESCE(pv.${column}::text, '')`);
   return [...productFields, ...variantFields].length ? [...productFields, ...variantFields].join(" || ' ' || ") : "COALESCE(p.name, '')";
+};
+
+const productAliasVectorSql = (productColumns, variantColumns) => {
+  const fields = [
+    "name", "name_ar", "brand", "model", "sku", "barcode", "category", "category_name",
+    "tags", "ai_keywords", "style_tags", "seo_keywords", "slug", "canonical_slug", "product_code",
+  ]
+    .filter((column) => productColumns.has(column))
+    .map((column) => `COALESCE(p.${column}::text, '')`);
+  const variantFields = ["edition_name", "edition_slug", "size", "color", "sku", "barcode"]
+    .filter((column) => variantColumns.has(column))
+    .map((column) => `COALESCE(pv.${column}::text, '')`);
+  return [...fields, ...variantFields].length ? [...fields, ...variantFields].join(" || ' ' || ") : "COALESCE(p.name, '')";
 };
 
 const productSelectSql = (productColumns, variantColumns) => {
@@ -335,15 +361,35 @@ export const searchAiOrderProducts = async ({ tenantId, message, metadata = {} }
   await ensureAiAgentOrderSchema();
   const [productColumns, variantColumns] = await Promise.all([tableColumns(db, "products"), tableColumns(db, "product_variants")]);
   const terms = buildProductQueryTerms(message, metadata);
+  const aliasTerms = buildProductAliasTerms(message, metadata);
   const { productPrice, variantPrice, variantName, variantSize, variantColor, variantSku, variantBarcode, variantImage } = productSelectSql(productColumns, variantColumns);
   const searchVector = productSearchVectorSql(productColumns, variantColumns);
+  const aliasVector = productAliasVectorSql(productColumns, variantColumns);
+  const compactAliasVector = `REGEXP_REPLACE(LOWER(${aliasVector}), '[^a-z0-9\u0600-\u06FF]+', '', 'g')`;
   const variantActive = variantColumns.has("is_active") && variantColumns.has("deleted_at") ? "AND pv.is_active IS DISTINCT FROM FALSE AND pv.deleted_at IS NULL" : "";
   const productActive = productColumns.has("status") ? "AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive','disabled','archived','deleted')" : "";
   const termParams = terms.map((term) => `%${term}%`);
+  const aliasParams = aliasTerms.map((term) => `%${term}%`);
+  const compactAliasParams = aliasTerms.map((term) => `%${compactAliasText(term)}%`);
   const directProductId = numeric(metadata.matched_product_id || metadata.product_id, 0);
-  if (!terms.length && !directProductId) return [];
+  if (!terms.length && !aliasTerms.length && !directProductId) return [];
   const termScore = terms.length
     ? terms.map((_, index) => `MAX(CASE WHEN LOWER(${searchVector}) LIKE LOWER($${index + 2}) THEN 1 ELSE 0 END)`).join(" + ")
+    : "0";
+  const aliasOffset = termParams.length + 2;
+  const compactAliasOffset = aliasOffset + aliasParams.length;
+  const denominatorParam = compactAliasOffset + compactAliasParams.length;
+  const directProductParam = denominatorParam + 1;
+  const aliasScore = aliasTerms.length
+    ? aliasTerms.map((_, index) => {
+      const aliasParam = aliasOffset + index;
+      const compactParam = compactAliasOffset + index;
+      return `MAX(CASE
+        WHEN LOWER(${aliasVector}) LIKE LOWER($${aliasParam}) THEN 2
+        WHEN ${compactAliasVector} LIKE LOWER($${compactParam}) THEN 2
+        ELSE 0
+      END)`;
+    }).join(" + ")
     : "0";
   const result = await db.query(
     `
@@ -361,7 +407,8 @@ export const searchAiOrderProducts = async ({ tenantId, message, metadata = {} }
       ${productPrice} AS product_price,
       MAX(NULLIF(${variantImage}, '')) AS variant_image_url,
       COALESCE(SUM(GREATEST(COALESCE(pv.stock, 0), 0)), 0)::int AS total_stock,
-      (${termScore})::numeric / GREATEST($${termParams.length + 2}::numeric, 1) AS confidence,
+      ((${aliasScore}) + (${termScore}))::numeric / GREATEST($${denominatorParam}::numeric, 1) AS confidence,
+      (${aliasScore})::numeric AS alias_score,
       COALESCE(
         jsonb_agg(
           DISTINCT jsonb_build_object(
@@ -386,22 +433,64 @@ export const searchAiOrderProducts = async ({ tenantId, message, metadata = {} }
     WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)
       ${productActive}
       AND (
-        ($${termParams.length + 3}::bigint > 0 AND p.id = $${termParams.length + 3}::bigint)
-        OR (${terms.length ? terms.map((_, index) => `LOWER(${searchVector}) LIKE LOWER($${index + 2})`).join(" OR ") : "TRUE"})
+        ($${directProductParam}::bigint > 0 AND p.id = $${directProductParam}::bigint)
+        OR (${aliasTerms.length ? aliasTerms.map((_, index) => {
+          const aliasParam = aliasOffset + index;
+          const compactParam = compactAliasOffset + index;
+          return `LOWER(${aliasVector}) LIKE LOWER($${aliasParam}) OR ${compactAliasVector} LIKE LOWER($${compactParam})`;
+        }).join(" OR ") : "FALSE"})
+        OR (${terms.length ? terms.map((_, index) => `LOWER(${searchVector}) LIKE LOWER($${index + 2})`).join(" OR ") : "FALSE"})
       )
     GROUP BY p.id
-    ORDER BY CASE WHEN p.id = $${termParams.length + 3}::bigint THEN 1 ELSE 0 END DESC, confidence DESC, total_stock DESC, p.id DESC
+    ORDER BY CASE WHEN p.id = $${directProductParam}::bigint THEN 1 ELSE 0 END DESC, alias_score DESC, confidence DESC, total_stock DESC, p.id DESC
     LIMIT 8
     `,
-    [tenantId || null, ...termParams, terms.length || 1, directProductId]
+    [
+      tenantId || null,
+      ...termParams,
+      ...aliasParams,
+      ...compactAliasParams,
+      Math.max(1, terms.length + (aliasTerms.length * 2)),
+      directProductId,
+    ]
   );
-  return result.rows.map((row) => ({
+  const rows = result.rows.map((row) => ({
     ...row,
     product_price: numeric(row.product_price, 0),
     total_stock: integer(row.total_stock, 0),
     confidence: directProductId && Number(row.id) === directProductId ? 1 : Math.max(0, Math.min(1, numeric(row.confidence, 0))),
     variants: Array.isArray(row.variants) ? row.variants : [],
   }));
+  const scoredRows = rows.map((row) => {
+    const generatedAliases = generateProductAliases(row);
+    const rowAliasCompact = new Set(generatedAliases.map(compactAliasText).filter(Boolean));
+    const queryAliasCompact = aliasTerms.map(compactAliasText).filter(Boolean);
+    const generatedAliasHit = queryAliasCompact.some((alias) => rowAliasCompact.has(alias) || [...rowAliasCompact].some((rowAlias) => rowAlias.includes(alias) || alias.includes(rowAlias)));
+    return {
+      ...row,
+      generated_aliases: generatedAliases,
+      alias_score: numeric(row.alias_score, 0) + (generatedAliasHit ? 4 : 0),
+      confidence: Math.max(row.confidence, generatedAliasHit ? 0.92 : row.confidence),
+    };
+  }).sort((left, right) =>
+    numeric(right.alias_score, 0) - numeric(left.alias_score, 0) ||
+    numeric(right.confidence, 0) - numeric(left.confidence, 0) ||
+    numeric(right.total_stock, 0) - numeric(left.total_stock, 0)
+  );
+  console.log("[ai-agent:product-alias-engine]", {
+    tenantId,
+    query: text(message).slice(0, 120),
+    terms,
+    alias_terms: aliasTerms.slice(0, 24),
+    matched: scoredRows.slice(0, 5).map((row) => ({
+      product_id: row.id,
+      name: row.name,
+      alias_score: numeric(row.alias_score, 0),
+      confidence: numeric(row.confidence, 0),
+      aliases: (row.generated_aliases || []).slice(0, 8),
+    })),
+  });
+  return scoredRows;
 };
 
 const selectVariant = (product, { size = "", color = "" } = {}) => {
