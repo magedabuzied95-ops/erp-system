@@ -119,6 +119,26 @@ const detectMoreImagesRequest = (message = "") =>
   hasAnyArabicCommerceTerm(message, ["\u0635\u0648\u0631 \u0623\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0627\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629", "\u0635\u0648\u0631 \u0627\u0636\u0627\u0641\u064a\u0629", "\u0627\u0628\u0639\u062a \u0635\u0648\u0631", "\u0648\u0631\u064a\u0646\u064a \u0635\u0648\u0631", "\u0635\u0648\u0631\u0629 \u062a\u0627\u0646\u064a\u0629", "\u0635\u0648\u0631 \u062a\u0627\u0646\u064a\u0629", "\u0648\u0631\u064a\u0646\u064a \u0623\u0644\u0648\u0627\u0646", "\u0648\u0631\u064a\u0646\u064a \u0627\u0644\u0648\u0627\u0646", "more photos", "more images"]) ||
   hasTerm(message, ["صور أكتر", "صور اكتر", "صورة تانية", "وريني ألوان", "وريني الوان", "ألوانه ايه", "الوانه ايه"]);
 
+const detectGreetingMessage = (message = "") => {
+  const raw = text(message).toLowerCase().replace(/\s+/g, " ").trim();
+  if (!raw) return false;
+  const normalized = raw
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
+    .replace(/\u0649/g, "\u064a")
+    .replace(/\u0629/g, "\u0647");
+  return Boolean(
+    /^(hi|hello|hey|salam|alsalam)\b/i.test(raw) ||
+      normalized.includes("\u0627\u0644\u0633\u0644\u0627\u0645 \u0639\u0644\u064a\u0643\u0645") ||
+      normalized.includes("\u0633\u0644\u0627\u0645 \u0639\u0644\u064a\u0643\u0645") ||
+      normalized === "\u0633\u0644\u0627\u0645" ||
+      normalized.includes("\u0635\u0628\u0627\u062d \u0627\u0644\u062e\u064a\u0631") ||
+      normalized.includes("\u0645\u0633\u0627\u0621 \u0627\u0644\u062e\u064a\u0631") ||
+      normalized.includes("\u0627\u0647\u0644\u0627") ||
+      hasTerm(message, ["ط§ظ„ط³ظ„ط§ظ… ط¹ظ„ظٹظƒظ…", "ط³ظ„ط§ظ…", "ط£ظ‡ظ„ط§", "ط§ظ‡ظ„ط§", "hello"])
+  );
+};
+
 const detectNorthFaceCorrection = (message = "") => {
   const raw = text(message).toLowerCase().replace(/\s+/g, " ");
   return Boolean(
@@ -270,9 +290,19 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
   let reason = "no_rule_matched";
 
   if (imageCount) {
-    intent = AI_INTENTS.VISUAL_SEARCH;
-    confidence = 0.96;
-    reason = "image_attachment";
+    if (detectGreetingMessage(messageText)) {
+      intent = AI_INTENTS.GREETING;
+      confidence = 0.98;
+      reason = "greeting_keyword";
+    } else {
+      intent = AI_INTENTS.VISUAL_SEARCH;
+      confidence = 0.96;
+      reason = "image_attachment";
+    }
+  } else if (detectGreetingMessage(messageText)) {
+    intent = AI_INTENTS.GREETING;
+    confidence = 0.98;
+    reason = "greeting_keyword";
   } else if (detectHumanHandoff(messageText)) {
     intent = AI_INTENTS.HUMAN_AGENT;
     confidence = 0.94;
@@ -337,7 +367,7 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     intent = AI_INTENTS.FAQ;
     confidence = 0.82;
     reason = "faq_keyword";
-  } else if (hasAnyArabicCommerceTerm(messageText, ["اهلا", "أهلا", "السلام عليكم", "هاي", "hello", "hi"])) {
+  } else if (detectGreetingMessage(messageText)) {
     intent = AI_INTENTS.GREETING;
     confidence = 0.72;
     reason = "greeting_keyword";
@@ -739,6 +769,7 @@ const QUESTION_TYPES = Object.freeze({
   SIZE_QUESTION: "SIZE_QUESTION",
   COLOR_QUESTION: "COLOR_QUESTION",
   MORE_IMAGES: "MORE_IMAGES",
+  GREETING: "GREETING",
   LINK_QUESTION: "LINK_QUESTION",
   ALTERNATIVES_QUESTION: "ALTERNATIVES_QUESTION",
   BUYING_INTENT: "BUYING_INTENT",
@@ -757,7 +788,11 @@ const resolveCustomerQuestion = ({ message = {}, memory = {} } = {}) => {
 
   const resolvedColorQuestion = isColorQuestionMessage(messageText) || Boolean(detectSelectionColor(messageText) || detectExplicitColor(messageText));
   const resolvedMoreImages = Boolean(detectMoreImagesRequest(messageText) && !resolvedColorQuestion);
-  if (resolvedMoreImages) {
+  const resolvedGreeting = detectGreetingMessage(messageText);
+  if (resolvedGreeting) {
+    intent = QUESTION_TYPES.GREETING;
+    reason = "greeting";
+  } else if (resolvedMoreImages) {
     intent = QUESTION_TYPES.MORE_IMAGES;
     reason = "more_images_request";
   } else if (resolvedColorQuestion) {
@@ -1119,6 +1154,7 @@ const shouldContinueCheckout = (message = {}, memory = {}) => {
   const topicEntities = detectContextTopicEntities(messageText);
   const hasImage = imageAttachments(attachments).length > 0;
   const hasNewProductContext = Boolean(topicEntities.productName || topicEntities.model || topicEntities.brand);
+  const hasGreeting = detectGreetingMessage(messageText);
   const hasColorRequest = Boolean(isColorQuestionMessage(messageText) || detectSelectionColor(messageText) || detectExplicitColor(messageText));
   const hasMoreImages = Boolean(detectMoreImagesRequest(messageText) && !hasColorRequest);
   const hasAlternatives = Boolean(detectAlternativesRequest(messageText));
@@ -1129,6 +1165,7 @@ const shouldContinueCheckout = (message = {}, memory = {}) => {
   let continueCheckout = false;
 
   if (!memory?.selectedSize && !memory?.activeSize) reason = "no_selected_size";
+  else if (hasGreeting) reason = "greeting_message";
   else if (hasImage) reason = "image_message";
   else if (hasVisualSearch) reason = "visual_search_message";
   else if (hasNewProductContext) reason = "new_product_brand_or_model";
@@ -1146,6 +1183,7 @@ const shouldContinueCheckout = (message = {}, memory = {}) => {
     message: messageText,
     confirmationOnly,
     hasNewProductContext,
+    hasGreeting,
     hasMoreImages,
     hasColorRequest,
     hasAlternatives,
@@ -6303,6 +6341,8 @@ const orchestratedReplyMetadata = (orchestrated = null) => ({
 const questionTypeToOrchestratorIntent = (questionType = "", detectedIntent = "") => {
   const safeDetectedIntent = text(detectedIntent);
   switch (questionType) {
+    case QUESTION_TYPES.GREETING:
+      return "GREETING";
     case QUESTION_TYPES.SIZE_QUESTION:
       return "SIZE_CHECK";
     case QUESTION_TYPES.COLOR_QUESTION:
@@ -12756,10 +12796,55 @@ const handleOrchestratorClarificationIfNeeded = async ({ config, message } = {})
   return { handled: true, reason: "orchestrator_low_confidence_clarification" };
 };
 
+const handleGreetingIfMatched = async ({ config, message } = {}) => {
+  const resolved = message.resolvedQuestion || {};
+  const classification = message.orchestratorIntent || {};
+  if (resolved.intent !== QUESTION_TYPES.GREETING && classification.intent !== AI_INTENTS.GREETING && !detectGreetingMessage(message.message_text)) return null;
+  const blockedHandlers = [
+    "product_presentation",
+    "checkout_continuation",
+    "size_check",
+    "color_flow",
+    "link_flow",
+  ];
+  console.log("[greeting-guard]", {
+    message: message.message_text || "",
+    blockedHandlers,
+  });
+  updateConversationMemory(message.external_conversation_id, {
+    pendingReplyAction: null,
+    pendingAction: null,
+    pendingCheckoutAction: null,
+    pendingProductPresentation: null,
+    bookingConfirmationAsked: false,
+    checkoutContinuationPending: false,
+    selectedSize: "",
+    activeSize: "",
+    checkoutStage: "browsing",
+    buyingStage: "browsing",
+    conversationStage: "GREETING",
+  });
+  await sendAndLogMetaText({
+    config,
+    message,
+    text: "\u0648\u0639\u0644\u064a\u0643\u0645 \u0627\u0644\u0633\u0644\u0627\u0645\n\u0623\u0642\u062f\u0631 \u0623\u0633\u0627\u0639\u062f\u0643 \u0641\u064a \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0627\u0644\u0645\u0648\u062f\u064a\u0644\u0627\u062a \u0623\u0648 \u0627\u0644\u0628\u062d\u062b \u0628\u0635\u0648\u0631\u0629.",
+    detectedIntent: "greeting",
+    metadata: {
+      replyCategory: "GREETING",
+      replyType: "greeting",
+      resolvedQuestionType: QUESTION_TYPES.GREETING,
+      blockedHandlers,
+      handler: "greeting_guard",
+    },
+  });
+  return { handled: true, reason: "greeting_only" };
+};
+
 const handlerNames = (handlers = []) => handlers.map((handler) => handler?.name || "anonymous_handler").filter(Boolean);
 
 const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
   const fallbackHandlers = [
+    handleGreetingIfMatched,
     handleOrchestratorClarificationIfNeeded,
     handleVisualCorrectionIfMatched,
     handleBrandCorrectionIfMatched,
@@ -12795,11 +12880,11 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
     [AI_INTENTS.FAQ]: [answerFaqIfMatched],
     [AI_INTENTS.HUMAN_AGENT]: [handleHumanHandoffIfMatched],
     [AI_INTENTS.COMPLAINT]: [handleNegativeIntentIfMatched, handleHumanHandoffIfMatched],
-    [AI_INTENTS.GREETING]: [],
+    [AI_INTENTS.GREETING]: [handleGreetingIfMatched],
     [AI_INTENTS.UNKNOWN]: [],
   };
   const primary = routeMap[classification.intent] || [];
-  if (classification.intent === AI_INTENTS.PRODUCT_SEARCH) return primary;
+  if ([AI_INTENTS.PRODUCT_SEARCH, AI_INTENTS.GREETING].includes(classification.intent)) return primary;
   return [...new Set([...primary, ...fallbackHandlers])];
 };
 
@@ -13961,7 +14046,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
         runtimeMemory = getConversationMemory(message.external_conversation_id) || runtimeMemory;
         message.resolvedQuestion = resolvedQuestion;
         let classification = classifyMetaConversationIntent({ message, memory: runtimeMemory });
-        if (resolvedQuestion.intent === QUESTION_TYPES.MORE_IMAGES) {
+        if (resolvedQuestion.intent === QUESTION_TYPES.GREETING) {
+          classification = {
+            ...classification,
+            intent: AI_INTENTS.GREETING,
+            confidence: Math.max(Number(classification.confidence || 0), 0.98),
+            reason: "question_resolver_greeting_priority",
+          };
+        } else if (resolvedQuestion.intent === QUESTION_TYPES.MORE_IMAGES) {
           classification = {
             ...classification,
             intent: AI_INTENTS.MORE_IMAGES,

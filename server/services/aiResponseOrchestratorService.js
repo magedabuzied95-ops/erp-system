@@ -44,6 +44,11 @@ const joinSizes = (items = [], fallback = "") => {
 const joinList = (items = [], fallback = "") => unique(items, 8).join(", ") || fallback;
 
 const TEMPLATES = Object.freeze({
+  GREETING: [
+    { id: "greeting_1", weight: 4, text: "\u0648\u0639\u0644\u064a\u0643\u0645 \u0627\u0644\u0633\u0644\u0627\u0645\n\u0623\u0642\u062f\u0631 \u0623\u0633\u0627\u0639\u062f\u0643 \u0641\u064a \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0627\u0644\u0645\u0648\u062f\u064a\u0644\u0627\u062a \u0623\u0648 \u0627\u0644\u0628\u062d\u062b \u0628\u0635\u0648\u0631\u0629." },
+    { id: "greeting_2", weight: 3, text: "\u0623\u0647\u0644\u0627 \u0628\u064a\u0643\n\u062f\u0648\u0631 \u0639\u0644\u0649 \u0623\u064a \u0645\u0648\u062f\u064a\u0644 \u0628\u0627\u0644\u0627\u0633\u0645 \u0623\u0648 \u0627\u0628\u0639\u062a \u0635\u0648\u0631\u0629 \u0648\u0623\u0646\u0627 \u0623\u0633\u0627\u0639\u062f\u0643." },
+    { id: "greeting_3", weight: 3, text: "\u0648\u0639\u0644\u064a\u0643\u0645 \u0627\u0644\u0633\u0644\u0627\u0645\u060c \u062a\u062d\u062a \u0623\u0645\u0631\u0643.\n\u062a\u062d\u0628 \u062a\u0633\u0623\u0644 \u0639\u0646 \u0645\u0648\u062f\u064a\u0644 \u0645\u0639\u064a\u0646\u061f" },
+  ],
   PRODUCT_PRESENTATION: [
     { id: "product_presentation_1", weight: 4, text: "أيوه متاح ✅\n\nالسعر: {price} جنيه" },
     { id: "product_presentation_2", weight: 3, text: "موجود حاليًا ✅\n\nالسعر: {price} جنيه" },
@@ -92,6 +97,7 @@ const TEMPLATES = Object.freeze({
 });
 
 const STAGE_BY_INTENT = Object.freeze({
+  GREETING: RESPONSE_CONVERSATION_STAGES.GREETING,
   PRODUCT_SEARCH: RESPONSE_CONVERSATION_STAGES.PRODUCT_PRESENTATION,
   VISUAL_SEARCH: RESPONSE_CONVERSATION_STAGES.PRODUCT_PRESENTATION,
   COLOR_REQUEST: RESPONSE_CONVERSATION_STAGES.COLOR_SELECTION,
@@ -138,6 +144,7 @@ const interpolate = (template = "", values = {}) =>
 
 const inferReplyCategory = ({ intent = "", customerMessage = "", selectedSize = "", availableSizes = [], productContext = {} } = {}) => {
   const normalized = text(customerMessage).toLowerCase();
+  if (intent === "GREETING") return "GREETING";
   if (intent === "PRODUCT_PRESENTATION_FOLLOWUP") return "PRODUCT_PRESENTATION_FOLLOWUP";
   if (/غالي|غالية|السعر عالي|expensive|price high/.test(normalized) || intent === "PRICE_OBJECTION") return "OBJECTION_PRICE";
   if (intent === "COLOR_REQUEST") return "COLOR_SELECTION";
