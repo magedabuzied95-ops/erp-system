@@ -112,22 +112,58 @@ const detectMoreImagesRequest = (message = "") =>
   hasAnyArabicCommerceTerm(message, ["\u0635\u0648\u0631 \u0623\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0627\u0643\u062a\u0631", "\u0635\u0648\u0631\u0629 \u062a\u0627\u0646\u064a\u0629", "\u0635\u0648\u0631 \u062a\u0627\u0646\u064a\u0629", "\u0648\u0631\u064a\u0646\u064a \u0623\u0644\u0648\u0627\u0646", "\u0648\u0631\u064a\u0646\u064a \u0627\u0644\u0648\u0627\u0646", "more photos", "more images"]) ||
   hasTerm(message, ["صور أكتر", "صور اكتر", "صورة تانية", "وريني ألوان", "وريني الوان", "ألوانه ايه", "الوانه ايه"]);
 
-const detectBuyingIntent = (message = "") =>
-  Boolean(extractShoeSize(message)) ||
-  Boolean(hasAnyArabicCommerceTerm(message, ["\u0639\u0627\u064a\u0632", "\u0639\u0627\u064a\u0632\u0647", "\u0639\u0627\u064a\u0632\u0629", "\u0647\u0627\u062e\u062f\u0647", "\u0647\u0627\u062e\u062f\u0647\u0627", "\u0645\u0642\u0627\u0633", "\u0627\u0637\u0644\u0628", "\u0647\u0627\u062a", "want", "buy", "order"])) ||
-  Boolean(hasTerm(message, ["عايز", "عايزه", "عايزة", "هاخده", "هاخدها", "مقاس", "اخد دي", "آخد دي", "اطلبه", "اطلبها", "اطلب", "هات واحد", "هاتلي واحد", "تمام هات", "تمام"]));
-
 const detectSizesRequest = (message = "") =>
   hasAnyArabicCommerceTerm(message, ["\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a", "\u0645\u0642\u0627\u0633\u0627\u062a", "\u0641\u064a\u0647 \u0645\u0642\u0627\u0633", "\u0645\u062a\u0627\u062d \u0645\u0642\u0627\u0633", "\u0645\u0642\u0627\u0633\u0627\u062a\u0647", "sizes", "size"]) ||
   hasTerm(message, ["المقاسات", "مقاسات", "فيه مقاس", "متاح مقاس", "مقاساته"]);
 
+const detectExplicitCheckoutIntent = (message = "") =>
+  Boolean(hasAnyArabicCommerceTerm(message, [
+    "\u0639\u0627\u064a\u0632\u0647",
+    "\u0639\u0627\u064a\u0632\u0629",
+    "\u0639\u0627\u064a\u0632\u0647\u0627",
+    "\u0627\u0637\u0644\u0628\u0647",
+    "\u0627\u0637\u0644\u0628\u0647\u0627",
+    "\u0627\u0637\u0644\u0628",
+    "\u0627\u062d\u062c\u0632\u0647",
+    "\u0627\u062d\u062c\u0632\u0647\u0627",
+    "\u0627\u062d\u062c\u0632",
+    "\u0647\u0634\u062a\u0631\u064a\u0647",
+    "\u0647\u0634\u062a\u0631\u064a\u0647\u0627",
+    "\u0647\u0627\u062e\u062f\u0647",
+    "\u0647\u0627\u062e\u062f\u0647\u0627",
+    "\u062a\u0645\u0627\u0645",
+    "buy",
+    "order",
+    "reserve",
+  ]));
+
+const detectBuyingIntent = (message = "") =>
+  detectExplicitCheckoutIntent(message);
+
 const detectShippingQuestion = (message = "") =>
   hasTerm(message, ["توصيل", "شحن", "الشحن", "التوصيل"]);
+
+const detectProductDetailQuestion = (message = "") =>
+  Boolean(
+    detectMoreImagesRequest(message) ||
+      detectSizesRequest(message) ||
+      extractShoeSize(message) ||
+      hasAnyArabicCommerceTerm(message, [
+        "\u0627\u0644\u0644\u0648\u0646 \u062f\u0647",
+        "\u0641\u064a\u0647",
+        "\u0645\u062a\u0648\u0641\u0631",
+        "\u0623\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629",
+        "\u0627\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629",
+      ])
+  );
 
 const checkoutStageRank = (stage = "") => ({
   browsing: 0,
   product_selected: 1,
-  selecting_size: 1,
+  product_details: 2,
+  buying_intent: 3,
+  checkout: 4,
+  selecting_size: 2,
   size_selected: 2,
   awaiting_booking_confirmation: 3,
   collecting_contact: 4,
@@ -208,13 +244,13 @@ export const evaluateMetaCheckoutContinuation = ({ memory = {}, messageText = ""
     sizeDigits(requestedSize) === sizeDigits(selectedSize) &&
     isOnlyShoeSizeMessage(messageText, requestedSize)
   );
-  const confirmationDetected = detectCheckoutConfirmation(messageText);
+  const confirmationDetected = detectExplicitCheckoutIntent(messageText);
   const explicitSizeChange = detectExplicitSizeChange(messageText);
   const eligible = Boolean(
     selectedProductId &&
     selectedSize &&
-    checkoutStageAtLeast(previousCheckoutStage, "size_selected") &&
-    !checkoutStageAtLeast(previousCheckoutStage, "awaiting_checkout_info") &&
+    checkoutStageAtLeast(previousCheckoutStage, "product_details") &&
+    !checkoutStageAtLeast(previousCheckoutStage, "checkout") &&
     !explicitSizeChange
   );
 
@@ -236,7 +272,7 @@ export const evaluateMetaCheckoutContinuation = ({ memory = {}, messageText = ""
       handled: true,
       branch: sameSizeRepeated && bookingConfirmationAsked ? "repeated_size_treated_as_confirmation" : "booking_confirmation_to_checkout_info",
       previousCheckoutStage,
-      nextCheckoutStage: "awaiting_checkout_info",
+      nextCheckoutStage: "checkout",
       selectedProductId,
       selectedSize,
       bookingConfirmationAsked: true,
@@ -252,7 +288,7 @@ export const evaluateMetaCheckoutContinuation = ({ memory = {}, messageText = ""
       handled: true,
       branch: "repeat_same_size_booking_prompt",
       previousCheckoutStage,
-      nextCheckoutStage: "awaiting_booking_confirmation",
+      nextCheckoutStage: "buying_intent",
       selectedProductId,
       selectedSize,
       bookingConfirmationAsked: true,
@@ -3199,19 +3235,32 @@ const rememberLastProductCards = ({ conversationId, productCards = [], sentMessa
     if (card.meta_mid) sentCardByMessageId[card.meta_mid] = card;
     if (card.image_message_id) sentCardByMessageId[card.image_message_id] = card;
   }
-  return updateConversationMemory(conversationId, {
+  const shouldLockSingleCard = cards.length === 1 && Boolean(cards[0]?.product_id || cards[0]?.variant_id || cards[0]?.color);
+  const nextMemory = updateConversationMemory(conversationId, {
     lastProductCards: cards,
     lastProductCard: cards[0],
     sentCardByMessageId,
     viewedImageUrls: [...viewedImageUrls],
     viewedProductIds: [...viewedProductIds],
-    selectedProductId: current.selectedProductId || (cards.length === 1 ? cards[0]?.product_id || null : null),
-    selectedVariantId: current.selectedVariantId || (cards.length === 1 ? cards[0]?.variant_id || null : null),
-    selectedColor: current.selectedColor || (cards.length === 1 ? cards[0]?.color || "" : ""),
-    checkoutStage: checkoutStageAtLeast(current.checkoutStage, "size_selected")
+    contextLocked: current.contextLocked === true || shouldLockSingleCard,
+    selectedProductId: current.selectedProductId || (shouldLockSingleCard ? cards[0]?.product_id || null : null),
+    selectedVariantId: current.selectedVariantId || (shouldLockSingleCard ? cards[0]?.variant_id || null : null),
+    selectedColor: current.selectedColor || (shouldLockSingleCard ? cards[0]?.color || "" : ""),
+    checkoutStage: checkoutStageAtLeast(current.checkoutStage, "buying_intent")
       ? current.checkoutStage
       : "product_selected",
   });
+  if (shouldLockSingleCard) {
+    console.log("ai_context_locked", {
+      conversation_id: conversationId,
+      reason: "single_product_card_sent",
+      checkout_stage: nextMemory?.checkoutStage || "product_selected",
+      product_id: cards[0]?.product_id || null,
+      variant_id: cards[0]?.variant_id || null,
+      color: cards[0]?.color || "",
+    });
+  }
+  return nextMemory;
 };
 
 const lastProductCardFromMemory = (conversationId) => {
@@ -3286,6 +3335,52 @@ const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}
   }
   if (cards.length > 1) return { card: null, source: "multiple_last_cards", ambiguous: true, cards };
   return { card: memory.lastProductCard || null, source: "lastProductCard", ambiguous: false, cards };
+};
+
+const lockProductContext = ({ conversationId, card = {}, stage = "product_selected", reason = "" } = {}) => {
+  if (!conversationId || !card) {
+    console.log("ai_context_lost", {
+      conversation_id: conversationId || "",
+      reason: reason || "missing_context_card",
+    });
+    return null;
+  }
+  const nextMemory = updateConversationMemory(conversationId, {
+    contextLocked: true,
+    selectedProductId: card.product_id || card.id || null,
+    selectedVariantId: card.variant_id || null,
+    selectedColor: card.color || "",
+    checkoutStage: stage,
+  });
+  console.log("ai_context_locked", {
+    conversation_id: conversationId,
+    reason,
+    checkout_stage: stage,
+    product_id: card.product_id || card.id || null,
+    variant_id: card.variant_id || null,
+    color: card.color || "",
+  });
+  return nextMemory;
+};
+
+const unlockProductContext = ({ conversationId, reason = "" } = {}) => {
+  if (!conversationId) return null;
+  const memory = getConversationMemory(conversationId) || {};
+  const nextMemory = updateConversationMemory(conversationId, {
+    contextLocked: false,
+    selectedProductId: null,
+    selectedVariantId: null,
+    selectedColor: "",
+    checkoutStage: "browsing",
+  });
+  console.log("ai_context_lost", {
+    conversation_id: conversationId,
+    reason,
+    previous_product_id: memory.selectedProductId || memory.lastProductCard?.product_id || null,
+    previous_variant_id: memory.selectedVariantId || memory.lastProductCard?.variant_id || null,
+    previous_color: memory.selectedColor || memory.lastProductCard?.color || "",
+  });
+  return nextMemory;
 };
 
 const stockedVariants = (product = {}) =>
@@ -3814,7 +3909,7 @@ const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, bas
   });
   const pools = [
     sameColorRows.map((row) => ({ url: row.secure_url || row.image_url, color: row.color_name || row.color_value || baseCard.color, variant_id: row.variant_id, source: "same_color_gallery" })),
-    productGalleryUrls.map((url) => ({ url, color: baseCard.color, variant_id: baseCard.variant_id, source: "product_gallery" })),
+    selectedColor ? [] : productGalleryUrls.map((url) => ({ url, color: baseCard.color, variant_id: baseCard.variant_id, source: "product_gallery" })),
     includeOtherColors ? galleryRows.filter((row) => !sameColorRows.includes(row)).map((row) => ({ url: row.secure_url || row.image_url, color: row.color_name || row.color_value || "", variant_id: row.variant_id, source: "other_color_gallery" })) : [],
     includeOtherColors ? variants.map((variant) => ({ url: variant.secure_url || variant.image_url || variant.variant_image_url || variant.color_image_url, color: variant.color || "", variant_id: variant.id, source: "variant" })) : [],
   ];
@@ -4029,7 +4124,14 @@ const repeatedProductCards = ({ conversationId, productCards = [] } = {}) => {
 };
 
 const explicitlyAskedForProductCards = (message = "") =>
-  Boolean(hasTerm(message, ["ابعت المنتج", "ابعت اللينك", "اللينك", "وريني المنتج", "صور", "صورة", "بدائل", "موديلات", "موديل"]));
+  Boolean(
+    detectMoreImagesRequest(message) ||
+      detectAllColorsRequest(message) ||
+      detectOtherColorsRequest(message) ||
+      detectSizesRequest(message) ||
+      detectAlternativesRequest(message) ||
+      detectModelNameSearch(message)
+  );
 
 const detectAlternativesRequest = (message = "") =>
   hasTerm(message, ["بدائل", "بديل", "شبهه", "شبهها", "similar", "alternative", "alternatives"]);
@@ -4660,10 +4762,10 @@ const handleHumanHandoffIfMatched = async ({ config, message } = {}) => {
 
 const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
   const keyword = detectMoreImagesRequest(message.message_text);
-  if (!keyword) return null;
+  if (!keyword || detectAllColorsRequest(message.message_text) || detectOtherColorsRequest(message.message_text)) return null;
   const context = resolveContextProductCard({ message });
   const baseCard = context.card;
-  const includeOtherColors = detectAllColorsRequest(message.message_text) || detectOtherColorsRequest(message.message_text);
+  const includeOtherColors = false;
   console.log("ai_inbox_more_images_requested", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -4685,7 +4787,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     await sendAndLogMetaText({
       config,
       message,
-      text: colorsClarificationText(context.cards),
+      text: "\u0635\u0648\u0631 \u0623\u0643\u062a\u0631 \u0644\u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644\u061f",
       detectedIntent: "more_images_color_clarification",
       metadata: { reason: "multiple_product_context", product_card_count: context.cards.length },
     });
@@ -4695,20 +4797,26 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     await sendAndLogMetaText({
       config,
       message,
-      text: MORE_IMAGES_EMPTY_REPLY,
+      text: "\u0635\u0648\u0631 \u0623\u0643\u062a\u0631 \u0644\u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644\u061f",
       detectedIntent: "more_images",
       metadata: { reason: "missing_product_context" },
     });
     return { handled: true, reason: "missing_product_context" };
   }
+  lockProductContext({
+    conversationId: message.external_conversation_id,
+    card: baseCard,
+    stage: "product_details",
+    reason: "more_images_same_color",
+  });
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
   const moreImageCards = normalizeProductCards(await buildMoreImageCards({
     tenantId: config.tenant_id,
     conversationId: message.external_conversation_id,
     product,
     baseCard,
-    includeOtherColors,
-  }), { limit: includeOtherColors ? 3 : 4 });
+    includeOtherColors: false,
+  }), { limit: 4 });
   if (!moreImageCards.length) {
     await sendAndLogMetaText({
       config,
@@ -4732,6 +4840,20 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     preferredConfigId: config.id,
   });
   rememberLastProductCards({ conversationId: message.external_conversation_id, productCards: moreImageCards, sentMessages: result?.product_card_messages || [] });
+  lockProductContext({
+    conversationId: message.external_conversation_id,
+    card: baseCard,
+    stage: "product_details",
+    reason: "same_color_images_sent",
+  });
+  console.log("ai_same_color_images", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    product_id: baseCard.product_id || null,
+    variant_id: baseCard.variant_id || null,
+    color: baseCard.color || "",
+    image_count: moreImageCards.length,
+  });
   const preview = moreImageCards.map(productCardReplyText).join("\n\n").slice(0, 500);
   await appendAiGeneratedSupportReply({
     tenantId: config.tenant_id,
@@ -4764,6 +4886,10 @@ const handleAlternativesIfMatched = async ({ config, message } = {}) => {
   const baseCard = lastProductCardFromMemory(message.external_conversation_id);
   const query = text(memory.lastVisualQuery || baseCard?.name || message.message_text);
   if (!query) return null;
+  unlockProductContext({
+    conversationId: message.external_conversation_id,
+    reason: "alternatives_requested",
+  });
   const analysis = memory.lastVisualAnalysis || {
     brand: baseCard?.name || "",
     modelFamily: baseCard?.name || "",
@@ -4869,34 +4995,45 @@ const handleSizesIfMatched = async ({ config, message } = {}) => {
     });
     updateConversationMemory(message.external_conversation_id, {
       pendingSizeForProductChoice: requestedSize,
-      checkoutStage: "selecting_product",
+      checkoutStage: "product_details",
     });
     return { handled: true, reason: "multiple_product_size_clarification" };
   }
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
   const sizes = availableSizesForProduct(product, baseCard);
+  const colorLabel = text(baseCard.color);
   const replyText = sizes.length
-    ? `المتاح: ${sizes.join("، ")}.\nده من أكتر الموديلات المطلوبة، تحب أحجزلك مقاس كام؟`
-    : "المقاسات بتتأكد من المخزن. تحب أراجعلك مقاس معين؟";
+    ? `\u0627\u0644\u0645\u062a\u0627\u062d ${colorLabel ? `\u0641\u064a \u0627\u0644\u0644\u0648\u0646 ${colorLabel}` : "\u0641\u064a \u0627\u0644\u0644\u0648\u0646 \u062f\u0647"}: ${sizes.join("\u060c ")}.\n\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629 \u0644\u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f\n\u0648\u0644\u0627 \u0623\u0648\u0631\u064a\u0643 \u0628\u0627\u0642\u064a \u0627\u0644\u0623\u0644\u0648\u0627\u0646\u061f`
+    : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
   updateConversationMemory(message.external_conversation_id, {
-    checkoutStage: "selecting_size",
+    checkoutStage: "product_details",
+    contextLocked: true,
+    selectedProductId: baseCard.product_id || baseCard.id || null,
+    selectedVariantId: baseCard.variant_id || null,
+    selectedColor: baseCard.color || "",
   });
-  console.log("ai_inbox_checkout_stage", {
+  console.log("ai_checkout_blocked", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
-    checkout_stage: "selecting_size",
+    checkout_stage: "product_details",
     trigger: "sizes_request",
+    reason: "size_question_is_product_detail",
   });
-  emitAiInboxEvent(config.tenant_id, "ai_inbox:checkout_started", {
-    sessionId: message.external_conversation_id,
-    checkout_stage: "selecting_size",
+  console.log("ai_context_locked", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    reason: "sizes_request",
+    checkout_stage: "product_details",
+    product_id: baseCard.product_id || baseCard.id || null,
+    variant_id: baseCard.variant_id || null,
+    color: baseCard.color || "",
   });
   await sendAndLogMetaText({
     config,
     message,
     text: replyText,
     detectedIntent: "sizes_request",
-    metadata: { checkout_stage: "selecting_size", sizes },
+    metadata: { checkout_stage: "product_details", sizes },
   });
   return { handled: true, reason: "sizes_answered" };
 };
@@ -4919,12 +5056,20 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   }
   const baseCard = context.card;
   const sizes = [...new Set((Array.isArray(baseCard.sizes) ? baseCard.sizes : baseCard.available_sizes || []).map(text).filter(Boolean))];
+  const colorLabel = text(baseCard.color);
+  const colorPhrase = colorLabel ? `\u0627\u0644\u0644\u0648\u0646 ${colorLabel}` : "\u0627\u0644\u0644\u0648\u0646 \u062f\u0647";
   if (!requestedSize) {
+    lockProductContext({
+      conversationId: message.external_conversation_id,
+      card: baseCard,
+      stage: "product_details",
+      reason: "availability_check",
+    });
     await sendAndLogMetaText({
       config,
       message,
       text: sizes.length
-        ? `\u0623\u064a\u0648\u0647\u060c \u0627\u0644\u0645\u062a\u0627\u062d \u0641\u064a \u0627\u0644\u0644\u0648\u0646 \u062f\u0647: ${sizes.join("\u060c ")}`
+        ? `\u0623\u064a\u0648\u0647\u060c \u0627\u0644\u0645\u062a\u0627\u062d \u0641\u064a ${colorPhrase}: ${sizes.join("\u060c ")}`
         : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f",
       detectedIntent: "contextual_availability_check",
       metadata: { product_id: baseCard.product_id || null, variant_id: baseCard.variant_id || null, color: baseCard.color || "", sizes },
@@ -4934,19 +5079,24 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   const requestedDigits = sizeDigits(requestedSize);
   const hasSize = sizes.some((size) => sizeDigits(size) === requestedDigits);
   const replyText = hasSize
-    ? `\u0623\u064a\u0648\u0647\u060c \u0645\u0642\u0627\u0633 ${requestedSize} \u0645\u062a\u0648\u0641\u0631 \u0641\u064a \u0627\u0644\u0644\u0648\u0646 \u062f\u0647 \u2705`
+    ? `\u0623\u064a\u0648\u0647\u060c \u0645\u0642\u0627\u0633 ${requestedSize} \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase} \u2705\n\n\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629 \u0644\u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f\n\u0648\u0644\u0627 \u0623\u0648\u0631\u064a\u0643 \u0628\u0627\u0642\u064a \u0627\u0644\u0623\u0644\u0648\u0627\u0646\u061f`
     : sizes.length
-      ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a \u0627\u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
+      ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
       : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
-  if (hasSize) {
-    updateConversationMemory(message.external_conversation_id, {
-      selectedProductId: baseCard.product_id || baseCard.id || null,
-      selectedVariantId: baseCard.variant_id || null,
-      selectedColor: baseCard.color || "",
-      selectedSize: requestedSize,
-      checkoutStage: "size_selected",
-    });
-  }
+  lockProductContext({
+    conversationId: message.external_conversation_id,
+    card: baseCard,
+    stage: "product_details",
+    reason: "contextual_size_check",
+  });
+  if (hasSize) updateConversationMemory(message.external_conversation_id, { selectedSize: requestedSize });
+  console.log("ai_checkout_blocked", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    reason: "size_check_is_product_detail",
+    checkout_stage: "product_details",
+    requested_size: requestedSize,
+  });
   console.log("ai_size_check_result", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -5016,7 +5166,7 @@ const handleCheckoutContinuationIfMatched = async ({ config, message } = {}) => 
   if (!decision.handled) return null;
 
   let draftResult = { order_id: memory.orderDraftId || null, created: false, reason: "not_needed" };
-  if (decision.nextCheckoutStage === "awaiting_checkout_info") {
+  if (decision.nextCheckoutStage === "checkout") {
     draftResult = await ensureCheckoutDraftForMemory({
       config,
       message,
@@ -5062,7 +5212,7 @@ const handleCheckoutContinuationIfMatched = async ({ config, message } = {}) => 
     config,
     message,
     text: decision.replyText,
-    detectedIntent: decision.nextCheckoutStage === "awaiting_checkout_info" ? "checkout_info_requested" : "booking_confirmation_requested",
+    detectedIntent: decision.nextCheckoutStage === "checkout" ? "checkout_info_requested" : "booking_confirmation_requested",
     metadata: {
       previous_checkout_stage: decision.previousCheckoutStage,
       checkout_stage: decision.nextCheckoutStage,
@@ -5080,7 +5230,23 @@ const handleCheckoutContinuationIfMatched = async ({ config, message } = {}) => 
 };
 
 const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
-  if (!detectBuyingIntent(message.message_text)) return null;
+  const explicitCheckoutIntent = detectExplicitCheckoutIntent(message.message_text);
+  if (!explicitCheckoutIntent) {
+    if (detectProductDetailQuestion(message.message_text)) {
+      console.log("ai_checkout_blocked", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        reason: "product_detail_message_without_buying_intent",
+        message_text: message.message_text || "",
+      });
+    }
+    return null;
+  }
+  console.log("ai_checkout_trigger", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    message_text: message.message_text || "",
+  });
   const memory = getConversationMemory(message.external_conversation_id) || {};
   const previousCheckoutStage = text(memory.checkoutStage || "browsing");
   const selectedSizeFromMemory = text(memory.selectedSize || "");
@@ -5089,17 +5255,17 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
   const requestedSize = extractShoeSize(message.message_text) || "";
   const sizeFlowReopenedReason = explicitSizeChange
     ? "explicit_size_change"
-    : !checkoutStageAtLeast(previousCheckoutStage, "size_selected")
-      ? "stage_before_size_selected"
+    : !checkoutStageAtLeast(previousCheckoutStage, "product_details")
+      ? "stage_before_product_details"
       : "";
   if (
     confirmationDetected &&
     selectedSizeFromMemory &&
-    checkoutStageAtLeast(previousCheckoutStage, "size_selected") &&
+    checkoutStageAtLeast(previousCheckoutStage, "product_details") &&
     !explicitSizeChange
   ) {
     const nextMemory = updateConversationMemory(message.external_conversation_id, {
-      checkoutStage: "awaiting_checkout_info",
+      checkoutStage: "checkout",
       selectedSize: selectedSizeFromMemory,
       selectedProductId: memory.selectedProductId || memory.lastProductCard?.product_id || null,
       selectedVariantId: memory.selectedVariantId || memory.lastProductCard?.variant_id || null,
@@ -5111,7 +5277,7 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
       previous_checkout_stage: previousCheckoutStage,
-      next_checkout_stage: nextMemory?.checkoutStage || "awaiting_checkout_info",
+      next_checkout_stage: nextMemory?.checkoutStage || "checkout",
       selected_product_id: nextMemory?.selectedProductId || null,
       selected_variant_id: nextMemory?.selectedVariantId || null,
       selected_size: selectedSizeFromMemory,
@@ -5128,7 +5294,7 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
       detectedIntent: "checkout_info_requested",
       metadata: {
         previous_checkout_stage: previousCheckoutStage,
-        checkout_stage: "awaiting_checkout_info",
+        checkout_stage: "checkout",
         selected_size: selectedSizeFromMemory,
         selected_product_id: nextMemory?.selectedProductId || null,
         selected_variant_id: nextMemory?.selectedVariantId || null,
@@ -5152,9 +5318,9 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
   if (!product) return null;
   const availableSizes = availableSizesForProduct(product, baseCard);
-  if (!requestedSize && availableSizes.length > 1 && !checkoutStageAtLeast(previousCheckoutStage, "size_selected")) {
+  if (!requestedSize && availableSizes.length > 1 && !checkoutStageAtLeast(previousCheckoutStage, "product_details")) {
     updateConversationMemory(message.external_conversation_id, {
-      checkoutStage: "selecting_size",
+      checkoutStage: "buying_intent",
       selectedProductId: product.id || baseCard.product_id || null,
       selectedVariantId: baseCard.variant_id || null,
       selectedColor: baseCard.color || "",
@@ -5164,27 +5330,27 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
       previous_checkout_stage: previousCheckoutStage,
-      next_checkout_stage: "selecting_size",
-      checkout_stage: "selecting_size",
+      next_checkout_stage: "buying_intent",
+      checkout_stage: "buying_intent",
       trigger: "buying_intent_without_size",
       selected_size: selectedSizeFromMemory,
       size_flow_reopened: true,
-      size_flow_reopened_reason: sizeFlowReopenedReason || "missing_size_before_size_selected",
+      size_flow_reopened_reason: sizeFlowReopenedReason || "missing_size_before_product_details",
     });
     emitAiInboxEvent(config.tenant_id, "ai_inbox:checkout_started", {
       sessionId: message.external_conversation_id,
-      checkout_stage: "selecting_size",
+      checkout_stage: "buying_intent",
     });
     await sendAndLogMetaText({
       config,
       message,
       text: `تمام، تحب مقاس كام؟\nالمتاح: ${availableSizes.join("، ")}.`,
       detectedIntent: "checkout_select_size",
-      metadata: { checkout_stage: "selecting_size", sizes: availableSizes },
+      metadata: { checkout_stage: "buying_intent", sizes: availableSizes },
     });
     return { handled: true, reason: "checkout_size_requested" };
   }
-  if (!requestedSize && availableSizes.length > 1 && checkoutStageAtLeast(previousCheckoutStage, "size_selected")) {
+  if (!requestedSize && availableSizes.length > 1 && checkoutStageAtLeast(previousCheckoutStage, "product_details")) {
     console.log("ai_inbox_checkout_size_flow_blocked", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
@@ -5212,7 +5378,7 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
       message,
     text: effectiveSize ? `مقاس ${effectiveSize} مش ظاهر متاح عندي دلوقتي. تحب أطلعلك أقرب مقاس؟` : "المقاس ده مش ظاهر متاح عندي دلوقتي.",
       detectedIntent: "selected_size_unavailable",
-      metadata: { requested_size: effectiveSize, checkout_stage: "selecting_size" },
+      metadata: { requested_size: effectiveSize, checkout_stage: "buying_intent" },
     });
     return { handled: true, reason: "selected_size_unavailable" };
   }
@@ -5225,7 +5391,7 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     selectedVariantId: variant.id || baseCard.variant_id || null,
     selectedSize,
     selectedColor,
-    checkoutStage: "awaiting_booking_confirmation",
+    checkoutStage: "buying_intent",
     bookingConfirmationAsked: true,
     buyIntentDetected: true,
   });
@@ -5241,8 +5407,8 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
     previous_checkout_stage: previousCheckoutStage,
-    next_checkout_stage: "awaiting_booking_confirmation",
-    checkout_stage: "awaiting_booking_confirmation",
+    next_checkout_stage: "buying_intent",
+    checkout_stage: "buying_intent",
     trigger: "size_selected",
     selected_product_id: product.id || null,
     selected_variant_id: variant.id || null,
@@ -5289,13 +5455,13 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
   console.log("ai_inbox_booking_confirmation_requested", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
-    checkout_stage: "awaiting_booking_confirmation",
+    checkout_stage: "buying_intent",
     booking_confirmation_asked: true,
     order_id: draft?.order?.id || null,
   });
   emitAiInboxEvent(config.tenant_id, "ai_inbox:checkout_started", {
     sessionId: message.external_conversation_id,
-    checkout_stage: "awaiting_booking_confirmation",
+    checkout_stage: "buying_intent",
     product_id: product.id || null,
     variant_id: variant.id || null,
   });
@@ -5319,7 +5485,7 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
       variant_id: variant.id || null,
       selected_size: selectedSize,
       selected_color: selectedColor,
-      checkout_stage: "awaiting_booking_confirmation",
+      checkout_stage: "buying_intent",
       booking_confirmation_asked: true,
       status: "pending_confirmation",
     },
@@ -5875,9 +6041,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       try {
         const preAiHandlers = [
           handleContextualSizeCheckIfMatched,
-          handleSizeAvailabilityLinkIfMatched,
           handleCheckoutContinuationIfMatched,
-          handleVisualSearchIfMatched,
           handleHumanHandoffIfMatched,
           answerFaqIfMatched,
           handleOtherColorsIfMatched,
@@ -5885,6 +6049,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
           handleAlternativesIfMatched,
           handleSizesIfMatched,
           handleOrderDraftIfMatched,
+          handleSizeAvailabilityLinkIfMatched,
+          handleVisualSearchIfMatched,
         ];
         let handled = null;
         for (const handler of preAiHandlers) {
@@ -5969,7 +6135,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       });
       const memory = getConversationMemory(message.external_conversation_id) || {};
       const selectedSize = text(memory.selectedSize);
-      const prompt = checkoutStageAtLeast(memory.checkoutStage, "awaiting_checkout_info")
+      const prompt = checkoutStageAtLeast(memory.checkoutStage, "checkout")
         ? CHECKOUT_INFO_REPLY
         : memory.bookingConfirmationAsked === true && selectedSize
           ? repeatedBookingConfirmationPrompt()
