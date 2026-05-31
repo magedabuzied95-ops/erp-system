@@ -678,6 +678,13 @@ app.use("/api/ai-agent", aiAgentOrderRoutes);
 app.use("/api/ai-inbox", aiAgentOrderRoutes);
 const registeredAiAgentEndpoints = collectRouterEndpoints(aiAgentOrderRoutes, "/api/ai-agent");
 const registeredAiInboxEndpoints = collectRouterEndpoints(aiAgentOrderRoutes, "/api/ai-inbox");
+const aiDebugInboxRoute = "GET /api/ai-inbox/conversations/:conversationId/ai-debug";
+console.log("[ai-debug] route registered", {
+  route: aiDebugInboxRoute,
+  mounted: registeredAiInboxEndpoints.includes(aiDebugInboxRoute),
+  route_file: "server/routes/aiAgentOrders.js",
+  mount_path: "/api/ai-inbox",
+});
 console.log("[server] AI Agent routes mounted", {
   prefix: "/api/ai-agent",
   routeCount: registeredAiAgentEndpoints.length,
@@ -697,6 +704,7 @@ console.log("[server] AI Inbox routes mounted", {
   hasSyncMessengerProfilePost: registeredAiInboxEndpoints.includes("POST /api/ai-inbox/conversations/:conversationId/sync-messenger-profile"),
   hasDebugMessengerProfileGet: registeredAiInboxEndpoints.includes("GET /api/ai-inbox/conversations/:conversationId/debug-messenger-profile"),
   hasDebugMessengerProfilePost: registeredAiInboxEndpoints.includes("POST /api/ai-inbox/conversations/:conversationId/debug-messenger-profile"),
+  hasAiDebug: registeredAiInboxEndpoints.includes(aiDebugInboxRoute),
   routes: registeredAiInboxEndpoints,
 });
 app.use("/api/integrations/meta", metaIntegrationRoutes);

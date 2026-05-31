@@ -752,6 +752,47 @@ const storeAiDebugEvent = async ({ tenantId, channel = "", conversationId = "", 
   return next;
 };
 
+const storeMetaConversationHealth = async ({ tenantId, channel = "", conversationId = "", patch = {} } = {}) => {
+  if (!tenantId || !conversationId || !patch || typeof patch !== "object") return null;
+  const metadata = await loadConversationMetadata({ tenantId, channel, conversationId });
+  const current = metadata.meta_health && typeof metadata.meta_health === "object" ? metadata.meta_health : {};
+  const safePatch = {};
+  Object.entries(patch).forEach(([key, value]) => {
+    if (value === undefined) return;
+    if (key.toLowerCase().includes("token")) {
+      safePatch[key] = Boolean(value);
+      return;
+    }
+    safePatch[key] = typeof value === "string" ? value.slice(0, 360) : value;
+  });
+  const next = { ...current, ...safePatch, updated_at: nowIso() };
+  await db.query(
+    `
+    UPDATE ai_channel_conversations
+    SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{meta_health}', $4::jsonb, true),
+        updated_at = NOW()
+    WHERE tenant_id = $1
+      AND external_conversation_id = $2
+      AND ($3::text = '' OR channel = $3 OR channel = 'facebook_messenger' OR $3 = 'facebook_messenger')
+    `,
+    [numberOrNull(tenantId), text(conversationId), text(channel), json(next)]
+  ).catch((error) => {
+    console.warn("[meta-health] store failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      message: error?.message || "",
+    });
+  });
+  console.log("[meta-health] snapshot updated", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    keys: Object.keys(safePatch),
+    outbound_status: next.last_outbound_send_status || "",
+    dedupe_reason: next.last_dedupe_skip_reason || "",
+  });
+  return next;
+};
+
 export const getAiInboxConversationDebug = async ({ tenantId, channel = "", conversationId = "" } = {}) => {
   if (!tenantId || !conversationId) {
     throw Object.assign(new Error("tenant_id and conversation_id are required"), { status: 400 });
@@ -780,6 +821,48 @@ export const getAiInboxConversationDebug = async ({ tenantId, channel = "", conv
     current_intent: data.current_intent,
   });
   return data;
+};
+
+export const getMetaInboxConversationHealth = async ({ tenantId, channel = "", conversationId = "" } = {}) => {
+  if (!tenantId || !conversationId) {
+    throw Object.assign(new Error("tenant_id and conversation_id are required"), { status: 400 });
+  }
+  const [metadata, settings, metaStatus] = await Promise.all([
+    loadConversationMetadata({ tenantId, channel, conversationId }),
+    getChannelSettings({ tenantId, channel }).catch(() => ({})),
+    getMetaIntegrationStatus({ tenantId }).catch(() => ({})),
+  ]);
+  const health = metadata.meta_health && typeof metadata.meta_health === "object" ? metadata.meta_health : {};
+  const config = metaStatus.config || {};
+  const setup = metaStatus.setup_completion || {};
+  const autoReplyMode = text(settings.auto_reply_mode || (settings.ai_replies_enabled === true ? "fully_automatic" : "off"));
+  const payload = {
+    conversation_id: conversationId,
+    last_webhook_received_at: health.last_webhook_received_at || null,
+    last_inbound_meta_mid: health.last_inbound_meta_mid || "",
+    last_ai_generated_reply_at: health.last_ai_generated_reply_at || null,
+    last_outbound_send_attempt_at: health.last_outbound_send_attempt_at || null,
+    last_outbound_send_status: health.last_outbound_send_status || "",
+    last_outbound_send_error: health.last_outbound_send_error || "",
+    page_subscribed_status: setup.subscribed_apps_verified === true ? "subscribed" : (metaStatus.subscribed_apps?.subscribed_apps_status || "unknown"),
+    page_subscribed_available: setup.subscribed_apps_verified !== undefined || metaStatus.subscribed_apps !== undefined,
+    page_id_present: Boolean(config.facebook_page_id),
+    page_access_token_present: Boolean(config.page_access_token_configured),
+    current_auto_reply_mode: autoReplyMode,
+    last_dedupe_skip_reason: health.last_dedupe_skip_reason || "",
+    webhook_receiving: Boolean(health.last_webhook_received_at),
+    ai_generated: Boolean(health.last_ai_generated_reply_at),
+    outbound_state: health.last_outbound_send_status || "unknown",
+  };
+  console.log("[meta-health] diagnostics loaded", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    webhook_receiving: payload.webhook_receiving,
+    ai_generated: payload.ai_generated,
+    outbound_state: payload.outbound_state,
+    auto_reply_mode: payload.current_auto_reply_mode,
+  });
+  return payload;
 };
 
 const outboundSignature = ({ messageText = "", productCards = [], trigger = "" } = {}) => {
@@ -9494,8 +9577,29 @@ export const sendMetaInboxOutboundMessage = async ({
     preview: safeMessage || cards.map((card) => card.name || card.product_id || "").join(", "),
   });
   if (sendDedupe.duplicate) {
+    await storeMetaConversationHealth({
+      tenantId: scopedTenantId,
+      channel: normalizedChannel,
+      conversationId,
+      patch: {
+        last_outbound_send_attempt_at: nowIso(),
+        last_outbound_send_status: "skipped",
+        last_outbound_send_error: "duplicate_outbound",
+        last_dedupe_skip_reason: "duplicate_outbound",
+      },
+    }).catch(() => {});
     return { dedupe_skipped: true, delivery_status: "skipped", signature: sendSignature, results: [], product_card_messages: [] };
   }
+  await storeMetaConversationHealth({
+    tenantId: scopedTenantId,
+    channel: normalizedChannel,
+    conversationId,
+    patch: {
+      last_outbound_send_attempt_at: nowIso(),
+      last_outbound_send_status: "attempting",
+      last_outbound_send_error: "",
+    },
+  }).catch(() => {});
   const { config, token, source } = await resolveMetaSendConfig({
     tenantId: scopedTenantId,
     channel: normalizedChannel,
@@ -9609,6 +9713,16 @@ export const sendMetaInboxOutboundMessage = async ({
       recipient_id: maskIdForLog(safeRecipientId),
       message_id: meta?.message_id || "",
     });
+    await storeMetaConversationHealth({
+      tenantId: scopedTenantId,
+      channel: normalizedChannel,
+      conversationId,
+      patch: {
+        last_outbound_send_status: "sent",
+        last_outbound_send_error: "",
+        last_outbound_meta_mid: meta?.message_id || "",
+      },
+    }).catch(() => {});
     return {
       sent: true,
       channel: normalizedChannel,
@@ -9658,6 +9772,15 @@ export const sendMetaInboxOutboundMessage = async ({
       code: error?.code || "",
       message: error?.message || "Meta Send API failed",
     });
+    await storeMetaConversationHealth({
+      tenantId: scopedTenantId,
+      channel: normalizedChannel,
+      conversationId,
+      patch: {
+        last_outbound_send_status: "failed",
+        last_outbound_send_error: error?.message || "Meta Send API failed",
+      },
+    }).catch(() => {});
     throw error;
   }
   console.log("ai_inbox_send_success", {
@@ -9668,6 +9791,16 @@ export const sendMetaInboxOutboundMessage = async ({
     recipient_id: maskIdForLog(safeRecipientId),
     message_id: meta?.message_id || "",
   });
+  await storeMetaConversationHealth({
+    tenantId: scopedTenantId,
+    channel: normalizedChannel,
+    conversationId,
+    patch: {
+      last_outbound_send_status: "sent",
+      last_outbound_send_error: "",
+      last_outbound_meta_mid: meta?.message_id || "",
+    },
+  }).catch(() => {});
   return {
     sent: true,
     channel: normalizedChannel,
@@ -9763,6 +9896,16 @@ export const processMetaWebhook = async ({ req } = {}) => {
         platform: message.channel,
         messageId,
       });
+      await storeMetaConversationHealth({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        patch: {
+          last_webhook_received_at: nowIso(),
+          last_inbound_meta_mid: message.external_message_id || messageId || "",
+          last_dedupe_skip_reason: "duplicate_message_memory",
+        },
+      }).catch(() => {});
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: false, duplicate: true, sent: false, reason: "duplicate_message" });
       continue;
     }
@@ -9776,6 +9919,18 @@ export const processMetaWebhook = async ({ req } = {}) => {
     }
     const enabled = alias === "instagram" ? config.instagram_enabled === true : config.messenger_enabled === true;
     const inboxResult = await logIncomingToInbox({ message, config });
+    await storeMetaConversationHealth({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+      patch: {
+        last_webhook_received_at: nowIso(),
+        last_inbound_meta_mid: message.external_message_id || "",
+        page_id_present: Boolean(config.facebook_page_id || pageIds[0]),
+        page_access_token_present: Boolean(config.page_access_token_encrypted),
+        page_subscribed_status: config.subscribed_apps_verified === true ? "subscribed" : config.webhook_enabled === true ? "webhook_enabled" : "unknown",
+      },
+    }).catch(() => {});
     await logChannelEvent({
       tenantId: config.tenant_id,
       channel: message.channel,
@@ -9851,6 +10006,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
         inbound_key: inboundKey,
       });
       markMessageProcessingStatus(messageId, "sent");
+      await storeMetaConversationHealth({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        patch: { last_dedupe_skip_reason: "persistent_duplicate_inbound" },
+      }).catch(() => {});
       await storeAiDebugEvent({
         tenantId: config.tenant_id,
         channel: message.channel,
@@ -9868,6 +10029,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
       continue;
     }
     if (inboxResult?.duplicate && previousDedupeStatus !== "failed") {
+      await storeMetaConversationHealth({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        patch: { last_dedupe_skip_reason: "duplicate_message" },
+      }).catch(() => {});
       await storeAiDebugEvent({
         tenantId: config.tenant_id,
         channel: message.channel,
@@ -9899,6 +10066,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
     }
     const settings = await getChannelSettings({ tenantId: config.tenant_id, channel: message.channel }).catch(() => ({}));
     const autoReplyMode = text(settings.auto_reply_mode || (settings.ai_replies_enabled === true ? "fully_automatic" : "off")).toLowerCase();
+    await storeMetaConversationHealth({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+      patch: { current_auto_reply_mode: autoReplyMode },
+    }).catch(() => {});
     console.log("[meta-inbox] auto_reply_settings_resolved", {
       tenant_id: config.tenant_id,
       config_id: config.id || null,
@@ -10052,6 +10225,15 @@ export const processMetaWebhook = async ({ req } = {}) => {
     let aiPayload;
     try {
       aiPayload = await routeMessageThroughAi({ req, message, config });
+      await storeMetaConversationHealth({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        patch: {
+          last_ai_generated_reply_at: nowIso(),
+          last_ai_generated_intent: aiPayload?.detected_intent || message.orchestratorIntent?.intent || "",
+        },
+      }).catch(() => {});
       console.log("[meta-inbox] auto_reply_ai_generation_result", {
         tenant_id: config.tenant_id,
         session_id: message.external_conversation_id,
@@ -10368,6 +10550,15 @@ export const processMetaWebhook = async ({ req } = {}) => {
         message: error?.message || "Meta send failed",
         meta_error: error?.metaResponse?.error || null,
       });
+      await storeMetaConversationHealth({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        patch: {
+          last_outbound_send_status: "failed",
+          last_outbound_send_error: error?.message || "Meta send failed",
+        },
+      }).catch(() => {});
       markMessageProcessingStatus(messageId, "failed");
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, send_error: error?.message || "Meta send failed" });
     }
