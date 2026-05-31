@@ -752,6 +752,74 @@ const logQuestionResolver = (resolved = {}) => {
   });
 };
 
+let inboundMessageSequenceCounter = 0;
+const inboundReplyFinalization = new Map();
+
+const lifecycleMessageId = (message = {}) =>
+  text(message.messageLifecycleId || message.external_message_id || message.dedupe_key || inboundIdempotencyKey(message) || "");
+
+const assignInboundMessageLifecycle = (message = {}) => {
+  const messageId = lifecycleMessageId(message) || `${text(message.channel || "meta")}:${text(message.external_conversation_id || "unknown")}:${Date.now()}`;
+  inboundMessageSequenceCounter += 1;
+  message.messageLifecycleId = messageId;
+  message.messageSequenceId = inboundMessageSequenceCounter;
+  console.log("[inbound-message]", {
+    messageId,
+    messageSequenceId: message.messageSequenceId,
+    message: text(message.message_text || "[attachment]").slice(0, 240),
+    timestamp: message.timestamp || nowIso(),
+  });
+  return { messageId, messageSequenceId: message.messageSequenceId };
+};
+
+const finalReplyPipelineId = ({ message = {}, owner = "", replyType = "" } = {}) =>
+  text(message.finalReplyPipelineId || message.replyPipelineId || `${lifecycleMessageId(message)}:${owner || "response_orchestrator"}:${replyType || "final_reply"}`);
+
+const isInboundReplyFinalized = (message = {}) => {
+  const key = lifecycleMessageId(message);
+  return Boolean(key && inboundReplyFinalization.has(key));
+};
+
+const finalizeInboundReplyPipeline = ({ message = {}, owner = "response_orchestrator", replyType = "text", replyPreview = "", pipelineId = "" } = {}) => {
+  const key = lifecycleMessageId(message);
+  if (!key) return { allowed: true, finalized: false, reason: "missing_message_id" };
+  const safePipelineId = text(pipelineId) || finalReplyPipelineId({ message, owner, replyType });
+  const existing = inboundReplyFinalization.get(key);
+  if (existing && existing.pipelineId !== safePipelineId) {
+    console.log("[reply-finalized]", {
+      messageId: key,
+      messageSequenceId: message.messageSequenceId || null,
+      owner: existing.owner || "",
+      replyType: existing.replyType || "",
+      blockedOwner: owner || "",
+      blockedReplyType: replyType || "",
+      blocked: true,
+      timestamp: nowIso(),
+    });
+    return { allowed: false, finalized: true, reason: "final_reply_already_generated", existing };
+  }
+  if (!existing) {
+    const record = {
+      owner,
+      replyType,
+      pipelineId: safePipelineId,
+      replyPreview: text(replyPreview).slice(0, 180),
+      timestamp: nowIso(),
+      messageSequenceId: message.messageSequenceId || null,
+    };
+    inboundReplyFinalization.set(key, record);
+    console.log("[reply-finalized]", {
+      messageId: key,
+      messageSequenceId: record.messageSequenceId,
+      owner: record.owner,
+      replyType: record.replyType,
+      timestamp: record.timestamp,
+    });
+    return { allowed: true, finalized: true, reason: "final_reply_pipeline_started", existing: record };
+  }
+  return { allowed: true, finalized: true, reason: "same_reply_pipeline", existing };
+};
+
 const replySourceForIntent = (detectedIntent = "", metadata = {}) => {
   const explicit = text(metadata.replySource || metadata.reply_source);
   if (explicit) return explicit;
@@ -1263,6 +1331,7 @@ const storeAiDebugEvent = async ({ tenantId, channel = "", conversationId = "", 
   const current = recentMetaArray(metadata, "ai_debug_events");
   const safeEvent = {
     timestamp: nowIso(),
+    messageSequenceId: Number.isFinite(Number(event.messageSequenceId || event.message_sequence_id)) ? Number(event.messageSequenceId || event.message_sequence_id) : null,
     message_text: text(event.message_text || "").slice(0, 240),
     classified_intent: text(event.classified_intent || event.intent || ""),
     confidence: Number.isFinite(Number(event.confidence)) ? Number(event.confidence) : null,
@@ -6276,6 +6345,8 @@ const logReplyOwner = ({ handler = "", intent = "", message = {}, replyText = ""
     intent: intent || metadata.detectedIntent || metadata.trigger || "",
     message: text(message.message_text || "").slice(0, 180),
     reply_preview: text(replyText).slice(0, 180),
+    messageSequenceId: message.messageSequenceId || null,
+    timestamp: nowIso(),
     replyOwner: metadata.replyOwner || "",
     replySource: metadata.replySource || "",
     replyPath: metadata.replyPath || "",
@@ -7099,6 +7170,23 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
   const orchestrated = orchestrateFinalReply({ message, replyText, detectedIntent, metadata });
   const finalReplyText = orchestrated.text;
   const finalMetadata = orchestrated.metadata;
+  const finalization = finalizeInboundReplyPipeline({
+    message,
+    owner: finalMetadata.replyOwner || "response_orchestrator",
+    replyType: finalMetadata.replyType || "text",
+    replyPreview: finalReplyText,
+    pipelineId: finalMetadata.replyPipelineId || metadata.replyPipelineId || message.replyPipelineId || "",
+  });
+  if (!finalization.allowed) {
+    logReplyOwner({
+      handler: finalMetadata.replyOwner || "response_orchestrator",
+      intent: detectedIntent || finalMetadata.trigger || "",
+      message,
+      replyText: finalReplyText,
+      metadata: { ...finalMetadata, blocked: true, reason: finalization.reason },
+    });
+    return { delivery_status: "skipped", finalization_blocked: true, graph_api_called: false, reason: finalization.reason, reply_owner: finalMetadata.replyOwner || "response_orchestrator", reply_text: finalReplyText };
+  }
   const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message, {
     inboundKey: explicitInboundKey,
     inboundMetaMid: explicitInboundMetaMid,
@@ -7147,6 +7235,9 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     bypassOutboundDedupe: true,
     outboundSignatureOverride: signature,
     replyOwner: finalMetadata.replyOwner || "response_orchestrator",
+    replyType: finalMetadata.replyType || metadata.replyType || "text",
+    replyPipelineId: finalMetadata.replyPipelineId || metadata.replyPipelineId || message.replyPipelineId || "",
+    messageSequenceId: message.messageSequenceId || null,
     replySource: finalMetadata.replySource,
     replyPath: finalMetadata.replyPath,
     orchestratorUsed: true,
@@ -7262,12 +7353,18 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   const finalIntroText = modelNameSearch && gatedCards.length >= 2
     ? [modelColorLimitIntro, gate.introText || introText].filter(Boolean).join("\n")
     : gate.introText || introText;
+  const productCardsPipelineId = finalReplyPipelineId({
+    message,
+    owner: "response_orchestrator",
+    replyType: "product_search",
+  });
+  message.replyPipelineId = productCardsPipelineId;
   const orchestratedCardsReply = orchestrateFinalReply({
     message,
     replyText: finalIntroText,
     productCards: gatedCards,
     detectedIntent,
-    metadata: { ...metadata, handler: "product_cards_handler" },
+    metadata: { ...metadata, handler: "product_cards_handler", replyPipelineId: productCardsPipelineId, replyType: "product_search" },
   });
   const finalCardIntroText = orchestratedCardsReply.text;
   const finalCardMetadata = orchestratedCardsReply.metadata;
@@ -7326,7 +7423,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
       message,
       text: finalCardIntroText,
       detectedIntent,
-      metadata: { ...metadata, ...finalCardMetadata, intro: true },
+      metadata: { ...metadata, ...finalCardMetadata, intro: true, replyPipelineId: productCardsPipelineId, replyType: "product_search" },
     });
   }
   const result = await sendMetaInboxOutboundMessage({
@@ -7345,6 +7442,9 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     bypassOutboundDedupe: true,
     outboundSignatureOverride: signature,
     replyOwner: finalCardMetadata.replyOwner || "response_orchestrator",
+    replyType: "product_search",
+    replyPipelineId: productCardsPipelineId,
+    messageSequenceId: message.messageSequenceId || null,
     replySource: finalCardMetadata.replySource,
     replyPath: finalCardMetadata.replyPath,
     orchestratorUsed: true,
@@ -8994,6 +9094,12 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     });
     return { handled: true, reason: "no_new_images" };
   }
+  const moreImagesPipelineId = finalReplyPipelineId({
+    message,
+    owner: "response_orchestrator",
+    replyType: "more_images",
+  });
+  const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
   const result = await sendMetaInboxOutboundMessage({
     tenantId: config.tenant_id,
     channel: message.channel,
@@ -9005,7 +9111,12 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     facebookPageId: config.facebook_page_id,
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
+    inboundKey,
+    inboundMetaMid,
     replyOwner: "response_orchestrator",
+    replyType: "more_images",
+    replyPipelineId: moreImagesPipelineId,
+    messageSequenceId: message.messageSequenceId || null,
     replySource: "response_orchestrator",
     replyPath: ["question_resolver", "more_images_handler", "response_orchestrator", "final_reply"],
     orchestratorUsed: true,
@@ -12351,6 +12462,9 @@ const resolveMetaSendConfig = async ({
   bypassOutboundDedupe = false,
   outboundSignatureOverride = "",
   replyOwner = "response_orchestrator",
+  replyType = "",
+  replyPipelineId = "",
+  messageSequenceId = null,
   replySource = "response_orchestrator",
   replyPath = [],
   orchestratorUsed = true,
@@ -12530,6 +12644,9 @@ export const sendMetaInboxOutboundMessage = async ({
   bypassOutboundDedupe = false,
   outboundSignatureOverride = "",
   replyOwner = "response_orchestrator",
+  replyType = "",
+  replyPipelineId = "",
+  messageSequenceId = null,
   replySource = "response_orchestrator",
   replyPath = [],
   orchestratorUsed = true,
@@ -12557,13 +12674,14 @@ export const sendMetaInboxOutboundMessage = async ({
   logReplyOwner({
     handler: text(replyOwner || replySource) || "response_orchestrator",
     intent: resolvedQuestionType || "",
-    message: { message_text: "" },
+    message: { message_text: "", messageSequenceId },
     replyText: safeMessage || cards.map((card) => card.name || card.product_id || "").join(", "),
     metadata: {
       replyOwner: text(replyOwner) || "response_orchestrator",
       replySource: text(replySource) || "response_orchestrator",
       replyPath,
       resolvedQuestionType,
+      messageSequenceId,
     },
   });
   console.log("[meta-send] preparing", {
@@ -12608,6 +12726,25 @@ export const sendMetaInboxOutboundMessage = async ({
     inbound_meta_mid: safeInboundMetaMid,
     source: safeInboundMetaMid ? "meta_mid" : inboundKey ? "explicit" : safeInboundKey.startsWith("fallback:") ? "computed_fallback" : "timestamp_fallback",
   });
+  const lifecycleMessage = { messageLifecycleId: safeInboundMetaMid || safeInboundKey, messageSequenceId, message_text: safeMessage };
+  const finalization = finalizeInboundReplyPipeline({
+    message: lifecycleMessage,
+    owner: text(replyOwner) || "response_orchestrator",
+    replyType: text(replyType) || payloadType,
+    replyPreview: safeMessage || cards.map((card) => card.name || card.product_id || "").join(", "),
+    pipelineId: replyPipelineId,
+  });
+  if (!finalization.allowed) {
+    console.log("[meta-send] final_reply_blocked", {
+      tenant_id: scopedTenantId,
+      channel: normalizedChannel,
+      conversation_id: conversationId || "",
+      reply_owner: text(replyOwner) || "response_orchestrator",
+      payloadType,
+      reason: finalization.reason,
+    });
+    return { dedupe_skipped: true, delivery_status: "skipped", finalization_blocked: true, graph_api_called: false, reason: finalization.reason };
+  }
   const sendSignature = text(outboundSignatureOverride) || outboundSignature({ messageText: safeMessage, productCards: cards, trigger: cards.length ? "product_cards" : "text" });
   const sendDedupe = await checkAndStoreOutboundSignature({
     tenantId: scopedTenantId,
@@ -13117,6 +13254,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       facebookPageId: pageIds[0] || "",
       instagramBusinessAccountId: instagramBusinessAccountIds[0] || "",
     });
+    assignInboundMessageLifecycle(message);
     const alias = channelAlias(message.channel);
     const messageId = text(message.external_message_id || message.dedupe_key || "");
     const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
@@ -13466,6 +13604,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
         });
         let handled = null;
         for (const handler of preAiHandlers) {
+          if (isInboundReplyFinalized(message)) {
+            handled = { handled: true, reason: "final_reply_already_generated", graph_api_called: true };
+            break;
+          }
           console.log("[orchestrator] route handler entered", {
             tenant_id: config.tenant_id,
             conversation_id: message.external_conversation_id,
@@ -13510,6 +13652,36 @@ export const processMetaWebhook = async ({ req } = {}) => {
             status: "sent",
           });
           results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true, reason: handled.reason });
+          continue;
+        }
+        if (isInboundReplyFinalized(message)) {
+          await storeAiDebugEvent({
+            tenantId: config.tenant_id,
+            channel: message.channel,
+            conversationId: message.external_conversation_id,
+            event: {
+              message_text: message.message_text || "[attachment]",
+              classified_intent: classification.intent,
+              confidence: classification.confidence,
+              selected_route: "final_reply_guard",
+              memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
+              resolvedQuestionType: resolvedQuestion.intent,
+              replyDecisionReason: resolvedQuestion.reason,
+              skipped_duplicate: false,
+              handled_reason: "final_reply_already_generated",
+              inbound_key: inboundKey,
+              graph_api_called: true,
+            },
+          }).catch(() => {});
+          markMessageProcessingStatus(messageId, "sent");
+          await storeProcessedInboundKey({
+            tenantId: config.tenant_id,
+            channel: message.channel,
+            conversationId: message.external_conversation_id,
+            inboundKey,
+            status: "sent",
+          });
+          results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true, reason: "final_reply_already_generated" });
           continue;
         }
       } catch (error) {
@@ -13699,6 +13871,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
       continue;
     }
     try {
+      const postAiPipelineId = finalReplyPipelineId({
+        message,
+        owner: "response_orchestrator",
+        replyType: productCards.length ? "ai_product_response" : "ai_text_response",
+      });
+      message.replyPipelineId = postAiPipelineId;
       const finalOutbound = orchestrateFinalReply({
         message,
         replyText,
@@ -13707,6 +13885,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
         metadata: {
           handler: "post_ai_auto_reply",
           product_card_count: productCards.length,
+          replyPipelineId: postAiPipelineId,
+          replyType: productCards.length ? "ai_product_response" : "ai_text_response",
         },
       });
       const finalReplyText = finalOutbound.text;
@@ -13736,6 +13916,9 @@ export const processMetaWebhook = async ({ req } = {}) => {
         inboundKey,
         inboundMetaMid: message.external_message_id || messageId,
         replyOwner: finalOutboundMetadata.replyOwner || "response_orchestrator",
+        replyType: productCards.length ? "ai_product_response" : "ai_text_response",
+        replyPipelineId: postAiPipelineId,
+        messageSequenceId: message.messageSequenceId || null,
         replySource: finalOutboundMetadata.replySource || "response_orchestrator",
         replyPath: finalOutboundMetadata.replyPath || [],
         orchestratorUsed: true,
