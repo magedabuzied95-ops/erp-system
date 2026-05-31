@@ -115,6 +115,46 @@ const userDisplayName = (user = {}) =>
   String(user.name || user.full_name || user.username || user.email || user.role_name || user.role || "Staff").trim();
 
 const envText = (value = "") => String(value ?? "").trim();
+const normalizeInboundKeyText = (value = "") => envText(value).toLowerCase().replace(/\s+/g, " ").replace(/[^\p{L}\p{N}\s]+/gu, "").trim();
+const resolveMetaInboundDedupeContext = ({ channel = "", conversationId = "", message = {} } = {}) => {
+  const inboundMetaMid = envText(message.external_message_id || message.raw?.event?.message?.mid || message.dedupe_key || "");
+  if (inboundMetaMid) {
+    const inboundKey = `mid:${inboundMetaMid}`;
+    console.log("[meta-send] inboundKey resolved", {
+      channel,
+      conversation_id: conversationId,
+      inbound_key: inboundKey,
+      inbound_meta_mid: inboundMetaMid,
+      source: "meta_mid",
+    });
+    return { inboundKey, inboundMetaMid };
+  }
+  const normalizedText = normalizeInboundKeyText(message.message_text || "").slice(0, 80);
+  const timestamp = envText(message.timestamp || "");
+  let inboundKey = [
+    channel,
+    conversationId,
+    message.external_customer_id,
+    normalizedText,
+    timestamp,
+  ].map(envText).filter(Boolean).join(":");
+  if (!inboundKey) {
+    inboundKey = `${channel || "meta"}:${conversationId || "unknown"}:${Date.now()}`;
+    console.log("[meta-send] inboundKey missing fallback used", {
+      channel,
+      conversation_id: conversationId,
+      inbound_key: inboundKey,
+    });
+  }
+  console.log("[meta-send] inboundKey resolved", {
+    channel,
+    conversation_id: conversationId,
+    inbound_key: inboundKey,
+    inbound_meta_mid: "",
+    source: "computed_fallback",
+  });
+  return { inboundKey, inboundMetaMid: "" };
+};
 const decodeRouteId = (value = "") => {
   const raw = envText(value);
   try {
@@ -963,6 +1003,7 @@ router.post("/channels/meta/webhook", async (req, res) => {
       const conversationId = message.external_conversation_id;
       const customerMessage = message.message_text || "";
       const messageId = envText(message.external_message_id || message.dedupe_key || "");
+      const { inboundKey, inboundMetaMid } = resolveMetaInboundDedupeContext({ channel, conversationId, message });
       if (isDuplicateMessage(messageId)) {
         pushAIEvent({
           type: "DUPLICATE_MESSAGE_SKIPPED",
@@ -1246,6 +1287,8 @@ router.post("/channels/meta/webhook", async (req, res) => {
           productCards: reply.product_cards || aiPayload.suggested_products || [],
           facebookPageId: message.metadata?.page_id || message.page_id || "",
           instagramBusinessAccountId: message.metadata?.instagram_business_account_id || message.instagram_business_account_id || "",
+          inboundKey,
+          inboundMetaMid,
         });
         console.log("[messenger-send] after sendMetaInboxOutboundMessage", {
           tenant_id: tenantId,

@@ -618,16 +618,19 @@ const timestampBucket = (value = "") => {
 };
 
 const inboundIdempotencyKey = (message = {}) => {
-  const metaId = text(message.external_message_id || message.raw?.event?.message?.mid || message.raw?.event?.message?.id);
+  const metaId = text(message.external_message_id || message.dedupe_key || message.raw?.event?.message?.mid || message.raw?.event?.message?.id);
   if (metaId) return `mid:${metaId}`;
   const attachmentUrl = imageAttachmentUrls(message.attachments || [])[0] || "";
-  return `fallback:${hashDedupe([
+  const parts = [
     message.channel,
+    message.external_conversation_id || message.conversation_id,
     message.external_customer_id,
     normalizeDedupeText(message.message_text),
     imageIdentity(attachmentUrl),
     timestampBucket(message.timestamp),
-  ].map(text).join("|"))}`;
+  ].map(text);
+  if (!parts.some(Boolean)) return "";
+  return `fallback:${hashDedupe(parts.join("|"))}`;
 };
 
 const loadConversationMetadata = async ({ tenantId, channel = "", conversationId = "" } = {}) => {
@@ -688,10 +691,26 @@ const storeProcessedInboundKey = async ({ tenantId, channel = "", conversationId
   return recent;
 };
 
-const outboundDedupeContextFromMessage = (message = {}) => ({
-  inboundKey: inboundIdempotencyKey(message),
-  inboundMetaMid: text(message.external_message_id || message.raw?.event?.message?.mid || message.dedupe_key || ""),
-});
+const outboundDedupeContextFromMessage = (message = {}, overrides = {}) => {
+  const inboundMetaMid = text(overrides.inboundMetaMid || message.external_message_id || message.raw?.event?.message?.mid || message.dedupe_key || "");
+  let inboundKey = text(overrides.inboundKey || inboundIdempotencyKey(message));
+  if (!inboundKey) {
+    inboundKey = `${text(message.channel || "meta")}:${text(message.external_conversation_id || message.conversation_id || "unknown")}:${Date.now()}`;
+    console.log("[meta-send] inboundKey missing fallback used", {
+      channel: message.channel || "",
+      conversation_id: message.external_conversation_id || message.conversation_id || "",
+      inbound_key: inboundKey,
+    });
+  }
+  console.log("[meta-send] inboundKey resolved", {
+    channel: message.channel || "",
+    conversation_id: message.external_conversation_id || message.conversation_id || "",
+    inbound_key: inboundKey,
+    inbound_meta_mid: inboundMetaMid,
+    source: inboundMetaMid ? "meta_mid" : inboundKey.startsWith("fallback:") ? "computed_fallback" : "explicit_or_timestamp_fallback",
+  });
+  return { inboundKey, inboundMetaMid };
+};
 
 const maskPhoneForDebug = (value = "") => {
   const digits = text(value).replace(/[^\d]/g, "");
@@ -5687,8 +5706,11 @@ const detectAllColorsRequest = (message = "") =>
 const detectOtherColorsRequest = (message = "") =>
   Boolean(hasTerm(message, ["\u0623\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0627\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0644\u0648\u0646 \u062a\u0627\u0646\u064a", "other colors", "another color"]));
 
-const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIntent = "", metadata = {} } = {}) => {
-  const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
+const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIntent = "", metadata = {}, inboundKey: explicitInboundKey = "", inboundMetaMid: explicitInboundMetaMid = "" } = {}) => {
+  const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message, {
+    inboundKey: explicitInboundKey,
+    inboundMetaMid: explicitInboundMetaMid,
+  });
   const signature = outboundSignature({ messageText: replyText, productCards: [], trigger: detectedIntent || metadata?.trigger || "" });
   const dedupe = await checkAndStoreOutboundSignature({
     tenantId: config.tenant_id,
@@ -9878,6 +9900,10 @@ export const sendMetaInboxOutboundMessage = async ({
   facebookPageId = "",
   instagramBusinessAccountId = "",
   preferredConfigId = null,
+  inboundKey = "",
+  inboundMetaMid = "",
+  bypassOutboundDedupe = false,
+  outboundSignatureOverride = "",
 } = {}) => {
   await ensureMetaIntegrationSchema();
   const scopedTenantId = numberOrNull(tenantId);
@@ -9903,8 +9929,34 @@ export const sendMetaInboxOutboundMessage = async ({
     channel: normalizedChannel,
     conversation_id: conversationId || "",
   });
-  const safeInboundKey = text(inboundKey);
+  let safeInboundKey = text(inboundKey);
   const safeInboundMetaMid = text(inboundMetaMid);
+  if (!safeInboundKey) {
+    safeInboundKey = inboundIdempotencyKey({
+      channel: normalizedChannel,
+      external_conversation_id: conversationId,
+      external_customer_id: safeRecipientId,
+      message_text: safeMessage,
+      timestamp: nowIso(),
+    });
+  }
+  if (!safeInboundKey) {
+    safeInboundKey = `${normalizedChannel}:${text(conversationId || "unknown")}:${Date.now()}`;
+    console.log("[meta-send] inboundKey missing fallback used", {
+      tenant_id: scopedTenantId,
+      channel: normalizedChannel,
+      conversation_id: conversationId || "",
+      inbound_key: safeInboundKey,
+    });
+  }
+  console.log("[meta-send] inboundKey resolved", {
+    tenant_id: scopedTenantId,
+    channel: normalizedChannel,
+    conversation_id: conversationId || "",
+    inbound_key: safeInboundKey,
+    inbound_meta_mid: safeInboundMetaMid,
+    source: safeInboundMetaMid ? "meta_mid" : inboundKey ? "explicit" : safeInboundKey.startsWith("fallback:") ? "computed_fallback" : "timestamp_fallback",
+  });
   const sendSignature = text(outboundSignatureOverride) || outboundSignature({ messageText: safeMessage, productCards: cards, trigger: cards.length ? "product_cards" : "text" });
   const sendDedupe = await checkAndStoreOutboundSignature({
     tenantId: scopedTenantId,
@@ -10415,12 +10467,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
     });
     const alias = channelAlias(message.channel);
     const messageId = text(message.external_message_id || message.dedupe_key || "");
-    const inboundKey = inboundIdempotencyKey(message);
+    const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
     console.log("[ai-dedupe] inbound key created", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
       inbound_key: inboundKey,
-      has_meta_mid: Boolean(text(message.external_message_id || message.raw?.event?.message?.mid || "")),
+      has_meta_mid: Boolean(inboundMetaMid),
     });
     const previousDedupeStatus = getMessageProcessingStatus(messageId);
     if (messageId) {
