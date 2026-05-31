@@ -4839,6 +4839,30 @@ const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}
     });
     return { card: lockedCard, source: "locked_memory_fallback", ambiguous: false, cards };
   }
+  const activeProductId = memory.activeProductId || memory.selectedProductId || null;
+  if (activeProductId) {
+    const activeCard = {
+      ...(memory.lastProductCard || {}),
+      product_id: activeProductId,
+      id: activeProductId,
+      variant_id: memory.activeVariantId || memory.selectedVariantId || memory.lastProductCard?.variant_id || null,
+      color: memory.activeColor || memory.selectedColor || memory.lastProductCard?.color || "",
+      sizes: memory.lastProductCard?.sizes || [],
+      available_sizes: memory.lastProductCard?.available_sizes || [],
+      name: memory.lastProductCard?.name || memory.lastProductQuery || "",
+      price: memory.lastProductCard?.price || "",
+      image_url: memory.lastProductCard?.image_url || "",
+      product_url: memory.lastProductCard?.product_url || "",
+    };
+    console.log("ai_context_last_card_resolved", {
+      conversation_id: conversationId,
+      source: "active_product_memory_fallback",
+      product_id: activeCard.product_id || null,
+      variant_id: activeCard.variant_id || null,
+      color: activeCard.color || "",
+    });
+    return { card: activeCard, source: "active_product_memory_fallback", ambiguous: false, cards };
+  }
   if (cards.length > 1) return { card: null, source: "multiple_last_cards", ambiguous: true, cards };
   return { card: memory.lastProductCard || null, source: "lastProductCard", ambiguous: false, cards };
 };
@@ -7290,6 +7314,12 @@ const handleSizesIfMatched = async ({ config, message } = {}) => {
 };
 
 const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
+  console.log("[size-check] started", {
+    tenant_id: config?.tenant_id,
+    conversation_id: message?.external_conversation_id,
+    channel: message?.channel,
+    text: message?.message_text || "",
+  });
   const explicitRequestedSize = extractShoeSize(message.message_text);
   let requestedSize = explicitRequestedSize;
   const memoryForSize = getConversationMemory(message.external_conversation_id) || {};
@@ -7297,6 +7327,12 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   if (!requestedSize && Array.isArray(memoryForSize.preferredSizes) && memoryForSize.preferredSizes[0]) {
     requestedSize = text(memoryForSize.preferredSizes[0]);
   }
+  console.log("[size-check] requested size", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    requested_size: requestedSize || "",
+    explicit: Boolean(explicitRequestedSize),
+  });
   const availabilityKeyword = hasTerm(message.message_text, ["\u0645\u062a\u0648\u0641\u0631", "\u0641\u064a\u0647", "\u0641\u064a", "\u0645\u0648\u062c\u0648\u062f", "available"]);
   if (!explicitRequestedSize && !availabilityKeyword) return null;
   const context = resolveContextProductCard({ message });
@@ -7335,6 +7371,14 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     return { handled: true, reason: "size_check_color_clarification" };
   }
   const baseCard = context.card;
+  console.log("[size-check] active product", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    source: context.source || "",
+    product_id: baseCard?.product_id || baseCard?.id || null,
+    variant_id: baseCard?.variant_id || null,
+    color: baseCard?.color || "",
+  });
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
   const selectedVariantForSize = requestedSize
     ? chooseVariantForSize(product, requestedSize, baseCard.variant_id)
@@ -7396,7 +7440,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     stock_check_source: memorySizes.length ? "memory_product_card_sizes_from_product_variants" : "product_variants.stock",
     available: hasSize,
   });
-  const replyText = hasSize
+  let replyText = hasSize
     ? [
       customerFirstName ? `تمام يا ${customerFirstName}.` : "",
       usedPreferredSize ? `هشوفهولك على مقاسك ${requestedSize}.` : "",
@@ -7414,6 +7458,19 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     : sizes.length
       ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
       : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
+  replyText = hasSize
+    ? `\u0623\u064a\u0648\u0647 \u0645\u0642\u0627\u0633 ${requestedSize} \u0645\u062a\u0648\u0641\u0631 \u2705\n\u062a\u062d\u0628 \u0623\u062d\u062c\u0632\u0647\u0648\u0644\u0643\u061f`
+    : sizes.length
+      ? `\u0644\u0644\u0623\u0633\u0641 \u0645\u0642\u0627\u0633 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
+      : replyText;
+  console.log("[size-check] reply built", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    requested_size: requestedSize,
+    available: hasSize,
+    available_sizes: sizes,
+    reply_preview: replyText.slice(0, 180),
+  });
   lockProductContext({
     conversationId: message.external_conversation_id,
     card: baseCard,
@@ -7471,13 +7528,42 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     available_sizes: sizes,
     available: hasSize,
   });
-  await sendAndLogMetaText({
-    config,
-    message,
-    text: replyText,
-    detectedIntent: hasSize ? "contextual_size_available" : "contextual_size_unavailable",
-    metadata: { product_id: baseCard.product_id || null, variant_id: baseCard.variant_id || null, color: baseCard.color || "", requested_size: requestedSize, available_sizes: sizes, available: hasSize },
+  console.log("[size-check] sending to messenger", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    channel: message.channel,
+    recipient_id_present: Boolean(message.external_customer_id),
+    product_id: baseCard.product_id || baseCard.id || null,
+    requested_size: requestedSize,
   });
+  try {
+    const sendResult = await sendAndLogMetaText({
+      config,
+      message,
+      text: replyText,
+      detectedIntent: hasSize ? "contextual_size_available" : "contextual_size_unavailable",
+      metadata: { product_id: baseCard.product_id || null, variant_id: baseCard.variant_id || null, color: baseCard.color || "", requested_size: requestedSize, available_sizes: sizes, available: hasSize },
+    });
+    console.log(sendResult?.dedupe_skipped ? "[size-check] skipped" : "[size-check] sent", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      channel: message.channel,
+      sent: sendResult?.sent === true || sendResult?.delivery_status === "sent",
+      dedupe_skipped: sendResult?.dedupe_skipped === true,
+      skip_reason: sendResult?.skip_reason || "",
+      message_id: sendResult?.message_id || "",
+    });
+  } catch (error) {
+    console.error("[size-check] failed", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      channel: message.channel,
+      message: error?.message || "size check send failed",
+      code: error?.code || "",
+      status: error?.status || "",
+    });
+    throw error;
+  }
   return { handled: true, reason: hasSize ? "contextual_size_available" : "contextual_size_unavailable" };
 };
 
