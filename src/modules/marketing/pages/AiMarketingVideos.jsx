@@ -45,6 +45,31 @@ const formatApiError = (error, fallback) => {
 const sceneImageFor = (scene = {}, item = {}) => scene.image_url || scene.media_url || scene.thumbnail_url || item.primary_image_url || item.image_url || item.design_json?.image_url || item.design_json?.media_urls?.[0] || "";
 const imageFor = (item = {}) => item.design_json?.scenes?.find((scene) => scene?.image_url)?.image_url || item.primary_image_url || item.image_url || item.design_json?.image_url || item.design_json?.media_urls?.[0] || "";
 const videoType = (item = {}) => String(item.design_json?.layout_type || item.strategy_type || "product_video").replaceAll("_", " ");
+const firstText = (...values) => values.map((value) => String(value || "").trim()).find(Boolean) || "";
+const queuePostUrl = (item = {}) => {
+  const design = item.design_json || {};
+  const results = item.platform_publish_results || {};
+  const resultValues = Object.values(results).filter((value) => value && typeof value === "object");
+  return firstText(
+    item.post_url,
+    item.permalink_url,
+    item.published_url,
+    item.public_url,
+    item.url,
+    design.post_url,
+    design.permalink_url,
+    design.published_url,
+    ...resultValues.flatMap((result) => [
+      result.post_url,
+      result.permalink_url,
+      result.permalink,
+      result.published_url,
+      result.public_url,
+      result.url,
+      result.link,
+    ])
+  );
+};
 const scheduledLabel = (item = {}) => {
   const raw = item.scheduled_at || item.design_json?.scheduled_at;
   const date = raw ? new Date(raw) : null;
@@ -252,7 +277,12 @@ export default function AiMarketingVideos() {
     }
     try {
       if (type === "approve") await approveAutonomousAiMarketingQueueItem(item.id);
-      if (type === "publish") await publishAutonomousAiMarketingQueueItemNow(item.id);
+      if (type === "publish") {
+        if (statusInfo.normalizedStatus === "pending_approval") {
+          await approveAutonomousAiMarketingQueueItem(item.id);
+        }
+        await publishAutonomousAiMarketingQueueItemNow(item.id);
+      }
       await load();
       setPreview((current) => (current && String(current.id) === String(item.id) ? { ...current, status: type === "publish" ? "published" : "approved" } : current));
     } catch (error) {
@@ -382,6 +412,7 @@ function VideoQueueRow({ item, onPreview, onApprove, onPublish }) {
   const statusInfo = getQueueStatusInfo(item, { source: "card", queueType: "videos" });
   const showApprove = canApproveQueueItem(item);
   const showPublish = canPublishQueueItem(item);
+  const postUrl = queuePostUrl(item);
   useEffect(() => {
     logQueueAuditDebug("[queue-card]", {
       ...statusInfo,
@@ -406,13 +437,14 @@ function VideoQueueRow({ item, onPreview, onApprove, onPublish }) {
           <Badge>Instagram</Badge>
           <Badge>Facebook</Badge>
           <Badge>TikTok later</Badge>
-          <Badge tone={statusTone(item.publish_status || item.status)}>{String(item.publish_status || item.status || "pending").replaceAll("_", " ")}</Badge>
+          <Badge tone={statusTone(statusInfo.normalizedStatus)}>{statusInfo.displayStatus}</Badge>
         </div>
         <div className="mt-2 truncate text-sm font-black text-white">{item.title || item.design_json?.product_name || "Queued video"}</div>
         <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-400">{item.caption}</div>
       </div>
       <div className="flex flex-wrap gap-2 md:justify-end">
         <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
+        {statusInfo.normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
         {showApprove ? <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button> : null}
         {showPublish ? <button type="button" onClick={onPublish} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>Publish</button> : null}
       </div>
@@ -426,6 +458,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
   const showApprove = canApproveQueueItem(item);
   const showPublish = canPublishQueueItem(item);
   const showPublished = isPublishedQueueItem(item);
+  const postUrl = queuePostUrl(item);
   useEffect(() => {
     logQueueAuditDebug("[queue-card]", {
       ...statusInfo,
@@ -836,6 +869,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
           </details>
           <div className="mt-5 flex flex-wrap gap-2">
             {showPublished ? <Badge tone="emerald">Published</Badge> : null}
+            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
             {showApprove ? (
               <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>
                 <Check className="h-4 w-4" />

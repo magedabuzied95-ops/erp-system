@@ -93,6 +93,33 @@ const uniqueMediaUrls = (item = {}) =>
     )
   );
 
+const firstText = (...values) => values.map((value) => String(value || "").trim()).find(Boolean) || "";
+
+const queuePostUrl = (item = {}) => {
+  const design = item.design_json || {};
+  const results = item.platform_publish_results || {};
+  const resultValues = Object.values(results).filter((value) => value && typeof value === "object");
+  return firstText(
+    item.post_url,
+    item.permalink_url,
+    item.published_url,
+    item.public_url,
+    item.url,
+    design.post_url,
+    design.permalink_url,
+    design.published_url,
+    ...resultValues.flatMap((result) => [
+      result.post_url,
+      result.permalink_url,
+      result.permalink,
+      result.published_url,
+      result.public_url,
+      result.url,
+      result.link,
+    ])
+  );
+};
+
 const normalizeSizes = (value) => {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(value.map((item) => String(item || "").trim()).filter(Boolean)));
@@ -337,6 +364,9 @@ function AiMarketingCenter() {
       if (action === "approve") await approveAutonomousAiMarketingQueueItem(id);
       if (action === "publish") {
         setPublishingIds((current) => new Set(current).add(String(id)));
+        if (statusInfo.normalizedStatus === "pending_approval") {
+          await approveAutonomousAiMarketingQueueItem(id);
+        }
         await publishAutonomousAiMarketingQueueItemNow(id);
       }
       if (action === "delete") {
@@ -688,6 +718,7 @@ function QueueItem({ item, queueType = "queue", publishing, actionDisabled = fal
   const displayStatus = statusInfo.displayStatus;
   const showApprove = canApproveQueueItem(item);
   const showPublish = canPublishQueueItem(item);
+  const postUrl = queuePostUrl(item);
   useEffect(() => {
     logQueueAuditDebug("[queue-card]", {
       ...statusInfo,
@@ -724,11 +755,14 @@ function QueueItem({ item, queueType = "queue", publishing, actionDisabled = fal
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
           <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
+          {normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
           {showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button> : null}
           {showPublish ? <button type="button" onClick={onPublish} disabled={publishing || actionDisabled} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>{publishing ? "Publishing..." : "Publish"}</button> : null}
-          <button type="button" title="Delete" onClick={onDelete} className="grid h-10 w-10 place-items-center rounded-xl border border-rose-300/20 bg-rose-400/10 text-rose-100">
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {normalizedStatus !== "published" ? (
+            <button type="button" title="Delete" onClick={onDelete} className="grid h-10 w-10 place-items-center rounded-xl border border-rose-300/20 bg-rose-400/10 text-rose-100">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -753,6 +787,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish }) {
   const showApprove = canApproveQueueItem(item);
   const showPublish = canPublishQueueItem(item);
   const showPublished = isPublishedQueueItem(item);
+  const postUrl = queuePostUrl(item);
   useEffect(() => {
     logQueueAuditDebug("[queue-card]", {
       ...statusInfo,
@@ -776,6 +811,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish }) {
         actionSlot={
           <div className="grid gap-3">
             {showPublished ? <Badge tone="emerald">Published</Badge> : null}
+            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
             {showApprove ? (
               <button
                 type="button"
@@ -826,6 +862,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish }) {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {showPublished ? <Badge tone="emerald">Published</Badge> : null}
+              {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
               {showApprove ? (
                 <button
                   type="button"

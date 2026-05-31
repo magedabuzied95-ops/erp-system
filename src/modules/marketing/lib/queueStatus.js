@@ -8,6 +8,7 @@ export const normalizeQueueStatus = (status = "") => {
     .replace(/_+/g, "_");
   if (PUBLISHED_STATUSES.has(normalized)) return "published";
   if (normalized === "pendingapproval") return "pending_approval";
+  if (normalized === "scheduled") return "approved";
   return normalized;
 };
 
@@ -50,4 +51,4 @@ export const canApproveQueueItem = (item = {}) =>
   Boolean(item?.id) && getQueueStatusInfo(item).normalizedStatus === "pending_approval";
 
 export const canPublishQueueItem = (item = {}) =>
-  Boolean(item?.id) && getQueueStatusInfo(item).normalizedStatus === "approved";
+  Boolean(item?.id) && ["pending_approval", "approved"].includes(getQueueStatusInfo(item).normalizedStatus);
