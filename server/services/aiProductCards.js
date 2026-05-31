@@ -124,6 +124,11 @@ const numericPrice = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
 
+const validPrice = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
 const normalizeColorName = (value = "") =>
   text(value)
     .replace(/\s*[/|,+]\s*/g, "/")
@@ -334,6 +339,8 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     product_url: productUrl,
     url: productUrl,
     availability: text(product?.stock_status || product?.availability),
+    product_source_confirmed: product?.product_source_confirmed,
+    product_confirmation_confidence: product?.product_confirmation_confidence,
     visual_confidence_score: product?.visual_confidence_score ?? product?.confidence ?? null,
     visual_score_breakdown: product?.visual_score_breakdown || null,
     matched_visual_candidate: product?.matched_visual_candidate || null,
@@ -412,11 +419,8 @@ export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
       return card;
     });
 
-const formatPrice = (price) =>
-  Number(price || 0) > 0 ? `${Number(price).toLocaleString("en-US", { useGrouping: false })} \u062c` : "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f";
-
 const formatCloserPrice = (price) =>
-  Number(price || 0) > 0 ? `${Math.round(Number(price))} \u062c\u0646\u064a\u0647` : "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f";
+  validPrice(price) ? `${Math.round(Number(price))} \u062c\u0646\u064a\u0647` : "";
 
 export const productCardReplyText = (product = {}) => {
   const replyMode = text(product.card_reply_mode || product.replyMode || product.reply_mode);
@@ -428,9 +432,10 @@ export const productCardReplyText = (product = {}) => {
     ].filter(Boolean).join("\n");
   }
   const sizes = asArray(product.available_sizes || product.sizes).map(text).filter(Boolean);
+  const priceText = formatCloserPrice(product.price);
   return [
     "\u0623\u064a\u0648\u0647 \u0645\u0648\u062c\u0648\u062f \u2705",
-    `\u0627\u0644\u0633\u0639\u0631: ${formatCloserPrice(product.price)}`,
+    priceText ? `\u0627\u0644\u0633\u0639\u0631: ${priceText}` : "",
     sizes.length ? `\u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c")}` : "",
     "",
     "\u062a\u062d\u0628 \u0623\u062d\u062c\u0632\u0647\u0648\u0644\u0643\u061f",

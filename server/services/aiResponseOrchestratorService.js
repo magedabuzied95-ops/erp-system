@@ -42,6 +42,31 @@ const joinSizes = (items = [], fallback = "") => {
   return sorted.join("\u060c ") || fallback;
 };
 const joinList = (items = [], fallback = "") => unique(items, 8).join(", ") || fallback;
+const PRODUCT_CONFIRMATION_CONFIDENCE_THRESHOLD = Number(process.env.AI_PRODUCT_CONFIRMATION_CONFIDENCE_THRESHOLD || 0.9);
+const validPositivePrice = (value = null) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0;
+};
+const productConfirmationGuard = ({ selectedProduct = {}, productContext = {}, price = "" } = {}) => {
+  const hasProductId = Boolean(selectedProduct?.product_id || selectedProduct?.id || productContext.productId);
+  const confidenceValue = Number(productContext.confidence ?? selectedProduct?.product_confirmation_confidence ?? selectedProduct?.visual_confidence_score ?? selectedProduct?.confidence);
+  const confidence = Number.isFinite(confidenceValue) ? (confidenceValue > 1 ? confidenceValue / 100 : confidenceValue) : 1;
+  const hasValidPrice = validPositivePrice(price || selectedProduct?.price || selectedProduct?.final_price || selectedProduct?.sale_price || productContext.price);
+  const sourceConfirmed = productContext.productSourceConfirmed === true || selectedProduct?.product_source_confirmed === true || (!productContext.weakVisualMatch && hasProductId);
+  const confirmed = hasProductId && confidence >= PRODUCT_CONFIRMATION_CONFIDENCE_THRESHOLD && hasValidPrice && sourceConfirmed;
+  const blockedFields = confirmed ? [] : ["availability", "price", "sizes", "checkoutPrompt"];
+  const reason = confirmed
+    ? "confirmed_product_with_valid_price"
+    : !hasProductId
+      ? "missing_product_id"
+      : !sourceConfirmed
+        ? "product_source_unconfirmed"
+        : confidence < PRODUCT_CONFIRMATION_CONFIDENCE_THRESHOLD
+          ? "confidence_below_threshold"
+          : "missing_valid_price";
+  console.log("[product-confirmation-guard]", { hasProductId, confidence, hasValidPrice, blockedFields, reason });
+  return { confirmed, blockedFields, reason };
+};
 
 const STAGE_RANK = Object.freeze({
   GREETING: 0,
@@ -362,6 +387,45 @@ export const orchestrateAiResponse = ({
     price: text(price).replace(/\s*جنيه\s*$/i, ""),
     customerName: customerProfile?.firstName || customerProfile?.name || "",
   });
+  const confirmationGuard = productConfirmationGuard({ selectedProduct, productContext, price });
+  if (["PRODUCT_PRESENTATION", "ASK_SIZE", "SIZE_AVAILABLE"].includes(replyCategory) && !confirmationGuard.confirmed) {
+    const safeReplyText = productContext.weakVisualMatch ? "\u0644\u0642\u064a\u062a \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0634\u0628\u0647\u0647 " : "\u062f\u0647 \u0623\u0642\u0631\u0628 \u0627\u062e\u062a\u064a\u0627\u0631 \u0639\u0646\u062f\u064a ";
+    return {
+      replyText: safeReplyText,
+      replyCategory: "PRODUCT_PRESENTATION_FOLLOWUP",
+      templateId: "product_confirmation_guard",
+      nextConversationStage,
+      ctaType: "none",
+      shouldSendProductCards: false,
+      shouldAskSize: false,
+      shouldSuggestAlternatives: true,
+      shouldStartCheckout: false,
+      antiRepetitionApplied,
+      compressionApplied: true,
+      suppressedFields: confirmationGuard.blockedFields,
+      compressionReason: confirmationGuard.reason,
+      memoryPatch: {
+        lastReplyTemplateId: "product_confirmation_guard",
+        lastReplyCategory: "PRODUCT_PRESENTATION_FOLLOWUP",
+        recentReplyTemplateIds: unique([...recentReplyTemplateIds, "product_confirmation_guard"], 8),
+        recentReplyCategories: unique([...recentReplyCategories, "PRODUCT_PRESENTATION_FOLLOWUP"], 8),
+        conversationStage: RESPONSE_CONVERSATION_STAGES.PRODUCT_PRESENTATION_FOLLOWUP,
+      },
+      debug: {
+        responseOrchestratorUsed: true,
+        replyCategory: "PRODUCT_PRESENTATION_FOLLOWUP",
+        templateId: "product_confirmation_guard",
+        ctaType: "none",
+        nextConversationStage: RESPONSE_CONVERSATION_STAGES.PRODUCT_PRESENTATION_FOLLOWUP,
+        antiRepetitionApplied,
+        compressionApplied: true,
+        suppressedFields: confirmationGuard.blockedFields,
+        reason: confirmationGuard.reason,
+        stageLockApplied: stageDecision.stageLockApplied === true,
+        stageRegressionBlocked: stageDecision.stageRegressionBlocked === true,
+      },
+    };
+  }
   const compressed = compressReply({
     replyText: rawReplyText,
     replyCategory,

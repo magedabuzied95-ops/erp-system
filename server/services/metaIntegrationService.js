@@ -529,6 +529,70 @@ const formatSalesDesignerSizes = (sizes = []) => {
   return sorted.join("\u060c ");
 };
 
+const PRODUCT_CONFIRMATION_CONFIDENCE_THRESHOLD = Number(process.env.AI_PRODUCT_CONFIRMATION_CONFIDENCE_THRESHOLD || 0.9);
+
+const positivePrice = (value = null) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const productConfirmationConfidence = (card = {}, metadata = {}) => {
+  const candidates = [
+    card.product_confirmation_confidence,
+    card.visual_confidence_score,
+    card.confidence,
+    metadata.confidence_score,
+  ].map(Number).filter(Number.isFinite);
+  if (!candidates.length && productSourceConfirmed({ card, metadata, detectedIntent: "" })) return 1;
+  if (!candidates.length) return 0;
+  const value = Math.max(...candidates);
+  return value > 1 ? value / 100 : value;
+};
+
+const productSourceConfirmed = ({ card = {}, metadata = {}, detectedIntent = "" } = {}) =>
+  Boolean(
+    card.product_source_confirmed === true ||
+      metadata.product_source_confirmed === true ||
+      metadata.exact_inventory_match === true ||
+      card.exact_inventory_match === true ||
+      text(detectedIntent).includes("exact_inventory_match") ||
+      text(card.matched_image_source) === "exact_image_match"
+  );
+
+const evaluateProductConfirmationGuard = ({ card = {}, metadata = {}, detectedIntent = "" } = {}) => {
+  const hasProductId = Boolean(card.product_id || card.id);
+  const confidence = productConfirmationConfidence(card, metadata);
+  const hasValidPrice = Boolean(positivePrice(card.price || card.final_price || card.sale_price || card.product_price));
+  const sourceConfirmed = productSourceConfirmed({ card, metadata, detectedIntent });
+  const confirmed = hasProductId && confidence >= PRODUCT_CONFIRMATION_CONFIDENCE_THRESHOLD && hasValidPrice && sourceConfirmed;
+  const blockedFields = confirmed ? [] : ["availability", "price", "sizes", "checkoutPrompt"];
+  const reason = confirmed
+    ? "confirmed_product_with_valid_price"
+    : !hasProductId
+      ? "missing_product_id"
+      : !sourceConfirmed
+        ? "product_source_unconfirmed"
+        : confidence < PRODUCT_CONFIRMATION_CONFIDENCE_THRESHOLD
+          ? "confidence_below_threshold"
+          : "missing_valid_price";
+  console.log("[product-confirmation-guard]", {
+    hasProductId,
+    confidence,
+    hasValidPrice,
+    blockedFields,
+    reason,
+  });
+  return { confirmed, hasProductId, confidence, hasValidPrice, sourceConfirmed, blockedFields, reason };
+};
+
+const closestVisualIntroText = ({ guard = {}, replyType = "" } = {}) => {
+  if (guard.reason === "confidence_below_threshold") {
+    return "\u0645\u0634 \u0645\u062a\u0623\u0643\u062f \u0625\u0646\u0647 \u0646\u0641\u0633 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0628\u0627\u0644\u0638\u0628\u0637\u060c \u0628\u0633 \u062f\u0647 \u0627\u0644\u0623\u0642\u0631\u0628 ";
+  }
+  if (replyType === "exact_match" && guard.confirmed) return "\u062f\u0647 \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0639\u0646\u062f\u064a ";
+  return "\u0644\u0642\u064a\u062a \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647\u0647 ";
+};
+
 const PRODUCT_PRESENTATION_FOLLOWUPS = [
   "\u0644\u0648 \u0639\u0646\u062f\u0643 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646 \u0642\u0648\u0644\u064a \u0639\u0644\u064a\u0647.",
   "\u062a\u062d\u0628 \u0623\u062a\u0623\u0643\u062f\u0644\u0643 \u0645\u0646 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646\u061f",
@@ -5471,6 +5535,8 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
     image_url: product.image_url || "",
     product_url: product.product_url || product.url || "",
     card_reply_mode: product.card_reply_mode || product.reply_mode || product.replyMode || "",
+    product_source_confirmed: product.product_source_confirmed !== false,
+    product_confirmation_confidence: product.product_confirmation_confidence || product.visual_confidence_score || product.confidence || null,
   }));
   if (!conversationId || !cards.length) return null;
   const sentCardByMessageId = { ...previousByMessageId };
@@ -5495,7 +5561,9 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
       });
     }
   }
-  const shouldLockSingleCard = cards.length === 1 && Boolean(cards[0]?.product_id || cards[0]?.variant_id || cards[0]?.color);
+  const shouldLockSingleCard = cards.length === 1 &&
+    cards[0]?.product_source_confirmed !== false &&
+    Boolean(cards[0]?.product_id || cards[0]?.variant_id || cards[0]?.color);
   const lastShownCards = cards.map((card) => ({
     productId: card.product_id || null,
     variantId: card.variant_id || null,
@@ -5540,6 +5608,8 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
     selectedVariantTitle: current.selectedVariantTitle || (selectedCard ? selectedCard.title || selectedCard.name || "" : ""),
     selectedAvailableSizes: current.selectedAvailableSizes || (selectedCard ? selectedCard.sizes || [] : []),
     selectedImageUrl: current.selectedImageUrl || (selectedCard ? selectedCard.image_url || "" : ""),
+    selectedProductSourceConfirmed: selectedCard ? selectedCard.product_source_confirmed === true : current.selectedProductSourceConfirmed === true,
+    selectedProductConfirmationConfidence: selectedCard ? selectedCard.product_confirmation_confidence || null : current.selectedProductConfirmationConfidence || null,
     selectionStage: text(lastIntent).includes("color") ? "color_selected" : "product_found",
     lastShownProductIds: [...viewedProductIds],
     lastShownVariantIds: [...new Set(cards.map((card) => card.variant_id).filter(Boolean).map(String))],
@@ -7840,6 +7910,34 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     normalizeProductCards(integrityGateCards, { limit: detectedIntent.includes("exact") || metadata.exact_inventory_match ? 1 : Math.min(3, cardLimit) }),
     { tenantId: config.tenant_id }
   );
+  const topConfirmationGuard = evaluateProductConfirmationGuard({
+    card: gatedCards[0] || {},
+    metadata,
+    detectedIntent,
+  });
+  const guardedCards = visualCards
+    ? gatedCards.map((card) => ({
+      ...card,
+      product_source_confirmed: topConfirmationGuard.confirmed,
+      product_confirmation_confidence: productConfirmationConfidence(card, metadata),
+      card_reply_mode: topConfirmationGuard.confirmed ? card.card_reply_mode : "image_only",
+    }))
+    : gatedCards;
+  const compressionMemorySnapshot = getConversationMemory(message.external_conversation_id) || {};
+  if (
+    checkoutStageAtLeast(compressionMemorySnapshot.checkoutStage || compressionMemorySnapshot.buyingStage || compressionMemorySnapshot.conversationStage || "", "checkout_collecting") &&
+    !explicitProductCardRequest(message.message_text || "") &&
+    !metadata.other_colors_requested &&
+    !/more_images|link/i.test(detectedIntent)
+  ) {
+    console.log("[conversation-compression]", {
+      compressionApplied: true,
+      suppressedFields: ["productCard", "price", "sizes", "availability"],
+      replyCategory: detectedIntent || "",
+      reason: "checkout_collecting_product_cards_suppressed",
+    });
+    return { blocked: true, handled: true, reason: "conversation_compression_checkout_product_cards_suppressed", graph_api_called: false };
+  }
   if (visualCards) {
     console.log("[visual-index-integrity] score card", {
       tenant_id: config.tenant_id,
@@ -7855,9 +7953,11 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     });
   }
   const productPresentationReply = detectedIntent === "product_search" && !detectOtherColorsRequest(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
-  const finalIntroText = modelNameSearch && gatedCards.length >= 2 && !productPresentationReply
-    ? [modelColorLimitIntro, gate.introText || introText].filter(Boolean).join("\n")
-    : gate.introText || introText;
+  const guardedVisualIntroText = visualCards ? closestVisualIntroText({ guard: topConfirmationGuard, replyType: metadata.final_reply_type }) : "";
+  const baseIntroText = visualCards ? guardedVisualIntroText : (gate.introText || introText);
+  const finalIntroText = modelNameSearch && guardedCards.length >= 2 && !productPresentationReply
+    ? [modelColorLimitIntro, baseIntroText].filter(Boolean).join("\n")
+    : baseIntroText;
   const productCardsPipelineId = finalReplyPipelineId({
     message,
     owner: "response_orchestrator",
@@ -7867,15 +7967,15 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   const orchestratedCardsReply = orchestrateFinalReply({
     message,
     replyText: finalIntroText,
-    productCards: gatedCards,
+    productCards: guardedCards,
     detectedIntent,
-    metadata: { ...metadata, handler: "product_cards_handler", replyPipelineId: productCardsPipelineId, replyType: "product_search" },
+    metadata: { ...metadata, preserveReplyText: visualCards ? true : metadata.preserveReplyText, handler: "product_cards_handler", replyPipelineId: productCardsPipelineId, replyType: "product_search" },
   });
   const finalCardIntroText = orchestratedCardsReply.text;
   const finalCardMetadata = orchestratedCardsReply.metadata;
   const responseDedup = evaluateResponseDeduplication({
     conversationId: message.external_conversation_id,
-    productCards: gatedCards,
+    productCards: guardedCards,
     replyCategory: finalCardMetadata.replyCategory,
     detectedIntent,
     message,
@@ -7892,7 +7992,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   }
   const presentationGuard = evaluatePresentationGuard({
     conversationId: message.external_conversation_id,
-    productCards: gatedCards,
+    productCards: guardedCards,
     replyCategory: finalCardMetadata.replyCategory,
     detectedIntent,
   });
@@ -7906,14 +8006,14 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     };
   }
   const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
-  const signature = outboundSignature({ messageText: finalCardIntroText, productCards: gatedCards, trigger: detectedIntent || metadata?.trigger || "" });
+  const signature = outboundSignature({ messageText: finalCardIntroText, productCards: guardedCards, trigger: detectedIntent || metadata?.trigger || "" });
   const dedupe = await checkAndStoreOutboundSignature({
     tenantId: config.tenant_id,
     channel: message.channel,
     conversationId: message.external_conversation_id,
     signature,
     trigger: detectedIntent || metadata?.trigger || "",
-    preview: finalCardIntroText || gatedCards.map((card) => card.name || card.product_id || "").join(", "),
+    preview: finalCardIntroText || guardedCards.map((card) => card.name || card.product_id || "").join(", "),
     inboundKey,
     inboundMetaMid,
   });
@@ -7941,7 +8041,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
       requested_limit: cardLimit,
-      resulting_card_count: gatedCards.length,
+      resulting_card_count: guardedCards.length,
       all_colors_requested: detectAllColorsRequest(message.message_text || ""),
       other_colors_requested: detectOtherColorsRequest(message.message_text || ""),
     });
@@ -7950,7 +8050,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
         tenant_id: config.tenant_id,
         conversation_id: message.external_conversation_id,
         requested_limit: 1,
-        resulting_card_count: gatedCards.length,
+        resulting_card_count: guardedCards.length,
       });
     }
   }
@@ -7968,9 +8068,9 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     channel: message.channel,
     recipientId: message.external_customer_id,
     conversationId: message.external_conversation_id,
-    productCards: gatedCards,
-    productCardLimit: gatedCards.length,
-    suggestedActions: metadata.other_colors_requested === true ? [] : META_COMMERCE_ACTIONS,
+    productCards: guardedCards,
+    productCardLimit: guardedCards.length,
+    suggestedActions: metadata.other_colors_requested === true || (visualCards && !topConfirmationGuard.confirmed) ? [] : META_COMMERCE_ACTIONS,
     facebookPageId: config.facebook_page_id,
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
@@ -7992,7 +8092,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     tenantId: config.tenant_id,
     channel: message.channel,
     conversationId: message.external_conversation_id,
-    productCards: gatedCards,
+    productCards: guardedCards,
     sentMessages: result?.product_card_messages || [],
     messageText: message.message_text || "",
     lastIntent: detectedIntent || "product_cards_sent",
@@ -8010,9 +8110,9 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   if (productPresentationReply) {
     const colorSet = new Set([
       ...(Array.isArray(metadata.colors) ? metadata.colors : []),
-      ...gatedCards.map((card) => card.color || card.matched_variant_color || ""),
+      ...guardedCards.map((card) => card.color || card.matched_variant_color || ""),
     ].map(text).filter(Boolean).map((color) => color.toLowerCase()));
-    const hasMultipleColors = colorSet.size > 1 || gatedCards.some((card) => Number(card.color_variant_count || 0) > 1 || card.has_more_color_variants === true);
+    const hasMultipleColors = colorSet.size > 1 || guardedCards.some((card) => Number(card.color_variant_count || 0) > 1 || card.has_more_color_variants === true);
     const followupText = productPresentationFollowupText({
       conversationId: message.external_conversation_id,
       hasMultipleColors,
@@ -8039,14 +8139,14 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     });
   }
   await recordLeadSignals({ config, message, reason: "product_cards_sent" }).catch(() => {});
-  const preview = gatedCards.map(productCardReplyText).join("\n\n").slice(0, 500);
+  const preview = guardedCards.map(productCardReplyText).join("\n\n").slice(0, 500);
   await appendAiGeneratedSupportReply({
     tenantId: config.tenant_id,
     sessionId: message.external_conversation_id,
     answer: finalCardIntroText ? `${finalCardIntroText}\n${preview}` : preview,
     detectedIntent,
-    suggestedProducts: gatedCards,
-    suggestedActions: META_COMMERCE_ACTIONS,
+    suggestedProducts: guardedCards,
+    suggestedActions: visualCards && !topConfirmationGuard.confirmed ? [] : META_COMMERCE_ACTIONS,
     channel: message.channel,
     deliveryStatus: "sent",
     externalMessageId: result?.message_id || "",
@@ -8059,7 +8159,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     conversationId: message.external_conversation_id,
     messagePreview: finalCardIntroText ? `${finalCardIntroText}\n${preview}`.slice(0, 500) : preview,
     status: "sent",
-    metadata: { meta_message_id: result?.message_id || "", product_card_count: gatedCards.length, decision_gate: gate.evaluated, ...finalCardMetadata },
+    metadata: { meta_message_id: result?.message_id || "", product_card_count: guardedCards.length, decision_gate: gate.evaluated, product_confirmation_guard: topConfirmationGuard, ...finalCardMetadata },
   }).catch(() => {});
   return result;
 };
@@ -10295,6 +10395,29 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   });
   const colorLabel = colorDisplayAr(baseCard.color);
   const colorPhrase = colorLabel ? `\u0627\u0644\u0644\u0648\u0646 ${colorLabel}` : "\u0627\u0644\u0644\u0648\u0646 \u062f\u0647";
+  const contextConfirmationGuard = evaluateProductConfirmationGuard({
+    card: baseCard,
+    metadata: {
+      confidence_score: memoryForSize.selectedProductConfirmationConfidence || memoryForSize.lastVisualConfidence || baseCard.product_confirmation_confidence || baseCard.visual_confidence_score || null,
+      product_source_confirmed: memoryForSize.selectedProductSourceConfirmed === true || baseCard.product_source_confirmed === true,
+    },
+    detectedIntent: "contextual_availability_check",
+  });
+  if (!contextConfirmationGuard.confirmed) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: "\u062f\u0647 \u0623\u0642\u0631\u0628 \u0627\u062e\u062a\u064a\u0627\u0631 \u0639\u0646\u062f\u064a ",
+      detectedIntent: "contextual_availability_unconfirmed",
+      metadata: {
+        product_id: baseCard.product_id || null,
+        variant_id: baseCard.variant_id || null,
+        product_confirmation_guard: contextConfirmationGuard,
+        suppressedFields: contextConfirmationGuard.blockedFields,
+      },
+    });
+    return { handled: true, reason: "contextual_availability_blocked_unconfirmed_product" };
+  }
   if (!requestedSize) {
     lockProductContext({
       conversationId: message.external_conversation_id,
@@ -14555,6 +14678,17 @@ export const processMetaWebhook = async ({ req } = {}) => {
       }
     }
     productCards = await resolveProductCardLinks(productCards, { tenantId: config.tenant_id });
+    const postAiMemory = getConversationMemory(message.external_conversation_id) || {};
+    const checkoutCompressionLocked = checkoutStageAtLeast(postAiMemory.checkoutStage || postAiMemory.buyingStage || postAiMemory.conversationStage || "", "checkout_collecting");
+    if (checkoutCompressionLocked && productCards.length && !explicitProductCardRequest(message.message_text || "")) {
+      console.log("[conversation-compression]", {
+        compressionApplied: true,
+        suppressedFields: ["productCard", "price", "sizes", "availability"],
+        replyCategory: aiPayload.detected_intent || latestDebugClassification?.intent || "",
+        reason: "checkout_collecting_product_cards_suppressed",
+      });
+      productCards = [];
+    }
     const replyText = modelNameSearch && productCards.length >= 2
       ? [modelColorLimitIntro, reply.text || aiPayload.answer || ""].filter(Boolean).join("\n")
       : reply.text || aiPayload.answer || "";
