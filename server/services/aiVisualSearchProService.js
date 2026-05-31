@@ -253,6 +253,29 @@ const overlap = (left = [], right = []) => {
   return left.filter((item) => rightSet.has(item)).length / Math.max(1, left.length);
 };
 
+const TRAIL_OUTDOOR_PATTERN = /\b(trail|running|runner|outdoor|hiking|hike|trek|trekking|mountain|rugged|chunky|aggressive|lug|lugs|tread|outsole|sole|terrex|goretex|gore tex|north face|tnf)\b|\b(تريل|جري|جرى|هايكنج|هايكينج|اوتدور|أوتدور|جبل|نعل|سول|نورث\s*فيس|نورت\s*فيس)\b/;
+const CASUAL_FLAT_PATTERN = /\b(dc|casual|lifestyle|skate|skater|court|flat|flat sole|low profile|dunk|air force|af1|samba|campus|gazelle|vans|converse)\b|\b(كاجوال|سكيت|فلات|دانك)\b/;
+
+const hasTrailOutdoorIntent = (attributes = {}) =>
+  TRAIL_OUTDOOR_PATTERN.test(normalizeVisualProText([
+    attributes.brand,
+    attributes.model,
+    attributes.productType,
+    attributes.silhouette,
+    attributes.soleType,
+    attributes.material,
+    attributes.visibleFeatures,
+    attributes.categoryTokens,
+  ].flat().filter(Boolean).join(" ")));
+
+const rowTrailOutdoorScore = (rowBlob = "") =>
+  TRAIL_OUTDOOR_PATTERN.test(rowBlob)
+    ? 1
+    : /\b(running|outdoor|sport|shoe|sneaker)\b/.test(rowBlob) ? 0.35 : 0;
+
+const rowCasualFlatScore = (rowBlob = "") =>
+  CASUAL_FLAT_PATTERN.test(rowBlob) ? 1 : 0;
+
 const uniqueList = (items = [], limit = 20) =>
   [...new Set((Array.isArray(items) ? items : [items]).flatMap((item) => Array.isArray(item) ? item : [item]).map(text).filter(Boolean))].slice(0, limit);
 
@@ -331,7 +354,7 @@ export const normalizeVisualAttributes = ({ detected = {}, visualQuery = "", cor
   const colors = detectColors(detected.colors, detected.main_colors, detected.secondary_colors, previous.colors, previous.main_colors, previous.secondary_colors, visualQuery, correctionText);
   const categoryTokens = tokens(detected.product_type, detected.category, detected.shoe_type, previous.product_type, previous.category, visualQuery);
   const genderTokens = tokens(detected.gender_style, detected.gender_audience, detected.gender, detected.target_audience, previous.gender_style, previous.gender);
-  return {
+  const baseAttributes = {
     brand,
     model,
     logoText: text(detected.logo_text || previous.logo_text || ""),
@@ -358,6 +381,10 @@ export const normalizeVisualAttributes = ({ detected = {}, visualQuery = "", cor
     genderTokens,
     correction,
     correctionUsed: Boolean(correctionText && correction),
+  };
+  return {
+    ...baseAttributes,
+    trailOutdoorIntent: hasTrailOutdoorIntent(baseAttributes),
   };
 };
 
@@ -423,17 +450,35 @@ const scoreCustomerPreferences = ({ row = {}, rowBlob = "", rowColors = [], avai
   };
 };
 
-const scoreVisualRow = ({ row = {}, attributes = {}, uploadedImageUrl = "", uploadedImageHash = "", preferredSize = "", queryEmbedding = [], customerPreferenceProfile = {} } = {}) => {
+const scoreVisualRow = ({
+  row = {},
+  attributes = {},
+  uploadedImageUrl = "",
+  uploadedImageUrls = [],
+  uploadedImageHash = "",
+  uploadedImageHashes = [],
+  preferredSize = "",
+  queryEmbedding = [],
+  queryEmbeddings = [],
+  customerPreferenceProfile = {},
+} = {}) => {
   const indexedTokens = rowTokens(row);
   const rowBlob = normalizeVisualProText(indexedTokens.join(" "));
   const rowBrand = canonicalFromGroups([row.brand, row.product_name, row.visual_text, row.text_aliases].join(" "));
   const rowModel = canonicalFromGroups([row.product_name, row.visual_text, row.text_aliases].join(" "));
   const rowColors = detectColors(row.color, row.detected_colors, row.visual_text, row.text_aliases, row.product_name);
-  const exactUrl = Boolean(uploadedImageUrl && imageIdentity(uploadedImageUrl) === imageIdentity(row.image_url));
-  const exactPublicId = Boolean(uploadedImageUrl && imagePublicId(uploadedImageUrl) && imagePublicId(uploadedImageUrl) === row.image_public_id);
-  const exactHash = Boolean(uploadedImageHash && row.image_hash && uploadedImageHash === row.image_hash);
+  const imageUrls = uniqueList([uploadedImageUrls, uploadedImageUrl], 12);
+  const imageHashes = uniqueList([uploadedImageHashes, uploadedImageHash], 12);
+  const embeddingVectors = (Array.isArray(queryEmbeddings) && queryEmbeddings.length ? queryEmbeddings : [queryEmbedding])
+    .map(parseEmbeddingVector)
+    .filter((vector) => vector.length);
+  const exactUrl = imageUrls.some((url) => imageIdentity(url) === imageIdentity(row.image_url));
+  const exactPublicId = imageUrls.some((url) => imagePublicId(url) && imagePublicId(url) === row.image_public_id);
+  const exactHash = imageHashes.some((hash) => hash && row.image_hash && hash === row.image_hash);
   const storedEmbedding = parseEmbeddingVector(row.image_embedding || row.embedding || []);
-  const embeddingSimilarityScore = queryEmbedding.length && storedEmbedding.length ? cosineSimilarity(queryEmbedding, storedEmbedding) : 0;
+  const embeddingSimilarityScore = storedEmbedding.length
+    ? Math.max(0, ...embeddingVectors.map((embedding) => cosineSimilarity(embedding, storedEmbedding)))
+    : 0;
   const exactImageScore = exactHash ? 1 : exactUrl || exactPublicId ? 0.95 : 0;
   const imageSimilarityScore = Math.max(exactImageScore, embeddingSimilarityScore);
   const brandScore = attributes.brand ? (rowBrand === attributes.brand || rowBlob.includes(normalizeVisualProText(attributes.brand)) ? 1 : 0) : 0;
@@ -451,6 +496,14 @@ const scoreVisualRow = ({ row = {}, attributes = {}, uploadedImageUrl = "", uplo
     overlap(tokens(attributes.visibleFeatures), indexedTokens),
     overlap(tokens(attributes.silhouette, attributes.soleType, attributes.material), indexedTokens)
   );
+  const northFaceIntent = attributes.brand === "north face" && attributes.brandConfidence >= 0.7;
+  const rowIsNorthFace = rowBrand === "north face" || rowBlob.includes("north face") || rowBlob.includes("northface") || rowBlob.includes("نورث فيس") || rowBlob.includes("نورت فيس");
+  const trailOutdoorIntent = Boolean(attributes.trailOutdoorIntent);
+  const outsoleScore = trailOutdoorIntent ? rowTrailOutdoorScore(rowBlob) : 0;
+  const casualFlatScore = rowCasualFlatScore(rowBlob);
+  const brandPenalty = northFaceIntent && !rowIsNorthFace ? (inStock ? -0.78 : -0.52) : 0;
+  const categoryPenalty = trailOutdoorIntent && casualFlatScore > 0 && outsoleScore < 0.5 ? -0.46 : 0;
+  const outsoleBoost = trailOutdoorIntent ? outsoleScore * 0.18 : 0;
   let penalty = 0;
   if (attributes.brandConfidence >= 0.75 && attributes.brand && brandScore <= 0) penalty -= 0.42;
   if (attributes.modelConfidence >= 0.75 && attributes.model && modelScore <= 0) penalty -= 0.34;
@@ -464,6 +517,7 @@ const scoreVisualRow = ({ row = {}, attributes = {}, uploadedImageUrl = "", uplo
   const brandModelScore = (brandScore * 0.48) + (modelScore * 0.52);
   if (hasQueryEmbedding && imageSimilarityScore < 0.45 && brandModelScore < 0.5 && !attributes.correctionUsed) penalty -= 0.18;
   if (attributes.correctionUsed && brandModelScore >= 0.8 && imageSimilarityScore < 0.45) penalty += 0.08;
+  penalty += brandPenalty + categoryPenalty + outsoleBoost;
   const baseFinalScore = Math.max(0, Math.min(1,
     imageSimilarityScore * embeddingWeight +
     brandModelScore * brandModelWeight +
@@ -482,7 +536,16 @@ const scoreVisualRow = ({ row = {}, attributes = {}, uploadedImageUrl = "", uplo
     ? Math.min(0.14, Math.max(0.03, baseFinalScore * 0.16))
     : 0;
   const customerPreferenceBoost = preference.customerPreferenceScore * preferenceGate;
-  const finalScore = Math.max(0, Math.min(1, baseFinalScore + customerPreferenceBoost));
+  const guardBoost = northFaceIntent && rowIsNorthFace && inStock ? 0.16 : trailOutdoorIntent && outsoleScore >= 1 && inStock ? 0.08 : 0;
+  const guardedScore = Math.max(0, Math.min(1, baseFinalScore + customerPreferenceBoost + guardBoost));
+  const rejectionReason = [
+    brandPenalty <= -0.5 ? "brand_mismatch_for_high_confidence_north_face" : "",
+    categoryPenalty <= -0.4 ? "casual_flat_sneaker_mismatch_for_trail_outdoor_image" : "",
+    !inStock ? "out_of_stock" : "",
+  ].filter(Boolean).join("; ");
+  const finalScore = northFaceIntent && !rowIsNorthFace && (brandPenalty <= -0.5 || categoryPenalty <= -0.4)
+    ? Math.min(guardedScore, trailOutdoorIntent && casualFlatScore > 0 ? 0.22 : 0.32)
+    : guardedScore;
   const firstRankReason = modelScore >= 1
     ? "same model family"
     : brandScore >= 1
@@ -504,7 +567,13 @@ const scoreVisualRow = ({ row = {}, attributes = {}, uploadedImageUrl = "", uplo
     stockScore,
     priceScore,
     visualFeatureScore,
+    brandPenalty,
+    categoryPenalty,
+    outsoleScore,
+    outsoleBoost,
+    rejectionReason,
     penalty,
+    guardBoost,
     baseFinalScore,
     customerPreferenceBoost,
     ...preference,
@@ -535,6 +604,12 @@ const candidateFromRow = (row = {}, breakdown = {}) => ({
     genderScore: breakdown.genderScore,
     stockScore: breakdown.stockScore,
     priceScore: breakdown.priceScore,
+    brandPenalty: breakdown.brandPenalty,
+    categoryPenalty: breakdown.categoryPenalty,
+    outsoleScore: breakdown.outsoleScore,
+    outsoleBoost: breakdown.outsoleBoost,
+    rejectionReason: breakdown.rejectionReason,
+    guardBoost: breakdown.guardBoost,
     customerPreferenceScore: breakdown.customerPreferenceScore,
     preferredBrandScore: breakdown.preferredBrandScore,
     preferredSizeScore: breakdown.preferredSizeScore,
@@ -688,6 +763,7 @@ export const searchAiVisualProductsPro = async ({
   visualQuery = "",
   uploadedImageUrl = "",
   uploadedImageBuffer = null,
+  uploadedImages = [],
   correctionText = "",
   previousVisualAttributes = null,
   preferredSize = "",
@@ -702,15 +778,42 @@ export const searchAiVisualProductsPro = async ({
     ...customerPreferenceProfile,
     preferredSizes: uniqueList([customerPreferenceProfile.preferredSizes, preferredSize], 10),
   });
-  const queryEmbeddingResult = uploadedImageUrl || uploadedImageBuffer
-    ? await generateImageEmbedding(uploadedImageUrl || "uploaded-image", { imageBuffer: uploadedImageBuffer || null }).catch((error) => ({
-        embedding: [],
-        model: "",
-        generated: false,
-        error: error?.message || "query_embedding_failed",
-      }))
-    : { embedding: [], model: "", generated: false, skipped: true, reason: "missing_query_image" };
-  const queryEmbedding = parseEmbeddingVector(queryEmbeddingResult.embedding || []);
+  const rawQueryImages = [
+    ...(Array.isArray(uploadedImages) ? uploadedImages : []).map((item) => ({
+      imageUrl: text(item?.imageUrl || item?.url || item?.image_url || ""),
+      imageBuffer: item?.imageBuffer || item?.buffer || null,
+      mimeType: item?.mimeType || item?.mime_type || "",
+    })),
+    ...((uploadedImageUrl || uploadedImageBuffer) ? [{ imageUrl: uploadedImageUrl || "uploaded-image", imageBuffer: uploadedImageBuffer || null }] : []),
+  ];
+  const seenQueryImages = new Set();
+  const queryImages = [];
+  for (const image of rawQueryImages) {
+    const key = image.imageUrl ? imageIdentity(image.imageUrl) : `buffer:${queryImages.length}`;
+    if (!key || seenQueryImages.has(key)) continue;
+    seenQueryImages.add(key);
+    queryImages.push(image);
+    if (queryImages.length >= 12) break;
+  }
+  const queryEmbeddingResults = [];
+  for (const image of queryImages) {
+    const imageUrl = text(image.imageUrl || image.url || "uploaded-image");
+    if (!imageUrl && !image.imageBuffer) continue;
+    const result = await generateImageEmbedding(imageUrl || "uploaded-image", {
+      imageBuffer: image.imageBuffer || null,
+      mimeType: image.mimeType || "image/jpeg",
+    }).catch((error) => ({
+      embedding: [],
+      model: "",
+      generated: false,
+      error: error?.message || "query_embedding_failed",
+    }));
+    queryEmbeddingResults.push(result);
+  }
+  const queryEmbeddings = queryEmbeddingResults.map((result) => parseEmbeddingVector(result.embedding || [])).filter((embedding) => embedding.length);
+  const queryEmbeddingResult = queryEmbeddingResults.find((result) => parseEmbeddingVector(result.embedding || []).length) ||
+    queryEmbeddingResults[0] ||
+    { embedding: [], model: "", generated: false, skipped: true, reason: "missing_query_image" };
   const result = await db.query(
     `
     SELECT *
@@ -721,9 +824,22 @@ export const searchAiVisualProductsPro = async ({
     `,
     [tenant]
   );
-  const uploadedImageHash = hashBuffer(uploadedImageBuffer);
+  const uploadedImageHashes = queryImages.map((image) => hashBuffer(image.imageBuffer || null)).filter(Boolean);
+  const uploadedImageHash = uploadedImageHashes[0] || hashBuffer(uploadedImageBuffer);
+  const uploadedImageUrls = uniqueList([queryImages.map((image) => image.imageUrl || image.url), uploadedImageUrl], 12);
   const scored = result.rows
-    .map((row) => candidateFromRow(row, scoreVisualRow({ row, attributes, uploadedImageUrl, uploadedImageHash, preferredSize, queryEmbedding, customerPreferenceProfile: preferenceProfile })))
+    .map((row) => candidateFromRow(row, scoreVisualRow({
+      row,
+      attributes,
+      uploadedImageUrl,
+      uploadedImageUrls,
+      uploadedImageHash,
+      uploadedImageHashes,
+      preferredSize,
+      queryEmbedding: queryEmbeddings[0] || [],
+      queryEmbeddings,
+      customerPreferenceProfile: preferenceProfile,
+    })))
     .filter((row) => Number(row.finalScore || 0) >= 0.08 || row.exact_image_match)
     .sort((left, right) => {
       const scoreDiff = Number(right.finalScore || 0) - Number(left.finalScore || 0);
@@ -732,9 +848,21 @@ export const searchAiVisualProductsPro = async ({
     });
   const topMatches = scored.slice(0, limit).map((row, index) => ({
     product_id: row.product_id,
+    productId: row.product_id,
     variant_id: row.variant_id,
+    variantId: row.variant_id,
+    sourceImageProductId: row.product_id,
+    sourceImageVariantId: row.variant_id,
+    sourceTitle: row.product_name || "",
+    sourceBrand: row.brand || "",
+    brand: row.brand || "",
+    product_name: row.product_name || "",
+    category: row.category || "",
+    finalTitle: row.product_name || "",
+    finalUrl: "",
     color: row.color,
     image_url: row.image_url,
+    imageUrl: row.image_url,
     image_public_id: row.image_public_id,
     score: row.finalScore,
     imageSimilarityScore: row.score_breakdown?.imageSimilarityScore || 0,
@@ -751,7 +879,9 @@ export const searchAiVisualProductsPro = async ({
   return {
     attributes,
     customerPreferenceProfile: preferenceProfile,
-    queryEmbeddingGenerated: Boolean(queryEmbedding.length),
+    queryEmbeddingGenerated: Boolean(queryEmbeddings.length),
+    queryImageCount: queryImages.length,
+    queryEmbeddingCount: queryEmbeddings.length,
     embeddingModel: queryEmbeddingResult.model || "",
     embeddingError: queryEmbeddingResult.error || "",
     candidates: scored.slice(0, limit),

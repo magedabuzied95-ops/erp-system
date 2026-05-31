@@ -645,7 +645,7 @@ const imageAttachments = (attachments = []) =>
       const url = text(attachment?.url);
       return url && (type.includes("image") || /\.(png|jpe?g|webp|gif)(?:[?#].*)?$/i.test(url) || /\/image\//i.test(url));
     })
-    .slice(0, 1);
+    .slice(0, 6);
 
 const detectFaqIntent = (message = "") => {
   const normalized = text(message).toLowerCase();
@@ -4738,7 +4738,7 @@ const imageAttachmentUrls = (attachments = []) =>
   (Array.isArray(attachments) ? attachments : [])
     .map((attachment) => text(extractImageUrlFromAttachment(attachment)))
     .filter((url, index, urls) => /^https?:\/\//i.test(url) && urls.indexOf(url) === index)
-    .slice(0, 3);
+    .slice(0, 6);
 
 let commerceSchemaReadyPromise = null;
 
@@ -5277,6 +5277,7 @@ const persistentAiMemoryFromRuntime = (memory = {}) => {
     lastVisualConfidence: memory.lastVisualConfidence ?? null,
     lastVisualQueryText: text(memory.lastVisualQueryText || memory.lastVisualQuery || ""),
     lastVisualMatches: Array.isArray(memory.lastVisualMatches) ? memory.lastVisualMatches.slice(0, 12) : [],
+    visualSearchSession: memory.visualSearchSession && typeof memory.visualSearchSession === "object" ? memory.visualSearchSession : null,
     visualSearchStage: text(memory.visualSearchStage || ""),
     knownName: text(memory.knownName || memory.customerName || ""),
     knownPhone: normalizeEgyptPhone(memory.knownPhone || memory.customerPhone || ""),
@@ -5372,6 +5373,7 @@ const runtimeMemoryFromPersistent = (state = {}) => {
     lastVisualConfidence: state.lastVisualConfidence ?? null,
     lastVisualQueryText: text(state.lastVisualQueryText || ""),
     lastVisualMatches: Array.isArray(state.lastVisualMatches) ? state.lastVisualMatches : [],
+    visualSearchSession: state.visualSearchSession && typeof state.visualSearchSession === "object" ? state.visualSearchSession : null,
     visualSearchStage: text(state.visualSearchStage || ""),
     knownName: text(state.knownName || ""),
     knownPhone: normalizeEgyptPhone(state.knownPhone || ""),
@@ -5777,6 +5779,207 @@ const visualAnalysisFromUnderstanding = (understanding = {}) => {
   };
 };
 
+const VISUAL_SESSION_WINDOW_MS = 60 * 1000;
+
+const visualSessionImageKey = (url = "") => imageIdentity(url) || text(url);
+
+const visualSearchSessionActive = (session = {}, nowMs = Date.now()) => {
+  const updated = Date.parse(session?.updatedAt || session?.createdAt || "");
+  return Number.isFinite(updated) && nowMs - updated <= VISUAL_SESSION_WINDOW_MS;
+};
+
+const createVisualSearchSessionId = ({ conversationId = "", nowMs = Date.now() } = {}) =>
+  `vis_${hashDedupe(`${conversationId}:${nowMs}`).slice(0, 16)}`;
+
+const upsertVisualSearchSessionImages = ({ memory = {}, conversationId = "", imageUrls = [], messageTimestamp = "" } = {}) => {
+  const nowMs = Date.parse(messageTimestamp) || Date.now();
+  const now = new Date(nowMs).toISOString();
+  const previous = memory.visualSearchSession && typeof memory.visualSearchSession === "object" ? memory.visualSearchSession : null;
+  const session = previous && visualSearchSessionActive(previous, nowMs)
+    ? { ...previous, images: Array.isArray(previous.images) ? previous.images : [] }
+    : { id: createVisualSearchSessionId({ conversationId, nowMs }), images: [], createdAt: now, updatedAt: now };
+  if (!previous || session.id !== previous.id) {
+    console.log("[multi-image] session created", {
+      session_id: session.id,
+      conversation_id: conversationId,
+      image_count: imageUrls.length,
+    });
+  }
+  const byKey = new Map(session.images.map((image) => [visualSessionImageKey(image.url), image]));
+  for (const url of imageUrls.map(text).filter(Boolean)) {
+    const key = visualSessionImageKey(url);
+    if (!key) continue;
+    if (!byKey.has(key)) {
+      const image = {
+        id: `img_${hashDedupe(`${session.id}:${key}`).slice(0, 12)}`,
+        url,
+        createdAt: now,
+        updatedAt: now,
+        detected: null,
+        analysis: null,
+        confidence: 0,
+      };
+      session.images.push(image);
+      byKey.set(key, image);
+      console.log("[multi-image] image added", {
+        session_id: session.id,
+        conversation_id: conversationId,
+        image_id: image.id,
+        image_url: url,
+        image_count: session.images.length,
+      });
+    }
+  }
+  session.updatedAt = now;
+  return {
+    ...session,
+    images: session.images.slice(-8),
+  };
+};
+
+const imageRecordWithUnderstanding = ({ image = {}, understanding = null, downloadedImageInput = null } = {}) => {
+  const detected = understanding?.detected && typeof understanding.detected === "object" ? understanding.detected : image.detected || null;
+  const analysis = understanding ? visualAnalysisFromUnderstanding(understanding) : image.analysis || null;
+  return {
+    ...image,
+    updatedAt: nowIso(),
+    detected,
+    analysis,
+    confidence: Math.max(Number(image.confidence || 0), Number(understanding?.confidence || 0), Number(analysis?.confidence || 0) / 100),
+    openai_model: understanding?.openai_model || image.openai_model || "",
+    openai_error: understanding?.openai_error || image.openai_error || null,
+    download: downloadedImageInput
+      ? {
+          mimeType: downloadedImageInput.mimeType || "",
+          bytes: downloadedImageInput.bytes || downloadedImageInput.imageBuffer?.length || 0,
+          mode: downloadedImageInput.downloadMode || "",
+        }
+      : image.download || null,
+  };
+};
+
+const confidenceForField = (detected = {}, key = "", fallback = 0) => {
+  const fields = detected?.field_confidence || {};
+  return Math.max(Number(fields[key] || 0), Number(fields[`${key}_guess`] || 0), Number(fallback || 0), 0);
+};
+
+const normalizeAttributeValue = (value) => {
+  if (Array.isArray(value)) return value.map(text).filter(Boolean);
+  return text(value);
+};
+
+const mergeAttributeCandidate = (bucket, { key, value, confidence = 0, source = "", sourceIndex = 0, boost = 0 } = {}) => {
+  const normalized = normalizeAttributeValue(value);
+  const values = Array.isArray(normalized) ? normalized : [normalized];
+  for (const raw of values.map(text).filter(Boolean)) {
+    const canonical = raw.toLowerCase();
+    if (!bucket[key]) bucket[key] = new Map();
+    const existing = bucket[key].get(canonical) || { value: raw, confidence: 0, sources: [] };
+    const sourceDiversityBoost = existing.sources.some((item) => item.image !== sourceIndex + 1) ? 0.03 : 0;
+    existing.confidence = Math.max(existing.confidence, Math.min(0.99, Number(confidence || 0) + boost + sourceDiversityBoost));
+    existing.sources.push({ image: sourceIndex + 1, image_id: source, confidence: Number(confidence || 0) });
+    bucket[key].set(canonical, existing);
+  }
+};
+
+const bestMergedAttribute = (bucket = {}, key = "") => {
+  const candidates = [...(bucket[key]?.values?.() || [])];
+  if (!candidates.length) return { value: Array.isArray(bucket[key]) ? [] : "", confidence: 0, sources: [] };
+  return candidates.sort((left, right) => Number(right.confidence || 0) - Number(left.confidence || 0))[0];
+};
+
+const mergeVisualSearchSession = ({ session = {}, correctionText = "" } = {}) => {
+  const bucket = {};
+  const imageAnalyses = (Array.isArray(session.images) ? session.images : []).filter((image) => image?.detected || image?.analysis);
+  for (const [index, image] of imageAnalyses.entries()) {
+    const detected = image.detected || image.analysis?.raw || {};
+    const imageConfidence = Math.max(Number(image.confidence || 0), Number(image.analysis?.confidence || 0) / 100, 0.45);
+    const source = image.id || image.url || String(index + 1);
+    mergeAttributeCandidate(bucket, { key: "brand", value: detected.brand_guess || detected.brand_family || detected.brand, confidence: confidenceForField(detected, "brand", imageConfidence * 0.7), source, sourceIndex: index });
+    mergeAttributeCandidate(bucket, { key: "brand", value: detected.logo_text, confidence: confidenceForField(detected, "logo_text", imageConfidence * 0.9), source, sourceIndex: index, boost: 0.04 });
+    mergeAttributeCandidate(bucket, { key: "model", value: detected.likely_model || detected.model_guess || detected.model_family, confidence: confidenceForField(detected, "model", imageConfidence * 0.75), source, sourceIndex: index });
+    mergeAttributeCandidate(bucket, { key: "colors", value: detected.main_colors || detected.colors, confidence: confidenceForField(detected, "colors", imageConfidence * 0.72), source, sourceIndex: index });
+    mergeAttributeCandidate(bucket, { key: "category", value: detected.shoe_type || detected.product_type || detected.category, confidence: confidenceForField(detected, "category", imageConfidence * 0.72), source, sourceIndex: index });
+    mergeAttributeCandidate(bucket, { key: "outsoleType", value: detected.outsole_type || detected.sole_shape || detected.sole_type, confidence: confidenceForField(detected, "outsole_type", imageConfidence * 0.82), source, sourceIndex: index });
+    mergeAttributeCandidate(bucket, { key: "logoText", value: detected.logo_text, confidence: confidenceForField(detected, "logo_text", imageConfidence * 0.86), source, sourceIndex: index });
+    mergeAttributeCandidate(bucket, { key: "material", value: detected.materials || detected.material, confidence: confidenceForField(detected, "material", imageConfidence * 0.7), source, sourceIndex: index });
+    mergeAttributeCandidate(bucket, { key: "visualFeatures", value: [detected.features, detected.notable_features, detected.distinctive_features, detected.english_keywords, detected.arabic_keywords].flat(), confidence: imageConfidence * 0.68, source, sourceIndex: index });
+  }
+  if (correctionText) {
+    mergeAttributeCandidate(bucket, { key: "brand", value: correctionText, confidence: 0.96, source: "correction_text", sourceIndex: imageAnalyses.length, boost: 0.02 });
+    mergeAttributeCandidate(bucket, { key: "visualFeatures", value: correctionText, confidence: 0.9, source: "correction_text", sourceIndex: imageAnalyses.length });
+  }
+  const brand = bestMergedAttribute(bucket, "brand");
+  const model = bestMergedAttribute(bucket, "model");
+  const category = bestMergedAttribute(bucket, "category");
+  const outsoleType = bestMergedAttribute(bucket, "outsoleType");
+  const logoText = bestMergedAttribute(bucket, "logoText");
+  const colors = [...(bucket.colors?.values?.() || [])].sort((left, right) => right.confidence - left.confidence).slice(0, 5);
+  const materials = [...(bucket.material?.values?.() || [])].sort((left, right) => right.confidence - left.confidence).slice(0, 5);
+  const features = [...(bucket.visualFeatures?.values?.() || [])].sort((left, right) => right.confidence - left.confidence).slice(0, 12);
+  const mergedConfidence = Math.max(brand.confidence || 0, model.confidence || 0, category.confidence || 0, outsoleType.confidence || 0, ...colors.map((item) => item.confidence || 0));
+  const detected = {
+    brand_guess: brand.value || "",
+    brand_family: brand.value || "",
+    likely_model: model.value || "",
+    model_guess: model.value || "",
+    product_type: category.value || "",
+    category: category.value || "",
+    main_colors: colors.map((item) => item.value),
+    colors: colors.map((item) => item.value),
+    sole_shape: outsoleType.value || "",
+    outsole_type: outsoleType.value || "",
+    logo_text: logoText.value || "",
+    materials: materials.map((item) => item.value),
+    notable_features: features.map((item) => item.value),
+    distinctive_features: features.map((item) => item.value),
+    field_confidence: {
+      brand_guess: brand.confidence || 0,
+      model_guess: model.confidence || 0,
+      category: category.confidence || 0,
+      colors: colors[0]?.confidence || 0,
+      outsole_type: outsoleType.confidence || 0,
+      logo_text: logoText.confidence || 0,
+      material: materials[0]?.confidence || 0,
+    },
+  };
+  const merged = {
+    session_id: session.id || "",
+    images_analyzed: imageAnalyses.length,
+    detected,
+    attributes: {
+      brand: brand.value || "",
+      model: model.value || "",
+      colors: colors.map((item) => item.value),
+      category: category.value || "",
+      outsoleType: outsoleType.value || "",
+      logoText: logoText.value || "",
+      material: materials.map((item) => item.value),
+      visualFeatures: features.map((item) => item.value),
+      confidence: mergedConfidence,
+    },
+    confidence: mergedConfidence,
+    attribute_sources: {
+      brand: brand.sources || [],
+      model: model.sources || [],
+      colors: colors.flatMap((item) => item.sources || []),
+      category: category.sources || [],
+      outsoleType: outsoleType.sources || [],
+      logoText: logoText.sources || [],
+      material: materials.flatMap((item) => item.sources || []),
+      visualFeatures: features.flatMap((item) => item.sources || []),
+    },
+  };
+  console.log("[multi-image] merged attributes", {
+    session_id: merged.session_id,
+    images_analyzed: merged.images_analyzed,
+    merged_attributes: merged.attributes,
+    merged_confidence: merged.confidence,
+    attribute_sources: merged.attribute_sources,
+  });
+  return merged;
+};
+
 const strictVisualScoreProduct = ({ product = {}, analysis = {}, indexedScore = 0 } = {}) => {
   const blob = productVisualText(product);
   const brandTokens = listTokens(analysis.brand);
@@ -5989,28 +6192,163 @@ const productCardsForIndexedImageMatch = async ({ tenantId, match = null, visual
     return [];
   });
   const matchingRows = rows.filter((product) => String(product.id || product.product_id) === String(match.product_id));
-  return (matchingRows.length ? matchingRows : rows).slice(0, 1).map((product) => ({
+  if (!matchingRows.length) {
+    console.warn("[visual-index-integrity] mismatch", {
+      tenant_id: tenantId || null,
+      reason: "direct_product_reload_failed",
+      source_image_product_id: match.product_id,
+      source_image_variant_id: match.variant_id ?? null,
+      source_title: match.product_name || match.sourceTitle || "",
+      query,
+      returned_product_ids: rows.map((product) => product.id || product.product_id).filter(Boolean),
+    });
+    return [];
+  }
+  return matchingRows.slice(0, 1).map((product) => {
+    const indexTitle = match.product_name || match.sourceTitle || "";
+    const productTitle = product.name || product.title || product.product_name || "";
+    const indexTitleConflict = indexTitle && productTitle && visualIntegrityTokens(indexTitle).length && visualIntegrityTokens(productTitle).length &&
+      visualIntegrityTokens(indexTitle).filter((token) => new Set(visualIntegrityTokens(productTitle)).has(token)).length === 0;
+    const safeMatchImage = indexTitleConflict ? "" : match.image_url || "";
+    if (indexTitleConflict) {
+      console.warn("[visual-index-integrity] mismatch", {
+        tenant_id: tenantId || null,
+        reason: "index_title_conflicts_with_reloaded_product",
+        source_image_product_id: match.product_id,
+        source_image_variant_id: match.variant_id ?? null,
+        source_title: indexTitle,
+        reloaded_title: productTitle,
+        repair: "using_reloaded_product_image",
+      });
+    }
+    return {
     ...product,
-    image_url: match.image_url || product.image_url,
-    product_image_url: match.image_url || product.product_image_url || product.image_url,
-    matched_image_url: match.image_url || "",
+    image_url: safeMatchImage || product.image_url,
+    product_image_url: safeMatchImage || product.product_image_url || product.image_url,
+    matched_image_url: safeMatchImage,
     matched_image_source: "ai_product_image_visual_index",
     matched_variant_id: match.variant_id ?? product.matched_variant_id ?? null,
     matched_variant_color: match.color || product.matched_variant_color || "",
-    matched_variant_image: match.image_url || product.matched_variant_image || "",
+    matched_variant_image: safeMatchImage || product.matched_variant_image || "",
     visual_confidence_score: Number(match.score || 0),
     visual_score_breakdown: match.score_breakdown || null,
     is_visual_search_match: true,
     matched_visual_candidate: {
       product_id: match.product_id,
       variant_id: match.variant_id ?? null,
-      image_url: match.image_url || "",
+      source_image_product_id: match.product_id,
+      source_title: match.product_name || match.sourceTitle || "",
+      image_url: safeMatchImage,
       image_source: "ai_product_image_visual_index",
       color: match.color || "",
       score: match.score || 0,
     },
-  }));
+  };
+  });
 };
+
+const visualIntegritySlug = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(/^https?:\/\/[^/]+/i, "")
+    .split(/[?#]/)[0]
+    .split("/")
+    .filter(Boolean)
+    .pop() || "";
+
+const visualIntegrityTokens = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9\u0600-\u06FF]+/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length >= 3);
+
+const visualCardLooksMixed = (card = {}) => {
+  const titleTokens = new Set(visualIntegrityTokens(card.name || card.title || card.product_name || card.base_name));
+  const slugTokens = visualIntegrityTokens(card.slug || visualIntegritySlug(card.product_url || card.url));
+  const overlap = slugTokens.filter((token) => titleTokens.has(token)).length;
+  const brands = ["nike", "adidas", "jordan", "north", "face", "puma", "reebok", "skechers", "crocs"];
+  const titleText = ` ${[...titleTokens].join(" ")} `;
+  const slugText = ` ${slugTokens.join(" ")} `;
+  const conflictingBrand = brands.some((brand) => slugText.includes(` ${brand} `) && !titleText.includes(` ${brand} `));
+  return Boolean((slugTokens.length && titleTokens.size && overlap === 0) || conflictingBrand);
+};
+
+const chooseVisualIntegrityVariant = (product = {}, variantId = null) => {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  return variants.find((variant) => String(variant.id || variant.variant_id || "") === String(variantId || "")) || null;
+};
+
+const repairVisualProductCardIntegrity = async ({ tenantId, card = {}, reason = "visual_card_integrity" } = {}) => {
+  const productId = card.product_id || card.id || card.matched_visual_candidate?.product_id || null;
+  if (!productId) return card;
+  const variantId = card.variant_id || card.matched_variant_id || card.matched_visual_candidate?.variant_id || null;
+  const needsRepair = visualCardLooksMixed(card) || (card.matched_visual_candidate?.source_image_product_id && String(card.matched_visual_candidate.source_image_product_id) !== String(productId));
+  if (!needsRepair) return card;
+  const rows = await searchAiOrderProducts({
+    tenantId,
+    message: String(productId),
+    metadata: { product_id: productId, variant_id: variantId || null, visual_integrity_repair: true },
+  }).catch((error) => {
+    console.warn("[visual-index-integrity] mismatch", {
+      tenant_id: tenantId || null,
+      reason: "repair_reload_failed",
+      product_id: productId,
+      variant_id: variantId,
+      title: card.name || card.title || "",
+      slug: card.slug || visualIntegritySlug(card.product_url || card.url),
+      message: error?.message || "",
+    });
+    return [];
+  });
+  const product = rows.find((row) => String(row.id || row.product_id) === String(productId));
+  if (!product) {
+    console.warn("[visual-index-integrity] mismatch", {
+      tenant_id: tenantId || null,
+      reason: "repair_product_not_found",
+      product_id: productId,
+      variant_id: variantId,
+      title: card.name || card.title || "",
+      slug: card.slug || visualIntegritySlug(card.product_url || card.url),
+    });
+    return card;
+  }
+  const variant = chooseVisualIntegrityVariant(product, variantId);
+  const repaired = {
+    ...product,
+    visual_confidence_score: card.visual_confidence_score ?? product.confidence ?? null,
+    visual_score_breakdown: card.visual_score_breakdown || product.visual_score_breakdown || null,
+    matched_variant_id: variant?.id || variant?.variant_id || variantId || null,
+    matched_variant_color: variant?.color || card.color || card.matched_variant_color || "",
+    matched_variant_image: variant?.image_url || product.variant_image_url || product.image_url || "",
+    matched_image_url: variant?.image_url || product.variant_image_url || product.image_url || "",
+    is_visual_search_match: true,
+    matched_visual_candidate: {
+      ...(card.matched_visual_candidate || {}),
+      product_id: product.id || product.product_id || productId,
+      variant_id: variant?.id || variant?.variant_id || variantId || null,
+      source_image_product_id: card.matched_visual_candidate?.source_image_product_id || productId,
+      source_title: card.matched_visual_candidate?.source_title || card.name || card.title || "",
+      final_title: product.name || product.title || product.product_name || "",
+    },
+  };
+  console.warn("[visual-index-integrity] mismatch", {
+    tenant_id: tenantId || null,
+    reason,
+    repaired: true,
+    product_id: productId,
+    variant_id: variantId,
+    source_image_product_id: card.matched_visual_candidate?.source_image_product_id || productId,
+    source_title: card.matched_visual_candidate?.source_title || "",
+    final_title: repaired.name || repaired.title || repaired.product_name || "",
+    old_title: card.name || card.title || "",
+    old_slug: card.slug || visualIntegritySlug(card.product_url || card.url),
+  });
+  return repaired;
+};
+
+const repairVisualProductCardsIntegrity = async ({ tenantId, cards = [], reason = "visual_card_integrity" } = {}) =>
+  Promise.all((Array.isArray(cards) ? cards : []).map((card) => repairVisualProductCardIntegrity({ tenantId, card, reason })));
 
 const loadVariantImageRows = async ({ tenantId, productId } = {}) => {
   if (!productId) return [];
@@ -6193,7 +6531,11 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
 const sendAndLogProductCards = async ({ config, message, productCards = [], detectedIntent = "", introText = "", metadata = {} } = {}) => {
   const modelNameSearch = detectModelNameSearch(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
   const cardLimit = Number(metadata.product_card_limit || 0) || (modelNameSearch ? (detectOtherColorsRequest(message.message_text || "") ? 3 : 1) : 6);
-  const cards = await resolveProductCardLinks(normalizeProductCards(productCards, { limit: cardLimit }), { tenantId: config.tenant_id });
+  const visualCards = detectedIntent.includes("visual_search") || metadata.image_search || metadata.visual_query;
+  const integrityInputCards = visualCards
+    ? await repairVisualProductCardsIntegrity({ tenantId: config.tenant_id, cards: productCards, reason: "pre_send_visual_cards" })
+    : productCards;
+  const cards = await resolveProductCardLinks(normalizeProductCards(integrityInputCards, { limit: cardLimit }), { tenantId: config.tenant_id });
   if (!cards.length) return null;
   const gate = evaluateProductDecisionGate({
     productCards: cards,
@@ -6232,10 +6574,27 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     });
     return { blocked: true, reason: "product_decision_gate_low_confidence", gate };
   }
+  const integrityGateCards = visualCards
+    ? await repairVisualProductCardsIntegrity({ tenantId: config.tenant_id, cards: gate.products, reason: "post_gate_visual_cards" })
+    : gate.products;
   const gatedCards = await resolveProductCardLinks(
-    normalizeProductCards(gate.products, { limit: detectedIntent.includes("exact") || metadata.exact_inventory_match ? 1 : Math.min(3, cardLimit) }),
+    normalizeProductCards(integrityGateCards, { limit: detectedIntent.includes("exact") || metadata.exact_inventory_match ? 1 : Math.min(3, cardLimit) }),
     { tenantId: config.tenant_id }
   );
+  if (visualCards) {
+    console.log("[visual-index-integrity] score card", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      cards: gatedCards.map((card) => ({
+        productId: card.product_id || card.id || null,
+        variantId: card.variant_id || null,
+        sourceImageProductId: card.matched_visual_candidate?.source_image_product_id || card.matched_visual_candidate?.product_id || card.product_id || null,
+        sourceTitle: card.matched_visual_candidate?.source_title || "",
+        finalTitle: card.name || card.title || "",
+        finalUrl: card.product_url || card.url || "",
+      })),
+    });
+  }
   const finalIntroText = modelNameSearch && gatedCards.length >= 2
     ? [modelColorLimitIntro, gate.introText || introText].filter(Boolean).join("\n")
     : gate.introText || introText;
@@ -6934,9 +7293,11 @@ const sendVisualClarificationOnce = async ({ config, message, metadata = {}, rea
 };
 
 const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
-  const [imageAttachment] = imageAttachments(message.attachments || []);
+  const imageAttachmentList = imageAttachments(message.attachments || []);
+  const [imageAttachment] = imageAttachmentList;
   const memory = getConversationMemory(message.external_conversation_id) || {};
-  const visualCorrection = memory.lastImageUrl ? detectVisualCorrectionTextV3(message.message_text) : null;
+  const existingVisualSession = memory.visualSearchSession && typeof memory.visualSearchSession === "object" ? memory.visualSearchSession : null;
+  const visualCorrection = (memory.lastImageUrl || existingVisualSession?.images?.length) ? detectVisualCorrectionTextV3(message.message_text) : null;
   const retryLastImage = !imageAttachment && (
     Boolean(visualCorrection) ||
     hasTerm(message.message_text, ["\u0627\u0647\u0648", "\u0623\u0647\u0648", "\u0627\u0647\u064a", "\u0623\u0647\u064a", "\u062f\u064a", "\u0627\u0644\u0635\u0648\u0631\u0629", "\u0628\u0639\u062a", "\u0628\u0639\u062a\u062a", "\u062a\u0645\u0627\u0645", "\u0647\u064a \u062f\u064a", "\u0647\u0648 \u062f\u0647"])
@@ -6957,15 +7318,27 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
       channel: message.channel,
       attachment_type: imageAttachment.type || "",
       attachment_count: Array.isArray(message.attachments) ? message.attachments.length : 0,
+      image_count: imageAttachmentList.length,
     });
   }
-  let imageUrl = text(imageAttachment?.url || "");
+  let imageUrls = imageAttachmentList.map((attachment) => text(attachment?.url || "")).filter(Boolean);
+  let imageUrl = imageUrls[0] || "";
   if (!imageUrl && retryLastImage && memory.lastImageUrl) {
     imageUrl = text(memory.lastImageUrl);
+    imageUrls = [imageUrl];
     console.log("[ai-vision] reused last image", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
       image_url: imageUrl,
+    });
+  } else if (!imageUrl && retryLastImage && existingVisualSession?.images?.length) {
+    imageUrls = existingVisualSession.images.map((image) => text(image.url)).filter(Boolean);
+    imageUrl = imageUrls[0] || "";
+    console.log("[ai-vision] reused visual session images", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      session_id: existingVisualSession.id || "",
+      image_count: imageUrls.length,
     });
   }
   if (!imageUrl) {
@@ -7013,10 +7386,20 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
     image_url: imageUrl,
+    image_count: imageUrls.length,
     reused_last_image: Boolean(retryLastImage && !imageAttachment),
   });
+  let visualSearchSession = imageUrls.length
+    ? upsertVisualSearchSessionImages({
+        memory,
+        conversationId: message.external_conversation_id,
+        imageUrls,
+        messageTimestamp: message.timestamp,
+      })
+    : existingVisualSession;
   updateConversationMemory(message.external_conversation_id, {
     lastImageUrl: imageUrl,
+    visualSearchSession,
     pendingAction: "visual_search",
     ...(visualCorrection ? { lastVisualClarification: visualCorrection.query } : {}),
   });
@@ -7041,6 +7424,13 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     matched_products: [],
     confidence_score: 0,
     fallback_reason: "",
+    multi_image: {
+      session_id: visualSearchSession?.id || "",
+      images_analyzed: 0,
+      merged_attributes: null,
+      merged_confidence: 0,
+      attribute_sources: {},
+    },
   };
   console.log("ai_inbox_image_search_triggered", {
     tenant_id: config.tenant_id,
@@ -7062,6 +7452,8 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   });
   let understanding = null;
   let downloadedImageInput = null;
+  const downloadedImagesForSearch = [];
+  const imageUnderstandings = [];
   try {
     const { token } = await resolveMetaSendConfig({
       tenantId: config.tenant_id,
@@ -7070,44 +7462,97 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
       instagramBusinessAccountId: config.instagram_business_account_id,
       preferredConfigId: config.id,
     });
-    const imageInput = await downloadImageForVision({ imageUrl, token });
-    downloadedImageInput = imageInput;
-    pipeline.image_download_success = true;
-    pipeline.image_mime_type = imageInput.mimeType;
-    pipeline.image_bytes = imageInput.bytes || imageInput.imageBuffer?.length || 0;
-    pipeline.image_download_mode = imageInput.downloadMode || "";
-    console.log("ai_inbox_visual_image_download_success", {
-      tenant_id: config.tenant_id,
-      conversation_id: message.external_conversation_id,
-      image_url: imageUrl,
-      image_mime_type: pipeline.image_mime_type,
-      image_bytes: pipeline.image_bytes,
-      download_mode: pipeline.image_download_mode,
-    });
-    pipeline.openai_vision_request_sent = true;
-    console.log("ai_inbox_visual_openai_request_sent", {
-      tenant_id: config.tenant_id,
-      conversation_id: message.external_conversation_id,
-      image_mime_type: pipeline.image_mime_type,
-      image_bytes: pipeline.image_bytes,
-      model: process.env.OPENAI_VISION_MODEL || process.env.AI_SUPPORT_VISION_MODEL || process.env.AI_SUPPORT_MODEL || "",
-    });
-    understanding = await understandProductImageForSearch({
-      ...imageInput,
-      imageUrl,
-      requestId: `meta:${message.external_message_id || message.dedupe_key || message.external_conversation_id}`,
-    });
-    pipeline.raw_vision_response = {
-      detected: understanding?.detected || {},
-      confidence: understanding?.confidence || 0,
-      openai_model: understanding?.openai_model || "",
-      openai_error: understanding?.openai_error || null,
+    const sessionImages = Array.isArray(visualSearchSession?.images) ? visualSearchSession.images : [];
+    const nextImages = [];
+    for (const [index, sessionImage] of sessionImages.entries()) {
+      if (sessionImage.detected && sessionImage.analysis && !imageUrls.includes(sessionImage.url)) {
+        nextImages.push(sessionImage);
+        continue;
+      }
+      const currentImageUrl = text(sessionImage.url);
+      const imageInput = await downloadImageForVision({ imageUrl: currentImageUrl, token });
+      if (!downloadedImageInput) downloadedImageInput = imageInput;
+      downloadedImagesForSearch.push({ imageUrl: currentImageUrl, ...imageInput });
+      pipeline.image_download_success = true;
+      pipeline.image_mime_type = pipeline.image_mime_type || imageInput.mimeType;
+      pipeline.image_bytes += imageInput.bytes || imageInput.imageBuffer?.length || 0;
+      pipeline.image_download_mode = imageInput.downloadMode || "";
+      console.log("ai_inbox_visual_image_download_success", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        image_url: currentImageUrl,
+        image_index: index + 1,
+        image_mime_type: imageInput.mimeType,
+        image_bytes: imageInput.bytes || imageInput.imageBuffer?.length || 0,
+        download_mode: imageInput.downloadMode || "",
+      });
+      pipeline.openai_vision_request_sent = true;
+      console.log("ai_inbox_visual_openai_request_sent", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        image_url: currentImageUrl,
+        image_index: index + 1,
+        image_mime_type: imageInput.mimeType,
+        image_bytes: imageInput.bytes || imageInput.imageBuffer?.length || 0,
+        model: process.env.OPENAI_VISION_MODEL || process.env.AI_SUPPORT_VISION_MODEL || process.env.AI_SUPPORT_MODEL || "",
+      });
+      const imageUnderstanding = await understandProductImageForSearch({
+        ...imageInput,
+        imageUrl: currentImageUrl,
+        requestId: `meta:${message.external_message_id || message.dedupe_key || message.external_conversation_id}:${index + 1}`,
+      });
+      imageUnderstandings.push(imageUnderstanding);
+      nextImages.push(imageRecordWithUnderstanding({
+        image: sessionImage,
+        understanding: imageUnderstanding,
+        downloadedImageInput: imageInput,
+      }));
+      console.log("ai_inbox_visual_openai_raw_response", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        image_url: currentImageUrl,
+        image_index: index + 1,
+        raw_vision_response: {
+          detected: imageUnderstanding?.detected || {},
+          confidence: imageUnderstanding?.confidence || 0,
+          openai_model: imageUnderstanding?.openai_model || "",
+          openai_error: imageUnderstanding?.openai_error || null,
+        },
+      });
+    }
+    visualSearchSession = {
+      ...(visualSearchSession || {}),
+      images: nextImages,
+      updatedAt: nowIso(),
     };
-    console.log("ai_inbox_visual_openai_raw_response", {
-      tenant_id: config.tenant_id,
-      conversation_id: message.external_conversation_id,
-      raw_vision_response: pipeline.raw_vision_response,
-    });
+    const merged = mergeVisualSearchSession({ session: visualSearchSession, correctionText: visualCorrection?.query || "" });
+    understanding = {
+      detected: merged.detected,
+      confidence: merged.confidence,
+      multi_image: true,
+      images_analyzed: merged.images_analyzed,
+      attribute_sources: merged.attribute_sources,
+      openai_model: imageUnderstandings.map((item) => item?.openai_model).filter(Boolean)[0] || "",
+    };
+    visualSearchSession.mergedAttributes = merged.attributes;
+    visualSearchSession.mergedConfidence = merged.confidence;
+    visualSearchSession.attributeSources = merged.attribute_sources;
+    pipeline.multi_image = {
+      session_id: merged.session_id,
+      images_analyzed: merged.images_analyzed,
+      merged_attributes: merged.attributes,
+      merged_confidence: merged.confidence,
+      attribute_sources: merged.attribute_sources,
+    };
+    pipeline.raw_vision_response = {
+      detected: understanding.detected,
+      confidence: understanding.confidence,
+      openai_model: understanding.openai_model || "",
+      openai_error: null,
+      multi_image: true,
+      images_analyzed: merged.images_analyzed,
+      attribute_sources: merged.attribute_sources,
+    };
   } catch (error) {
     pipeline.image_download_failure = error?.message || "visual image processing failed";
     pipeline.fallback_reason = "image_download_or_vision_failed";
@@ -7187,6 +7632,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     lastVisualAttributes: visualAnalysis,
     lastVisualAnalysis: visualAnalysis,
     lastVisualConfidence: visualAnalysis.confidence / 100,
+    visualSearchSession,
   });
   persistAiConversationMemory({ tenantId: config.tenant_id, channel: message.channel, conversationId: message.external_conversation_id, reason: "visual_attributes_extracted" });
   const searchQuery = visualCorrection
@@ -7210,6 +7656,9 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     visualQuery: searchQuery,
     uploadedImageUrl: imageUrl,
     uploadedImageBuffer: downloadedImageInput?.imageBuffer || null,
+    uploadedImages: downloadedImagesForSearch.length
+      ? downloadedImagesForSearch
+      : (visualSearchSession?.images || []).map((image) => ({ imageUrl: image.url })),
     correctionText: visualCorrection?.query || "",
     previousVisualAttributes: memory.lastVisualAttributes || memory.lastVisualAnalysis || null,
     preferredSize: memory.activeSize || memory.selectedSize || memory.preferredSize || "",
@@ -7230,6 +7679,8 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   pipeline.top_image_matches = indexedSearch.topMatches || [];
   pipeline.visual_search_pro = {
     queryEmbeddingGenerated: Boolean(indexedSearch.queryEmbeddingGenerated),
+    queryImageCount: indexedSearch.queryImageCount || (visualSearchSession?.images?.length || 1),
+    queryEmbeddingCount: indexedSearch.queryEmbeddingCount || 0,
     embeddingModel: indexedSearch.embeddingModel || "",
     visual_confidence: understanding?.confidence || 0,
     brand_guess: indexedSearch.attributes?.brand || visualAnalysis.brand || "",
@@ -7249,6 +7700,15 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     preferredColors: indexedSearch.customerPreferenceProfile?.preferredColors || memory.preferredColors || [],
     why_candidate_was_boosted: indexedSearch.topMatches?.[0]?.whyCandidateWasBoosted || indexedSearch.topMatches?.[0]?.score_breakdown?.whyCandidateWasBoosted || "",
   };
+  console.log("[multi-image] visual search executed", {
+    session_id: visualSearchSession?.id || "",
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    images_analyzed: visualSearchSession?.images?.filter((image) => image.detected || image.analysis).length || 0,
+    merged_attributes: visualSearchSession?.mergedAttributes || null,
+    merged_confidence: visualSearchSession?.mergedConfidence || 0,
+    top_match_count: indexedSearch.topMatches?.length || 0,
+  });
   console.log("ai_inbox_visual_exact_inventory_match_stage", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -7331,6 +7791,10 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
         score_breakdown: product.visual_score_breakdown || null,
       }));
       pipeline.confidence_score = Number(exactCards[0].visual_confidence_score || 0);
+      pipeline.visual_search_pro.top_5_candidates = (pipeline.visual_search_pro.top_5_candidates || []).map((candidate) => {
+        const card = exactCards.find((item) => String(item.product_id || item.id || "") === String(candidate.product_id || candidate.productId || ""));
+        return card ? { ...candidate, finalTitle: card.name || card.title || "", finalUrl: card.product_url || card.url || "" } : candidate;
+      });
       console.log("ai_sales_brain_v2_confidence_decision", {
         tenant_id: config.tenant_id,
         conversation_id: message.external_conversation_id,
@@ -7391,6 +7855,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
         lastVisualAnalysis: visualAnalysis,
         lastVisualAttributes: visualAnalysis,
         lastVisualMatches: exactCards.map((product) => product.product_id || product.id).filter(Boolean),
+        visualSearchSession,
         visualSearchStage: decision.replyType,
         preferredColors: distinctTextArray([...(memory.preferredColors || []), exactCards[0]?.matched_variant_color, exactCards[0]?.color], 12),
         preferredBrands: distinctTextArray([...(memory.preferredBrands || []), exactCards[0]?.brand], 12),
@@ -7465,6 +7930,10 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     confidence: product.visual_confidence_score || topConfidence,
     score_breakdown: product.visual_score_breakdown || null,
   }));
+  pipeline.visual_search_pro.top_5_candidates = (pipeline.visual_search_pro.top_5_candidates || []).map((candidate) => {
+    const card = selectedCards.find((item) => String(item.product_id || item.id || "") === String(candidate.product_id || candidate.productId || ""));
+    return card ? { ...candidate, finalTitle: card.name || card.title || "", finalUrl: card.product_url || card.url || "" } : candidate;
+  });
   pipeline.confidence_score = topConfidence;
   if (!selectedCards.length) pipeline.fallback_reason = pipeline.fallback_reason || (decision.replyType === "clarification" ? "strict_visual_confidence_below_threshold" : "inventory_search_returned_no_cards");
   else if (!strongMatch) pipeline.fallback_reason = pipeline.fallback_reason || "exact_inventory_match_failed_using_close_visual_alternatives";
@@ -7539,19 +8008,24 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
       pipeline,
     });
   }
+  const northFaceVisualIntent = (indexedSearch.attributes?.brand || visualAnalysis.brand || "").toLowerCase() === "north face";
+  const hasNorthFaceLikeCandidates = northFaceVisualIntent && (indexedSearch.topMatches || []).some((candidate) =>
+    Number(candidate.score_breakdown?.brandScore || 0) >= 1 ||
+    /north\s*face|northface|\u0646\u0648\u0631\u062b\s*\u0641\u064a\u0633|\u0646\u0648\u0631\u062a\s*\u0641\u064a\u0633/i.test([candidate.product_name, candidate.brand, candidate.image_url].filter(Boolean).join(" "))
+  );
+  const visualIntroText = northFaceVisualIntent && hasNorthFaceLikeCandidates && decision.replyType !== "exact_match"
+    ? "\u0645\u0634 \u0646\u0641\u0633 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0628\u0627\u0644\u0638\u0628\u0637\u060c \u0628\u0633 \u062f\u064a \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647\u0647 \u0639\u0646\u062f\u064a \u0645\u0646 \u0646\u0648\u0631\u062b \u0641\u064a\u0633."
+    : decision.replyType === "exact_match"
+      ? "\u0623\u064a\u0648\u0647\u060c \u062f\u0647 \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0639\u0646\u062f\u0646\u0627"
+      : decision.replyType === "close_match"
+        ? "\u062f\u0647 \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647 \u0627\u0644\u0635\u0648\u0631\u0629 \u0639\u0646\u062f\u064a\u060c \u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f"
+        : "\u0645\u0634 \u0644\u0627\u0642\u064a \u0646\u0641\u0633 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0628\u0627\u0644\u0638\u0628\u0637\u060c \u0628\u0633 \u062f\u064a \u0623\u0642\u0631\u0628 \u0627\u062e\u062a\u064a\u0627\u0631\u0627\u062a \u0634\u0628\u0647\u0647.";
   await sendAndLogProductCards({
     config,
     message,
     productCards: selectedCards,
     detectedIntent: "visual_search",
-    introText: [
-      decision.replyType === "exact_match"
-        ? "\u0623\u064a\u0648\u0647\u060c \u062f\u0647 \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0639\u0646\u062f\u0646\u0627"
-        : decision.replyType === "close_match"
-          ? "\u062f\u0647 \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647 \u0627\u0644\u0635\u0648\u0631\u0629 \u0639\u0646\u062f\u064a\u060c \u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f"
-          : "\u0645\u0634 \u0644\u0627\u0642\u064a \u0646\u0641\u0633 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0628\u0627\u0644\u0638\u0628\u0637\u060c \u0628\u0633 \u062f\u064a \u0623\u0642\u0631\u0628 \u0627\u062e\u062a\u064a\u0627\u0631\u0627\u062a \u0634\u0628\u0647\u0647.",
-      debugText,
-    ].filter(Boolean).join("\n\n"),
+    introText: [visualIntroText, debugText].filter(Boolean).join("\n\n"),
     metadata: {
       visual_query: searchQuery,
       confidence_score: topConfidence,
@@ -7580,6 +8054,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     lastVisualAnalysis: visualAnalysis,
     lastVisualAttributes: visualAnalysis,
     lastVisualMatches: selectedCards.map((product) => product.product_id || product.id).filter(Boolean),
+    visualSearchSession,
     visualSearchStage: decision.replyType,
     preferredColors: distinctTextArray([...(memory.preferredColors || []), selectedCards[0]?.matched_variant_color, selectedCards[0]?.color], 12),
     preferredBrands: distinctTextArray([...(memory.preferredBrands || []), selectedCards[0]?.brand], 12),
