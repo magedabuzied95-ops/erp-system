@@ -414,8 +414,7 @@ export const productCardReplyText = (product = {}) => {
   return [
     text(product.name || product.title),
     `${formatPrice(product.price)}`,
-    `\u0645\u062a\u0648\u0641\u0631: ${sizes.length ? sizes.join("\u060c ") : "\u063a\u064a\u0631 \u0645\u062d\u062f\u062f"}`,
+    sizes.length ? sizes.join("\u060c ") : "",
     url ? `\u0644\u064a\u0646\u0643 \u0627\u0644\u0645\u0646\u062a\u062c\n${url}` : "",
-    "\u062a\u062d\u0628 \u0635\u0648\u0631 \u0623\u0643\u062a\u0631 \u0648\u0644\u0627 \u0623\u0637\u0644\u0628\u0647\u0648\u0644\u0643\u061f",
   ].filter(Boolean).join("\n");
 };

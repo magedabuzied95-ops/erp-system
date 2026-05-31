@@ -246,6 +246,7 @@ const normalizeBaseIncomingMessage = ({
   timestamp,
   raw = {},
   externalMessageId = "",
+  replyToMessageId = "",
   dedupeKey = "",
 } = {}) => ({
   tenant_id: numberOrNull(tenantId),
@@ -257,6 +258,7 @@ const normalizeBaseIncomingMessage = ({
   attachments: normalizeAttachments(attachments),
   timestamp: timestamp || new Date().toISOString(),
   external_message_id: toText(externalMessageId),
+  reply_to_message_id: toText(replyToMessageId),
   dedupe_key: toText(dedupeKey || externalMessageId) || dedupeHash([channel, externalConversationId, externalCustomerId, messageText, timestamp].map(toText).join("|")),
   raw,
 });
@@ -378,6 +380,16 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
       const messageText = extractMetaMessageText(event);
       const attachments = extractMetaAttachments(event);
       const externalMessageId = toText(event.message?.mid || event.message?.id || event.postback?.mid || event.postback?.payload || event.read?.watermark || event.delivery?.watermark);
+      const replyToMessageId = toText(
+        event.message?.reply_to?.mid ||
+          event.message?.reply_to?.id ||
+          event.message?.reply_to_message?.mid ||
+          event.message?.reply_to_message?.id ||
+          event.message?.replied_message?.mid ||
+          event.message?.replied_message?.id ||
+          event.message?.context?.mid ||
+          event.message?.context?.id
+      );
       const timestamp = event.timestamp ? new Date(Number(event.timestamp)).toISOString() : new Date().toISOString();
       messages.push(normalizeBaseIncomingMessage({
         tenantId,
@@ -389,8 +401,9 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
         attachments,
         timestamp,
         externalMessageId,
+        replyToMessageId,
         dedupeKey: externalMessageId || dedupeHash([channel, senderId, event.recipient?.id, event.timestamp, messageText].map(toText).join("|")),
-        raw: { event, object: body.object || "", page_id: entry.id || event.recipient?.id || "" },
+        raw: { event, object: body.object || "", page_id: entry.id || event.recipient?.id || "", reply_to_message_id: replyToMessageId },
       }));
     });
   });

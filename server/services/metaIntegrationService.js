@@ -103,17 +103,22 @@ const hasTerm = (message = "", terms = []) => {
   return terms.find((term) => normalized.includes(String(term).toLowerCase())) || "";
 };
 
+const hasAnyArabicCommerceTerm = (message = "", terms = []) => hasTerm(message, terms);
+
 const detectHumanHandoff = (message = "") =>
   hasTerm(message, ["موظف", "خدمة عملاء", "حد يكلمني", "مش فاهم", "كلموني"]);
 
 const detectMoreImagesRequest = (message = "") =>
+  hasAnyArabicCommerceTerm(message, ["\u0635\u0648\u0631 \u0623\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0627\u0643\u062a\u0631", "\u0635\u0648\u0631\u0629 \u062a\u0627\u0646\u064a\u0629", "\u0635\u0648\u0631 \u062a\u0627\u0646\u064a\u0629", "\u0648\u0631\u064a\u0646\u064a \u0623\u0644\u0648\u0627\u0646", "\u0648\u0631\u064a\u0646\u064a \u0627\u0644\u0648\u0627\u0646", "more photos", "more images"]) ||
   hasTerm(message, ["صور أكتر", "صور اكتر", "صورة تانية", "وريني ألوان", "وريني الوان", "ألوانه ايه", "الوانه ايه"]);
 
 const detectBuyingIntent = (message = "") =>
   Boolean(extractShoeSize(message)) ||
+  Boolean(hasAnyArabicCommerceTerm(message, ["\u0639\u0627\u064a\u0632", "\u0639\u0627\u064a\u0632\u0647", "\u0639\u0627\u064a\u0632\u0629", "\u0647\u0627\u062e\u062f\u0647", "\u0647\u0627\u062e\u062f\u0647\u0627", "\u0645\u0642\u0627\u0633", "\u0627\u0637\u0644\u0628", "\u0647\u0627\u062a", "want", "buy", "order"])) ||
   Boolean(hasTerm(message, ["عايز", "عايزه", "عايزة", "هاخده", "هاخدها", "مقاس", "اخد دي", "آخد دي", "اطلبه", "اطلبها", "اطلب", "هات واحد", "هاتلي واحد", "تمام هات", "تمام"]));
 
 const detectSizesRequest = (message = "") =>
+  hasAnyArabicCommerceTerm(message, ["\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a", "\u0645\u0642\u0627\u0633\u0627\u062a", "\u0641\u064a\u0647 \u0645\u0642\u0627\u0633", "\u0645\u062a\u0627\u062d \u0645\u0642\u0627\u0633", "\u0645\u0642\u0627\u0633\u0627\u062a\u0647", "sizes", "size"]) ||
   hasTerm(message, ["المقاسات", "مقاسات", "فيه مقاس", "متاح مقاس", "مقاساته"]);
 
 const detectShippingQuestion = (message = "") =>
@@ -3153,11 +3158,15 @@ const updateHotLeadState = async ({ tenantId, conversationId, score = 0, reason 
   return result.rows[0] || null;
 };
 
-const rememberLastProductCards = ({ conversationId, productCards = [] } = {}) => {
+const rememberLastProductCards = ({ conversationId, productCards = [], sentMessages = [] } = {}) => {
   const current = getConversationMemory(conversationId) || {};
   const viewedImageUrls = new Set(Array.isArray(current.viewedImageUrls) ? current.viewedImageUrls.map(imageIdentity).filter(Boolean) : []);
   const viewedProductIds = new Set(Array.isArray(current.viewedProductIds) ? current.viewedProductIds.map(String).filter(Boolean) : []);
-  const cards = normalizeProductCards(productCards, { limit: 6 }).map((product) => ({
+  const previousByMessageId = current.sentCardByMessageId && typeof current.sentCardByMessageId === "object" ? current.sentCardByMessageId : {};
+  const cards = normalizeProductCards(productCards, { limit: 6 }).map((product, index) => ({
+    message_id: text(sentMessages[index]?.message_id || sentMessages[index]?.meta_mid || sentMessages[index]?.id || ""),
+    meta_mid: text(sentMessages[index]?.message_id || sentMessages[index]?.meta_mid || sentMessages[index]?.id || ""),
+    image_message_id: text(sentMessages[index]?.image_message_id || sentMessages[index]?.image_mid || ""),
     product_id: product.product_id || product.id || null,
     variant_id: product.variant_id || null,
     name: product.name || "",
@@ -3168,14 +3177,19 @@ const rememberLastProductCards = ({ conversationId, productCards = [] } = {}) =>
     product_url: product.product_url || product.url || "",
   }));
   if (!conversationId || !cards.length) return null;
+  const sentCardByMessageId = { ...previousByMessageId };
   for (const card of cards) {
     const key = imageIdentity(card.image_url);
     if (key) viewedImageUrls.add(key);
     if (card.product_id) viewedProductIds.add(String(card.product_id));
+    if (card.message_id) sentCardByMessageId[card.message_id] = card;
+    if (card.meta_mid) sentCardByMessageId[card.meta_mid] = card;
+    if (card.image_message_id) sentCardByMessageId[card.image_message_id] = card;
   }
   return updateConversationMemory(conversationId, {
     lastProductCards: cards,
     lastProductCard: cards[0],
+    sentCardByMessageId,
     viewedImageUrls: [...viewedImageUrls],
     viewedProductIds: [...viewedProductIds],
     selectedProductId: current.selectedProductId || (cards.length === 1 ? cards[0]?.product_id || null : null),
@@ -3193,12 +3207,85 @@ const lastProductCardFromMemory = (conversationId) => {
   return cards[0] || memory?.lastProductCard || null;
 };
 
+const inboundReplyToMessageId = (message = {}) =>
+  text(
+    message.reply_to_message_id ||
+      message.raw?.reply_to_message_id ||
+      message.raw?.event?.message?.reply_to?.mid ||
+      message.raw?.event?.message?.reply_to?.id ||
+      message.raw?.event?.message?.reply_to_message?.mid ||
+      message.raw?.event?.message?.reply_to_message?.id ||
+      message.raw?.event?.message?.replied_message?.mid ||
+      message.raw?.event?.message?.replied_message?.id ||
+      message.raw?.event?.message?.context?.mid ||
+      message.raw?.event?.message?.context?.id
+  );
+
+const colorsClarificationText = (cards = []) => {
+  const colors = [...new Set(cards.map((card) => text(card.color)).filter(Boolean))].slice(0, 4);
+  return colors.length >= 2
+    ? `\u0623\u0646\u0647\u064a \u0644\u0648\u0646 \u062a\u0642\u0635\u062f\u061f ${colors.join(" \u0648\u0644\u0627 ")}\u061f`
+    : "\u0623\u0646\u0647\u064a \u0644\u0648\u0646 \u062a\u0642\u0635\u062f\u061f";
+};
+
+const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}) => {
+  const conversationId = message.external_conversation_id;
+  const memory = getConversationMemory(conversationId) || {};
+  const cards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
+  const replyTo = inboundReplyToMessageId(message);
+  if (replyTo && memory.sentCardByMessageId?.[replyTo]) {
+    console.log("ai_context_reply_to_resolved", {
+      conversation_id: conversationId,
+      reply_to_message_id: replyTo,
+      product_id: memory.sentCardByMessageId[replyTo]?.product_id || null,
+      variant_id: memory.sentCardByMessageId[replyTo]?.variant_id || null,
+      color: memory.sentCardByMessageId[replyTo]?.color || "",
+    });
+    return { card: memory.sentCardByMessageId[replyTo], source: "reply_to", ambiguous: false, cards };
+  }
+  const selected = cards.find((card) =>
+    (memory.selectedProductId && String(card.product_id || "") === String(memory.selectedProductId)) ||
+    (memory.selectedVariantId && String(card.variant_id || "") === String(memory.selectedVariantId)) ||
+    (memory.selectedColor && text(card.color).toLowerCase() === text(memory.selectedColor).toLowerCase())
+  );
+  if (selected) {
+    console.log("ai_context_last_card_resolved", {
+      conversation_id: conversationId,
+      source: "selected_memory",
+      product_id: selected.product_id || null,
+      variant_id: selected.variant_id || null,
+      color: selected.color || "",
+    });
+    return { card: selected, source: "selected_memory", ambiguous: false, cards };
+  }
+  if (cards.length === 1 || allowAmbiguous) {
+    const card = cards[0] || memory.lastProductCard || null;
+    if (card) {
+      console.log("ai_context_last_card_resolved", {
+        conversation_id: conversationId,
+        source: cards.length === 1 ? "single_last_card" : "first_last_card",
+        product_id: card.product_id || null,
+        variant_id: card.variant_id || null,
+        color: card.color || "",
+      });
+    }
+    return { card, source: cards.length === 1 ? "single_last_card" : "first_last_card", ambiguous: false, cards };
+  }
+  if (cards.length > 1) return { card: null, source: "multiple_last_cards", ambiguous: true, cards };
+  return { card: memory.lastProductCard || null, source: "lastProductCard", ambiguous: false, cards };
+};
+
 const stockedVariants = (product = {}) =>
   (Array.isArray(product?.variants) ? product.variants : []).filter((variant) => Number(variant?.stock || 0) > 0);
 
 const availableSizesForProduct = (product = {}, baseCard = {}) => {
-  const sizes = stockedVariants(product).map((variant) => text(variant.size)).filter(Boolean);
   const fallback = Array.isArray(baseCard.sizes) ? baseCard.sizes : [];
+  if (fallback.length) return [...new Set(fallback.map(text).filter(Boolean))];
+  const baseColor = text(baseCard.color).toLowerCase();
+  const variants = baseColor
+    ? stockedVariants(product).filter((variant) => text(variant.color || variant.color_name || variant.color_value).toLowerCase() === baseColor)
+    : stockedVariants(product);
+  const sizes = variants.map((variant) => text(variant.size)).filter(Boolean);
   return [...new Set([...sizes, ...fallback.map(text)].filter(Boolean))];
 };
 
@@ -3206,9 +3293,13 @@ const chooseVariantForSize = (product = {}, requestedSize = "", fallbackVariantI
   const variants = stockedVariants(product);
   const normalizedSize = text(requestedSize).toLowerCase();
   const fallback = variants.find((variant) => Number(variant.id) === Number(fallbackVariantId));
-  if (!normalizedSize) return fallback || variants[0] || null;
-  return variants.find((variant) => text(variant.size).toLowerCase() === normalizedSize) ||
-    variants.find((variant) => text(variant.name).toLowerCase().includes(normalizedSize)) ||
+  const fallbackColor = text(fallback?.color || fallback?.color_name || fallback?.color_value).toLowerCase();
+  const colorVariants = fallbackColor
+    ? variants.filter((variant) => text(variant.color || variant.color_name || variant.color_value).toLowerCase() === fallbackColor)
+    : variants;
+  if (!normalizedSize) return fallback || colorVariants[0] || variants[0] || null;
+  return colorVariants.find((variant) => text(variant.size).toLowerCase() === normalizedSize) ||
+    colorVariants.find((variant) => text(variant.name).toLowerCase().includes(normalizedSize)) ||
     fallback ||
     null;
 };
@@ -3220,7 +3311,7 @@ const loadRememberedProduct = async ({ tenantId, card, messageText = "" } = {}) 
     message: card.name || messageText,
     metadata: { product_id: card.product_id || card.id },
   });
-  return products[0] || null;
+  return products.find((product) => String(product.id || product.product_id || "") === String(card.product_id || card.id || "")) || products[0] || null;
 };
 
 const parseImageValues = (value) => {
@@ -3697,7 +3788,7 @@ const loadVariantImageRows = async ({ tenantId, productId } = {}) => {
   }
 };
 
-const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, baseCard = {} } = {}) => {
+const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, baseCard = {}, includeOtherColors = false } = {}) => {
   const memory = getConversationMemory(conversationId) || {};
   const viewed = new Set(Array.isArray(memory.viewedImageUrls) ? memory.viewedImageUrls.map(imageIdentity).filter(Boolean) : []);
   const selectedColor = text(memory.selectedColor || baseCard.color).toLowerCase();
@@ -3708,12 +3799,11 @@ const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, bas
     const rowColor = text(row.color_name || row.color_value).toLowerCase();
     return selectedColor && rowColor && rowColor === selectedColor;
   });
-  const otherRows = galleryRows.filter((row) => !sameColorRows.includes(row));
   const pools = [
     sameColorRows.map((row) => ({ url: row.secure_url || row.image_url, color: row.color_name || row.color_value || baseCard.color, variant_id: row.variant_id, source: "same_color_gallery" })),
     productGalleryUrls.map((url) => ({ url, color: baseCard.color, variant_id: baseCard.variant_id, source: "product_gallery" })),
-    otherRows.map((row) => ({ url: row.secure_url || row.image_url, color: row.color_name || row.color_value || "", variant_id: row.variant_id, source: "other_color_gallery" })),
-    variants.map((variant) => ({ url: variant.secure_url || variant.image_url || variant.variant_image_url || variant.color_image_url, color: variant.color || "", variant_id: variant.id, source: "variant" })),
+    includeOtherColors ? galleryRows.filter((row) => !sameColorRows.includes(row)).map((row) => ({ url: row.secure_url || row.image_url, color: row.color_name || row.color_value || "", variant_id: row.variant_id, source: "other_color_gallery" })) : [],
+    includeOtherColors ? variants.map((variant) => ({ url: variant.secure_url || variant.image_url || variant.variant_image_url || variant.color_image_url, color: variant.color || "", variant_id: variant.id, source: "variant" })) : [],
   ];
   const selected = [];
   const seen = new Set();
@@ -3748,6 +3838,12 @@ const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, bas
   }
   return selected;
 };
+
+const detectAllColorsRequest = (message = "") =>
+  Boolean(hasTerm(message, ["\u0643\u0644 \u0627\u0644\u0623\u0644\u0648\u0627\u0646", "\u0643\u0644 \u0627\u0644\u0627\u0644\u0648\u0627\u0646", "\u0627\u0644\u0623\u0644\u0648\u0627\u0646", "\u0627\u0644\u0627\u0644\u0648\u0627\u0646", "all colors", "colours", "colors"]));
+
+const detectOtherColorsRequest = (message = "") =>
+  Boolean(hasTerm(message, ["\u0623\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0627\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0644\u0648\u0646 \u062a\u0627\u0646\u064a", "other colors", "another color"]));
 
 const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIntent = "", metadata = {} } = {}) => {
   const result = await sendMetaInboxOutboundMessage({
@@ -3800,7 +3896,9 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
 };
 
 const sendAndLogProductCards = async ({ config, message, productCards = [], detectedIntent = "", introText = "", metadata = {} } = {}) => {
-  const cards = await resolveProductCardLinks(normalizeProductCards(productCards, { limit: 6 }), { tenantId: config.tenant_id });
+  const modelNameSearch = detectModelNameSearch(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
+  const cardLimit = Number(metadata.product_card_limit || 0) || (modelNameSearch ? (detectOtherColorsRequest(message.message_text || "") ? 3 : 2) : 6);
+  const cards = await resolveProductCardLinks(normalizeProductCards(productCards, { limit: cardLimit }), { tenantId: config.tenant_id });
   if (!cards.length) return null;
   const gate = evaluateProductDecisionGate({
     productCards: cards,
@@ -3809,7 +3907,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     memory: getConversationMemory(message.external_conversation_id) || {},
     detectedIntent,
     allowAlternatives: Boolean(metadata.allow_alternatives || detectedIntent.includes("visual_search") || detectedIntent.includes("alternative")),
-    limit: detectedIntent.includes("exact") || metadata.exact_inventory_match ? 1 : 3,
+    limit: detectedIntent.includes("exact") || metadata.exact_inventory_match ? 1 : Math.min(3, cardLimit),
   });
   console.log("ai_inbox_product_decision_gate", {
     tenant_id: config.tenant_id,
@@ -3840,10 +3938,22 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     return { blocked: true, reason: "product_decision_gate_low_confidence", gate };
   }
   const gatedCards = await resolveProductCardLinks(
-    normalizeProductCards(gate.products, { limit: detectedIntent.includes("exact") || metadata.exact_inventory_match ? 1 : 3 }),
+    normalizeProductCards(gate.products, { limit: detectedIntent.includes("exact") || metadata.exact_inventory_match ? 1 : Math.min(3, cardLimit) }),
     { tenantId: config.tenant_id }
   );
-  const finalIntroText = gate.introText || introText;
+  const finalIntroText = modelNameSearch && gatedCards.length >= 2
+    ? [modelColorLimitIntro, gate.introText || introText].filter(Boolean).join("\n")
+    : gate.introText || introText;
+  if (modelNameSearch) {
+    console.log("ai_model_color_limit_applied", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      requested_limit: cardLimit,
+      resulting_card_count: gatedCards.length,
+      all_colors_requested: detectAllColorsRequest(message.message_text || ""),
+      other_colors_requested: detectOtherColorsRequest(message.message_text || ""),
+    });
+  }
   if (finalIntroText) {
     await sendAndLogMetaText({
       config,
@@ -3859,12 +3969,13 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     recipientId: message.external_customer_id,
     conversationId: message.external_conversation_id,
     productCards: gatedCards,
+    productCardLimit: gatedCards.length,
     suggestedActions: META_COMMERCE_ACTIONS,
     facebookPageId: config.facebook_page_id,
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
   });
-  rememberLastProductCards({ conversationId: message.external_conversation_id, productCards: gatedCards });
+  rememberLastProductCards({ conversationId: message.external_conversation_id, productCards: gatedCards, sentMessages: result?.product_card_messages || [] });
   await recordLeadSignals({ config, message, reason: "product_cards_sent" }).catch(() => {});
   const preview = gatedCards.map(productCardReplyText).join("\n\n").slice(0, 500);
   await appendAiGeneratedSupportReply({
@@ -3909,6 +4020,16 @@ const explicitlyAskedForProductCards = (message = "") =>
 
 const detectAlternativesRequest = (message = "") =>
   hasTerm(message, ["بدائل", "بديل", "شبهه", "شبهها", "similar", "alternative", "alternatives"]);
+
+const detectModelNameSearch = (message = "") => {
+  const normalized = normalizedSearchText(message);
+  return Boolean(
+    /\bjordan\s*4\b|\bj4\b|\baj4\b|\bair\s*jordan\b|\bjordan\b|\bshox\b|\bair\s*force\b|\bdunk\b|\bcampus\b|\bsamba\b|\byeezy\b/.test(normalized) ||
+    /جوردن|جوردان|فور|شوك|شوكس|اير\s*فورس|دانك|كامبس|سامبا|ييزي|اديداس|نايك/.test(normalized)
+  );
+};
+
+const modelColorLimitIntro = "\u0639\u0646\u062f\u064a \u0645\u0646\u0647 \u0643\u0630\u0627 \u0644\u0648\u0646. \u0623\u0628\u062f\u0623\u0644\u0643 \u0628\u0623\u0642\u0631\u0628 \u0644\u0648\u0646\u064a\u0646\u060c \u0648\u0644\u0648 \u062a\u062d\u0628 \u0623\u0628\u0639\u062a\u0647\u0645\u0644\u0643 \u0643\u0644\u0647\u0645.";
 
 const answerFaqIfMatched = async ({ config, message } = {}) => {
   const faqIntent = detectFaqIntent(message.message_text);
@@ -4527,13 +4648,36 @@ const handleHumanHandoffIfMatched = async ({ config, message } = {}) => {
 const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
   const keyword = detectMoreImagesRequest(message.message_text);
   if (!keyword) return null;
-  const baseCard = lastProductCardFromMemory(message.external_conversation_id);
+  const context = resolveContextProductCard({ message });
+  const baseCard = context.card;
+  const includeOtherColors = detectAllColorsRequest(message.message_text) || detectOtherColorsRequest(message.message_text);
   console.log("ai_inbox_more_images_requested", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
     keyword,
     has_product_context: Boolean(baseCard),
+    context_source: context.source || "",
+    include_other_colors: includeOtherColors,
   });
+  console.log("ai_more_images_context", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    context_source: context.source || "",
+    product_id: baseCard?.product_id || null,
+    variant_id: baseCard?.variant_id || null,
+    color: baseCard?.color || "",
+    include_other_colors: includeOtherColors,
+  });
+  if (context.ambiguous) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: colorsClarificationText(context.cards),
+      detectedIntent: "more_images_color_clarification",
+      metadata: { reason: "multiple_product_context", product_card_count: context.cards.length },
+    });
+    return { handled: true, reason: "more_images_color_clarification" };
+  }
   if (!baseCard) {
     await sendAndLogMetaText({
       config,
@@ -4550,7 +4694,8 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     conversationId: message.external_conversation_id,
     product,
     baseCard,
-  }), { limit: 4 });
+    includeOtherColors,
+  }), { limit: includeOtherColors ? 3 : 4 });
   if (!moreImageCards.length) {
     await sendAndLogMetaText({
       config,
@@ -4567,12 +4712,13 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     recipientId: message.external_customer_id,
     conversationId: message.external_conversation_id,
     productCards: moreImageCards,
+    productCardLimit: moreImageCards.length,
     suggestedActions: META_COMMERCE_ACTIONS,
     facebookPageId: config.facebook_page_id,
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
   });
-  rememberLastProductCards({ conversationId: message.external_conversation_id, productCards: moreImageCards });
+  rememberLastProductCards({ conversationId: message.external_conversation_id, productCards: moreImageCards, sentMessages: result?.product_card_messages || [] });
   const preview = moreImageCards.map(productCardReplyText).join("\n\n").slice(0, 500);
   await appendAiGeneratedSupportReply({
     tenantId: config.tenant_id,
@@ -4652,17 +4798,59 @@ const handleAlternativesIfMatched = async ({ config, message } = {}) => {
   return { handled: true, reason: "visual_alternatives_sent" };
 };
 
-const handleSizesIfMatched = async ({ config, message } = {}) => {
-  const keyword = detectSizesRequest(message.message_text);
-  if (!keyword) return null;
-  const baseCard = lastProductCardFromMemory(message.external_conversation_id);
+const handleOtherColorsIfMatched = async ({ config, message } = {}) => {
+  if (!detectOtherColorsRequest(message.message_text) && !detectAllColorsRequest(message.message_text)) return null;
+  const context = resolveContextProductCard({ message, allowAmbiguous: true });
+  const baseCard = context.card;
   if (!baseCard) return null;
-  const rememberedCards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
-  if (requestedSize && rememberedCards.length > 1 && !memory.selectedProductId) {
+  const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: baseCard.name || message.message_text });
+  if (!product) return null;
+  const limit = 3;
+  const cards = normalizeProductCards([product], { limit })
+    .filter((card) => imageIdentity(card.image_url) !== imageIdentity(baseCard.image_url) || text(card.color).toLowerCase() !== text(baseCard.color).toLowerCase())
+    .slice(0, limit);
+  console.log("ai_model_color_limit_applied", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    requested_limit: limit,
+    resulting_card_count: cards.length,
+    all_colors_requested: detectAllColorsRequest(message.message_text || ""),
+    other_colors_requested: detectOtherColorsRequest(message.message_text || ""),
+  });
+  if (!cards.length) {
     await sendAndLogMetaText({
       config,
       message,
-      text: MULTIPLE_PRODUCT_CLARIFICATION_REPLY,
+      text: "\u0645\u0634 \u0644\u0627\u0642\u064a \u0623\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629 \u0645\u062a\u0627\u062d\u0629 \u0644\u0644\u0645\u0648\u062f\u064a\u0644 \u062f\u0647 \u062f\u0644\u0648\u0642\u062a\u064a.",
+      detectedIntent: "other_colors_empty",
+      metadata: { product_id: baseCard.product_id || null },
+    });
+    return { handled: true, reason: "other_colors_empty" };
+  }
+  await sendAndLogProductCards({
+    config,
+    message,
+    productCards: cards,
+    detectedIntent: "other_colors",
+    metadata: { product_card_limit: limit, other_colors_requested: true },
+  });
+  return { handled: true, reason: "other_colors_sent" };
+};
+
+const handleSizesIfMatched = async ({ config, message } = {}) => {
+  const keyword = detectSizesRequest(message.message_text);
+  if (!keyword) return null;
+  const context = resolveContextProductCard({ message });
+  const baseCard = context.card;
+  if (!baseCard) return null;
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  const requestedSize = extractShoeSize(message.message_text) || "";
+  const rememberedCards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
+  if (context.ambiguous || (requestedSize && rememberedCards.length > 1 && !memory.selectedProductId)) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: colorsClarificationText(rememberedCards) || MULTIPLE_PRODUCT_CLARIFICATION_REPLY,
       detectedIntent: "multiple_product_size_clarification",
       metadata: { requested_size: requestedSize, product_card_count: rememberedCards.length },
     });
@@ -4698,6 +4886,73 @@ const handleSizesIfMatched = async ({ config, message } = {}) => {
     metadata: { checkout_stage: "selecting_size", sizes },
   });
   return { handled: true, reason: "sizes_answered" };
+};
+
+const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
+  const requestedSize = extractShoeSize(message.message_text);
+  const availabilityKeyword = hasTerm(message.message_text, ["\u0645\u062a\u0648\u0641\u0631", "\u0641\u064a\u0647", "\u0641\u064a", "\u0645\u0648\u062c\u0648\u062f", "available"]);
+  if (!requestedSize && !availabilityKeyword) return null;
+  const context = resolveContextProductCard({ message });
+  if (!context.card && !context.ambiguous) return null;
+  if (context.ambiguous) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: colorsClarificationText(context.cards),
+      detectedIntent: "size_check_color_clarification",
+      metadata: { requested_size: requestedSize || "", product_card_count: context.cards.length },
+    });
+    return { handled: true, reason: "size_check_color_clarification" };
+  }
+  const baseCard = context.card;
+  const sizes = [...new Set((Array.isArray(baseCard.sizes) ? baseCard.sizes : baseCard.available_sizes || []).map(text).filter(Boolean))];
+  if (!requestedSize) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: sizes.length
+        ? `\u0623\u064a\u0648\u0647\u060c \u0627\u0644\u0645\u062a\u0627\u062d \u0641\u064a \u0627\u0644\u0644\u0648\u0646 \u062f\u0647: ${sizes.join("\u060c ")}`
+        : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f",
+      detectedIntent: "contextual_availability_check",
+      metadata: { product_id: baseCard.product_id || null, variant_id: baseCard.variant_id || null, color: baseCard.color || "", sizes },
+    });
+    return { handled: true, reason: "contextual_availability_answered" };
+  }
+  const requestedDigits = sizeDigits(requestedSize);
+  const hasSize = sizes.some((size) => sizeDigits(size) === requestedDigits);
+  const replyText = hasSize
+    ? `\u0623\u064a\u0648\u0647\u060c \u0645\u0642\u0627\u0633 ${requestedSize} \u0645\u062a\u0648\u0641\u0631 \u0641\u064a \u0627\u0644\u0644\u0648\u0646 \u062f\u0647 \u2705`
+    : sizes.length
+      ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a \u0627\u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
+      : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
+  if (hasSize) {
+    updateConversationMemory(message.external_conversation_id, {
+      selectedProductId: baseCard.product_id || baseCard.id || null,
+      selectedVariantId: baseCard.variant_id || null,
+      selectedColor: baseCard.color || "",
+      selectedSize: requestedSize,
+      checkoutStage: "size_selected",
+    });
+  }
+  console.log("ai_size_check_result", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    context_source: context.source || "",
+    product_id: baseCard.product_id || null,
+    variant_id: baseCard.variant_id || null,
+    color: baseCard.color || "",
+    requested_size: requestedSize,
+    available_sizes: sizes,
+    available: hasSize,
+  });
+  await sendAndLogMetaText({
+    config,
+    message,
+    text: replyText,
+    detectedIntent: hasSize ? "contextual_size_available" : "contextual_size_unavailable",
+    metadata: { product_id: baseCard.product_id || null, variant_id: baseCard.variant_id || null, color: baseCard.color || "", requested_size: requestedSize, available_sizes: sizes, available: hasSize },
+  });
+  return { handled: true, reason: hasSize ? "contextual_size_available" : "contextual_size_unavailable" };
 };
 
 const ensureCheckoutDraftForMemory = async ({ config, message, memory = {}, selectedSize = "" } = {}) => {
@@ -4868,7 +5123,18 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     });
     return { handled: true, reason: "checkout_info_requested_after_confirmation" };
   }
-  const baseCard = lastProductCardFromMemory(message.external_conversation_id);
+  const context = resolveContextProductCard({ message });
+  if (context.ambiguous) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: colorsClarificationText(context.cards),
+      detectedIntent: "order_color_clarification",
+      metadata: { product_card_count: context.cards.length },
+    });
+    return { handled: true, reason: "order_color_clarification" };
+  }
+  const baseCard = context.card;
   if (!baseCard) return null;
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
   if (!product) return null;
@@ -5207,6 +5473,7 @@ export const sendMetaInboxOutboundMessage = async ({
   conversationId = "",
   attachments = [],
   productCards = [],
+  productCardLimit = 6,
   suggestedActions = [],
   facebookPageId = "",
   instagramBusinessAccountId = "",
@@ -5217,7 +5484,7 @@ export const sendMetaInboxOutboundMessage = async ({
   const normalizedChannel = adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
   const safeRecipientId = text(recipientId);
   const safeMessage = text(messageText);
-  const cards = await resolveProductCardLinks(normalizeProductCards(productCards, { limit: 6 }), { tenantId: scopedTenantId });
+  const cards = await resolveProductCardLinks(normalizeProductCards(productCards, { limit: productCardLimit }), { tenantId: scopedTenantId });
   if (!scopedTenantId || !safeRecipientId || (!safeMessage && !cards.length)) {
     throw Object.assign(new Error("tenant_id, recipient id, and message are required"), { status: 400, code: "META_SEND_INPUT_REQUIRED" });
   }
@@ -5243,6 +5510,7 @@ export const sendMetaInboxOutboundMessage = async ({
   });
   let meta = null;
   const imageResults = [];
+  const productCardMessages = [];
   if (cards.length) {
     for (const product of cards) {
       console.log("ai_inbox_selected_product_card", {
@@ -5254,10 +5522,12 @@ export const sendMetaInboxOutboundMessage = async ({
         image_url_exists: Boolean(product.image_url),
         product_link_generated: product.product_url || product.url || "",
       });
+      let imageMessageId = "";
       if (product.image_url) {
         try {
           const imageResult = await postMetaImageMessage({ token, recipientId: safeRecipientId, imageUrl: product.image_url });
           imageResults.push(imageResult);
+          imageMessageId = imageResult?.message_id || "";
           console.log("ai_inbox_messenger_send_image_success", {
             tenant_id: scopedTenantId,
             config_id: config.id || null,
@@ -5280,6 +5550,19 @@ export const sendMetaInboxOutboundMessage = async ({
         }
       }
       meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: productCardReplyText(product) });
+      productCardMessages.push({
+        message_id: meta?.message_id || "",
+        meta_mid: meta?.message_id || "",
+        image_message_id: imageMessageId,
+        image_mid: imageMessageId,
+        product_id: product.product_id || product.id || null,
+        variant_id: product.variant_id || null,
+        color: product.color || "",
+        sizes: product.sizes || product.available_sizes || [],
+        price: product.price || null,
+        image_url: product.image_url || "",
+        product_url: product.product_url || product.url || "",
+      });
     }
     if ((Array.isArray(suggestedActions) ? suggestedActions : []).length) {
       meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: META_COMMERCE_ACTION_FALLBACK });
@@ -5308,6 +5591,7 @@ export const sendMetaInboxOutboundMessage = async ({
       recipient_id: safeRecipientId,
       message_id: meta?.message_id || "",
       meta,
+      product_card_messages: productCardMessages,
       results: [...imageResults, meta].filter(Boolean),
     };
   }
@@ -5520,11 +5804,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
     if (!["suggest_only", "auto_reply_after_approval"].includes(autoReplyMode)) {
       try {
         const preAiHandlers = [
+          handleContextualSizeCheckIfMatched,
           handleSizeAvailabilityLinkIfMatched,
           handleCheckoutContinuationIfMatched,
           handleVisualSearchIfMatched,
           handleHumanHandoffIfMatched,
           answerFaqIfMatched,
+          handleOtherColorsIfMatched,
           handleMoreImagesIfMatched,
           handleAlternativesIfMatched,
           handleSizesIfMatched,
@@ -5586,9 +5872,24 @@ export const processMetaWebhook = async ({ req } = {}) => {
       continue;
     }
     const reply = aiPayload.channel_reply || normalizeOutgoingChannelReply({ channel: message.channel, response: aiPayload });
-    let productCards = normalizeProductCards(reply.product_cards || aiPayload.suggested_products || [], { limit: 6 });
+    const modelNameSearch = detectModelNameSearch(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
+    const productCardLimit = modelNameSearch ? (detectOtherColorsRequest(message.message_text || "") ? 3 : 2) : 6;
+    let productCards = normalizeProductCards(reply.product_cards || aiPayload.suggested_products || [], { limit: productCardLimit });
+    if (modelNameSearch && productCards.length > productCardLimit) productCards = productCards.slice(0, productCardLimit);
+    if (modelNameSearch) {
+      console.log("ai_model_color_limit_applied", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        requested_limit: productCardLimit,
+        resulting_card_count: productCards.length,
+        all_colors_requested: detectAllColorsRequest(message.message_text || ""),
+        other_colors_requested: detectOtherColorsRequest(message.message_text || ""),
+      });
+    }
     productCards = await resolveProductCardLinks(productCards, { tenantId: config.tenant_id });
-    const replyText = reply.text || aiPayload.answer || "";
+    const replyText = modelNameSearch && productCards.length >= 2
+      ? [modelColorLimitIntro, reply.text || aiPayload.answer || ""].filter(Boolean).join("\n")
+      : reply.text || aiPayload.answer || "";
     if (productCards.length && repeatedProductCards({ conversationId: message.external_conversation_id, productCards }) && !explicitlyAskedForProductCards(message.message_text)) {
       console.log("ai_inbox_repeated_product_card_prevented", {
         tenant_id: config.tenant_id,
@@ -5636,6 +5937,15 @@ export const processMetaWebhook = async ({ req } = {}) => {
     }
     try {
       const outboundPreview = productCards.length ? productCards.map(productCardReplyText).join("\n\n").slice(0, 500) : replyText;
+      if (productCards.length && modelNameSearch && replyText) {
+        await sendAndLogMetaText({
+          config,
+          message,
+          text: replyText,
+          detectedIntent: "model_color_limit_intro",
+          metadata: { model_color_limit_applied: true, product_card_count: productCards.length },
+        });
+      }
       const sendResult = await sendMetaInboxOutboundMessage({
         tenantId: config.tenant_id,
         channel: message.channel,
@@ -5643,13 +5953,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
         messageText: replyText,
         conversationId: message.external_conversation_id,
         productCards,
+        productCardLimit: productCards.length || productCardLimit,
         suggestedActions: productCards.length ? META_COMMERCE_ACTIONS : [],
         facebookPageId: config.facebook_page_id || pageIds[0] || "",
         instagramBusinessAccountId: config.instagram_business_account_id || instagramBusinessAccountIds[0] || "",
         preferredConfigId: config.id,
       });
       if (productCards.length) {
-        rememberLastProductCards({ conversationId: message.external_conversation_id, productCards });
+        rememberLastProductCards({ conversationId: message.external_conversation_id, productCards, sentMessages: sendResult?.product_card_messages || [] });
         await recordLeadSignals({ config, message, reason: "product_cards_sent" }).catch(() => {});
         console.log("ai_inbox_suggested_action_generated", {
           tenant_id: config.tenant_id,
