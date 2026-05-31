@@ -6113,6 +6113,84 @@ const handleBrandCorrectionIfMatched = async ({ config, message } = {}) => {
   return { handled: true, reason: "brand_correction_north_face" };
 };
 
+const productSearchQueryForMessage = (message = {}) => {
+  const classification = message.orchestratorIntent || {};
+  const entityQuery = [
+    classification.entities?.product_name,
+    classification.entities?.model,
+    classification.entities?.brand,
+    classification.entities?.category,
+  ].map(text).filter(Boolean).join(" ");
+  return entityQuery || text(message.message_text);
+};
+
+const productSearchKeywordsForClassification = (classification = {}) => {
+  const keywords = [
+    classification.entities?.product_name,
+    classification.entities?.model,
+    classification.entities?.brand,
+    classification.entities?.category,
+  ].map(text).filter(Boolean);
+  if (/jordan\s*4|جورد[نا]\s*(فور|4|٤)/i.test(keywords.join(" "))) {
+    keywords.push("air jordan 4", "jordan 4", "aj4", "j4", "جوردن فور");
+  }
+  if (/north\s*face|نورث\s*فيس/i.test(keywords.join(" "))) {
+    keywords.push("north face", "northface", "نورث فيس");
+  }
+  return distinctTextArray(keywords, 12);
+};
+
+const handleProductSearchIfMatched = async ({ config, message } = {}) => {
+  console.log("[orchestrator] route handler entered", {
+    tenant_id: config?.tenant_id,
+    conversation_id: message?.external_conversation_id,
+    handler: "handleProductSearchIfMatched",
+    intent: message?.orchestratorIntent?.intent || "",
+  });
+  const classification = message.orchestratorIntent || {};
+  if (classification.intent !== AI_INTENTS.PRODUCT_SEARCH) return null;
+  const query = productSearchQueryForMessage(message);
+  const keywords = productSearchKeywordsForClassification(classification);
+  console.log("[product-search-handler] executed", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    query,
+    keywords,
+  });
+  const products = await searchAiOrderProducts({
+    tenantId: config.tenant_id,
+    message: query || message.message_text || "",
+    metadata: { keywords, orchestrator_intent: AI_INTENTS.PRODUCT_SEARCH },
+  }).catch((error) => {
+    console.warn("[product-search-handler] search failed", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      message: error?.message || "product search failed",
+    });
+    return [];
+  });
+  const cards = normalizeProductCards(products, { limit: detectModelNameSearch(message.message_text || "") ? 1 : 6 });
+  if (!cards.length) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: "مش لاقي الموديل ده عندي دلوقتي. تحب أطلعلك أقرب بدائل؟",
+      detectedIntent: "product_search_no_results",
+      metadata: { product_search_query: query, keywords },
+    });
+    return { handled: true, reason: "product_search_no_results" };
+  }
+  const result = await sendAndLogProductCards({
+    config,
+    message,
+    productCards: cards,
+    detectedIntent: "product_search",
+    introText: "أيوه، دي أقرب نتيجة عندي للموديل ده:",
+    metadata: { product_search_query: query, keywords, product_card_limit: detectModelNameSearch(message.message_text || "") ? 1 : 6 },
+  });
+  return result ? { handled: true, reason: "product_search", sent: true } : { handled: true, reason: "product_search_no_send" };
+};
+
 const handleNegativeIntentIfMatched = async ({ config, message } = {}) => {
   if (!detectNegativeCommerceIntent(message.message_text)) return null;
   const memory = getConversationMemory(message.external_conversation_id) || {};
@@ -9964,7 +10042,7 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
   ];
   const routeMap = {
     [AI_INTENTS.VISUAL_SEARCH]: [handleVisualSearchIfMatched],
-    [AI_INTENTS.PRODUCT_SEARCH]: [handleBrandCorrectionIfMatched],
+    [AI_INTENTS.PRODUCT_SEARCH]: [handleProductSearchIfMatched],
     [AI_INTENTS.PRICE_CHECK]: [handleSalesCloserV2IfMatched, handleSalesBrainBuyingStageIfMatched, handleOrderDraftIfMatched],
     [AI_INTENTS.SIZE_CHECK]: [handleContextualSizeCheckIfMatched, handleSizesIfMatched, handleSizeAvailabilityLinkIfMatched],
     [AI_INTENTS.COLOR_REQUEST]: [handleOtherColorsIfMatched],
@@ -9981,6 +10059,7 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
     [AI_INTENTS.UNKNOWN]: [],
   };
   const primary = routeMap[classification.intent] || [];
+  if (classification.intent === AI_INTENTS.PRODUCT_SEARCH) return primary;
   return [...new Set([...primary, ...fallbackHandlers])];
 };
 
@@ -11058,6 +11137,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
         const classification = classifyMetaConversationIntent({ message, memory: runtimeMemory });
         latestDebugClassification = classification;
         message.orchestratorIntent = classification;
+        console.log("[orchestrator] classified intent", {
+          tenant_id: config.tenant_id,
+          conversation_id: message.external_conversation_id,
+          intent: classification.intent,
+          confidence: classification.confidence,
+          entities: classification.entities,
+          reason: classification.reason,
+        });
         console.log("[orchestrator] intent classified", {
           tenant_id: config.tenant_id,
           conversation_id: message.external_conversation_id,
@@ -11085,6 +11172,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
         }
         const preAiHandlers = routeMetaIntentHandlers({ classification });
         latestDebugRoute = handlerNames(preAiHandlers).join(", ");
+        console.log("[orchestrator] selected route", {
+          tenant_id: config.tenant_id,
+          conversation_id: message.external_conversation_id,
+          intent: classification.intent,
+          handlers: handlerNames(preAiHandlers),
+        });
         console.log("[orchestrator] routed", {
           tenant_id: config.tenant_id,
           conversation_id: message.external_conversation_id,
@@ -11093,6 +11186,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
         });
         let handled = null;
         for (const handler of preAiHandlers) {
+          console.log("[orchestrator] route handler entered", {
+            tenant_id: config.tenant_id,
+            conversation_id: message.external_conversation_id,
+            intent: classification.intent,
+            handler: handler?.name || "anonymous_handler",
+          });
           handled = await handler({ config, message });
           if (handled?.handled) break;
         }
