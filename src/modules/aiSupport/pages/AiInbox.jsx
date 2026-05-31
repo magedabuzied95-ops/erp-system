@@ -850,6 +850,13 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                 <DebugField label="Known phone" value={memory.knownPhone} />
                 <DebugField label="Visual confidence" value={memory.lastVisualConfidence === null || memory.lastVisualConfidence === undefined ? "" : String(memory.lastVisualConfidence)} />
                 <DebugField label="Processed keys" value={String(data.processed_inbound_key_count || 0)} />
+                <DebugField label="Last outbound at" value={data.lastOutboundAttemptAt ? absoluteTime(data.lastOutboundAttemptAt) : ""} />
+                <DebugField label="Last outbound status" value={data.lastOutboundStatus} />
+                <DebugField label="Last outbound error" value={data.lastOutboundError} />
+                <DebugField label="Meta send code" value={data.lastMetaSendCode} />
+                <DebugField label="Recipient preview" value={data.recipientIdPreview} />
+                <DebugField label="Page ID" value={data.pageId} />
+                <DebugField label="Token present" value={data.tokenPresent === true ? "true" : data.tokenPresent === false ? "false" : ""} />
               </div>
               <div className="grid gap-2 lg:grid-cols-3">
                 <DebugTags label="Last shown products" values={memory.lastShownProductIds} />

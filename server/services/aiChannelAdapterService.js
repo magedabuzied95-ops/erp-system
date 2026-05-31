@@ -885,6 +885,23 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
 const metaMessagesUrl = (graphVersion = "v20.0") => `https://graph.facebook.com/${graphVersion}/me/messages`;
 
 const postMetaPageMessage = async ({ payload, config }) => {
+  const payloadType = payload?.message?.attachment?.type || (payload?.message?.text ? "text" : "unknown");
+  console.log("[meta-send] preparing", {
+    channel: config.channel || "",
+    pageId: config.pageId ? maskSecret(config.pageId) : "",
+    recipientId: payload?.recipient?.id ? maskSecret(payload.recipient.id) : "",
+    tokenPresent: Boolean(config.pageAccessToken),
+    payloadType,
+    source: "aiChannelAdapterService",
+  });
+  console.log("[meta-send] calling graph API", {
+    channel: config.channel || "",
+    pageId: config.pageId ? maskSecret(config.pageId) : "",
+    recipientId: payload?.recipient?.id ? maskSecret(payload.recipient.id) : "",
+    tokenPresent: Boolean(config.pageAccessToken),
+    payloadType,
+    source: "aiChannelAdapterService",
+  });
   const response = await fetch(`${metaMessagesUrl(config.graphVersion)}?access_token=${encodeURIComponent(config.pageAccessToken)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -892,11 +909,29 @@ const postMetaPageMessage = async ({ payload, config }) => {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    console.error("[meta-send] failed", {
+      status: response.status,
+      code: data?.error?.code || "",
+      subcode: data?.error?.error_subcode || "",
+      message: data?.error?.message || "Meta page send failed",
+      fbtrace_id: data?.error?.fbtrace_id || "",
+      payloadType,
+      source: "aiChannelAdapterService",
+    });
     throw Object.assign(new Error(data?.error?.message || "Meta page send failed"), {
       status: response.status,
+      code: data?.error?.code || "",
       responseBody: data,
+      metaResponse: data,
     });
   }
+  console.log("[meta-send] success", {
+    status: response.status,
+    message_id: data?.message_id || "",
+    recipientId: data?.recipient_id ? maskSecret(data.recipient_id) : "",
+    payloadType,
+    source: "aiChannelAdapterService",
+  });
   return data;
 };
 
@@ -904,7 +939,14 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
   const normalized = normalizeChannel(channel);
   const config = metaPageConfig(normalized);
   if (!config.enabled) throw Object.assign(new Error(`${normalized} sender is disabled`), { code: "META_CHANNEL_DISABLED" });
-  if (!config.pageAccessToken) throw Object.assign(new Error("META_PAGE_ACCESS_TOKEN is missing"), { code: "META_PAGE_ACCESS_TOKEN_MISSING" });
+  if (!config.pageAccessToken) {
+    console.error("[meta-send] missing page access token", {
+      channel: normalized,
+      pageId: config.pageId ? maskSecret(config.pageId) : "",
+      source: "aiChannelAdapterService",
+    });
+    throw Object.assign(new Error("META_PAGE_ACCESS_TOKEN is missing"), { code: "META_PAGE_ACCESS_TOKEN_MISSING" });
+  }
   if (normalized === AI_AGENT_CHANNELS.INSTAGRAM && !config.instagramBusinessAccountId) {
     throw Object.assign(new Error("INSTAGRAM_BUSINESS_ACCOUNT_ID is missing"), { code: "INSTAGRAM_CONFIG_MISSING" });
   }
@@ -913,6 +955,10 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
   }
   const recipient = toText(to);
   if (!recipient) throw Object.assign(new Error("Meta recipient id is required"), { code: "META_RECIPIENT_REQUIRED" });
+  console.log("[meta-send] channel", { channel: normalized, source: "aiChannelAdapterService" });
+  console.log("[meta-send] pageId", { pageId: config.pageId ? maskSecret(config.pageId) : "", source: "aiChannelAdapterService" });
+  console.log("[meta-send] recipientId/psid", { recipientId: maskSecret(recipient), source: "aiChannelAdapterService" });
+  console.log("[meta-send] token present", { tokenPresent: Boolean(config.pageAccessToken), source: "aiChannelAdapterService" });
   const text = toText(messageText || reply.text);
   const results = [];
   const productCards = normalizeStructuredProductCards(reply.product_cards, { limit: 4 });

@@ -2048,6 +2048,90 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
   }
 });
 
+router.post("/conversations/:conversationId/test-meta-send", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = decodeRouteId(req.params.conversationId);
+  const messageText = "اختبار إرسال من السيستم ✅";
+  let conversation = null;
+  try {
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
+    conversation = inbox.conversations.find((item) =>
+      item.session_id === conversationId ||
+      item.external_conversation_id === conversationId ||
+      item.external_customer_id === conversationId
+    ) || null;
+    if (!conversation) {
+      throw Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), {
+        status: 404,
+        code: "AI_INBOX_CONVERSATION_NOT_FOUND",
+      });
+    }
+    const channel = conversation.channel || conversation.source || "";
+    if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(channel)) {
+      throw Object.assign(new Error("Test Meta send is only available for Messenger and Instagram DM conversations."), {
+        status: 409,
+        code: "CHANNEL_SEND_UNAVAILABLE",
+      });
+    }
+    const channelMetadata = conversation.channel_metadata || {};
+    const recipientId = envText(
+      channelMetadata.customer_psid ||
+        channelMetadata.sender_psid ||
+        channelMetadata.resolved_customer_id ||
+        conversation.external_customer_id ||
+        conversation.customer_id
+    );
+    if (!recipientId) throw Object.assign(new Error("Conversation has no Meta recipient id."), { status: 409, code: "META_RECIPIENT_MISSING" });
+    console.log("[meta-send] test endpoint preparing", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      channel,
+      recipientId: recipientId ? "***" : "",
+    });
+    const sendResult = await sendMetaInboxOutboundMessage({
+      tenantId,
+      channel,
+      recipientId,
+      messageText,
+      conversationId,
+      facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+      instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
+    });
+    await logChannelEvent({
+      tenantId,
+      channel,
+      direction: "outbound",
+      externalCustomerId: recipientId,
+      conversationId,
+      messagePreview: messageText,
+      status: sendResult.sent ? "test_sent" : "not_sent",
+      metadata: { meta_message_id: sendResult.message_id || "", source: "ai_inbox_test_meta_send" },
+    }).catch(() => {});
+    return res.json({ success: true, sent: sendResult.sent === true, message: messageText, meta: sendResult.meta || null, result: sendResult });
+  } catch (error) {
+    await logChannelEvent({
+      tenantId,
+      channel: conversation?.channel || conversation?.source || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      direction: "outbound",
+      externalCustomerId: conversation?.external_customer_id || "",
+      conversationId,
+      messagePreview: messageText,
+      status: "failed",
+      error: error?.message || "Meta test send failed",
+      metadata: { code: error?.code || "", status: error?.status || "", source: "ai_inbox_test_meta_send", meta_error: error?.metaResponse?.error || null },
+    }).catch(() => {});
+    console.error("[meta-send] test endpoint failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      status: error?.status || "",
+      code: error?.code || "",
+      message: error?.message || "Meta test send failed",
+      meta_error: error?.metaResponse?.error || null,
+    });
+    return sendError(res, error, "Failed to send Meta test message");
+  }
+});
+
 router.post("/conversations/:conversationId/takeover", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);

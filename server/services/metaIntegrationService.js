@@ -793,12 +793,43 @@ const storeMetaConversationHealth = async ({ tenantId, channel = "", conversatio
   return next;
 };
 
+const storeMetaOutboundDiagnostics = async ({ tenantId, channel = "", conversationId = "", patch = {}, error = null } = {}) => {
+  const next = await storeMetaConversationHealth({ tenantId, channel, conversationId, patch }).catch(() => null);
+  const errorPayload = error ? metaSendErrorPayload(error) : null;
+  const topLevelError = errorPayload || (patch.last_outbound_send_error ? {
+    message: patch.last_outbound_send_error,
+    code: patch.last_outbound_meta_code || "",
+    status: patch.last_outbound_meta_status || null,
+  } : null);
+  if (topLevelError) {
+    await db.query(
+      `
+      UPDATE ai_channel_conversations
+      SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{ai_last_outbound_error}', $4::jsonb, true),
+          updated_at = NOW()
+      WHERE tenant_id = $1
+        AND external_conversation_id = $2
+        AND ($3::text = '' OR channel = $3 OR channel = 'facebook_messenger' OR $3 = 'facebook_messenger')
+      `,
+      [numberOrNull(tenantId), text(conversationId), text(channel), json(topLevelError)]
+    ).catch((storeError) => {
+      console.warn("[meta-send] failed to store ai_last_outbound_error", {
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        message: storeError?.message || "",
+      });
+    });
+  }
+  return next;
+};
+
 export const getAiInboxConversationDebug = async ({ tenantId, channel = "", conversationId = "" } = {}) => {
   if (!tenantId || !conversationId) {
     throw Object.assign(new Error("tenant_id and conversation_id are required"), { status: 400 });
   }
   const metadata = await loadConversationMetadata({ tenantId, channel, conversationId });
   const memory = metadata.ai_memory && typeof metadata.ai_memory === "object" ? metadata.ai_memory : {};
+  const health = metadata.meta_health && typeof metadata.meta_health === "object" ? metadata.meta_health : {};
   const debugEvents = recentMetaArray(metadata, "ai_debug_events").slice(0, 20);
   const inboundKeys = recentMetaArray(metadata, "ai_processed_inbound_keys");
   const outboundSignatures = recentMetaArray(metadata, "ai_recent_outbound_signatures");
@@ -812,6 +843,13 @@ export const getAiInboxConversationDebug = async ({ tenantId, channel = "", conv
     memory: compactMemoryForDebug(memory),
     processed_inbound_key_count: inboundKeys.length,
     last_outbound_signature_preview: text(latestOutboundSignature?.preview || latestOutboundSignature?.signature || ""),
+    lastOutboundAttemptAt: health.last_outbound_send_attempt_at || null,
+    lastOutboundStatus: health.last_outbound_send_status || "",
+    lastOutboundError: health.last_outbound_send_error || "",
+    lastMetaSendCode: health.last_outbound_meta_code || "",
+    recipientIdPreview: health.last_outbound_recipient_preview || "",
+    pageId: health.last_outbound_page_id || "",
+    tokenPresent: health.last_outbound_token_present === true,
     debug_events: debugEvents,
   };
   console.log("[ai-debug] panel data loaded", {
@@ -971,6 +1009,22 @@ const parseMetaPayload = async (response) => {
 
 const metaErrorMessage = (payload = {}, fallback = "Meta Graph API request failed") =>
   payload?.error?.message || payload?.message || fallback;
+
+const metaSendErrorPayload = (error = {}) => ({
+  status: error?.status || null,
+  code: error?.code || error?.metaResponse?.error?.code || error?.meta?.code || "",
+  subcode: error?.metaResponse?.error?.error_subcode || error?.meta?.error_subcode || "",
+  message: error?.message || error?.metaResponse?.error?.message || error?.meta?.message || "Meta Send API failed",
+  type: error?.metaResponse?.error?.type || error?.meta?.type || "",
+  fbtrace_id: error?.metaResponse?.error?.fbtrace_id || error?.meta?.fbtrace_id || "",
+});
+
+const metaSendPayloadType = ({ messageText = "", attachments = [], productCards = [] } = {}) => {
+  if (Array.isArray(productCards) && productCards.length) return "product";
+  if (imageAttachmentUrls(attachments).length) return "image";
+  if (text(messageText)) return "text";
+  return "unknown";
+};
 
 const callMetaGet = async ({ endpoint, token, params = {} }) => {
   const target = new URL(`${GRAPH_BASE_URL}${endpoint}`);
@@ -4340,6 +4394,14 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
 };
 
 const postMetaMessage = async ({ token, recipientId, messageText, sendContext = {} }) => {
+  console.log("[meta-send] calling graph API", {
+    channel: sendContext.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+    pageId: maskIdForLog(sendContext.resolved_page_id || ""),
+    recipientId: maskIdForLog(recipientId),
+    psid: maskIdForLog(sendContext.resolved_recipient_psid || recipientId),
+    tokenPresent: Boolean(text(token)),
+    payloadType: "text",
+  });
   console.log("ai_inbox_send_graph_request", {
     recipient_id: maskIdForLog(recipientId),
     resolved_recipient_psid: maskIdForLog(sendContext.resolved_recipient_psid || recipientId),
@@ -4360,6 +4422,14 @@ const postMetaMessage = async ({ token, recipientId, messageText, sendContext = 
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    console.error("[meta-send] failed", {
+      status: response.status,
+      code: payload?.error?.code || "",
+      subcode: payload?.error?.error_subcode || "",
+      message: payload?.error?.message || "Meta Send API failed",
+      fbtrace_id: payload?.error?.fbtrace_id || "",
+      payloadType: "text",
+    });
     console.error("[meta-inbox] graph_send_error", {
       status: response.status,
       code: payload?.error?.code || "",
@@ -4374,6 +4444,12 @@ const postMetaMessage = async ({ token, recipientId, messageText, sendContext = 
       metaResponse: payload,
     });
   }
+  console.log("[meta-send] success", {
+    status: response.status,
+    recipientId: maskIdForLog(recipientId),
+    message_id: payload?.message_id || "",
+    payloadType: "text",
+  });
   console.log("[meta-inbox] graph_send_success", {
     recipient_id: maskIdForLog(recipientId),
     message_id: payload?.message_id || "",
@@ -4383,6 +4459,14 @@ const postMetaMessage = async ({ token, recipientId, messageText, sendContext = 
 };
 
 const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext = {} }) => {
+  console.log("[meta-send] calling graph API", {
+    channel: sendContext.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+    pageId: maskIdForLog(sendContext.resolved_page_id || ""),
+    recipientId: maskIdForLog(recipientId),
+    psid: maskIdForLog(sendContext.resolved_recipient_psid || recipientId),
+    tokenPresent: Boolean(text(token)),
+    payloadType: "image",
+  });
   console.log("ai_inbox_send_graph_request", {
     recipient_id: maskIdForLog(recipientId),
     resolved_recipient_psid: maskIdForLog(sendContext.resolved_recipient_psid || recipientId),
@@ -4408,6 +4492,14 @@ const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext 
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    console.error("[meta-send] failed", {
+      status: response.status,
+      code: payload?.error?.code || "",
+      subcode: payload?.error?.error_subcode || "",
+      message: payload?.error?.message || "Meta image send failed",
+      fbtrace_id: payload?.error?.fbtrace_id || "",
+      payloadType: "image",
+    });
     console.error("[meta-inbox] graph_send_error", {
       status: response.status,
       code: payload?.error?.code || "",
@@ -4423,6 +4515,12 @@ const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext 
       metaResponse: payload,
     });
   }
+  console.log("[meta-send] success", {
+    status: response.status,
+    recipientId: maskIdForLog(recipientId),
+    message_id: payload?.message_id || "",
+    payloadType: "image",
+  });
   console.log("[meta-inbox] graph_send_success", {
     recipient_id: maskIdForLog(recipientId),
     message_id: payload?.message_id || "",
@@ -9567,6 +9665,21 @@ export const sendMetaInboxOutboundMessage = async ({
   if (!scopedTenantId || !safeRecipientId || (!safeMessage && !cards.length)) {
     throw Object.assign(new Error("tenant_id, recipient id, and message are required"), { status: 400, code: "META_SEND_INPUT_REQUIRED" });
   }
+  const payloadType = metaSendPayloadType({ messageText: safeMessage, attachments, productCards: cards });
+  console.log("[meta-send] preparing", {
+    tenant_id: scopedTenantId,
+    channel: normalizedChannel,
+    conversation_id: conversationId || "",
+    recipientId: maskIdForLog(safeRecipientId),
+    payloadType,
+    message_length: safeMessage.length,
+    product_card_count: cards.length,
+  });
+  console.log("[meta-send] channel", {
+    tenant_id: scopedTenantId,
+    channel: normalizedChannel,
+    conversation_id: conversationId || "",
+  });
   const sendSignature = outboundSignature({ messageText: safeMessage, productCards: cards, trigger: cards.length ? "product_cards" : "text" });
   const sendDedupe = await checkAndStoreOutboundSignature({
     tenantId: scopedTenantId,
@@ -9590,7 +9703,7 @@ export const sendMetaInboxOutboundMessage = async ({
     }).catch(() => {});
     return { dedupe_skipped: true, delivery_status: "skipped", signature: sendSignature, results: [], product_card_messages: [] };
   }
-  await storeMetaConversationHealth({
+  await storeMetaOutboundDiagnostics({
     tenantId: scopedTenantId,
     channel: normalizedChannel,
     conversationId,
@@ -9598,15 +9711,52 @@ export const sendMetaInboxOutboundMessage = async ({
       last_outbound_send_attempt_at: nowIso(),
       last_outbound_send_status: "attempting",
       last_outbound_send_error: "",
+      last_outbound_meta_code: "",
+      last_outbound_meta_status: null,
+      last_outbound_payload_type: payloadType,
+      last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
     },
   }).catch(() => {});
-  const { config, token, source } = await resolveMetaSendConfig({
-    tenantId: scopedTenantId,
-    channel: normalizedChannel,
-    facebookPageId,
-    instagramBusinessAccountId,
-    preferredConfigId,
-  });
+  let config;
+  let token;
+  let source;
+  try {
+    ({ config, token, source } = await resolveMetaSendConfig({
+      tenantId: scopedTenantId,
+      channel: normalizedChannel,
+      facebookPageId,
+      instagramBusinessAccountId,
+      preferredConfigId,
+    }));
+  } catch (error) {
+    console.error("[meta-send] missing page access token", {
+      tenant_id: scopedTenantId,
+      channel: normalizedChannel,
+      conversation_id: conversationId || "",
+      pageId: maskIdForLog(facebookPageId),
+      status: error?.status || "",
+      code: error?.code || "",
+      message: error?.message || "Meta token/config missing",
+    });
+    await storeMetaOutboundDiagnostics({
+      tenantId: scopedTenantId,
+      channel: normalizedChannel,
+      conversationId,
+      patch: {
+        last_outbound_send_attempt_at: nowIso(),
+        last_outbound_send_status: "outbound_failed",
+        last_outbound_send_error: error?.message || "Missing page access token",
+        last_outbound_meta_code: error?.code || "",
+        last_outbound_meta_status: error?.status || null,
+        last_outbound_token_present: false,
+        last_outbound_payload_type: payloadType,
+        last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
+        last_outbound_page_id: text(facebookPageId),
+      },
+      error,
+    }).catch(() => {});
+    throw error;
+  }
   if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
     safeRecipientId = resolveMessengerRecipientPsid({
       recipientId: safeRecipientId,
@@ -9620,7 +9770,75 @@ export const sendMetaInboxOutboundMessage = async ({
     resolved_page_id: text(facebookPageId || config.facebook_page_id || config.page_id),
     resolved_customer_id: safeRecipientId,
     resolved_sender_id: safeRecipientId,
+    channel: normalizedChannel,
   };
+  console.log("[meta-send] pageId", {
+    tenant_id: scopedTenantId,
+    conversation_id: conversationId || "",
+    pageId: maskIdForLog(sendContext.resolved_page_id),
+  });
+  console.log("[meta-send] recipientId/psid", {
+    tenant_id: scopedTenantId,
+    conversation_id: conversationId || "",
+    recipientId: maskIdForLog(safeRecipientId),
+    psid: maskIdForLog(sendContext.resolved_recipient_psid),
+  });
+  console.log("[meta-send] token present", {
+    tenant_id: scopedTenantId,
+    conversation_id: conversationId || "",
+    tokenPresent: Boolean(text(token)),
+    config_id: config.id || null,
+    source,
+  });
+  console.log("[meta-send] payload type", {
+    tenant_id: scopedTenantId,
+    conversation_id: conversationId || "",
+    payloadType,
+  });
+  if (!text(token)) {
+    console.error("[meta-send] missing page access token", {
+      tenant_id: scopedTenantId,
+      channel: normalizedChannel,
+      conversation_id: conversationId || "",
+      pageId: maskIdForLog(sendContext.resolved_page_id),
+      config_id: config.id || null,
+    });
+    const error = Object.assign(new Error("Missing page access token"), { status: 409, code: "META_PAGE_ACCESS_TOKEN_MISSING" });
+    await storeMetaOutboundDiagnostics({
+      tenantId: scopedTenantId,
+      channel: normalizedChannel,
+      conversationId,
+      patch: {
+        last_outbound_send_attempt_at: nowIso(),
+        last_outbound_send_status: "outbound_failed",
+        last_outbound_send_error: error.message,
+        last_outbound_meta_code: error.code,
+        last_outbound_meta_status: error.status,
+        last_outbound_token_present: false,
+        last_outbound_payload_type: payloadType,
+        last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
+        last_outbound_page_id: sendContext.resolved_page_id,
+      },
+      error,
+    }).catch(() => {});
+    throw error;
+  }
+  await storeMetaOutboundDiagnostics({
+    tenantId: scopedTenantId,
+    channel: normalizedChannel,
+    conversationId,
+    patch: {
+      last_outbound_send_attempt_at: nowIso(),
+      last_outbound_send_status: "attempting",
+      last_outbound_send_error: "",
+      last_outbound_meta_code: "",
+      last_outbound_meta_status: null,
+      last_outbound_token_present: true,
+      last_outbound_payload_type: payloadType,
+      last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
+      last_outbound_page_id: sendContext.resolved_page_id,
+    },
+  }).catch(() => {});
   console.log("ai_inbox_send_start", {
     tenant_id: scopedTenantId,
     config_id: config.id || null,
@@ -9636,12 +9854,15 @@ export const sendMetaInboxOutboundMessage = async ({
       message_length: safeMessage.length,
       product_card_count: cards.length,
       attachment_count: imageAttachmentUrls(attachments).length,
+      payload_type: payloadType,
+      token_present: Boolean(text(token)),
     },
   });
   let meta = null;
   const imageResults = [];
   const productCardMessages = [];
   if (cards.length) {
+    try {
     for (const product of cards) {
       console.log("ai_inbox_selected_product_card", {
         tenant_id: scopedTenantId,
@@ -9713,7 +9934,7 @@ export const sendMetaInboxOutboundMessage = async ({
       recipient_id: maskIdForLog(safeRecipientId),
       message_id: meta?.message_id || "",
     });
-    await storeMetaConversationHealth({
+    await storeMetaOutboundDiagnostics({
       tenantId: scopedTenantId,
       channel: normalizedChannel,
       conversationId,
@@ -9721,6 +9942,12 @@ export const sendMetaInboxOutboundMessage = async ({
         last_outbound_send_status: "sent",
         last_outbound_send_error: "",
         last_outbound_meta_mid: meta?.message_id || "",
+        last_outbound_meta_code: "",
+        last_outbound_meta_status: 200,
+        last_outbound_token_present: true,
+        last_outbound_payload_type: payloadType,
+        last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
+        last_outbound_page_id: sendContext.resolved_page_id,
       },
     }).catch(() => {});
     return {
@@ -9734,6 +9961,35 @@ export const sendMetaInboxOutboundMessage = async ({
       product_card_messages: productCardMessages,
       results: [...imageResults, meta].filter(Boolean),
     };
+    } catch (error) {
+      console.error("ai_inbox_send_failed", {
+        tenant_id: scopedTenantId,
+        config_id: config.id || null,
+        channel: normalizedChannel,
+        conversation_id: conversationId || "",
+        recipient_id: maskIdForLog(safeRecipientId),
+        status: error?.status || "",
+        code: error?.code || "",
+        message: error?.message || "Meta Send API failed",
+      });
+      await storeMetaOutboundDiagnostics({
+        tenantId: scopedTenantId,
+        channel: normalizedChannel,
+        conversationId,
+        patch: {
+          last_outbound_send_status: "outbound_failed",
+          last_outbound_send_error: error?.message || "Meta Send API failed",
+          last_outbound_meta_code: error?.code || error?.metaResponse?.error?.code || "",
+          last_outbound_meta_status: error?.status || null,
+          last_outbound_token_present: Boolean(text(token)),
+          last_outbound_payload_type: payloadType,
+          last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
+          last_outbound_page_id: sendContext.resolved_page_id,
+        },
+        error,
+      }).catch(() => {});
+      throw error;
+    }
   }
   try {
     for (const imageUrl of imageAttachmentUrls(attachments)) {
@@ -9772,14 +10028,21 @@ export const sendMetaInboxOutboundMessage = async ({
       code: error?.code || "",
       message: error?.message || "Meta Send API failed",
     });
-    await storeMetaConversationHealth({
+    await storeMetaOutboundDiagnostics({
       tenantId: scopedTenantId,
       channel: normalizedChannel,
       conversationId,
       patch: {
-        last_outbound_send_status: "failed",
+        last_outbound_send_status: "outbound_failed",
         last_outbound_send_error: error?.message || "Meta Send API failed",
+        last_outbound_meta_code: error?.code || error?.metaResponse?.error?.code || "",
+        last_outbound_meta_status: error?.status || null,
+        last_outbound_token_present: Boolean(text(token)),
+        last_outbound_payload_type: payloadType,
+        last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
+        last_outbound_page_id: sendContext.resolved_page_id,
       },
+      error,
     }).catch(() => {});
     throw error;
   }
@@ -9791,7 +10054,7 @@ export const sendMetaInboxOutboundMessage = async ({
     recipient_id: maskIdForLog(safeRecipientId),
     message_id: meta?.message_id || "",
   });
-  await storeMetaConversationHealth({
+  await storeMetaOutboundDiagnostics({
     tenantId: scopedTenantId,
     channel: normalizedChannel,
     conversationId,
@@ -9799,6 +10062,12 @@ export const sendMetaInboxOutboundMessage = async ({
       last_outbound_send_status: "sent",
       last_outbound_send_error: "",
       last_outbound_meta_mid: meta?.message_id || "",
+      last_outbound_meta_code: "",
+      last_outbound_meta_status: 200,
+      last_outbound_token_present: true,
+      last_outbound_payload_type: payloadType,
+      last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
+      last_outbound_page_id: sendContext.resolved_page_id,
     },
   }).catch(() => {});
   return {
@@ -10550,14 +10819,20 @@ export const processMetaWebhook = async ({ req } = {}) => {
         message: error?.message || "Meta send failed",
         meta_error: error?.metaResponse?.error || null,
       });
-      await storeMetaConversationHealth({
+      await storeMetaOutboundDiagnostics({
         tenantId: config.tenant_id,
         channel: message.channel,
         conversationId: message.external_conversation_id,
         patch: {
-          last_outbound_send_status: "failed",
+          last_outbound_send_status: "outbound_failed",
           last_outbound_send_error: error?.message || "Meta send failed",
+          last_outbound_meta_code: error?.code || error?.metaResponse?.error?.code || "",
+          last_outbound_meta_status: error?.status || null,
+          last_outbound_recipient_preview: maskIdForLog(message.external_customer_id),
+          last_outbound_page_id: config.facebook_page_id || "",
+          last_outbound_token_present: Boolean(config.page_access_token_configured || config.page_access_token_encrypted),
         },
+        error,
       }).catch(() => {});
       markMessageProcessingStatus(messageId, "failed");
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, send_error: error?.message || "Meta send failed" });
