@@ -238,6 +238,65 @@ const interpolate = (template = "", values = {}) =>
     return text(value) || "-";
   });
 
+const compressionMemory = (memory = {}) =>
+  memory.conversationCompression && typeof memory.conversationCompression === "object" ? memory.conversationCompression : {};
+
+const activeCompressionState = (memory = {}, selectedProduct = {}, productContext = {}) => {
+  const productId = text(selectedProduct?.product_id || selectedProduct?.id || productContext.productId || memory.activeProductId || memory.selectedProductId || memory.lastProductCard?.product_id || "");
+  const variantId = text(selectedProduct?.variant_id || productContext.variantId || memory.activeVariantId || memory.selectedVariantId || memory.lastProductCard?.variant_id || "");
+  const color = text(selectedProduct?.color || memory.activeColor || memory.selectedColor || memory.lastProductCard?.color || "").toLowerCase();
+  const exactKey = [productId || "product", variantId || "variant", color || "color"].join(":");
+  const store = compressionMemory(memory);
+  return store[exactKey] || Object.values(store).find((entry) => text(entry?.productId) === productId) || {};
+};
+
+const compressReply = ({ replyText = "", replyCategory = "", customerMessage = "", selectedSize = "", customerMemory = {}, selectedProduct = {}, productContext = {} } = {}) => {
+  const state = activeCompressionState(customerMemory, selectedProduct, productContext);
+  const suppressedFields = [];
+  let reason = "";
+  let nextText = text(replyText);
+  const asksPrice = /كام|بكام|السعر|سعره|price|how much/i.test(customerMessage);
+  const checkoutLocked = stageAtLeast(customerMemory.checkoutStage || customerMemory.buyingStage || customerMemory.conversationStage || "", RESPONSE_CONVERSATION_STAGES.CHECKOUT_COLLECTING);
+  const currentPrice = text(selectedProduct?.price || selectedProduct?.final_price || selectedProduct?.sale_price || productContext.price || "");
+  const priceChanged = Boolean(state.price && currentPrice && text(state.price) !== currentPrice);
+  if (replyCategory.startsWith("SIZE_") && state.shownSizes && selectedSize) {
+    nextText = replyCategory === "SIZE_AVAILABLE" ? `${selectedSize} متوفر ✅` : "المقاس ده غير متاح.";
+    suppressedFields.push("price", "sizes", "productCard", "checkoutPrompt");
+    reason = "size_answer_after_sizes_shown";
+  } else if (checkoutLocked && !asksPrice) {
+    nextText = nextText
+      .split(/\n+/)
+      .filter((line) => !/(السعر|المتاح|المقاسات|موجود|متاح|تحب أ?حجز|أجهزهولك|نكمل الطلب|احجز)/i.test(line))
+      .join("\n")
+      .trim() || nextText;
+    suppressedFields.push("price", "sizes", "availability", "productPresentation", "checkoutPrompt");
+    reason = "checkout_collecting_no_product_repetition";
+  } else {
+    if (state.shownPrice && !asksPrice && !priceChanged) {
+      const before = nextText;
+      nextText = nextText.split(/\n+/).filter((line) => !/السعر|بكام|price/i.test(line)).join("\n").trim();
+      if (nextText !== before) suppressedFields.push("price");
+    }
+    if (state.shownSizes && !replyCategory.startsWith("SIZE_")) {
+      const before = nextText;
+      nextText = nextText.split(/\n+/).filter((line) => !/المتاح|المقاسات|sizes/i.test(line)).join("\n").trim();
+      if (nextText !== before) suppressedFields.push("sizes");
+    }
+    if (state.shownCheckoutPrompt) {
+      const before = nextText;
+      nextText = nextText.split(/\n+/).filter((line) => !/تحب أ?حجز|أجهزهولك|نكمل الطلب/i.test(line)).join("\n").trim();
+      if (nextText !== before) suppressedFields.push("checkoutPrompt");
+    }
+    if (suppressedFields.length) reason = "previously_shown_product_fields";
+  }
+  return {
+    replyText: nextText || text(replyText),
+    compressionApplied: suppressedFields.length > 0,
+    suppressedFields,
+    reason,
+  };
+};
+
 const inferReplyCategory = ({ intent = "", customerMessage = "", selectedSize = "", availableSizes = [], productContext = {} } = {}) => {
   const normalized = text(customerMessage).toLowerCase();
   if (intent === "GREETING") return "GREETING";
@@ -294,7 +353,7 @@ export const orchestrateAiResponse = ({
   const { template, antiRepetitionApplied } = chooseWeightedTemplate(replyCategory, recentReplyTemplateIds);
   const sizeList = joinSizes(availableSizes, "هراجعهولك");
   const colorList = joinList(availableColors, "المتاح هبعتهولك");
-  const replyText = interpolate(template.text, {
+  const rawReplyText = interpolate(template.text, {
     product: selectedProduct?.name || selectedProduct?.title || productContext.productName || "",
     color: selectedColor,
     size: selectedSize,
@@ -303,6 +362,24 @@ export const orchestrateAiResponse = ({
     price: text(price).replace(/\s*جنيه\s*$/i, ""),
     customerName: customerProfile?.firstName || customerProfile?.name || "",
   });
+  const compressed = compressReply({
+    replyText: rawReplyText,
+    replyCategory,
+    customerMessage,
+    selectedSize,
+    customerMemory,
+    selectedProduct,
+    productContext,
+  });
+  if (compressed.compressionApplied) {
+    console.log("[conversation-compression]", {
+      compressionApplied: true,
+      suppressedFields: compressed.suppressedFields,
+      replyCategory,
+      reason: compressed.reason,
+    });
+  }
+  const replyText = compressed.replyText;
   const shouldSuggestAlternatives = ["OBJECTION_PRICE", "SIZE_UNAVAILABLE"].includes(replyCategory) || productContext.weakVisualMatch === true || productContext.productUnavailable === true;
   const shouldAskSize = replyCategory === "ASK_SIZE" || (replyCategory === "PRODUCT_PRESENTATION" && asArray(availableSizes).length > 0);
   const shouldStartCheckout = replyCategory === "CHECKOUT_COLLECTING";
@@ -317,6 +394,9 @@ export const orchestrateAiResponse = ({
     shouldSuggestAlternatives,
     shouldStartCheckout,
     antiRepetitionApplied,
+    compressionApplied: compressed.compressionApplied,
+    suppressedFields: compressed.suppressedFields,
+    compressionReason: compressed.reason,
     memoryPatch: {
       lastReplyTemplateId: template.id,
       lastReplyCategory: replyCategory,
@@ -336,6 +416,9 @@ export const orchestrateAiResponse = ({
       ctaType: shouldStartCheckout ? "checkout_details" : shouldSuggestAlternatives ? "suggest_alternatives" : shouldAskSize ? "ask_size" : "none",
       nextConversationStage,
       antiRepetitionApplied,
+      compressionApplied: compressed.compressionApplied,
+      suppressedFields: compressed.suppressedFields,
+      reason: compressed.reason,
       stageLockApplied: stageDecision.stageLockApplied === true,
       stageRegressionBlocked: stageDecision.stageRegressionBlocked === true,
     },

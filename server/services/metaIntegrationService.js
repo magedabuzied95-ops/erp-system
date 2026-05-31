@@ -1010,10 +1010,28 @@ const orchestrateFinalReply = ({ message = {}, replyText = "", productCards = []
     replyText: ownedReply.text,
     metadata: finalMetadata,
   });
-  return {
-    text: ownedReply.text,
+  const compressed = compactReplyTextForConversation({
+    conversationId: message.external_conversation_id,
+    message,
+    replyText: ownedReply.text,
     productCards,
+    detectedIntent,
     metadata: finalMetadata,
+  });
+  const compressionMetadata = compressed.diagnostics.compressionApplied
+    ? {
+        compressionApplied: true,
+        compression_applied: true,
+        suppressedFields: compressed.diagnostics.suppressedFields,
+        suppressed_fields: compressed.diagnostics.suppressedFields,
+        compressionReason: compressed.diagnostics.reason,
+        compression_reason: compressed.diagnostics.reason,
+      }
+    : { compressionApplied: false, suppressedFields: [] };
+  return {
+    text: compressed.text,
+    productCards,
+    metadata: { ...finalMetadata, ...compressionMetadata },
     resolvedQuestion,
   };
 };
@@ -1432,6 +1450,17 @@ const compactMemoryForDebug = (memory = {}) => ({
   lastPresentedColors: Array.isArray(memory.lastPresentedColors) ? memory.lastPresentedColors.slice(0, 12) : [],
   lastPresentationTimestamp: text(memory.lastPresentationTimestamp || ""),
   lastShownProductIds: Array.isArray(memory.lastShownProductIds) ? memory.lastShownProductIds.slice(0, 12) : [],
+  conversationCompression: Object.fromEntries(
+    Object.entries(compressionMemory(memory)).slice(-6).map(([key, value]) => [key, {
+      shownPrice: value?.shownPrice === true,
+      shownSizes: value?.shownSizes === true,
+      shownColors: value?.shownColors === true,
+      shownProductCard: value?.shownProductCard === true,
+      shownProductLink: value?.shownProductLink === true,
+      shownAvailability: value?.shownAvailability === true,
+      shownCheckoutPrompt: value?.shownCheckoutPrompt === true,
+    }])
+  ),
   preferredSizes: Array.isArray(memory.preferredSizes) ? memory.preferredSizes.slice(0, 8) : [],
   preferredBrands: Array.isArray(memory.preferredBrands) ? memory.preferredBrands.slice(0, 12) : [],
   knownName: text(memory.knownName || memory.customerName || ""),
@@ -5533,6 +5562,17 @@ const rememberLastProductCards = ({ tenantId = null, channel = "", conversationI
   if (tenantId && channel && sentProductMessages.length) {
     storeSentProductMessages({ tenantId, channel, conversationId, sentProductMessages }).catch(() => {});
   }
+  const compressionFields = text(lastIntent).includes("more_images")
+    ? ["shownProductCard"]
+    : text(lastIntent).includes("color") || cards.every((card) => text(card.card_reply_mode) === "color_only")
+      ? ["shownColors", "shownProductCard", "shownProductLink"]
+      : ["shownPrice", "shownSizes", "shownColors", "shownProductCard", "shownProductLink", "shownAvailability", "shownCheckoutPrompt"];
+  rememberConversationCompression({
+    conversationId,
+    productCards: cards,
+    fields: compressionFields,
+    reason: lastIntent || "product_cards_sent",
+  });
   if (shouldLockSingleCard) {
     console.log("ai_context_locked", {
       conversation_id: conversationId,
@@ -7391,6 +7431,128 @@ const isColorQuestionMessage = (message = "") => {
 };
 
 const presentationGuardProductId = (card = {}) => text(card.product_id || card.id || card.productId || "");
+const compressionProductId = (card = {}, memory = {}) =>
+  text(card.product_id || card.id || card.productId || memory.activeProductId || memory.selectedProductId || memory.lastProductCard?.product_id || memory.lastProductCard?.id || "");
+
+const compressionProductKey = (card = {}, memory = {}) => {
+  const productId = compressionProductId(card, memory);
+  const variantId = text(card.variant_id || card.variantId || memory.activeVariantId || memory.selectedVariantId || "");
+  const color = text(card.color || memory.activeColor || memory.selectedColor || "").toLowerCase();
+  return [productId || "product", variantId || "variant", color || "color"].join(":");
+};
+
+const compressionMemory = (memory = {}) =>
+  memory.conversationCompression && typeof memory.conversationCompression === "object" ? memory.conversationCompression : {};
+
+const compressionStateFor = (memory = {}, key = "") => {
+  const state = compressionMemory(memory)[key];
+  return state && typeof state === "object" ? state : {};
+};
+
+const rememberConversationCompression = ({ conversationId = "", productCards = [], fields = [], reason = "" } = {}) => {
+  if (!conversationId || !fields.length) return null;
+  const current = getConversationMemory(conversationId) || {};
+  const cards = normalizeProductCards(productCards.length ? productCards : [current.lastProductCard || {}], { limit: 6 });
+  if (!cards.length) return null;
+  const nextCompression = { ...compressionMemory(current) };
+  for (const card of cards) {
+    const key = compressionProductKey(card, current);
+    const previous = nextCompression[key] || {};
+    nextCompression[key] = {
+      ...previous,
+      productId: compressionProductId(card, current) || previous.productId || null,
+      variantId: card.variant_id || previous.variantId || null,
+      color: card.color || previous.color || "",
+      price: text(card.price || card.final_price || card.sale_price || card.product_price || previous.price || ""),
+      sizes: Array.isArray(card.available_sizes || card.sizes) ? (card.available_sizes || card.sizes).map(text).filter(Boolean) : previous.sizes || [],
+      colors: [...new Set([...(Array.isArray(previous.colors) ? previous.colors : []), card.color].map(text).filter(Boolean))],
+      updatedAt: nowIso(),
+      reason: reason || previous.reason || "",
+    };
+    for (const field of fields) nextCompression[key][field] = true;
+  }
+  return updateConversationMemory(conversationId, { conversationCompression: nextCompression });
+};
+
+const explicitProductCardRequest = (message = "") =>
+  Boolean(
+    detectMoreImagesRequest(message) ||
+      detectAllColorsRequest(message) ||
+      detectOtherColorsRequest(message) ||
+      /(?:ابعت|ابعتي|هات|افتح|وري|وريني).{0,18}(?:المنتج|الكارت|الكارد|الصورة|صور)|product card|send product|open product/i.test(text(message))
+  );
+
+const explicitPriceRequest = (message = "") => /كام|بكام|السعر|سعره|price|how much/i.test(text(message));
+
+const compactReplyTextForConversation = ({ conversationId = "", message = {}, replyText = "", productCards = [], detectedIntent = "", metadata = {} } = {}) => {
+  const memory = getConversationMemory(conversationId) || {};
+  const cards = normalizeProductCards(productCards.length ? productCards : [metadata.selectedProduct || memory.lastProductCard || {}], { limit: 1 });
+  const card = cards[0] || {};
+  const key = compressionProductKey(card, memory);
+  const state = compressionStateFor(memory, key);
+  const resolved = message.resolvedQuestion || memory.resolvedQuestion || resolveCustomerQuestion({ message, memory });
+  const suppressedFields = [];
+  let reason = "";
+  let nextText = text(replyText);
+  const checkoutLocked = checkoutStageAtLeast(memory.checkoutStage || memory.buyingStage || memory.conversationStage || "", "checkout_collecting");
+  const asksPrice = resolved.intent === QUESTION_TYPES.PRICE_QUESTION || explicitPriceRequest(message.message_text || "");
+  const asksSize = resolved.intent === QUESTION_TYPES.SIZE_QUESTION || Boolean(extractShoeSize(message.message_text || ""));
+  const requestedSize = extractShoeSize(message.message_text || "") || text(metadata.selected_size || metadata.selectedSize || "");
+  const sizeAvailable = !/unavailable|out_of_stock|غير متاح|مش متوفر/i.test(nextText) && metadata.available !== false;
+  const currentPrice = text(card.price || card.final_price || card.sale_price || card.product_price || metadata.price || "");
+  const priceChanged = Boolean(state.price && currentPrice && text(state.price) !== currentPrice);
+
+  if (asksSize && state.shownSizes && requestedSize) {
+    nextText = sizeAvailable ? `${requestedSize} متوفر ✅` : "المقاس ده غير متاح.";
+    suppressedFields.push("price", "sizes", "productCard", "checkoutPrompt");
+    reason = "size_answer_after_sizes_shown";
+  } else if (checkoutLocked && !asksPrice && !asksSize && resolved.intent !== QUESTION_TYPES.COLOR_QUESTION && resolved.intent !== QUESTION_TYPES.MORE_IMAGES && resolved.intent !== QUESTION_TYPES.LINK_QUESTION) {
+    nextText = nextText
+      .split(/\n+/)
+      .filter((line) => !/(السعر|المتاح|المقاسات|موجود|متاح|تحب أ?حجز|أجهزهولك|نكمل الطلب|احجز)/i.test(line))
+      .join("\n")
+      .trim() || nextText;
+    suppressedFields.push("price", "sizes", "availability", "productPresentation", "checkoutPrompt");
+    reason = "checkout_collecting_no_product_repetition";
+  } else {
+    if (state.shownPrice && !asksPrice && !priceChanged) {
+      const before = nextText;
+      nextText = nextText.split(/\n+/).filter((line) => !/السعر|بكام|price/i.test(line)).join("\n").trim();
+      if (nextText !== before) suppressedFields.push("price");
+    }
+    if (state.shownSizes && !asksSize) {
+      const before = nextText;
+      nextText = nextText.split(/\n+/).filter((line) => !/المتاح|المقاسات|sizes/i.test(line)).join("\n").trim();
+      if (nextText !== before) suppressedFields.push("sizes");
+    }
+    if (state.shownCheckoutPrompt) {
+      const before = nextText;
+      nextText = nextText.split(/\n+/).filter((line) => !/تحب أ?حجز|أجهزهولك|نكمل الطلب/i.test(line)).join("\n").trim();
+      if (nextText !== before) suppressedFields.push("checkoutPrompt");
+    }
+    if (suppressedFields.length) reason = "previously_shown_product_fields";
+  }
+
+  const compressionApplied = suppressedFields.length > 0;
+  if (compressionApplied) {
+    console.log("[conversation-compression]", {
+      compressionApplied,
+      suppressedFields,
+      replyCategory: metadata.replyCategory || detectedIntent || resolved.intent || "",
+      reason,
+      productKey: key,
+    });
+  }
+  return {
+    text: nextText || text(replyText),
+    diagnostics: {
+      compressionApplied,
+      suppressedFields,
+      reason,
+      productKey: key,
+    },
+  };
+};
 
 const evaluatePresentationGuard = ({ conversationId = "", productCards = [], replyCategory = "", detectedIntent = "" } = {}) => {
   const firstCard = normalizeProductCards(productCards, { limit: 1 })[0] || productCards[0] || {};
@@ -7808,7 +7970,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     conversationId: message.external_conversation_id,
     productCards: gatedCards,
     productCardLimit: gatedCards.length,
-    suggestedActions: META_COMMERCE_ACTIONS,
+    suggestedActions: metadata.other_colors_requested === true ? [] : META_COMMERCE_ACTIONS,
     facebookPageId: config.facebook_page_id,
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
@@ -8339,22 +8501,25 @@ const repeatedProductCards = ({ conversationId, productCards = [] } = {}) => {
   const previousCards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
   const cards = normalizeProductCards(productCards, { limit: 6 });
   if (!previousCards.length || !cards.length) return false;
-  const previousKeys = new Set(
+  const previousByKey = new Map(
     previousCards
-      .map((card) => `${card.product_id || card.id || ""}:${imageIdentity(card.image_url)}`)
-      .filter((key) => key !== ":")
+      .map((card) => [`${card.product_id || card.id || ""}:${imageIdentity(card.image_url)}`, card])
+      .filter(([key]) => key !== ":")
   );
-  return cards.every((card) => previousKeys.has(`${card.product_id || card.id || ""}:${imageIdentity(card.image_url)}`));
+  return cards.every((card) => {
+    const key = `${card.product_id || card.id || ""}:${imageIdentity(card.image_url)}`;
+    const previous = previousByKey.get(key);
+    if (!previous) return false;
+    const previousPrice = text(previous.price || previous.final_price || previous.sale_price || previous.product_price || "");
+    const nextPrice = text(card.price || card.final_price || card.sale_price || card.product_price || "");
+    return !previousPrice || !nextPrice || previousPrice === nextPrice;
+  });
 };
 
 const explicitlyAskedForProductCards = (message = "") =>
   Boolean(
-    detectMoreImagesRequest(message) ||
-      detectAllColorsRequest(message) ||
-      detectOtherColorsRequest(message) ||
-      detectSizesRequest(message) ||
-      detectAlternativesRequest(message) ||
-      detectModelNameSearch(message)
+    explicitProductCardRequest(message) ||
+      detectAlternativesRequest(message)
   );
 
 const detectAlternativesRequest = (message = "") =>
@@ -9580,6 +9745,12 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     messageText: message.message_text || "",
     lastIntent: "more_images",
   });
+  rememberConversationCompression({
+    conversationId: message.external_conversation_id,
+    productCards: imageOnlyCards,
+    fields: ["shownProductCard"],
+    reason: "more_images_sent",
+  });
   lockProductContext({
     conversationId: message.external_conversation_id,
     card: baseCard,
@@ -9748,7 +9919,7 @@ const handleProductLinkIfMatched = async ({ config, message } = {}) => {
   await sendAndLogMetaText({
     config,
     message,
-    text: url ? `ده اللينك:\n${url}` : "اللينك مش جاهز عندي حالًا، ابعتلي اسم الموديل وأجيبهولك.",
+    text: url ? `اتفضل\n${url}` : "اللينك مش جاهز عندي حالًا، ابعتلي اسم الموديل وأجيبهولك.",
     detectedIntent: "product_link_request",
     metadata: {
       preserveReplyText: true,
@@ -9759,6 +9930,14 @@ const handleProductLinkIfMatched = async ({ config, message } = {}) => {
       product_url: url,
     },
   });
+  if (url) {
+    rememberConversationCompression({
+      conversationId: message.external_conversation_id,
+      productCards: [card || baseCard],
+      fields: ["shownProductLink"],
+      reason: "product_link_sent",
+    });
+  }
   return { handled: true, reason: url ? "product_link_sent" : "product_link_missing_url" };
 };
 
@@ -9819,18 +9998,19 @@ const handleOtherColorsIfMatched = async ({ config, message } = {}) => {
     });
     return { handled: true, reason: "other_colors_empty" };
   }
-  const orchestrated = buildOrchestratedReply({
-    message,
-    intent: AI_INTENTS.COLOR_REQUEST,
-    categoryContext: { availableColors: cards.map((card) => card.color).filter(Boolean) },
-  });
   await sendAndLogProductCards({
     config,
     message,
     productCards: cards,
     detectedIntent: "other_colors",
-    introText: orchestrated.replyText,
-    metadata: { product_card_limit: limit, other_colors_requested: true, ...orchestratedReplyMetadata(orchestrated) },
+    introText: "أيوه فيه الألوان دي",
+    metadata: { preserveReplyText: true, replyCategory: "COLOR_SELECTION", product_card_limit: limit, other_colors_requested: true },
+  });
+  rememberConversationCompression({
+    conversationId: message.external_conversation_id,
+    productCards: cards,
+    fields: ["shownColors"],
+    reason: "other_colors_sent",
   });
   return { handled: true, reason: "other_colors_sent" };
 };
@@ -14390,13 +14570,23 @@ export const processMetaWebhook = async ({ req } = {}) => {
       const prompt = checkoutStageAtLeast(memory.checkoutStage, "checkout")
         ? CHECKOUT_INFO_REPLY
         : null;
+      const requestedSize = extractShoeSize(message.message_text || "");
+      const compressedRepeatedReply = requestedSize
+        ? `${requestedSize} متوفر ✅`
+        : prompt || repeatedProductFallbackText;
+      console.log("[conversation-compression]", {
+        compressionApplied: true,
+        suppressedFields: requestedSize ? ["price", "sizes", "productCard", "checkoutPrompt"] : ["productCard"],
+        replyCategory: requestedSize ? "SIZE_SELECTION" : "PRODUCT_PRESENTATION",
+        reason: requestedSize ? "repeated_card_size_answer_only" : "repeated_product_card_suppressed",
+      });
       const legacyPrompt = repeatedProductFallbackText;
       const repeatedGuardSend = await sendAndLogMetaText({
         config,
         message,
-        text: prompt || "\u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627. \u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0623\u0648\u0631\u064a\u0643 \u0644\u0648\u0646 \u062a\u0627\u0646\u064a\u061f",
+        text: compressedRepeatedReply,
         detectedIntent: "repeated_product_card_prevented",
-        metadata: { repeated_product_card_prevented: true, checkout_stage: memory.checkoutStage || "" },
+        metadata: { preserveReplyText: true, repeated_product_card_prevented: true, checkout_stage: memory.checkoutStage || "", compressionApplied: true, suppressedFields: requestedSize ? ["price", "sizes", "productCard", "checkoutPrompt"] : ["productCard"] },
       });
       await storeProcessedInboundKey({
         tenantId: config.tenant_id,
