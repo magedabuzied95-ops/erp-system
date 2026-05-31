@@ -200,6 +200,37 @@ const shouldSendWhatsappReply = (payload = {}) =>
   payload?.auto_response_paused !== true &&
   !["human_takeover", "closed"].includes(String(payload?.conversation_status || payload?.detected_intent || "").toLowerCase());
 
+const shouldSendChannelReply = (channel = "", payload = {}) => {
+  const normalizedChannel = envText(channel).toLowerCase();
+  const status = String(payload?.conversation_status || payload?.detected_intent || "").toLowerCase();
+  const paused = payload?.auto_response_paused === true;
+  const blockedStatus = ["human_takeover", "closed"].includes(status);
+
+  if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP || normalizedChannel === "whatsapp") {
+    if (shouldSendWhatsappReply(payload)) return { ok: true, reason: "whatsapp_reply_allowed" };
+    if (paused) return { ok: false, reason: "auto_response_paused" };
+    if (blockedStatus) return { ok: false, reason: status };
+    return { ok: false, reason: "whatsapp_reply_blocked" };
+  }
+
+  if (
+    normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ||
+    normalizedChannel === "facebook" ||
+    normalizedChannel === "messenger" ||
+    normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM ||
+    normalizedChannel === "instagram"
+  ) {
+    if (paused) return { ok: false, reason: "auto_response_paused" };
+    if (status === "human_takeover") return { ok: false, reason: "human_takeover" };
+    if (status === "closed") return { ok: false, reason: "closed" };
+    return { ok: true, reason: "channel_reply_allowed" };
+  }
+
+  if (paused) return { ok: false, reason: "auto_response_paused" };
+  if (blockedStatus) return { ok: false, reason: status };
+  return { ok: true, reason: "channel_reply_allowed" };
+};
+
 const escalateToHuman = async ({ tenantId, conversationId, channel, message, escalation } = {}) => {
   const conversation = await markAiSupportConversationEscalated({
     tenantId,
@@ -1094,13 +1125,36 @@ router.post("/channels/meta/webhook", async (req, res) => {
         settings: channelSettings,
         payload: aiPayload,
       });
-      if (!autoReplyDecision.ok || !shouldSendWhatsappReply(aiPayload)) {
+      const channelReplyDecision = shouldSendChannelReply(channel, aiPayload);
+      console.log("[messenger-send-gate]", {
+        tenant_id: tenantId,
+        conversation_id: message.external_conversation_id,
+        channel,
+        decision: autoReplyDecision.ok && channelReplyDecision.ok ? "send" : "skip",
+        reason: !autoReplyDecision.ok ? autoReplyDecision.reason : channelReplyDecision.reason,
+        auto_reply_ok: autoReplyDecision.ok === true,
+        channel_reply_ok: channelReplyDecision.ok === true,
+        conversation_status: aiPayload?.conversation_status || "",
+        detected_intent: aiPayload?.detected_intent || "",
+        auto_response_paused: aiPayload?.auto_response_paused === true,
+      });
+      if (!autoReplyDecision.ok || !channelReplyDecision.ok) {
+        const skipReason = !autoReplyDecision.ok ? autoReplyDecision.reason : channelReplyDecision.reason;
+        console.log("[messenger-send-skipped]", {
+          tenant_id: tenantId,
+          conversation_id: message.external_conversation_id,
+          channel,
+          reason: skipReason,
+          auto_reply_ok: autoReplyDecision.ok === true,
+          channel_reply_ok: channelReplyDecision.ok === true,
+          sendMetaInboxOutboundMessage_called: false,
+        });
         results.push({
           channel,
           external_customer_id: message.external_customer_id,
           conversation_id: message.external_conversation_id,
           sent: false,
-          reason: autoReplyDecision.reason,
+          reason: skipReason,
         });
         continue;
       }
@@ -1170,6 +1224,18 @@ router.post("/channels/meta/webhook", async (req, res) => {
         reason: guarded.reason,
       });
       try {
+        console.log("[messenger-send] before sendMetaInboxOutboundMessage", {
+          tenant_id: tenantId,
+          conversation_id: message.external_conversation_id,
+          channel,
+          recipient_id_present: Boolean(message.external_customer_id),
+          page_id_present: Boolean(message.metadata?.page_id || message.page_id),
+          instagram_business_account_id_present: Boolean(message.metadata?.instagram_business_account_id || message.instagram_business_account_id),
+          message_length: replyText.length,
+          attachment_count: outboundAttachments.length,
+          product_card_count: (reply.product_cards || aiPayload.suggested_products || []).length,
+          sendMetaInboxOutboundMessage_called: false,
+        });
         const sendResult = await sendMetaInboxOutboundMessage({
           tenantId,
           channel,
@@ -1181,6 +1247,25 @@ router.post("/channels/meta/webhook", async (req, res) => {
           facebookPageId: message.metadata?.page_id || message.page_id || "",
           instagramBusinessAccountId: message.metadata?.instagram_business_account_id || message.instagram_business_account_id || "",
         });
+        console.log("[messenger-send] after sendMetaInboxOutboundMessage", {
+          tenant_id: tenantId,
+          conversation_id: message.external_conversation_id,
+          channel,
+          sent: sendResult?.sent === true,
+          message_id: sendResult?.message_id || "",
+          dedupe_skipped: sendResult?.dedupe_skipped === true,
+          skip_reason: sendResult?.skip_reason || "",
+          sendMetaInboxOutboundMessage_called: true,
+        });
+        if (sendResult?.dedupe_skipped === true || sendResult?.sent !== true) {
+          console.log("[messenger-send-skipped]", {
+            tenant_id: tenantId,
+            conversation_id: message.external_conversation_id,
+            channel,
+            reason: sendResult?.skip_reason || (sendResult?.dedupe_skipped === true ? "outbound_dedupe_skipped" : "meta_send_not_sent"),
+            sendMetaInboxOutboundMessage_called: true,
+          });
+        }
         results.push({ channel, external_customer_id: message.external_customer_id, conversation_id: message.external_conversation_id, sent: sendResult.sent });
         pushAIEvent({
           type: "MESSAGE_SENT",
