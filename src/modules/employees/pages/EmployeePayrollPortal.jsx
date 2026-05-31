@@ -292,6 +292,18 @@ const money = (value) => {
   return formatCurrency(Number(value || 0));
 };
 
+const safeArray = (value) => (Array.isArray(value) ? value : []);
+
+const safeNow = () => {
+  try {
+    return typeof window !== "undefined" && window.performance && typeof window.performance.now === "function"
+      ? window.performance.now()
+      : Date.now();
+  } catch {
+    return Date.now();
+  }
+};
+
 const localeForLanguage = (language = "en") => (language === "ar" ? "ar-EG-u-nu-latn" : "en-US");
 
 const browserTimeZone = () => {
@@ -309,8 +321,12 @@ const parseSafeDate = (value) => {
     const dateOnly = new Date(year, month - 1, day);
     return Number.isFinite(dateOnly.getTime()) ? dateOnly : null;
   }
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isFinite(date.getTime()) ? date : null;
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isFinite(date.getTime()) ? date : null;
+  } catch {
+    return null;
+  }
 };
 
 const formatDateTimeLocal = (value, language = "en", fallback = "-") => {
@@ -561,9 +577,9 @@ export default function EmployeePayrollPortal() {
   const wallet = portal?.wallet_summary || {};
   const profile = portal?.employee_profile || portal?.employee || {};
   const attendance = portal?.attendance?.summary || portal?.recent_attendance_summary || {};
-  const attendanceRows = portal?.attendance?.timeline || [];
-  const employeeRequests = portal?.employee_requests || [];
-  const tasks = portal?.tasks || [];
+  const attendanceRows = safeArray(portal?.attendance?.timeline);
+  const employeeRequests = safeArray(portal?.employee_requests);
+  const tasks = safeArray(portal?.tasks);
   const mobileTabs = [
     ["wallet", text.walletTab, WalletCards],
     ["attendance", text.attendanceTab, CalendarDays],
@@ -571,13 +587,14 @@ export default function EmployeePayrollPortal() {
     ["requests", text.requestsTab, MessageCircle],
     ["performance", text.performanceTab, Star],
   ];
-  const performance = portal?.performance || {};
-  const score = performance.score || {};
-  const goals = performance.goals || {};
-  const rewardPoints = performance.reward_points || {};
-  const badges = performance.achievements || rewardPoints.badges || [];
-  const leaderboard = portal?.leaderboard || [];
-  const lazyWarnings = portal?.warnings || [];
+  const performanceData = portal?.performance || {};
+  const score = performanceData.score || {};
+  const goals = performanceData.goals || {};
+  const rewardPoints = performanceData.reward_points || {};
+  const badges = safeArray(performanceData.achievements || rewardPoints.badges);
+  const leaderboard = safeArray(portal?.leaderboard);
+  const walletTransactions = safeArray(portal?.recent_wallet_transactions);
+  const lazyWarnings = safeArray(portal?.warnings);
   const leaderboardLazy = lazyWarnings.some((warning) => warning?.section === "leaderboard" && warning?.code === "lazy");
 
   const overviewCards = useMemo(() => {
@@ -605,7 +622,7 @@ export default function EmployeePayrollPortal() {
   const unlock = async (event) => {
     event?.preventDefault?.();
     if (!verification.trim()) return;
-    const startedAt = performance.now();
+    const startedAt = safeNow();
     try {
       setLoading(true);
       setError("");
@@ -641,7 +658,7 @@ export default function EmployeePayrollPortal() {
 
   const loadOptionalSections = async () => {
     if (!verification.trim() || optionalLoading || optionalLoaded) return;
-    const startedAt = performance.now();
+    const startedAt = safeNow();
     try {
       setOptionalLoading(true);
       const response = await api.get(`/employee-portal/${encodeURIComponent(token)}`, {
@@ -709,7 +726,7 @@ export default function EmployeePayrollPortal() {
 
   const submitAttendanceAction = async (actionType) => {
     if (!verification.trim()) return;
-    const startedAt = performance.now();
+    const startedAt = safeNow();
     try {
       setAttendanceSaving(actionType);
       setPortalNotice("");
@@ -749,7 +766,7 @@ export default function EmployeePayrollPortal() {
   const submitRequest = async (event) => {
     event.preventDefault();
     if (!verification.trim()) return;
-    const startedAt = performance.now();
+    const startedAt = safeNow();
     try {
       setRequestSaving(true);
       setPortalNotice("");
@@ -784,7 +801,7 @@ export default function EmployeePayrollPortal() {
 
   const updateWalletTask = async (taskId, status) => {
     if (!verification.trim()) return;
-    const startedAt = performance.now();
+    const startedAt = safeNow();
     try {
       setTaskSavingId(`${taskId}:${status}`);
       const location = await getBrowserLocation().catch(() => null);
@@ -1159,7 +1176,7 @@ export default function EmployeePayrollPortal() {
                 <ArrowUpCircle className="h-5 w-5 text-slate-400" />
               </div>
               <div className="mt-3 grid gap-2">
-                {(portal.recent_wallet_transactions || []).length ? portal.recent_wallet_transactions.map((item) => (
+                {walletTransactions.length ? walletTransactions.map((item) => (
                   <TimelineItem key={item.id} item={item} text={text} language={language} />
                 )) : (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-3 py-5 text-center text-sm font-bold text-slate-500">{text.noTransactions}</div>
