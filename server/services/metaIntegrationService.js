@@ -6343,6 +6343,16 @@ const resolveMetaSendConfig = async ({
     });
     if (!decrypted.value) {
       if (decrypted.error) decryptFailures += 1;
+      console.log("[meta-inbox] meta_send_config_fallback", {
+        tenant_id: scopedTenantId,
+        config_id: row.id || null,
+        failed_source: candidate.source,
+        channel: normalizedChannel,
+        facebook_page_id: maskIdForLog(row.facebook_page_id || pageId),
+        instagram_business_account_id: maskIdForLog(row.instagram_business_account_id || igId),
+        reason: decrypted.error ? "token_decrypt_failed" : "empty_token",
+        next_candidate_available: candidates.indexOf(candidate) < candidates.length - 1,
+      });
       continue;
     }
     console.log("[meta-inbox] meta_send_config_resolved", {
@@ -6353,6 +6363,24 @@ const resolveMetaSendConfig = async ({
       facebook_page_id: maskIdForLog(row.facebook_page_id || pageId),
       instagram_business_account_id: maskIdForLog(row.instagram_business_account_id || igId),
       token_expires_at: row.token_expires_at || null,
+      decrypt_failures_before_selected: decryptFailures,
+    });
+    console.log("[meta-inbox] meta_send_token_source", {
+      tenant_id: scopedTenantId,
+      config_id: row.id || null,
+      source: candidate.source,
+      channel: normalizedChannel,
+      token_present: true,
+      token_length: decrypted.value.length,
+    });
+    console.log("[meta-inbox] meta_send_config_final", {
+      tenant_id: scopedTenantId,
+      config_id: row.id || null,
+      source: candidate.source,
+      channel: normalizedChannel,
+      facebook_page_id: maskIdForLog(row.facebook_page_id || pageId),
+      instagram_business_account_id: maskIdForLog(row.instagram_business_account_id || igId),
+      used_marketing_settings_fallback: candidate.source === "marketing_settings",
       decrypt_failures_before_selected: decryptFailures,
     });
     return { config: row, token: decrypted.value, source: candidate.source, channel: normalizedChannel };
@@ -6411,7 +6439,7 @@ export const sendMetaInboxOutboundMessage = async ({
   await ensureMetaIntegrationSchema();
   const scopedTenantId = numberOrNull(tenantId);
   const normalizedChannel = adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
-  const safeRecipientId = text(recipientId);
+  let safeRecipientId = text(recipientId);
   const safeMessage = text(messageText);
   const cards = await resolveProductCardLinks(normalizeProductCards(productCards, { limit: productCardLimit }), { tenantId: scopedTenantId });
   if (!scopedTenantId || !safeRecipientId || (!safeMessage && !cards.length)) {
