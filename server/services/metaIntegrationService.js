@@ -20,7 +20,11 @@ import {
   verifyMetaWebhookSignature,
 } from "./aiChannelAdapterService.js";
 import { pushAIEvent } from "./aiEventLogger.js";
-import { isDuplicateMessage } from "./aiMessageDeduplication.js";
+import {
+  getMessageProcessingStatus,
+  isDuplicateMessage,
+  markMessageProcessingStatus,
+} from "./aiMessageDeduplication.js";
 import {
   normalizeProductCards,
   productCardReplyText,
@@ -4140,6 +4144,14 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
       all_colors_requested: detectAllColorsRequest(message.message_text || ""),
       other_colors_requested: detectOtherColorsRequest(message.message_text || ""),
     });
+    if (!detectOtherColorsRequest(message.message_text || "") && !detectAllColorsRequest(message.message_text || "")) {
+      console.log("model_initial_color_hard_cap_applied", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        requested_limit: 2,
+        resulting_card_count: gatedCards.length,
+      });
+    }
   }
   if (finalIntroText) {
     await sendAndLogMetaText({
@@ -4189,6 +4201,73 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   return result;
 };
 
+const sendAiGenerationFailedProductFallback = async ({ config, message, error } = {}) => {
+  const modelNameSearch = detectModelNameSearch(message?.message_text || "") && !detectAllColorsRequest(message?.message_text || "");
+  if (!modelNameSearch) {
+    console.log("ai_generation_failed_no_fallback", {
+      tenant_id: config?.tenant_id,
+      conversation_id: message?.external_conversation_id || "",
+      reason: "no_product_card_context",
+      status: error?.status || "",
+      code: error?.code || "",
+    });
+    return null;
+  }
+  const products = await searchAiOrderProducts({
+    tenantId: config.tenant_id,
+    message: message.message_text || "",
+    metadata: {},
+  }).catch((searchError) => {
+    console.error("ai_generation_failed_no_fallback", {
+      tenant_id: config?.tenant_id,
+      conversation_id: message?.external_conversation_id || "",
+      reason: "fallback_product_search_failed",
+      message: searchError?.message || "",
+    });
+    return [];
+  });
+  const cards = normalizeProductCards(products, { limit: 2 });
+  if (!cards.length) {
+    console.log("ai_generation_failed_no_fallback", {
+      tenant_id: config?.tenant_id,
+      conversation_id: message?.external_conversation_id || "",
+      reason: "no_fallback_products",
+      status: error?.status || "",
+      code: error?.code || "",
+    });
+    return null;
+  }
+  console.log("ai_generation_failed_fallback_used", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    status: error?.status || "",
+    code: error?.code || "",
+    fallback_card_count: cards.length,
+  });
+  console.log("model_initial_color_hard_cap_applied", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    requested_limit: 2,
+    resulting_card_count: cards.length,
+    fallback: true,
+  });
+  const fallbackIntro = "\u0639\u0646\u062f\u064a Jordan 4 \u0645\u062a\u0627\u062d \u0628\u0627\u0644\u0623\u0644\u0648\u0627\u0646 \u062f\u064a\n\u062a\u062d\u0628 \u0623\u0646\u0647\u064a \u0644\u0648\u0646\u061f";
+  const result = await sendAndLogProductCards({
+    config,
+    message,
+    productCards: cards,
+    detectedIntent: "ai_generation_failed_product_fallback",
+    introText: fallbackIntro,
+    metadata: {
+      product_card_limit: 2,
+      ai_generation_fallback: true,
+      ai_generation_error_status: error?.status || "",
+      ai_generation_error_code: error?.code || "",
+    },
+  });
+  return result ? { handled: true, reason: "ai_generation_failed_fallback" } : null;
+};
+
 const repeatedProductCards = ({ conversationId, productCards = [] } = {}) => {
   const memory = getConversationMemory(conversationId) || {};
   const previousCards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
@@ -4217,6 +4296,12 @@ const detectAlternativesRequest = (message = "") =>
 
 const detectModelNameSearch = (message = "") => {
   const normalized = normalizedSearchText(message);
+  const raw = text(message).toLowerCase();
+  if (
+    raw.includes("\u062c\u0648\u0631\u062f\u0646") ||
+    raw.includes("\u062c\u0648\u0631\u062f\u0627\u0646") ||
+    raw.includes("\u0641\u0648\u0631")
+  ) return true;
   return Boolean(
     /\bjordan\s*4\b|\bj4\b|\baj4\b|\bair\s*jordan\b|\bjordan\b|\bshox\b|\bair\s*force\b|\bdunk\b|\bcampus\b|\bsamba\b|\byeezy\b/.test(normalized) ||
     /جوردن|جوردان|فور|شوك|شوكس|اير\s*فورس|دانك|كامبس|سامبا|ييزي|اديداس|نايك/.test(normalized)
@@ -6676,6 +6761,15 @@ export const processMetaWebhook = async ({ req } = {}) => {
   for (const message of messages) {
     const alias = channelAlias(message.channel);
     const messageId = text(message.external_message_id || message.dedupe_key || "");
+    const previousDedupeStatus = getMessageProcessingStatus(messageId);
+    if (messageId) {
+      console.log("dedupe_previous_status", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        message_id: maskIdForLog(messageId),
+        status: previousDedupeStatus || "new",
+      });
+    }
     if (isDuplicateMessage(messageId)) {
       pushAIEvent({
         type: "DUPLICATE_MESSAGE_SKIPPED",
@@ -6686,6 +6780,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
       });
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: false, duplicate: true, sent: false, reason: "duplicate_message" });
       continue;
+    }
+    if (previousDedupeStatus === "failed") {
+      console.log("dedupe_retry_allowed", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        message_id: maskIdForLog(messageId),
+        previous_status: previousDedupeStatus,
+      });
     }
     const enabled = alias === "instagram" ? config.instagram_enabled === true : config.messenger_enabled === true;
     const inboxResult = await logIncomingToInbox({ message, config });
@@ -6728,9 +6830,18 @@ export const processMetaWebhook = async ({ req } = {}) => {
       },
       lastMessageAt: message.timestamp,
     }).catch(() => {});
-    if (inboxResult?.duplicate) {
+    if (inboxResult?.duplicate && previousDedupeStatus !== "failed") {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, duplicate: true, sent: false, reason: "duplicate_message" });
       continue;
+    }
+    if (inboxResult?.duplicate && previousDedupeStatus === "failed") {
+      console.log("dedupe_retry_allowed", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        message_id: maskIdForLog(messageId),
+        previous_status: previousDedupeStatus,
+        source: "inbox_duplicate_after_failed_processing",
+      });
     }
     if (!enabled) {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "channel_disabled" });
@@ -6807,6 +6918,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           if (handled?.handled) break;
         }
         if (handled?.handled) {
+          markMessageProcessingStatus(messageId, "sent");
           results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true, reason: handled.reason });
           continue;
         }
@@ -6849,10 +6961,28 @@ export const processMetaWebhook = async ({ req } = {}) => {
         status: error?.status || "",
         code: error?.code || "",
       });
+      const fallback = await sendAiGenerationFailedProductFallback({ config, message, error }).catch((fallbackError) => {
+        console.error("ai_generation_failed_no_fallback", {
+          tenant_id: config.tenant_id,
+          conversation_id: message.external_conversation_id,
+          reason: "fallback_send_failed",
+          message: fallbackError?.message || "",
+          status: fallbackError?.status || "",
+          code: fallbackError?.code || "",
+        });
+        return null;
+      });
+      if (fallback?.handled) {
+        markMessageProcessingStatus(messageId, "sent");
+        results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true, reason: fallback.reason, ai_error_recovered: true });
+        continue;
+      }
+      markMessageProcessingStatus(messageId, "failed");
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, ai_error: error?.message || "AI flow failed" });
       continue;
     }
     if (["suggest_only", "auto_reply_after_approval"].includes(autoReplyMode)) {
+      markMessageProcessingStatus(messageId, "sent");
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: autoReplyMode });
       continue;
     }
@@ -6870,6 +7000,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
         all_colors_requested: detectAllColorsRequest(message.message_text || ""),
         other_colors_requested: detectOtherColorsRequest(message.message_text || ""),
       });
+      if (!detectOtherColorsRequest(message.message_text || "") && !detectAllColorsRequest(message.message_text || "")) {
+        console.log("model_initial_color_hard_cap_applied", {
+          tenant_id: config.tenant_id,
+          conversation_id: message.external_conversation_id,
+          requested_limit: 2,
+          resulting_card_count: productCards.length,
+        });
+      }
     }
     productCards = await resolveProductCardLinks(productCards, { tenantId: config.tenant_id });
     const replyText = modelNameSearch && productCards.length >= 2
@@ -6998,6 +7136,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           suggested_actions: productCards.length ? META_COMMERCE_ACTIONS : [],
         },
       }).catch(() => {});
+      markMessageProcessingStatus(messageId, "sent");
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true });
     } catch (error) {
       console.error("[meta-inbox] auto_reply_send_failed", {
@@ -7011,6 +7150,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         message: error?.message || "Meta send failed",
         meta_error: error?.metaResponse?.error || null,
       });
+      markMessageProcessingStatus(messageId, "failed");
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, send_error: error?.message || "Meta send failed" });
     }
   }
