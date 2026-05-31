@@ -752,6 +752,101 @@ const logQuestionResolver = (resolved = {}) => {
   });
 };
 
+const replySourceForIntent = (detectedIntent = "", metadata = {}) => {
+  const explicit = text(metadata.replySource || metadata.reply_source);
+  if (explicit) return explicit;
+  const intent = text(detectedIntent);
+  if (/product_search|model_color_limit_intro/i.test(intent)) return "product_search_handler";
+  if (/size|availability/i.test(intent)) return "size_check_handler";
+  if (/checkout|order|draft/i.test(intent)) return "checkout_handler";
+  if (/other_colors|color/i.test(intent)) return "color_handler";
+  if (/fallback|clarification|blocked/i.test(intent)) return "fallback_handler";
+  return "handler";
+};
+
+const logReplyPath = ({
+  handler = "",
+  intent = "",
+  replySource = "",
+  replyPath = [],
+  orchestratorUsed = true,
+  resolvedQuestionType = "",
+  conversationId = "",
+} = {}) => {
+  const path = Array.isArray(replyPath) && replyPath.length
+    ? replyPath
+    : ["question_resolver", "response_orchestrator", replySource || handler || "final_reply"];
+  console.log("[reply-path]", {
+    handler: handler || "",
+    intent: intent || "",
+    reply_source: replySource || "",
+    replySource: replySource || "",
+    replyPath: path,
+    orchestratorUsed: orchestratorUsed === true,
+    resolvedQuestionType: resolvedQuestionType || "",
+    conversation_id: conversationId || "",
+  });
+};
+
+const orchestrateFinalReply = ({ message = {}, replyText = "", productCards = [], detectedIntent = "", metadata = {} } = {}) => {
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  const resolvedQuestion = message.resolvedQuestion || memory.resolvedQuestion || resolveCustomerQuestion({ message, memory });
+  const replySource = replySourceForIntent(detectedIntent, metadata);
+  const handler = text(metadata.handler || metadata.reply_handler || replySource);
+  const ownedReply = ensureResponseOrchestratorReply({
+    message,
+    replyText,
+    detectedIntent,
+    metadata: {
+      ...metadata,
+      handler,
+      originalReplySource: replySource,
+      original_reply_source: replySource,
+      resolvedQuestionType: resolvedQuestion.intent || metadata.resolvedQuestionType || "",
+      resolved_question_type: resolvedQuestion.intent || metadata.resolved_question_type || "",
+      replyDecisionReason: resolvedQuestion.reason || metadata.replyDecisionReason || "",
+    },
+  });
+  const finalMetadata = {
+    ...ownedReply.metadata,
+    replyOwner: "response_orchestrator",
+    reply_owner: "response_orchestrator",
+    replySource: "response_orchestrator",
+    reply_source: "response_orchestrator",
+    originalReplySource: replySource,
+    original_reply_source: replySource,
+    replyPath: ownedReply.path || ["question_resolver", handler, "response_orchestrator", "final_reply"],
+    reply_path: ownedReply.path || ["question_resolver", handler, "response_orchestrator", "final_reply"],
+    orchestratorUsed: true,
+    orchestrator_used: true,
+    resolvedQuestionType: resolvedQuestion.intent || "",
+    resolved_question_type: resolvedQuestion.intent || "",
+    replyDecisionReason: resolvedQuestion.reason || metadata.replyDecisionReason || "",
+  };
+  logReplyPath({
+    handler,
+    intent: detectedIntent,
+    replySource: "response_orchestrator",
+    replyPath: finalMetadata.replyPath,
+    orchestratorUsed: true,
+    resolvedQuestionType: resolvedQuestion.intent || "",
+    conversationId: message.external_conversation_id,
+  });
+  logReplyOwner({
+    handler: "response_orchestrator",
+    intent: detectedIntent,
+    message,
+    replyText: ownedReply.text,
+    metadata: finalMetadata,
+  });
+  return {
+    text: ownedReply.text,
+    productCards,
+    metadata: finalMetadata,
+    resolvedQuestion,
+  };
+};
+
 const sizeGuardProductRequestTerms = [
   "jordan",
   "air jordan",
@@ -1191,6 +1286,11 @@ const storeAiDebugEvent = async ({ tenantId, channel = "", conversationId = "", 
     switched: event.switched === true || event.context_switched === true,
     resolvedQuestionType: text(event.resolvedQuestionType || event.resolved_question_type || event.memory_changes?.resolvedQuestionType || ""),
     replyDecisionReason: text(event.replyDecisionReason || event.reply_decision_reason || event.memory_changes?.replyDecisionReason || ""),
+    replyOwner: text(event.replyOwner || event.reply_owner || event.metadata?.replyOwner || event.memory_changes?.replyOwner || ""),
+    replySource: text(event.replySource || event.reply_source || event.metadata?.replySource || event.memory_changes?.replySource || ""),
+    replyPath: Array.isArray(event.replyPath || event.reply_path)
+      ? (event.replyPath || event.reply_path).map(text).filter(Boolean).slice(0, 8)
+      : text(event.replyPath || event.reply_path || event.metadata?.replyPath || ""),
   };
   const next = [safeEvent, ...current].slice(0, 20);
   await db.query(
@@ -6045,6 +6145,28 @@ const orchestratedReplyMetadata = (orchestrated = null) => ({
   antiRepetitionApplied: orchestrated?.antiRepetitionApplied === true,
 });
 
+const questionTypeToOrchestratorIntent = (questionType = "", detectedIntent = "") => {
+  const safeDetectedIntent = text(detectedIntent);
+  switch (questionType) {
+    case QUESTION_TYPES.SIZE_QUESTION:
+      return "SIZE_CHECK";
+    case QUESTION_TYPES.COLOR_QUESTION:
+      return "COLOR_REQUEST";
+    case QUESTION_TYPES.PRICE_QUESTION:
+      return "PRICE_CHECK";
+    case QUESTION_TYPES.BUYING_INTENT:
+      return "BUYING_INTENT";
+    case QUESTION_TYPES.ALTERNATIVES_QUESTION:
+      return "ALTERNATIVES";
+    case QUESTION_TYPES.LINK_QUESTION:
+      return "LINK_QUESTION";
+    case QUESTION_TYPES.AVAILABILITY_QUESTION:
+      return "PRODUCT_SEARCH";
+    default:
+      return safeDetectedIntent || "PRODUCT_SEARCH";
+  }
+};
+
 const buildOrchestratedReply = ({ message = {}, intent = "", categoryContext = {}, overrides = {} } = {}) => {
   const conversationId = message.external_conversation_id || message.conversation_id || "";
   const memory = getConversationMemory(conversationId) || {};
@@ -6059,6 +6181,105 @@ const buildOrchestratedReply = ({ message = {}, intent = "", categoryContext = {
   });
   applyOrchestratedReplyMemory({ conversationId, orchestrated });
   return orchestrated;
+};
+
+const buildReplyOwnershipContext = ({ message = {}, detectedIntent = "", metadata = {}, fallbackText = "" } = {}) => {
+  const conversationId = message.external_conversation_id || message.conversation_id || "";
+  const memory = getConversationMemory(conversationId) || {};
+  const resolvedQuestionType = text(metadata.resolvedQuestionType || memory.resolvedQuestionType || memory.resolvedQuestion?.intent || "");
+  const intent = questionTypeToOrchestratorIntent(resolvedQuestionType, detectedIntent || metadata.detectedIntent || metadata.trigger);
+  const lastCard = metadata.selectedProduct || metadata.product || memory.lastProductCard || {};
+  const availableSizes = Array.isArray(metadata.available_sizes)
+    ? metadata.available_sizes
+    : Array.isArray(metadata.availableSizes)
+      ? metadata.availableSizes
+      : Array.isArray(lastCard.sizes)
+        ? lastCard.sizes
+        : Array.isArray(lastCard.available_sizes)
+          ? lastCard.available_sizes
+          : Array.isArray(memory.selectedAvailableSizes)
+            ? memory.selectedAvailableSizes
+            : [];
+  const availableColors = Array.isArray(metadata.available_colors)
+    ? metadata.available_colors
+    : Array.isArray(metadata.availableColors)
+      ? metadata.availableColors
+      : [];
+  const explicitSize = extractShoeSize(message.message_text || "");
+  const allowSize = resolvedQuestionType === QUESTION_TYPES.SIZE_QUESTION || checkoutConfirmationOnly(message.message_text || "");
+  return {
+    intent,
+    categoryContext: {
+      selectedProduct: lastCard,
+      selectedSize: allowSize ? text(metadata.selected_size || metadata.selectedSize || explicitSize || "") : "",
+      selectedColor: text(metadata.color || metadata.selectedColor || memory.selectedColor || ""),
+      availableSizes,
+      availableColors,
+      price: text(metadata.price || lastCard.price || lastCard.product_price || ""),
+      productContext: {
+        productName: lastCard.name || lastCard.title || memory.activeTopic || "",
+        sizeAvailable: metadata.available === false ? false : undefined,
+        weakVisualMatch: metadata.weak_visual_match === true || metadata.weakVisualMatch === true,
+        productUnavailable: metadata.product_unavailable === true || metadata.productUnavailable === true,
+        legacyReplyPreview: text(fallbackText).slice(0, 160),
+      },
+    },
+  };
+};
+
+const ensureResponseOrchestratorReply = ({ message = {}, replyText = "", detectedIntent = "", metadata = {} } = {}) => {
+  const alreadyOrchestrated = metadata.responseOrchestratorUsed === true || metadata.replyOwner === "response_orchestrator";
+  if (alreadyOrchestrated) {
+    return {
+      text: replyText,
+      metadata: {
+        ...metadata,
+        replyOwner: "response_orchestrator",
+        replySource: metadata.replySource || "response_orchestrator",
+        replyPath: metadata.replyPath || [detectedIntent || metadata.trigger || "unknown", "response_orchestrator"].filter(Boolean).join(">"),
+      },
+      owner: "response_orchestrator",
+      source: metadata.replySource || "response_orchestrator",
+      path: metadata.replyPath || [detectedIntent || metadata.trigger || "unknown", "response_orchestrator"].filter(Boolean).join(">"),
+      rewritten: false,
+    };
+  }
+
+  const ownership = buildReplyOwnershipContext({ message, detectedIntent, metadata, fallbackText: replyText });
+  const orchestrated = buildOrchestratedReply({
+    message,
+    intent: ownership.intent,
+    categoryContext: ownership.categoryContext,
+  });
+  const replyPath = [detectedIntent || metadata.trigger || "legacy_handler", "response_orchestrator"].filter(Boolean).join(">");
+  return {
+    text: orchestrated.replyText || replyText,
+    metadata: {
+      ...metadata,
+      ...orchestratedReplyMetadata(orchestrated),
+      replyOwner: "response_orchestrator",
+      replySource: "response_orchestrator",
+      replyPath,
+      legacyReplyOwner: metadata.replyOwner || metadata.replySource || detectedIntent || "legacy_handler",
+      legacyReplyPreview: text(replyText).slice(0, 180),
+    },
+    owner: "response_orchestrator",
+    source: "response_orchestrator",
+    path: replyPath,
+    rewritten: true,
+  };
+};
+
+const logReplyOwner = ({ handler = "", intent = "", message = {}, replyText = "", metadata = {} } = {}) => {
+  console.log("[reply-owner]", {
+    handler: handler || metadata.replyOwner || metadata.replySource || "unknown",
+    intent: intent || metadata.detectedIntent || metadata.trigger || "",
+    message: text(message.message_text || "").slice(0, 180),
+    reply_preview: text(replyText).slice(0, 180),
+    replyOwner: metadata.replyOwner || "",
+    replySource: metadata.replySource || "",
+    replyPath: metadata.replyPath || "",
+  });
 };
 
 const clearProductSpecificContextPatch = () => ({
@@ -6875,18 +7096,21 @@ const detectOtherColorsRequest = (message = "") =>
   Boolean(hasTerm(message, ["\u0623\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0627\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0644\u0648\u0646 \u062a\u0627\u0646\u064a", "other colors", "another color"]));
 
 const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIntent = "", metadata = {}, inboundKey: explicitInboundKey = "", inboundMetaMid: explicitInboundMetaMid = "" } = {}) => {
+  const orchestrated = orchestrateFinalReply({ message, replyText, detectedIntent, metadata });
+  const finalReplyText = orchestrated.text;
+  const finalMetadata = orchestrated.metadata;
   const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message, {
     inboundKey: explicitInboundKey,
     inboundMetaMid: explicitInboundMetaMid,
   });
-  const signature = outboundSignature({ messageText: replyText, productCards: [], trigger: detectedIntent || metadata?.trigger || "" });
+  const signature = outboundSignature({ messageText: finalReplyText, productCards: [], trigger: detectedIntent || finalMetadata?.trigger || "" });
   const dedupe = await checkAndStoreOutboundSignature({
     tenantId: config.tenant_id,
     channel: message.channel,
     conversationId: message.external_conversation_id,
     signature,
-    trigger: detectedIntent || metadata?.trigger || "",
-    preview: replyText,
+    trigger: detectedIntent || finalMetadata?.trigger || "",
+    preview: finalReplyText,
     inboundKey,
     inboundMetaMid,
   });
@@ -6913,7 +7137,7 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     tenantId: config.tenant_id,
     channel: message.channel,
     recipientId: message.external_customer_id,
-    messageText: replyText,
+    messageText: finalReplyText,
     conversationId: message.external_conversation_id,
     facebookPageId: config.facebook_page_id,
     instagramBusinessAccountId: config.instagram_business_account_id,
@@ -6922,12 +7146,17 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     inboundMetaMid,
     bypassOutboundDedupe: true,
     outboundSignatureOverride: signature,
+    replyOwner: finalMetadata.replyOwner || "response_orchestrator",
+    replySource: finalMetadata.replySource,
+    replyPath: finalMetadata.replyPath,
+    orchestratorUsed: true,
+    resolvedQuestionType: finalMetadata.resolvedQuestionType,
   });
   if (result?.dedupe_skipped) return result;
   const inserted = await appendAiGeneratedSupportReply({
     tenantId: config.tenant_id,
     sessionId: message.external_conversation_id,
-    answer: replyText,
+    answer: finalReplyText,
     detectedIntent,
     channel: message.channel,
     deliveryStatus: "sent",
@@ -6956,11 +7185,11 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     direction: "outbound",
     externalCustomerId: message.external_customer_id,
     conversationId: message.external_conversation_id,
-    messagePreview: replyText,
+    messagePreview: finalReplyText,
     status: "sent",
-    metadata: { meta_message_id: result?.message_id || "", ...metadata },
+    metadata: { meta_message_id: result?.message_id || "", ...finalMetadata },
   }).catch(() => {});
-  return result;
+  return { ...result, reply_owner: finalMetadata.replyOwner, reply_source: finalMetadata.replySource, reply_path: finalMetadata.replyPath, reply_text: finalReplyText };
 };
 
 const sendAndLogProductCards = async ({ config, message, productCards = [], detectedIntent = "", introText = "", metadata = {} } = {}) => {
@@ -7033,15 +7262,24 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   const finalIntroText = modelNameSearch && gatedCards.length >= 2
     ? [modelColorLimitIntro, gate.introText || introText].filter(Boolean).join("\n")
     : gate.introText || introText;
+  const orchestratedCardsReply = orchestrateFinalReply({
+    message,
+    replyText: finalIntroText,
+    productCards: gatedCards,
+    detectedIntent,
+    metadata: { ...metadata, handler: "product_cards_handler" },
+  });
+  const finalCardIntroText = orchestratedCardsReply.text;
+  const finalCardMetadata = orchestratedCardsReply.metadata;
   const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
-  const signature = outboundSignature({ messageText: finalIntroText, productCards: gatedCards, trigger: detectedIntent || metadata?.trigger || "" });
+  const signature = outboundSignature({ messageText: finalCardIntroText, productCards: gatedCards, trigger: detectedIntent || metadata?.trigger || "" });
   const dedupe = await checkAndStoreOutboundSignature({
     tenantId: config.tenant_id,
     channel: message.channel,
     conversationId: message.external_conversation_id,
     signature,
     trigger: detectedIntent || metadata?.trigger || "",
-    preview: finalIntroText || gatedCards.map((card) => card.name || card.product_id || "").join(", "),
+    preview: finalCardIntroText || gatedCards.map((card) => card.name || card.product_id || "").join(", "),
     inboundKey,
     inboundMetaMid,
   });
@@ -7082,13 +7320,13 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
       });
     }
   }
-  if (finalIntroText) {
+  if (finalCardIntroText) {
     await sendAndLogMetaText({
       config,
       message,
-      text: finalIntroText,
+      text: finalCardIntroText,
       detectedIntent,
-      metadata: { ...metadata, intro: true },
+      metadata: { ...metadata, ...finalCardMetadata, intro: true },
     });
   }
   const result = await sendMetaInboxOutboundMessage({
@@ -7106,6 +7344,11 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     inboundMetaMid,
     bypassOutboundDedupe: true,
     outboundSignatureOverride: signature,
+    replyOwner: finalCardMetadata.replyOwner || "response_orchestrator",
+    replySource: finalCardMetadata.replySource,
+    replyPath: finalCardMetadata.replyPath,
+    orchestratorUsed: true,
+    resolvedQuestionType: finalCardMetadata.resolvedQuestionType,
   });
   if (result?.dedupe_skipped) return result;
   rememberLastProductCards({
@@ -7122,7 +7365,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   await appendAiGeneratedSupportReply({
     tenantId: config.tenant_id,
     sessionId: message.external_conversation_id,
-    answer: finalIntroText ? `${finalIntroText}\n${preview}` : preview,
+    answer: finalCardIntroText ? `${finalCardIntroText}\n${preview}` : preview,
     detectedIntent,
     suggestedProducts: gatedCards,
     suggestedActions: META_COMMERCE_ACTIONS,
@@ -7136,9 +7379,9 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     direction: "outbound",
     externalCustomerId: message.external_customer_id,
     conversationId: message.external_conversation_id,
-    messagePreview: finalIntroText ? `${finalIntroText}\n${preview}`.slice(0, 500) : preview,
+    messagePreview: finalCardIntroText ? `${finalCardIntroText}\n${preview}`.slice(0, 500) : preview,
     status: "sent",
-    metadata: { meta_message_id: result?.message_id || "", product_card_count: gatedCards.length, decision_gate: gate.evaluated, ...metadata },
+    metadata: { meta_message_id: result?.message_id || "", product_card_count: gatedCards.length, decision_gate: gate.evaluated, ...finalCardMetadata },
   }).catch(() => {});
   return result;
 };
@@ -7483,7 +7726,7 @@ const handleProductSearchIfMatched = async ({ config, message } = {}) => {
       productContext: { productName: firstCard.name || firstCard.title || query },
     },
   });
-  const productSearchIntro = modelNameProductSearch && orchestrated?.replyText
+  const legacyProductSearchIntro = modelNameProductSearch && orchestrated?.replyText
     ? orchestrated.replyText
     : modelNameProductSearch
     ? [
@@ -7494,13 +7737,41 @@ const handleProductSearchIfMatched = async ({ config, message } = {}) => {
         "\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646\u061f",
       ].filter((line) => line !== "").join("\n")
     : "أيوه، دي أقرب نتيجة عندي للموديل ده:";
+  const productSearchIntro = modelNameProductSearch
+    ? salesDesignerProductIntro({ card: firstCard, sizes: firstCardSizes }) || legacyProductSearchIntro
+    : legacyProductSearchIntro;
+  const productSearchContext = {
+    product: firstCard.name || firstCard.title || firstCard.product_name || "",
+    price: firstCardPrice,
+    sizes: firstCardSizes,
+    colors: distinctTextArray(cards.map((card) => card.color || card.matched_variant_color || "").filter(Boolean), 8),
+  };
+  updateSalesConversationStage({
+    tenantId: config.tenant_id,
+    conversationId: message.external_conversation_id,
+    stage: SALES_CONVERSATION_STAGES.PRODUCT_PRESENTATION,
+    reason: "product_search_structured_context",
+    nextStage: SALES_CONVERSATION_STAGES.SIZE_SELECTION,
+  });
   const result = await sendAndLogProductCards({
     config,
     message,
     productCards: cards,
     detectedIntent: "product_search",
     introText: productSearchIntro,
-    metadata: { product_search_query: query, keywords, product_card_limit: detectModelNameSearch(message.message_text || "") ? 1 : 6, ...orchestratedReplyMetadata(orchestrated) },
+    metadata: {
+      product_search_query: query,
+      keywords,
+      product_card_limit: detectModelNameSearch(message.message_text || "") ? 1 : 6,
+      structuredContext: productSearchContext,
+      product: productSearchContext.product,
+      price: productSearchContext.price,
+      sizes: productSearchContext.sizes,
+      colors: productSearchContext.colors,
+      handler: "product_search_handler",
+      reply_source: "product_search_handler",
+      ...orchestratedReplyMetadata(orchestrated),
+    },
   });
   return result ? { handled: true, reason: "product_search", sent: true } : { handled: true, reason: "product_search_no_send" };
 };
@@ -8734,6 +9005,11 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     facebookPageId: config.facebook_page_id,
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
+    replyOwner: "response_orchestrator",
+    replySource: "response_orchestrator",
+    replyPath: ["question_resolver", "more_images_handler", "response_orchestrator", "final_reply"],
+    orchestratorUsed: true,
+    resolvedQuestionType: (getConversationMemory(message.external_conversation_id) || {}).resolvedQuestionType || "",
   });
   rememberLastProductCards({
     tenantId: config.tenant_id,
@@ -12074,6 +12350,11 @@ const resolveMetaSendConfig = async ({
   inboundMetaMid = "",
   bypassOutboundDedupe = false,
   outboundSignatureOverride = "",
+  replyOwner = "response_orchestrator",
+  replySource = "response_orchestrator",
+  replyPath = [],
+  orchestratorUsed = true,
+  resolvedQuestionType = "",
 } = {}) => {
   await ensureMetaIntegrationSchema();
   const scopedTenantId = numberOrNull(tenantId);
@@ -12248,6 +12529,11 @@ export const sendMetaInboxOutboundMessage = async ({
   inboundMetaMid = "",
   bypassOutboundDedupe = false,
   outboundSignatureOverride = "",
+  replyOwner = "response_orchestrator",
+  replySource = "response_orchestrator",
+  replyPath = [],
+  orchestratorUsed = true,
+  resolvedQuestionType = "",
 } = {}) => {
   await ensureMetaIntegrationSchema();
   const scopedTenantId = numberOrNull(tenantId);
@@ -12259,6 +12545,27 @@ export const sendMetaInboxOutboundMessage = async ({
     throw Object.assign(new Error("tenant_id, recipient id, and message are required"), { status: 400, code: "META_SEND_INPUT_REQUIRED" });
   }
   const payloadType = metaSendPayloadType({ messageText: safeMessage, attachments, productCards: cards });
+  logReplyPath({
+    handler: text(replyOwner || replySource) === "response_orchestrator" ? "response_orchestrator" : text(replyOwner || replySource),
+    intent: resolvedQuestionType || "",
+    replySource: text(replySource) || "response_orchestrator",
+    replyPath,
+    orchestratorUsed,
+    resolvedQuestionType,
+    conversationId,
+  });
+  logReplyOwner({
+    handler: text(replyOwner || replySource) || "response_orchestrator",
+    intent: resolvedQuestionType || "",
+    message: { message_text: "" },
+    replyText: safeMessage || cards.map((card) => card.name || card.product_id || "").join(", "),
+    metadata: {
+      replyOwner: text(replyOwner) || "response_orchestrator",
+      replySource: text(replySource) || "response_orchestrator",
+      replyPath,
+      resolvedQuestionType,
+    },
+  });
   console.log("[meta-send] preparing", {
     tenant_id: scopedTenantId,
     channel: normalizedChannel,
@@ -13335,19 +13642,15 @@ export const processMetaWebhook = async ({ req } = {}) => {
         product_ids: productCards.map((product) => product.product_id || product.id || null).filter(Boolean),
       });
       const memory = getConversationMemory(message.external_conversation_id) || {};
-      const reuseSize = shouldReuseSelectedSize(message.message_text, memory);
-      const selectedSize = text(reuseSize.allowed ? memory.selectedSize : "");
+      const selectedSize = "";
+      const repeatedProductFallbackText = "\u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627. \u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0623\u0648\u0631\u064a\u0643 \u0644\u0648\u0646 \u062a\u0627\u0646\u064a\u061f";
       const prompt = checkoutStageAtLeast(memory.checkoutStage, "checkout")
         ? CHECKOUT_INFO_REPLY
-        : memory.bookingConfirmationAsked === true && selectedSize
-          ? "\u062a\u062d\u0628 \u0623\u0633\u0627\u0639\u062f\u0643 \u0641\u064a \u062d\u0627\u062c\u0629 \u062a\u0627\u0646\u064a\u0629\u061f"
-          : selectedSize
-            ? `\u0645\u0642\u0627\u0633 ${selectedSize} \u0645\u062a\u0627\u062d \u2705\n\u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0633\u0639\u0631 \u0623\u0648 \u0623\u0648\u0631\u064a\u0643 \u0644\u0648\u0646 \u062a\u0627\u0646\u064a\u061f`
-            : null;
+        : null;
       const legacyPrompt = selectedSize
         ? `مقاس ${selectedSize} متاح. ${CHECKOUT_INFO_REPLY}`
         : "\u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627. \u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0623\u0648\u0631\u064a\u0643 \u0644\u0648\u0646 \u062a\u0627\u0646\u064a\u061f";
-      await sendAndLogMetaText({
+      const repeatedGuardSend = await sendAndLogMetaText({
         config,
         message,
         text: prompt || "\u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627. \u062a\u062d\u0628 \u0623\u0642\u0648\u0644\u0643 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0623\u0648 \u0623\u0648\u0631\u064a\u0643 \u0644\u0648\u0646 \u062a\u0627\u0646\u064a\u061f",
@@ -13371,9 +13674,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
           confidence: latestDebugClassification?.confidence ?? message.orchestratorIntent?.confidence,
           selected_route: "repeated_product_card_guard",
           memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
-          reply_preview: prompt || legacyPrompt || "",
+          reply_preview: repeatedGuardSend?.reply_text || prompt || legacyPrompt || "",
           skipped_duplicate: false,
           handled_reason: "repeated_product_card_prevented",
+          replyOwner: repeatedGuardSend?.reply_owner || "response_orchestrator",
+          replySource: repeatedGuardSend?.reply_source || "response_orchestrator",
+          replyPath: repeatedGuardSend?.reply_path || [],
         },
       }).catch(() => {});
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true, reason: "repeated_product_card_prevented" });
@@ -13396,21 +13702,33 @@ export const processMetaWebhook = async ({ req } = {}) => {
       continue;
     }
     try {
-      const outboundPreview = productCards.length ? productCards.map(productCardReplyText).join("\n\n").slice(0, 500) : replyText;
-      if (productCards.length && modelNameSearch && replyText) {
+      const finalOutbound = orchestrateFinalReply({
+        message,
+        replyText,
+        productCards,
+        detectedIntent: aiPayload.detected_intent || latestDebugClassification?.intent || "",
+        metadata: {
+          handler: "post_ai_auto_reply",
+          product_card_count: productCards.length,
+        },
+      });
+      const finalReplyText = finalOutbound.text;
+      const finalOutboundMetadata = finalOutbound.metadata;
+      const outboundPreview = productCards.length ? productCards.map(productCardReplyText).join("\n\n").slice(0, 500) : finalReplyText;
+      if (productCards.length && modelNameSearch && finalReplyText) {
         await sendAndLogMetaText({
           config,
           message,
-          text: replyText,
+          text: finalReplyText,
           detectedIntent: "model_color_limit_intro",
-          metadata: { model_color_limit_applied: true, product_card_count: productCards.length },
+          metadata: { ...finalOutboundMetadata, model_color_limit_applied: true, product_card_count: productCards.length },
         });
       }
       const sendResult = await sendMetaInboxOutboundMessage({
         tenantId: config.tenant_id,
         channel: message.channel,
         recipientId: message.external_customer_id,
-        messageText: replyText,
+        messageText: finalReplyText,
         conversationId: message.external_conversation_id,
         productCards,
         productCardLimit: productCards.length || productCardLimit,
@@ -13420,6 +13738,11 @@ export const processMetaWebhook = async ({ req } = {}) => {
         preferredConfigId: config.id,
         inboundKey,
         inboundMetaMid: message.external_message_id || messageId,
+        replyOwner: finalOutboundMetadata.replyOwner || "response_orchestrator",
+        replySource: finalOutboundMetadata.replySource || "response_orchestrator",
+        replyPath: finalOutboundMetadata.replyPath || [],
+        orchestratorUsed: true,
+        resolvedQuestionType: finalOutboundMetadata.resolvedQuestionType || "",
       });
       if (sendResult?.dedupe_skipped) {
         markMessageProcessingStatus(messageId, "sent");
@@ -13529,6 +13852,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           image_result_count: Array.isArray(sendResult?.results) ? Math.max(0, sendResult.results.length - 1) : 0,
           product_card_count: productCards.length,
           suggested_actions: productCards.length ? META_COMMERCE_ACTIONS : [],
+          ...finalOutboundMetadata,
         },
       }).catch(() => {});
       markMessageProcessingStatus(messageId, "sent");
@@ -13556,6 +13880,9 @@ export const processMetaWebhook = async ({ req } = {}) => {
           outbound_signature: sendResult?.signature || "",
           skip_reason: "",
           graph_api_called: true,
+          replyOwner: finalOutboundMetadata.replyOwner || "response_orchestrator",
+          replySource: finalOutboundMetadata.replySource || "response_orchestrator",
+          replyPath: finalOutboundMetadata.replyPath || [],
         },
       }).catch(() => {});
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true });
