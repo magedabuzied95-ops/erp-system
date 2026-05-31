@@ -4,6 +4,7 @@ export const RESPONSE_CONVERSATION_STAGES = Object.freeze({
   GREETING: "GREETING",
   DISCOVERY: "DISCOVERY",
   PRODUCT_PRESENTATION: "PRODUCT_PRESENTATION",
+  PRODUCT_PRESENTATION_FOLLOWUP: "PRODUCT_PRESENTATION_FOLLOWUP",
   COLOR_SELECTION: "COLOR_SELECTION",
   SIZE_SELECTION: "SIZE_SELECTION",
   OBJECTION_HANDLING: "OBJECTION_HANDLING",
@@ -15,6 +16,31 @@ export const RESPONSE_CONVERSATION_STAGES = Object.freeze({
 
 const asArray = (value) => (Array.isArray(value) ? value : [value]).flat().map(text).filter(Boolean);
 const unique = (items = [], limit = 12) => [...new Set(asArray(items))].slice(0, limit);
+const sizeNumber = (value = "") => {
+  const digits = text(value)
+    .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[^\d]/g, "");
+  const size = Number(digits);
+  return Number.isFinite(size) && size > 0 ? size : null;
+};
+const sortSizeList = (items = []) =>
+  unique(items, 20).sort((a, b) => {
+    const sizeA = sizeNumber(a);
+    const sizeB = sizeNumber(b);
+    if (sizeA !== null && sizeB !== null) return sizeA - sizeB;
+    if (sizeA !== null) return -1;
+    if (sizeB !== null) return 1;
+    return a.localeCompare(b);
+  });
+const joinSizes = (items = [], fallback = "") => {
+  const sorted = sortSizeList(items);
+  const numeric = sorted.map(sizeNumber);
+  const continuous = numeric.length >= 3 && numeric.every((size) => size !== null) &&
+    numeric.every((size, index) => index === 0 || size === numeric[index - 1] + 1);
+  if (continuous) return `${numeric[0]} \u0625\u0644\u0649 ${numeric.at(-1)}`;
+  return sorted.join("\u060c ") || fallback;
+};
 const joinList = (items = [], fallback = "") => unique(items, 8).join(", ") || fallback;
 
 const TEMPLATES = Object.freeze({
@@ -23,6 +49,12 @@ const TEMPLATES = Object.freeze({
     { id: "product_presentation_2", weight: 3, text: "موجود حاليًا\nسعره {price} جنيه\nالمقاسات المتاحة: {sizes}" },
     { id: "product_presentation_3", weight: 3, text: "أيوه موجود، ودي التفاصيل\nالسعر: {price}\nالمتاح: {sizes}" },
     { id: "product_presentation_4", weight: 2, text: "لقيته عندي ✅\nالسعر {price} جنيه\nالمقاسات: {sizes}" },
+  ],
+  PRODUCT_PRESENTATION_FOLLOWUP: [
+    { id: "product_presentation_followup_1", weight: 3, text: "\u0644\u0648 \u0639\u0646\u062f\u0643 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646 \u0642\u0648\u0644\u064a \u0639\u0644\u064a\u0647." },
+    { id: "product_presentation_followup_2", weight: 3, text: "\u062a\u062d\u0628 \u0623\u062a\u0623\u0643\u062f\u0644\u0643 \u0645\u0646 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646\u061f" },
+    { id: "product_presentation_followup_3", weight: 3, text: "\u0645\u062d\u062a\u0627\u062c \u062a\u0639\u0631\u0641 \u062a\u0648\u0627\u0641\u0631 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646\u061f" },
+    { id: "product_presentation_followup_4", weight: 3, text: "\u0642\u0648\u0644\u064a \u0645\u0642\u0627\u0633\u0643 \u0648\u0623\u0646\u0627 \u0623\u062a\u0623\u0643\u062f\u0644\u0643." },
   ],
   SIZE_AVAILABLE: [
     { id: "size_available_1", weight: 4, text: "أيوه {size} متوفر ✅\nتحب أحجزهولك؟" },
@@ -73,8 +105,15 @@ const STAGE_BY_INTENT = Object.freeze({
   HUMAN_AGENT: RESPONSE_CONVERSATION_STAGES.HUMAN_HANDOFF,
 });
 
+const POLISHED_PRODUCT_PRESENTATION_TEMPLATES = [
+  { id: "product_presentation_polished_1", weight: 4, text: "\u0623\u064a\u0648\u0647 \u0645\u062a\u0627\u062d \u2705\n\n\u0627\u0644\u0633\u0639\u0631: {price} \u062c\u0646\u064a\u0647" },
+  { id: "product_presentation_polished_2", weight: 3, text: "\u0645\u0648\u062c\u0648\u062f \u062d\u0627\u0644\u064a\u064b\u0627 \u2705\n\n\u0627\u0644\u0633\u0639\u0631: {price} \u062c\u0646\u064a\u0647" },
+];
+
 const chooseWeightedTemplate = (category, recentTemplateIds = []) => {
-  const templates = TEMPLATES[category] || TEMPLATES.PRODUCT_PRESENTATION;
+  const templates = category === "PRODUCT_PRESENTATION"
+    ? POLISHED_PRODUCT_PRESENTATION_TEMPLATES
+    : TEMPLATES[category] || POLISHED_PRODUCT_PRESENTATION_TEMPLATES;
   const recent = new Set(asArray(recentTemplateIds));
   let pool = templates.filter((template) => !recent.has(template.id));
   let antiRepetitionApplied = pool.length !== templates.length;
@@ -101,6 +140,7 @@ const interpolate = (template = "", values = {}) =>
 
 const inferReplyCategory = ({ intent = "", customerMessage = "", selectedSize = "", availableSizes = [], productContext = {} } = {}) => {
   const normalized = text(customerMessage).toLowerCase();
+  if (intent === "PRODUCT_PRESENTATION_FOLLOWUP") return "PRODUCT_PRESENTATION_FOLLOWUP";
   if (/غالي|غالية|السعر عالي|expensive|price high/.test(normalized) || intent === "PRICE_OBJECTION") return "OBJECTION_PRICE";
   if (intent === "COLOR_REQUEST") return "COLOR_SELECTION";
   if (intent === "CHECKOUT") return "CHECKOUT_COLLECTING";
@@ -131,11 +171,12 @@ export const orchestrateAiResponse = ({
   const { template, antiRepetitionApplied } = chooseWeightedTemplate(replyCategory, recentReplyTemplateIds);
   const nextConversationStage =
     replyCategory === "OBJECTION_PRICE" ? RESPONSE_CONVERSATION_STAGES.OBJECTION_HANDLING :
+    replyCategory === "PRODUCT_PRESENTATION_FOLLOWUP" ? RESPONSE_CONVERSATION_STAGES.PRODUCT_PRESENTATION_FOLLOWUP :
     replyCategory === "COLOR_SELECTION" ? RESPONSE_CONVERSATION_STAGES.COLOR_SELECTION :
     replyCategory === "ASK_SIZE" || replyCategory.startsWith("SIZE_") ? RESPONSE_CONVERSATION_STAGES.SIZE_SELECTION :
     replyCategory === "CHECKOUT_COLLECTING" ? RESPONSE_CONVERSATION_STAGES.CHECKOUT_COLLECTING :
     STAGE_BY_INTENT[intent] || conversationStage || RESPONSE_CONVERSATION_STAGES.DISCOVERY;
-  const sizeList = joinList(availableSizes, "هراجعهولك");
+  const sizeList = joinSizes(availableSizes, "هراجعهولك");
   const colorList = joinList(availableColors, "المتاح هبعتهولك");
   const replyText = interpolate(template.text, {
     product: selectedProduct?.name || selectedProduct?.title || productContext.productName || "",
@@ -162,6 +203,7 @@ export const orchestrateAiResponse = ({
     antiRepetitionApplied,
     memoryPatch: {
       lastReplyTemplateId: template.id,
+      lastReplyCategory: replyCategory,
       recentReplyTemplateIds: unique([...recentReplyTemplateIds, template.id], 8),
       recentReplyCategories: unique([...recentReplyCategories, replyCategory], 8),
       conversationStage: nextConversationStage,
