@@ -212,14 +212,35 @@ export const AI_INTENTS = Object.freeze({
 
 const ORCHESTRATOR_CONFIDENCE_THRESHOLD = 0.58;
 
+const resolveExactModelAlias = (message = "") => {
+  const input = text(message);
+  const normalized = input.toLowerCase().replace(/\s+/g, " ").trim();
+  const aliases = [
+    { alias: "\u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631", pattern: /\u062c\u0648\u0631\u062f[ن\u0646ا\u0627]\s*\u0641\u0648\u0631/i },
+    { alias: "\u062c\u0648\u0631\u062f\u0646 4", pattern: /\u062c\u0648\u0631\u062f[ن\u0646ا\u0627]\s*(?:4|\u0664)/i },
+    { alias: "Jordan Four", pattern: /\bjordan\s+four\b/i },
+    { alias: "Jordan 4", pattern: /\bjordan\s*4\b/i },
+    { alias: "AJ4", pattern: /\baj\s*4\b/i },
+    { alias: "J4", pattern: /\bj\s*4\b/i },
+  ];
+  const match = aliases.find((item) => item.pattern.test(normalized));
+  return {
+    input,
+    matched_alias: match?.alias || "",
+    canonical_model: match ? "Jordan 4" : "",
+    confidence: match ? 0.94 : 0,
+  };
+};
+
 export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {}) => {
   const messageText = text(message.message_text);
   const normalized = messageText.toLowerCase().replace(/\s+/g, " ");
   const imageCount = imageAttachments(message.attachments || []).length;
   const size = extractShoeSize(messageText) || "";
+  const aliasMatch = resolveExactModelAlias(messageText);
   const brands = detectedCustomerBrands(messageText);
-  const models = detectedCustomerModels(messageText);
-  const productName = detectedCustomerProductName(messageText);
+  const models = distinctTextArray([aliasMatch.canonical_model, ...detectedCustomerModels(messageText)], 8);
+  const productName = aliasMatch.canonical_model || detectedCustomerProductName(messageText);
   const categories = detectedCustomerCategories(messageText);
   const orderNumber = text((messageText.match(/(?:#|order|اوردر|أوردر|طلب|رقم)\s*([A-Z0-9-]{3,})/i) || [])[1] || "");
   const color = text((messageText.match(/(اسود|أسود|ابيض|أبيض|جراي|رمادي|احمر|أحمر|اخضر|أخضر|ازرق|أزرق|بيج|black|white|grey|gray|red|green|blue|beige)/i) || [])[1] || "");
@@ -282,6 +303,10 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     intent = AI_INTENTS.CHECKOUT;
     confidence = 0.88;
     reason = "checkout_stage_customer_data";
+  } else if (aliasMatch.confidence >= 0.8) {
+    intent = AI_INTENTS.PRODUCT_SEARCH;
+    confidence = aliasMatch.confidence;
+    reason = "exact_model_alias_product_query";
   } else if (hasProductEntity) {
     intent = AI_INTENTS.PRODUCT_SEARCH;
     confidence = brands.length || models.length ? 0.88 : 0.8;
@@ -322,6 +347,12 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     matched_model: models[0] || "",
     matched_size: size || "",
     final_intent: intent,
+  });
+  console.log("[alias-engine]", {
+    input: aliasMatch.input,
+    matched_alias: aliasMatch.matched_alias,
+    canonical_model: aliasMatch.canonical_model,
+    confidence: aliasMatch.confidence,
   });
 
   return { intent, confidence, entities, reason };
@@ -6392,6 +6423,39 @@ const productLooksLikeNorthFace = (product = {}) => {
     haystack.includes("\u0646\u0648\u0631\u062b\u0641\u064a\u0633");
 };
 
+const detectVisualCorrectionText = (message = "") => {
+  const raw = text(message);
+  const normalized = normalizedSearchText(raw);
+  const corrections = [];
+  if (/\bthe\s+north\s+face\b|\bnorth\s*face\b|\bnorthface\b|نورث\s*فيس|نورثفيس/.test(normalized)) {
+    corrections.push({ brand: "North Face", query: "North Face نورث فيس", keywords: ["north face", "northface", "نورث فيس"] });
+  }
+  if (/\bjordan\b|جوردن|جوردان|چوردن/.test(normalized)) {
+    corrections.push({ brand: "Jordan", query: "Jordan جوردن", keywords: ["jordan", "air jordan", "جوردن"] });
+  }
+  if (/\bnike\b|نايك|نايكي/.test(normalized)) {
+    corrections.push({ brand: "Nike", query: "Nike نايك", keywords: ["nike", "نايك"] });
+  }
+  if (/\badidas\b|اديداس|أديداس/.test(normalized)) {
+    corrections.push({ brand: "Adidas", query: "Adidas اديداس", keywords: ["adidas", "اديداس"] });
+  }
+  if (/\bair\s*force\b|اير\s*فورس/.test(normalized)) {
+    corrections.push({ model: "Air Force", query: "Air Force اير فورس", keywords: ["air force", "اير فورس"] });
+  }
+  if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|جورد[نا]\s*(?:فور|4|٤)|بلاك\s*كات/.test(normalized)) {
+    corrections.push({ brand: "Jordan", model: "Jordan 4", query: "Jordan 4 جوردن فور", keywords: ["air jordan 4", "jordan 4", "aj4", "j4", "جوردن فور"] });
+  }
+  const correction = corrections.at(-1) || null;
+  return correction
+    ? {
+        ...correction,
+        text: raw,
+        query: correction.query || correction.brand || correction.model || raw,
+        keywords: distinctTextArray(correction.keywords || [correction.brand, correction.model, raw], 12),
+      }
+    : null;
+};
+
 const handleBrandCorrectionIfMatched = async ({ config, message } = {}) => {
   if (!detectNorthFaceCorrection(message.message_text)) return null;
   console.log("ai_intent_priority_selected", {
@@ -6456,6 +6520,10 @@ const productSearchKeywordsForClassification = (classification = {}) => {
     classification.entities?.brand,
     classification.entities?.category,
   ].map(text).filter(Boolean);
+  const joinedKeywords = keywords.join(" ");
+  if (/jordan\s*four|aj\s*4|j\s*4|\u062c\u0648\u0631\u062f[\u0646\u0627]\s*(\u0641\u0648\u0631|4|\u0664)/i.test(joinedKeywords)) {
+    keywords.push("air jordan 4", "jordan 4", "jordan four", "aj4", "j4", "\u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631");
+  }
   if (/jordan\s*4|جورد[نا]\s*(فور|4|٤)/i.test(keywords.join(" "))) {
     keywords.push("air jordan 4", "jordan 4", "aj4", "j4", "جوردن فور");
   }
@@ -6474,6 +6542,17 @@ const handleProductSearchIfMatched = async ({ config, message } = {}) => {
   });
   const classification = message.orchestratorIntent || {};
   if (classification.intent !== AI_INTENTS.PRODUCT_SEARCH) return null;
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  const visualCorrection = detectVisualCorrectionText(message.message_text);
+  if (memory.lastIntent === "visual_clarification" && memory.lastImageUrl && visualCorrection) {
+    console.log("[visual-correction] detected", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      correction: visualCorrection.query,
+      last_image_url: memory.lastImageUrl,
+    });
+    return handleVisualSearchIfMatched({ config, message });
+  }
   const query = productSearchQueryForMessage(message);
   const keywords = productSearchKeywordsForClassification(classification);
   console.log("[product-search-handler] executed", {
@@ -6806,7 +6885,11 @@ const sendVisualClarificationOnce = async ({ config, message, metadata = {}, rea
 const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   const [imageAttachment] = imageAttachments(message.attachments || []);
   const memory = getConversationMemory(message.external_conversation_id) || {};
-  const retryLastImage = !imageAttachment && hasTerm(message.message_text, ["\u0627\u0647\u0648", "\u0623\u0647\u0648", "\u0627\u0647\u064a", "\u0623\u0647\u064a", "\u062f\u064a", "\u0627\u0644\u0635\u0648\u0631\u0629", "\u0628\u0639\u062a", "\u0628\u0639\u062a\u062a", "\u062a\u0645\u0627\u0645", "\u0647\u064a \u062f\u064a", "\u0647\u0648 \u062f\u0647"]);
+  const visualCorrection = memory.lastIntent === "visual_clarification" ? detectVisualCorrectionText(message.message_text) : null;
+  const retryLastImage = !imageAttachment && (
+    Boolean(visualCorrection) ||
+    hasTerm(message.message_text, ["\u0627\u0647\u0648", "\u0623\u0647\u0648", "\u0627\u0647\u064a", "\u0623\u0647\u064a", "\u062f\u064a", "\u0627\u0644\u0635\u0648\u0631\u0629", "\u0628\u0639\u062a", "\u0628\u0639\u062a\u062a", "\u062a\u0645\u0627\u0645", "\u0647\u064a \u062f\u064a", "\u0647\u0648 \u062f\u0647"])
+  );
   if (!imageAttachment && Array.isArray(message.attachments) && message.attachments.length) {
     console.log("[ai-vision] no image url found", {
       tenant_id: config.tenant_id,
@@ -6854,6 +6937,27 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     }
     return null;
   }
+  if (visualCorrection) {
+    console.log("[visual-correction] detected", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      correction: visualCorrection.query,
+      last_image_url: imageUrl,
+    });
+    console.log("[visual-correction] retrying search", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      image_url: imageUrl,
+      correction: visualCorrection.query,
+    });
+    console.log("[visual-correction] brand override", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      brand: visualCorrection.brand || "",
+      model: visualCorrection.model || "",
+      keywords: visualCorrection.keywords,
+    });
+  }
   console.log("[ai-vision] image url extracted", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -6863,6 +6967,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   updateConversationMemory(message.external_conversation_id, {
     lastImageUrl: imageUrl,
     pendingAction: "visual_search",
+    ...(visualCorrection ? { lastVisualClarification: visualCorrection.query } : {}),
   });
   persistAiConversationMemory({ tenantId: config.tenant_id, channel: message.channel, conversationId: message.external_conversation_id, reason: "visual_image_url_extracted" });
   const visualDebug = text(process.env.VISUAL_DEBUG).toLowerCase() === "true";
@@ -7006,7 +7111,9 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     lastVisualConfidence: visualAnalysis.confidence / 100,
   });
   persistAiConversationMemory({ tenantId: config.tenant_id, channel: message.channel, conversationId: message.external_conversation_id, reason: "visual_attributes_extracted" });
-  const searchQuery = visualQuery || message.message_text || "sneaker shoe";
+  const searchQuery = visualCorrection
+    ? [visualCorrection.query, visualQuery, ...(visualCorrection.keywords || [])].map(text).filter(Boolean).join(" ")
+    : visualQuery || message.message_text || "sneaker shoe";
   pipeline.inventory_search_query = searchQuery;
   if (visualAnalysis.confidence < 70) {
     pipeline.confidence_score = visualAnalysis.confidence / 100;
@@ -7088,7 +7195,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
           source: "exact_image_match",
         })),
       });
-      if (decision.limit < 1) {
+      if (decision.limit < 1 && !visualCorrection) {
         console.log("ai_sales_brain_v2_confidence_decision", {
           tenant_id: config.tenant_id,
           conversation_id: message.external_conversation_id,
@@ -7159,6 +7266,14 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
           visual_pipeline: pipeline,
         },
       });
+      if (visualCorrection) {
+        console.log("[visual-correction] success", {
+          tenant_id: config.tenant_id,
+          conversation_id: message.external_conversation_id,
+          product_count: exactCards.length,
+          correction: visualCorrection.query,
+        });
+      }
       updateConversationMemory(message.external_conversation_id, {
         lastImageUrl: imageUrl,
         lastVisualQuery: searchQuery,
@@ -7166,6 +7281,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
         lastVisualReplyType: decision.replyType,
         lastVisualAnalysis: visualAnalysis,
         lastVisualAttributes: visualAnalysis,
+        ...(visualCorrection ? { lastVisualClarification: visualCorrection.query } : {}),
         lastIntent: "visual_search",
         pendingAction: "",
       });
@@ -7225,7 +7341,8 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     matchConfidence: topConfidence * 100,
     hasExact: false,
   });
-  const selectedCards = (newCards.length ? newCards : cards).slice(0, decision.limit);
+  const effectiveLimit = visualCorrection && cards.length ? Math.max(1, decision.limit) : decision.limit;
+  const selectedCards = (newCards.length ? newCards : cards).slice(0, effectiveLimit);
   const strongMatch = false;
   pipeline.matched_products = selectedCards.map((product) => ({
     product_id: product.product_id || product.id || null,
@@ -7261,7 +7378,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     match_confidence: topConfidence * 100,
     selected_products: selectedCards.map((product) => ({ product_id: product.product_id || product.id || null, name: product.name || "" })),
     final_reply_type: decision.replyType,
-    limit: decision.limit,
+    limit: effectiveLimit,
   });
   if (!selectedCards.length) {
     console.log("[ai-vision] low confidence", {
@@ -7324,6 +7441,14 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
       visual_pipeline: pipeline,
     },
   });
+  if (visualCorrection) {
+    console.log("[visual-correction] success", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      product_count: selectedCards.length,
+      correction: visualCorrection.query,
+    });
+  }
   updateConversationMemory(message.external_conversation_id, {
     lastImageUrl: imageUrl,
     lastVisualQuery: searchQuery,
@@ -7331,6 +7456,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     lastVisualReplyType: decision.replyType,
     lastVisualAnalysis: visualAnalysis,
     lastVisualAttributes: visualAnalysis,
+    ...(visualCorrection ? { lastVisualClarification: visualCorrection.query } : {}),
     lastIntent: "visual_search",
     pendingAction: "",
   });
