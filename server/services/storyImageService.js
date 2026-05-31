@@ -13,6 +13,39 @@ const SAFE_WIDTH = 900;
 const SAFE_HEIGHT = 1360;
 const MAX_PRODUCT_HEIGHT = 0.72 * CANVAS_HEIGHT;
 const MAX_STORY_IMAGES = 6;
+const configuredMaxStorySlides = Number(process.env.MAX_STORY_SLIDES || 6);
+const MAX_STORY_SLIDES = Number.isFinite(configuredMaxStorySlides)
+  ? Math.min(6, Math.max(1, Math.round(configuredMaxStorySlides)))
+  : 6;
+sharp.cache(false);
+sharp.concurrency(1);
+
+const memoryUsageDiagnostics = () => {
+  const usage = process.memoryUsage();
+  return {
+    raw: usage,
+    mb: Object.fromEntries(
+      Object.entries(usage).map(([key, value]) => [key, `${Math.round((Number(value) || 0) / 1024 / 1024)}MB`])
+    ),
+  };
+};
+
+const formatMemoryUsage = () => memoryUsageDiagnostics().mb;
+
+const disposeCompositeBuffers = (composites = []) => {
+  for (const composite of composites) {
+    if (composite && Buffer.isBuffer(composite.input)) composite.input = null;
+  }
+};
+
+const logStoryMemory = (stage, extra = {}) => {
+  console.log("[story-memory]", {
+    stage,
+    memory: memoryUsageDiagnostics(),
+    ...extra,
+  });
+};
+
 const storyTemplates = [
   {
     id: "minimal-white",
@@ -207,24 +240,35 @@ const uploadStoryImageToCloudinary = async ({ filePath, filename }) => {
     .map((key) => `${key}=${paramsToSign[key]}`)
     .join("&");
   const signature = sha1(`${signatureBase}${config.apiSecret}`);
-  const buffer = await fs.readFile(filePath);
-  const blob = new Blob([buffer], { type: "image/png" });
-  const formData = new FormData();
+  let buffer = null;
+  let blob = null;
+  let formData = null;
+  logStoryMemory("before-cloudinary-file-read", { filename: filename || "story-image.png" });
+  buffer = await fs.readFile(filePath);
+  logStoryMemory("after-cloudinary-file-read", { filename: filename || "story-image.png", bytes: buffer.length });
+  blob = new Blob([buffer], { type: "image/png" });
+  formData = new FormData();
   formData.append("file", blob, filename || "story-image.png");
   formData.append("api_key", config.apiKey);
   formData.append("timestamp", String(timestamp));
   formData.append("folder", config.folder);
   formData.append("signature", signature);
+  buffer = null;
 
   console.log("[story-cloudinary-upload-start]", {
     filename: filename || "story-image.png",
     folder: config.folder,
   });
   try {
+    logStoryMemory("before-cloudinary-upload", { filename: filename || "story-image.png" });
     const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(config.cloudName)}/image/upload`, {
       method: "POST",
       body: formData,
     });
+    buffer = null;
+    blob = null;
+    formData = null;
+    logStoryMemory("after-cloudinary-upload-response", { filename: filename || "story-image.png" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(body?.error?.message || body?.message || "Cloudinary story upload failed");
@@ -236,11 +280,16 @@ const uploadStoryImageToCloudinary = async ({ filePath, filename }) => {
       secure_url: body.secure_url,
       public_id: body.public_id || "",
     });
+    logStoryMemory("after-cloudinary-upload-success", { filename: filename || "story-image.png" });
     return body.secure_url;
   } catch (error) {
+    buffer = null;
+    blob = null;
+    formData = null;
     console.error("[story-cloudinary-upload-failed]", {
       error: error?.message || "Cloudinary story upload failed",
     });
+    logStoryMemory("after-cloudinary-upload-failed", { filename: filename || "story-image.png" });
     throw error;
   }
 };
@@ -378,13 +427,17 @@ const readImageBuffer = async (source) => {
 };
 
 export const getStoryImageMetadata = async (source) => {
-  const inputBuffer = await readImageBuffer(source);
-  const metadata = await sharp(inputBuffer, { animated: false }).metadata();
-  return {
-    width: Number(metadata.width || 0),
-    height: Number(metadata.height || 0),
-    format: metadata.format || "",
-  };
+  let inputBuffer = await readImageBuffer(source);
+  try {
+    const metadata = await sharp(inputBuffer, { animated: false }).metadata();
+    return {
+      width: Number(metadata.width || 0),
+      height: Number(metadata.height || 0),
+      format: metadata.format || "",
+    };
+  } finally {
+    inputBuffer = null;
+  }
 };
 
 export const isGeneratedStoryImageUrl = (value) => {
@@ -616,21 +669,35 @@ const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitl
 };
 
 const normalizeInputImage = async (source) => {
-  const inputBuffer = await readImageBuffer(source);
-  const normalizedBuffer = await sharp(inputBuffer, { animated: false }).rotate().png().toBuffer();
-  const metadata = await sharp(normalizedBuffer).metadata();
-  const imageWidth = Number(metadata.width || 0);
-  const imageHeight = Number(metadata.height || 0);
-  if (!imageWidth || !imageHeight) {
-    const error = new Error("Story image source has invalid dimensions.");
-    error.status = 400;
+  logStoryMemory("before-image-download", { source });
+  let inputBuffer = await readImageBuffer(source);
+  logStoryMemory("after-image-download", { source, bytes: inputBuffer.length });
+  let normalizedBuffer = null;
+  try {
+    normalizedBuffer = await sharp(inputBuffer, { animated: false }).rotate().png().toBuffer();
+    inputBuffer = null;
+    const metadata = await sharp(normalizedBuffer).metadata();
+    const imageWidth = Number(metadata.width || 0);
+    const imageHeight = Number(metadata.height || 0);
+    if (!imageWidth || !imageHeight) {
+      normalizedBuffer = null;
+      const error = new Error("Story image source has invalid dimensions.");
+      error.status = 400;
+      throw error;
+    }
+    return { buffer: normalizedBuffer, imageWidth, imageHeight };
+  } catch (error) {
+    normalizedBuffer = null;
     throw error;
+  } finally {
+    inputBuffer = null;
   }
-  return { buffer: normalizedBuffer, imageWidth, imageHeight };
 };
 
 const createContainedImageComposite = async ({ source, boxX, boxY, boxWidth, boxHeight, maxImageHeight = boxHeight, useSafeLimit = true }) => {
-  const { buffer, imageWidth, imageHeight } = await normalizeInputImage(source);
+  const normalized = await normalizeInputImage(source);
+  let buffer = normalized.buffer;
+  const { imageWidth, imageHeight } = normalized;
   const scale = useSafeLimit
     ? Math.min(SAFE_WIDTH / imageWidth, SAFE_HEIGHT / imageHeight, MAX_PRODUCT_HEIGHT / imageHeight)
     : Number.POSITIVE_INFINITY;
@@ -643,11 +710,16 @@ const createContainedImageComposite = async ({ source, boxX, boxY, boxWidth, box
   const outputHeight = boxWidth === SAFE_WIDTH && boxHeight === SAFE_HEIGHT ? drawHeight : containedHeight;
   const outputX = Math.round(boxX + (boxWidth - outputWidth) / 2);
   const outputY = Math.round(boxY + (boxHeight - outputHeight) / 2);
-  const outputBuffer = await sharp(buffer)
-    .resize(outputWidth, outputHeight, { fit: "contain", withoutEnlargement: false })
-    .png()
-    .toBuffer();
-  return { input: outputBuffer, left: outputX, top: outputY };
+  try {
+    const outputBuffer = await sharp(buffer)
+      .resize(outputWidth, outputHeight, { fit: "contain", withoutEnlargement: false })
+      .png()
+      .toBuffer();
+    logStoryMemory("after-contained-image-composite", { source, outputBytes: outputBuffer.length });
+    return { input: outputBuffer, left: outputX, top: outputY };
+  } finally {
+    buffer = null;
+  }
 };
 
 const getBrandImageSource = (product = {}) =>
@@ -699,12 +771,23 @@ const writeStoryFile = async ({ filename, composites, background }) => {
   const outputDir = storyUploadDir();
   const outputPath = path.join(outputDir, filename);
   await fs.mkdir(outputDir, { recursive: true });
-  await sharp(Buffer.from(background || storyBackgroundSvg()))
-    .composite(composites)
-    .png()
-    .toFile(outputPath);
-  const cloudinaryUrl = await uploadStoryImageToCloudinary({ filePath: outputPath, filename });
-  return cloudinaryUrl || `/uploads/stories/${filename}`;
+  let backgroundBuffer = Buffer.from(background || storyBackgroundSvg());
+  try {
+    logStoryMemory("before-story-render", { filename, compositeCount: composites.length });
+    await sharp(backgroundBuffer)
+      .composite(composites)
+      .png()
+      .toFile(outputPath);
+    backgroundBuffer = null;
+    disposeCompositeBuffers(composites);
+    logStoryMemory("after-story-render", { filename });
+    const cloudinaryUrl = await uploadStoryImageToCloudinary({ filePath: outputPath, filename });
+    logStoryMemory("after-story-upload", { filename, cloudinary: Boolean(cloudinaryUrl) });
+    return cloudinaryUrl || `/uploads/stories/${filename}`;
+  } finally {
+    backgroundBuffer = null;
+    disposeCompositeBuffers(composites);
+  }
 };
 
 const getTemplateCollageGrid = (count, template) => {
@@ -842,10 +925,13 @@ export const generateDesignedAiMarketingStoryImage = async ({ story = {}, postId
 
 export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postId = null, tenantId = null } = {}) => {
   const design = story.design_json || {};
-  const sources = storyAssetImageSources(story, design);
+  const allSources = storyAssetImageSources(story, design);
+  const sources = allSources.slice(0, MAX_STORY_SLIDES);
   const source = sources[0] || "";
   console.log("[story-source-images]", {
     count: sources.length,
+    originalCount: allSources.length,
+    maxStorySlides: MAX_STORY_SLIDES,
     image_urls: sources,
   });
   console.log("[story-render-start]", {
@@ -853,8 +939,15 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
     tenantId: tenantId || story.tenant_id || null,
     sourceProductImageUrl: source || "",
     sourceImageCount: sources.length,
+    originalSourceImageCount: allSources.length,
+    maxStorySlides: MAX_STORY_SLIDES,
     title: storyAssetTitle(story, design),
     layout: story.layout_type || design.layout_type || "",
+  });
+  logStoryMemory("story-render-start", {
+    queueId: story.id || postId || null,
+    sourceImageCount: sources.length,
+    originalSourceImageCount: allSources.length,
   });
   try {
     if (!sources.length) {
@@ -866,6 +959,12 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
     const designSlides = Array.isArray(design.slides) ? design.slides : [];
     const outputSlides = [];
     for (const [index, slideSource] of sources.entries()) {
+      logStoryMemory("slide-render-start", {
+        queueId: story.id || postId || null,
+        slideIndex: index + 1,
+        slideCount: sources.length,
+        slideSource,
+      });
       const slide = designSlides.find((candidate) =>
         trimString(candidate?.source_product_image_url || candidate?.variant_image_url || candidate?.image_url) === slideSource
       ) || designSlides[index] || {};
@@ -886,7 +985,7 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         ...slide,
         image_url: slideSource,
       };
-      const imageComposite = await createContainedImageComposite({
+      let imageComposite = await createContainedImageComposite({
         source: slideSource,
         boxX: 36,
         boxY: 245,
@@ -894,6 +993,11 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         boxHeight: 950,
         maxImageHeight: 950,
         useSafeLimit: false,
+      });
+      logStoryMemory("slide-before-write-upload", {
+        queueId: story.id || postId || null,
+        slideIndex: index + 1,
+        compositeBytes: imageComposite?.input?.length || 0,
       });
       const outputUrl = await writeStoryFile({
         filename: storyFilename({ tenantId, postId, suffix: `ai-center-story-${index + 1}` }),
@@ -907,6 +1011,7 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         }),
         composites: [imageComposite],
       });
+      imageComposite = null;
       outputSlides.push({
         index,
         source_product_image_url: slideSource,
@@ -914,6 +1019,11 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         image_url: outputUrl,
         final_asset_url: outputUrl,
         story_image_url: outputUrl,
+      });
+      logStoryMemory("slide-render-success", {
+        queueId: story.id || postId || null,
+        slideIndex: index + 1,
+        outputUrl,
       });
     }
     const outputUrl = outputSlides[0]?.rendered_asset_url || "";
@@ -929,6 +1039,11 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
       slide_asset_count: outputSlides.length,
       width: CANVAS_WIDTH,
       height: CANVAS_HEIGHT,
+      memory: formatMemoryUsage(),
+    });
+    logStoryMemory("story-render-success", {
+      queueId: story.id || postId || null,
+      slide_asset_count: outputSlides.length,
     });
     return {
       final_asset_url: outputUrl,
@@ -943,6 +1058,11 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
       queueId: story.id || postId || null,
       tenantId: tenantId || story.tenant_id || null,
       sourceProductImageUrl: source || "",
+      error: error?.message || "Story render failed",
+      memory: formatMemoryUsage(),
+    });
+    logStoryMemory("story-render-failed", {
+      queueId: story.id || postId || null,
       error: error?.message || "Story render failed",
     });
     throw error;
