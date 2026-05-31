@@ -167,6 +167,84 @@ const trimSlashes = (value = "") => String(value).replace(/^\/+|\/+$/g, "");
 
 const storyUploadDir = () => path.join(process.cwd(), "uploads", "stories");
 
+const storyCloudinaryConfig = () => ({
+  cloudName: process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || "",
+  apiKey: process.env.CLOUDINARY_API_KEY || "",
+  apiSecret: process.env.CLOUDINARY_API_SECRET || "",
+  folder: process.env.CLOUDINARY_STORY_FOLDER || process.env.CLOUDINARY_PRODUCT_FOLDER || "erp/stories",
+});
+
+const sha1 = (value = "") => crypto.createHash("sha1").update(value).digest("hex");
+
+const uploadStoryImageToCloudinary = async ({ filePath, filename }) => {
+  const config = storyCloudinaryConfig();
+  const hasCloudName = Boolean(trimString(config.cloudName));
+  const hasApiKey = Boolean(trimString(config.apiKey));
+  const hasApiSecret = Boolean(trimString(config.apiSecret));
+  const isConfigured = hasCloudName && hasApiKey && hasApiSecret;
+  console.log("[story-cloudinary-check]", {
+    hasCloudName,
+    hasApiKey,
+    hasApiSecret,
+  });
+
+  if (!isConfigured) {
+    return null;
+  }
+  if (typeof fetch !== "function" || typeof FormData === "undefined" || typeof Blob === "undefined") {
+    const error = new Error("Cloudinary story upload unavailable: fetch/FormData/Blob runtime support missing");
+    console.error("[story-cloudinary-upload-failed]", { error: error.message });
+    throw error;
+  }
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const paramsToSign = {
+    folder: config.folder,
+    timestamp,
+  };
+  const signatureBase = Object.keys(paramsToSign)
+    .sort()
+    .map((key) => `${key}=${paramsToSign[key]}`)
+    .join("&");
+  const signature = sha1(`${signatureBase}${config.apiSecret}`);
+  const buffer = await fs.readFile(filePath);
+  const blob = new Blob([buffer], { type: "image/png" });
+  const formData = new FormData();
+  formData.append("file", blob, filename || "story-image.png");
+  formData.append("api_key", config.apiKey);
+  formData.append("timestamp", String(timestamp));
+  formData.append("folder", config.folder);
+  formData.append("signature", signature);
+
+  console.log("[story-cloudinary-upload-start]", {
+    filename: filename || "story-image.png",
+    folder: config.folder,
+  });
+  try {
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(config.cloudName)}/image/upload`, {
+      method: "POST",
+      body: formData,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body?.error?.message || body?.message || "Cloudinary story upload failed");
+    }
+    if (!body?.secure_url) {
+      throw new Error("Cloudinary story upload returned no secure_url");
+    }
+    console.log("[story-cloudinary-upload-success]", {
+      secure_url: body.secure_url,
+      public_id: body.public_id || "",
+    });
+    return body.secure_url;
+  } catch (error) {
+    console.error("[story-cloudinary-upload-failed]", {
+      error: error?.message || "Cloudinary story upload failed",
+    });
+    throw error;
+  }
+};
+
 export const getStoryImageLocalPath = (source) => {
   const candidates = localUploadCandidates(source);
   return candidates[0] || "";
@@ -528,12 +606,14 @@ const storyFilename = ({ tenantId = null, postId = null, suffix = "story" } = {}
 
 const writeStoryFile = async ({ filename, composites, background }) => {
   const outputDir = storyUploadDir();
+  const outputPath = path.join(outputDir, filename);
   await fs.mkdir(outputDir, { recursive: true });
   await sharp(Buffer.from(background || storyBackgroundSvg()))
     .composite(composites)
     .png()
-    .toFile(path.join(outputDir, filename));
-  return `/uploads/stories/${filename}`;
+    .toFile(outputPath);
+  const cloudinaryUrl = await uploadStoryImageToCloudinary({ filePath: outputPath, filename });
+  return cloudinaryUrl || `/uploads/stories/${filename}`;
 };
 
 const getTemplateCollageGrid = (count, template) => {

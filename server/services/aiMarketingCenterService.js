@@ -2,10 +2,11 @@ import db from "../database/db.js";
 import { ensureProductVariantImagesSchema } from "./productVariantImagesService.js";
 import { publishPost as publishPostService } from "./socialPublisherService.js";
 import { publishStoryEverywhere as publishStoryEverywhereService } from "./storyPublisherService.js";
-import { generateDesignedAiMarketingStoryImage, isGeneratedStoryImageUrl } from "./storyImageService.js";
+import { generateDesignedAiMarketingStoryImage } from "./storyImageService.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { validateMetaToken } from "./metaTokenService.js";
 import { syncMarketingAnalyticsForTenant } from "./marketingAnalyticsService.js";
+import { getPublicBackendUrl } from "../utils/publicUrl.js";
 
 const GRAPH_API_VERSION = "v25.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -344,6 +345,80 @@ const cleanImageUrl = (value = "") => {
   return text;
 };
 
+const configuredImageCdnHosts = () =>
+  uniqueTextValues([
+    "res.cloudinary.com",
+    "ik.imagekit.io",
+    "cdn.shopify.com",
+    "images.ctfassets.net",
+    "cdn.sanity.io",
+    ...(process.env.STORY_IMAGE_CDN_HOSTS || process.env.IMAGE_CDN_HOSTS || "")
+      .split(",")
+      .map((host) => host.trim().toLowerCase()),
+  ]);
+
+const frontendAssetPrefixes = () =>
+  uniqueTextValues([
+    process.env.PUBLIC_APP_URL,
+    process.env.FRONTEND_URL,
+    process.env.WEBSITE_BASE_URL,
+    "https://erp-system-ten-green.vercel.app",
+  ]).map((value) => value.replace(/\/+$/g, "").toLowerCase());
+
+const isForbiddenFrontendAssetUrl = (value = "") => {
+  const text = cleanImageUrl(value);
+  if (!text) return true;
+  if (/^\/?(dashboard|marketing|shop)(\/|$)/i.test(text)) return true;
+  const lower = text.toLowerCase().replace(/\/+$/g, "");
+  if (frontendAssetPrefixes().some((prefix) => lower === prefix || lower.startsWith(`${prefix}/`))) return true;
+  try {
+    const parsed = new URL(text);
+    return /^\/(dashboard|marketing|shop)(\/|$)/i.test(parsed.pathname || "");
+  } catch {
+    return true;
+  }
+};
+
+const isDirectImageCdnUrl = (value = "") => {
+  const text = cleanImageUrl(value);
+  if (!/^https:\/\//i.test(text)) return false;
+  if (isForbiddenFrontendAssetUrl(text)) return false;
+  try {
+    const parsed = new URL(text);
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === "res.cloudinary.com" && /^\/[^/]+\/image\/upload\//.test(parsed.pathname)) return true;
+    return configuredImageCdnHosts().includes(hostname);
+  } catch {
+    return false;
+  }
+};
+
+const publicBackendBaseUrl = () =>
+  cleanText(process.env.BACKEND_PUBLIC_URL || process.env.PUBLIC_BACKEND_URL || getPublicBackendUrl()).replace(/\/+$/g, "");
+
+const isBackendStoryAssetUrl = (value = "") => {
+  const text = cleanImageUrl(value);
+  if (!/^https:\/\//i.test(text) || isForbiddenFrontendAssetUrl(text)) return false;
+  const backendBase = publicBackendBaseUrl().toLowerCase();
+  if (!backendBase) return false;
+  const lower = text.toLowerCase();
+  return lower.startsWith(`${backendBase}/uploads/stories/`);
+};
+
+const isPublicStoryAssetUrl = (value = "") => isDirectImageCdnUrl(value) || isBackendStoryAssetUrl(value);
+
+const absoluteStoryAssetUrl = (value = "") => {
+  const text = cleanImageUrl(value);
+  if (!text || isForbiddenFrontendAssetUrl(text)) return "";
+  if (isDirectImageCdnUrl(text) || isBackendStoryAssetUrl(text)) return text;
+  if (/^\/uploads\/stories\//i.test(text) || /^uploads\/stories\//i.test(text)) {
+    const backendBase = publicBackendBaseUrl();
+    if (!backendBase) return "";
+    return `${backendBase}/${text.replace(/^\/+/, "")}`;
+  }
+  return "";
+};
+
 const uniqueImageUrls = (items = []) => {
   const seen = new Set();
   const output = [];
@@ -428,17 +503,12 @@ const normalizeQueueRow = (row = {}) => {
   const resolvedProductUrl = cleanText(row.product_url || design.product_url || design.cta_url || metadata.product_url || metadata.cta_url);
   const resolvedCtaUrl = cleanText(design.cta_url || resolvedProductUrl);
   const resolvedProductSlug = cleanText(design.product_slug || metadata.product_slug || row.product_slug || "");
-  const resolvedStoryAsset = cleanText(
-    row.rendered_image_url ||
-      row.story_image_url ||
-      row.final_asset_url ||
-      design.rendered_image_url ||
-      design.story_image_url ||
-      design.final_asset_url ||
-      metadata.rendered_image_url ||
-      metadata.story_image_url ||
-      metadata.final_asset_url
-  );
+  const renderedImageUrlRaw = cleanText(row.rendered_image_url || design.rendered_image_url || metadata.rendered_image_url);
+  const storyImageUrlRaw = cleanText(row.story_image_url || design.story_image_url || metadata.story_image_url);
+  const finalAssetUrlRaw = cleanText(row.final_asset_url || design.final_asset_url || metadata.final_asset_url);
+  const selectedPublishUrlRaw = cleanText(finalAssetUrlRaw || renderedImageUrlRaw || storyImageUrlRaw);
+  const resolvedStoryAsset =
+    [renderedImageUrlRaw, storyImageUrlRaw, finalAssetUrlRaw].map(absoluteStoryAssetUrl).find(Boolean) || "";
   return {
     ...row,
     product_url: resolvedProductUrl,
@@ -447,13 +517,20 @@ const normalizeQueueRow = (row = {}) => {
     rendered_image_url: resolvedStoryAsset,
     story_image_url: resolvedStoryAsset,
     final_asset_url: resolvedStoryAsset,
+    rendered_image_url_raw: renderedImageUrlRaw,
+    story_image_url_raw: storyImageUrlRaw,
+    final_asset_url_raw: finalAssetUrlRaw,
+    selectedPublishUrl_raw: selectedPublishUrlRaw,
+    selectedPublishUrl: resolvedStoryAsset,
     media_urls: normalizeJsonArray(row.media_urls, []),
     design_json: {
       ...design,
       ...(resolvedProductUrl ? { product_url: resolvedProductUrl } : {}),
       ...(resolvedCtaUrl ? { cta_url: resolvedCtaUrl } : {}),
       ...(resolvedProductSlug ? { product_slug: resolvedProductSlug } : {}),
-      ...(resolvedStoryAsset ? { rendered_image_url: resolvedStoryAsset, story_image_url: resolvedStoryAsset, final_asset_url: resolvedStoryAsset } : {}),
+      rendered_image_url: resolvedStoryAsset,
+      story_image_url: resolvedStoryAsset,
+      final_asset_url: resolvedStoryAsset,
     },
     metadata,
     published_platforms: normalizeJsonArray(row.published_platforms, []),
@@ -1264,20 +1341,36 @@ const isStoryQueueItem = (item = {}) => {
 const queueStoryFinalAssetUrl = (item = {}) => {
   const design = item.design_json || {};
   const metadata = item.metadata || {};
-  return cleanText(
-    item.rendered_image_url ||
-      item.story_image_url ||
-      item.final_asset_url ||
-      design.rendered_image_url ||
-      design.story_image_url ||
-      design.final_asset_url ||
-      metadata.rendered_image_url ||
-      metadata.story_image_url ||
-      metadata.final_asset_url
-  );
+  return [
+    item.rendered_image_url,
+    item.story_image_url,
+    item.final_asset_url,
+    design.rendered_image_url,
+    design.story_image_url,
+    design.final_asset_url,
+    metadata.rendered_image_url,
+    metadata.story_image_url,
+    metadata.final_asset_url,
+  ].map(absoluteStoryAssetUrl).find(Boolean) || "";
 };
 
 const storySelectedPublishUrl = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return [
+    item.final_asset_url,
+    design.final_asset_url,
+    metadata.final_asset_url,
+    item.rendered_image_url,
+    design.rendered_image_url,
+    metadata.rendered_image_url,
+    item.story_image_url,
+    design.story_image_url,
+    metadata.story_image_url,
+  ].map(absoluteStoryAssetUrl).find(Boolean) || "";
+};
+
+const rawStorySelectedPublishUrl = (item = {}) => {
   const design = item.design_json || {};
   const metadata = item.metadata || {};
   return cleanText(
@@ -1317,7 +1410,7 @@ const storyProductImageUrl = (item = {}) => rawStoryImageUrls(item)[0] || "";
 const isValidRenderedStoryAsset = (item = {}, assetUrl = "") => {
   const selectedAsset = cleanImageUrl(assetUrl);
   if (!selectedAsset) return false;
-  if (!isGeneratedStoryImageUrl(selectedAsset)) return false;
+  if (!isPublicStoryAssetUrl(selectedAsset)) return false;
   return !rawStoryImageUrls(item).some((productImageUrl) => sameImageUrl(selectedAsset, productImageUrl));
 };
 
@@ -1350,7 +1443,7 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
   const design = item.design_json || {};
   let renderedAssetUrl = "";
   try {
-    renderedAssetUrl = await generateDesignedAiMarketingStoryImage({
+    renderedAssetUrl = absoluteStoryAssetUrl(await generateDesignedAiMarketingStoryImage({
       tenantId,
       postId: item.id,
       story: {
@@ -1370,16 +1463,17 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
           media_urls: rawImages,
         },
       },
-    });
+    }));
   } catch (error) {
     await markQueueStoryRenderFailure(tenantId, item, error);
     throw error;
   }
   if (!isValidRenderedStoryAsset({ ...item, design_json: design }, renderedAssetUrl)) {
-    const error = serviceError("Story asset not generated.", 500, {
+    const error = serviceError("Story asset URL is not a public image URL.", 500, {
       queue_id: item.id,
       rendered_asset_url: renderedAssetUrl,
       product_image_url: rawImages[0] || "",
+      required_prefix: "https://res.cloudinary.com/ or BACKEND_PUBLIC_URL + /uploads/stories/...",
     });
     await markQueueStoryRenderFailure(tenantId, item, error);
     throw error;
@@ -1415,6 +1509,15 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     `,
     [item.id, tenantId, renderedAssetUrl, JSON.stringify(nextDesign), JSON.stringify(nextMetadata)]
   );
+  console.log("[story-asset-url-persist]", {
+    queueId: item.id,
+    rendered_image_url: renderedAssetUrl,
+    story_image_url: renderedAssetUrl,
+    final_asset_url: renderedAssetUrl,
+    selectedPublishUrl: renderedAssetUrl,
+    rendered_image_url_valid: isPublicStoryAssetUrl(renderedAssetUrl),
+    final_asset_url_valid: isPublicStoryAssetUrl(renderedAssetUrl),
+  });
   return updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : normalizeQueueRow({ ...item, ...nextMetadata, design_json: nextDesign });
 };
 
@@ -1435,14 +1538,20 @@ export const generateAiMarketingQueueStoryAsset = async (tenantId, id) => {
 
 const logStoryPublishAsset = ({ item = {}, selectedPublishUrl = "", reason = "" } = {}) => {
   const design = item.design_json || {};
+  const metadata = item.metadata || {};
   const productImageUrl = storyProductImageUrl(item);
+  const finalAssetUrlRaw = cleanText(item.final_asset_url || design.final_asset_url || metadata.final_asset_url);
+  const selectedPublishUrlRaw = rawStorySelectedPublishUrl(item);
   console.log("[story-publish-asset]", {
     queueId: item.id || null,
     productImageUrl,
     rendered_image_url: cleanText(item.rendered_image_url || design.rendered_image_url),
     story_image_url: cleanText(item.story_image_url || design.story_image_url),
-    final_asset_url: cleanText(item.final_asset_url || design.final_asset_url),
+    final_asset_url: finalAssetUrlRaw,
+    final_asset_url_raw: finalAssetUrlRaw,
     selectedPublishUrl,
+    selectedPublishUrl_raw: selectedPublishUrlRaw,
+    selectedPublishUrl_valid: isPublicStoryAssetUrl(selectedPublishUrl),
     selectedPublishUrlReason: reason,
     contentType: item.content_type || "",
     layout: item.layout_type || design.layout_type || "",
@@ -1451,6 +1560,7 @@ const logStoryPublishAsset = ({ item = {}, selectedPublishUrl = "", reason = "" 
 
 const assertStoryPublishAsset = (item = {}) => {
   const selectedPublishUrl = storySelectedPublishUrl(item);
+  const selectedPublishUrlRaw = rawStorySelectedPublishUrl(item);
   const productImageUrl = storyProductImageUrl(item);
   const reason = selectedPublishUrl
     ? selectedPublishUrl === cleanText(item.final_asset_url || item.design_json?.final_asset_url)
@@ -1465,6 +1575,7 @@ const assertStoryPublishAsset = (item = {}) => {
       queue_id: item.id,
       product_image_url: productImageUrl,
       selected_publish_url: selectedPublishUrl,
+      selected_publish_url_raw: selectedPublishUrlRaw,
       selected_publish_url_reason: reason,
     });
   }

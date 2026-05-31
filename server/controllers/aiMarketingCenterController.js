@@ -134,6 +134,9 @@ export const generateAutonomousAiMarketingQueueStoryAsset = async (req, res) => 
       rendered_image_url: item.rendered_image_url || "",
       story_image_url: item.story_image_url || item.rendered_image_url || "",
       final_asset_url: item.final_asset_url || item.story_image_url || item.rendered_image_url || "",
+      selectedPublishUrl: item.selectedPublishUrl || item.final_asset_url || item.story_image_url || item.rendered_image_url || "",
+      final_asset_url_raw: item.final_asset_url_raw || item.final_asset_url || "",
+      selectedPublishUrl_raw: item.selectedPublishUrl_raw || item.final_asset_url_raw || item.final_asset_url || "",
       item,
     });
   } catch (error) {
