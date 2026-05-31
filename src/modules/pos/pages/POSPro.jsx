@@ -2395,7 +2395,19 @@ function POSPro() {
         });
         if (active) setPaymentAccountStatus(result?.status || null);
       } catch (statusError) {
-        if (active) setPaymentAccountStatus(null);
+        if (active) {
+          setPaymentAccountStatus({
+            unavailable: true,
+            reason: statusError?.message || "payment_account_status_unavailable",
+            payment_method: activePaymentAccountMethod,
+            branch_id: branchId,
+            amount: activePaymentAccountAmount,
+            direction: "in",
+            requires_balance: false,
+            account: null,
+            sufficient: null,
+          });
+        }
         console.warn("[pos] payment account status unavailable", statusError?.message || statusError);
       } finally {
         if (active) setPaymentAccountLoading(false);

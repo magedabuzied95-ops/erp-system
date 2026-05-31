@@ -126,6 +126,51 @@ const getPublishedPostsForTenant = async (tenantId) => {
   return result.rows || [];
 };
 
+const ensureAiMarketingPerformanceSchema = async () => {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ai_marketing_performance_snapshots (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      queue_id BIGINT NULL,
+      platform VARCHAR(30) NOT NULL,
+      platform_post_id TEXT NOT NULL DEFAULT '',
+      reach INTEGER NULL,
+      impressions INTEGER NULL,
+      reactions INTEGER NULL,
+      likes INTEGER NULL,
+      comments INTEGER NULL,
+      shares INTEGER NULL,
+      saves INTEGER NULL,
+      clicks INTEGER NULL,
+      profile_visits INTEGER NULL,
+      engagement_rate NUMERIC(10,4) NULL,
+      performance_score INTEGER NOT NULL DEFAULT 0,
+      raw_metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
+      synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_perf_queue ON ai_marketing_performance_snapshots (tenant_id, queue_id, synced_at DESC)`);
+};
+
+const getPublishedAiQueueItemsForTenant = async (tenantId) => {
+  await ensureAiMarketingPerformanceSchema();
+  const exists = await db.query(`SELECT to_regclass('public.ai_marketing_content_queue') AS table_name`);
+  if (!exists.rows[0]?.table_name) return [];
+  const result = await db.query(
+    `
+    SELECT id, tenant_id, title, content_type, strategy_type, color, published_at, created_at, platform_post_id,
+           facebook_post_id, instagram_media_id, instagram_publish_id, platform_publish_results, design_json, metadata
+    FROM ai_marketing_content_queue
+    WHERE tenant_id = $1::bigint
+      AND status = 'published'
+      AND (platform_post_id IS NOT NULL OR facebook_post_id IS NOT NULL OR instagram_media_id IS NOT NULL OR platform_publish_results <> '{}'::jsonb)
+    ORDER BY published_at DESC NULLS LAST, created_at DESC
+    `,
+    [tenantId]
+  );
+  return result.rows || [];
+};
+
 const getDistinctTenantIdsForSync = async () => {
   const result = await db.query(
     `
@@ -139,7 +184,13 @@ const getDistinctTenantIdsForSync = async () => {
     ORDER BY tenant_id ASC
     `
   );
-  return result.rows.map((row) => row.tenant_id);
+  const queueTenants = await db.query(`
+    SELECT DISTINCT tenant_id
+    FROM ai_marketing_content_queue
+    WHERE status = 'published'
+      AND (platform_post_id IS NOT NULL OR facebook_post_id IS NOT NULL OR instagram_media_id IS NOT NULL OR platform_publish_results <> '{}'::jsonb)
+  `).catch(() => ({ rows: [] }));
+  return Array.from(new Set([...result.rows.map((row) => row.tenant_id), ...queueTenants.rows.map((row) => row.tenant_id)]));
 };
 
 const addCandidate = (items, platform, platformPostId, sourcePost) => {
@@ -168,6 +219,14 @@ const buildAnalyticsCandidates = (post = {}) => {
   }
 
   return candidates;
+};
+
+const buildAiQueueAnalyticsCandidates = (item = {}) => {
+  const candidates = [];
+  const results = safeJsonObject(item.platform_publish_results, {});
+  addCandidate(candidates, "facebook", item.facebook_post_id || results.facebook?.platform_post_id || results.facebook?.platform_story_id || results.facebook?.id, { ...item, id: item.id });
+  addCandidate(candidates, "instagram", item.instagram_media_id || item.instagram_publish_id || results.instagram?.platform_post_id || results.instagram?.platform_story_id || results.instagram?.id, { ...item, id: item.id });
+  return candidates.map((candidate) => ({ ...candidate, queue_id: item.id, source_item: item }));
 };
 
 const extractMetricValue = (payload, name) => {
@@ -328,6 +387,104 @@ const upsertAnalyticsRow = async ({ postId, platform, platformPostId, metrics })
   return result.rows[0] || null;
 };
 
+const calculatePerformanceScore = (metrics = {}) => {
+  const reach = toNumber(metrics.reach, 0) || 0;
+  const impressions = toNumber(metrics.impressions, reach) || reach;
+  const likes = toNumber(metrics.likes, 0) || 0;
+  const comments = toNumber(metrics.comments, 0) || 0;
+  const shares = toNumber(metrics.shares, 0) || 0;
+  const saves = toNumber(metrics.saves, 0) || 0;
+  const clicks = toNumber(metrics.clicks, 0) || 0;
+  const engagement = likes + comments + shares + saves + clicks;
+  const engagementRate = impressions > 0 ? engagement / impressions : 0;
+  const reachScore = Math.min(35, Math.log10(Math.max(reach, 1)) * 8);
+  const engagementScore = Math.min(35, engagementRate * 900);
+  const clickScore = Math.min(15, clicks * 1.5);
+  const shareSaveScore = Math.min(15, (shares * 3) + (saves * 2));
+  return Math.max(0, Math.min(100, Math.round(reachScore + engagementScore + clickScore + shareSaveScore)));
+};
+
+const performanceLabel = (score) => score >= 70 ? "High Performer" : score >= 40 ? "Average" : score > 0 ? "Low Performer" : "No Data";
+
+const hasRealMetricValue = (metrics = {}) =>
+  ["reach", "impressions", "likes", "comments", "shares", "saves", "clicks", "profile_visits"].some((key) => {
+    const value = metrics[key];
+    if (value === null || value === undefined || value === "") return false;
+    return Number.isFinite(Number(value));
+  });
+
+const insertAiQueuePerformanceSnapshot = async ({ tenantId, queueId, platform, platformPostId, metrics }) => {
+  if (!hasRealMetricValue(metrics)) {
+    console.log("[marketing-performance-sync] no real metrics available; snapshot skipped", { tenantId, queueId, platform, platformPostId });
+    return null;
+  }
+  const likes = toNumber(metrics.likes, 0) || 0;
+  const comments = toNumber(metrics.comments, 0) || 0;
+  const shares = toNumber(metrics.shares, 0) || 0;
+  const saves = toNumber(metrics.saves, 0) || 0;
+  const clicks = toNumber(metrics.clicks, 0) || 0;
+  const impressions = toNumber(metrics.impressions, null);
+  const engagement = likes + comments + shares + saves + clicks;
+  const engagementRate = impressions && impressions > 0 ? (engagement / impressions) * 100 : null;
+  const score = calculatePerformanceScore(metrics);
+  const result = await db.query(
+    `
+    INSERT INTO ai_marketing_performance_snapshots (
+      tenant_id, queue_id, platform, platform_post_id, reach, impressions, reactions, likes, comments, shares, saves, clicks,
+      profile_visits, engagement_rate, performance_score, raw_metrics
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb)
+    RETURNING *
+    `,
+    [
+      tenantId,
+      queueId,
+      platform,
+      platformPostId,
+      metrics.reach,
+      metrics.impressions,
+      likes,
+      likes,
+      metrics.comments,
+      metrics.shares,
+      metrics.saves,
+      metrics.clicks,
+      metrics.profile_visits || null,
+      engagementRate,
+      score,
+      JSON.stringify(metrics),
+    ]
+  );
+  await db.query(
+    `
+    UPDATE ai_marketing_content_queue
+    SET metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1 AND id = $2
+    `,
+    [
+      tenantId,
+      queueId,
+      JSON.stringify({
+        performance_score: score,
+        performance_label: performanceLabel(score),
+        performance_metrics: {
+          reach: metrics.reach,
+          impressions: metrics.impressions,
+          likes,
+          comments,
+          shares,
+          saves,
+          clicks,
+          engagement_rate: engagementRate,
+          last_synced_at: new Date().toISOString(),
+        },
+      }),
+    ]
+  );
+  return result.rows[0] || null;
+};
+
 export const syncMarketingAnalyticsForTenant = async ({ tenantId, platform = "", from = null, to = null } = {}) => {
   await ensureMarketingSchema();
   const settings = await getSettingsRow(tenantId);
@@ -350,6 +507,7 @@ export const syncMarketingAnalyticsForTenant = async ({ tenantId, platform = "",
   }
 
   const posts = await getPublishedPostsForTenant(tenantId);
+  const aiQueueItems = await getPublishedAiQueueItemsForTenant(tenantId);
   const fromDate = nullableString(from);
   const toDate = nullableString(to);
   const platformFilter = trimString(platform).toLowerCase();
@@ -403,6 +561,43 @@ export const syncMarketingAnalyticsForTenant = async ({ tenantId, platform = "",
         shares: metrics.shares,
         reach: metrics.reach,
         impressions: metrics.impressions,
+      });
+    }
+  }
+
+  for (const item of aiQueueItems) {
+    const publishedDate = item.published_at || item.created_at || null;
+    if (fromDate && publishedDate && new Date(publishedDate) < new Date(fromDate)) continue;
+    if (toDate && publishedDate && new Date(publishedDate) > new Date(`${toDate}T23:59:59.999Z`)) continue;
+
+    const candidates = buildAiQueueAnalyticsCandidates(item);
+    for (const candidate of candidates) {
+      if (platformFilter && candidate.platform !== platformFilter) continue;
+      console.log("[marketing-performance-sync] sync started", {
+        tenantId,
+        queue_id: candidate.queue_id,
+        platform: candidate.platform,
+        platform_post_id: candidate.platform_post_id,
+      });
+      const metrics =
+        candidate.platform === "instagram"
+          ? await fetchInstagramMetrics({ platformPostId: candidate.platform_post_id, accessToken })
+          : await fetchFacebookMetrics({ platformPostId: candidate.platform_post_id, accessToken });
+      metrics.warnings.forEach((warning) => warnings.add(warning));
+      const saved = await insertAiQueuePerformanceSnapshot({
+        tenantId,
+        queueId: candidate.queue_id,
+        platform: candidate.platform,
+        platformPostId: candidate.platform_post_id,
+        metrics,
+      });
+      if (!saved) continue;
+      syncedRows.push({
+        ...saved,
+        queue_id: candidate.queue_id,
+        title: candidate.title,
+        published_at: candidate.published_at,
+        warnings: metrics.warnings,
       });
     }
   }
@@ -563,6 +758,8 @@ export const syncAllMarketingAnalytics = async () => {
   return results;
 };
 
+export const runMarketingPerformanceSync = syncAllMarketingAnalytics;
+
 let analyticsSchedulerStarted = false;
 let analyticsSchedulerRunning = false;
 let analyticsSchedulerTimer = null;
@@ -575,7 +772,8 @@ export const startMarketingAnalyticsSyncScheduler = () => {
     if (analyticsSchedulerRunning) return;
     analyticsSchedulerRunning = true;
     try {
-      await syncAllMarketingAnalytics();
+      console.log("[marketing-performance-sync] scheduler run");
+      await runMarketingPerformanceSync();
     } catch (error) {
       console.error("[marketing-analytics] scheduler scan error", error);
     } finally {
@@ -597,4 +795,10 @@ export const stopMarketingAnalyticsSyncScheduler = () => {
   }
   analyticsSchedulerStarted = false;
   analyticsSchedulerRunning = false;
+};
+
+export const __marketingAnalyticsTestHooks = {
+  calculatePerformanceScore,
+  hasRealMetricValue,
+  performanceLabel,
 };

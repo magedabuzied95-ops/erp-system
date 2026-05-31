@@ -2130,6 +2130,8 @@ export const createOrder = async (req, res) => {
   let client = null;
   let transactionStarted = false;
   let orderCreateStep = "start";
+  let tenantId = null;
+  let branchIdForLog = req.body?.branch_id || req.body?.branchId || null;
   const checkoutTiming = createCheckoutTimings();
   const markOrderStep = (step, details = {}) => {
     orderCreateStep = step;
@@ -2140,11 +2142,7 @@ export const createOrder = async (req, res) => {
     client = await db.connect();
     markOrderStep("db connected");
     await ensureAccountingSchema();
-    const tenantId = Number(
-      isSuperAdminUser(req.user)
-        ? req.body?.tenant_id || req.query?.tenant_id || req.user?.tenant_id || req.user?.tenantId || 1
-        : req.user?.tenant_id || req.user?.tenantId || getTenantId(req, req.user?.tenant_id) || 1
-    ) || 1;
+    tenantId = getTenantId(req, req.body?.tenant_id || req.body?.tenantId || req.query?.tenant_id || req.query?.tenantId || req.user?.tenant_id || req.user?.tenantId);
     const normalizedPayload = normalizeCreateOrderPayload(req.body || {});
     const {
       customer_name,
@@ -2205,9 +2203,20 @@ export const createOrder = async (req, res) => {
       exchange_difference = 0,
       exchange_invoice_number = "",
     } = normalizedPayload;
+    branchIdForLog = branch_id || branchIdForLog;
     const itemsCount = Array.isArray(items) ? items.length : 0;
 
     if (POS_CHECKOUT_DEBUG) console.log("[POS_CREATE_ORDER_PAYLOAD]", safeOrderLogPayload(normalizedPayload));
+
+    if (!tenantId) {
+      console.error("[orders:create] failed", {
+        tenantId,
+        branchId: branchIdForLog,
+        userId: req.user?.id || null,
+        error: "tenant context missing",
+      });
+      return res.status(400).json({ success: false, message: "Tenant context is required" });
+    }
 
     const resolvedCustomerName = String(customer_name || "").trim() || "Walk-in Customer";
 
@@ -3148,6 +3157,12 @@ export const createOrder = async (req, res) => {
       table: error?.table,
       column: error?.column,
       stack: error?.stack,
+    });
+    console.error("[orders:create] failed", {
+      tenantId,
+      branchId: branchIdForLog,
+      userId: req.user?.id || null,
+      error: error?.message || error,
     });
     if (POS_CHECKOUT_DEBUG) {
       console.warn("[pos-checkout-error]", {

@@ -2496,6 +2496,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     productContext: replyProductContext,
     detectedSize,
     conversationId,
+    customerName: conversation.customer_name || conversation.customerName || "",
   });
   const guarded = guardAIReply({
     reply: escalation.shouldEscalate

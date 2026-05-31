@@ -46,16 +46,23 @@ const numberValue = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 const formatMoney = (value) => formatCurrency(numberValue(value));
+const safeDate = (value) => {
+  if (!value) return null;
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isFinite(date.getTime()) ? date : null;
+  } catch {
+    return null;
+  }
+};
 const formatTime = (value) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
+  const date = safeDate(value);
+  if (!date) return "-";
   return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(date);
 };
 const formatDateTime = (value) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
+  const date = safeDate(value);
+  if (!date) return "-";
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
 };
 const csvEscape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;

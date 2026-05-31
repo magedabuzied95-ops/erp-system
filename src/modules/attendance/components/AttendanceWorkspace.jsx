@@ -41,6 +41,17 @@ const rangeStartValue = () => {
   return d.toISOString().slice(0, 10);
 };
 const safeArray = (value) => (Array.isArray(value) ? value : Array.isArray(value?.data) ? value.data : []);
+const safeDate = (value) => {
+  if (!value) return null;
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isFinite(date.getTime()) ? date : null;
+  } catch {
+    return null;
+  }
+};
+const formatSafeTime = (value, fallback = "-") => safeDate(value)?.toLocaleTimeString() || fallback;
+const formatSafeDateTime = (value, fallback = "-") => safeDate(value)?.toLocaleString() || fallback;
 const getDeletedCount = (response) =>
   Number(
     response?.deletedCount ??
@@ -1139,8 +1150,8 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
                         </div>
                         <div className="text-zinc-300">{row.branch_name || fallback}</div>
                         <div className="text-zinc-300">{row.shift_name || fallback}</div>
-                        <div className="text-zinc-300">{row.check_in ? new Date(row.check_in).toLocaleTimeString() : fallback}</div>
-                        <div className="text-zinc-300">{row.check_out ? new Date(row.check_out).toLocaleTimeString() : tr("status.open")}</div>
+                        <div className="text-zinc-300">{formatSafeTime(row.check_in, fallback)}</div>
+                        <div className="text-zinc-300">{row.check_out ? formatSafeTime(row.check_out, tr("status.open")) : tr("status.open")}</div>
                         <div>
                           <StatusPill tone={statusTone(status)} label={statusLabel(status)} />
                         </div>
@@ -1228,7 +1239,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
                       <div className="text-zinc-300" dir="auto">{formatEmployeeJobLabel(employee, language)}</div>
                       <div><StatusPill tone={employee.status === "active" ? "emerald" : "rose"} label={statusLabel(employee.status || "active")} /></div>
                       <div className="text-zinc-300">{employee.current_shift?.shift_name || fallback}</div>
-                      <div className="text-zinc-300">{employee.today_attendance?.check_in ? new Date(employee.today_attendance.check_in).toLocaleTimeString() : fallback}</div>
+                      <div className="text-zinc-300">{formatSafeTime(employee.today_attendance?.check_in, fallback)}</div>
                       <div className="col-span-2 flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -1471,7 +1482,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
                         </div>
                         <div className="col-span-2 font-mono text-xs text-zinc-300">...{device.device_token_tail || fallback}</div>
                         <div className="col-span-2 text-zinc-300">
-                          {device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : fallback}
+                          {formatSafeDateTime(device.last_seen_at, fallback)}
                         </div>
                         <div className="col-span-3 flex flex-wrap gap-2">
                         {isDeviceBindingRow(device) ? (
@@ -1645,8 +1656,8 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
                   employeeReport.logs.map((row) => (
                     <div key={row.id} className="grid grid-cols-7 items-center px-4 py-4 text-sm">
                       <span className="text-white">{row.attendance_date}</span>
-                      <span className="text-zinc-300">{row.check_in ? new Date(row.check_in).toLocaleTimeString() : fallback}</span>
-                      <span className="text-zinc-300">{row.check_out ? new Date(row.check_out).toLocaleTimeString() : tr("status.open")}</span>
+                      <span className="text-zinc-300">{formatSafeTime(row.check_in, fallback)}</span>
+                      <span className="text-zinc-300">{row.check_out ? formatSafeTime(row.check_out, tr("status.open")) : tr("status.open")}</span>
                       <span className="text-zinc-300">{row.branch_name || fallback}</span>
                       <span className="text-zinc-300">{row.shift_name || fallback}</span>
                       <StatusPill tone={statusTone(Number(row.late_minutes || 0) > 0 ? "late" : Number(row.overtime_minutes || 0) > 0 ? "overtime" : "present")} label={statusLabel(Number(row.late_minutes || 0) > 0 ? "late" : Number(row.overtime_minutes || 0) > 0 ? "overtime" : "present")} />
@@ -1709,7 +1720,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <MiniStat label={tr("fields.shift")} value={kioskSnapshot?.current_shift?.shift_name || selectedEmployee?.current_shift?.shift_name || fallback} tone="emerald" isRtl={isArabic} />
                 <MiniStat label={tr("fields.branch")} value={kioskSnapshot?.branch_name || selectedEmployee?.branch_name || fallback} tone="blue" isRtl={isArabic} />
-                <MiniStat label={tr("fields.checkIn")} value={kioskSnapshot?.today_attendance?.check_in ? new Date(kioskSnapshot.today_attendance.check_in).toLocaleTimeString() : fallback} tone="amber" isRtl={isArabic} />
+                <MiniStat label={tr("fields.checkIn")} value={formatSafeTime(kioskSnapshot?.today_attendance?.check_in, fallback)} tone="amber" isRtl={isArabic} />
                 <MiniStat label={t("common.status")} value={kioskSnapshot?.today_attendance?.check_out ? statusLabel("closed") : kioskSnapshot?.today_attendance?.check_in ? tr("status.open") : statusLabel("off")} tone="zinc" isRtl={isArabic} />
               </div>
               {canDeleteEmployee && selectedEmployee ? (
@@ -1754,7 +1765,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
                     <span className="font-semibold text-white">{selectedEmployee.full_name}</span>
                     <span className="text-zinc-300">{selectedEmployee.branch_name || fallback}</span>
                     <span className="text-zinc-300">{kioskSnapshot?.current_shift?.shift_name || selectedEmployee?.current_shift?.shift_name || fallback}</span>
-                    <span className="text-zinc-300">{kioskSnapshot?.today_attendance?.check_in ? new Date(kioskSnapshot.today_attendance.check_in).toLocaleTimeString() : fallback}</span>
+                    <span className="text-zinc-300">{formatSafeTime(kioskSnapshot?.today_attendance?.check_in, fallback)}</span>
                     <StatusPill tone={kioskSnapshot?.today_attendance?.check_out ? "zinc" : kioskSnapshot?.today_attendance?.check_in ? "emerald" : "rose"} label={kioskSnapshot?.today_attendance?.check_out ? statusLabel("closed") : kioskSnapshot?.today_attendance?.check_in ? tr("status.open") : statusLabel("off")} />
                   </div>
                 ) : (

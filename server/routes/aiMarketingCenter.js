@@ -2,8 +2,11 @@ import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import {
+  archiveAutonomousAiMarketingQueueItem,
   approveAutonomousAiMarketingQueueItem,
+  bulkAutonomousAiMarketingQueueAction,
   deleteAutonomousAiMarketingQueueItem,
+  duplicateAutonomousAiMarketingQueueItem,
   generateAutonomousAiMarketingDaily,
   generateAutonomousAiMarketingMonthly,
   generateAutonomousAiMarketingQueueStoryAsset,
@@ -13,11 +16,13 @@ import {
   generateAutonomousAiMarketingWeekly,
   getAutonomousAiMarketingOverview,
   getAutonomousAiMarketingQueue,
+  getAutonomousAiMarketingQueueTimeline,
   getAutonomousAiMarketingSettings,
   patchAutonomousAiMarketingSettings,
   pauseAutonomousAiMarketing,
   publishAutonomousAiMarketingQueueItemNow,
   resumeAutonomousAiMarketing,
+  restoreAutonomousAiMarketingQueueItem,
   syncAutonomousAiMarketingInsights,
 } from "../controllers/aiMarketingCenterController.js";
 
@@ -45,9 +50,14 @@ router.post("/videos/generate/daily", protect, permit("marketing", "create"), ge
 router.post("/videos/generate/weekly", protect, permit("marketing", "create"), generateAutonomousAiMarketingVideosWeekly);
 router.post("/videos/generate/monthly", protect, permit("marketing", "create"), generateAutonomousAiMarketingVideosMonthly);
 router.post("/queue/:id/approve", protect, permit("marketing", "update"), approveAutonomousAiMarketingQueueItem);
+router.get("/queue/:id/timeline", protect, permit("marketing", "view"), getAutonomousAiMarketingQueueTimeline);
 router.post("/queue/:id/generate-story-asset", protect, permit("marketing", "create"), generateAutonomousAiMarketingQueueStoryAsset);
 console.log("[route] generate-story-asset registered");
 router.post("/queue/:id/publish-now", protect, permit("marketing", "publish"), publishAutonomousAiMarketingQueueItemNow);
+router.post("/queue/:id/archive", protect, permit("marketing", "update"), archiveAutonomousAiMarketingQueueItem);
+router.post("/queue/:id/restore", protect, permit("marketing", "update"), restoreAutonomousAiMarketingQueueItem);
+router.post("/queue/:id/duplicate", protect, permit("marketing", "create"), duplicateAutonomousAiMarketingQueueItem);
+router.post("/queue/bulk", protect, permit("marketing", "update"), bulkAutonomousAiMarketingQueueAction);
 router.delete("/queue/:id", protect, permit("marketing", "delete"), deleteAutonomousAiMarketingQueueItem);
 router.post("/pause", protect, permit("marketing", "update"), pauseAutonomousAiMarketing);
 router.post("/resume", protect, permit("marketing", "update"), resumeAutonomousAiMarketing);

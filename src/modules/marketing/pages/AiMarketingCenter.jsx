@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
   Bot,
+  Archive,
   Check,
   Clock,
+  Copy,
+  History,
   Grid2X2,
   Image,
   Music2,
@@ -17,8 +20,11 @@ import {
 } from "lucide-react";
 
 import {
+  archiveAutonomousAiMarketingQueueItem,
   approveAutonomousAiMarketingQueueItem,
+  bulkAutonomousAiMarketingQueueAction,
   deleteAutonomousAiMarketingQueueItem,
+  duplicateAutonomousAiMarketingQueueItem,
   generateAutonomousAiMarketingDaily,
   generateAutonomousAiMarketingMonthly,
   generateAutonomousAiMarketingQueueStoryAsset,
@@ -26,9 +32,11 @@ import {
   getAutonomousAiMarketingOverview,
   getAutonomousAiMarketingQueue,
   getAutonomousAiMarketingSettings,
+  getAutonomousAiMarketingQueueTimeline,
   pauseAutonomousAiMarketing,
   publishAutonomousAiMarketingQueueItemNow,
   resumeAutonomousAiMarketing,
+  restoreAutonomousAiMarketingQueueItem,
   syncAutonomousAiMarketingInsights,
   updateAutonomousAiMarketingSettings,
 } from "../services/marketingApi";
@@ -42,10 +50,22 @@ const EMPTY_SETTINGS = {
   posts_per_day: 3,
   auto_publish: false,
   require_approval: true,
+  auto_archive_published_after_days: 30,
+  auto_delete_archived_after_days: 90,
   active_strategies: { new_arrivals: true, last_size: true, ai_posts: true },
   active: true,
   daily_content_quotas: [],
 };
+
+const QUEUE_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "published", label: "Published" },
+  { value: "pending_approval", label: "Pending Approval" },
+  { value: "ready", label: "Ready" },
+  { value: "queued", label: "Queued" },
+  { value: "failed", label: "Failed" },
+  { value: "archived", label: "Archived" },
+];
 
 const cardClass = "rounded-2xl border border-white/10 bg-white/[0.055] shadow-2xl shadow-black/20 backdrop-blur-xl";
 const buttonClass = "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50";
@@ -346,16 +366,32 @@ function AiMarketingCenter() {
   const [publishingIds, setPublishingIds] = useState(() => new Set());
   const [generatingStoryAssetIds, setGeneratingStoryAssetIds] = useState(() => new Set());
   const [syncingInsights, setSyncingInsights] = useState(false);
+  const [storyStatusFilter, setStoryStatusFilter] = useState("all");
+  const [postStatusFilter, setPostStatusFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [historyTarget, setHistoryTarget] = useState(null);
+  const [historyRows, setHistoryRows] = useState([]);
   const canCreateMarketing = hasPermission("marketing.create");
 
-  const stories = useMemo(() => queue.filter((item) => {
+  const storiesAll = useMemo(() => queue.filter((item) => {
     const flags = getPreviewContentFlags(item);
     return flags.isStoryContent && !flags.isFeedContent;
   }), [queue]);
-  const posts = useMemo(() => queue.filter((item) => {
+  const postsAll = useMemo(() => queue.filter((item) => {
     const flags = getPreviewContentFlags(item);
     return flags.isFeedContent;
   }), [queue]);
+  const filterQueueItems = (items, statusFilter) => items.filter((item) => {
+    const normalizedStatus = getQueueStatusInfo(item).normalizedStatus;
+    if (statusFilter === "all") return normalizedStatus !== "archived";
+    if (statusFilter === "queued") return ["queued", "generating_copy", "generating_image", "uploading"].includes(normalizedStatus);
+    if (statusFilter === "ready") return ["ready", "approved", "scheduled", "generated"].includes(normalizedStatus);
+    if (statusFilter === "failed") return ["failed", "publish_failed"].includes(normalizedStatus);
+    return normalizedStatus === statusFilter;
+  });
+  const stories = useMemo(() => filterQueueItems(storiesAll, storyStatusFilter), [storiesAll, storyStatusFilter]);
+  const posts = useMemo(() => filterQueueItems(postsAll, postStatusFilter), [postsAll, postStatusFilter]);
   const activeGenerationCount = useMemo(
     () => queue.filter((item) => ["queued", "generating_copy", "generating_image", "uploading"].includes(getQueueStatusInfo(item).normalizedStatus)).length,
     [queue]
@@ -367,7 +403,7 @@ function AiMarketingCenter() {
       const [settingsPayload, overviewPayload, queueRows] = await Promise.all([
         getAutonomousAiMarketingSettings(),
         getAutonomousAiMarketingOverview(),
-        getAutonomousAiMarketingQueue(),
+        getAutonomousAiMarketingQueue({ include_archived: true }),
       ]);
       const nextQueue = Array.isArray(queueRows) ? queueRows : [];
       const nextSettings = unwrapSettings(settingsPayload);
@@ -500,7 +536,7 @@ function AiMarketingCenter() {
     if (action === "publish" && !canPublishQueueItem(targetItem)) {
       toast(isPublishedQueueItem(targetItem) ? "This queue item is already published." : "Approve this queue item before publishing.");
       const nextQueue = await load();
-      setPreview((current) => (current && String(current.id) === String(id) ? nextQueue.find((item) => String(item.id) === String(id)) || current : current));
+      setPreview((current) => (current && String(current.id) === String(id) ? (action === "delete" ? null : nextQueue.find((item) => String(item.id) === String(id)) || current) : current));
       return;
     }
     if (action === "approve" && !canApproveQueueItem(targetItem)) {
@@ -511,6 +547,9 @@ function AiMarketingCenter() {
     }
     try {
       if (action === "approve") await approveAutonomousAiMarketingQueueItem(id);
+      if (action === "archive") await archiveAutonomousAiMarketingQueueItem(id);
+      if (action === "restore") await restoreAutonomousAiMarketingQueueItem(id);
+      if (action === "duplicate") await duplicateAutonomousAiMarketingQueueItem(id);
       if (action === "publish") {
         setPublishingIds((current) => new Set(current).add(String(id)));
         if (statusInfo.normalizedStatus === "pending_approval") {
@@ -519,6 +558,10 @@ function AiMarketingCenter() {
         await publishAutonomousAiMarketingQueueItemNow(id);
       }
       if (action === "delete") {
+        if (!targetItem?.confirmedDelete) {
+          setDeleteTarget(targetItem || { id });
+          return;
+        }
         logQueueDeleteDebug({ itemIdBeingDeleted: id });
         const result = await deleteAutonomousAiMarketingQueueItem(id);
         logQueueDeleteDebug({ responseStatus: result?.status ?? null });
@@ -528,6 +571,11 @@ function AiMarketingCenter() {
       }
       const nextQueue = await load({ logQueueCount: action === "delete" });
       setPreview((current) => (current && String(current.id) === String(id) ? nextQueue.find((item) => String(item.id) === String(id)) || current : current));
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        if (["delete", "archive"].includes(action)) next.delete(String(id));
+        return next;
+      });
       reloaded = true;
     } catch (error) {
       if (isStaleQueueError(error)) {
@@ -616,6 +664,68 @@ function AiMarketingCenter() {
         next.delete(String(id));
         return next;
       });
+    }
+  };
+
+  const confirmDeleteContent = async () => {
+    if (!deleteTarget?.id) return;
+    const target = { ...deleteTarget, confirmedDelete: true };
+    setDeleteTarget(null);
+    await updateQueueItem(target, "delete");
+  };
+
+  const toggleSelected = (id) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      const key = String(id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const runBulkAction = async (action) => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) {
+      toast("Select content first.");
+      return;
+    }
+    if (action === "delete") {
+      setDeleteTarget({ bulk: true, ids, id: ids[0], title: `${ids.length} selected items` });
+      return;
+    }
+    try {
+      const result = await bulkAutonomousAiMarketingQueueAction({ action, ids });
+      toast.success(`${result?.affected || 0} item${Number(result?.affected || 0) === 1 ? "" : "s"} updated`);
+      setSelectedIds(new Set());
+      await load();
+    } catch (error) {
+      toast.error(formatApiError(error, "Bulk action failed"));
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    const ids = Array.isArray(deleteTarget?.ids) ? deleteTarget.ids : [];
+    if (!ids.length) return;
+    try {
+      const result = await bulkAutonomousAiMarketingQueueAction({ action: "delete", ids });
+      toast.success(`${result?.affected || 0} item${Number(result?.affected || 0) === 1 ? "" : "s"} deleted`);
+      setSelectedIds(new Set());
+      setDeleteTarget(null);
+      await load({ logQueueCount: true });
+    } catch (error) {
+      toast.error(formatApiError(error, "Bulk delete failed"));
+    }
+  };
+
+  const openHistory = async (item) => {
+    if (!item?.id) return;
+    setHistoryTarget(item);
+    try {
+      setHistoryRows(await getAutonomousAiMarketingQueueTimeline(item.id));
+    } catch (error) {
+      setHistoryRows([]);
+      toast.error(formatApiError(error, "Failed to load content history"));
     }
   };
 
@@ -732,12 +842,21 @@ function AiMarketingCenter() {
             </div>
           </section>
 
+          <section className={`${cardClass} p-5`}>
+            <SectionTitle icon={<Archive className="h-4 w-4" />} title="Cleanup Management" />
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <NumberField label="Archive after days" value={settings.auto_archive_published_after_days} onChange={(value) => patchSettings({ auto_archive_published_after_days: value })} />
+              <NumberField label="Delete archived after days" value={settings.auto_delete_archived_after_days} onChange={(value) => patchSettings({ auto_delete_archived_after_days: value })} />
+            </div>
+          </section>
+
           <InsightCard insights={overview.posting_insights} syncing={syncingInsights} onSync={syncInsights} />
         </aside>
 
         <main className="space-y-4">
-          <QueueSection title="Stories" icon={<Image className="h-4 w-4" />} items={stories} empty="No story candidates queued." onPreview={setPreview} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
-          <QueueSection title="Posts" icon={<Send className="h-4 w-4" />} items={posts} empty="No AI posts queued." onPreview={setPreview} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
+          <RecommendationsPanel overview={overview} />
+          <QueueSection title="Stories" icon={<Image className="h-4 w-4" />} items={stories} empty="No story candidates queued." statusFilter={storyStatusFilter} onStatusFilter={setStoryStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={setPreview} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
+          <QueueSection title="Posts" icon={<Send className="h-4 w-4" />} items={posts} empty="No AI posts queued." statusFilter={postStatusFilter} onStatusFilter={setPostStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={setPreview} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
         </main>
       </div>
 
@@ -750,6 +869,16 @@ function AiMarketingCenter() {
           onGenerateStoryAsset={() => generateStoryAsset(preview)}
           generatingStoryAsset={generatingStoryAssetIds.has(String(preview.id))}
         />
+      ) : null}
+      {deleteTarget ? (
+        <DeletePublishedContentModal
+          target={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={deleteTarget.bulk ? confirmBulkDelete : confirmDeleteContent}
+        />
+      ) : null}
+      {historyTarget ? (
+        <ContentHistoryModal target={historyTarget} rows={historyRows} onClose={() => setHistoryTarget(null)} />
       ) : null}
     </div>
   );
@@ -889,14 +1018,26 @@ function InsightCard({ insights, syncing = false, onSync }) {
   );
 }
 
-function QueueSection({ title, icon, items, empty, onPreview, onAction, publishingIds, actionDisabled = false }) {
+function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatusFilter, selectedIds, onToggleSelected, onBulkAction, onPreview, onHistory, onAction, publishingIds, actionDisabled = false }) {
   const groups = groupedBySchedule(items);
   const queueType = title.toLowerCase();
+  const selectedCount = items.filter((item) => selectedIds?.has(String(item.id))).length;
   return (
     <section className={`${cardClass} p-5`}>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionTitle icon={icon} title={title} />
-        <Badge>{items.length} queued</Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={statusFilter} onChange={(event) => onStatusFilter?.(event.target.value)} className="h-10 rounded-xl border border-white/10 bg-black/30 px-3 text-xs font-black text-white outline-none">
+            {QUEUE_FILTERS.map((filter) => <option key={filter.value} value={filter.value} className="bg-slate-950">{filter.label}</option>)}
+          </select>
+          <Badge>{items.length} shown</Badge>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-black/20 p-2">
+        <Badge>{selectedCount} selected</Badge>
+        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("archive")} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>Archive Selected</button>
+        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("delete")} className={`${buttonClass} border border-rose-300/20 bg-rose-400/10 text-rose-100`}>Delete Selected</button>
+        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("publish")} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>Publish Selected</button>
       </div>
       <div className="mt-4 grid gap-3">
         {groups.length ? groups.map((group) => (
@@ -906,7 +1047,7 @@ function QueueSection({ title, icon, items, empty, onPreview, onAction, publishi
               <Badge>{group.items.length}</Badge>
             </div>
             {group.items.map((item) => (
-              <QueueItem key={item.id} item={item} queueType={queueType} publishing={publishingIds?.has(String(item.id))} actionDisabled={actionDisabled} onPreview={() => onPreview(item)} onApprove={() => onAction(item, "approve")} onPublish={() => onAction(item, "publish")} onDelete={() => onAction(item, "delete")} />
+              <QueueItem key={item.id} item={item} queueType={queueType} selected={selectedIds?.has(String(item.id))} onToggleSelected={() => onToggleSelected?.(item.id)} publishing={publishingIds?.has(String(item.id))} actionDisabled={actionDisabled} onPreview={() => onPreview(item)} onHistory={() => onHistory?.(item)} onApprove={() => onAction(item, "approve")} onPublish={() => onAction(item, "publish")} onArchive={() => onAction(item, "archive")} onRestore={() => onAction(item, "restore")} onDuplicate={() => onAction(item, "duplicate")} onDelete={() => onAction(item, "delete")} />
             ))}
           </div>
         )) : (
@@ -926,7 +1067,7 @@ function ScheduleBadge({ item }) {
   return <Badge tone="cyan">{formatSchedule(item)}</Badge>;
 }
 
-function QueueItem({ item, queueType = "queue", publishing, actionDisabled = false, onPreview, onApprove, onPublish, onDelete }) {
+function QueueItem({ item, queueType = "queue", selected = false, onToggleSelected, publishing, actionDisabled = false, onPreview, onHistory, onApprove, onPublish, onArchive, onRestore, onDuplicate, onDelete }) {
   const design = item.design_json || {};
   const isLastPiece = item.strategy_type === "last_size";
   const { isStoryContent, isFeedContent } = getPreviewContentFlags(item);
@@ -935,14 +1076,18 @@ function QueueItem({ item, queueType = "queue", publishing, actionDisabled = fal
   const publishedPlatforms = Array.isArray(item.published_platforms) ? item.published_platforms : [];
   const hasFacebook = publishedPlatforms.includes("facebook") || platformResults.facebook?.status === "published";
   const hasInstagram = publishedPlatforms.includes("instagram") || platformResults.instagram?.status === "published";
+  const hasFailedPlatform = Object.values(platformResults).some((value) => value?.status && !["published", "skipped"].includes(value.status));
   const sizesLabel = sizesLabelFrom(design, item);
   const statusInfo = getQueueStatusInfo(item, { source: "card", queueType, publishing });
   const normalizedStatus = statusInfo.normalizedStatus;
   const displayStatus = statusInfo.displayStatus;
   const isGenerating = ["queued", "generating_copy", "generating_image", "uploading"].includes(normalizedStatus);
+  const isArchived = normalizedStatus === "archived";
   const showApprove = canApproveQueueItem(item);
   const showPublish = canPublishQueueItem(item);
   const postUrl = queuePostUrl(item);
+  const performanceScore = Number(item.performance_score || item.metadata?.performance_score || 0);
+  const performanceLabel = item.performance_label || item.metadata?.performance_label || (performanceScore >= 70 ? "High Performer" : performanceScore >= 40 ? "Average" : performanceScore > 0 ? "Low Performer" : "No Data");
   useEffect(() => {
     logQueueAuditDebug("[queue-card]", {
       ...statusInfo,
@@ -955,7 +1100,8 @@ function QueueItem({ item, queueType = "queue", publishing, actionDisabled = fal
     logQueueAuditDebug("[queue-status]", statusInfo);
   }, [displayStatus, item.id, item.publish_status, item.status, item.post_status, item.state, normalizedStatus, queueType, showApprove, showPublish, statusInfo]);
   return (
-    <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-center">
+    <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 md:grid-cols-[auto_72px_minmax(0,1fr)_auto] md:items-center">
+      <input type="checkbox" checked={selected} onChange={onToggleSelected} className="h-4 w-4" aria-label="Select content" />
       <Thumb item={item} />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -963,15 +1109,23 @@ function QueueItem({ item, queueType = "queue", publishing, actionDisabled = fal
           <Badge>{contentLabel}</Badge>
           {isFeedContent && (design.color_name || item.color) ? <Badge>{design.color_name || item.color}</Badge> : null}
           <Badge>{platformLabel(item)}</Badge>
-          <Badge tone={normalizedStatus === "published" ? "emerald" : normalizedStatus === "failed" ? "rose" : displayStatus === "Publishing" || normalizedStatus === "publishing" ? "amber" : "slate"}>{displayStatus}</Badge>
+          <Badge tone={normalizedStatus === "published" ? "emerald" : normalizedStatus === "archived" ? "amber" : ["failed", "publish_failed"].includes(normalizedStatus) ? "rose" : displayStatus === "Publishing" || normalizedStatus === "publishing" ? "amber" : "slate"}>{displayStatus}</Badge>
           {sizesLabel ? <Badge tone={isLastPiece ? "amber" : "slate"}>{sizesLabel}</Badge> : null}
           {isLastPiece && design.stock ? <Badge tone="amber">stock {design.stock}</Badge> : null}
           {design.audio ? <Badge tone="cyan"><Music2 className="h-3 w-3" /> Arabic Trend</Badge> : null}
+          <Badge tone={performanceScore >= 70 ? "emerald" : performanceScore >= 40 ? "amber" : performanceScore > 0 ? "rose" : "slate"}>{performanceLabel}</Badge>
           {hasFacebook ? <Badge tone="cyan">Facebook</Badge> : null}
           {hasInstagram ? <Badge tone="cyan">Instagram</Badge> : null}
         </div>
         <div className="mt-2 truncate text-sm font-black text-white">{item.title || design.product_name || "Queued content"}</div>
         <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-400" dir="rtl">{isStoryContent && !isFeedContent ? storyQueueCaption(item) : item.caption}</div>
+        {normalizedStatus === "published" || normalizedStatus === "publish_failed" ? (
+          <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
+            <span className={hasFacebook ? "text-emerald-200" : "text-rose-200"}>Facebook: {hasFacebook ? "OK" : "Failed"}</span>
+            <span className={hasInstagram ? "text-emerald-200" : "text-rose-200"}>Instagram: {hasInstagram ? "OK" : "Failed"}</span>
+            {item.platform_error_message || item.publish_error ? <span className="text-rose-200">{item.platform_error_message || item.publish_error}</span> : null}
+          </div>
+        ) : null}
       </div>
       <div className="grid gap-2 md:justify-items-end">
         <div className="flex w-full md:justify-end">
@@ -979,15 +1133,22 @@ function QueueItem({ item, queueType = "queue", publishing, actionDisabled = fal
         </div>
         <div className="flex flex-wrap gap-2 md:justify-end">
           <button type="button" onClick={onPreview} disabled={isGenerating} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white disabled:opacity-50`}>Preview</button>
+          <button type="button" onClick={onHistory} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>
+            <History className="h-4 w-4" />
+            History
+          </button>
           {normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
-          {showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button> : null}
-          {showPublish ? <button type="button" onClick={onPublish} disabled={publishing || actionDisabled} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>{publishing ? "Publishing..." : "Publish"}</button> : null}
+          {isArchived ? <button type="button" onClick={onRestore} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Restore</button> : null}
+          {!isArchived && showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button> : null}
+          {!isArchived && showPublish ? <button type="button" onClick={onPublish} disabled={publishing || actionDisabled} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>{publishing ? "Publishing..." : normalizedStatus === "publish_failed" || hasFailedPlatform ? "Retry Publish" : "Publish"}</button> : null}
+          {!isArchived ? <button type="button" onClick={onArchive} disabled={actionDisabled} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>Archive</button> : null}
+          <button type="button" title="Duplicate" onClick={onDuplicate} disabled={actionDisabled} className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-100">
+            <Copy className="h-4 w-4" />
+          </button>
           {normalizedStatus === "failed" ? <button type="button" onClick={onPreview} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>Retry</button> : null}
-          {normalizedStatus !== "published" ? (
-            <button type="button" title="Delete" onClick={onDelete} className="grid h-10 w-10 place-items-center rounded-xl border border-rose-300/20 bg-rose-400/10 text-rose-100">
-              <Trash2 className="h-4 w-4" />
-            </button>
-          ) : null}
+          <button type="button" title="Delete" onClick={onDelete} className="grid h-10 w-10 place-items-center rounded-xl border border-rose-300/20 bg-rose-400/10 text-rose-100">
+            <Trash2 className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>
@@ -1055,6 +1216,94 @@ function GeneratedStoryAssetPreview({ urls = [], selectedIndex = 0, onSelect }) 
               </div>
               <div className="truncate px-2 py-2 text-xs font-black text-white">Slide {index + 1}</div>
             </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecommendationsPanel({ overview = {} }) {
+  const recommendations = Array.isArray(overview.performance_recommendations) ? overview.performance_recommendations : [];
+  const brains = Array.isArray(overview.ai_operating_brains) ? overview.ai_operating_brains : [];
+  const insufficient = overview.performance_insufficient_data || recommendations.length === 0;
+  return (
+    <section className={`${cardClass} p-5`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="AI Recommendations" />
+        <Badge tone="cyan">Performance Brain</Badge>
+      </div>
+      {insufficient ? (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4 text-sm font-bold text-slate-300">
+          {overview.performance_insufficient_data_message || "Not enough performance data yet. Publish more content and sync insights to unlock recommendations."}
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {recommendations.map((item, index) => (
+            <div key={`${item.type || "recommendation"}-${index}`} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+              <div className="text-sm font-black text-white">{item.title}</div>
+              <div className="mt-1 text-xs font-semibold leading-5 text-slate-400">{item.reason}</div>
+            </div>
+          ))}
+          </div>
+      )}
+      {brains.length ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {brains.map((brain) => <Badge key={brain}>{brain}</Badge>)}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function DeletePublishedContentModal({ target, onClose, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4">
+      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 text-white shadow-2xl">
+        <h2 className="text-xl font-black">Delete Published Content</h2>
+        <p className="mt-3 text-sm font-semibold leading-6 text-slate-300">
+          This will remove the generated content from the AI Marketing Center database and media storage.
+          It will NOT automatically delete the content from Facebook or Instagram unless platform deletion is explicitly supported.
+        </p>
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3 text-sm font-bold text-slate-300">
+          {target?.title || target?.caption || (target?.bulk ? `${target.ids?.length || 0} selected items` : `Queue item ${target?.id || ""}`)}
+        </div>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/10 text-white`}>Cancel</button>
+          <button type="button" onClick={onConfirm} className={`${buttonClass} border border-rose-300/30 bg-rose-500 text-white hover:bg-rose-400`}>
+            Delete Permanently
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContentHistoryModal({ target, rows = [], onClose }) {
+  const fallbackRows = rows.length ? rows : [
+    { action: "created", status: target?.status || "", timestamp: target?.created_at, user: "System" },
+  ];
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4">
+      <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-slate-950 p-5 text-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-black">Content History</h2>
+            <p className="mt-1 text-sm font-semibold text-slate-400">{target?.title || "AI marketing content"}</p>
+          </div>
+          <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/10 text-white`}>Close</button>
+        </div>
+        <div className="mt-5 grid max-h-[70vh] gap-3 overflow-y-auto pr-1">
+          {fallbackRows.map((row, index) => (
+            <div key={row.id || `${row.action}-${index}`} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-black capitalize text-white">{String(row.action || "").replaceAll("_", " ")}</div>
+                <Badge>{String(row.status || "").replaceAll("_", " ")}</Badge>
+              </div>
+              <div className="mt-2 text-xs font-bold text-slate-400">
+                {row.timestamp ? new Date(row.timestamp).toLocaleString() : "No timestamp"} · {row.user || "System"}
+              </div>
+            </div>
           ))}
         </div>
       </div>

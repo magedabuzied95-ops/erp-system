@@ -450,9 +450,19 @@ const isAdminLike = (user = {}) =>
   ["admin", "super admin", "superadmin", "owner", "manager"].includes(normalizeRole(user.role_name || user.role));
 
 const resolveTenantId = (req) =>
-  isSuperAdminUser(req.user)
-    ? getTenantId(req, req.body?.tenant_id || req.query?.tenant_id || req.user?.tenant_id)
-    : getTenantId(req, req.user?.tenant_id);
+  getTenantId(req, req.body?.tenant_id || req.body?.tenantId || req.query?.tenant_id || req.query?.tenantId || req.user?.tenant_id || req.user?.tenantId);
+
+const unavailablePaymentAccountStatus = ({ paymentMethod, branchId, amount, direction, reason }) => ({
+  unavailable: true,
+  reason,
+  payment_method: paymentMethod || null,
+  branch_id: branchId || null,
+  amount: Number(amount || 0),
+  direction: direction || "in",
+  requires_balance: false,
+  account: null,
+  sufficient: null,
+});
 
 export const ensurePosUserShiftSchema = async (clientOrPool = db) => {
   await ensureAccountingSchema();
@@ -951,24 +961,58 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
 };
 
 export const getPosPaymentAccountStatus = async (req, res) => {
+  const paymentMethod = req.query.payment_method || req.query.paymentMethod;
+  const branchId = req.query.branch_id || req.query.branchId || req.user?.branch_id || null;
+  const requestedDirection = req.query.direction || req.query.transaction_direction || req.query.transactionDirection;
+  const purpose = String(req.query.purpose || req.query.transaction_type || req.query.transactionType || "").toLowerCase();
+  const direction = requestedDirection || (purpose.includes("refund") || purpose.includes("return") ? "out" : "in");
+  const amount = req.query.amount || 0;
+
   try {
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-    const requestedDirection = req.query.direction || req.query.transaction_direction || req.query.transactionDirection;
-    const purpose = String(req.query.purpose || req.query.transaction_type || req.query.transactionType || "").toLowerCase();
+    const tenantId = resolveTenantId(req);
+
+    if (!tenantId) {
+      console.error("[pos:payment-account-status] missing tenant context", {
+        userId: req.user?.id || null,
+        branchId,
+        paymentMethod,
+      });
+      return res.status(200).json({
+        success: true,
+        status: unavailablePaymentAccountStatus({
+          paymentMethod,
+          branchId,
+          amount,
+          direction,
+          reason: "tenant_context_missing",
+        }),
+      });
+    }
+
     const status = await getPaymentAccountStatus(db, {
       tenantId,
-      paymentMethod: req.query.payment_method || req.query.paymentMethod,
-      branchId: req.query.branch_id || req.query.branchId || req.user?.branch_id || null,
-      amount: req.query.amount || 0,
-      direction: requestedDirection || (purpose.includes("refund") || purpose.includes("return") ? "out" : "in"),
+      paymentMethod,
+      branchId,
+      amount,
+      direction,
     });
     return res.status(200).json({ success: true, status });
   } catch (error) {
-    console.log(error);
-    return res.status(error.status || 500).json({
-      success: false,
-      message: "Failed to fetch payment account status",
-      error: error.message,
+    console.error("[pos:payment-account-status] unavailable", {
+      userId: req.user?.id || null,
+      branchId,
+      paymentMethod,
+      error: error?.message || error,
+    });
+    return res.status(200).json({
+      success: true,
+      status: unavailablePaymentAccountStatus({
+        paymentMethod,
+        branchId,
+        amount,
+        direction,
+        reason: error?.message || "payment_account_status_unavailable",
+      }),
     });
   }
 };

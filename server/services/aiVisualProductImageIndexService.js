@@ -33,9 +33,51 @@ const columnExpr = (alias, columns, names, fallback = "''") => {
 
 const normalizeVisualText = (value = "") =>
   lower(value)
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
+    .replace(/\u0649/g, "\u064a")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/[\u0660\u06f0]/g, "0")
+    .replace(/[\u0661\u06f1]/g, "1")
+    .replace(/[\u0662\u06f2]/g, "2")
+    .replace(/[\u0663\u06f3]/g, "3")
+    .replace(/[\u0664\u06f4]/g, "4")
+    .replace(/[\u0665\u06f5]/g, "5")
+    .replace(/[\u0666\u06f6]/g, "6")
+    .replace(/[\u0667\u06f7]/g, "7")
+    .replace(/[\u0668\u06f8]/g, "8")
+    .replace(/[\u0669\u06f9]/g, "9")
     .replace(/[^a-z0-9\u0600-\u06FF]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+const VISUAL_ALIAS_GROUPS = Object.freeze([
+  ["north face", ["north face", "the north face", "northface", "\u0646\u0648\u0631\u062b \u0641\u064a\u0633", "\u0646\u0648\u0631\u062b\u0641\u064a\u0633", "\u0646\u0648\u0631\u062a \u0641\u064a\u0633", "\u0646\u0648\u0631\u062a\u0641\u064a\u0633"]],
+  ["jordan 4", ["jordan 4", "air jordan 4", "jordan four", "jordan iv", "aj4", "j4", "\u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631", "\u062c\u0648\u0631\u062f\u0646 4", "\u062c\u0648\u0631\u062f\u0646 \u0664"]],
+  ["jordan", ["jordan", "air jordan", "\u062c\u0648\u0631\u062f\u0646"]],
+  ["nike", ["nike", "\u0646\u0627\u064a\u0643"]],
+  ["adidas", ["adidas", "\u0627\u062f\u064a\u062f\u0627\u0633", "\u0623\u062f\u064a\u062f\u0627\u0633"]],
+  ["skechers", ["skechers", "sketchers", "\u0633\u0643\u064a\u062a\u0634\u0631\u0632"]],
+  ["crocs", ["crocs", "\u0643\u0631\u0648\u0643\u0633"]],
+]);
+
+const aliasCanonical = (value = "") => {
+  const normalized = normalizeVisualText(value);
+  if (!normalized) return "";
+  for (const [canonical, aliases] of VISUAL_ALIAS_GROUPS) {
+    if (aliases.some((alias) => normalized.includes(normalizeVisualText(alias)))) return canonical;
+  }
+  return normalized;
+};
+
+const expandAliases = (...items) => {
+  const blob = normalizeVisualText(items.flatMap((item) => Array.isArray(item) ? item : [item]).filter(Boolean).join(" "));
+  const expanded = [];
+  for (const [canonical, aliases] of VISUAL_ALIAS_GROUPS) {
+    if (aliases.some((alias) => blob.includes(normalizeVisualText(alias)))) expanded.push(canonical, ...aliases);
+  }
+  return expanded;
+};
 
 const unique = (items = [], limit = 60) =>
   [...new Set((Array.isArray(items) ? items : [items]).flatMap((item) => {
@@ -115,6 +157,11 @@ const detectedBlob = (detected = {}) =>
     detected.silhouette_style,
     detected.high_top_low_top,
     detected.sole_shape,
+    detected.sole_type,
+    detected.logo_text,
+    detected.logo_position,
+    detected.material,
+    detected.materials,
     detected.features,
     detected.distinctive_features,
     detected.english_keywords,
@@ -128,6 +175,7 @@ const deriveVisualMetadata = (row = {}) => {
     row.product_slug,
     row.brand,
     row.category,
+    row.gender,
     row.product_type,
     row.style,
     row.tags,
@@ -137,6 +185,7 @@ const deriveVisualMetadata = (row = {}) => {
   ].filter(Boolean).join(" "));
   const visualTags = unique([
     blob,
+    expandAliases(blob),
     /\bjordan\b/.test(blob) ? "jordan air jordan" : "",
     /\bjordan\b/.test(blob) && /\b4\b|iv\b/.test(blob) ? "jordan 4 air jordan 4 aj4 j4" : "",
     /\bdunk\b|\blow\b|\bskate\b|\bcasual\b|\bcourt\b/.test(blob) ? "low low-top casual skate dunk style" : "",
@@ -146,15 +195,26 @@ const deriveVisualMetadata = (row = {}) => {
     /\bgraphic\b|\bprinted\b|\bpattern\b|\bcomic\b|\bcartoon\b|\bpanel\b/.test(blob) ? "graphic side printed side pattern side panel" : "",
     /\bterrex\b|\btrail\b|\brunning\b|\bgoretex\b|\bhiking\b/.test(blob) ? "trail running outdoor chunky sole" : "",
   ]);
+  const textAliases = unique([
+    row.product_name,
+    row.brand,
+    row.category,
+    row.gender,
+    row.color,
+    expandAliases(blob),
+  ]);
   return {
     visual_tags: visualTags,
+    text_aliases: textAliases,
     detected: {
       brand: text(row.brand),
       model: text(row.product_name),
       category: text(row.category || row.product_type),
+      gender: text(row.gender),
       colors: unique([row.color, blob.includes("black") ? "black" : "", blob.includes("white") ? "white" : ""]).slice(0, 6),
       silhouette: /\bdunk\b|\blow\b|\bskate\b|\bcasual\b/.test(blob) ? "low casual skate sneaker" : /\bterrex\b|\btrail\b|\brunning\b/.test(blob) ? "trail running sneaker" : "",
       features: visualTags,
+      aliases: textAliases,
     },
     visual_text: normalizeVisualText(visualTags.join(" ")),
   };
@@ -173,6 +233,15 @@ export const ensureAiProductImageVisualIndexSchema = async (clientOrPool = db) =
           image_url TEXT NOT NULL,
           image_public_id TEXT NOT NULL DEFAULT '',
           image_hash TEXT NOT NULL DEFAULT '',
+          brand TEXT NOT NULL DEFAULT '',
+          product_name TEXT NOT NULL DEFAULT '',
+          category TEXT NOT NULL DEFAULT '',
+          gender TEXT NOT NULL DEFAULT '',
+          price NUMERIC(12,2) NOT NULL DEFAULT 0,
+          stock INTEGER NOT NULL DEFAULT 0,
+          available_sizes TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+          text_aliases TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+          visual_attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
           visual_tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
           detected_brand TEXT NOT NULL DEFAULT '',
           detected_model TEXT NOT NULL DEFAULT '',
@@ -183,6 +252,8 @@ export const ensureAiProductImageVisualIndexSchema = async (clientOrPool = db) =
           visual_text TEXT NOT NULL DEFAULT '',
           visual_json JSONB NOT NULL DEFAULT '{}'::jsonb,
           image_embedding JSONB NULL,
+          embedding_model TEXT NOT NULL DEFAULT '',
+          embedding_updated_at TIMESTAMP NULL,
           source TEXT NOT NULL DEFAULT 'erp',
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -191,6 +262,18 @@ export const ensureAiProductImageVisualIndexSchema = async (clientOrPool = db) =
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_product_image_visual_index_tenant ON ai_product_image_visual_index (tenant_id, product_id, variant_id)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_product_image_visual_index_public_id ON ai_product_image_visual_index (tenant_id, image_public_id)`);
       await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS ai_product_image_visual_index_unique_url ON ai_product_image_visual_index (tenant_id, product_id, COALESCE(variant_id, 0), LOWER(TRIM(image_url)))`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS product_name TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS gender TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS price NUMERIC(12,2) NOT NULL DEFAULT 0`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS available_sizes TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS text_aliases TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS visual_attributes JSONB NOT NULL DEFAULT '{}'::jsonb`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS image_embedding JSONB NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS embedding_model TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS embedding_updated_at TIMESTAMP NULL`);
     })().catch((error) => {
       schemaReadyPromise = null;
       throw error;
@@ -207,9 +290,18 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
   if (!productColumns.has("id") || !productColumns.has("tenant_id")) return [];
   const productName = columnExpr("p", productColumns, ["name", "title", "name_en", "name_ar"], "''");
   const productSlug = columnExpr("p", productColumns, ["slug", "product_slug"], "''");
-  const brand = columnExpr("p", productColumns, ["brand", "brand_name", "manufacturer"], "''");
-  const category = columnExpr("p", productColumns, ["category", "category_name"], "''");
+  const brandJoin = productColumns.has("brand_id") ? "LEFT JOIN brands b ON b.id = p.brand_id" : "";
+  const categoryJoin = productColumns.has("category_id") ? "LEFT JOIN categories c ON c.id = p.category_id" : "";
+  const directBrand = columnExpr("p", productColumns, ["brand", "brand_name", "manufacturer"], "''");
+  const joinedBrand = productColumns.has("brand_id") ? "b.name" : "''";
+  const directCategory = columnExpr("p", productColumns, ["category", "category_name"], "''");
+  const joinedCategory = productColumns.has("category_id") ? "c.name" : "''";
+  const brand = `COALESCE(NULLIF(${directBrand}, ''), NULLIF(${joinedBrand}, ''), '')`;
+  const category = `COALESCE(NULLIF(${directCategory}, ''), NULLIF(${joinedCategory}, ''), '')`;
   const productType = columnExpr("p", productColumns, ["product_type", "type"], "''");
+  const gender = columnExpr("p", productColumns, ["gender", "audience"], "''");
+  const price = columnExpr("p", productColumns, ["sale_price", "selling_price", "regular_price", "price"], "0");
+  const stock = columnExpr("p", productColumns, ["stock"], "0");
   const style = columnExpr("p", productColumns, ["style", "silhouette"], "''");
   const tags = columnExpr("p", productColumns, ["tags", "seo_keywords", "keywords"], "''");
   const productImages = columnExpr("p", productColumns, ["gallery_images", "product_images", "images"], "'[]'::jsonb");
@@ -218,6 +310,11 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
     .map((column) => `p.${column}`);
   const variantImageExpr = variantColumns.has("image_url") ? "pv.image_url" : "''";
   const variantColorExpr = columnExpr("pv", variantColumns, ["color", "color_name", "color_value"], "''");
+  const variantPriceExpr = columnExpr("pv", variantColumns, ["sale_price", "selling_price", "regular_price", "price"], price);
+  const variantStockExpr = columnExpr("pv", variantColumns, ["stock"], "0");
+  const availableSizesExpr = variantColumns.has("size")
+    ? `(SELECT COALESCE(array_agg(DISTINCT NULLIF(pv2.size, '')) FILTER (WHERE NULLIF(pv2.size, '') IS NOT NULL AND COALESCE(pv2.stock, 0) > 0), ARRAY[]::text[]) FROM product_variants pv2 WHERE pv2.product_id = p.id)`
+    : "ARRAY[]::text[]";
   const tenantFilter = tenantId ? "AND p.tenant_id = $1::bigint" : "";
   const productFilter = productId ? `AND p.id = $${tenantId ? 2 : 1}::bigint` : "";
   const params = [tenantId, productId].filter((value) => value !== null && value !== undefined);
@@ -235,11 +332,17 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
       ${brand} AS brand,
       ${category} AS category,
       ${productType} AS product_type,
+      ${gender} AS gender,
+      ${price} AS price,
+      ${stock} AS stock,
+      ${availableSizesExpr} AS available_sizes,
       ${style} AS style,
       ${tags} AS tags,
       ${productImages} AS gallery_images,
       ARRAY[${productImageFields.length ? productImageFields.join(", ") : "''"}] AS image_fields
     FROM products p
+    ${brandJoin}
+    ${categoryJoin}
     WHERE 1=1 ${tenantFilter} ${productFilter}
     `,
     params
@@ -266,10 +369,16 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
         ${brand} AS brand,
         ${category} AS category,
         ${productType} AS product_type,
+        ${gender} AS gender,
+        ${variantPriceExpr} AS price,
+        ${variantStockExpr} AS stock,
+        ${availableSizesExpr} AS available_sizes,
         ${style} AS style,
         ${tags} AS tags,
         ${variantImageExpr} AS image_url
       FROM products p
+      ${brandJoin}
+      ${categoryJoin}
       JOIN product_variants pv ON pv.product_id = p.id ${variantTenantClause}
       WHERE 1=1 ${tenantFilter} ${productFilter}
         AND NULLIF(${variantImageExpr}, '') IS NOT NULL
@@ -304,10 +413,16 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
       ${brand} AS brand,
       ${category} AS category,
       ${productType} AS product_type,
+      ${gender} AS gender,
+      ${price} AS price,
+      ${stock} AS stock,
+      ${availableSizesExpr} AS available_sizes,
       ${style} AS style,
       ${tags} AS tags,
       pvi.image_url
     FROM products p
+    ${brandJoin}
+    ${categoryJoin}
     JOIN product_variant_images pvi ON pvi.product_id = p.id
     WHERE 1=1 ${tenantFilter} ${productFilter}
       AND NULLIF(pvi.image_url, '') IS NOT NULL
@@ -334,15 +449,25 @@ const upsertImageIndexRow = async (clientOrPool, row = {}) => {
     `
     INSERT INTO ai_product_image_visual_index (
       tenant_id, product_id, variant_id, color, image_url, image_public_id, image_hash,
+      brand, product_name, category, gender, price, stock, available_sizes, text_aliases, visual_attributes,
       visual_tags, detected_brand, detected_model, detected_category, detected_colors,
       detected_silhouette, detected_features, visual_text, visual_json, source, updated_at
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8::text[],$9,$10,$11,$12::text[],$13,$14::text[],$15,$16::jsonb,$17,NOW())
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::text[],$15::text[],$16::jsonb,$17::text[],$18,$19,$20,$21::text[],$22,$23::text[],$24,$25::jsonb,$26,NOW())
     ON CONFLICT (tenant_id, product_id, COALESCE(variant_id, 0), LOWER(TRIM(image_url)))
     DO UPDATE SET
       color = EXCLUDED.color,
       image_public_id = EXCLUDED.image_public_id,
       image_hash = COALESCE(NULLIF(EXCLUDED.image_hash, ''), ai_product_image_visual_index.image_hash),
+      brand = EXCLUDED.brand,
+      product_name = EXCLUDED.product_name,
+      category = EXCLUDED.category,
+      gender = EXCLUDED.gender,
+      price = EXCLUDED.price,
+      stock = EXCLUDED.stock,
+      available_sizes = EXCLUDED.available_sizes,
+      text_aliases = EXCLUDED.text_aliases,
+      visual_attributes = EXCLUDED.visual_attributes,
       visual_tags = EXCLUDED.visual_tags,
       detected_brand = EXCLUDED.detected_brand,
       detected_model = EXCLUDED.detected_model,
@@ -363,6 +488,15 @@ const upsertImageIndexRow = async (clientOrPool, row = {}) => {
       imageUrl,
       imagePublicId(imageUrl),
       text(row.image_hash),
+      text(row.brand),
+      text(row.product_name),
+      text(row.category || row.product_type),
+      text(row.gender),
+      Number(row.price || 0) || 0,
+      Math.max(0, Number(row.stock || 0) || 0),
+      Array.isArray(row.available_sizes) ? row.available_sizes.map(text).filter(Boolean) : [],
+      metadata.text_aliases,
+      json(metadata.detected),
       metadata.visual_tags,
       metadata.detected.brand,
       metadata.detected.model,
@@ -408,40 +542,72 @@ const tokenOverlapScore = (detectedTokens = [], indexedTokens = []) => {
   return matches.length / Math.max(1, detectedTokens.length);
 };
 
+const aliasMatchScore = (detectedTokens = [], indexedTokens = []) => {
+  const detectedAliases = new Set(detectedTokens.map(aliasCanonical).filter(Boolean));
+  const indexedAliases = new Set(indexedTokens.map(aliasCanonical).filter(Boolean));
+  if (!detectedAliases.size || !indexedAliases.size) return 0;
+  let matches = 0;
+  for (const alias of detectedAliases) {
+    if (indexedAliases.has(alias)) matches += 1;
+  }
+  return matches / Math.max(1, detectedAliases.size);
+};
+
 const scoreIndexedImage = ({ row = {}, detected = {}, visualQuery = "", uploadedImageUrl = "", uploadedImageHash = "" } = {}) => {
   const queryBlob = detectedBlob(detected) || normalizeVisualText(visualQuery);
-  const queryTokens = unique(queryBlob);
-  const indexedTokens = unique([row.visual_text, row.visual_tags, row.detected_colors, row.detected_features, row.color, row.image_public_id]);
+  const queryTokens = unique([queryBlob, expandAliases(queryBlob)]);
+  const indexedTokens = unique([row.visual_text, row.visual_tags, row.text_aliases, row.detected_colors, row.detected_features, row.brand, row.product_name, row.category, row.gender, row.color, row.image_public_id]);
   const rowBlob = normalizeVisualText(indexedTokens.join(" "));
   const exactUrl = Boolean(uploadedImageUrl && imageIdentity(uploadedImageUrl) && imageIdentity(uploadedImageUrl) === imageIdentity(row.image_url));
   const exactPublicId = Boolean(uploadedImageUrl && imagePublicId(uploadedImageUrl) && imagePublicId(uploadedImageUrl) === row.image_public_id);
   const exactHash = Boolean(uploadedImageHash && row.image_hash && uploadedImageHash === row.image_hash);
   const overlap = tokenOverlapScore(queryTokens, indexedTokens);
-  const brandTokens = unique([detected.brand_guess, detected.brand_family, detected.brand, detected.likely_brand]);
-  const modelTokens = unique([detected.likely_model, detected.model_guess, detected.model_family, detected.model_keywords]);
+  const brandTokens = unique([detected.brand_guess, detected.brand_family, detected.brand, detected.likely_brand, expandAliases(visualQuery)]);
+  const modelTokens = unique([detected.likely_model, detected.model_guess, detected.model_family, detected.model_keywords, expandAliases(visualQuery)]);
   const colorTokens = unique([detected.colors, detected.main_colors, detected.secondary_colors]);
-  const featureTokens = unique([detected.features, detected.distinctive_features, detected.english_keywords]);
+  const categoryTokens = unique([detected.product_type, detected.category, detected.shoe_type, visualQuery]);
+  const genderTokens = unique([detected.gender_style, detected.gender_audience, detected.gender, detected.target_audience]);
+  const featureTokens = unique([detected.features, detected.distinctive_features, detected.english_keywords, detected.arabic_keywords, detected.material, detected.materials, detected.logo_text, detected.logo_position]);
   const silhouetteTokens = unique([detected.silhouette, detected.silhouette_style, detected.high_top_low_top, detected.sole_shape]);
+  const brandAliasScore = Math.max(tokenOverlapScore(brandTokens, indexedTokens), aliasMatchScore(brandTokens, indexedTokens));
+  const modelAliasScore = Math.max(tokenOverlapScore(modelTokens, indexedTokens), aliasMatchScore(modelTokens, indexedTokens));
   const scoreBreakdown = {
-    exact_image_score: exactHash ? 1 : exactUrl || exactPublicId ? 0.95 : 0,
-    brand_score: tokenOverlapScore(brandTokens, indexedTokens) * 0.18,
-    model_score: tokenOverlapScore(modelTokens, indexedTokens) * 0.26,
-    color_score: tokenOverlapScore(colorTokens, indexedTokens) * 0.2,
-    silhouette_score: tokenOverlapScore(silhouetteTokens, indexedTokens) * 0.18,
-    feature_score: tokenOverlapScore(featureTokens, indexedTokens) * 0.18,
-    token_overlap_score: overlap * 0.22,
+    imageScore: exactHash ? 1 : exactUrl || exactPublicId ? 0.95 : 0,
+    brandScore: brandAliasScore,
+    modelScore: modelAliasScore,
+    colorScore: tokenOverlapScore(colorTokens, indexedTokens),
+    categoryScore: tokenOverlapScore(categoryTokens, indexedTokens),
+    genderScore: tokenOverlapScore(genderTokens, indexedTokens),
+    stockScore: Number(row.stock || 0) > 0 ? 1 : 0,
+    visualScore: Math.max(tokenOverlapScore(silhouetteTokens, indexedTokens), tokenOverlapScore(featureTokens, indexedTokens), overlap),
+    priceScore: Number(row.price || 0) > 0 ? 0.5 : 0,
     penalties: 0,
   };
+  if (scoreBreakdown.imageScore > 0) scoreBreakdown.imageScore *= 0.95;
+  scoreBreakdown.brand_score = scoreBreakdown.brandScore * 0.2;
+  scoreBreakdown.model_score = scoreBreakdown.modelScore * 0.24;
+  scoreBreakdown.color_score = scoreBreakdown.colorScore * 0.14;
+  scoreBreakdown.category_score = scoreBreakdown.categoryScore * 0.1;
+  scoreBreakdown.gender_score = scoreBreakdown.genderScore * 0.05;
+  scoreBreakdown.stock_score = scoreBreakdown.stockScore * 0.06;
+  scoreBreakdown.visual_score = scoreBreakdown.visualScore * 0.21;
+  scoreBreakdown.price_score = scoreBreakdown.priceScore * 0.02;
   const queryLow = /\blow\b|\bskate\b|\bcasual\b|\bdunk\b/.test(queryBlob);
   const queryGraphic = /\bgraphic\b|\bprinted\b|\bpattern\b|\bside panel\b|\bcomic\b|\bcartoon\b/.test(queryBlob);
   const rowTrail = /\bterrex\b|\btrail\b|\brunning\b|\bgoretex\b|\bhiking\b/.test(rowBlob);
   if ((queryLow || queryGraphic) && rowTrail) scoreBreakdown.penalties -= 0.28;
-  const finalScore = Math.max(0, Math.min(1, Object.values(scoreBreakdown).reduce((sum, value) => sum + Number(value || 0), 0)));
+  const brandConfidence = Number(detected.field_confidence?.brand_guess || detected.field_confidence?.brand || 0);
+  if (brandConfidence >= 0.75 && brandTokens.length && scoreBreakdown.brandScore <= 0) scoreBreakdown.penalties -= 0.35;
+  if (categoryTokens.length && scoreBreakdown.categoryScore <= 0 && /\b(shoe|sneaker|running|trail|boot|slide|sandal)\b/.test(queryBlob)) scoreBreakdown.penalties -= 0.18;
+  if (genderTokens.length && row.gender && scoreBreakdown.genderScore <= 0) scoreBreakdown.penalties -= 0.12;
+  if (!row.image_url) scoreBreakdown.penalties -= 0.2;
+  if (Number(row.stock || 0) <= 0) scoreBreakdown.penalties -= 0.08;
+  if (scoreBreakdown.visualScore <= 0.05 && !scoreBreakdown.imageScore && !scoreBreakdown.brandScore && !scoreBreakdown.modelScore) scoreBreakdown.penalties -= 0.25;
+  const weightedKeys = ["imageScore", "brand_score", "model_score", "color_score", "category_score", "gender_score", "stock_score", "visual_score", "price_score", "penalties"];
+  const finalScore = Math.max(0, Math.min(1, weightedKeys.reduce((sum, key) => sum + Number(scoreBreakdown[key] || 0), 0)));
   const strongTagMatch = finalScore >= 0.82 &&
-    scoreBreakdown.model_score >= 0.18 &&
-    scoreBreakdown.color_score >= 0.12 &&
-    scoreBreakdown.silhouette_score >= 0.1 &&
-    (scoreBreakdown.feature_score >= 0.08 || scoreBreakdown.token_overlap_score >= 0.16);
+    (scoreBreakdown.modelScore >= 0.65 || scoreBreakdown.brandScore >= 0.8) &&
+    (scoreBreakdown.colorScore >= 0.25 || scoreBreakdown.visualScore >= 0.45);
   return {
     score: finalScore,
     exact_image_match: exactHash || exactUrl || exactPublicId,
@@ -483,6 +649,15 @@ export const searchIndexedProductImageMatches = async ({
     variant_id: row.variant_id,
     color: row.color,
     image_url: row.image_url,
+    brand: row.brand,
+    product_name: row.product_name,
+    category: row.category,
+    gender: row.gender,
+    price: row.price,
+    stock: row.stock,
+    available_sizes: row.available_sizes,
+    text_aliases: row.text_aliases,
+    visual_attributes: row.visual_attributes,
     image_public_id: row.image_public_id,
     score: row.score,
     exact_image_match: row.exact_image_match,

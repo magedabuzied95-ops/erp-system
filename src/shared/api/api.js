@@ -1,4 +1,4 @@
-import { clearAuth, getToken } from "../auth/authStorage";
+import { clearAuth, getCurrentTenant, getCurrentUser, getToken } from "../auth/authStorage";
 
 import { API_BASE_URL } from "../constants/app";
 import { estimatePayloadSize, isErpPerfDebugEnabled } from "../lib/perfDebug";
@@ -41,6 +41,16 @@ const buildHeaders = (
 
   const token =
     getToken();
+  const currentUser =
+    getCurrentUser();
+  const currentTenant =
+    getCurrentTenant();
+  const tenantId =
+    currentUser?.tenant_id ||
+    currentUser?.tenantId ||
+    currentTenant?.id ||
+    currentTenant?.tenant_id ||
+    "";
 
   const headers = {
     ...extraHeaders
@@ -53,6 +63,11 @@ const buildHeaders = (
   if (token) {
     headers.Authorization =
       `Bearer ${token}`;
+  }
+
+  if (tenantId && !headers["x-tenant-id"] && !headers["X-Tenant-Id"]) {
+    headers["x-tenant-id"] =
+      String(tenantId);
   }
 
   if (

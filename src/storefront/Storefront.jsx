@@ -1311,6 +1311,15 @@ const hasSale = (product = {}) => {
   return storefrontSaleModeOn(product) && sale > 0 && regular > 0 && sale < regular;
 };
 const newestScore = (product = {}) => new Date(product.created_at || 0).getTime() || Number(product.id || 0);
+const popularScore = (product = {}) => {
+  const sold = Number(product.total_sold ?? product.sold_count ?? product.sales_count ?? product.order_count ?? product.orders_count ?? product.units_sold ?? 0);
+  const viewed = Number(product.views_count ?? product.view_count ?? product.product_views ?? product.analytics?.views ?? 0);
+  const featured = product.featured || product.is_featured || product.home_featured ? 1 : 0;
+  return (Number.isFinite(sold) ? sold * 1000 : 0) +
+    (Number.isFinite(viewed) ? viewed * 10 : 0) +
+    (featured * 500) +
+    Math.min(stockScore(product), 100);
+};
 const lastPieceProductUrl = (product, variant = {}) => {
   return appendProductUrlParams(productBaseUrl(product), [
     ["variant", variant.edition_slug || variant.id || ""],
@@ -3715,7 +3724,7 @@ const featuredCategoryDefinitions = [
     subtitleAr: "راحة سهلة وألوان صيفية واختيارات عملية كل يوم.",
     icon: Footprints,
     query: "كروكس crocs",
-    href: "/shop/products?q=%D9%83%D8%B1%D9%88%D9%83%D8%B3",
+    href: "/shop/products?category=crocs",
     examples: ["Crocs", "Crocband", "Classic Clog", "Slides"],
     test: (_product, text) => /crocs?|crocband|كروكس/.test(text),
   },
@@ -3729,7 +3738,7 @@ const featuredCategoryDefinitions = [
     subtitleAr: "موديلات محدودة بآخر المقاسات قبل ما تخلص.",
     icon: PackageSearch,
     query: "آخر المقاسات last size last piece",
-    href: "/shop/products?_last_piece_scope=product",
+    href: "/shop/products?lastSizes=true",
     examples: ["Last Size", "Low Stock", "Last Piece", "Limited Sizes"],
     test: (product, text) => (productStock(product) > 0 && productStock(product) <= LAST_PIECE_MAX_STOCK) || /last size|last sizes|last piece|low stock|اخر مقاس|آخر مقاس|مقاسات محدودة/.test(text),
   },
@@ -3743,7 +3752,7 @@ const featuredCategoryDefinitions = [
     subtitleAr: "خصومات مختارة واختيارات قوية لفترة محدودة.",
     icon: BadgePercent,
     query: "العروض offers sale discount",
-    href: "/shop/sale",
+    href: "/shop/products?sale=true",
     examples: ["Sale", "Discount", "Offers", "Best Price"],
     test: (product, text) => hasSale(product) || /offer|offers|sale|discount|خصم|عرض|عروض/.test(text),
   },
@@ -3854,59 +3863,59 @@ function FeaturedCategoriesHero({ products = [], lang = "ar" }) {
   const headline = isRtl ? activeCategory.headlineAr : activeCategory.headlineEn;
   const subtitle = isRtl ? activeCategory.subtitleAr : activeCategory.subtitleEn;
   const categoryHref = activeCategory.href || `/shop/products?q=${encodeURIComponent(activeCategory.query || activeCategory.label)}`;
-  const supportingSlides = [activeSlide, ...slides.filter((slide) => slide.product?.id !== activeSlide.product?.id)].slice(0, 4);
+  const supportingSlides = [activeSlide, ...slides.filter((slide) => slide.product?.id !== activeSlide.product?.id)].slice(0, 5);
 
   return (
-    <section className="mx-auto max-w-[1200px] px-4 pb-2 pt-3 md:pb-4 md:pt-5" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="overflow-hidden rounded-[1.6rem] border border-stone-200 bg-[#f7f4ee] shadow-[0_24px_70px_rgba(39,20,75,0.12)] dark:border-white/10 dark:bg-[#080d1a] md:rounded-[2rem]">
-        <div className="flex gap-2 overflow-x-auto border-b border-stone-200/80 bg-white/70 p-2 dark:border-white/10 dark:bg-white/[0.04] lg:hidden">
+    <section className="mx-auto max-w-[1320px] px-4 pb-4 pt-4 md:pb-7 md:pt-7" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="overflow-hidden rounded-[1.85rem] border border-white/10 bg-[#050711] shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem]">
+        <div className="sf-scroll flex gap-2 overflow-x-auto border-b border-white/10 bg-white/[0.045] p-2 lg:hidden">
           {categories.map((category) => {
-            const Icon = category.icon;
             const active = category.id === activeCategory.id;
             return (
-              <button key={category.id} type="button" onClick={() => pickCategory(category.id)} className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-xs font-black transition ${active ? "border-stone-950 bg-stone-950 text-white dark:border-white dark:bg-white dark:text-stone-950" : "border-stone-200 bg-white text-stone-700 hover:border-[#7c3aed]/40 dark:border-white/10 dark:bg-white/6 dark:text-stone-200"}`}>
-                <Icon className="h-4 w-4" />
+              <Link key={category.id} to={category.href} onMouseEnter={() => pickCategory(category.id)} onFocus={() => pickCategory(category.id)} className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-xs font-black transition active:scale-[0.98] ${active ? "border-white bg-white text-stone-950" : "border-white/10 bg-white/[0.06] text-white/76 hover:border-[#f8e7b3]/45 hover:text-white"}`}>
                 {category.label}
-              </button>
+                <ChevronLeft className={`h-3.5 w-3.5 shrink-0 ${isRtl ? "" : "rotate-180"}`} />
+              </Link>
             );
           })}
         </div>
-        <div className="grid min-h-[410px] lg:grid-cols-[minmax(0,0.7fr)_minmax(18rem,0.3fr)] lg:[direction:ltr]">
+        <div className="grid min-h-[510px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)] lg:[direction:ltr]">
           <Link
             to={categoryHref}
-            className="group relative flex min-h-[380px] overflow-hidden bg-[radial-gradient(circle_at_68%_42%,rgba(255,255,255,0.94),transparent_23%),linear-gradient(135deg,#fffaf3_0%,#e8dcc9_58%,#cdbb9f_100%)] dark:bg-[radial-gradient(circle_at_68%_42%,rgba(167,139,250,0.18),transparent_24%),linear-gradient(135deg,#101426_0%,#080d1a_58%,#030712_100%)] lg:min-h-[440px] lg:[direction:rtl]"
+            className="group relative flex min-h-[500px] overflow-hidden bg-[radial-gradient(circle_at_74%_36%,rgba(248,231,179,0.23),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(124,58,237,0.22),transparent_32%),linear-gradient(135deg,#090b16_0%,#111827_54%,#020617_100%)] lg:min-h-[560px] lg:[direction:rtl]"
           >
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.28),transparent_34%,rgba(0,0,0,0.10))] dark:bg-[linear-gradient(120deg,rgba(255,255,255,0.07),transparent_34%,rgba(0,0,0,0.42))]" />
-            <div className="absolute end-3 top-3 z-20 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/86 px-3 py-1.5 text-xs font-black text-stone-900 shadow-sm backdrop-blur dark:border-white/10 dark:bg-stone-950/72 dark:text-white">
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_34%,rgba(0,0,0,0.42))]" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/52 to-transparent" />
+            <div className="absolute end-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/10 px-3.5 py-2 text-xs font-black text-white shadow-sm backdrop-blur">
               <ActiveIcon className="h-4 w-4" />
               {activeCategory.label}
             </div>
-            <div className="absolute start-3 top-3 z-20 flex gap-2">
-              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className="grid h-9 w-9 place-items-center rounded-full border border-white/70 bg-white/82 text-stone-800 shadow-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-stone-950/70 dark:text-stone-100" aria-label="Previous slide">
+            <div className="absolute start-4 top-4 z-20 flex gap-2">
+              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className="grid h-10 w-10 place-items-center rounded-full border border-white/12 bg-white/10 text-white shadow-sm backdrop-blur transition hover:bg-white hover:text-stone-950" aria-label="Previous slide">
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
               </button>
-              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? -1 : 1); }} className="grid h-9 w-9 place-items-center rounded-full border border-white/70 bg-white/82 text-stone-800 shadow-sm backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-stone-950/70 dark:text-stone-100" aria-label="Next slide">
+              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? -1 : 1); }} className="grid h-10 w-10 place-items-center rounded-full border border-white/12 bg-white/10 text-white shadow-sm backdrop-blur transition hover:bg-white hover:text-stone-950" aria-label="Next slide">
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
               </button>
             </div>
-            <div className="relative z-10 grid w-full gap-4 p-4 md:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] md:p-7 lg:p-8">
+            <div className="relative z-10 grid w-full gap-5 p-5 md:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] md:p-8 lg:p-10">
               <div key={`category-copy-${activeCategory.id}`} className="relative z-20 flex min-h-[12rem] flex-col justify-end self-end pb-2 animate-[sfFadeUp_420ms_ease-out_both] md:min-h-0 md:justify-center md:pb-0">
-                <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-stone-950/10 bg-white/70 px-3 py-1.5 text-xs font-black text-stone-700 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/8 dark:text-white/72">
+                <div className="mb-4 inline-flex w-fit items-center gap-2 rounded-full border border-white/12 bg-white/10 px-3.5 py-2 text-xs font-black uppercase tracking-[0.14em] text-[#f8e7b3] shadow-sm backdrop-blur">
                   <ActiveIcon className="h-4 w-4" />
                   {activeCategory.label}
                 </div>
-                <h1 className="line-clamp-2 max-w-md text-3xl font-black leading-tight text-stone-950 dark:text-white md:text-5xl">
+                <h1 className="line-clamp-2 max-w-lg text-4xl font-black leading-[0.98] text-white md:text-6xl lg:text-7xl">
                   {headline}
                 </h1>
-                <p className="mt-3 line-clamp-2 max-w-sm text-sm font-bold leading-6 text-stone-600 dark:text-white/64 md:text-base md:leading-7">
+                <p className="mt-4 line-clamp-2 max-w-md text-sm font-bold leading-6 text-white/68 md:text-lg md:leading-8">
                   {subtitle}
                 </p>
-                <span className="mt-5 inline-flex min-h-11 w-fit items-center justify-center rounded-full bg-[#f8e7b3] px-6 text-sm font-black text-stone-950 shadow-[0_16px_34px_rgba(248,231,179,0.26)] ring-1 ring-stone-950/10 transition group-hover:-translate-y-0.5 group-hover:bg-white dark:ring-white/10">
+                <span className="mt-7 inline-flex min-h-12 w-fit items-center justify-center rounded-full bg-[#f8e7b3] px-7 text-sm font-black text-stone-950 shadow-[0_18px_40px_rgba(248,231,179,0.26)] ring-1 ring-white/10 transition group-hover:-translate-y-0.5 group-hover:bg-white">
                     {cta}
                 </span>
               </div>
-              <div className="relative flex min-h-[230px] items-center justify-center md:min-h-[350px]">
-                <div className="absolute bottom-7 left-1/2 h-8 w-[72%] -translate-x-1/2 rounded-[100%] bg-stone-950/20 blur-xl dark:bg-black/60" />
+              <div className="relative flex min-h-[290px] items-center justify-center md:min-h-[430px]">
+                <div className="absolute bottom-10 left-1/2 h-10 w-[72%] -translate-x-1/2 rounded-[100%] bg-black/70 blur-2xl" />
                 {supportingSlides.map((slide, index) => {
                   const active = slide.product?.id === product?.id;
                   return (
@@ -3915,7 +3924,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar" }) {
                       src={imageFor(slide.image)}
                       alt=""
                       onError={fallbackProductImage}
-                      className={`absolute object-contain drop-shadow-[0_30px_32px_rgba(15,23,42,0.22)] transition-all duration-700 ease-out ${active ? "z-20 max-h-[280px] w-[86%] opacity-100 animate-[sfFadeUp_420ms_ease-out_both] md:max-h-[390px]" : index % 2 === 0 ? "z-10 max-h-[140px] w-[31%] -translate-x-[105%] translate-y-[34%] -rotate-12 opacity-42 blur-[0.2px] md:max-h-[175px]" : "z-10 max-h-[140px] w-[31%] translate-x-[105%] -translate-y-[32%] rotate-12 opacity-42 blur-[0.2px] md:max-h-[175px]"}`}
+                      className={`absolute object-contain drop-shadow-[0_34px_34px_rgba(0,0,0,0.38)] transition-all duration-700 ease-out ${active ? "z-30 max-h-[310px] w-[88%] opacity-100 animate-[sfFadeUp_420ms_ease-out_both] md:max-h-[455px]" : index === 1 ? "z-20 max-h-[155px] w-[33%] -translate-x-[112%] translate-y-[36%] -rotate-12 opacity-56 md:max-h-[210px]" : index === 2 ? "z-20 max-h-[150px] w-[32%] translate-x-[112%] -translate-y-[34%] rotate-12 opacity-54 md:max-h-[205px]" : index === 3 ? "z-10 max-h-[130px] w-[27%] -translate-x-[132%] -translate-y-[34%] rotate-6 opacity-34 blur-[0.3px] md:max-h-[170px]" : "z-10 max-h-[130px] w-[27%] translate-x-[132%] translate-y-[36%] -rotate-6 opacity-34 blur-[0.3px] md:max-h-[170px]"}`}
                       loading={active ? "eager" : "lazy"}
                       decoding="async"
                       width="760"
@@ -3934,43 +3943,29 @@ function FeaturedCategoriesHero({ products = [], lang = "ar" }) {
             </div>
           </Link>
 
-          <aside className="hidden border-s border-stone-200 bg-white/88 p-3 shadow-[inset_1px_0_0_rgba(255,255,255,0.7)] dark:border-white/10 dark:bg-white/[0.055] lg:block lg:[direction:rtl]">
-            <div className="mb-2 px-2 pt-1 text-[11px] font-black uppercase tracking-[0.16em] text-stone-400 dark:text-stone-500">
-              {isRtl ? "تسوق حسب الفئة" : "Shop Categories"}
+          <aside className="hidden border-s border-white/10 bg-white/[0.045] p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block lg:[direction:rtl]">
+            <div className="mb-4 border-b border-white/10 pb-3 text-sm font-black text-white">
+              {isRtl ? "تسوق حسب القسم" : "Shop by category"}
             </div>
-            <div className="grid gap-1.5">
+            <nav className="grid gap-1" aria-label={isRtl ? "تسوق حسب القسم" : "Shop by category"}>
               {categories.map((category) => {
-                const Icon = category.icon;
                 const active = category.id === activeCategory.id;
-                const preview = category.slides[0];
                 return (
-                  <button
+                  <Link
                     key={category.id}
-                    type="button"
+                    to={category.href}
                     onMouseEnter={() => pickCategory(category.id)}
-                    onClick={() => pickCategory(category.id)}
-                    className={`group flex min-h-[4.05rem] items-center justify-between gap-3 rounded-2xl border px-3 py-2 text-start transition ${active ? "border-stone-950 bg-stone-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.20)] dark:border-white dark:bg-white dark:text-stone-950" : "border-stone-200/70 bg-white/68 text-stone-800 hover:border-[#7c3aed]/35 hover:bg-white dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-200 dark:hover:bg-white/[0.08]"}`}
+                    onFocus={() => pickCategory(category.id)}
+                    className={`group flex min-h-12 items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-start transition ${active ? "bg-white text-stone-950 ring-1 ring-white/25" : "text-white/66 hover:bg-white/[0.07] hover:text-white"}`}
                   >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <span className={`grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl ${active ? "bg-white/15 dark:bg-stone-950/10" : "bg-stone-100 dark:bg-white/8"}`}>
-                        {preview?.image ? (
-                          <img src={imageFor(preview.image)} alt="" className="h-full w-full object-contain p-1.5" loading="lazy" decoding="async" width="44" height="44" />
-                        ) : (
-                          <Icon className="h-5 w-5" />
-                        )}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-base font-black">{category.label}</span>
-                        <span className={`mt-0.5 block truncate text-[11px] font-bold ${active ? "text-white/64 dark:text-stone-500" : "text-stone-400"}`}>
-                          {category.examples.slice(0, 2).join(" / ")}
-                        </span>
-                      </span>
+                    <span className="min-w-0 truncate text-base font-black">
+                      {category.label}
                     </span>
-                    <ChevronLeft className={`h-4 w-4 shrink-0 transition ${isRtl ? "" : "rotate-180"} ${active ? "opacity-100" : "opacity-0 group-hover:opacity-60"}`} />
-                  </button>
+                    <ChevronLeft className={`h-4 w-4 shrink-0 transition ${isRtl ? "" : "rotate-180"} ${active ? "opacity-80" : "opacity-35 group-hover:opacity-70"}`} />
+                  </Link>
                 );
               })}
-            </div>
+            </nav>
           </aside>
         </div>
       </div>
@@ -3984,7 +3979,7 @@ const mainHomeCategoryCards = [
     titleAr: "رجالي",
     titleEn: "Men",
     subtitleAr: "أحدث موديلات Nike و Adidas و Jordan",
-    subtitleEn: "Latest Nike, Adidas, and Jordan models",
+    subtitleEn: "Latest Nike, Adidas & Jordan",
     href: "/shop/products?gender=men",
     test: (product, text) => productAudienceValues(product).includes("men") || /\bmen\b|mens|male|رجالي|رجال/.test(text),
   },
@@ -3993,7 +3988,7 @@ const mainHomeCategoryCards = [
     titleAr: "حريمي",
     titleEn: "Women",
     subtitleAr: "اختيارات أنيقة لكل يوم",
-    subtitleEn: "Elegant picks for every day",
+    subtitleEn: "Comfort and style for every day",
     href: "/shop/products?gender=women",
     test: (product, text) => productAudienceValues(product).includes("women") || /\bwomen\b|womens|female|ladies|حريمي|نسائي|نساء/.test(text),
   },
@@ -4002,7 +3997,7 @@ const mainHomeCategoryCards = [
     titleAr: "أطفال",
     titleEn: "Kids",
     subtitleAr: "راحة وشياكة للأطفال",
-    subtitleEn: "Comfort and style for kids",
+    subtitleEn: "Built for school, play and movement",
     href: "/shop/products?gender=kids",
     test: (product, text) => productAudienceValues(product).includes("kids") || /\bkids?\b|children|child|اطفال|أطفال|ولادي|بناتي/.test(text),
   },
@@ -4033,62 +4028,72 @@ function ShopByMainCategories({ products = [], lang = "ar" }) {
   }), [sourceProducts]);
 
   return (
-    <section className="mx-auto max-w-[1200px] px-4 py-3 md:py-5" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="mb-3 flex items-end justify-between gap-3 text-right md:mb-5">
+    <section className="mx-auto max-w-[1360px] px-4 py-10 md:py-16" dir={isRtl ? "rtl" : "ltr"}>
+      <div className={`mb-8 flex items-end justify-between gap-3 md:mb-11 ${isRtl ? "text-right" : "text-left"}`}>
         <div>
-          <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#7c3aed] dark:text-[#f8e7b3]">
+          <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed] dark:text-[#f8e7b3]">
             {isRtl ? "تسوق حسب القسم" : "Shop by category"}
           </div>
-          <h2 className="text-2xl font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-3xl">
+          <h2 className="text-3xl font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-6xl">
             {isRtl ? "تسوق حسب الأقسام الرئيسية" : "Shop By Main Categories"}
           </h2>
         </div>
-        <Link to="/shop/products" className="hidden min-h-10 items-center justify-center rounded-full border border-stone-200 bg-white px-5 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200 sm:inline-flex">
+        <Link to="/shop/products" className="hidden min-h-11 items-center justify-center rounded-full border border-stone-200 bg-white px-6 text-xs font-black text-stone-800 shadow-[0_14px_34px_rgba(39,20,75,0.08)] transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:bg-stone-950 hover:text-white dark:border-white/10 dark:bg-white/5 dark:text-stone-200 dark:hover:bg-white dark:hover:text-stone-950 sm:inline-flex">
           {isRtl ? "عرض الكل" : sfText("common.viewAll", "View all")}
         </Link>
       </div>
-      <div className="sf-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3 md:gap-4">
-        {cards.map((card) => {
+      <div className="grid gap-7 md:gap-10">
+        {cards.map((card, cardIndex) => {
           const title = isRtl ? card.titleAr : card.titleEn;
           const subtitle = isRtl ? card.subtitleAr : card.subtitleEn;
           const collage = card.images;
+          const reverse = cardIndex % 2 === 1;
           return (
             <Link
               key={card.id}
               to={card.href}
-              className="group relative min-h-[19rem] w-[84vw] max-w-[23rem] shrink-0 snap-start overflow-hidden rounded-[1.5rem] border border-white/70 bg-stone-950 text-white shadow-[0_18px_50px_rgba(39,20,75,0.16)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_28px_70px_rgba(39,20,75,0.24)] active:scale-[0.99] dark:border-white/10 sm:w-auto sm:max-w-none md:min-h-[20.5rem]"
+              className={`group relative grid min-h-[300px] overflow-hidden rounded-[2.35rem] border border-white/10 bg-stone-950 text-white shadow-[0_34px_110px_rgba(15,23,42,0.28)] transition duration-500 hover:-translate-y-2 hover:border-[#f8e7b3]/50 hover:shadow-[0_48px_130px_rgba(15,23,42,0.42)] active:scale-[0.99] md:min-h-[360px] lg:min-h-[400px] ${reverse ? "md:grid-cols-[0.58fr_0.42fr]" : "md:grid-cols-[0.42fr_0.58fr]"}`}
             >
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_66%_28%,rgba(255,255,255,0.18),transparent_28%),linear-gradient(135deg,#1c1917_0%,#0f172a_56%,#111827_100%)]" />
-              <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-2 p-4 opacity-90">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_76%_24%,rgba(248,231,179,0.24),transparent_31%),linear-gradient(135deg,#1c1917_0%,#0f172a_52%,#030712_100%)]" />
+              <div className="absolute inset-0 bg-gradient-to-l from-black/80 via-black/35 to-black/12" />
+              <div className={`relative z-10 flex min-h-[300px] flex-col justify-end p-7 md:min-h-0 md:p-10 lg:p-12 ${isRtl ? "text-right" : "text-left"} ${reverse ? "md:order-2" : ""}`}>
+                <div className="mb-4 w-fit rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#f8e7b3] backdrop-blur">
+                  {isRtl ? "مجموعة مختارة" : "Curated edit"}
+                </div>
+                <h3 className="text-[3.3rem] font-black leading-none tracking-normal md:text-7xl lg:text-8xl">{title}</h3>
+                <p className="mt-4 max-w-[28rem] text-base font-bold leading-7 text-white/84 md:text-xl md:leading-8">{subtitle}</p>
+                <span className="mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-black text-stone-950 shadow-[0_16px_34px_rgba(0,0,0,0.26)] transition group-hover:bg-[#f8e7b3] group-hover:shadow-[0_18px_42px_rgba(248,231,179,0.26)] md:min-h-14 md:px-8">
+                  {isRtl ? "تسوق الآن" : sfText("storefront.common.shopNow", "Shop now")}
+                  <ChevronLeft className={`h-4 w-4 transition group-hover:-translate-x-1 ${isRtl ? "" : "rotate-180 group-hover:translate-x-1 group-hover:-translate-y-0"}`} />
+                </span>
+              </div>
+              <div className="relative z-10 min-h-[260px] overflow-hidden p-4 md:min-h-0 md:p-7 lg:p-9">
+                <div className="absolute bottom-8 left-1/2 h-12 w-[76%] -translate-x-1/2 rounded-full bg-black/45 blur-2xl" />
                 {collage.length ? collage.map(({ product, image }, index) => (
                   <div
                     key={`${card.id}-${productIdentityKey(product, index)}`}
-                    className={`overflow-hidden rounded-[1.2rem] bg-white/12 backdrop-blur transition duration-500 group-hover:scale-[1.03] ${index === 0 ? "col-span-2 row-span-1" : ""}`}
+                    className={`absolute overflow-hidden rounded-[1.8rem] bg-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_60px_rgba(0,0,0,0.24)] backdrop-blur transition duration-700 group-hover:scale-[1.06] ${
+                      index === 0
+                        ? "bottom-8 left-1/2 z-30 h-[60%] w-[68%] -translate-x-1/2 md:h-[74%]"
+                        : index === 1
+                          ? "left-5 top-7 z-20 h-[34%] w-[32%] -rotate-6 opacity-78"
+                          : index === 2
+                            ? "right-5 top-9 z-20 h-[32%] w-[30%] rotate-6 opacity-76"
+                            : "bottom-8 right-8 z-10 h-[27%] w-[26%] opacity-50"
+                    }`}
                   >
                     <img
                       src={imageFor(image)}
                       alt=""
                       onError={fallbackProductImage}
-                      className="h-full w-full object-contain p-3 transition duration-700 group-hover:scale-110"
+                      className="h-full w-full scale-125 object-contain p-1 transition duration-700 group-hover:scale-[1.32]"
                       loading="lazy"
                       decoding="async"
                       width="420"
                       height="320"
                     />
                   </div>
-                )) : Array.from({ length: 4 }).map((_, index) => (
-                  <div key={`${card.id}-placeholder-${index}`} className={`grid place-items-center rounded-[1.2rem] bg-white/12 backdrop-blur ${index === 0 ? "col-span-2 row-span-1" : ""}`}>
-                  <PackageCheck className="h-10 w-10 text-white/45" />
-                  </div>
-                ))}
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/88 via-black/34 to-black/12" />
-              <div className="relative z-10 flex h-full min-h-[19rem] flex-col justify-end p-5 text-right md:min-h-[20.5rem] md:p-6">
-                <h3 className="text-3xl font-black leading-tight md:text-4xl">{title}</h3>
-                <p className="mt-2 max-w-[18rem] text-sm font-bold leading-6 text-white/78">{subtitle}</p>
-                <span className="mt-5 inline-flex min-h-10 w-fit items-center justify-center rounded-full bg-white px-5 text-xs font-black text-stone-950 shadow-[0_14px_30px_rgba(0,0,0,0.20)] transition group-hover:bg-[#f8e7b3]">
-                  {isRtl ? "تسوق الآن" : sfText("storefront.common.shopNow", "Shop now")}
-                </span>
+                )) : null}
               </div>
             </Link>
           );
@@ -4098,29 +4103,70 @@ function ShopByMainCategories({ products = [], lang = "ar" }) {
   );
 }
 
-function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", products = [], loading = false, railType = "default", debugLabel = "", wishlist, toggleWishlist, addToCart }) {
+function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, addToCart }) {
   const isRtl = normalizeLanguage(i18n.language) === "ar";
   const visibleProducts = useMemo(
     () => sortStorefrontColorCardsByModel(uniqueProductsByIdentity(products).filter((product) => product?.id && product?.name && isAvailableProduct(product)).slice(0, 8)),
     [products]
   );
   const skeletonItems = Array.from({ length: 8 });
+  const toneConfig = {
+    default: {
+      shell: "bg-transparent",
+      eyebrow: "text-[#7c3aed] dark:text-[#f8e7b3]",
+      line: "from-[#7c3aed] to-[#f8e7b3]",
+      button: "hover:border-[#7c3aed]/50",
+    },
+    popular: {
+      shell: "rounded-[2.25rem] border border-amber-200/55 bg-[radial-gradient(circle_at_86%_0%,rgba(248,231,179,0.44),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.88),rgba(255,247,221,0.42))] px-4 py-6 shadow-[0_24px_80px_rgba(180,83,9,0.10),inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-amber-300/15 dark:bg-[radial-gradient(circle_at_86%_0%,rgba(248,231,179,0.16),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.07),rgba(248,231,179,0.06))]",
+      eyebrow: "text-amber-600 dark:text-[#f8e7b3]",
+      line: "from-amber-500 to-[#f8e7b3]",
+      button: "hover:border-amber-400/60",
+    },
+    new: {
+      shell: "rounded-[2.25rem] border border-emerald-200/55 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.22),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.82),rgba(236,253,245,0.42))] px-4 py-6 shadow-[0_24px_80px_rgba(16,185,129,0.10),inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-emerald-300/15 dark:bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.15),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(16,185,129,0.06))]",
+      eyebrow: "text-emerald-600 dark:text-emerald-300",
+      line: "from-emerald-500 to-teal-300",
+      button: "hover:border-emerald-400/60",
+    },
+    last: {
+      shell: "rounded-[2.25rem] border border-orange-200/60 bg-[radial-gradient(circle_at_90%_10%,rgba(251,146,60,0.25),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.84),rgba(255,237,213,0.44))] px-4 py-6 shadow-[0_24px_80px_rgba(234,88,12,0.10),inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-orange-300/15 dark:bg-[radial-gradient(circle_at_90%_10%,rgba(251,146,60,0.16),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(251,146,60,0.06))]",
+      eyebrow: "text-orange-600 dark:text-orange-300",
+      line: "from-orange-500 to-amber-300",
+      button: "hover:border-orange-400/60",
+    },
+    sale: {
+      shell: "rounded-[2.25rem] border border-red-200/60 bg-[radial-gradient(circle_at_12%_0%,rgba(239,68,68,0.22),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.84),rgba(254,226,226,0.42))] px-4 py-6 shadow-[0_24px_80px_rgba(220,38,38,0.10),inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-red-300/15 dark:bg-[radial-gradient(circle_at_12%_0%,rgba(239,68,68,0.16),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(239,68,68,0.06))]",
+      eyebrow: "text-red-600 dark:text-red-300",
+      line: "from-red-500 to-rose-300",
+      button: "hover:border-red-400/60",
+    },
+    trending: {
+      shell: "rounded-[2.25rem] border border-violet-200/60 bg-[radial-gradient(circle_at_86%_0%,rgba(124,58,237,0.22),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.84),rgba(245,243,255,0.44))] px-4 py-6 shadow-[0_24px_80px_rgba(124,58,237,0.10),inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-violet-300/15 dark:bg-[radial-gradient(circle_at_86%_0%,rgba(124,58,237,0.18),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(124,58,237,0.08))]",
+      eyebrow: "text-violet-600 dark:text-violet-300",
+      line: "from-violet-600 to-fuchsia-300",
+      button: "hover:border-violet-400/60",
+    },
+  }[tone] || {};
+  const sectionTone = toneConfig.shell || "bg-transparent";
+  if (!loading && !visibleProducts.length) return null;
 
   return (
-    <section className="sf-reveal mx-auto max-w-[1200px] px-4 py-3 md:py-4">
-      <div className="mb-3 flex items-end justify-between gap-3 text-right md:mb-4">
+    <section className="sf-reveal mx-auto max-w-[1240px] px-4 py-6 md:py-9">
+      <div className={sectionTone}>
+      <div className="mb-4 flex items-end justify-between gap-3 text-right md:mb-6">
         <div className="min-w-0">
-          <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#7c3aed] dark:text-[#f8e7b3] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{sfText("storefront.common.shopNow", "Shop Now")}</div>
-          <h2 className="text-[1.45rem] font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-3xl">{title}</h2>
-          {subtitle ? <p className="mt-0.5 text-[11px] font-bold text-stone-500 dark:text-stone-400 md:mt-1 md:text-sm">{subtitle}</p> : null}
-          {debugLabel ? <p className="mt-1 text-[11px] font-black text-amber-600 dark:text-amber-300">{debugLabel} {visibleProducts.length}</p> : null}
-          <div className="mt-1 h-0.5 w-10 rounded-full bg-gradient-to-l from-[#7c3aed] to-[#f8e7b3] md:mt-1.5 md:h-1 md:w-14" />
+          <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${toneConfig.eyebrow || "text-[#7c3aed] dark:text-[#f8e7b3]"}`}>{sfText("storefront.common.shopNow", "Shop Now")}</div>
+          <h2 className="text-[1.75rem] font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-4xl">{title}</h2>
+          {subtitle ? <p className="mt-1 text-xs font-bold leading-5 text-stone-500 dark:text-stone-400 md:text-base md:leading-6">{subtitle}</p> : null}
+          <div className={`mt-2 h-1 w-16 rounded-full bg-gradient-to-l ${toneConfig.line || "from-[#7c3aed] to-[#f8e7b3]"}`} />
         </div>
-        <Link to={viewAllTo} className="mb-0.5 inline-flex min-h-8 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 shadow-[0_10px_26px_rgba(39,20,75,0.07)] transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:text-[#6d28d9] active:scale-[0.98] md:mb-1 md:min-h-10 md:px-5 md:py-2 md:text-xs dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+        <Link to={viewAllTo} className={`mb-0.5 inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-800 shadow-[0_14px_34px_rgba(39,20,75,0.09)] transition hover:-translate-y-0.5 hover:bg-stone-950 hover:text-white active:scale-[0.98] md:min-h-12 md:px-6 dark:border-white/10 dark:bg-white/5 dark:text-stone-200 dark:hover:bg-white dark:hover:text-stone-950 ${toneConfig.button || "hover:border-[#7c3aed]/50"}`}>
           {isRtl ? "عرض الكل" : sfText("common.viewAll", "View all")}
+          <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
         </Link>
       </div>
-      <div className="sf-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1.5 md:grid md:grid-cols-4 md:overflow-visible md:pb-0 xl:gap-4">
+      <div className="sf-scroll flex snap-x snap-mandatory gap-3.5 overflow-x-auto scroll-smooth pb-2 md:grid md:grid-cols-4 md:overflow-visible md:pb-0 xl:gap-5">
         {loading && !visibleProducts.length ? skeletonItems.map((_, index) => (
           <div key={index} className="w-[82vw] max-w-[22rem] shrink-0 snap-start sm:w-[43vw] md:w-auto md:max-w-none">
             <div className="h-56 animate-pulse rounded-[1.35rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)] md:h-72 md:rounded-[1.75rem] dark:bg-white/5" />
@@ -4136,7 +4182,118 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
           </div>
         ) : null}
       </div>
+      </div>
     </section>
+  );
+}
+
+const brandHomeBanners = [
+  {
+    id: "nike",
+    brand: "nike",
+    title: "NIKE COLLECTION",
+    subtitle: "Discover the latest Nike styles",
+    cta: "Shop Nike",
+    href: "/shop/products?q=Nike",
+    gradient: "from-[#030712] via-[#111827] to-[#312e81]",
+    accent: "rgba(248,231,179,0.28)",
+    test: (_product, text) => /\bnike\b|نايك/.test(text),
+  },
+  {
+    id: "jordan",
+    brand: "jordan",
+    title: "JORDAN COLLECTION",
+    subtitle: "Streetwear icons and best sellers",
+    cta: "Shop Jordan",
+    href: "/shop/products?q=Jordan",
+    gradient: "from-[#0c0a09] via-[#1c1917] to-[#7f1d1d]",
+    accent: "rgba(239,68,68,0.26)",
+    test: (_product, text) => /\bjordan\b|جوردن/.test(text),
+  },
+  {
+    id: "adidas",
+    brand: "adidas",
+    title: "ADIDAS COLLECTION",
+    subtitle: "Running, lifestyle and everyday comfort",
+    cta: "Shop Adidas",
+    href: "/shop/products?q=Adidas",
+    gradient: "from-[#020617] via-[#0f172a] to-[#064e3b]",
+    accent: "rgba(16,185,129,0.22)",
+    test: (_product, text) => /\badidas\b|اديداس|أديداس/.test(text),
+  },
+];
+
+function BrandPromoBanner({ definition, products = [], reverse = false }) {
+  const collage = useMemo(() => {
+    const source = uniqueProductsByIdentity(products)
+      .filter((product) => product?.id && product?.name && isAvailableProduct(product) && homeProductWithImage(product));
+    const matched = source.filter((product) => definition.test(product, productSearchText(product)));
+    return uniqueProductsByIdentity([...(matched.length ? matched : []), ...source])
+      .map(homeProductWithImage)
+      .filter(Boolean)
+      .slice(0, 5);
+  }, [definition, products]);
+
+  return (
+    <section className="mx-auto max-w-[1320px] px-4 py-9 md:py-12">
+      <Link
+        to={definition.href}
+        className={`group relative grid min-h-[340px] overflow-hidden rounded-[2.25rem] border border-white/10 bg-gradient-to-br ${definition.gradient} text-white shadow-[0_34px_100px_rgba(15,23,42,0.32)] transition duration-500 hover:-translate-y-2 hover:shadow-[0_46px_124px_rgba(15,23,42,0.42)] md:min-h-[450px] ${reverse ? "md:grid-cols-[0.48fr_0.52fr]" : "md:grid-cols-[0.52fr_0.48fr]"}`}
+      >
+        <div className="pointer-events-none absolute inset-0 opacity-90" style={{ background: `radial-gradient(circle at ${reverse ? "22%" : "78%"} 22%, ${definition.accent}, transparent 32%)` }} />
+        <div className={`relative z-10 flex flex-col justify-end p-6 md:p-10 ${reverse ? "md:order-2" : ""}`}>
+          <div className="mb-3 w-fit rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#f8e7b3] backdrop-blur">
+            Premium edit
+          </div>
+          <h2 className="max-w-xl text-4xl font-black leading-none tracking-normal md:text-7xl">
+            {definition.title}
+          </h2>
+          <p className="mt-4 max-w-md text-sm font-bold leading-6 text-white/72 md:text-lg md:leading-8">
+            {definition.subtitle}
+          </p>
+          <span className="mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-black text-stone-950 shadow-[0_18px_40px_rgba(0,0,0,0.22)] transition group-hover:bg-[#f8e7b3]">
+            {definition.cta}
+            <ChevronLeft className="h-4 w-4 rotate-180" />
+          </span>
+        </div>
+        <div className="relative z-10 min-h-[230px] overflow-hidden p-4 md:min-h-0 md:p-8">
+          <div className="absolute bottom-8 left-1/2 h-10 w-[72%] -translate-x-1/2 rounded-full bg-black/45 blur-2xl" />
+          {collage.map(({ product, image }, index) => (
+            <img
+              key={`${definition.id}-${productIdentityKey(product, index)}`}
+              src={imageFor(image)}
+              alt=""
+              onError={fallbackProductImage}
+              className={`absolute object-contain drop-shadow-[0_34px_34px_rgba(0,0,0,0.34)] transition duration-700 group-hover:scale-110 ${
+                index === 0
+                  ? "bottom-7 left-1/2 z-30 max-h-[270px] w-[82%] -translate-x-1/2 md:max-h-[380px]"
+                  : index === 1
+                    ? "left-6 top-8 z-20 max-h-[135px] w-[32%] -rotate-12 opacity-72 md:max-h-[180px]"
+                    : index === 2
+                      ? "right-6 top-12 z-20 max-h-[125px] w-[30%] rotate-12 opacity-70 md:max-h-[170px]"
+                      : index === 3
+                        ? "bottom-8 left-8 z-10 max-h-[105px] w-[25%] opacity-45 blur-[0.2px] md:max-h-[145px]"
+                        : "bottom-14 right-8 z-10 max-h-[105px] w-[25%] opacity-45 blur-[0.2px] md:max-h-[145px]"
+              }`}
+              loading="lazy"
+              decoding="async"
+              width="640"
+              height="520"
+            />
+          ))}
+        </div>
+      </Link>
+    </section>
+  );
+}
+
+function HomeFlowSeparator({ label = "" }) {
+  return (
+    <div className="mx-auto flex max-w-[1320px] items-center gap-4 px-4 py-2">
+      <span className="h-px flex-1 bg-gradient-to-r from-transparent via-stone-300 to-transparent dark:via-white/12" />
+      {label ? <span className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-stone-500 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/[0.055] dark:text-white/50">{label}</span> : null}
+      <span className="h-px flex-1 bg-gradient-to-r from-transparent via-stone-300 to-transparent dark:via-white/12" />
+    </div>
   );
 }
 
@@ -4198,50 +4355,53 @@ function HomePage(props) {
     () => homepageProductPool,
     [homepageProductPool]
   );
-  const newArrivalProducts = useMemo(
-    () => pickHomeProducts({ preferred: freshBase.filter((product) => homeProductWithImage(product)), fallback: homepageProductsWithImages, limit: 8 }),
-    [freshBase, homepageProductsWithImages]
-  );
-  const lastSizeProducts = useMemo(
-    () => pickHomeProducts({ preferred: homepageProductPool.filter((product) => isLastPieceProduct(product) && homeProductWithImage(product)), fallback: homepageProductsWithImages, limit: 8 }),
-    [homepageProductPool, homepageProductsWithImages]
-  );
-  const offerProducts = useMemo(
-    () => pickHomeProducts({ preferred: saleBase.filter((product) => hasSale(product) && homeProductWithImage(product)), fallback: homepageProductsWithImages, limit: 8 }),
-    [homepageProductsWithImages, saleBase]
-  );
-  const trendingProducts = useMemo(
-    () => pickHomeProducts({
-      preferred: bestBase.filter((product) => homeProductWithImage(product)),
-      fallback: homepageProductsWithImages,
-      limit: 8,
-    }),
-    [bestBase, homepageProductsWithImages]
-  );
+  const homeSections = useMemo(() => {
+    const used = new Set();
+    const pick = ({ preferred = [], fallback = [], limit = 8, allowRepeatIfEmpty = false } = {}) => {
+      let selected = pickHomeProducts({ preferred, fallback, exclude: used, limit });
+      if (!selected.length && allowRepeatIfEmpty) {
+        selected = pickHomeProducts({ preferred, fallback, limit });
+      }
+      selected.forEach((product, index) => {
+        const key = productIdentityKey(product, index);
+        if (key) used.add(key);
+      });
+      return selected;
+    };
 
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia?.("(max-width: 767px)")?.matches) return;
-    console.info("[storefront-mobile-debug]", {
-      route: "home",
-      productsLength: products.length,
-      visibleSections: ["hero", "mainCategories", "sellingBadges", "newArrivals", "lastSizes", "offers", "trending"],
-      activeFilters: {},
-      loading,
-      error: "",
-      railProductsLength: railProducts.length,
-      saleProductsLength: saleProducts.length,
-    });
-  }, [loading, products.length, railProducts.length, saleProducts.length]);
+    const popularPreferred = uniqueProductsByIdentity([...homepageProductPool]
+      .filter((product) => homeProductWithImage(product))
+      .sort((a, b) => popularScore(b) - popularScore(a) || newestScore(b) - newestScore(a)));
+    const newestPreferred = freshBase.filter((product) => homeProductWithImage(product));
+    const salePreferred = saleBase.filter((product) => hasSale(product) && homeProductWithImage(product));
+    const lastSizePreferred = homepageProductPool.filter((product) => isLastPieceProduct(product) && homeProductWithImage(product));
+    const trendingPreferred = bestBase.filter((product) => homeProductWithImage(product));
+
+    return {
+      mostPopular: pick({ preferred: popularPreferred, fallback: homepageProductsWithImages, limit: 8 }),
+      newArrivals: pick({ preferred: newestPreferred, fallback: [], limit: 8, allowRepeatIfEmpty: true }),
+      sale: pick({ preferred: salePreferred, fallback: [], limit: 8, allowRepeatIfEmpty: true }),
+      lastSizes: pick({ preferred: lastSizePreferred, fallback: [], limit: 8, allowRepeatIfEmpty: true }),
+      trending: pick({ preferred: trendingPreferred, fallback: homepageProductsWithImages, limit: 8, allowRepeatIfEmpty: true }),
+    };
+  }, [bestBase, freshBase, homepageProductPool, homepageProductsWithImages, saleBase]);
 
   return (
     <div className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0">
       <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} />
-      <QuickSellingStrips lang={lang} />
       <ShopByMainCategories products={featuredCategoryProducts} lang={lang} />
-      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "وصل حديثًا" : t("storefront.nav.new", "New Arrivals")} subtitle={normalizeLanguage(lang) === "ar" ? "أحدث المنتجات المتاحة بمخزون حقيقي وصور جاهزة للتسوق." : t("storefront.home.newSubtitle", "Recently added to stock")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={newArrivalProducts} railType="new" debugLabel="New Arrivals count:" {...props} />
-      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "آخر المقاسات" : t("storefront.home.lastSizes", "Last Sizes")} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات محدودة قبل ما تخلص من المخزون." : t("storefront.home.lastSizesSubtitle", "Low-stock pairs before they disappear")} viewAllTo="/shop/products?_last_piece_scope=product" loading={loading || storefrontHome.loading} products={lastSizeProducts} railType="last-size" debugLabel="Last Sizes count:" {...props} />
-      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "العروض" : t("storefront.nav.sale", "Offers")} subtitle={normalizeLanguage(lang) === "ar" ? "خصومات وموديلات بسعر أفضل لفترة محدودة." : t("storefront.home.saleSubtitle", "Selected discounts for a limited time")} viewAllTo="/shop/sale" loading={saleLoading && !offerProducts.length} products={offerProducts} railType="sale" debugLabel="Offers count:" {...props} />
-      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر مشاهدة" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "موديلات رائجة ومختارة من أحدث المنتجات المتاحة." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={trendingProducts} railType="trending" debugLabel="Trending count:" {...props} />
+      <HomeFlowSeparator label="This week" />
+      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا هذا الأسبوع" : "Most Popular This Week"} subtitle={normalizeLanguage(lang) === "ar" ? "الموديلات اللي عليها طلب ومشاهدة أعلى." : "Best-selling and most-viewed picks."} viewAllTo="/shop/products?sort=popular" loading={loading || storefrontHome.loading} products={homeSections.mostPopular} railType="bestseller" tone="popular" {...props} />
+      <HomeFlowSeparator label="Nike edit" />
+      <BrandPromoBanner definition={brandHomeBanners[0]} products={homepageProductPool} />
+      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "وصل حديثًا" : t("storefront.nav.new", "New Arrivals")} subtitle={normalizeLanguage(lang) === "ar" ? "أحدث المنتجات المتاحة بمخزون حقيقي وصور جاهزة للتسوق." : t("storefront.home.newSubtitle", "Recently added to stock")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
+      <HomeFlowSeparator label="Jordan edit" />
+      <BrandPromoBanner definition={brandHomeBanners[1]} products={homepageProductPool} reverse />
+      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "العروض" : t("storefront.nav.sale", "Offers")} subtitle={normalizeLanguage(lang) === "ar" ? "خصومات وموديلات بسعر أفضل لفترة محدودة." : t("storefront.home.saleSubtitle", "Selected discounts for a limited time")} viewAllTo="/shop/products?sale=true" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
+      <HomeFlowSeparator label="Adidas edit" />
+      <BrandPromoBanner definition={brandHomeBanners[2]} products={homepageProductPool} />
+      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "آخر المقاسات" : t("storefront.home.lastSizes", "Last Sizes")} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات محدودة قبل ما تخلص من المخزون." : t("storefront.home.lastSizesSubtitle", "Low-stock pairs before they disappear")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
+      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر مشاهدة" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "موديلات رائجة ومختارة من أحدث المنتجات المتاحة." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
       <Reviews />
       <LastPieceFinder open={lastPieceOpen} onClose={() => setLastPieceOpen(false)} />
     </div>
@@ -4787,6 +4947,9 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
   const productType = params.get("product_type") || "";
   const grade = params.get("grade") || "";
   const sort = params.get("sort") || "";
+  const saleQuery = truthyFlag(params.get("sale"));
+  const lastSizes = truthyFlag(params.get("lastSizes") || params.get("last_sizes"));
+  const saleView = sale || saleQuery;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedGender, setSelectedGender] = useState(gender);
   const [selectedProductType, setSelectedProductType] = useState(productType);
@@ -4801,8 +4964,8 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false }),
     [classificationGroups]
   );
-  const isGuidedCategoryFlow = !q && !category && !sale && !gender && !size && !inStock && !quality && !productType && !grade && !sort;
-  const { products, loading, error } = useProducts({ q, category, sale: sale ? 1 : "", gender, size, inStock, quality, product_type: productType, grade, sort });
+  const isGuidedCategoryFlow = !q && !category && !saleView && !lastSizes && !gender && !size && !inStock && !quality && !productType && !grade && !sort;
+  const { products, loading, error } = useProducts({ q, category, sale: saleView ? 1 : "", gender, size, inStock, quality, product_type: productType, grade, sort });
   const {
     products: genderProducts,
     loading: genderProductsLoading,
@@ -4813,7 +4976,7 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
     error: gridProductsError,
   } = useProducts({ limit: 160, gender: selectedGender, product_type: selectedProductType, sale: "", q: "", category: "", grade: "" });
   const filterBasePath = sale ? "/shop/sale" : "/shop/products";
-  const activeFilterCount = [gender, size, inStock, quality, productType, grade].filter(Boolean).length;
+  const activeFilterCount = [gender, size, inStock, quality, productType, grade, saleQuery ? "sale" : "", lastSizes ? "lastSizes" : ""].filter(Boolean).length;
 
   useEffect(() => {
     if (!params.has("style")) return;
@@ -4976,12 +5139,12 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
     [products]
   );
   const displayedProducts = useMemo(
-    () => orderedProducts.filter((product) => productHasAvailableSize(product, size)),
-    [orderedProducts, size]
+    () => orderedProducts.filter((product) => productHasAvailableSize(product, size) && (!lastSizes || isLastPieceProduct(product))),
+    [lastSizes, orderedProducts, size]
   );
   const activeFilters = useMemo(
-    () => ({ q, category, gender, size, inStock, quality, productType, grade, sort, sale: sale ? 1 : "" }),
-    [category, gender, grade, inStock, productType, q, quality, sale, size, sort]
+    () => ({ q, category, gender, size, inStock, quality, productType, grade, sort, sale: saleView ? 1 : "", lastSizes }),
+    [category, gender, grade, inStock, lastSizes, productType, q, quality, saleView, size, sort]
   );
 
   useEffect(() => {
@@ -5091,8 +5254,8 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
     <section className="mx-auto max-w-7xl px-4 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-5 md:py-5">
       <div className="mb-3 flex flex-col gap-2 md:mb-4 md:gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-bold text-stone-500">{sale ? t("storefront.products.limitedOffers", "Limited-time offers") : t("storefront.products.shopEasily", "Shop easily")}</p>
-          <h1 className="mt-1 text-3xl font-black">{q ? t("storefront.search.resultsFor", "Search results for \"{{query}}\"", { query: q }) : category || (sale ? t("storefront.nav.sale", "Sale") : t("storefront.products.allProducts", "All products"))}</h1>
+          <p className="text-sm font-bold text-stone-500">{saleView ? t("storefront.products.limitedOffers", "Limited-time offers") : t("storefront.products.shopEasily", "Shop easily")}</p>
+          <h1 className="mt-1 text-3xl font-black">{q ? t("storefront.search.resultsFor", "Search results for \"{{query}}\"", { query: q }) : category || (lastSizes ? t("storefront.home.lastSizes", "Last Sizes") : saleView ? t("storefront.nav.sale", "Sale") : t("storefront.products.allProducts", "All products"))}</h1>
         </div>
         <div className="text-sm font-bold text-stone-500">{t("storefront.products.productCount", "{{count}} product", { count: orderedProducts.length })}</div>
       </div>
@@ -5690,32 +5853,32 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       swatch: "h-3.5 w-3.5",
     },
     standard: {
-      image: "aspect-[1.14/1] p-1",
-      body: "p-2 pt-1.5",
-      title: "h-8 text-[11.5px] leading-4",
-      price: "text-[15px]",
-      sizes: "mt-1.5 min-h-6 gap-1",
-      chip: "h-5 px-1.5 text-[8.5px]",
+      image: "aspect-[0.96/1] p-1.5",
+      body: "p-2.5 pt-2",
+      title: "h-10 text-[12.5px] leading-5",
+      price: "text-[16px]",
+      sizes: "mt-2 min-h-7 gap-1",
+      chip: "h-6 px-2 text-[9px]",
       color: "h-[22px] w-[22px]",
       swatch: "h-3 w-3",
     },
     compact: {
-      image: "aspect-[1.24/1] p-1",
-      body: "p-2 pt-1.5",
-      title: "h-8 text-[11.25px] leading-4",
-      price: "text-[14.5px]",
-      sizes: "mt-1.5 min-h-6 gap-1",
-      chip: "h-5 px-1.5 text-[8.5px]",
-      color: "h-[22px] w-[22px]",
+      image: "aspect-[0.98/1] p-1.5",
+      body: "p-2.5 pt-2",
+      title: "h-10 text-[12.25px] leading-5",
+      price: "text-[15.5px]",
+      sizes: "mt-2 min-h-7 gap-1",
+      chip: "h-6 px-2 text-[9px]",
+      color: "h-6 w-6",
       swatch: "h-3 w-3",
     },
   };
   const densityClasses = cardDensityClasses[density] || cardDensityClasses.standard;
 
   return (
-    <article style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "220px 360px" }} onClick={openDetails} className={`group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.1rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(250,248,244,0.9)_48%,rgba(245,241,234,0.78))] shadow-[0_10px_28px_rgba(39,20,75,0.06),inset_0_1px_0_rgba(255,255,255,0.82)] ring-1 ring-stone-200/60 transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out hover:-translate-y-1.5 hover:border-[#a78bfa]/40 hover:ring-[#7c3aed]/30 hover:shadow-[0_20px_58px_rgba(39,20,75,0.15),0_0_0_1px_rgba(124,58,237,0.08)_inset] md:rounded-[1.4rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.92),rgba(11,16,32,0.9)_52%,rgba(8,13,25,0.96))] dark:ring-white/[0.05] dark:shadow-[0_16px_46px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.055)] dark:hover:border-[#a78bfa]/30 dark:hover:shadow-[0_24px_64px_rgba(0,0,0,0.34),0_0_34px_rgba(124,58,237,0.12)] ${featured ? "md:shadow-[0_22px_66px_rgba(109,40,217,0.15)]" : ""}`}>
+    <article style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onClick={openDetails} className={`group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(250,248,244,0.94)_48%,rgba(245,241,234,0.82))] shadow-[0_14px_34px_rgba(39,20,75,0.08),inset_0_1px_0_rgba(255,255,255,0.86)] ring-1 ring-stone-200/60 transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out hover:-translate-y-2 hover:border-[#a78bfa]/45 hover:ring-[#7c3aed]/35 hover:shadow-[0_24px_66px_rgba(39,20,75,0.18),0_0_0_1px_rgba(124,58,237,0.10)_inset] md:rounded-[1.55rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.95),rgba(11,16,32,0.93)_52%,rgba(8,13,25,0.98))] dark:ring-white/[0.05] dark:shadow-[0_18px_50px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.055)] dark:hover:border-[#a78bfa]/35 dark:hover:shadow-[0_28px_72px_rgba(0,0,0,0.38),0_0_38px_rgba(124,58,237,0.14)] ${featured ? "md:shadow-[0_24px_70px_rgba(109,40,217,0.17)]" : ""}`}>
       <div className="pointer-events-none absolute inset-x-7 top-7 h-16 rounded-full bg-[#a78bfa]/0 blur-2xl transition duration-500 group-hover/product:bg-[#a78bfa]/16" />
-      <div className={`relative overflow-visible bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.16),transparent_30%),linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] md:aspect-[1/1.04] md:p-2.5 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.12),transparent_30%),linear-gradient(180deg,#101426_0%,#0b1020_100%)] ${densityClasses.image}`}>
+      <div className={`relative overflow-visible bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.18),transparent_31%),linear-gradient(180deg,#fbfaf7_0%,#eee7dc_100%)] md:p-3 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.14),transparent_31%),linear-gradient(180deg,#101426_0%,#0b1020_100%)] ${densityClasses.image}`}>
         <div className="absolute inset-x-7 top-[18%] h-28 rounded-full bg-white/50 blur-xl dark:bg-white/[0.09]" />
         <Link to={detailsUrl} className="relative z-10 block h-full">
           {displayImage ? (
@@ -5737,8 +5900,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           )}
         </Link>
         <div className="absolute right-2 top-2 z-20 flex flex-col items-start gap-1 md:right-2.5 md:top-2.5">
-          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex h-5 items-center rounded-full bg-white/95 px-2 text-[9px] font-black leading-none text-stone-950 shadow-sm backdrop-blur md:h-6 md:px-2.5 md:text-[10px] dark:bg-white dark:text-stone-950">TOP {rank}</span> : null}
-          {discountPercent ? <span className="inline-flex h-5 items-center rounded-full border border-[#7c3aed]/15 bg-white/95 px-2 text-[9px] font-black leading-none text-[#6d28d9] shadow-sm backdrop-blur md:h-6 md:px-2.5 md:text-[10px] dark:border-white/10 dark:bg-[#0b1020] dark:text-[#d8b4fe]">-{discountPercent}%</span> : null}
+          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex h-6 items-center rounded-full bg-stone-950/92 px-2.5 text-[9px] font-black leading-none text-white shadow-[0_10px_22px_rgba(0,0,0,0.20)] backdrop-blur md:h-7 md:px-3 md:text-[10px] dark:bg-white dark:text-stone-950">TOP {rank}</span> : null}
+          {discountPercent ? <span className="inline-flex h-6 items-center rounded-full border border-[#7c3aed]/15 bg-white/95 px-2.5 text-[9px] font-black leading-none text-[#6d28d9] shadow-[0_10px_22px_rgba(39,20,75,0.10)] backdrop-blur md:h-7 md:px-3 md:text-[10px] dark:border-white/10 dark:bg-[#0b1020] dark:text-[#d8b4fe]">-{discountPercent}%</span> : null}
         </div>
         <button onClick={(event) => { event.stopPropagation(); handleWishlist(); }} className="absolute left-2 top-2 z-20 rounded-full bg-white/95 p-1.5 shadow-sm ring-1 ring-stone-200/70 transition duration-200 hover:scale-110 hover:text-rose-500 active:scale-95 md:left-2.5 md:top-2.5 md:p-1.5 dark:bg-white/5 dark:text-stone-100 dark:ring-white/10" aria-label={t("storefront.header.wishlist", "Wishlist")}>
           <Heart className={`h-3.5 w-3.5 transition md:h-5 md:w-5 ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-stone-700 dark:text-stone-200"}`} />

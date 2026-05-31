@@ -3,7 +3,9 @@ import { api } from "../../../shared/api/api";
 const unwrapArray = (payload) =>
   Array.isArray(payload?.data)
     ? payload.data
-    : Array.isArray(payload?.posts)
+    : Array.isArray(payload?.timeline)
+      ? payload.timeline
+      : Array.isArray(payload?.posts)
       ? payload.posts
       : Array.isArray(payload?.campaigns)
         ? payload.campaigns
@@ -81,6 +83,11 @@ export const syncAutonomousAiMarketingInsights = async () => unwrapItem(await ap
 export const approveAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/approve`, {}));
 export const generateAutonomousAiMarketingQueueStoryAsset = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/generate-story-asset`, {}));
 export const publishAutonomousAiMarketingQueueItemNow = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/publish-now`, {}));
+export const archiveAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/archive`, {}));
+export const restoreAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/restore`, {}));
+export const duplicateAutonomousAiMarketingQueueItem = async (id) => unwrapItem(await api.post(`/marketing/ai-center/queue/${id}/duplicate`, {}));
+export const bulkAutonomousAiMarketingQueueAction = async (body) => unwrapItem(await api.post("/marketing/ai-center/queue/bulk", body));
+export const getAutonomousAiMarketingQueueTimeline = async (id) => unwrapArray(await api.get(`/marketing/ai-center/queue/${id}/timeline`));
 export const deleteAutonomousAiMarketingQueueItem = async (id) => {
   try {
     const payload = await api.delete(`/marketing/ai-center/queue/${id}`, { suppressErrorStatuses: [404] });

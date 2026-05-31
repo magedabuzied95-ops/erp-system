@@ -575,6 +575,7 @@ router.post("/test-reply", protect, permit("settings", "view"), async (req, res)
       productContext: replyProductContext,
       detectedSize,
       conversationId: testConversationId,
+      customerName: req.body?.customerName || req.body?.customer_name || "",
     });
     const simulatedReply = humanizedTestReply || commerceReplyForIntent(intent, replyProductContext, detectedSize) ||
       "تمام  أقدر أساعدك، ممكن تبعتلي اسم المنتج أو صورته؟";
@@ -661,6 +662,7 @@ const handleAISuggestedReplies = async (req, res) => {
       productContext: replyProductContext,
       detectedSize,
       conversationId,
+      customerName: req.body?.customerName || req.body?.customer_name || "",
     });
     const baseReply = escalation.shouldEscalate
       ? "واضح إن فيه مشكلة محتاجة متابعة من أحد أفراد الفريق. هحوّل المحادثة لموظف يساعدك فورًا "
@@ -1231,6 +1233,7 @@ router.post("/channels/meta/webhook", async (req, res) => {
         productContext: replyProductContext,
         detectedSize,
         conversationId,
+        customerName: message.customer_name || "",
       });
       const candidateReply = humanizedReply || commerceReplyForIntent(intent, replyProductContext, detectedSize) || reply.text || aiPayload.answer || "";
       if (humanizedReply) {

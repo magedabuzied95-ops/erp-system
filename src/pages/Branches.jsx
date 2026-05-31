@@ -52,6 +52,8 @@ const fallbackLabels = {
   "branches.stats.total": "Total branches",
   "branches.stats.active": "Active branches",
   "branches.stats.mapped": "Warehouse mapped",
+  "branches.stats.gpsMissing": "GPS missing",
+  "branches.warnings.gpsMissing": "GPS coordinates are missing. Employee attendance actions will fail until latitude and longitude are configured.",
   "branches.searchPlaceholder": "Search branch, code, phone, manager, address, notes...",
   "branches.status.all": "All",
   "branches.status.active": "Active",
@@ -127,6 +129,14 @@ const unwrapBranches = (payload) => {
 };
 
 const safeBranch = (branch) => (branch && typeof branch === "object" ? branch : {});
+
+const hasBranchGpsCoordinates = (branch = {}) =>
+  branch?.latitude !== null &&
+  branch?.latitude !== undefined &&
+  branch?.latitude !== "" &&
+  branch?.longitude !== null &&
+  branch?.longitude !== undefined &&
+  branch?.longitude !== "";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -273,6 +283,7 @@ function Branches() {
       total: safeBranches.length,
       active: safeBranches.filter((branch) => branch?.is_active !== false).length,
       mapped: safeBranches.filter((branch) => branch?.default_warehouse_id).length,
+      gpsMissing: safeBranches.filter((branch) => !hasBranchGpsCoordinates(branch)).length,
     }),
     [safeBranches]
   );
@@ -551,10 +562,11 @@ function Branches() {
           </div>
         ) : null}
 
-        <section className="grid gap-3 md:grid-cols-3">
+        <section className="grid gap-3 md:grid-cols-4">
           <Kpi label={t("branches.stats.total")} value={stats.total} icon={<Building2 className="h-5 w-5" />} />
           <Kpi label={t("branches.stats.active")} value={stats.active} tone="emerald" icon={<CheckCircle2 className="h-5 w-5" />} />
           <Kpi label={t("branches.stats.mapped")} value={stats.mapped} tone="cyan" icon={<Warehouse className="h-5 w-5" />} />
+          <Kpi label={t("branches.stats.gpsMissing")} value={stats.gpsMissing} tone={stats.gpsMissing > 0 ? "amber" : "zinc"} icon={<AlertTriangle className="h-5 w-5" />} />
         </section>
 
         <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
@@ -662,6 +674,12 @@ function Branches() {
             </div>
 
             <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {editingBranch && !hasBranchGpsCoordinates(editingBranch) ? (
+                <div className="md:col-span-2 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm font-semibold text-amber-100">
+                  <AlertTriangle className="mr-2 inline h-4 w-4" />
+                  {t("branches.warnings.gpsMissing")}
+                </div>
+              ) : null}
               <Field label={t("branches.form.name")} value={form.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} required />
               <Field label={t("branches.form.code")} value={form.code} onChange={(value) => setForm((prev) => ({ ...prev, code: value }))} />
               <Field label={t("branches.form.phone")} value={form.phone} onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))} />
@@ -749,6 +767,13 @@ function Branches() {
               </button>
             </div>
 
+            {!hasBranchGpsCoordinates(viewBranch) ? (
+              <div className="mt-5 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm font-semibold text-amber-100">
+                <AlertTriangle className="mr-2 inline h-4 w-4" />
+                {t("branches.warnings.gpsMissing")}
+              </div>
+            ) : null}
+
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <Detail label={t("branches.form.code")} value={viewBranch?.code || t("branches.row.notSet")} />
               <Detail label={t("branches.form.phone")} value={viewBranch?.phone || t("branches.row.noPhone")} />
@@ -761,7 +786,7 @@ function Branches() {
               <Detail label={t("branches.form.notes")} value={viewBranch?.notes || t("branches.row.noNotes")} className="sm:col-span-2" />
             </div>
 
-            {viewBranch?.latitude !== null && viewBranch?.latitude !== undefined && viewBranch?.longitude !== null && viewBranch?.longitude !== undefined ? (
+            {hasBranchGpsCoordinates(viewBranch) ? (
               <div className="mt-5 overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--card)]">
                 <iframe
                   title="Branch map preview"
@@ -983,6 +1008,7 @@ function Branches() {
 function BranchRow({ branch, t, busy, onView, onEdit, onDelete }) {
   const safe = safeBranch(branch);
   const status = safe?.is_active === false ? "Inactive" : "Active";
+  const gpsMissing = !hasBranchGpsCoordinates(safe);
 
   return (
     <div className="grid gap-4 px-4 py-4 text-sm transition hover:bg-[var(--card)] hover:shadow-inner xl:grid-cols-[1.1fr_0.55fr_0.9fr_1.2fr_0.8fr_1fr] xl:items-center">
@@ -997,6 +1023,12 @@ function BranchRow({ branch, t, busy, onView, onEdit, onDelete }) {
             {safe?.phone || t("branches.row.noPhone")}
           </div>
           <StatusBadge status={status === "Active" ? t("branches.status.active") : t("branches.status.inactive")} active={status === "Active"} />
+          {gpsMissing ? (
+            <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[11px] font-black text-amber-100">
+              <AlertTriangle className="h-3 w-3" />
+              {t("branches.stats.gpsMissing")}
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="font-semibold text-[var(--text)]">{safe?.code || "-"}</div>
@@ -1043,6 +1075,7 @@ function Kpi({ label, value, icon, tone = "zinc" }) {
   const tones = {
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
     cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-300",
+    amber: "border-amber-500/25 bg-amber-500/10 text-amber-300",
     zinc: "border-[var(--border)] bg-[var(--surface)] text-[var(--text)]",
   };
   return (

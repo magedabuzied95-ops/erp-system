@@ -49,10 +49,19 @@ const formatMeters = (value) => {
   return `${Math.round(number)} m`;
 };
 
+const safeDate = (value) => {
+  if (!value) return null;
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isFinite(date.getTime()) ? date : null;
+  } catch {
+    return null;
+  }
+};
+
 const formatDateTime = (value) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
+  const date = safeDate(value);
+  if (!date) return "";
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",

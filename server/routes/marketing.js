@@ -79,19 +79,24 @@ import {
   syncMarketingAttributionNow,
 } from "../controllers/marketingAttributionController.js";
 import {
+  archiveAutonomousAiMarketingQueueItem,
   approveAutonomousAiMarketingQueueItem,
+  bulkAutonomousAiMarketingQueueAction,
   deleteAutonomousAiMarketingQueueItem,
+  duplicateAutonomousAiMarketingQueueItem,
   generateAutonomousAiMarketingDaily,
   generateAutonomousAiMarketingMonthly,
   generateAutonomousAiMarketingQueueStoryAsset,
   generateAutonomousAiMarketingWeekly,
   getAutonomousAiMarketingOverview,
   getAutonomousAiMarketingQueue,
+  getAutonomousAiMarketingQueueTimeline,
   getAutonomousAiMarketingSettings,
   patchAutonomousAiMarketingSettings,
   pauseAutonomousAiMarketing,
   publishAutonomousAiMarketingQueueItemNow,
   resumeAutonomousAiMarketing,
+  restoreAutonomousAiMarketingQueueItem,
 } from "../controllers/aiMarketingCenterController.js";
 
 const router = express.Router();
@@ -127,8 +132,13 @@ router.post("/ai-center/generate/daily", protect, permit("marketing", "create"),
 router.post("/ai-center/generate/weekly", protect, permit("marketing", "create"), generateAutonomousAiMarketingWeekly);
 router.post("/ai-center/generate/monthly", protect, permit("marketing", "create"), generateAutonomousAiMarketingMonthly);
 router.post("/ai-center/queue/:id/approve", protect, permit("marketing", "update"), approveAutonomousAiMarketingQueueItem);
+router.get("/ai-center/queue/:id/timeline", protect, permit("marketing", "view"), getAutonomousAiMarketingQueueTimeline);
 router.post("/ai-center/queue/:id/generate-story-asset", protect, permit("marketing", "create"), generateAutonomousAiMarketingQueueStoryAsset);
 router.post("/ai-center/queue/:id/publish-now", protect, permit("marketing", "publish"), publishAutonomousAiMarketingQueueItemNow);
+router.post("/ai-center/queue/:id/archive", protect, permit("marketing", "update"), archiveAutonomousAiMarketingQueueItem);
+router.post("/ai-center/queue/:id/restore", protect, permit("marketing", "update"), restoreAutonomousAiMarketingQueueItem);
+router.post("/ai-center/queue/:id/duplicate", protect, permit("marketing", "create"), duplicateAutonomousAiMarketingQueueItem);
+router.post("/ai-center/queue/bulk", protect, permit("marketing", "update"), bulkAutonomousAiMarketingQueueAction);
 router.delete("/ai-center/queue/:id", protect, permit("marketing", "delete"), deleteAutonomousAiMarketingQueueItem);
 router.post("/ai-center/pause", protect, permit("marketing", "update"), pauseAutonomousAiMarketing);
 router.post("/ai-center/resume", protect, permit("marketing", "update"), resumeAutonomousAiMarketing);

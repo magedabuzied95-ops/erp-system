@@ -7,6 +7,8 @@ export const getTenantId = (req, fallback = null) => {
     req?.headers?.["x-tenant-id"] ??
     req?.query?.tenant_id ??
     req?.query?.tenantId ??
+    req?.body?.tenant_id ??
+    req?.body?.tenantId ??
     fallback;
 
   if (rawTenant === null || rawTenant === undefined || rawTenant === "") {

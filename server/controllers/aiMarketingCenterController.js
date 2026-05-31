@@ -1,15 +1,20 @@
 import { getTenantId } from "../utils/requestScope.js";
 import {
+  archiveAiMarketingQueueItem,
   approveAiMarketingQueueItem,
   buildAiMarketingPostingInsightsResponse,
+  bulkAiMarketingQueueAction,
   deleteAiMarketingQueueItem,
-  generateAiMarketingBatch,
+  duplicateAiMarketingQueueItem,
+  enqueueAiMarketingBatchGeneration,
+  enqueueAiMarketingQueueStoryAssetGeneration,
   generateAiMarketingVideoBatch,
-  generateAiMarketingQueueStoryAsset,
   getAiMarketingOverview,
   getAiMarketingSettings,
+  listAiMarketingQueueTimeline,
   listAiMarketingQueue,
   publishAiMarketingQueueItemNow,
+  restoreAiMarketingQueueItem,
   setAiMarketingAutomationActive,
   updateAiMarketingSettings,
 } from "../services/aiMarketingCenterService.js";
@@ -73,8 +78,8 @@ export const getAutonomousAiMarketingQueue = async (req, res) => {
 
 const generate = (runType) => async (req, res) => {
   try {
-    const result = await generateAiMarketingBatch({ tenantId: tenantScope(req), runType });
-    res.status(201).json({ success: true, ...result });
+    const result = await enqueueAiMarketingBatchGeneration({ tenantId: tenantScope(req), runType });
+    res.status(202).json({ success: true, message: "Generation queued", ...result });
   } catch (error) {
     sendError(res, error, `Failed to generate ${runType} AI marketing batch`);
   }
@@ -127,10 +132,16 @@ export const generateAutonomousAiMarketingQueueStoryAsset = async (req, res) => 
   try {
     const id = parseQueueItemId(req.params.id);
     if (!id) return res.status(400).json({ success: false, message: "Invalid queue item id" });
-    const item = await generateAiMarketingQueueStoryAsset(tenantScope(req), id);
+    const result = await enqueueAiMarketingQueueStoryAssetGeneration(tenantScope(req), id, {
+      force: req.body?.force === true || req.query?.force === "true",
+    });
+    const item = result?.item;
     if (!item) return res.status(404).json({ success: false, message: "Queue item not found" });
-    return res.json({
+    return res.status(result?.queued ? 202 : 200).json({
       success: true,
+      queued: Boolean(result?.queued),
+      reused: Boolean(result?.reused),
+      message: result?.queued ? "Story asset generation queued" : "Story asset ready",
       rendered_image_url: item.rendered_image_url || "",
       story_image_url: item.story_image_url || item.rendered_image_url || "",
       final_asset_url: item.final_asset_url || item.story_image_url || item.rendered_image_url || "",
@@ -163,6 +174,65 @@ export const deleteAutonomousAiMarketingQueueItem = async (req, res) => {
     return res.json({ success: true, message: "Queue item deleted" });
   } catch (error) {
     return sendError(res, error, "Failed to delete queue item");
+  }
+};
+
+export const archiveAutonomousAiMarketingQueueItem = async (req, res) => {
+  try {
+    const id = parseQueueItemId(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: "Invalid queue item id" });
+    const item = await archiveAiMarketingQueueItem(tenantScope(req), id);
+    if (!item) return res.status(404).json({ success: false, message: "Queue item not found" });
+    return res.json({ success: true, item });
+  } catch (error) {
+    return sendError(res, error, "Failed to archive queue item");
+  }
+};
+
+export const restoreAutonomousAiMarketingQueueItem = async (req, res) => {
+  try {
+    const id = parseQueueItemId(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: "Invalid queue item id" });
+    const item = await restoreAiMarketingQueueItem(tenantScope(req), id);
+    if (!item) return res.status(404).json({ success: false, message: "Queue item not found" });
+    return res.json({ success: true, item });
+  } catch (error) {
+    return sendError(res, error, "Failed to restore queue item");
+  }
+};
+
+export const duplicateAutonomousAiMarketingQueueItem = async (req, res) => {
+  try {
+    const id = parseQueueItemId(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: "Invalid queue item id" });
+    const item = await duplicateAiMarketingQueueItem(tenantScope(req), id);
+    if (!item) return res.status(404).json({ success: false, message: "Queue item not found" });
+    return res.status(201).json({ success: true, item });
+  } catch (error) {
+    return sendError(res, error, "Failed to duplicate queue item");
+  }
+};
+
+export const bulkAutonomousAiMarketingQueueAction = async (req, res) => {
+  try {
+    const result = await bulkAiMarketingQueueAction(tenantScope(req), {
+      action: req.body?.action,
+      ids: Array.isArray(req.body?.ids) ? req.body.ids : [],
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to run bulk queue action");
+  }
+};
+
+export const getAutonomousAiMarketingQueueTimeline = async (req, res) => {
+  try {
+    const id = parseQueueItemId(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: "Invalid queue item id" });
+    const timeline = await listAiMarketingQueueTimeline(tenantScope(req), id);
+    return res.json({ success: true, timeline });
+  } catch (error) {
+    return sendError(res, error, "Failed to load content history");
   }
 };
 

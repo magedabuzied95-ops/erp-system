@@ -17,6 +17,8 @@ import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils
 import { fetchProductClassificationGroupByKey, getClassificationFilterAliases } from "../services/productClassificationsService.js";
 import { generateProductOgImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, buildAbsolutePublicUrl } from "../services/productOgImageService.js";
 import { generateAiProductData } from "../services/aiProductDataService.js";
+import { understandProductImageForSearch } from "../services/openaiSupportService.js";
+import { searchAiVisualProductsPro } from "../services/aiVisualSearchProService.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
 import { buildCacheKey, getOrSetCache, invalidateCachePattern } from "../services/cacheService.js";
 import { getWebsiteSettings } from "../services/liveActivityService.js";
@@ -2239,10 +2241,43 @@ export const visualSearchProducts = async (req, res) => {
       size: file.size || file.buffer.length,
     });
 
-    const imageMatches = await findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 8 });
-    let matchedIds = imageMatches.map((item) => item.productId);
+    let understanding = null;
+    try {
+      understanding = await understandProductImageForSearch({
+        imageBuffer: file.buffer,
+        mimeType: file.mimetype,
+        requestId: req.id || `storefront:${Date.now()}`,
+      });
+    } catch (error) {
+      console.warn("[storefront-image-search] vision understanding failed", {
+        tenantId,
+        message: error?.message || "vision failed",
+      });
+    }
+    const visualQuery = [
+      understanding?.detected?.brand_guess,
+      understanding?.detected?.model_guess,
+      understanding?.detected?.model_family,
+      understanding?.detected?.product_type,
+      understanding?.detected?.category,
+      understanding?.detected?.colors,
+      understanding?.detected?.main_colors,
+      understanding?.detected?.silhouette,
+      understanding?.detected?.sole_shape,
+      understanding?.detected?.materials,
+      understanding?.detected?.features,
+    ].flat().filter(Boolean).join(" ");
+    const proSearch = await searchAiVisualProductsPro({
+      tenantId,
+      detected: understanding?.detected || {},
+      visualQuery,
+      uploadedImageBuffer: file.buffer,
+      limit: 8,
+    });
+    let candidates = Array.isArray(proSearch.candidates) ? proSearch.candidates : [];
+    let matchedIds = candidates.map((item) => item.product_id).filter(Boolean);
     let keywords = [];
-    let aiSource = "not_needed";
+    let aiSource = "visual_search_pro";
 
     if (!matchedIds.length) {
       const imageBase64 = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
@@ -2254,11 +2289,24 @@ export const visualSearchProducts = async (req, res) => {
       keywords = visualKeywordsFromAi(aiResult);
       console.log("[storefront-image-search] detected keywords/labels", { tenantId, source: aiSource, keywords });
       matchedIds = await queryVisualKeywordProductIds(tenantId, keywords, 8);
+      candidates = matchedIds.map((productId, index) => ({
+        product_id: productId,
+        finalScore: Math.max(0.1, 0.45 - index * 0.04),
+        score_breakdown: { finalScore: Math.max(0.1, 0.45 - index * 0.04), reasonWhyRankedFirst: "keyword fallback" },
+      }));
     } else {
+      keywords = [
+        proSearch.attributes?.brand,
+        proSearch.attributes?.model,
+        proSearch.attributes?.productType,
+        ...(Array.isArray(proSearch.attributes?.mainColors) ? proSearch.attributes.mainColors : []),
+      ].filter(Boolean);
       console.log("[storefront-image-search] detected keywords/labels", {
         tenantId,
-        source: "direct_image_similarity",
+        source: aiSource,
         keywords,
+        visual_confidence: understanding?.confidence || 0,
+        top_candidates: proSearch.topMatches?.slice(0, 5) || [],
       });
     }
 
@@ -2271,14 +2319,27 @@ export const visualSearchProducts = async (req, res) => {
       if (!productsById.has(key)) productsById.set(key, []);
       productsById.get(key).push(product);
     });
-    products = matchedIds.flatMap((id) => productsById.get(String(id)) || []);
+    products = candidates.flatMap((candidate) =>
+      (productsById.get(String(candidate.product_id)) || []).map((product) => ({
+        ...product,
+        visual_score: Number(candidate.finalScore || candidate.score || 0),
+        final_score: Number(candidate.finalScore || candidate.score || 0),
+        image_match_score: Number(candidate.finalScore || candidate.score || 0),
+        image_ranking_debug: candidate.score_breakdown || null,
+      }))
+    );
 
     console.log("[storefront-image-search] matched product ids", {
       tenant_id: tenantId,
       candidate_product_count: matchedIds.length,
       final_matched_result_count: products.length,
       product_ids: products.map((product) => product.id),
-      direct_matches: imageMatches,
+      direct_matches: candidates.map((candidate) => ({
+        productId: candidate.product_id,
+        variantId: candidate.variant_id,
+        score: candidate.finalScore || candidate.score || 0,
+        breakdown: candidate.score_breakdown || null,
+      })),
     });
 
     if (!products.length) {
@@ -2291,8 +2352,15 @@ export const visualSearchProducts = async (req, res) => {
       success: true,
       products,
       keywords,
-      message: products.length ? "" : "لم نجد منتج مطابق للصورة",
-      source: imageMatches.length ? "image_similarity" : aiSource,
+      message: products.length
+        ? (Number(candidates[0]?.finalScore || candidates[0]?.score || 0) >= 0.82 ? "أيوه، ده أقرب موديل عندنا" : "مش لاقي نفس الموديل بالظبط، بس دي أقرب اختيارات شبهه.")
+        : "مش لاقي نفس الموديل بالظبط، بس دي أقرب اختيارات شبهه.",
+      source: aiSource,
+      visual_confidence: understanding?.confidence || 0,
+      visual_attributes: proSearch.attributes || null,
+      top_candidates: proSearch.topMatches || [],
+      correction_used: false,
+      top_rank_reason: proSearch.reasonWhyFirstRanked || "",
     });
   } catch (error) {
     console.error("[storefront-image-search] failed", {

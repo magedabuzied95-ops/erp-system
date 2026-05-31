@@ -13,6 +13,8 @@ export const normalizeQueueStatus = (status = "") => {
 };
 
 const rawStatusValues = (item = {}) => [item.status, item.publish_status, item.post_status, item.state];
+const failedPlatformsFromResults = (results = {}) =>
+  Object.values(results || {}).some((value) => value?.status && !["published", "skipped"].includes(value.status));
 
 export const isPublishedQueueItem = (item = {}) =>
   rawStatusValues(item).some((status) => normalizeQueueStatus(status) === "published");
@@ -23,16 +25,26 @@ export const getQueueStatusInfo = (item = {}, options = {}) => {
   const rawPostStatus = item.post_status ?? "";
   const rawState = item.state ?? "";
   const normalizedStatusValues = rawStatusValues(item).map(normalizeQueueStatus).filter(Boolean);
-  const normalizedStatus = normalizedStatusValues.includes("published")
+  const normalizedStatus = normalizedStatusValues.includes("archived")
+    ? "archived"
+    : normalizedStatusValues.includes("published")
     ? "published"
     : normalizeQueueStatus(rawStatus || rawPublishStatus || rawPostStatus || rawState || "pending_approval");
   const displayStatus = options.publishing
     ? "Publishing"
-    : normalizedStatus === "published"
-      ? "published"
-      : normalizedStatus === "pending_approval"
-        ? "pending approval"
-        : normalizedStatus.replaceAll("_", " ");
+      : ({
+        ready: "Ready",
+        published: "Published",
+        pending_approval: "Pending Approval",
+        queued_publish: "Queued Publish",
+        publishing: "Publishing",
+        publish_failed: "Publish Failed",
+        archived: "Archived",
+        failed: "Failed",
+        queued: "Queued",
+        generating_image: "Generating Image",
+        uploading: "Uploading",
+      }[normalizedStatus] || normalizedStatus.replaceAll("_", " "));
   return {
     id: item.id,
     status: rawStatus,
@@ -48,7 +60,10 @@ export const getQueueStatusInfo = (item = {}, options = {}) => {
 };
 
 export const canApproveQueueItem = (item = {}) =>
-  Boolean(item?.id) && getQueueStatusInfo(item).normalizedStatus === "pending_approval";
+  Boolean(item?.id) && ["pending_approval", "ready"].includes(getQueueStatusInfo(item).normalizedStatus);
 
 export const canPublishQueueItem = (item = {}) =>
-  Boolean(item?.id) && ["pending_approval", "approved"].includes(getQueueStatusInfo(item).normalizedStatus);
+  Boolean(item?.id) && (
+    ["pending_approval", "approved", "ready", "publish_failed"].includes(getQueueStatusInfo(item).normalizedStatus) ||
+    (getQueueStatusInfo(item).normalizedStatus === "published" && failedPlatformsFromResults(item.platform_publish_results))
+  );

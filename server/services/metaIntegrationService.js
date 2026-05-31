@@ -116,8 +116,18 @@ const detectHumanHandoff = (message = "") =>
   hasTerm(message, ["موظف", "خدمة عملاء", "حد يكلمني", "مش فاهم", "كلموني"]);
 
 const detectMoreImagesRequest = (message = "") =>
-  hasAnyArabicCommerceTerm(message, ["\u0635\u0648\u0631 \u0623\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0627\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629", "\u0635\u0648\u0631 \u0627\u0636\u0627\u0641\u064a\u0629", "\u0627\u0628\u0639\u062a \u0635\u0648\u0631", "\u0648\u0631\u064a\u0646\u064a \u0635\u0648\u0631", "\u0635\u0648\u0631\u0629 \u062a\u0627\u0646\u064a\u0629", "\u0635\u0648\u0631 \u062a\u0627\u0646\u064a\u0629", "\u0648\u0631\u064a\u0646\u064a \u0623\u0644\u0648\u0627\u0646", "\u0648\u0631\u064a\u0646\u064a \u0627\u0644\u0648\u0627\u0646", "more photos", "more images"]) ||
-  hasTerm(message, ["صور أكتر", "صور اكتر", "صورة تانية", "وريني ألوان", "وريني الوان", "ألوانه ايه", "الوانه ايه"]);
+  hasAnyArabicCommerceTerm(message, ["\u0635\u0648\u0631\u0629", "\u0635\u0648\u0631", "\u0635\u0648\u0631 \u0623\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0627\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629", "\u0635\u0648\u0631 \u0627\u0636\u0627\u0641\u064a\u0629", "\u0627\u0628\u0639\u062a\u0644\u064a \u0635\u0648\u0631\u0629", "\u0627\u0628\u0639\u062a \u0635\u0648\u0631", "\u0648\u0631\u064a\u0646\u064a \u0635\u0648\u0631", "\u0635\u0648\u0631\u0629 \u062a\u0627\u0646\u064a\u0629", "\u0635\u0648\u0631 \u062a\u0627\u0646\u064a\u0629", "photo", "photos", "image", "images", "more photos", "more images"]) ||
+  hasTerm(message, ["صور أكتر", "صور اكتر", "صورة", "صور", "صورة تانية"]);
+
+const detectProductLinkRequest = (message = "") =>
+  Boolean(hasTerm(message, [
+    "\u0644\u064a\u0646\u0643",
+    "\u0627\u0644\u0631\u0627\u0628\u0637",
+    "\u0627\u0628\u0639\u062a \u0627\u0644\u0644\u064a\u0646\u0643",
+    "\u0627\u0628\u0639\u062a\u0644\u064a \u0627\u0644\u0644\u064a\u0646\u0643",
+    "link",
+    "url",
+  ]));
 
 const detectGreetingMessage = (message = "") => {
   const raw = text(message).toLowerCase().replace(/\s+/g, " ").trim();
@@ -856,16 +866,20 @@ const resolveCustomerQuestion = ({ message = {}, memory = {} } = {}) => {
 
   const resolvedColorQuestion = isColorQuestionMessage(messageText) || Boolean(detectSelectionColor(messageText) || detectExplicitColor(messageText));
   const resolvedMoreImages = Boolean(detectMoreImagesRequest(messageText) && !resolvedColorQuestion);
+  const resolvedLinkQuestion = detectProductLinkRequest(messageText);
   const resolvedGreeting = detectGreetingMessage(messageText);
   if (resolvedGreeting) {
     intent = QUESTION_TYPES.GREETING;
     reason = "greeting";
-  } else if (resolvedMoreImages) {
-    intent = QUESTION_TYPES.MORE_IMAGES;
-    reason = "more_images_request";
   } else if (resolvedColorQuestion) {
     intent = QUESTION_TYPES.COLOR_QUESTION;
     reason = "color_request";
+  } else if (resolvedMoreImages) {
+    intent = QUESTION_TYPES.MORE_IMAGES;
+    reason = "more_images_request";
+  } else if (resolvedLinkQuestion) {
+    intent = QUESTION_TYPES.LINK_QUESTION;
+    reason = "link_request";
   } else if (detectAlternativesRequest(messageText)) {
     intent = QUESTION_TYPES.ALTERNATIVES_QUESTION;
     reason = "alternatives_request";
@@ -896,6 +910,13 @@ const resolveCustomerQuestion = ({ message = {}, memory = {} } = {}) => {
     resolvedQuestionType: intent,
     blockedPresentation: intent === QUESTION_TYPES.MORE_IMAGES,
     imageCount: 0,
+  });
+  console.log("[visual-followup-router]", {
+    message: messageText,
+    resolvedQuestionType: intent,
+    activeProductId: memory.activeProductId || memory.selectedProductId || memory.lastProductCard?.product_id || memory.lastProductCard?.id || null,
+    blockedAvailabilityReply: [QUESTION_TYPES.COLOR_QUESTION, QUESTION_TYPES.MORE_IMAGES, QUESTION_TYPES.LINK_QUESTION].includes(intent),
+    reason,
   });
 
   return {
@@ -5893,8 +5914,8 @@ const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}
         variant_id: card.variant_id || null,
         color: card.color || "",
       });
+      return { card, source: cards.length === 1 ? "last_shown" : "last_shown", ambiguous: false, cards };
     }
-    return { card, source: cards.length === 1 ? "last_shown" : "last_shown", ambiguous: false, cards };
   }
   if (memory.selectedProductId && memory.selectedColor && memory.lastProductCard) {
     const lockedCard = {
@@ -7494,6 +7515,7 @@ const isColorQuestionMessage = (message = "") => {
   return Boolean(
     detectOtherColorsRequest(raw) ||
       detectAllColorsRequest(raw) ||
+      hasTerm(raw, ["\u0627\u0644\u0648\u0627\u0646\u0647", "\u0623\u0644\u0648\u0627\u0646\u0647", "\u0627\u0644\u0648\u0627\u0646", "\u0623\u0644\u0648\u0627\u0646", "\u0644\u0648\u0646", "\u0644\u0648\u0646 \u062a\u0627\u0646\u064a", "\u0627\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0623\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "available colors", "colors"]) ||
       /(?:فيه|في|عندك)?\s*(?:الوان|ألوان)\s*(?:تانيه|تاني|تانى|اخري|اخرى)/i.test(normalized) ||
       /(?:لون)\s*(?:تانيه|تاني|تانى|اخر|آخر)/i.test(normalized) ||
       /\b(?:colors|other colors|available colors|colours|another color)\b/i.test(raw)
@@ -9803,7 +9825,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
   await sendAndLogMetaText({
     config,
     message,
-    text: "\u0623\u0643\u064a\u062f",
+    text: "\u0623\u0643\u064a\u062f ",
     detectedIntent: "more_images_intro",
     metadata: {
       preserveReplyText: true,
@@ -9896,6 +9918,78 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     metadata: { meta_message_id: result?.message_id || "", product_card_count: moreImageCards.length, more_images: true },
   }).catch(() => {});
   return { handled: true, reason: "more_images_sent" };
+};
+
+const handleVisualAvailabilityFollowupIfMatched = async ({ config, message } = {}) => {
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  const resolvedType = message.resolvedQuestion?.intent || memory.resolvedQuestionType || "";
+  if (resolvedType !== QUESTION_TYPES.AVAILABILITY_QUESTION) return null;
+  const hasVisualContext = Boolean(memory.lastImageUrl || memory.activeVisualSession || memory.lastVisualMatches?.length || memory.lastIntent === "visual_search");
+  if (!hasVisualContext) return null;
+  const context = resolveContextProductCard({ message });
+  const baseCard = context.card;
+  const activeProductId = baseCard?.product_id || baseCard?.id || memory.activeProductId || memory.selectedProductId || null;
+  if (!baseCard) {
+    console.log("[visual-followup-router]", {
+      message: message.message_text || "",
+      resolvedQuestionType: resolvedType,
+      activeProductId,
+      blockedAvailabilityReply: true,
+      reason: "missing_active_product",
+    });
+    return null;
+  }
+  const confirmationGuard = evaluateProductConfirmationGuard({
+    card: baseCard,
+    metadata: {
+      confidence_score: memory.selectedProductConfirmationConfidence || memory.lastVisualConfidence || baseCard.product_confirmation_confidence || baseCard.visual_confidence_score || null,
+      product_source_confirmed: memory.selectedProductSourceConfirmed === true || baseCard.product_source_confirmed === true,
+    },
+    detectedIntent: "visual_availability_followup",
+  });
+  console.log("[visual-followup-router]", {
+    message: message.message_text || "",
+    resolvedQuestionType: resolvedType,
+    activeProductId,
+    blockedAvailabilityReply: !confirmationGuard.confirmed,
+    reason: confirmationGuard.reason,
+  });
+  if (!confirmationGuard.confirmed) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: "\u062f\u0647 \u0623\u0642\u0631\u0628 \u0627\u062e\u062a\u064a\u0627\u0631 \u0639\u0646\u062f\u064a ",
+      detectedIntent: "visual_availability_unconfirmed",
+      metadata: {
+        product_id: activeProductId,
+        product_confirmation_guard: confirmationGuard,
+        suppressedFields: confirmationGuard.blockedFields,
+      },
+    });
+    return { handled: true, reason: "visual_availability_blocked_unconfirmed_product" };
+  }
+  lockProductContext({
+    conversationId: message.external_conversation_id,
+    card: baseCard,
+    stage: "product_details",
+    reason: "visual_availability_followup",
+  });
+  await sendAndLogProductCards({
+    config,
+    message,
+    productCards: [baseCard],
+    detectedIntent: "visual_availability_followup",
+    introText: "\u0623\u064a\u0648\u0647 \u0645\u062a\u0627\u062d \u2705",
+    metadata: {
+      preserveReplyText: true,
+      replyCategory: "VISUAL_AVAILABILITY_FOLLOWUP",
+      product_card_limit: 1,
+      product_id: activeProductId,
+      product_confirmation_guard: confirmationGuard,
+      resolvedQuestionType: resolvedType,
+    },
+  });
+  return { handled: true, reason: "visual_availability_followup_sent" };
 };
 
 const handleAlternativesIfMatched = async ({ config, message } = {}) => {
@@ -10043,12 +10137,20 @@ const handleProductLinkIfMatched = async ({ config, message } = {}) => {
 
 const handleOtherColorsIfMatched = async ({ config, message } = {}) => {
   if (!isColorQuestionMessage(message.message_text)) return null;
+  const memory = getConversationMemory(message.external_conversation_id) || {};
   const context = resolveContextProductCard({ message, allowAmbiguous: true });
   const baseCard = context.card;
+  const activeProductId = memory.activeProductId || memory.selectedProductId || memory.lastProductCard?.product_id || memory.lastProductCard?.id || null;
+  const usedActiveProduct = Boolean(baseCard && activeProductId && String(baseCard.product_id || baseCard.id || "") === String(activeProductId));
   console.log("[color-router]", {
     message: message.message_text || "",
     resolvedColorQuestion: true,
-    activeProductId: baseCard?.product_id || baseCard?.id || (getConversationMemory(message.external_conversation_id) || {}).activeProductId || null,
+    activeProductId: baseCard?.product_id || baseCard?.id || activeProductId,
+  });
+  console.log("[color-memory]", {
+    activeProductId,
+    usedActiveProduct,
+    reason: baseCard ? context.source || "context_product_card" : activeProductId ? "active_product_without_card" : "missing_active_product",
   });
   if (!baseCard) {
     console.log("[ai-memory] missing active product", {
@@ -10076,8 +10178,9 @@ const handleOtherColorsIfMatched = async ({ config, message } = {}) => {
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: baseCard.name || message.message_text });
   if (!product) return null;
   const limit = 3;
+  const otherColorsOnly = detectOtherColorsRequest(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
   const cards = normalizeProductCards([product], { limit })
-    .filter((card) => imageIdentity(card.image_url) !== imageIdentity(baseCard.image_url) || text(card.color).toLowerCase() !== text(baseCard.color).toLowerCase())
+    .filter((card) => !otherColorsOnly || imageIdentity(card.image_url) !== imageIdentity(baseCard.image_url) || text(card.color).toLowerCase() !== text(baseCard.color).toLowerCase())
     .slice(0, limit)
     .map((card) => ({ ...card, card_reply_mode: "color_only" }));
   console.log("ai_model_color_limit_applied", {
@@ -10103,7 +10206,7 @@ const handleOtherColorsIfMatched = async ({ config, message } = {}) => {
     message,
     productCards: cards,
     detectedIntent: "other_colors",
-    introText: "أيوه فيه الألوان دي",
+    introText: "\u0623\u064a\u0648\u0647 \u0641\u064a\u0647 \u0627\u0644\u0623\u0644\u0648\u0627\u0646 \u062f\u064a ",
     metadata: { preserveReplyText: true, replyCategory: "COLOR_SELECTION", product_card_limit: limit, other_colors_requested: true },
   });
   rememberConversationCompression({
@@ -13209,6 +13312,7 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
     handleCheckoutDataIfMatched,
     handleProductLinkIfMatched,
     handleColorSelectionIfMatched,
+    handleVisualAvailabilityFollowupIfMatched,
     handleContextualSizeCheckIfMatched,
     handleSalesCloserV2IfMatched,
     handleSalesBrainBuyingStageIfMatched,
@@ -13223,7 +13327,7 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
   ];
   const routeMap = {
     [AI_INTENTS.VISUAL_SEARCH]: [handleVisualSearchIfMatched],
-    [AI_INTENTS.PRODUCT_SEARCH]: [handleMoreImagesIfMatched, handleProductLinkIfMatched, handleOtherColorsIfMatched, handleColorSelectionIfMatched, handleProductSearchIfMatched],
+    [AI_INTENTS.PRODUCT_SEARCH]: [handleMoreImagesIfMatched, handleProductLinkIfMatched, handleOtherColorsIfMatched, handleColorSelectionIfMatched, handleVisualAvailabilityFollowupIfMatched, handleProductSearchIfMatched],
     [AI_INTENTS.PRICE_CHECK]: [handleSalesCloserV2IfMatched, handleSalesBrainBuyingStageIfMatched, handleOrderDraftIfMatched],
     [AI_INTENTS.SIZE_CHECK]: [handleContextualSizeCheckIfMatched, handleSizesIfMatched, handleSizeAvailabilityLinkIfMatched],
     [AI_INTENTS.COLOR_REQUEST]: [handleOtherColorsIfMatched, handleColorSelectionIfMatched],
@@ -14415,6 +14519,20 @@ export const processMetaWebhook = async ({ req } = {}) => {
             intent: AI_INTENTS.MORE_IMAGES,
             confidence: Math.max(Number(classification.confidence || 0), 0.97),
             reason: "question_resolver_more_images_priority",
+          };
+        } else if (resolvedQuestion.intent === QUESTION_TYPES.COLOR_QUESTION) {
+          classification = {
+            ...classification,
+            intent: AI_INTENTS.COLOR_REQUEST,
+            confidence: Math.max(Number(classification.confidence || 0), 0.97),
+            reason: "question_resolver_color_priority",
+          };
+        } else if (resolvedQuestion.intent === QUESTION_TYPES.LINK_QUESTION) {
+          classification = {
+            ...classification,
+            intent: AI_INTENTS.PRODUCT_SEARCH,
+            confidence: Math.max(Number(classification.confidence || 0), 0.96),
+            reason: "question_resolver_link_priority",
           };
         } else if (
           resolvedQuestion.intent === QUESTION_TYPES.BUYING_INTENT &&

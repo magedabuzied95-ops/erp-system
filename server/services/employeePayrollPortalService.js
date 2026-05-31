@@ -1441,12 +1441,39 @@ const getEmployeeBranchForPortalAttendance = async ({ employee }) => {
   return branch;
 };
 
-const validatePortalAttendanceGps = ({ branch, data = {} }) => {
+const getMissingBranchGpsFields = (branch = {}) => {
+  const missing = [];
+  if (numberOrNull(branch.latitude) === null) missing.push("latitude");
+  if (numberOrNull(branch.longitude) === null) missing.push("longitude");
+  return missing;
+};
+
+const validatePortalAttendanceGps = ({ branch, employee, data = {} }) => {
   const branchLat = numberOrNull(branch.latitude);
   const branchLon = numberOrNull(branch.longitude);
   if (branchLat === null || branchLon === null) {
+    const missingFields = getMissingBranchGpsFields(branch);
+    console.error("[employee-portal-attendance] branch GPS coordinates missing", {
+      code: "branch_location_missing",
+      employeeId: employee?.id || null,
+      employeeCode: employee?.employee_code || employee?.code || null,
+      tenantId: employee?.tenant_id || branch?.tenant_id || null,
+      branchId: branch?.id || null,
+      branchName: branch?.name || "",
+      missingFields,
+    });
     throw employeePortalError("branch_location_missing", "لم يتم تحديد موقع الفرع", 400, {
-      gps: { verification_result: "branch_location_missing" },
+      branch: {
+        id: branch?.id || null,
+        name: branch?.name || "",
+        missing_fields: missingFields,
+      },
+      gps: {
+        verification_result: "branch_location_missing",
+        branch_id: branch?.id || null,
+        branch_name: branch?.name || "",
+        missing_fields: missingFields,
+      },
     });
   }
   const location = data.location || {};
@@ -1481,7 +1508,15 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     throw error;
   }
   const branch = await getEmployeeBranchForPortalAttendance({ employee });
-  const gps = validatePortalAttendanceGps({ branch, data });
+  debugEmployeePortal("[employee-portal-attendance] resolved branch", {
+    employeeId: employee?.id || null,
+    employeeCode: employee?.employee_code || employee?.code || null,
+    branchId: branch?.id || null,
+    branchName: branch?.name || "",
+    hasLatitude: numberOrNull(branch?.latitude) !== null,
+    hasLongitude: numberOrNull(branch?.longitude) !== null,
+  });
+  const gps = validatePortalAttendanceGps({ branch, employee, data });
   const attendanceDate = clean(data.attendance_date) || localIsoDate(new Date(), data.timezone || data.time_zone || data.tz || "Africa/Cairo");
   const notes = clean(data.notes);
   const auditWithGps = {

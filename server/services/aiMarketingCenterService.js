@@ -8,6 +8,8 @@ import { validateMetaToken } from "./metaTokenService.js";
 import { syncMarketingAnalyticsForTenant } from "./marketingAnalyticsService.js";
 import { getPublicBackendUrl } from "../utils/publicUrl.js";
 import { getSetting } from "./settingsService.js";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 const GRAPH_API_VERSION = "v25.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -21,6 +23,9 @@ const DEFAULT_STRATEGIES = {
 const DEFAULT_QUOTAS = [
   { id: "premium-engine", department_name: "All", segment_name: "All", stories_per_day: 12, posts_per_day: 3, priority: 100, active: true },
 ];
+const DEFAULT_ARCHIVE_AFTER_DAYS = 30;
+const DEFAULT_DELETE_ARCHIVED_AFTER_DAYS = 90;
+const LOCAL_UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 
 const GENERATION_JOB_TIMEOUT_MS = Math.max(30000, Math.round(Number(process.env.AI_MARKETING_GENERATION_JOB_TIMEOUT_MS) || 180000));
 const GENERATION_JOB_CONCURRENCY = Math.min(2, Math.max(1, Math.round(Number(process.env.AI_MARKETING_GENERATION_CONCURRENCY) || 1)));
@@ -511,6 +516,8 @@ const normalizeSettings = (row = {}) => ({
   posts_per_day: positiveInt(row.posts_per_day, 3),
   auto_publish: row.auto_publish === true,
   require_approval: row.require_approval !== false,
+  auto_archive_published_after_days: positiveInt(row.auto_archive_published_after_days, DEFAULT_ARCHIVE_AFTER_DAYS),
+  auto_delete_archived_after_days: positiveInt(row.auto_delete_archived_after_days, DEFAULT_DELETE_ARCHIVED_AFTER_DAYS),
   campaign_mode: row.campaign_mode || "balanced",
   active_strategies: normalizeFocusedStrategies({ ...DEFAULT_STRATEGIES, ...normalizeJsonObject(row.active_strategies, {}) }),
   active: row.active !== false,
@@ -531,6 +538,8 @@ const normalizeQueueRow = (row = {}) => {
   const selectedPublishUrlRaw = cleanText(finalAssetUrlRaw || renderedImageUrlRaw || storyImageUrlRaw);
   const resolvedStoryAsset =
     [renderedImageUrlRaw, storyImageUrlRaw, finalAssetUrlRaw].map(absoluteStoryAssetUrl).find(Boolean) || "";
+  const performanceScore = numberValue(row.performance_score ?? metadata.performance_score, 0);
+  const performanceLabel = performanceScore >= 70 ? "High Performer" : performanceScore >= 40 ? "Average" : performanceScore > 0 ? "Low Performer" : "No Data";
   return {
     ...row,
     product_url: resolvedProductUrl,
@@ -544,6 +553,9 @@ const normalizeQueueRow = (row = {}) => {
     final_asset_url_raw: finalAssetUrlRaw,
     selectedPublishUrl_raw: selectedPublishUrlRaw,
     selectedPublishUrl: resolvedStoryAsset,
+    performance_score: performanceScore,
+    performance_label: metadata.performance_label || performanceLabel,
+    performance_metrics: normalizeJsonObject(metadata.performance_metrics, {}),
     media_urls: normalizeJsonArray(row.media_urls, []),
     design_json: {
       ...design,
@@ -571,6 +583,8 @@ export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
       posts_per_day INTEGER NOT NULL DEFAULT 3,
       auto_publish BOOLEAN NOT NULL DEFAULT FALSE,
       require_approval BOOLEAN NOT NULL DEFAULT TRUE,
+      auto_archive_published_after_days INTEGER NOT NULL DEFAULT 30,
+      auto_delete_archived_after_days INTEGER NOT NULL DEFAULT 90,
       campaign_mode VARCHAR(20) NOT NULL DEFAULT 'balanced',
       active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
       active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -588,6 +602,8 @@ export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
       ADD COLUMN IF NOT EXISTS posts_per_day INTEGER NOT NULL DEFAULT 3,
       ADD COLUMN IF NOT EXISTS auto_publish BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS require_approval BOOLEAN NOT NULL DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS auto_archive_published_after_days INTEGER NOT NULL DEFAULT 30,
+      ADD COLUMN IF NOT EXISTS auto_delete_archived_after_days INTEGER NOT NULL DEFAULT 90,
       ADD COLUMN IF NOT EXISTS campaign_mode VARCHAR(20) NOT NULL DEFAULT 'balanced',
       ADD COLUMN IF NOT EXISTS active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
       ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -628,6 +644,13 @@ export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
       published_at TIMESTAMP NULL,
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
       publish_status VARCHAR(30) NOT NULL DEFAULT 'draft',
+      platform_error_code TEXT NULL,
+      platform_error_message TEXT NULL,
+      publish_attempts INTEGER NOT NULL DEFAULT 0,
+      last_publish_attempt_at TIMESTAMP NULL,
+      facebook_post_id TEXT NULL,
+      instagram_media_id TEXT NULL,
+      instagram_publish_id TEXT NULL,
       platform_post_id TEXT NULL,
       published_platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
       platform_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -648,6 +671,13 @@ export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
       ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '',
       ADD COLUMN IF NOT EXISTS size TEXT NOT NULL DEFAULT '',
       ADD COLUMN IF NOT EXISTS publish_status VARCHAR(30) NOT NULL DEFAULT 'draft',
+      ADD COLUMN IF NOT EXISTS platform_error_code TEXT NULL,
+      ADD COLUMN IF NOT EXISTS platform_error_message TEXT NULL,
+      ADD COLUMN IF NOT EXISTS publish_attempts INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS last_publish_attempt_at TIMESTAMP NULL,
+      ADD COLUMN IF NOT EXISTS facebook_post_id TEXT NULL,
+      ADD COLUMN IF NOT EXISTS instagram_media_id TEXT NULL,
+      ADD COLUMN IF NOT EXISTS instagram_publish_id TEXT NULL,
       ADD COLUMN IF NOT EXISTS platform_post_id TEXT NULL,
       ADD COLUMN IF NOT EXISTS published_platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS platform_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -658,6 +688,45 @@ export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_queue_product_cooldown ON ai_marketing_content_queue (tenant_id, content_type, product_id, created_at DESC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_queue_variant_cooldown ON ai_marketing_content_queue (tenant_id, content_type, variant_id, created_at DESC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_queue_dedupe_lookup ON ai_marketing_content_queue (tenant_id, content_type, product_id, variant_id, created_at DESC)`);
+
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS ai_marketing_content_timeline (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      queue_id BIGINT NULL REFERENCES ai_marketing_content_queue(id) ON DELETE SET NULL,
+      user_id BIGINT NULL,
+      action VARCHAR(60) NOT NULL,
+      status VARCHAR(30) NOT NULL DEFAULT '',
+      details JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_timeline_queue ON ai_marketing_content_timeline (tenant_id, queue_id, created_at DESC)`);
+
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS ai_marketing_performance_snapshots (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      queue_id BIGINT NULL REFERENCES ai_marketing_content_queue(id) ON DELETE SET NULL,
+      platform VARCHAR(30) NOT NULL,
+      platform_post_id TEXT NOT NULL DEFAULT '',
+      reach INTEGER NULL,
+      impressions INTEGER NULL,
+      reactions INTEGER NULL,
+      likes INTEGER NULL,
+      comments INTEGER NULL,
+      shares INTEGER NULL,
+      saves INTEGER NULL,
+      clicks INTEGER NULL,
+      profile_visits INTEGER NULL,
+      engagement_rate NUMERIC(10,4) NULL,
+      performance_score INTEGER NOT NULL DEFAULT 0,
+      raw_metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
+      synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_perf_queue ON ai_marketing_performance_snapshots (tenant_id, queue_id, synced_at DESC)`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_perf_platform ON ai_marketing_performance_snapshots (platform, synced_at DESC)`);
 
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS ai_marketing_insights_cache (
@@ -731,6 +800,8 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
     posts_per_day: positiveInt(patch.posts_per_day, current.posts_per_day),
     auto_publish: patch.auto_publish ?? current.auto_publish,
     require_approval: patch.require_approval ?? current.require_approval,
+    auto_archive_published_after_days: positiveInt(patch.auto_archive_published_after_days, current.auto_archive_published_after_days || DEFAULT_ARCHIVE_AFTER_DAYS),
+    auto_delete_archived_after_days: positiveInt(patch.auto_delete_archived_after_days, current.auto_delete_archived_after_days || DEFAULT_DELETE_ARCHIVED_AFTER_DAYS),
     campaign_mode: ["balanced", "aggressive", "premium"].includes(patch.campaign_mode) ? patch.campaign_mode : current.campaign_mode,
     active_strategies: normalizeFocusedStrategies({ ...current.active_strategies, ...normalizeJsonObject(patch.active_strategies, {}) }),
     active: patch.active ?? current.active,
@@ -756,10 +827,12 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
         posts_per_day = $4,
         auto_publish = $5,
         require_approval = $6,
-        campaign_mode = $7,
-        active_strategies = $8::jsonb,
-        active = $9,
-        daily_content_quotas = $10::jsonb,
+        auto_archive_published_after_days = $7,
+        auto_delete_archived_after_days = $8,
+        campaign_mode = $9,
+        active_strategies = $10::jsonb,
+        active = $11,
+        daily_content_quotas = $12::jsonb,
         updated_at = CURRENT_TIMESTAMP
     WHERE tenant_id = $1
     RETURNING *
@@ -771,6 +844,8 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
       next.posts_per_day,
       next.auto_publish,
       next.require_approval,
+      next.auto_archive_published_after_days,
+      next.auto_delete_archived_after_days,
       next.campaign_mode,
       JSON.stringify(next.active_strategies),
       next.active,
@@ -780,27 +855,215 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
   return normalizeSettings(result.rows[0]);
 };
 
+const aiMarketingQueueAssetUrls = (item = {}) =>
+  uniqueImageUrls([
+    item.image_url,
+    item.primary_image_url,
+    item.variant_image_url,
+    item.rendered_image_url,
+    item.story_image_url,
+    item.final_asset_url,
+    ...(Array.isArray(item.media_urls) ? item.media_urls : []),
+    ...(Array.isArray(item.generated_asset_urls) ? item.generated_asset_urls : []),
+    ...(Array.isArray(item.design_json?.generated_asset_urls) ? item.design_json.generated_asset_urls : []),
+    ...(Array.isArray(item.metadata?.generated_asset_urls) ? item.metadata.generated_asset_urls : []),
+    ...(Array.isArray(item.design_json?.slides) ? item.design_json.slides.flatMap((slide) => [
+      slide?.image_url,
+      slide?.rendered_asset_url,
+      slide?.final_asset_url,
+      slide?.story_image_url,
+      ...(Array.isArray(slide?.generated_asset_urls) ? slide.generated_asset_urls : []),
+    ]) : []),
+  ]);
+
+const localUploadPathFromUrl = (assetUrl = "") => {
+  const raw = cleanText(assetUrl);
+  if (!raw) return "";
+  let pathname = raw;
+  try {
+    pathname = raw.startsWith("http://") || raw.startsWith("https://") ? new URL(raw).pathname : raw;
+  } catch {
+    pathname = raw;
+  }
+  const uploadIndex = pathname.replaceAll("\\", "/").indexOf("/uploads/");
+  if (uploadIndex < 0) return "";
+  const relative = decodeURIComponent(pathname.slice(uploadIndex + "/uploads/".length)).replace(/^\/+/, "");
+  const resolved = path.resolve(LOCAL_UPLOADS_DIR, relative);
+  return resolved.startsWith(`${LOCAL_UPLOADS_DIR}${path.sep}`) ? resolved : "";
+};
+
+const isQueueAssetReferenced = async ({ tenantId, assetUrl, excludeId }) => {
+  const url = cleanText(assetUrl);
+  if (!url) return true;
+  const result = await db.query(
+    `
+    SELECT id
+    FROM ai_marketing_content_queue
+    WHERE tenant_id = $1
+      AND id <> $2
+      AND (
+        image_url = $3 OR primary_image_url = $3 OR variant_image_url = $3 OR rendered_image_url = $3 OR story_image_url = $3 OR final_asset_url = $3
+        OR media_urls::text LIKE $4 OR design_json::text LIKE $4 OR metadata::text LIKE $4
+      )
+    LIMIT 1
+    `,
+    [tenantId, excludeId, url, `%${url.replace(/[%_]/g, "\\$&")}%`]
+  );
+  return Boolean(result.rows[0]);
+};
+
+const cleanupQueueItemAssets = async ({ tenantId, item }) => {
+  const urls = aiMarketingQueueAssetUrls(item);
+  const removed = [];
+  for (const assetUrl of urls) {
+    if (await isQueueAssetReferenced({ tenantId, assetUrl, excludeId: item.id })) continue;
+    const localPath = localUploadPathFromUrl(assetUrl);
+    if (!localPath) continue;
+    try {
+      await fs.unlink(localPath);
+      removed.push(assetUrl);
+    } catch (error) {
+      if (error?.code !== "ENOENT") console.warn("[ai-marketing-cleanup] asset delete failed", { queue_id: item.id, assetUrl, error: error?.message });
+    }
+  }
+  return removed;
+};
+
+const runAiMarketingLifecycleCleanup = async (tenantId) => {
+  const settings = await getAiMarketingSettings(tenantId);
+  const archiveAfterDays = positiveInt(settings.auto_archive_published_after_days, DEFAULT_ARCHIVE_AFTER_DAYS);
+  const deleteAfterDays = positiveInt(settings.auto_delete_archived_after_days, DEFAULT_DELETE_ARCHIVED_AFTER_DAYS);
+  if (archiveAfterDays > 0) {
+    await db.query(
+      `
+      UPDATE ai_marketing_content_queue
+      SET status = 'archived',
+          metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('archived_at', CURRENT_TIMESTAMP, 'archive_reason', 'auto_archive_published'),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1
+        AND status = 'published'
+        AND COALESCE(published_at, updated_at, created_at) < CURRENT_TIMESTAMP - ($2::int * INTERVAL '1 day')
+      `,
+      [tenantId, archiveAfterDays]
+    );
+  }
+  if (deleteAfterDays > 0) {
+    const expired = await db.query(
+      `
+      SELECT *
+      FROM ai_marketing_content_queue
+      WHERE tenant_id = $1
+        AND status = 'archived'
+        AND COALESCE((metadata->>'archived_at')::timestamp, updated_at, created_at) < CURRENT_TIMESTAMP - ($2::int * INTERVAL '1 day')
+      LIMIT 100
+      `,
+      [tenantId, deleteAfterDays]
+    );
+    for (const row of expired.rows.map(normalizeQueueRow)) {
+      await cleanupQueueItemAssets({ tenantId, item: row });
+      await db.query(`DELETE FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2`, [row.id, tenantId]);
+    }
+  }
+};
+
+const buildAiMarketingRecommendations = async (tenantId) => {
+  const result = await db.query(
+    `
+    WITH latest AS (
+      SELECT DISTINCT ON (queue_id, platform) *
+      FROM ai_marketing_performance_snapshots
+      WHERE tenant_id = $1 AND synced_at >= CURRENT_TIMESTAMP - INTERVAL '14 days'
+      ORDER BY queue_id, platform, synced_at DESC
+    ),
+    enriched AS (
+      SELECT l.*, q.content_type, q.color, q.title, q.design_json
+      FROM latest l
+      INNER JOIN ai_marketing_content_queue q ON q.id = l.queue_id
+    ),
+    by_brand AS (
+      SELECT COALESCE(NULLIF(design_json->>'brand_name', ''), split_part(title, ' ', 1), 'Unknown') AS label,
+             AVG(performance_score)::numeric(10,2) AS score,
+             COUNT(*)::int AS count
+      FROM enriched
+      GROUP BY 1
+      ORDER BY score DESC
+      LIMIT 3
+    ),
+    by_color AS (
+      SELECT COALESCE(NULLIF(color, ''), NULLIF(design_json->>'color_name', ''), 'Unknown') AS label,
+             AVG(performance_score)::numeric(10,2) AS score,
+             COUNT(*)::int AS count
+      FROM enriched
+      GROUP BY 1
+      ORDER BY score DESC
+      LIMIT 3
+    ),
+    by_type AS (
+      SELECT COALESCE(NULLIF(content_type, ''), 'content') AS label,
+             AVG(performance_score)::numeric(10,2) AS score,
+             COUNT(*)::int AS count
+      FROM enriched
+      GROUP BY 1
+      ORDER BY score DESC
+      LIMIT 3
+    )
+    SELECT
+      COALESCE((SELECT jsonb_agg(row_to_json(by_brand)) FROM by_brand), '[]'::jsonb) AS brands,
+      COALESCE((SELECT jsonb_agg(row_to_json(by_color)) FROM by_color), '[]'::jsonb) AS colors,
+      COALESCE((SELECT jsonb_agg(row_to_json(by_type)) FROM by_type), '[]'::jsonb) AS content_types
+    `,
+    [tenantId]
+  ).catch(() => ({ rows: [] }));
+  const row = result.rows[0] || {};
+  const brands = normalizeJsonArray(row.brands, []);
+  const colors = normalizeJsonArray(row.colors, []);
+  const contentTypes = normalizeJsonArray(row.content_types, []);
+  const recommendations = [];
+  const totalDataPoints = [...brands, ...colors, ...contentTypes].reduce((sum, item) => sum + Number(item.count || 0), 0);
+  if (totalDataPoints < 3) {
+    return {
+      recommendations: [],
+      findings: { brands: [], colors: [], content_types: [] },
+      insufficient_data: true,
+      insufficient_data_message: "Not enough performance data yet. Publish more content and sync insights to unlock recommendations.",
+      brains: ["Campaign Brain", "Creative Brain", "Audience Brain", "Budget Brain", "Performance Brain"],
+    };
+  }
+  if (brands[0]?.label && Number(brands[0].score || 0) > 0) recommendations.push({ type: "brand", title: `Generate more ${brands[0].label} content`, reason: `${brands[0].label} is leading recent AI content with score ${Math.round(Number(brands[0].score || 0))}.` });
+  if (colors[0]?.label && Number(colors[0].score || 0) > 0) recommendations.push({ type: "color", title: `Feature more ${colors[0].label} products`, reason: `${colors[0].label} products have the strongest recent engagement score.` });
+  if (contentTypes[0]?.label) recommendations.push({ type: "media_type", title: `Prioritize ${contentTypes[0].label} creatives`, reason: `${contentTypes[0].label} content is currently the best-performing format.` });
+  return {
+    recommendations,
+    findings: { brands, colors, content_types: contentTypes },
+    insufficient_data: false,
+    insufficient_data_message: "",
+    brains: ["Campaign Brain", "Creative Brain", "Audience Brain", "Budget Brain", "Performance Brain"],
+  };
+};
+
 export const getAiMarketingOverview = async (tenantId) => {
   await ensureAiMarketingCenterSchema();
   await clearInvalidLastPieceQueueItems(tenantId);
   await markStaleAiMarketingGenerationItemsFailed(tenantId);
+  await runAiMarketingLifecycleCleanup(tenantId);
   const settings = await getAiMarketingSettings(tenantId);
   const result = await db.query(
     `
     SELECT
-      COUNT(*) FILTER (WHERE content_type = 'story' AND created_at::date = CURRENT_DATE)::int AS stories_generated_today,
-      COUNT(*) FILTER (WHERE content_type = 'post' AND created_at::date = CURRENT_DATE)::int AS posts_generated_today,
+      COUNT(*) FILTER (WHERE content_type = 'story' AND status <> 'archived' AND created_at::date = CURRENT_DATE)::int AS stories_generated_today,
+      COUNT(*) FILTER (WHERE content_type = 'post' AND status <> 'archived' AND created_at::date = CURRENT_DATE)::int AS posts_generated_today,
       COUNT(*) FILTER (WHERE status = 'scheduled')::int AS scheduled_content,
       COUNT(*) FILTER (WHERE status = 'published')::int AS published_content,
-      COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_content,
+      COUNT(*) FILTER (WHERE status IN ('failed', 'publish_failed'))::int AS failed_content,
       COUNT(*) FILTER (WHERE status = 'pending_approval')::int AS pending_approval
     FROM ai_marketing_content_queue
-    WHERE tenant_id = $1
+    WHERE tenant_id = $1 AND status <> 'archived'
     `,
     [tenantId]
   );
   const row = result.rows[0] || {};
   const postingInsights = await getCachedAiMarketingPostingInsights(tenantId);
+  const operatingInsights = await buildAiMarketingRecommendations(tenantId);
   return {
     ai_status: settings.active ? "Active" : "Paused",
     stories_generated_today: Number(row.stories_generated_today || 0),
@@ -810,6 +1073,11 @@ export const getAiMarketingOverview = async (tenantId) => {
     failed_content: Number(row.failed_content || 0),
     pending_approval: Number(row.pending_approval || 0),
     posting_insights: postingInsights,
+    performance_recommendations: operatingInsights.recommendations,
+    performance_findings: operatingInsights.findings,
+    performance_insufficient_data: operatingInsights.insufficient_data,
+    performance_insufficient_data_message: operatingInsights.insufficient_data_message,
+    ai_operating_brains: operatingInsights.brains,
   };
 };
 
@@ -817,11 +1085,14 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
   await ensureAiMarketingCenterSchema();
   await clearInvalidLastPieceQueueItems(tenantId);
   await markStaleAiMarketingGenerationItemsFailed(tenantId);
+  await runAiMarketingLifecycleCleanup(tenantId);
   const params = [tenantId];
   const clauses = ["tenant_id = $1"];
-  if (filters.status) {
+  if (filters.status && filters.status !== "all") {
     params.push(filters.status);
     clauses.push(`status = $${params.length}`);
+  } else if (filters.include_archived !== true && filters.include_archived !== "true") {
+    clauses.push(`status <> 'archived'`);
   }
   if (filters.content_type) {
     params.push(cleanText(filters.content_type));
@@ -1250,6 +1521,26 @@ const publishedPlatformsFromResults = (results = {}) =>
     .filter(([, value]) => value?.status === "published")
     .map(([platform]) => platform);
 
+const failedPlatformsFromResults = (results = {}) =>
+  Object.entries(results)
+    .filter(([, value]) => value?.status && !["published", "skipped"].includes(value.status))
+    .map(([platform]) => platform);
+
+const platformErrorFromResults = (results = {}) => {
+  const failed = Object.values(results).find((value) => value?.status && value.status !== "published" && value.status !== "skipped") || {};
+  const rawError = failed.error || failed.error_message || failed.message || "";
+  return {
+    code: cleanText(failed.code || failed.error_code || failed.error?.code || ""),
+    message: cleanText(rawError || failed.error?.message || ""),
+  };
+};
+
+const platformIdsFromResults = (results = {}) => ({
+  facebook_post_id: cleanText(results.facebook?.platform_post_id || results.facebook?.platform_story_id || results.facebook?.id || ""),
+  instagram_media_id: cleanText(results.instagram?.platform_post_id || results.instagram?.platform_story_id || results.instagram?.id || ""),
+  instagram_publish_id: cleanText(results.instagram?.publish_id || results.instagram?.instagram_publish_id || results.instagram?.container_id || ""),
+});
+
 const normalizePlatformResults = (result = {}, contentType = "post") => {
   if (contentType === "story") return result.story_publish_results || {};
   if (result.platform_publish_results && Object.keys(result.platform_publish_results).length) return result.platform_publish_results;
@@ -1273,6 +1564,20 @@ const serviceError = (message, status = 500, details = {}) => {
   error.status = status;
   error.details = details;
   return error;
+};
+
+const appendQueueTimeline = async ({ tenantId, queueId, action, status, userId = null, details = {} } = {}) => {
+  if (!tenantId || !queueId || !action) return null;
+  await ensureAiMarketingCenterSchema();
+  const result = await db.query(
+    `
+    INSERT INTO ai_marketing_content_timeline (tenant_id, queue_id, user_id, action, status, details)
+    VALUES ($1,$2,$3,$4,$5,$6::jsonb)
+    RETURNING *
+    `,
+    [tenantId, queueId, userId || null, cleanText(action), cleanText(status), JSON.stringify(details || {})]
+  );
+  return result.rows[0] || null;
 };
 
 const withTimeout = (promise, timeoutMs, label = "generation job") =>
@@ -1317,7 +1622,7 @@ const enqueueGenerationJob = (job) => {
 
 const markStaleAiMarketingGenerationItemsFailed = async (tenantId) => {
   const timeoutMs = GENERATION_JOB_TIMEOUT_MS;
-  const result = await db.query(
+  const generationResult = await db.query(
     `
     UPDATE ai_marketing_content_queue
     SET status = 'failed',
@@ -1343,15 +1648,53 @@ const markStaleAiMarketingGenerationItemsFailed = async (tenantId) => {
       `Generation timed out after ${timeoutMs}ms. Retry is available.`,
     ]
   );
-  if (result.rowCount) {
+  const publishResult = await db.query(
+    `
+    UPDATE ai_marketing_content_queue
+    SET status = 'publish_failed',
+        publish_status = 'publish_failed',
+        platform_error_code = 'publish_timeout',
+        platform_error_message = $3::text,
+        publish_error = $3::text,
+        error_message = $3::text,
+        metadata = metadata || $4::jsonb,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1
+      AND status IN ('queued_publish', 'publishing')
+      AND updated_at < NOW() - ($2::text::interval)
+    RETURNING id
+    `,
+    [
+      tenantId,
+      `${Math.ceil(timeoutMs / 1000)} seconds`,
+      `Publishing timed out after ${timeoutMs}ms. Retry Publish is available.`,
+      JSON.stringify({
+        retryable: true,
+        timeout_ms: timeoutMs,
+        failed_reason: "publish_timeout",
+        failed_at: new Date().toISOString(),
+      }),
+    ]
+  );
+  for (const row of publishResult.rows) {
+    await appendQueueTimeline({
+      tenantId,
+      queueId: row.id,
+      action: "publish_failed",
+      status: "publish_failed",
+      details: { reason: "publish_timeout", retryable: true, timeout_ms: timeoutMs },
+    });
+  }
+  if (generationResult.rowCount || publishResult.rowCount) {
     console.warn("[ai-marketing-stale-generation-cleanup]", {
       tenantId,
       timeoutMs,
-      failedCount: result.rowCount,
-      queueIds: result.rows.map((row) => row.id),
+      generationFailedCount: generationResult.rowCount,
+      publishFailedCount: publishResult.rowCount,
+      queueIds: [...generationResult.rows, ...publishResult.rows].map((row) => row.id),
     });
   }
-  return result.rowCount || 0;
+  return (generationResult.rowCount || 0) + (publishResult.rowCount || 0);
 };
 
 const logPublishQueueNotFound = async (tenantId, queueId, reason = "not_found") => {
@@ -1981,10 +2324,14 @@ const assertStoryPublishAsset = (item = {}) => {
 const persistQueuePublishResult = async ({ tenantId, id, item, result, platformResults, statusOverride = null, errorOverride = null }) => {
   const status = statusOverride || resultStatus(result);
   const publishedPlatforms = publishedPlatformsFromResults(platformResults);
+  const failedPlatforms = failedPlatformsFromResults(platformResults);
   const platformPostId = result.platform_post_id || result.external_post_id || platformPostIdFromResults(platformResults);
   const publishedAt = result.published_at || (publishedPlatforms.length ? new Date().toISOString() : null);
-  const errorMessage = errorOverride || result.error_message || null;
-  const nextQueueStatus = status === "published" || status === "partial_success" ? "published" : "failed";
+  const platformError = platformErrorFromResults(platformResults);
+  const errorMessage = errorOverride || result.error_message || platformError.message || null;
+  const ids = platformIdsFromResults(platformResults);
+  const nextQueueStatus = status === "published" || status === "partial_success" ? "published" : "publish_failed";
+  const nextPublishStatus = nextQueueStatus === "published" ? "published" : "publish_failed";
   const updated = await db.query(
     `
     UPDATE ai_marketing_content_queue
@@ -1996,7 +2343,12 @@ const persistQueuePublishResult = async ({ tenantId, id, item, result, platformR
         platform_publish_results = $8::jsonb,
         publish_error = $9::text,
         error_message = $9::text,
-        metadata = metadata || $10::jsonb,
+        platform_error_code = $10::text,
+        platform_error_message = $11::text,
+        facebook_post_id = $12::text,
+        instagram_media_id = $13::text,
+        instagram_publish_id = $14::text,
+        metadata = metadata || $15::jsonb,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = $1 AND tenant_id = $2
     RETURNING *
@@ -2005,16 +2357,38 @@ const persistQueuePublishResult = async ({ tenantId, id, item, result, platformR
       id,
       tenantId,
       nextQueueStatus,
-      status,
+      nextPublishStatus,
       publishedAt,
       platformPostId,
       JSON.stringify(publishedPlatforms),
       JSON.stringify(platformResults),
       errorMessage,
-      JSON.stringify({ publish_adapter: "meta_existing_connection", source_status: item?.status || null }),
+      platformError.code || null,
+      errorMessage,
+      ids.facebook_post_id || null,
+      ids.instagram_media_id || null,
+      ids.instagram_publish_id || null,
+      JSON.stringify({
+        publish_adapter: "meta_existing_connection",
+        source_status: item?.status || null,
+        publish_outcome: status,
+        platform_ids: ids,
+        successful_platforms: publishedPlatforms,
+        failed_platforms: failedPlatforms,
+      }),
     ]
   );
-  return updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : null;
+  const normalized = updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : null;
+  if (normalized) {
+    await appendQueueTimeline({
+      tenantId,
+      queueId: id,
+      action: nextQueueStatus === "published" ? "published" : "publish_failed",
+      status: nextQueueStatus,
+      details: { published_platforms: publishedPlatforms, platform_results: platformResults, error: errorMessage },
+    });
+  }
+  return normalized;
 };
 
 const getLastPieceInvalidReason = (variantStock = null) => {
@@ -4030,7 +4404,8 @@ export const approveAiMarketingQueueItem = async (tenantId, id) => {
   const result = await db.query(
     `
     UPDATE ai_marketing_content_queue
-    SET status = CASE WHEN content_type = 'video' THEN 'approved' ELSE 'scheduled' END,
+    SET status = 'ready',
+        publish_status = 'ready',
         design_json = COALESCE($3::jsonb, design_json),
         updated_at = CURRENT_TIMESTAMP
     WHERE id = $1 AND tenant_id = $2 AND status IN ('generated', 'pending_generation', 'ready', 'pending_approval')
@@ -4038,7 +4413,9 @@ export const approveAiMarketingQueueItem = async (tenantId, id) => {
     `,
     [id, tenantId, currentDesign ? JSON.stringify(currentDesign) : null]
   );
-  return result.rows[0] ? normalizeQueueRow(result.rows[0]) : null;
+  const item = result.rows[0] ? normalizeQueueRow(result.rows[0]) : null;
+  if (item) await appendQueueTimeline({ tenantId, queueId: id, action: "approved", status: "ready" });
+  return item;
 };
 
 export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
@@ -4049,7 +4426,9 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
     await logPublishQueueNotFound(tenantId, id, "not_found_or_tenant_mismatch");
     throw serviceError("Queue item not found", 404, { queue_id: id, reason: "not_found_or_tenant_mismatch" });
   }
-  if (currentItem.status === "published" || currentItem.publish_status === "published") {
+  const previousPlatformResults = currentItem.platform_publish_results || {};
+  const hasFailedPlatforms = failedPlatformsFromResults(previousPlatformResults).length > 0;
+  if ((currentItem.status === "published" || currentItem.publish_status === "published") && !hasFailedPlatforms) {
     throw serviceError("Queue item already published", 409, { queue_id: id, reason: "already_published" });
   }
   if (currentItem.status === "publishing" || currentItem.publish_status === "publishing") {
@@ -4073,6 +4452,23 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
   await db.query(
     `
     UPDATE ai_marketing_content_queue
+    SET status = 'queued_publish',
+        publish_status = 'queued_publish',
+        publish_attempts = COALESCE(publish_attempts, 0) + 1,
+        last_publish_attempt_at = CURRENT_TIMESTAMP,
+        platform_error_code = NULL,
+        platform_error_message = NULL,
+        publish_error = NULL,
+        error_message = NULL,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND tenant_id = $2
+    `,
+    [id, tenantId]
+  );
+  await appendQueueTimeline({ tenantId, queueId: id, action: "queued_publish", status: "queued_publish" });
+  await db.query(
+    `
+    UPDATE ai_marketing_content_queue
     SET status = 'publishing',
         publish_status = 'publishing',
         publish_error = NULL,
@@ -4083,6 +4479,7 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
     `,
     [id, tenantId, publishItem.design_json ? JSON.stringify(publishItem.design_json) : null]
   );
+  await appendQueueTimeline({ tenantId, queueId: id, action: "publishing", status: "publishing" });
 
   try {
     const settings = await getMarketingSettingsRow(tenantId);
@@ -4126,8 +4523,169 @@ export const deleteAiMarketingQueueItem = async (tenantId, id) => {
   await ensureAiMarketingCenterSchema();
   const queueItemId = Number(id);
   if (!Number.isInteger(queueItemId) || queueItemId <= 0) return false;
+  const existing = await db.query(`SELECT * FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [queueItemId, tenantId]);
+  const item = existing.rows[0] ? normalizeQueueRow(existing.rows[0]) : null;
+  if (!item) return false;
+  await cleanupQueueItemAssets({ tenantId, item });
+  await appendQueueTimeline({ tenantId, queueId: queueItemId, action: "deleted", status: "deleted", details: { title: item.title || "" } });
   const result = await db.query(`DELETE FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 RETURNING id`, [queueItemId, tenantId]);
   return Boolean(result.rows[0]);
+};
+
+export const archiveAiMarketingQueueItem = async (tenantId, id) => {
+  await ensureAiMarketingCenterSchema();
+  const queueItemId = Number(id);
+  if (!Number.isInteger(queueItemId) || queueItemId <= 0) return null;
+  const result = await db.query(
+    `
+    UPDATE ai_marketing_content_queue
+    SET status = 'archived',
+        metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('archived_at', CURRENT_TIMESTAMP, 'previous_status', status),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND tenant_id = $2
+    RETURNING *
+    `,
+    [queueItemId, tenantId]
+  );
+  const item = result.rows[0] ? normalizeQueueRow(result.rows[0]) : null;
+  if (item) await appendQueueTimeline({ tenantId, queueId: queueItemId, action: "archived", status: "archived" });
+  return item;
+};
+
+export const restoreAiMarketingQueueItem = async (tenantId, id) => {
+  await ensureAiMarketingCenterSchema();
+  const queueItemId = Number(id);
+  if (!Number.isInteger(queueItemId) || queueItemId <= 0) return null;
+  const existing = await db.query(`SELECT * FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [queueItemId, tenantId]);
+  const item = existing.rows[0] ? normalizeQueueRow(existing.rows[0]) : null;
+  if (!item) return null;
+  const previousStatus = cleanText(item.metadata?.previous_status || "");
+  const restoredStatus = ["published", "scheduled", "pending_approval", "generated", "ready", "failed", "approved"].includes(previousStatus)
+    ? previousStatus
+    : item.publish_status === "published"
+      ? "published"
+      : "generated";
+  const result = await db.query(
+    `
+    UPDATE ai_marketing_content_queue
+    SET status = $3,
+        metadata = COALESCE(metadata, '{}'::jsonb) - 'archived_at',
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND tenant_id = $2 AND status = 'archived'
+    RETURNING *
+    `,
+    [queueItemId, tenantId, restoredStatus]
+  );
+  const restoredItem = result.rows[0] ? normalizeQueueRow(result.rows[0]) : null;
+  if (restoredItem) await appendQueueTimeline({ tenantId, queueId: queueItemId, action: "restored", status: restoredStatus });
+  return restoredItem;
+};
+
+export const duplicateAiMarketingQueueItem = async (tenantId, id) => {
+  await ensureAiMarketingCenterSchema();
+  const queueItemId = Number(id);
+  if (!Number.isInteger(queueItemId) || queueItemId <= 0) return null;
+  const existing = await db.query(`SELECT * FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [queueItemId, tenantId]);
+  const item = existing.rows[0] ? normalizeQueueRow(existing.rows[0]) : null;
+  if (!item) return null;
+  const result = await db.query(
+    `
+    INSERT INTO ai_marketing_content_queue (
+      tenant_id, content_type, strategy_type, department_id, department_name, segment_type, segment_id, segment_name,
+      product_id, variant_id, title, caption, image_url, media_urls, primary_image_url, variant_image_url,
+      rendered_image_url, story_image_url, final_asset_url, color, size, product_url, design_json,
+      status, scheduled_at, metadata, publish_status
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,
+      'pending_approval', NULL, $24::jsonb, 'draft')
+    RETURNING *
+    `,
+    [
+      tenantId,
+      item.content_type,
+      item.strategy_type,
+      item.department_id,
+      item.department_name,
+      item.segment_type,
+      item.segment_id,
+      item.segment_name,
+      item.product_id,
+      item.variant_id,
+      item.title,
+      item.caption,
+      item.image_url,
+      JSON.stringify(item.media_urls || []),
+      item.primary_image_url,
+      item.variant_image_url,
+      item.rendered_image_url,
+      item.story_image_url,
+      item.final_asset_url,
+      item.color,
+      item.size,
+      item.product_url,
+      JSON.stringify(item.design_json || {}),
+      JSON.stringify({ ...(item.metadata || {}), duplicated_from_queue_id: item.id, duplicated_at: new Date().toISOString() }),
+    ]
+  );
+  const duplicatedItem = result.rows[0] ? normalizeQueueRow(result.rows[0]) : null;
+  if (duplicatedItem) await appendQueueTimeline({ tenantId, queueId: duplicatedItem.id, action: "created", status: "pending_approval", details: { duplicated_from_queue_id: queueItemId } });
+  return duplicatedItem;
+};
+
+export const listAiMarketingQueueTimeline = async (tenantId, id) => {
+  await ensureAiMarketingCenterSchema();
+  const queueItemId = Number(id);
+  if (!Number.isInteger(queueItemId) || queueItemId <= 0) return [];
+  const result = await db.query(
+    `
+    SELECT t.*, COALESCE(u.name, u.email, '') AS user_name
+    FROM ai_marketing_content_timeline t
+    LEFT JOIN users u ON u.id = t.user_id
+    WHERE t.tenant_id = $1 AND t.queue_id = $2
+    ORDER BY t.created_at DESC, t.id DESC
+    `,
+    [tenantId, queueItemId]
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    timestamp: row.created_at,
+    user: row.user_name || "System",
+    action: row.action,
+    status: row.status,
+    details: normalizeJsonObject(row.details, {}),
+  }));
+};
+
+export const bulkAiMarketingQueueAction = async (tenantId, { action, ids = [] } = {}) => {
+  const queueIds = Array.from(new Set((ids || []).map(Number).filter((id) => Number.isInteger(id) && id > 0)));
+  if (!queueIds.length) return { action, requested: 0, affected: 0, items: [] };
+  const items = [];
+  for (const id of queueIds) {
+    if (action === "archive") {
+      const item = await archiveAiMarketingQueueItem(tenantId, id);
+      if (item) items.push(item);
+    } else if (action === "delete") {
+      if (await deleteAiMarketingQueueItem(tenantId, id)) items.push({ id });
+    } else if (action === "publish") {
+      try {
+        const item = await publishAiMarketingQueueItemNow(tenantId, id);
+        if (item) items.push(item);
+      } catch (error) {
+        console.warn("[ai-marketing-bulk] publish skipped", { id, error: error?.message });
+      }
+    } else {
+      throw serviceError("Unsupported bulk action", 400, { action });
+    }
+  }
+  return { action, requested: queueIds.length, affected: items.length, items };
+};
+
+export const __aiMarketingCenterTestHooks = {
+  failedPlatformsFromResults,
+  platformErrorFromResults,
+  platformIdsFromResults,
+  publishedPlatformsFromResults,
+  normalizeQueueRow,
 };
 
 export const setAiMarketingAutomationActive = async (tenantId, active) => {

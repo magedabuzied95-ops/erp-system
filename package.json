@@ -16,7 +16,10 @@
     "db:setup": "node server/scripts/dbSetup.js",
     "db:seed": "node server/scripts/seedFoundation.js",
     "catalog:delete-all": "node server/scripts/deleteAllProducts.js",
+    "ai:reindex-images": "node server/scripts/reindexAiProductImages.js",
+    "ai:reindex-visual": "node server/scripts/reindexAiVisualProducts.js",
     "test:ai-inbox": "node server/scripts/testAiInboxFlows.js",
+    "test:ai-marketing": "node --test tests/ai-marketing/*.test.js",
     "start": "npm --prefix \"./server\" run start"
   },
   "dependencies": {

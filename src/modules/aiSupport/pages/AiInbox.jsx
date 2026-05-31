@@ -104,6 +104,10 @@ const relativeTime = (value) => {
 };
 
 const absoluteTime = (value) => (value ? new Date(value).toLocaleString() : "");
+const shortText = (value = "", limit = 140) => {
+  const text = clean(value).replace(/\s+/g, " ");
+  return text.length > limit ? `${text.slice(0, limit - 1).trim()}...` : text;
+};
 const isMetaChannel = (value = "") => ["facebook_messenger", "instagram"].includes(clean(value).toLowerCase());
 const isFacebookMessengerChannel = (value = "") => ["facebook_messenger", "facebook", "messenger"].includes(clean(value).toLowerCase());
 const canViewAiDebugPanel = (user = {}) => {
@@ -784,29 +788,62 @@ function CustomerContextCard({ conversation = {} }) {
 
 function DebugField({ label, value }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+    <div className="min-w-0 rounded-xl border border-white/10 bg-slate-950/60 p-3">
       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
-      <div className="mt-1 break-words text-xs font-black text-slate-100">{value || "Unknown"}</div>
+      <div className="mt-1 break-words text-xs font-black text-slate-100">{clean(value) || "Unknown"}</div>
     </div>
   );
 }
 
-function DebugTags({ label, values = [] }) {
-  const items = asArray(values).filter((item) => item !== null && item !== undefined && clean(item) !== "");
+function DebugStatusBadge({ type = "neutral", children }) {
+  const tones = {
+    sent: "border-emerald-300/25 bg-emerald-400/10 text-emerald-100",
+    failed: "border-rose-300/25 bg-rose-400/10 text-rose-100",
+    skipped: "border-amber-300/25 bg-amber-400/10 text-amber-100",
+    called: "border-emerald-300/25 bg-emerald-400/10 text-emerald-100",
+    none: "border-rose-300/25 bg-rose-400/10 text-rose-100",
+    neutral: "border-white/10 bg-white/[0.055] text-slate-200",
+  };
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
-      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {items.length ? items.slice(0, 12).map((item) => <Pill key={String(item)} tone="zinc">{String(item)}</Pill>) : <span className="text-xs text-slate-500">None</span>}
-      </div>
-    </div>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black ${tones[type] || tones.neutral}`}>
+      {type === "sent" || type === "called" ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+      {type === "failed" || type === "none" ? <XCircle className="h-3.5 w-3.5" /> : null}
+      {type === "skipped" ? <PauseCircle className="h-3.5 w-3.5" /> : null}
+      {children}
+    </span>
   );
 }
 
 function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
+  const [showRaw, setShowRaw] = useState(false);
   const memory = data?.memory || {};
   const events = asArray(data?.debug_events);
   const confidence = data?.confidence === null || data?.confidence === undefined ? "" : Number(data.confidence).toFixed(2);
+  const latestEvent = events[0] || {};
+  const visualAttributes = memory.lastVisualAttributes || memory.lastVisualAnalysis || latestEvent.visual_analysis || latestEvent.visual_attributes || {};
+  const visualPipeline = latestEvent.visual_pipeline || data?.visual_pipeline || {};
+  const visualPro = visualPipeline.visual_search_pro || data?.visual_search_pro || {};
+  const visualTopCandidates = asArray(visualPro.top_5_candidates || visualPipeline.top_image_matches || memory.lastVisualMatches).slice(0, 5);
+  const visualColors = asArray(visualPro.colors || visualAttributes.primaryColors || visualAttributes.mainColors || visualAttributes.colors).join(", ");
+  const preferredSizes = asArray(visualPro.preferredSizes || memory.preferredSizes).join(", ");
+  const preferredBrands = asArray(visualPro.preferredBrands || memory.preferredBrands).join(", ");
+  const preferredColors = asArray(visualPro.preferredColors || memory.preferredColors).join(", ");
+  const outboundStatus = clean(data?.lastOutboundStatus);
+  const outboundDecision = clean(data?.lastOutboundDecision);
+  const skipReason = clean(data?.lastOutboundSkipReason);
+  const metaSendResult = [
+    data?.lastMetaSendCode ? `Meta code ${data.lastMetaSendCode}` : "",
+    data?.lastOutboundError ? shortText(data.lastOutboundError, 90) : "",
+  ].filter(Boolean).join(" / ");
+  const lastReplyPreview = shortText(latestEvent.reply_preview || data?.last_outbound_signature_preview || "", 180);
+  const outboundBadgeType = outboundStatus.toLowerCase().includes("fail") || data?.lastOutboundError
+    ? "failed"
+    : outboundStatus.toLowerCase().includes("skip") || skipReason
+      ? "skipped"
+      : outboundStatus || outboundDecision.toLowerCase().includes("sent")
+        ? "sent"
+        : "neutral";
+  const outboundBadgeLabel = outboundBadgeType === "failed" ? "Failed" : outboundBadgeType === "skipped" ? "Skipped" : outboundBadgeType === "sent" ? "Sent" : "Unknown";
   return (
     <div className="mb-4 rounded-2xl border border-violet-300/15 bg-violet-400/[0.045] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -837,65 +874,106 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
           {loading && !data ? <LoadingBlock text="Loading AI debug metadata..." /> : null}
           {data ? (
             <>
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <DebugField label="Current intent" value={data.current_intent} />
+              <div className="flex flex-wrap gap-2">
+                <DebugStatusBadge type={outboundBadgeType}>{outboundBadgeLabel}</DebugStatusBadge>
+                <DebugStatusBadge type={latestEvent.graph_api_called ? "called" : "none"}>{latestEvent.graph_api_called ? "Graph API called" : "No Graph call"}</DebugStatusBadge>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                <DebugField label="Intent" value={data.current_intent} />
                 <DebugField label="Confidence" value={confidence} />
                 <DebugField label="Route / brain" value={data.route} />
-                <DebugField label="Buying stage" value={memory.buyingStage} />
+                <DebugField label="Outbound status" value={outboundStatus} />
+                <DebugField label="Outbound decision" value={outboundDecision} />
+                <DebugField label="Skip reason" value={skipReason} />
+                <DebugField label="Meta send result" value={metaSendResult || (data.tokenPresent === true ? "Token present" : data.tokenPresent === false ? "Token missing" : "")} />
                 <DebugField label="Active product" value={memory.activeProductId} />
-                <DebugField label="Active variant" value={memory.activeVariantId} />
                 <DebugField label="Active size" value={memory.activeSize} />
                 <DebugField label="Active color" value={memory.activeColor} />
-                <DebugField label="Known name" value={memory.knownName} />
-                <DebugField label="Known phone" value={memory.knownPhone} />
-                <DebugField label="Visual confidence" value={memory.lastVisualConfidence === null || memory.lastVisualConfidence === undefined ? "" : String(memory.lastVisualConfidence)} />
-                <DebugField label="Processed keys" value={String(data.processed_inbound_key_count || 0)} />
-                <DebugField label="Last outbound at" value={data.lastOutboundAttemptAt ? absoluteTime(data.lastOutboundAttemptAt) : ""} />
-                <DebugField label="Last outbound status" value={data.lastOutboundStatus} />
-                <DebugField label="Last outbound error" value={data.lastOutboundError} />
-                <DebugField label="Meta send code" value={data.lastMetaSendCode} />
-                <DebugField label="Recipient preview" value={data.recipientIdPreview} />
-                <DebugField label="Page ID" value={data.pageId} />
-                <DebugField label="Token present" value={data.tokenPresent === true ? "true" : data.tokenPresent === false ? "false" : ""} />
+                <DebugField label="Buying stage" value={memory.buyingStage} />
+                <DebugField label="Last reply preview" value={lastReplyPreview} />
+                <DebugField label="Visual confidence" value={visualPro.visual_confidence ?? memory.lastVisualConfidence ?? visualAttributes.confidence ?? ""} />
+                <DebugField label="Brand guess" value={visualPro.brand_guess || visualAttributes.brand || visualAttributes.brand_guess || ""} />
+                <DebugField label="Model guess" value={visualPro.model_guess || visualAttributes.modelFamily || visualAttributes.model_guess || ""} />
+                <DebugField label="Colors" value={visualColors} />
+                <DebugField label="Correction used" value={visualPro.correction_used === true ? "true" : visualPro.correction_used === false ? "false" : ""} />
+                <DebugField label="Top rank reason" value={visualPro.reason_why_candidate_ranked_first || ""} />
+                <DebugField label="Customer preference score" value={visualPro.customerPreferenceScore !== undefined ? Number(visualPro.customerPreferenceScore || 0).toFixed(2) : ""} />
+                <DebugField label="Preferred sizes" value={preferredSizes} />
+                <DebugField label="Preferred brands" value={preferredBrands} />
+                <DebugField label="Preferred colors" value={preferredColors} />
+                <DebugField label="Boost reason" value={visualPro.why_candidate_was_boosted || ""} />
               </div>
-              <div className="grid gap-2 lg:grid-cols-3">
-                <DebugTags label="Last shown products" values={memory.lastShownProductIds} />
-                <DebugTags label="Preferred sizes" values={memory.preferredSizes} />
-                <DebugTags label="Preferred brands" values={memory.preferredBrands} />
-              </div>
-              <div className="grid gap-3 lg:grid-cols-[10rem_minmax(0,1fr)]">
-                <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Last image</div>
-                  {memory.lastImageUrl ? <img src={memory.lastImageUrl} alt="Last visual search" className="mt-2 aspect-square w-full rounded-xl object-cover ring-1 ring-white/10" loading="lazy" /> : <div className="mt-2 grid aspect-square place-items-center rounded-xl bg-white/[0.045] text-xs text-slate-500">No image</div>}
+
+              {visualTopCandidates.length ? (
+                <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
+                  <SectionTitle icon={Brain} title="Visual candidates" />
+                  <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                    {visualTopCandidates.map((candidate, index) => {
+                      const breakdown = candidate?.score_breakdown || candidate?.breakdown || {};
+                      return (
+                        <div key={`${candidate?.product_id || candidate?.productId || "candidate"}-${index}`} className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-black text-slate-100">#{index + 1} Product {candidate?.product_id || candidate?.productId || "Unknown"}</span>
+                            <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-[11px] font-black text-cyan-100">{Number(candidate?.score || candidate?.finalScore || breakdown.finalScore || 0).toFixed(2)}</span>
+                          </div>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            <DebugField label="Variant" value={candidate?.variant_id || candidate?.variantId || ""} />
+                            <DebugField label="Color" value={candidate?.color || ""} />
+                            <DebugField label="Source image product" value={candidate?.sourceImageProductId || candidate?.source_image_product_id || candidate?.product_id || candidate?.productId || ""} />
+                            <DebugField label="Source title" value={candidate?.sourceTitle || candidate?.source_title || ""} />
+                            <DebugField label="Final title" value={candidate?.finalTitle || candidate?.final_title || ""} />
+                            <DebugField label="Final URL" value={candidate?.finalUrl || candidate?.final_url || ""} />
+                            <DebugField label="Score breakdown" value={shortText(JSON.stringify(breakdown), 220)} />
+                            <DebugField label="Rank reason" value={breakdown.reasonWhyRankedFirst || candidate?.reasonWhyRankedFirst || ""} />
+                            <DebugField label="Preference score" value={breakdown.customerPreferenceScore !== undefined ? Number(breakdown.customerPreferenceScore || 0).toFixed(2) : ""} />
+                            <DebugField label="Boosted by" value={breakdown.whyCandidateWasBoosted || candidate?.whyCandidateWasBoosted || ""} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <DebugField label="Last outbound signature preview" value={data.last_outbound_signature_preview} />
-              </div>
+              ) : null}
 
               <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
                 <SectionTitle icon={Clock3} title="Recent AI decisions" />
-                <div className="space-y-2">
-                  {events.length ? events.map((event, index) => (
-                    <div key={`${event.timestamp || "event"}-${index}`} className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Pill tone={event.skipped_duplicate ? "amber" : "cyan"}>{event.classified_intent || "Unknown"}</Pill>
-                        {event.selected_route ? <Pill tone="violet">{event.selected_route}</Pill> : null}
-                        {event.confidence !== null && event.confidence !== undefined ? <Pill tone="zinc">confidence {Number(event.confidence).toFixed(2)}</Pill> : null}
-                        {event.skipped_duplicate ? <Pill tone="amber">duplicate skipped</Pill> : null}
-                        <span className="text-xs text-slate-500">{absoluteTime(event.timestamp)}</span>
-                      </div>
-                      {event.message_text ? <p className="mt-2 text-sm leading-6 text-slate-300" dir={isRtlText(event.message_text) ? "rtl" : "auto"}>{event.message_text}</p> : null}
-                      {event.reply_preview ? <p className="mt-2 rounded-lg bg-cyan-300/5 p-2 text-xs leading-5 text-cyan-100" dir={isRtlText(event.reply_preview) ? "rtl" : "auto"}>{event.reply_preview}</p> : null}
-                      {event.memory_changes ? (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {event.memory_changes.activeSize ? <Pill tone="zinc">size {event.memory_changes.activeSize}</Pill> : null}
-                          {event.memory_changes.activeColor ? <Pill tone="zinc">{event.memory_changes.activeColor}</Pill> : null}
-                          {event.memory_changes.buyingStage ? <Pill tone="zinc">{event.memory_changes.buyingStage}</Pill> : null}
-                          {event.memory_changes.activeProductId ? <Pill tone="zinc">product {event.memory_changes.activeProductId}</Pill> : null}
+                <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                  {events.length ? events.map((event, index) => {
+                    const eventStatus = event.skip_reason || event.skipped_duplicate ? "skipped" : event.graph_api_called ? "sent" : "neutral";
+                    const eventDecision = event.skip_reason || event.handled_reason || (event.graph_api_called ? "sent_to_meta" : "no_outbound_call");
+                    return (
+                      <div key={`${event.timestamp || "event"}-${index}`} className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] font-bold text-slate-500">{absoluteTime(event.timestamp) || "Unknown time"}</span>
+                          <DebugStatusBadge type={event.graph_api_called ? "called" : "none"}>{event.graph_api_called ? "Graph API called" : "No Graph call"}</DebugStatusBadge>
+                          {eventStatus === "skipped" ? <DebugStatusBadge type="skipped">Skipped</DebugStatusBadge> : eventStatus === "sent" ? <DebugStatusBadge type="sent">Sent</DebugStatusBadge> : null}
                         </div>
-                      ) : null}
-                    </div>
-                  )) : <EmptyBlock text="No AI debug decisions have been stored for this conversation yet." />}
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                          <DebugField label="Intent" value={event.classified_intent} />
+                          <DebugField label="Route" value={event.selected_route} />
+                          <DebugField label="Confidence" value={event.confidence !== null && event.confidence !== undefined ? Number(event.confidence).toFixed(2) : ""} />
+                        </div>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          <DebugField label="Outbound status" value={eventStatus === "neutral" ? "No Graph call" : eventStatus} />
+                          <DebugField label="Outbound decision" value={eventDecision} />
+                        </div>
+                        {event.reply_preview ? <p className="mt-2 rounded-lg bg-cyan-300/5 p-2 text-xs leading-5 text-cyan-100" dir={isRtlText(event.reply_preview) ? "rtl" : "auto"}>{shortText(event.reply_preview, 180)}</p> : null}
+                      </div>
+                    );
+                  }) : <EmptyBlock text="No AI debug decisions have been stored for this conversation yet." />}
                 </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
+                <button type="button" onClick={() => setShowRaw((value) => !value)} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100">
+                  {showRaw ? <EyeOff className="h-4 w-4" /> : <InfoIcon className="h-4 w-4" />}
+                  {showRaw ? "Hide raw debug" : "Show raw debug"}
+                </button>
+                {showRaw ? (
+                  <pre className="mt-3 max-h-96 overflow-auto rounded-xl border border-white/10 bg-black/35 p-3 text-[11px] leading-5 text-slate-300">
+                    {JSON.stringify(data, null, 2)}
+                  </pre>
+                ) : null}
               </div>
             </>
           ) : null}

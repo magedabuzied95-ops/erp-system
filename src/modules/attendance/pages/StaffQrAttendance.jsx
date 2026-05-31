@@ -25,8 +25,13 @@ const getCurrentPosition = () =>
 
 const formatDateTime = (value) => {
   if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
+  let date;
+  try {
+    date = value instanceof Date ? value : new Date(value);
+  } catch {
+    return "-";
+  }
+  if (!Number.isFinite(date.getTime())) return "-";
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
