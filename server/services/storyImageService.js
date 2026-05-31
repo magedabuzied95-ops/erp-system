@@ -667,33 +667,58 @@ export const generateSingleProductStory = async ({ product = {}, image, postId =
 export const generateDesignedAiMarketingStoryImage = async ({ story = {}, postId = null, tenantId = null } = {}) => {
   const design = story.design_json || {};
   const source = storyAssetImageSource(story, design);
-  if (!source) {
-    const error = new Error("AI story rendered asset requires a product image source.");
-    error.status = 400;
+  console.log("[story-render-start]", {
+    queueId: story.id || postId || null,
+    tenantId: tenantId || story.tenant_id || null,
+    sourceProductImageUrl: source || "",
+    title: storyAssetTitle(story, design),
+    layout: story.layout_type || design.layout_type || "",
+  });
+  try {
+    if (!source) {
+      const error = new Error("AI story rendered asset requires a product image source.");
+      error.status = 400;
+      throw error;
+    }
+
+    const imageComposite = await createContainedImageComposite({
+      source,
+      boxX: 92,
+      boxY: 210,
+      boxWidth: 896,
+      boxHeight: 860,
+      maxImageHeight: 820,
+      useSafeLimit: false,
+    });
+
+    const outputUrl = await writeStoryFile({
+      filename: storyFilename({ tenantId, postId, suffix: "ai-center-story" }),
+      background: designedStoryBackgroundSvg({
+        badge: storyAssetBadge(story, design),
+        title: storyAssetTitle(story, design),
+        price: storyAssetPrice(story, design),
+        sizes: storyAssetSizes(story, design),
+        cta: storyAssetCta(story, design),
+      }),
+      composites: [imageComposite],
+    });
+    console.log("[story-render-success]", {
+      queueId: story.id || postId || null,
+      tenantId: tenantId || story.tenant_id || null,
+      final_asset_url: outputUrl,
+      width: CANVAS_WIDTH,
+      height: CANVAS_HEIGHT,
+    });
+    return outputUrl;
+  } catch (error) {
+    console.error("[story-render-failed]", {
+      queueId: story.id || postId || null,
+      tenantId: tenantId || story.tenant_id || null,
+      sourceProductImageUrl: source || "",
+      error: error?.message || "Story render failed",
+    });
     throw error;
   }
-
-  const imageComposite = await createContainedImageComposite({
-    source,
-    boxX: 92,
-    boxY: 210,
-    boxWidth: 896,
-    boxHeight: 860,
-    maxImageHeight: 820,
-    useSafeLimit: false,
-  });
-
-  return writeStoryFile({
-    filename: storyFilename({ tenantId, postId, suffix: "ai-center-story" }),
-    background: designedStoryBackgroundSvg({
-      badge: storyAssetBadge(story, design),
-      title: storyAssetTitle(story, design),
-      price: storyAssetPrice(story, design),
-      sizes: storyAssetSizes(story, design),
-      cta: storyAssetCta(story, design),
-    }),
-    composites: [imageComposite],
-  });
 };
 
 const getCollageGrid = (count, hasOverflowText) => {

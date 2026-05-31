@@ -21,6 +21,7 @@ import {
   deleteAutonomousAiMarketingQueueItem,
   generateAutonomousAiMarketingDaily,
   generateAutonomousAiMarketingMonthly,
+  generateAutonomousAiMarketingQueueStoryAsset,
   generateAutonomousAiMarketingWeekly,
   getAutonomousAiMarketingOverview,
   getAutonomousAiMarketingQueue,
@@ -245,6 +246,7 @@ function AiMarketingCenter() {
   const [running, setRunning] = useState(false);
   const [preview, setPreview] = useState(null);
   const [publishingIds, setPublishingIds] = useState(() => new Set());
+  const [generatingStoryAssetIds, setGeneratingStoryAssetIds] = useState(() => new Set());
   const [syncingInsights, setSyncingInsights] = useState(false);
   const canCreateMarketing = hasPermission("marketing.create");
 
@@ -440,6 +442,43 @@ function AiMarketingCenter() {
     }
   };
 
+  const generateStoryAsset = async (item) => {
+    const id = item?.id;
+    if (!id) {
+      toast.error("Queue item is missing an id.");
+      return;
+    }
+    try {
+      setGeneratingStoryAssetIds((current) => new Set(current).add(String(id)));
+      const updatedItem = await generateAutonomousAiMarketingQueueStoryAsset(id);
+      if (!updatedItem?.id) throw new Error("Story asset generation returned no queue item.");
+      setQueue((current) => current.map((row) => (String(row.id) === String(id) ? updatedItem : row)));
+      setPreview((current) => (current && String(current.id) === String(id) ? updatedItem : current));
+      toast.success("Story asset generated");
+    } catch (error) {
+      const message = formatApiError(error, "Story asset generation failed");
+      setPreview((current) =>
+        current && String(current.id) === String(id)
+          ? {
+              ...current,
+              metadata: {
+                ...(current.metadata || {}),
+                story_asset_error: message,
+              },
+            }
+          : current
+      );
+      toast.error(message);
+      await load();
+    } finally {
+      setGeneratingStoryAssetIds((current) => {
+        const next = new Set(current);
+        next.delete(String(id));
+        return next;
+      });
+    }
+  };
+
   const setAutomationActive = async (active) => {
     try {
       const payload = active ? await resumeAutonomousAiMarketing() : await pauseAutonomousAiMarketing();
@@ -562,6 +601,8 @@ function AiMarketingCenter() {
           onClose={() => setPreview(null)}
           onApprove={() => updateQueueItem(preview, "approve")}
           onPublish={() => updateQueueItem(preview, "publish")}
+          onGenerateStoryAsset={() => generateStoryAsset(preview)}
+          generatingStoryAsset={generatingStoryAssetIds.has(String(preview.id))}
         />
       ) : null}
     </div>
@@ -832,7 +873,7 @@ function DebugUrlRow({ label, value }) {
   );
 }
 
-function PreviewModal({ item, onClose, onApprove, onPublish }) {
+function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsset, generatingStoryAsset = false }) {
   const design = item.design_json || {};
   const { isStoryContent, isFeedContent } = getPreviewContentFlags(item);
   const statusInfo = getQueueStatusInfo(item, { source: "preview-modal", queueType: isFeedContent ? "posts" : "stories" });
@@ -892,6 +933,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish }) {
   const sizesLabel = sizesLabelFrom(storySlides[0], design, item);
   const storyLink = storySlides[0]?.cta_url || storySlides[0]?.product_url || item.cta_url || item.product_url || design.cta_url || design.product_url || "";
   const debugUrls = storyDebugUrls(item);
+  const storyAssetError = String(item.metadata?.story_asset_error || design.story_asset_error || "").trim();
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
       <div className="grid max-h-[92vh] w-full max-w-6xl gap-5 overflow-y-auto rounded-[28px] border border-white/10 bg-[#090d17] p-5 shadow-2xl lg:grid-cols-[minmax(0,760px)_minmax(300px,1fr)]">
@@ -982,6 +1024,20 @@ function PreviewModal({ item, onClose, onApprove, onPublish }) {
                 DEBUG ASSET URLS BUILD: 2026-05-31
               </div>
               <Info label="Stored product URL" value={storyLink || "n/a"} />
+              {storyAssetError ? (
+                <div className="rounded-xl border border-rose-300/25 bg-rose-400/10 p-3 text-xs font-bold leading-5 text-rose-100">
+                  Story asset error: {storyAssetError}
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={onGenerateStoryAsset}
+                disabled={generatingStoryAsset}
+                className={`${buttonClass} border border-amber-300/25 bg-amber-300/15 text-amber-100 hover:bg-amber-300/25 disabled:opacity-60`}
+              >
+                <RefreshCw className={`h-4 w-4 ${generatingStoryAsset ? "animate-spin" : ""}`} />
+                {generatingStoryAsset ? "Generating Story Asset..." : "Generate Story Asset"}
+              </button>
               <div className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-3">
                 <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-amber-100">Published image asset URLs</div>
                 <div className="grid gap-2">

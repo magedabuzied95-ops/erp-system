@@ -1043,7 +1043,13 @@ const hydrateQueueStoryForRender = async (tenantId, item = {}) => {
       queue_id: hydrated?.id || null,
       error: error?.message || "Failed to render AI story asset",
     });
-    return hydrated;
+    return normalizeQueueRow({
+      ...hydrated,
+      metadata: {
+        ...(hydrated.metadata || {}),
+        story_asset_error: error?.message || "Failed to render AI story asset",
+      },
+    });
   }
 };
 
@@ -1315,40 +1321,68 @@ const isValidRenderedStoryAsset = (item = {}, assetUrl = "") => {
   return !rawStoryImageUrls(item).some((productImageUrl) => sameImageUrl(selectedAsset, productImageUrl));
 };
 
-const ensureQueueStoryRenderedAsset = async (tenantId, item = {}) => {
+const markQueueStoryRenderFailure = async (tenantId, item = {}, error) => {
+  if (!item?.id) return normalizeQueueRow(item);
+  const nextMetadata = {
+    ...(item.metadata || {}),
+    story_asset_error: error?.message || "Story render failed",
+    story_asset_failed_at: new Date().toISOString(),
+  };
+  const updated = await db.query(
+    `
+    UPDATE ai_marketing_content_queue
+    SET metadata = $3::jsonb,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND tenant_id = $2
+    RETURNING *
+    `,
+    [item.id, tenantId, JSON.stringify(nextMetadata)]
+  );
+  return updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : normalizeQueueRow({ ...item, metadata: nextMetadata });
+};
+
+const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = false } = {}) => {
   if (!isStoryQueueItem(item)) return item;
   const existingAsset = queueStoryFinalAssetUrl(item);
-  if (isValidRenderedStoryAsset(item, existingAsset)) return normalizeQueueRow(item);
+  if (!force && isValidRenderedStoryAsset(item, existingAsset)) return normalizeQueueRow(item);
 
   const rawImages = rawStoryImageUrls(item);
   const design = item.design_json || {};
-  const renderedAssetUrl = await generateDesignedAiMarketingStoryImage({
-    tenantId,
-    postId: item.id,
-    story: {
-      ...item,
-      image_url: rawImages[0] || item.image_url || design.image_url || "",
-      source_product_image_url: rawImages[0] || "",
-      media_urls: rawImages,
-      available_sizes: design.available_sizes,
-      sizes_label: design.sizes_label,
-      price: item.price || design.price || design.product_price,
-      currency: item.currency || design.currency,
-      strategy_type: item.strategy_type || design.strategy_type,
-      layout_type: item.layout_type || design.layout_type,
-      design_json: {
-        ...design,
-        image_url: rawImages[0] || design.image_url || item.image_url || "",
+  let renderedAssetUrl = "";
+  try {
+    renderedAssetUrl = await generateDesignedAiMarketingStoryImage({
+      tenantId,
+      postId: item.id,
+      story: {
+        ...item,
+        image_url: rawImages[0] || item.image_url || design.image_url || "",
+        source_product_image_url: rawImages[0] || "",
         media_urls: rawImages,
+        available_sizes: design.available_sizes,
+        sizes_label: design.sizes_label,
+        price: item.price || design.price || design.product_price,
+        currency: item.currency || design.currency,
+        strategy_type: item.strategy_type || design.strategy_type,
+        layout_type: item.layout_type || design.layout_type,
+        design_json: {
+          ...design,
+          image_url: rawImages[0] || design.image_url || item.image_url || "",
+          media_urls: rawImages,
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    await markQueueStoryRenderFailure(tenantId, item, error);
+    throw error;
+  }
   if (!isValidRenderedStoryAsset({ ...item, design_json: design }, renderedAssetUrl)) {
-    throw serviceError("Rendered story asset missing; refusing to publish raw product image.", 500, {
+    const error = serviceError("Story asset not generated.", 500, {
       queue_id: item.id,
       rendered_asset_url: renderedAssetUrl,
       product_image_url: rawImages[0] || "",
     });
+    await markQueueStoryRenderFailure(tenantId, item, error);
+    throw error;
   }
 
   const nextDesign = {
@@ -1363,6 +1397,7 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}) => {
     rendered_image_url: renderedAssetUrl,
     story_image_url: renderedAssetUrl,
     final_asset_url: renderedAssetUrl,
+    story_asset_error: "",
     story_asset_renderer: "ai_marketing_center_v1",
     story_asset_generated_at: new Date().toISOString(),
   };
@@ -1381,6 +1416,21 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}) => {
     [item.id, tenantId, renderedAssetUrl, JSON.stringify(nextDesign), JSON.stringify(nextMetadata)]
   );
   return updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : normalizeQueueRow({ ...item, ...nextMetadata, design_json: nextDesign });
+};
+
+export const generateAiMarketingQueueStoryAsset = async (tenantId, id) => {
+  await ensureAiMarketingCenterSchema();
+  const current = await db.query(`SELECT * FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [id, tenantId]);
+  const currentItem = current.rows[0] ? normalizeQueueRow(current.rows[0]) : null;
+  if (!currentItem) {
+    await logPublishQueueNotFound(tenantId, id, "story_asset_queue_not_found");
+    throw serviceError("Queue item not found", 404, { queue_id: id, reason: "not_found_or_tenant_mismatch" });
+  }
+  if (!isStoryQueueItem(currentItem)) {
+    throw serviceError("Queue item is not a story.", 400, { queue_id: id, content_type: currentItem.content_type || "" });
+  }
+  const hydrated = await hydrateQueueStoryMetadata(tenantId, currentItem);
+  return ensureQueueStoryRenderedAsset(tenantId, hydrated, { force: true });
 };
 
 const logStoryPublishAsset = ({ item = {}, selectedPublishUrl = "", reason = "" } = {}) => {
@@ -1411,7 +1461,7 @@ const assertStoryPublishAsset = (item = {}) => {
     : "missing";
   logStoryPublishAsset({ item, selectedPublishUrl, reason });
   if (!selectedPublishUrl || !isValidRenderedStoryAsset(item, selectedPublishUrl) || sameImageUrl(selectedPublishUrl, productImageUrl)) {
-    throw serviceError("Rendered story asset missing; refusing to publish raw product image.", 500, {
+    throw serviceError("Story asset not generated.", 409, {
       queue_id: item.id,
       product_image_url: productImageUrl,
       selected_publish_url: selectedPublishUrl,
@@ -3464,11 +3514,12 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
       reason: validation.reason || "stale_last_piece",
     });
   }
-  let publishItem = await hydrateQueueStoryMetadata(
+  const publishItem = await hydrateQueueStoryMetadata(
     tenantId,
     currentItem?.strategy_type === "last_size" ? applyCurrentLastPieceStock(currentItem, validation.stock) : currentItem
   );
-  publishItem = await ensureQueueStoryRenderedAsset(tenantId, publishItem);
+  const isStory = isStoryQueueItem(publishItem);
+  if (isStory) assertStoryPublishAsset(publishItem);
   await db.query(
     `
     UPDATE ai_marketing_content_queue
@@ -3499,8 +3550,6 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
       };
       return persistQueuePublishResult({ tenantId, id, item: publishItem, result, platformResults, statusOverride: "failed", errorOverride: result.error_message });
     }
-    const isStory = isStoryQueueItem(publishItem);
-    if (isStory) assertStoryPublishAsset(publishItem);
     const publishResult = isStory
       ? await publishStoryEverywhereService({ story: queueItemStoryPayload(publishItem), settings })
       : await publishPostService(queueItemPostPayload(publishItem), settings);

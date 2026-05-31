@@ -83,6 +83,7 @@ import {
   deleteAutonomousAiMarketingQueueItem,
   generateAutonomousAiMarketingDaily,
   generateAutonomousAiMarketingMonthly,
+  generateAutonomousAiMarketingQueueStoryAsset,
   generateAutonomousAiMarketingWeekly,
   getAutonomousAiMarketingOverview,
   getAutonomousAiMarketingQueue,
@@ -126,6 +127,7 @@ router.post("/ai-center/generate/daily", protect, permit("marketing", "create"),
 router.post("/ai-center/generate/weekly", protect, permit("marketing", "create"), generateAutonomousAiMarketingWeekly);
 router.post("/ai-center/generate/monthly", protect, permit("marketing", "create"), generateAutonomousAiMarketingMonthly);
 router.post("/ai-center/queue/:id/approve", protect, permit("marketing", "update"), approveAutonomousAiMarketingQueueItem);
+router.post("/ai-center/queue/:id/generate-story-asset", protect, permit("marketing", "create"), generateAutonomousAiMarketingQueueStoryAsset);
 router.post("/ai-center/queue/:id/publish-now", protect, permit("marketing", "publish"), publishAutonomousAiMarketingQueueItemNow);
 router.delete("/ai-center/queue/:id", protect, permit("marketing", "delete"), deleteAutonomousAiMarketingQueueItem);
 router.post("/ai-center/pause", protect, permit("marketing", "update"), pauseAutonomousAiMarketing);

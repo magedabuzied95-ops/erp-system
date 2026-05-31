@@ -5,6 +5,7 @@ import {
   deleteAiMarketingQueueItem,
   generateAiMarketingBatch,
   generateAiMarketingVideoBatch,
+  generateAiMarketingQueueStoryAsset,
   getAiMarketingOverview,
   getAiMarketingSettings,
   listAiMarketingQueue,
@@ -119,6 +120,18 @@ export const publishAutonomousAiMarketingQueueItemNow = async (req, res) => {
     return res.json({ success: true, item });
   } catch (error) {
     return sendError(res, error, "Failed to publish queue item");
+  }
+};
+
+export const generateAutonomousAiMarketingQueueStoryAsset = async (req, res) => {
+  try {
+    const id = parseQueueItemId(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: "Invalid queue item id" });
+    const item = await generateAiMarketingQueueStoryAsset(tenantScope(req), id);
+    if (!item) return res.status(404).json({ success: false, message: "Queue item not found" });
+    return res.json({ success: true, item });
+  } catch (error) {
+    return sendError(res, error, "Failed to generate story asset");
   }
 };
 
