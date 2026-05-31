@@ -1029,8 +1029,12 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
     const outputUrl = outputSlides[0]?.rendered_asset_url || "";
     const generatedAssetUrls = outputSlides.map((slide) => slide.rendered_asset_url).filter(Boolean);
     console.log("[story-generated-assets]", {
-      count: generatedAssetUrls.length,
+      generated_asset_count: generatedAssetUrls.length,
       generated_asset_urls: generatedAssetUrls,
+      rendered_slides_length: outputSlides.length,
+      media_urls_length: generatedAssetUrls.length,
+      source_image_count: sources.length,
+      generated_matches_source_count: generatedAssetUrls.length === sources.length,
     });
     console.log("[story-render-success]", {
       queueId: story.id || postId || null,

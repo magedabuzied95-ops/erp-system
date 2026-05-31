@@ -1127,8 +1127,10 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
   const storySlides = buildStoryCreativeSlides({ item, mediaUrls });
   const renderedStoryAssetUrl = queueStoryAssetUrl(item);
   const sourceImageUrls = sourceStoryImageUrls(item);
-  const backendSourceImageCount = Number(item.metadata?.source_image_count || design.source_image_count || sourceImageUrls.length || 0);
-  const backendGeneratedAssetCount = Number(item.metadata?.generated_asset_count || item.metadata?.generated_slide_count || design.generated_asset_count || generatedAssetUrls.length || 0);
+  const sourceImagesCount = Number(item.metadata?.source_image_count || design.source_image_count || sourceImageUrls.length || 0);
+  const generatedStoryAssetsCount = Number(item.metadata?.generated_asset_count || item.metadata?.generated_slide_count || design.generated_asset_count || generatedAssetUrls.length || 0);
+  const renderedSlidesLength = Number(item.metadata?.rendered_slides_length || design.rendered_slides_length || (Array.isArray(design.slides) ? design.slides.length : 0) || 0);
+  const mediaUrlsLength = Number(item.metadata?.media_urls_length || design.media_urls_length || (Array.isArray(item.media_urls) ? item.media_urls.length : 0) || 0);
   const storyAudio = storySlides[0]?.audio || design.audio || null;
   const sizesLabel = sizesLabelFrom(storySlides[0], design, item);
   const storyLink = storySlides[0]?.cta_url || storySlides[0]?.product_url || item.cta_url || item.product_url || design.cta_url || design.product_url || "";
@@ -1188,8 +1190,11 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             </div>
             <div className="grid gap-2">
               <Info label="Frontend preview source slides count" value={storySlides.length} />
-              <Info label="Backend source images count" value={backendSourceImageCount} />
-              <Info label="Generated story assets count" value={generatedAssetUrls.length || backendGeneratedAssetCount || 0} />
+              <Info label="Source images count" value={sourceImagesCount} />
+              <Info label="Generated story assets count" value={generatedAssetUrls.length || generatedStoryAssetsCount || 0} />
+              <Info label="Rendered slides length" value={renderedSlidesLength} />
+              <Info label="media_urls length" value={mediaUrlsLength} />
+              <Info label="Preview thumbnails visible" value={generatedAssetUrls.length} />
               <DebugUrlRow label="productImageUrl" value={debugUrls.productImageUrl} />
               <DebugUrlRow label="rendered_image_url" value={debugUrls.rendered_image_url} />
               <DebugUrlRow label="story_image_url" value={debugUrls.story_image_url} />

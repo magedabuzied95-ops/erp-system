@@ -782,6 +782,7 @@ export const updateAiMarketingSettings = async (tenantId, patch = {}) => {
 export const getAiMarketingOverview = async (tenantId) => {
   await ensureAiMarketingCenterSchema();
   await clearInvalidLastPieceQueueItems(tenantId);
+  await markStaleAiMarketingGenerationItemsFailed(tenantId);
   const settings = await getAiMarketingSettings(tenantId);
   const result = await db.query(
     `
@@ -814,6 +815,7 @@ export const getAiMarketingOverview = async (tenantId) => {
 export const listAiMarketingQueue = async (tenantId, filters = {}) => {
   await ensureAiMarketingCenterSchema();
   await clearInvalidLastPieceQueueItems(tenantId);
+  await markStaleAiMarketingGenerationItemsFailed(tenantId);
   const params = [tenantId];
   const clauses = ["tenant_id = $1"];
   if (filters.status) {
@@ -1312,6 +1314,45 @@ const enqueueGenerationJob = (job) => {
   };
 };
 
+const markStaleAiMarketingGenerationItemsFailed = async (tenantId) => {
+  const timeoutMs = GENERATION_JOB_TIMEOUT_MS;
+  const result = await db.query(
+    `
+    UPDATE ai_marketing_content_queue
+    SET status = 'failed',
+        metadata = metadata || $3::jsonb,
+        error_message = $4::text,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1
+      AND status IN ('queued', 'generating_image', 'uploading')
+      AND updated_at < NOW() - ($2::text::interval)
+    RETURNING id, status, metadata
+    `,
+    [
+      tenantId,
+      `${Math.ceil(timeoutMs / 1000)} seconds`,
+      JSON.stringify({
+        generation_stage: "failed",
+        story_asset_error: `Generation timed out after ${timeoutMs}ms. Retry is available.`,
+        retryable: true,
+        timeout_ms: timeoutMs,
+        failed_reason: "generation_timeout",
+        failed_at: new Date().toISOString(),
+      }),
+      `Generation timed out after ${timeoutMs}ms. Retry is available.`,
+    ]
+  );
+  if (result.rowCount) {
+    console.warn("[ai-marketing-stale-generation-cleanup]", {
+      tenantId,
+      timeoutMs,
+      failedCount: result.rowCount,
+      queueIds: result.rows.map((row) => row.id),
+    });
+  }
+  return result.rowCount || 0;
+};
+
 const logPublishQueueNotFound = async (tenantId, queueId, reason = "not_found") => {
   const sample = await db.query(
     `
@@ -1645,11 +1686,21 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     renderedAssetUrl = renderedAssetUrls[0] || absoluteStoryAssetUrl(rendered.final_asset_url);
     console.log("[story-generated-assets]", {
       queueId: item.id || null,
-      count: renderedAssetUrls.length,
+      generated_asset_count: renderedAssetUrls.length,
       generated_asset_urls: renderedAssetUrls,
-      generated_media_urls_length: renderedAssetUrls.length,
+      media_urls_length: renderedAssetUrls.length,
       rendered_slides_length: renderedSlides.length,
+      source_image_count: rawImages.length,
+      generated_matches_source_count: renderedAssetUrls.length === rawImages.length,
     });
+    if (renderedAssetUrls.length !== rawImages.length) {
+      console.warn("[story-generated-assets-mismatch]", {
+        queueId: item.id || null,
+        source_image_count: rawImages.length,
+        generated_asset_count: renderedAssetUrls.length,
+        generated_asset_urls: renderedAssetUrls,
+      });
+    }
   } catch (error) {
     await markQueueStoryRenderFailure(tenantId, item, error);
     throw error;
@@ -1679,6 +1730,10 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     source_product_image_url: rawImages[0] || "",
     story_asset_renderer: AI_MARKETING_STORY_RENDERER,
     media_urls: renderedAssetUrls,
+    media_urls_length: renderedAssetUrls.length,
+    generated_asset_count: renderedAssetUrls.length,
+    rendered_slides_length: renderedSlides.length,
+    source_image_count: rawImages.length,
     slides: (renderedSlides.length ? renderedSlides : renderedAssetUrls.map((url, index) => ({
       image_url: url,
       rendered_asset_url: url,
@@ -1708,6 +1763,9 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     generated_asset_count: renderedAssetUrls.length,
     generated_asset_urls: renderedAssetUrls,
     generated_slide_count: renderedAssetUrls.length,
+    rendered_slides_length: nextDesign.slides.length,
+    media_urls_length: renderedAssetUrls.length,
+    generated_matches_source_count: renderedAssetUrls.length === rawImages.length,
     story_asset_error: "",
     story_asset_renderer: AI_MARKETING_STORY_RENDERER,
     story_asset_generated_at: new Date().toISOString(),
@@ -1743,6 +1801,9 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     generated_asset_urls: renderedAssetUrls,
     generated_slide_count: renderedAssetUrls.length,
     design_slides_length: nextDesign.slides.length,
+    rendered_slides_length: nextDesign.slides.length,
+    media_urls_length: renderedAssetUrls.length,
+    generated_matches_source_count: renderedAssetUrls.length === rawImages.length,
     rendered_image_url_valid: isPublicStoryAssetUrl(renderedAssetUrl),
     final_asset_url_valid: isPublicStoryAssetUrl(renderedAssetUrl),
   });

@@ -362,9 +362,17 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
 
   const candidates = getStoryImageCandidates(story);
   const publishCandidates = candidates.length ? candidates : [getStoryImageCandidate(story)].filter((candidate) => candidate.publicUrl);
+  const generatedAssetUrls = publishCandidates.map((candidate) => candidate.raw || candidate.publicUrl).filter(Boolean);
   console.log("[story-generated-assets]", {
+    generated_asset_count: generatedAssetUrls.length,
+    generated_asset_urls: generatedAssetUrls,
+    rendered_slides_length: Array.isArray(story.design_json?.slides) ? story.design_json.slides.length : generatedAssetUrls.length,
+    media_urls_length: Array.isArray(story.media_urls) ? story.media_urls.length : generatedAssetUrls.length,
+    source_image_count: Number(story.metadata?.source_image_count || story.design_json?.source_image_count || 0),
+    generated_matches_source_count: Number(story.metadata?.source_image_count || story.design_json?.source_image_count || 0)
+      ? generatedAssetUrls.length === Number(story.metadata?.source_image_count || story.design_json?.source_image_count || 0)
+      : null,
     publish_candidate_count: publishCandidates.length,
-    generated_asset_urls: publishCandidates.map((candidate) => candidate.raw || candidate.publicUrl).filter(Boolean),
   });
 
   if (shouldRequireGeneratedStoryAsset(story)) {
