@@ -688,6 +688,11 @@ const storeProcessedInboundKey = async ({ tenantId, channel = "", conversationId
   return recent;
 };
 
+const outboundDedupeContextFromMessage = (message = {}) => ({
+  inboundKey: inboundIdempotencyKey(message),
+  inboundMetaMid: text(message.external_message_id || message.raw?.event?.message?.mid || message.dedupe_key || ""),
+});
+
 const maskPhoneForDebug = (value = "") => {
   const digits = text(value).replace(/[^\d]/g, "");
   if (!digits) return "";
@@ -723,6 +728,10 @@ const storeAiDebugEvent = async ({ tenantId, channel = "", conversationId = "", 
     reply_preview: text(event.reply_preview || "").slice(0, 260),
     skipped_duplicate: event.skipped_duplicate === true,
     handled_reason: text(event.handled_reason || ""),
+    inbound_key: text(event.inbound_key || event.inboundKey || "").slice(0, 180),
+    outbound_signature: text(event.outbound_signature || event.outboundSignature || "").slice(0, 180),
+    skip_reason: text(event.skip_reason || event.skipReason || ""),
+    graph_api_called: event.graph_api_called === true || event.graphApiCalled === true,
   };
   const next = [safeEvent, ...current].slice(0, 20);
   await db.query(
@@ -793,8 +802,25 @@ const storeMetaConversationHealth = async ({ tenantId, channel = "", conversatio
   return next;
 };
 
+const metaOutboundDiagnosticAliases = (patch = {}) => {
+  const alias = { ...patch };
+  if (patch.last_outbound_send_attempt_at !== undefined) alias.lastOutboundAttemptAt = patch.last_outbound_send_attempt_at;
+  if (patch.last_outbound_send_status !== undefined) alias.lastOutboundStatus = patch.last_outbound_send_status;
+  if (patch.last_outbound_send_error !== undefined) alias.lastOutboundError = patch.last_outbound_send_error;
+  if (patch.last_outbound_meta_code !== undefined) alias.lastMetaSendCode = patch.last_outbound_meta_code;
+  if (patch.last_outbound_recipient_preview !== undefined) alias.recipientIdPreview = patch.last_outbound_recipient_preview;
+  if (patch.last_outbound_page_id !== undefined) alias.pageId = patch.last_outbound_page_id;
+  if (patch.last_outbound_token_present !== undefined) alias.tokenPresent = patch.last_outbound_token_present === true;
+  if (patch.last_outbound_decision !== undefined) alias.lastOutboundDecision = patch.last_outbound_decision;
+  if (patch.last_outbound_skip_reason !== undefined) alias.lastOutboundSkipReason = patch.last_outbound_skip_reason;
+  if (patch.last_inbound_mid !== undefined) alias.lastInboundMid = patch.last_inbound_mid;
+  if (patch.last_processed_inbound_key !== undefined) alias.lastProcessedInboundKey = patch.last_processed_inbound_key;
+  if (patch.last_reply_signature !== undefined) alias.lastReplySignature = patch.last_reply_signature;
+  return alias;
+};
+
 const storeMetaOutboundDiagnostics = async ({ tenantId, channel = "", conversationId = "", patch = {}, error = null } = {}) => {
-  const next = await storeMetaConversationHealth({ tenantId, channel, conversationId, patch }).catch(() => null);
+  const next = await storeMetaConversationHealth({ tenantId, channel, conversationId, patch: metaOutboundDiagnosticAliases(patch) }).catch(() => null);
   const errorPayload = error ? metaSendErrorPayload(error) : null;
   const topLevelError = errorPayload || (patch.last_outbound_send_error ? {
     message: patch.last_outbound_send_error,
@@ -843,13 +869,18 @@ export const getAiInboxConversationDebug = async ({ tenantId, channel = "", conv
     memory: compactMemoryForDebug(memory),
     processed_inbound_key_count: inboundKeys.length,
     last_outbound_signature_preview: text(latestOutboundSignature?.preview || latestOutboundSignature?.signature || ""),
-    lastOutboundAttemptAt: health.last_outbound_send_attempt_at || null,
-    lastOutboundStatus: health.last_outbound_send_status || "",
-    lastOutboundError: health.last_outbound_send_error || "",
-    lastMetaSendCode: health.last_outbound_meta_code || "",
-    recipientIdPreview: health.last_outbound_recipient_preview || "",
-    pageId: health.last_outbound_page_id || "",
-    tokenPresent: health.last_outbound_token_present === true,
+    lastOutboundAttemptAt: health.lastOutboundAttemptAt || health.last_outbound_send_attempt_at || null,
+    lastOutboundStatus: health.lastOutboundStatus || health.last_outbound_send_status || "",
+    lastOutboundError: health.lastOutboundError || health.last_outbound_send_error || "",
+    lastMetaSendCode: health.lastMetaSendCode || health.last_outbound_meta_code || "",
+    recipientIdPreview: health.recipientIdPreview || health.last_outbound_recipient_preview || "",
+    pageId: health.pageId || health.last_outbound_page_id || "",
+    tokenPresent: health.tokenPresent === true || health.last_outbound_token_present === true,
+    lastOutboundDecision: health.lastOutboundDecision || health.last_outbound_decision || health.lastOutboundStatus || health.last_outbound_send_status || "",
+    lastOutboundSkipReason: health.lastOutboundSkipReason || health.last_outbound_skip_reason || health.last_dedupe_skip_reason || "",
+    lastInboundMid: health.lastInboundMid || health.last_inbound_mid || health.last_inbound_meta_mid || "",
+    lastProcessedInboundKey: health.lastProcessedInboundKey || health.last_processed_inbound_key || "",
+    lastReplySignature: health.lastReplySignature || health.last_reply_signature || "",
     debug_events: debugEvents,
   };
   console.log("[ai-debug] panel data loaded", {
@@ -911,17 +942,59 @@ const outboundSignature = ({ messageText = "", productCards = [], trigger = "" }
   return hashDedupe([trigger, normalizeDedupeText(messageText), productIds.join("|")].join("|"));
 };
 
-const checkAndStoreOutboundSignature = async ({ tenantId, channel = "", conversationId = "", signature = "", trigger = "", preview = "" } = {}) => {
+const OUTBOUND_DEDUPE_WINDOW_MS = 30000;
+
+const checkAndStoreOutboundSignature = async ({
+  tenantId,
+  channel = "",
+  conversationId = "",
+  signature = "",
+  trigger = "",
+  preview = "",
+  inboundKey = "",
+  inboundMetaMid = "",
+  windowMs = OUTBOUND_DEDUPE_WINDOW_MS,
+  bypass = false,
+} = {}) => {
   if (!tenantId || !conversationId || !signature) return { duplicate: false };
+  const safeInboundKey = text(inboundKey);
+  const safeInboundMetaMid = text(inboundMetaMid);
+  if (bypass) {
+    console.log("[ai-dedupe] outbound bypassed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      signature,
+      trigger,
+      inbound_key: safeInboundKey,
+      inbound_meta_mid: maskIdForLog(safeInboundMetaMid),
+    });
+    return { duplicate: false, bypassed: true, signature };
+  }
   const metadata = await loadConversationMetadata({ tenantId, channel, conversationId });
   const recent = recentMetaArray(metadata, "ai_recent_outbound_signatures");
-  const duplicate = recent.some((item) => text(item?.signature || item) === signature && text(item?.trigger || "") === text(trigger));
+  const nowMs = Date.now();
+  const duplicateItem = recent.find((item) => {
+    const itemAt = new Date(item?.at || 0).getTime();
+    const withinWindow = Number.isFinite(itemAt) && nowMs - itemAt >= 0 && nowMs - itemAt <= windowMs;
+    const sameSignature = text(item?.signature || item) === signature && text(item?.trigger || "") === text(trigger);
+    const sameInboundKey = safeInboundKey && text(item?.inbound_key || "") === safeInboundKey;
+    const sameInboundMetaMid = safeInboundMetaMid && text(item?.inbound_meta_mid || "") === safeInboundMetaMid;
+    return sameSignature && withinWindow && (sameInboundKey || sameInboundMetaMid);
+  });
+  const duplicate = Boolean(duplicateItem);
+  const duplicateReason = duplicate
+    ? (safeInboundMetaMid && text(duplicateItem?.inbound_meta_mid || "") === safeInboundMetaMid ? "same_inbound_mid_within_30s" : "same_inbound_key_within_30s")
+    : "";
   console.log("[ai-dedupe] outbound signature created", {
     tenant_id: tenantId,
     conversation_id: conversationId,
     signature,
     trigger,
+    inbound_key: safeInboundKey,
+    inbound_meta_mid: maskIdForLog(safeInboundMetaMid),
+    window_ms: windowMs,
     duplicate,
+    duplicate_reason: duplicateReason,
   });
   if (duplicate) {
     console.log("[ai-dedupe] duplicate outbound skipped", {
@@ -929,14 +1002,24 @@ const checkAndStoreOutboundSignature = async ({ tenantId, channel = "", conversa
       conversation_id: conversationId,
       signature,
       trigger,
+      inbound_key: safeInboundKey,
+      inbound_meta_mid: maskIdForLog(safeInboundMetaMid),
+      reason: duplicateReason,
       preview: text(preview).slice(0, 120),
     });
-    return { duplicate: true };
+    return { duplicate: true, reason: duplicateReason, signature };
   }
   const next = recent
-    .filter((item) => text(item?.signature || item) && text(item?.signature || item) !== signature)
+    .filter((item) => text(item?.signature || item))
     .slice(-49);
-  next.push({ signature, trigger: text(trigger), preview: text(preview).slice(0, 180), at: nowIso() });
+  next.push({
+    signature,
+    trigger: text(trigger),
+    inbound_key: safeInboundKey,
+    inbound_meta_mid: safeInboundMetaMid,
+    preview: text(preview).slice(0, 180),
+    at: nowIso(),
+  });
   await db.query(
     `
     UPDATE ai_channel_conversations
@@ -948,7 +1031,7 @@ const checkAndStoreOutboundSignature = async ({ tenantId, channel = "", conversa
     `,
     [numberOrNull(tenantId), text(conversationId), text(channel), json(next)]
   ).catch(() => {});
-  return { duplicate: false };
+  return { duplicate: false, signature };
 };
 
 const emitAiInboxEvent = (tenantId, event, payload = {}) => {
@@ -4394,7 +4477,7 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
 };
 
 const postMetaMessage = async ({ token, recipientId, messageText, sendContext = {} }) => {
-  console.log("[meta-send] calling graph API", {
+  console.log("[meta-send] graphApiCalled", {
     channel: sendContext.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
     pageId: maskIdForLog(sendContext.resolved_page_id || ""),
     recipientId: maskIdForLog(recipientId),
@@ -4459,7 +4542,7 @@ const postMetaMessage = async ({ token, recipientId, messageText, sendContext = 
 };
 
 const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext = {} }) => {
-  console.log("[meta-send] calling graph API", {
+  console.log("[meta-send] graphApiCalled", {
     channel: sendContext.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
     pageId: maskIdForLog(sendContext.resolved_page_id || ""),
     recipientId: maskIdForLog(recipientId),
@@ -5581,6 +5664,7 @@ const detectOtherColorsRequest = (message = "") =>
   Boolean(hasTerm(message, ["\u0623\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0627\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0644\u0648\u0646 \u062a\u0627\u0646\u064a", "other colors", "another color"]));
 
 const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIntent = "", metadata = {} } = {}) => {
+  const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
   const signature = outboundSignature({ messageText: replyText, productCards: [], trigger: detectedIntent || metadata?.trigger || "" });
   const dedupe = await checkAndStoreOutboundSignature({
     tenantId: config.tenant_id,
@@ -5589,8 +5673,28 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     signature,
     trigger: detectedIntent || metadata?.trigger || "",
     preview: replyText,
+    inboundKey,
+    inboundMetaMid,
   });
-  if (dedupe.duplicate) return { dedupe_skipped: true, delivery_status: "skipped", signature };
+  if (dedupe.duplicate) {
+    await storeMetaOutboundDiagnostics({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+      patch: {
+        last_outbound_send_attempt_at: nowIso(),
+        last_outbound_send_status: "skipped",
+        last_outbound_send_error: "duplicate_outbound",
+        last_outbound_decision: "skipped",
+        last_outbound_skip_reason: dedupe.reason || "duplicate_outbound",
+        last_inbound_mid: inboundMetaMid,
+        last_processed_inbound_key: inboundKey,
+        last_reply_signature: signature,
+        last_outbound_meta_code: "DUPLICATE_OUTBOUND",
+      },
+    }).catch(() => {});
+    return { dedupe_skipped: true, delivery_status: "skipped", signature, skip_reason: dedupe.reason || "duplicate_outbound", graph_api_called: false };
+  }
   const result = await sendMetaInboxOutboundMessage({
     tenantId: config.tenant_id,
     channel: message.channel,
@@ -5600,6 +5704,10 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     facebookPageId: config.facebook_page_id,
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
+    inboundKey,
+    inboundMetaMid,
+    bypassOutboundDedupe: true,
+    outboundSignatureOverride: signature,
   });
   if (result?.dedupe_skipped) return result;
   const inserted = await appendAiGeneratedSupportReply({
@@ -5690,6 +5798,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   const finalIntroText = modelNameSearch && gatedCards.length >= 2
     ? [modelColorLimitIntro, gate.introText || introText].filter(Boolean).join("\n")
     : gate.introText || introText;
+  const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
   const signature = outboundSignature({ messageText: finalIntroText, productCards: gatedCards, trigger: detectedIntent || metadata?.trigger || "" });
   const dedupe = await checkAndStoreOutboundSignature({
     tenantId: config.tenant_id,
@@ -5698,8 +5807,28 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     signature,
     trigger: detectedIntent || metadata?.trigger || "",
     preview: finalIntroText || gatedCards.map((card) => card.name || card.product_id || "").join(", "),
+    inboundKey,
+    inboundMetaMid,
   });
-  if (dedupe.duplicate) return { dedupe_skipped: true, blocked: true, reason: "duplicate_outbound", signature };
+  if (dedupe.duplicate) {
+    await storeMetaOutboundDiagnostics({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+      patch: {
+        last_outbound_send_attempt_at: nowIso(),
+        last_outbound_send_status: "skipped",
+        last_outbound_send_error: "duplicate_outbound",
+        last_outbound_decision: "skipped",
+        last_outbound_skip_reason: dedupe.reason || "duplicate_outbound",
+        last_inbound_mid: inboundMetaMid,
+        last_processed_inbound_key: inboundKey,
+        last_reply_signature: signature,
+        last_outbound_meta_code: "DUPLICATE_OUTBOUND",
+      },
+    }).catch(() => {});
+    return { dedupe_skipped: true, blocked: true, reason: "duplicate_outbound", signature, skip_reason: dedupe.reason || "duplicate_outbound", graph_api_called: false };
+  }
   if (modelNameSearch) {
     console.log("ai_model_color_limit_applied", {
       tenant_id: config.tenant_id,
@@ -5738,6 +5867,10 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     facebookPageId: config.facebook_page_id,
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
+    inboundKey,
+    inboundMetaMid,
+    bypassOutboundDedupe: true,
+    outboundSignatureOverride: signature,
   });
   if (result?.dedupe_skipped) return result;
   rememberLastProductCards({
@@ -9485,6 +9618,10 @@ const resolveMetaSendConfig = async ({
   facebookPageId = "",
   instagramBusinessAccountId = "",
   preferredConfigId = null,
+  inboundKey = "",
+  inboundMetaMid = "",
+  bypassOutboundDedupe = false,
+  outboundSignatureOverride = "",
 } = {}) => {
   await ensureMetaIntegrationSchema();
   const scopedTenantId = numberOrNull(tenantId);
@@ -9680,7 +9817,9 @@ export const sendMetaInboxOutboundMessage = async ({
     channel: normalizedChannel,
     conversation_id: conversationId || "",
   });
-  const sendSignature = outboundSignature({ messageText: safeMessage, productCards: cards, trigger: cards.length ? "product_cards" : "text" });
+  const safeInboundKey = text(inboundKey);
+  const safeInboundMetaMid = text(inboundMetaMid);
+  const sendSignature = text(outboundSignatureOverride) || outboundSignature({ messageText: safeMessage, productCards: cards, trigger: cards.length ? "product_cards" : "text" });
   const sendDedupe = await checkAndStoreOutboundSignature({
     tenantId: scopedTenantId,
     channel: normalizedChannel,
@@ -9688,9 +9827,12 @@ export const sendMetaInboxOutboundMessage = async ({
     signature: sendSignature,
     trigger: cards.length ? "product_cards" : "text",
     preview: safeMessage || cards.map((card) => card.name || card.product_id || "").join(", "),
+    inboundKey: safeInboundKey,
+    inboundMetaMid: safeInboundMetaMid,
+    bypass: bypassOutboundDedupe,
   });
   if (sendDedupe.duplicate) {
-    await storeMetaConversationHealth({
+    await storeMetaOutboundDiagnostics({
       tenantId: scopedTenantId,
       channel: normalizedChannel,
       conversationId,
@@ -9698,10 +9840,18 @@ export const sendMetaInboxOutboundMessage = async ({
         last_outbound_send_attempt_at: nowIso(),
         last_outbound_send_status: "skipped",
         last_outbound_send_error: "duplicate_outbound",
-        last_dedupe_skip_reason: "duplicate_outbound",
+        last_outbound_meta_code: "DUPLICATE_OUTBOUND",
+        last_outbound_decision: "skipped",
+        last_outbound_skip_reason: sendDedupe.reason || "duplicate_outbound",
+        last_inbound_mid: safeInboundMetaMid,
+        last_processed_inbound_key: safeInboundKey,
+        last_reply_signature: sendSignature,
+        last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
+        last_outbound_payload_type: payloadType,
+        last_dedupe_skip_reason: sendDedupe.reason || "duplicate_outbound",
       },
     }).catch(() => {});
-    return { dedupe_skipped: true, delivery_status: "skipped", signature: sendSignature, results: [], product_card_messages: [] };
+    return { dedupe_skipped: true, delivery_status: "skipped", signature: sendSignature, skip_reason: sendDedupe.reason || "duplicate_outbound", graph_api_called: false, results: [], product_card_messages: [] };
   }
   await storeMetaOutboundDiagnostics({
     tenantId: scopedTenantId,
@@ -9711,8 +9861,13 @@ export const sendMetaInboxOutboundMessage = async ({
       last_outbound_send_attempt_at: nowIso(),
       last_outbound_send_status: "attempting",
       last_outbound_send_error: "",
+      last_outbound_decision: "attempting",
+      last_outbound_skip_reason: "",
       last_outbound_meta_code: "",
       last_outbound_meta_status: null,
+      last_inbound_mid: safeInboundMetaMid,
+      last_processed_inbound_key: safeInboundKey,
+      last_reply_signature: sendSignature,
       last_outbound_payload_type: payloadType,
       last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
     },
@@ -9746,9 +9901,13 @@ export const sendMetaInboxOutboundMessage = async ({
         last_outbound_send_attempt_at: nowIso(),
         last_outbound_send_status: "outbound_failed",
         last_outbound_send_error: error?.message || "Missing page access token",
+        last_outbound_decision: "failed",
         last_outbound_meta_code: error?.code || "",
         last_outbound_meta_status: error?.status || null,
         last_outbound_token_present: false,
+        last_inbound_mid: safeInboundMetaMid,
+        last_processed_inbound_key: safeInboundKey,
+        last_reply_signature: sendSignature,
         last_outbound_payload_type: payloadType,
         last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
         last_outbound_page_id: text(facebookPageId),
@@ -9777,20 +9936,20 @@ export const sendMetaInboxOutboundMessage = async ({
     conversation_id: conversationId || "",
     pageId: maskIdForLog(sendContext.resolved_page_id),
   });
-  console.log("[meta-send] recipientId/psid", {
+  console.log("[meta-send] recipientId", {
     tenant_id: scopedTenantId,
     conversation_id: conversationId || "",
     recipientId: maskIdForLog(safeRecipientId),
     psid: maskIdForLog(sendContext.resolved_recipient_psid),
   });
-  console.log("[meta-send] token present", {
+  console.log("[meta-send] tokenPresent", {
     tenant_id: scopedTenantId,
     conversation_id: conversationId || "",
     tokenPresent: Boolean(text(token)),
     config_id: config.id || null,
     source,
   });
-  console.log("[meta-send] payload type", {
+  console.log("[meta-send] payloadType", {
     tenant_id: scopedTenantId,
     conversation_id: conversationId || "",
     payloadType,
@@ -9812,9 +9971,13 @@ export const sendMetaInboxOutboundMessage = async ({
         last_outbound_send_attempt_at: nowIso(),
         last_outbound_send_status: "outbound_failed",
         last_outbound_send_error: error.message,
+        last_outbound_decision: "failed",
         last_outbound_meta_code: error.code,
         last_outbound_meta_status: error.status,
         last_outbound_token_present: false,
+        last_inbound_mid: safeInboundMetaMid,
+        last_processed_inbound_key: safeInboundKey,
+        last_reply_signature: sendSignature,
         last_outbound_payload_type: payloadType,
         last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
         last_outbound_page_id: sendContext.resolved_page_id,
@@ -9831,9 +9994,14 @@ export const sendMetaInboxOutboundMessage = async ({
       last_outbound_send_attempt_at: nowIso(),
       last_outbound_send_status: "attempting",
       last_outbound_send_error: "",
+      last_outbound_decision: "attempting",
+      last_outbound_skip_reason: "",
       last_outbound_meta_code: "",
       last_outbound_meta_status: null,
       last_outbound_token_present: true,
+      last_inbound_mid: safeInboundMetaMid,
+      last_processed_inbound_key: safeInboundKey,
+      last_reply_signature: sendSignature,
       last_outbound_payload_type: payloadType,
       last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
       last_outbound_page_id: sendContext.resolved_page_id,
@@ -9941,10 +10109,15 @@ export const sendMetaInboxOutboundMessage = async ({
       patch: {
         last_outbound_send_status: "sent",
         last_outbound_send_error: "",
+        last_outbound_decision: "sent",
+        last_outbound_skip_reason: "",
         last_outbound_meta_mid: meta?.message_id || "",
         last_outbound_meta_code: "",
         last_outbound_meta_status: 200,
         last_outbound_token_present: true,
+        last_inbound_mid: safeInboundMetaMid,
+        last_processed_inbound_key: safeInboundKey,
+        last_reply_signature: sendSignature,
         last_outbound_payload_type: payloadType,
         last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
         last_outbound_page_id: sendContext.resolved_page_id,
@@ -9956,6 +10129,10 @@ export const sendMetaInboxOutboundMessage = async ({
       config_id: config.id || null,
       config_source: source,
       recipient_id: safeRecipientId,
+      page_id: sendContext.resolved_page_id,
+      token_present: true,
+      signature: sendSignature,
+      graph_api_called: true,
       message_id: meta?.message_id || "",
       meta,
       product_card_messages: productCardMessages,
@@ -9979,9 +10156,13 @@ export const sendMetaInboxOutboundMessage = async ({
         patch: {
           last_outbound_send_status: "outbound_failed",
           last_outbound_send_error: error?.message || "Meta Send API failed",
+          last_outbound_decision: "failed",
           last_outbound_meta_code: error?.code || error?.metaResponse?.error?.code || "",
           last_outbound_meta_status: error?.status || null,
           last_outbound_token_present: Boolean(text(token)),
+          last_inbound_mid: safeInboundMetaMid,
+          last_processed_inbound_key: safeInboundKey,
+          last_reply_signature: sendSignature,
           last_outbound_payload_type: payloadType,
           last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
           last_outbound_page_id: sendContext.resolved_page_id,
@@ -10035,9 +10216,13 @@ export const sendMetaInboxOutboundMessage = async ({
       patch: {
         last_outbound_send_status: "outbound_failed",
         last_outbound_send_error: error?.message || "Meta Send API failed",
+        last_outbound_decision: "failed",
         last_outbound_meta_code: error?.code || error?.metaResponse?.error?.code || "",
         last_outbound_meta_status: error?.status || null,
         last_outbound_token_present: Boolean(text(token)),
+        last_inbound_mid: safeInboundMetaMid,
+        last_processed_inbound_key: safeInboundKey,
+        last_reply_signature: sendSignature,
         last_outbound_payload_type: payloadType,
         last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
         last_outbound_page_id: sendContext.resolved_page_id,
@@ -10061,10 +10246,15 @@ export const sendMetaInboxOutboundMessage = async ({
     patch: {
       last_outbound_send_status: "sent",
       last_outbound_send_error: "",
+      last_outbound_decision: "sent",
+      last_outbound_skip_reason: "",
       last_outbound_meta_mid: meta?.message_id || "",
       last_outbound_meta_code: "",
       last_outbound_meta_status: 200,
       last_outbound_token_present: true,
+      last_inbound_mid: safeInboundMetaMid,
+      last_processed_inbound_key: safeInboundKey,
+      last_reply_signature: sendSignature,
       last_outbound_payload_type: payloadType,
       last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
       last_outbound_page_id: sendContext.resolved_page_id,
@@ -10076,6 +10266,10 @@ export const sendMetaInboxOutboundMessage = async ({
     config_id: config.id || null,
     config_source: source,
     recipient_id: safeRecipientId,
+    page_id: sendContext.resolved_page_id,
+    token_present: true,
+    signature: sendSignature,
+    graph_api_called: true,
     message_id: meta?.message_id || "",
     meta,
     results: [meta, ...imageResults],
@@ -10468,6 +10662,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
               reply_preview: handled.reply_preview || handled.answer || "",
               skipped_duplicate: false,
               handled_reason: handled.reason || "",
+              inbound_key: inboundKey,
+              outbound_signature: handled.signature || "",
+              skip_reason: handled.skip_reason || (handled.reason === "duplicate_outbound" ? "duplicate_outbound" : ""),
+              graph_api_called: handled.graph_api_called === true || handled.sent === true,
             },
           }).catch(() => {});
           markMessageProcessingStatus(messageId, "sent");
@@ -10693,6 +10891,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
         facebookPageId: config.facebook_page_id || pageIds[0] || "",
         instagramBusinessAccountId: config.instagram_business_account_id || instagramBusinessAccountIds[0] || "",
         preferredConfigId: config.id,
+        inboundKey,
+        inboundMetaMid: message.external_message_id || messageId,
       });
       if (sendResult?.dedupe_skipped) {
         markMessageProcessingStatus(messageId, "sent");
@@ -10716,6 +10916,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
             reply_preview: outboundPreview,
             skipped_duplicate: true,
             handled_reason: "duplicate_outbound",
+            inbound_key: inboundKey,
+            outbound_signature: sendResult?.signature || "",
+            skip_reason: sendResult?.skip_reason || "duplicate_outbound",
+            graph_api_called: false,
           },
         }).catch(() => {});
         results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "duplicate_outbound" });
@@ -10804,6 +11008,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
           reply_preview: outboundPreview,
           skipped_duplicate: false,
           handled_reason: aiPayload.detected_intent || "",
+          inbound_key: inboundKey,
+          outbound_signature: sendResult?.signature || "",
+          skip_reason: "",
+          graph_api_called: true,
         },
       }).catch(() => {});
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true });

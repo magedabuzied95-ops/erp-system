@@ -2051,7 +2051,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
 router.post("/conversations/:conversationId/test-meta-send", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = decodeRouteId(req.params.conversationId);
-  const messageText = "اختبار إرسال من السيستم ✅";
+  const outboundTestMessage = "\u0627\u062e\u062a\u0628\u0627\u0631 \u0625\u0631\u0633\u0627\u0644 \u0645\u0646 \u0627\u0644\u0633\u064a\u0633\u062a\u0645 \u2705";
   let conversation = null;
   try {
     const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
@@ -2092,7 +2092,7 @@ router.post("/conversations/:conversationId/test-meta-send", protect, permit("se
       tenantId,
       channel,
       recipientId,
-      messageText,
+      messageText: outboundTestMessage,
       conversationId,
       facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
       instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
@@ -2103,11 +2103,22 @@ router.post("/conversations/:conversationId/test-meta-send", protect, permit("se
       direction: "outbound",
       externalCustomerId: recipientId,
       conversationId,
-      messagePreview: messageText,
+      messagePreview: outboundTestMessage,
       status: sendResult.sent ? "test_sent" : "not_sent",
       metadata: { meta_message_id: sendResult.message_id || "", source: "ai_inbox_test_meta_send" },
     }).catch(() => {});
-    return res.json({ success: true, sent: sendResult.sent === true, message: messageText, meta: sendResult.meta || null, result: sendResult });
+    return res.json({
+      success: true,
+      failure: false,
+      sent: sendResult.sent === true,
+      message: outboundTestMessage,
+      graph_api_response: sendResult.meta || sendResult.results || null,
+      recipient_id: sendResult.recipient_id || recipientId,
+      page_id: sendResult.page_id || channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+      token_present: sendResult.token_present === true,
+      error: null,
+      result: sendResult,
+    });
   } catch (error) {
     await logChannelEvent({
       tenantId,
@@ -2115,7 +2126,7 @@ router.post("/conversations/:conversationId/test-meta-send", protect, permit("se
       direction: "outbound",
       externalCustomerId: conversation?.external_customer_id || "",
       conversationId,
-      messagePreview: messageText,
+      messagePreview: outboundTestMessage,
       status: "failed",
       error: error?.message || "Meta test send failed",
       metadata: { code: error?.code || "", status: error?.status || "", source: "ai_inbox_test_meta_send", meta_error: error?.metaResponse?.error || null },
@@ -2128,7 +2139,120 @@ router.post("/conversations/:conversationId/test-meta-send", protect, permit("se
       message: error?.message || "Meta test send failed",
       meta_error: error?.metaResponse?.error || null,
     });
-    return sendError(res, error, "Failed to send Meta test message");
+    return res.status(error?.status || 500).json({
+      success: false,
+      failure: true,
+      sent: false,
+      graph_api_response: error?.metaResponse || null,
+      recipient_id: conversation?.external_customer_id || "",
+      page_id: conversation?.channel_metadata?.page_id || conversation?.channel_metadata?.facebook_page_id || "",
+      error: {
+        message: error?.message || "Failed to send Meta test message",
+        code: error?.code || "",
+        status: error?.status || 500,
+      },
+    });
+  }
+});
+
+router.post("/conversations/:conversationId/force-send-last-ai-reply", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = decodeRouteId(req.params.conversationId);
+  let conversation = null;
+  try {
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000, messageLimit: 50 });
+    conversation = inbox.conversations.find((item) =>
+      item.session_id === conversationId ||
+      item.external_conversation_id === conversationId ||
+      item.external_customer_id === conversationId
+    ) || null;
+    if (!conversation) {
+      throw Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), {
+        status: 404,
+        code: "AI_INBOX_CONVERSATION_NOT_FOUND",
+      });
+    }
+    const channel = conversation.channel || conversation.source || "";
+    if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(channel)) {
+      throw Object.assign(new Error("Force send is only available for Messenger and Instagram DM conversations."), {
+        status: 409,
+        code: "CHANNEL_SEND_UNAVAILABLE",
+      });
+    }
+    const latestAiReply = [...(Array.isArray(conversation.messages) ? conversation.messages : [])].reverse().find((message) => envText(message.ai_answer));
+    const messageText = envText(latestAiReply?.ai_answer);
+    if (!messageText) {
+      throw Object.assign(new Error("No previous AI reply found for this conversation."), {
+        status: 409,
+        code: "AI_REPLY_NOT_FOUND",
+      });
+    }
+    const channelMetadata = conversation.channel_metadata || {};
+    const recipientId = envText(
+      channelMetadata.customer_psid ||
+        channelMetadata.sender_psid ||
+        channelMetadata.resolved_customer_id ||
+        conversation.external_customer_id ||
+        conversation.customer_id
+    );
+    if (!recipientId) throw Object.assign(new Error("Conversation has no Meta recipient id."), { status: 409, code: "META_RECIPIENT_MISSING" });
+    const sendResult = await sendMetaInboxOutboundMessage({
+      tenantId,
+      channel,
+      recipientId,
+      messageText,
+      conversationId,
+      facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+      instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
+      bypassOutboundDedupe: true,
+      outboundSignatureOverride: `force:${Date.now()}:${latestAiReply?.id || ""}`,
+    });
+    await logChannelEvent({
+      tenantId,
+      channel,
+      direction: "outbound",
+      externalCustomerId: recipientId,
+      conversationId,
+      messagePreview: messageText,
+      status: sendResult.sent ? "force_sent" : "not_sent",
+      metadata: { meta_message_id: sendResult.message_id || "", source: "ai_inbox_force_send_last_ai_reply", ai_message_id: latestAiReply?.id || null },
+    }).catch(() => {});
+    return res.json({
+      success: true,
+      sent: sendResult.sent === true,
+      forced: true,
+      message: messageText,
+      graph_api_response: sendResult.meta || sendResult.results || null,
+      recipient_id: sendResult.recipient_id || recipientId,
+      page_id: sendResult.page_id || channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+      token_present: sendResult.token_present === true,
+      result: sendResult,
+    });
+  } catch (error) {
+    await logChannelEvent({
+      tenantId,
+      channel: conversation?.channel || conversation?.source || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      direction: "outbound",
+      externalCustomerId: conversation?.external_customer_id || "",
+      conversationId,
+      messagePreview: "force-send-last-ai-reply",
+      status: "failed",
+      error: error?.message || "Force send failed",
+      metadata: { code: error?.code || "", status: error?.status || "", source: "ai_inbox_force_send_last_ai_reply", meta_error: error?.metaResponse?.error || null },
+    }).catch(() => {});
+    return res.status(error?.status || 500).json({
+      success: false,
+      sent: false,
+      forced: true,
+      graph_api_response: error?.metaResponse || null,
+      recipient_id: conversation?.external_customer_id || "",
+      page_id: conversation?.channel_metadata?.page_id || conversation?.channel_metadata?.facebook_page_id || "",
+      error: {
+        message: error?.message || "Force send failed",
+        code: error?.code || "",
+        status: error?.status || 500,
+      },
+    });
   }
 });
 
