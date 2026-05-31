@@ -41,6 +41,7 @@ import { getConversationMemory, updateConversationMemory } from "./aiConversatio
 import { extractShoeSize } from "./aiMessageExtractors.js";
 import { ensureAiSalesAgentSchema, getAiAgentSettings, upsertAiCustomerProfile } from "./aiSalesAgentService.js";
 import { evaluateProductDecisionGate } from "./aiProductDecisionGate.js";
+import { findSimilarProductsForAi } from "./aiSimilarProductsService.js";
 import {
   buildSizeAvailabilityStorefrontUrl,
   detectSizeAvailabilityIntent,
@@ -95,7 +96,7 @@ const MORE_IMAGES_EMPTY_REPLY = "مفيش صور ألوان أكتر واضحة 
 const VISUAL_NO_STRONG_MATCH_REPLY = "مش لاقي نفس الموديل بالظبط\nبس دي أقرب موديلات شبهه.";
 const HOT_LEAD_INSIGHT = "عميل قريب جدًا من الشراء";
 const CHECKOUT_INFO_COLLECTION_REPLY = "\u062a\u0645\u0627\u0645  \u0647\u062c\u0647\u0632\u0644\u0643 \u0627\u0644\u0637\u0644\u0628.\n\u0627\u0628\u0639\u062a\u0644\u064a \u0627\u0644\u0627\u0633\u0645 \u0648\u0631\u0642\u0645 \u0627\u0644\u0645\u0648\u0628\u0627\u064a\u0644 \u0648\u0627\u0644\u0639\u0646\u0648\u0627\u0646.";
-const VISUAL_CLARIFICATION_REPLY = "\u0645\u0634 \u0642\u0627\u062f\u0631 \u0623\u062d\u062f\u062f \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0628\u062f\u0642\u0629 \u0645\u0646 \u0627\u0644\u0635\u0648\u0631\u0629 \u062f\u064a.\n\u0645\u0645\u0643\u0646 \u062a\u0628\u0639\u062a \u0635\u0648\u0631\u0629 \u0623\u0648\u0636\u062d \u0645\u0646 \u0627\u0644\u062c\u0646\u0628 \u0623\u0648 \u0627\u0633\u0645 \u0627\u0644\u0645\u0648\u062f\u064a\u0644\u061f";
+const VISUAL_CLARIFICATION_REPLY = "\u0627\u0644\u0635\u0648\u0631\u0629 \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0643\u0641\u0627\u064a\u0629 \u0639\u0646\u062f\u064a\u060c \u0645\u0645\u0643\u0646 \u062a\u0628\u0639\u062a \u0635\u0648\u0631\u0629 \u0623\u0648\u0636\u062d \u0623\u0648 \u0627\u0633\u0645 \u0627\u0644\u0645\u0648\u062f\u064a\u0644\u061f";
 const VISUAL_CLOSE_MATCH_REPLY = "\u0645\u0634 \u0646\u0641\u0633 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0628\u0627\u0644\u0638\u0628\u0637\u060c \u0628\u0633 \u062f\u064a \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647\u0647 \u0639\u0646\u062f\u0646\u0627.";
 const MULTIPLE_PRODUCT_CLARIFICATION_REPLY = "\u0623\u0646\u0647\u064a \u0648\u0627\u062d\u062f \u0641\u064a\u0647\u0645\u061f \u0627\u0644\u0623\u0648\u0644 \u0648\u0644\u0627 \u0627\u0644\u062a\u0627\u0646\u064a\u061f";
 const LOW_STOCK_THRESHOLD = 2;
@@ -208,23 +209,27 @@ const normalizeCheckoutStage = (stage = "") => {
 
 const checkoutStageRank = (stage = "") => ({
   browsing: 0,
-  product_selected: 1,
+  interested: 1,
+  product_selected: 2,
   product_details: 2,
-  buying_intent: 3,
-  checkout: 4,
-  checkout_data_collected: 5,
-  order_confirmed: 6,
-  stock_conflict: 6,
-  human_review: 7,
+  size_selected: 3,
+  buying_intent: 4,
+  checkout_collecting: 5,
+  checkout: 5,
+  order_ready: 6,
+  checkout_data_collected: 6,
+  order_created: 7,
+  order_confirmed: 7,
+  stock_conflict: 7,
+  human_review: 8,
   selecting_size: 2,
-  size_selected: 2,
-  awaiting_booking_confirmation: 3,
-  collecting_contact: 4,
-  awaiting_checkout_info: 4,
-  checkout_confirmed: 6,
-  confirmed: 6,
-  handoff: 7,
-  checkout_review: 7,
+  awaiting_booking_confirmation: 4,
+  collecting_contact: 5,
+  awaiting_checkout_info: 5,
+  checkout_confirmed: 7,
+  confirmed: 7,
+  handoff: 8,
+  checkout_review: 8,
 }[normalizeCheckoutStage(stage)] ?? 0);
 
 const checkoutStageAtLeast = (stage = "", minimum = "browsing") =>
@@ -428,12 +433,42 @@ export const evaluateMetaCheckoutContinuation = ({ memory = {}, messageText = ""
   };
 };
 
+const extractImageUrlFromAttachment = (attachment = {}) => {
+  if (!attachment || typeof attachment !== "object") return "";
+  const direct = text(
+    attachment.url ||
+      attachment.image_url ||
+      attachment.imageUrl ||
+      attachment.secure_url ||
+      attachment.src ||
+      attachment.href ||
+      attachment.payload?.url ||
+      attachment.payload?.image_url ||
+      attachment.payload?.imageUrl ||
+      attachment.payload?.attachment_url ||
+      attachment.media?.image?.src ||
+      attachment.media?.src ||
+      attachment.image?.url ||
+      attachment.image?.src ||
+      attachment.preview_url
+  );
+  if (direct) return direct;
+  for (const value of Object.values(attachment)) {
+    if (value && typeof value === "object") {
+      const nested = extractImageUrlFromAttachment(value);
+      if (nested) return nested;
+    }
+  }
+  return "";
+};
+
 const imageAttachments = (attachments = []) =>
   (Array.isArray(attachments) ? attachments : [])
+    .map((attachment) => ({ ...attachment, url: extractImageUrlFromAttachment(attachment) }))
     .filter((attachment) => {
-      const type = text(attachment?.type).toLowerCase();
-      const url = text(attachment?.url || attachment?.image_url || attachment?.imageUrl);
-      return url && (type.includes("image") || /\.(png|jpe?g|webp)(?:[?#].*)?$/i.test(url));
+      const type = text(attachment?.type || attachment?.mime_type || attachment?.content_type).toLowerCase();
+      const url = text(attachment?.url);
+      return url && (type.includes("image") || /\.(png|jpe?g|webp|gif)(?:[?#].*)?$/i.test(url) || /\/image\//i.test(url));
     })
     .slice(0, 1);
 
@@ -456,6 +491,135 @@ const imageIdentity = (url = "") =>
     .replace(/^https?:\/\//, "")
     .replace(/[?#].*$/, "")
     .replace(/\/+$/g, "");
+
+const hashDedupe = (value = "") => crypto.createHash("sha256").update(text(value)).digest("hex");
+const normalizeDedupeText = (value = "") =>
+  text(value).toLowerCase().replace(/\s+/g, " ").replace(/[^\p{L}\p{N}\s]+/gu, "").trim();
+
+const timestampBucket = (value = "") => {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return "";
+  return String(Math.floor(parsed / (5 * 60 * 1000)));
+};
+
+const inboundIdempotencyKey = (message = {}) => {
+  const metaId = text(message.external_message_id || message.raw?.event?.message?.mid || message.raw?.event?.message?.id);
+  if (metaId) return `mid:${metaId}`;
+  const attachmentUrl = imageAttachmentUrls(message.attachments || [])[0] || "";
+  return `fallback:${hashDedupe([
+    message.channel,
+    message.external_customer_id,
+    normalizeDedupeText(message.message_text),
+    imageIdentity(attachmentUrl),
+    timestampBucket(message.timestamp),
+  ].map(text).join("|"))}`;
+};
+
+const loadConversationMetadata = async ({ tenantId, channel = "", conversationId = "" } = {}) => {
+  if (!tenantId || !conversationId) return {};
+  const result = await db.query(
+    `
+    SELECT metadata
+    FROM ai_channel_conversations
+    WHERE tenant_id = $1
+      AND external_conversation_id = $2
+      AND ($3::text = '' OR channel = $3 OR channel = 'facebook_messenger' OR $3 = 'facebook_messenger')
+    ORDER BY updated_at DESC
+    LIMIT 1
+    `,
+    [numberOrNull(tenantId), text(conversationId), text(channel)]
+  ).catch(() => ({ rows: [] }));
+  return result.rows[0]?.metadata && typeof result.rows[0].metadata === "object" ? result.rows[0].metadata : {};
+};
+
+const recentMetaArray = (metadata = {}, key = "") => Array.isArray(metadata?.[key]) ? metadata[key] : [];
+
+const hasProcessedInboundKey = async ({ tenantId, channel = "", conversationId = "", inboundKey = "" } = {}) => {
+  if (!inboundKey) return false;
+  const metadata = await loadConversationMetadata({ tenantId, channel, conversationId });
+  return recentMetaArray(metadata, "ai_processed_inbound_keys").some((item) => text(item?.key || item) === inboundKey);
+};
+
+const storeProcessedInboundKey = async ({ tenantId, channel = "", conversationId = "", inboundKey = "", status = "sent" } = {}) => {
+  if (!tenantId || !conversationId || !inboundKey) return null;
+  const metadata = await loadConversationMetadata({ tenantId, channel, conversationId });
+  const recent = recentMetaArray(metadata, "ai_processed_inbound_keys")
+    .filter((item) => text(item?.key || item) && text(item?.key || item) !== inboundKey)
+    .slice(-49);
+  recent.push({ key: inboundKey, status, at: nowIso() });
+  await db.query(
+    `
+    UPDATE ai_channel_conversations
+    SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{ai_processed_inbound_keys}', $4::jsonb, true),
+        updated_at = NOW()
+    WHERE tenant_id = $1
+      AND external_conversation_id = $2
+      AND ($3::text = '' OR channel = $3 OR channel = 'facebook_messenger' OR $3 = 'facebook_messenger')
+    `,
+    [numberOrNull(tenantId), text(conversationId), text(channel), json(recent)]
+  ).catch((error) => {
+    console.warn("[ai-dedupe] store processed key failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      message: error?.message || "failed",
+    });
+  });
+  console.log("[ai-dedupe] stored processed key", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    inbound_key: inboundKey,
+    status,
+  });
+  return recent;
+};
+
+const outboundSignature = ({ messageText = "", productCards = [], trigger = "" } = {}) => {
+  const productIds = (Array.isArray(productCards) ? productCards : [])
+    .map((product) => [product.product_id || product.id || "", product.variant_id || "", imageIdentity(product.image_url || "")].map(text).join(":"))
+    .filter(Boolean)
+    .sort();
+  return hashDedupe([trigger, normalizeDedupeText(messageText), productIds.join("|")].join("|"));
+};
+
+const checkAndStoreOutboundSignature = async ({ tenantId, channel = "", conversationId = "", signature = "", trigger = "", preview = "" } = {}) => {
+  if (!tenantId || !conversationId || !signature) return { duplicate: false };
+  const metadata = await loadConversationMetadata({ tenantId, channel, conversationId });
+  const recent = recentMetaArray(metadata, "ai_recent_outbound_signatures");
+  const duplicate = recent.some((item) => text(item?.signature || item) === signature && text(item?.trigger || "") === text(trigger));
+  console.log("[ai-dedupe] outbound signature created", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    signature,
+    trigger,
+    duplicate,
+  });
+  if (duplicate) {
+    console.log("[ai-dedupe] duplicate outbound skipped", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      signature,
+      trigger,
+      preview: text(preview).slice(0, 120),
+    });
+    return { duplicate: true };
+  }
+  const next = recent
+    .filter((item) => text(item?.signature || item) && text(item?.signature || item) !== signature)
+    .slice(-49);
+  next.push({ signature, trigger: text(trigger), preview: text(preview).slice(0, 180), at: nowIso() });
+  await db.query(
+    `
+    UPDATE ai_channel_conversations
+    SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{ai_recent_outbound_signatures}', $4::jsonb, true),
+        updated_at = NOW()
+    WHERE tenant_id = $1
+      AND external_conversation_id = $2
+      AND ($3::text = '' OR channel = $3 OR channel = 'facebook_messenger' OR $3 = 'facebook_messenger')
+    `,
+    [numberOrNull(tenantId), text(conversationId), text(channel), json(next)]
+  ).catch(() => {});
+  return { duplicate: false };
+};
 
 const emitAiInboxEvent = (tenantId, event, payload = {}) => {
   emitToRooms([`tenant:${tenantId}`, `ai-support:${tenantId}`], event, {
@@ -628,7 +792,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
       last_profile_sync_at = NOW(),
       last_seen_at = NOW(),
       updated_at = NOW()
-    RETURNING id
+    RETURNING id, profile_pic_url
     `,
     [
       numberOrNull(tenantId),
@@ -642,7 +806,8 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     ]
   );
   const profileId = profileResult.rows[0]?.id || null;
-  await db.query(
+  const storedProfilePicUrl = text(profileResult.rows[0]?.profile_pic_url);
+  const sessionResult = await db.query(
     `
     UPDATE ai_support_sessions
     SET customer_name = CASE
@@ -653,9 +818,10 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
         updated_at = NOW()
     WHERE tenant_id = $1
       AND session_id = $2
+    RETURNING customer_avatar_url
     `,
     [numberOrNull(tenantId), text(conversationId), name, psid, profilePic]
-  ).catch(() => {});
+  ).catch(() => ({ rows: [] }));
   await db.query(
     `
     UPDATE ai_support_messages
@@ -670,7 +836,88 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     `,
     [numberOrNull(tenantId), text(conversationId), name, psid, profilePic]
   ).catch(() => {});
-  return { id: profileId, name, first_name: firstName, last_name: lastName, profile_pic: profilePic };
+  const channelConversationResult = await db.query(
+    `
+    UPDATE ai_channel_conversations
+    SET customer_name = CASE
+          WHEN $3::text <> '' AND (customer_name = '' OR customer_name = $4 OR external_customer_id = $4 OR LOWER(customer_name) IN ('anonymous','unknown customer')) THEN $3::text
+          ELSE customer_name
+        END,
+        customer_avatar_url = COALESCE(NULLIF($5::text, ''), customer_avatar_url),
+        customer_profile_id = COALESCE($6::bigint, customer_profile_id),
+        updated_at = NOW()
+    WHERE tenant_id = $1
+      AND (
+        external_conversation_id = $2
+        OR external_customer_id = $4
+      )
+    RETURNING customer_avatar_url
+    `,
+    [numberOrNull(tenantId), text(conversationId), name, psid, profilePic, numberOrNull(profileId)]
+  ).catch(() => ({ rows: [] }));
+  console.log("messenger_profile_avatar_saved", {
+    tenant_id: numberOrNull(tenantId),
+    conversation_id: text(conversationId),
+    psid: maskIdForLog(psid),
+    profile_id: profileId,
+    graph_profile_pic: profilePic,
+    ai_customer_profiles_profile_pic_url: storedProfilePicUrl,
+    ai_support_sessions_customer_avatar_url: text(sessionResult.rows[0]?.customer_avatar_url),
+    ai_channel_conversations_customer_avatar_url: text(channelConversationResult.rows[0]?.customer_avatar_url),
+  });
+  return { id: profileId, name, first_name: firstName, last_name: lastName, profile_pic: storedProfilePicUrl || profilePic };
+};
+
+const loadMessengerProfileAvatarStorage = async ({ tenantId, channel, conversationId, psid, profileId } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const safeConversationId = text(conversationId);
+  const safePsid = text(psid);
+  const profileLookup = await db.query(
+    `
+    SELECT profile_pic_url
+    FROM ai_customer_profiles
+    WHERE tenant_id = $1
+      AND (
+        id = $2
+        OR phone = $3
+        OR external_customer_id = $4
+      )
+    ORDER BY updated_at DESC NULLS LAST
+    LIMIT 1
+    `,
+    [scopedTenantId, numberOrNull(profileId), `meta:${text(channel)}:${safePsid}`, safePsid]
+  ).catch(() => ({ rows: [] }));
+  const sessionLookup = await db.query(
+    `
+    SELECT customer_avatar_url, metadata
+    FROM ai_support_sessions
+    WHERE tenant_id = $1
+      AND session_id = $2
+    LIMIT 1
+    `,
+    [scopedTenantId, safeConversationId]
+  ).catch(() => ({ rows: [] }));
+  const channelLookup = await db.query(
+    `
+    SELECT customer_avatar_url
+    FROM ai_channel_conversations
+    WHERE tenant_id = $1
+      AND (
+        external_conversation_id = $2
+        OR external_customer_id = $3
+      )
+    ORDER BY updated_at DESC NULLS LAST
+    LIMIT 1
+    `,
+    [scopedTenantId, safeConversationId, safePsid]
+  ).catch(() => ({ rows: [] }));
+  return {
+    ai_customer_profiles_profile_pic_url: text(profileLookup.rows[0]?.profile_pic_url),
+    ai_support_sessions_customer_avatar_url: text(sessionLookup.rows[0]?.customer_avatar_url),
+    ai_channel_conversations_customer_avatar_url: text(channelLookup.rows[0]?.customer_avatar_url),
+    channel_metadata_profile_pic: text(channelLookup.rows[0]?.metadata?.profile_pic),
+    channel_metadata_customer_profile_profile_pic: text(channelLookup.rows[0]?.metadata?.customer_profile?.profile_pic),
+  };
 };
 
 const enrichMessengerProfile = async ({ message, config, facebookPageId = "", instagramBusinessAccountId = "", forceRefresh = false } = {}) => {
@@ -713,6 +960,25 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
       token,
       params: { fields: "first_name,last_name,profile_pic" },
     });
+    console.log("messenger_profile_graph_response", {
+      tenant_id: config.tenant_id,
+      config_id: config.id || null,
+      psid: maskIdForLog(psid),
+      conversation_id: message.external_conversation_id,
+      first_name: text(payload.first_name),
+      last_name: text(payload.last_name),
+      profile_pic: text(payload.profile_pic),
+    });
+    if (!text(payload.profile_pic)) {
+      console.warn("avatar_missing_from_meta_response", {
+        tenant_id: config.tenant_id,
+        config_id: config.id || null,
+        psid: maskIdForLog(psid),
+        conversation_id: message.external_conversation_id,
+        first_name: text(payload.first_name),
+        last_name: text(payload.last_name),
+      });
+    }
     const profile = {
       first_name: text(payload.first_name),
       last_name: text(payload.last_name),
@@ -821,7 +1087,7 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
       facebookPageId,
       forceRefresh: true,
     });
-    await upsertChannelConversationMapping({
+    const channelConversation = await upsertChannelConversationMapping({
       tenantId: scopedTenantId,
       channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
       externalConversationId: safeConversationId,
@@ -840,6 +1106,34 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
         messenger_profile: message.raw?.messenger_profile || null,
       },
       lastMessageAt: new Date().toISOString(),
+    });
+    const finalAvatarStorage = await loadMessengerProfileAvatarStorage({
+      tenantId: scopedTenantId,
+      channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      conversationId: safeConversationId,
+      psid,
+      profileId: message.customer_profile_id || channelConversation?.customer_profile_id || null,
+    });
+    console.log("messenger_profile_avatar_saved", {
+      tenant_id: scopedTenantId,
+      conversation_id: safeConversationId,
+      psid: maskIdForLog(psid),
+      profile_id: message.customer_profile_id || channelConversation?.customer_profile_id || null,
+      graph_profile_pic: text(message.raw?.messenger_profile?.profile_pic),
+      ai_customer_profiles_profile_pic_url: finalAvatarStorage.ai_customer_profiles_profile_pic_url,
+      ai_support_sessions_customer_avatar_url: finalAvatarStorage.ai_support_sessions_customer_avatar_url,
+      ai_channel_conversations_customer_avatar_url: finalAvatarStorage.ai_channel_conversations_customer_avatar_url || text(channelConversation?.customer_avatar_url),
+      source: "manual_sync_final",
+    });
+    console.log("messenger_profile_manual_sync_final_avatar_url", {
+      tenant_id: scopedTenantId,
+      conversation_id: safeConversationId,
+      psid: maskIdForLog(psid),
+      final_customer_avatar_url:
+        finalAvatarStorage.ai_channel_conversations_customer_avatar_url ||
+        finalAvatarStorage.ai_support_sessions_customer_avatar_url ||
+        finalAvatarStorage.ai_customer_profiles_profile_pic_url ||
+        text(message.customer_avatar_url),
     });
     emitToRooms([`tenant:${scopedTenantId}`], "ai_inbox:refresh", {
       tenant_id: scopedTenantId,
@@ -874,6 +1168,231 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
     });
     throw error;
   }
+};
+
+export const debugMessengerProfileForConversation = async ({ tenantId, conversationId = "", externalCustomerId = "" } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const safeConversationId = text(conversationId);
+  if (!scopedTenantId || !safeConversationId) {
+    throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400, code: "MESSENGER_PROFILE_DEBUG_INPUT_REQUIRED" });
+  }
+  await ensureMessengerProfileStorage();
+  const routePsid = safeConversationId.includes(":") ? text(safeConversationId.split(":").pop()) : "";
+  const fallbackPsid = text(externalCustomerId) || routePsid || text(safeConversationId).replace(/^[^:]+:/, "");
+  const lookup = await db.query(
+    `
+    SELECT
+      COALESCE(s.session_id, c.external_conversation_id, $2::text) AS session_id,
+      COALESCE(c.channel, s.channel, s.source, $5::text) AS channel,
+      COALESCE(NULLIF(c.external_customer_id, ''), NULLIF($3::text, ''), regexp_replace(COALESCE(s.session_id, c.external_conversation_id, $2::text), '^[^:]+:', '')) AS external_customer_id,
+      COALESCE(c.external_conversation_id, s.session_id, $2::text) AS external_conversation_id,
+      c.metadata AS channel_metadata,
+      c.customer_profile_id
+    FROM ai_support_sessions s
+    FULL OUTER JOIN ai_channel_conversations c
+      ON c.tenant_id = s.tenant_id
+      AND c.external_conversation_id = s.session_id
+    WHERE COALESCE(s.tenant_id, c.tenant_id) = $1
+      AND (
+        s.session_id = $2
+        OR c.external_conversation_id = $2
+        OR ($3::text <> '' AND c.external_customer_id = $3)
+        OR ($4::text <> '' AND c.external_customer_id = $4)
+      )
+    ORDER BY COALESCE(c.updated_at, s.updated_at) DESC NULLS LAST
+    LIMIT 1
+    `,
+    [scopedTenantId, safeConversationId, text(externalCustomerId), fallbackPsid, AI_AGENT_CHANNELS.FACEBOOK_MESSENGER]
+  );
+  const row = lookup.rows[0] || {
+    session_id: safeConversationId,
+    external_conversation_id: safeConversationId,
+    external_customer_id: fallbackPsid,
+    channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+    channel_metadata: {},
+    customer_profile_id: null,
+  };
+  const channel = row.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
+  const psid = text(externalCustomerId) || routePsid || text(row.external_customer_id) || fallbackPsid;
+  if (!psid) {
+    throw Object.assign(new Error("Messenger PSID is missing for this conversation."), { status: 400, code: "MESSENGER_PSID_MISSING" });
+  }
+  const facebookPageId = text(row.channel_metadata?.page_id || row.channel_metadata?.resolved_page_id || row.channel_metadata?.account_id);
+  const { token, config, source } = await resolveMetaSendConfig({
+    tenantId: scopedTenantId,
+    channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+    facebookPageId,
+    preferredConfigId: null,
+  });
+  const resolvedPageId = text(facebookPageId || config?.facebook_page_id || config?.page_id);
+  console.log("messenger_profile_debug_start", {
+    tenant_id: scopedTenantId,
+    conversation_id: safeConversationId,
+    psid: maskIdForLog(psid),
+    facebook_page_id: maskIdForLog(facebookPageId),
+    token_source: source,
+    config_id: config?.id || null,
+  });
+  console.log("messenger_profile_debug_graph_request", {
+    tenant_id: scopedTenantId,
+    conversation_id: safeConversationId,
+    resolved_psid: psid,
+    resolved_page_id: resolvedPageId,
+    config_id: config?.id || null,
+    token_found: Boolean(text(token)),
+    token_source: source,
+    endpoint: `/${psid}`,
+    fields: "first_name,last_name,profile_pic",
+  });
+  let graphPayload = null;
+  let graphStatus = 200;
+  try {
+    graphPayload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(psid)}`,
+      token,
+      params: { fields: "first_name,last_name,profile_pic" },
+    });
+  } catch (error) {
+    graphStatus = error?.status || 500;
+    const graphError = error?.meta || { message: error?.message || "Meta Graph profile request failed" };
+    console.error("messenger_profile_debug_graph_failed", {
+      tenant_id: scopedTenantId,
+      conversation_id: safeConversationId,
+      resolved_psid: psid,
+      resolved_page_id: resolvedPageId,
+      config_id: config?.id || null,
+      token_found: Boolean(text(token)),
+      graph_status: graphStatus,
+      graph_error: graphError,
+    });
+    throw Object.assign(new Error("Meta Graph profile request failed"), {
+      status: 500,
+      code: "MESSENGER_PROFILE_GRAPH_FAILED",
+      debugProfile: {
+        resolved_psid: psid,
+        resolved_page_id: resolvedPageId,
+        config_id: config?.id || null,
+        token_found: Boolean(text(token)),
+        graph_status: graphStatus,
+        graph_error: graphError,
+        first_name: "",
+        last_name: "",
+        profile_pic: "",
+        raw_graph_response: null,
+      },
+    });
+  }
+  const profile = {
+    first_name: text(graphPayload.first_name),
+    last_name: text(graphPayload.last_name),
+    profile_pic: text(graphPayload.profile_pic),
+  };
+  console.log("messenger_profile_debug_graph_response", {
+    tenant_id: scopedTenantId,
+    config_id: config?.id || null,
+    resolved_psid: psid,
+    resolved_page_id: resolvedPageId,
+    conversation_id: safeConversationId,
+    token_found: Boolean(text(token)),
+    graph_status: graphStatus,
+    raw_graph_response: graphPayload,
+    first_name: profile.first_name,
+    last_name: profile.last_name,
+    profile_pic: profile.profile_pic,
+  });
+  const avatarMissing = !profile.profile_pic;
+  if (avatarMissing) {
+    console.warn("avatar_missing_from_meta_response", {
+      tenant_id: scopedTenantId,
+      config_id: config?.id || null,
+      psid: maskIdForLog(psid),
+      conversation_id: safeConversationId,
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      source: "debug_endpoint",
+    });
+  }
+  let persisted = null;
+  let channelConversation = null;
+  if (profile.profile_pic) {
+    persisted = await persistMessengerProfile({
+      tenantId: scopedTenantId,
+      channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      conversationId: safeConversationId,
+      psid,
+      profile,
+    });
+    channelConversation = await upsertChannelConversationMapping({
+      tenantId: scopedTenantId,
+      channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      externalConversationId: safeConversationId,
+      externalCustomerId: psid,
+      customerName: persisted?.name || messengerDisplayName({ firstName: profile.first_name, lastName: profile.last_name, fallback: psid }),
+      customerAvatarUrl: profile.profile_pic,
+      customerProfileId: persisted?.id || row.customer_profile_id || null,
+      metadata: {
+        ...(row.channel_metadata || {}),
+        page_id: facebookPageId,
+        channel: "facebook",
+        profile_pic: profile.profile_pic,
+        customer_profile: {
+          ...(row.channel_metadata?.customer_profile || {}),
+          profile_pic: profile.profile_pic,
+          profile_pic_url: profile.profile_pic,
+        },
+        messenger_profile: {
+          ...(row.channel_metadata?.messenger_profile || {}),
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          profile_pic: profile.profile_pic,
+        },
+      },
+      lastMessageAt: new Date().toISOString(),
+    });
+  }
+  const stored = await loadMessengerProfileAvatarStorage({
+    tenantId: scopedTenantId,
+    channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+    conversationId: safeConversationId,
+    psid,
+    profileId: persisted?.id || channelConversation?.customer_profile_id || row.customer_profile_id || null,
+  });
+  console.log("messenger_profile_avatar_saved", {
+    tenant_id: scopedTenantId,
+    conversation_id: safeConversationId,
+    psid: maskIdForLog(psid),
+    profile_id: persisted?.id || channelConversation?.customer_profile_id || row.customer_profile_id || null,
+    graph_profile_pic: profile.profile_pic,
+    ai_customer_profiles_profile_pic_url: stored.ai_customer_profiles_profile_pic_url,
+    ai_support_sessions_customer_avatar_url: stored.ai_support_sessions_customer_avatar_url,
+    ai_channel_conversations_customer_avatar_url: stored.ai_channel_conversations_customer_avatar_url || text(channelConversation?.customer_avatar_url),
+    channel_metadata_profile_pic: stored.channel_metadata_profile_pic,
+    customer_profile_profile_pic: stored.channel_metadata_customer_profile_profile_pic,
+    source: "debug_endpoint_final",
+  });
+  return {
+    success: true,
+    conversation_id: safeConversationId,
+    external_customer_id: psid,
+    resolved_psid: psid,
+    resolved_page_id: resolvedPageId,
+    token_source: source,
+    config_id: config?.id || null,
+    token_found: Boolean(text(token)),
+    graph_status: graphStatus,
+    graph_error: null,
+    raw_graph_response: graphPayload,
+    first_name: profile.first_name,
+    last_name: profile.last_name,
+    profile_pic: profile.profile_pic,
+    avatar_missing_from_meta_response: avatarMissing,
+    stored_profile_pic_url: stored.ai_customer_profiles_profile_pic_url,
+    stored_ai_customer_profiles_profile_pic_url: stored.ai_customer_profiles_profile_pic_url,
+    stored_ai_support_sessions_customer_avatar_url: stored.ai_support_sessions_customer_avatar_url,
+    stored_ai_channel_conversations_customer_avatar_url: stored.ai_channel_conversations_customer_avatar_url || text(channelConversation?.customer_avatar_url),
+    stored_channel_metadata_profile_pic: stored.channel_metadata_profile_pic,
+    stored_customer_profile_profile_pic: stored.channel_metadata_customer_profile_profile_pic,
+  };
 };
 
 const callMetaPost = async ({ endpoint, token, body = {} }) => {
@@ -3488,6 +4007,7 @@ const logIncomingToInbox = async ({ message, config }) => {
 
 const routeMessageThroughAi = async ({ req, message, config }) => {
   const channel = channelAlias(message.channel);
+  const aiMemory = persistentAiMemoryFromRuntime(getConversationMemory(message.external_conversation_id) || {});
   const response = await fetch(`${text(process.env.INTERNAL_AI_SUPPORT_URL) || `${req.protocol || "http"}://${req.get("host")}`}/api/ai-support/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-tenant-id": String(config.tenant_id) },
@@ -3506,6 +4026,12 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
         external_customer_id: message.external_customer_id,
         attachments: message.attachments || [],
         timestamp: message.timestamp,
+        ai_memory: aiMemory,
+        active_product_id: aiMemory.activeProductId || null,
+        active_variant_id: aiMemory.activeVariantId || null,
+        active_color: aiMemory.activeColor || "",
+        active_size: aiMemory.activeSize || "",
+        buying_stage: aiMemory.buyingStage || "",
       },
     }),
   });
@@ -3609,7 +4135,7 @@ const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext 
 
 const imageAttachmentUrls = (attachments = []) =>
   (Array.isArray(attachments) ? attachments : [])
-    .map((attachment) => text(attachment?.url || attachment?.imageUrl || attachment?.image_url))
+    .map((attachment) => text(extractImageUrlFromAttachment(attachment)))
     .filter((url, index, urls) => /^https?:\/\//i.test(url) && urls.indexOf(url) === index)
     .slice(0, 3);
 
@@ -3674,7 +4200,7 @@ const updateHotLeadState = async ({ tenantId, conversationId, score = 0, reason 
   return result.rows[0] || null;
 };
 
-const rememberLastProductCards = ({ conversationId, productCards = [], sentMessages = [] } = {}) => {
+const rememberLastProductCards = ({ tenantId = null, channel = "", conversationId, productCards = [], sentMessages = [], messageText = "", lastIntent = "" } = {}) => {
   const current = getConversationMemory(conversationId) || {};
   const viewedImageUrls = new Set(Array.isArray(current.viewedImageUrls) ? current.viewedImageUrls.map(imageIdentity).filter(Boolean) : []);
   const viewedProductIds = new Set(Array.isArray(current.viewedProductIds) ? current.viewedProductIds.map(String).filter(Boolean) : []);
@@ -3709,10 +4235,20 @@ const rememberLastProductCards = ({ conversationId, productCards = [], sentMessa
     sentCardByMessageId,
     viewedImageUrls: [...viewedImageUrls],
     viewedProductIds: [...viewedProductIds],
+    lastProductQuery: messageText || current.lastProductQuery || current.lastVisualQuery || "",
+    lastIntent: lastIntent || current.lastIntent || "",
     contextLocked: current.contextLocked === true || shouldLockSingleCard,
+    activeProductId: current.activeProductId || current.selectedProductId || (shouldLockSingleCard ? cards[0]?.product_id || null : null),
+    activeVariantId: current.activeVariantId || current.selectedVariantId || (shouldLockSingleCard ? cards[0]?.variant_id || null : null),
+    activeColor: current.activeColor || current.selectedColor || (shouldLockSingleCard ? cards[0]?.color || "" : ""),
     selectedProductId: current.selectedProductId || (shouldLockSingleCard ? cards[0]?.product_id || null : null),
     selectedVariantId: current.selectedVariantId || (shouldLockSingleCard ? cards[0]?.variant_id || null : null),
     selectedColor: current.selectedColor || (shouldLockSingleCard ? cards[0]?.color || "" : ""),
+    lastShownProductIds: [...viewedProductIds],
+    lastShownVariantIds: [...new Set(cards.map((card) => card.variant_id).filter(Boolean).map(String))],
+    buyingStage: checkoutStageAtLeast(current.checkoutStage, "buying_intent")
+      ? current.checkoutStage
+      : "product_selected",
     checkoutStage: checkoutStageAtLeast(current.checkoutStage, "buying_intent")
       ? current.checkoutStage
       : "product_selected",
@@ -3827,7 +4363,7 @@ const resolveContextProductCard = ({ message = {}, allowAmbiguous = false } = {}
   return { card: memory.lastProductCard || null, source: "lastProductCard", ambiguous: false, cards };
 };
 
-const lockProductContext = ({ conversationId, card = {}, stage = "product_selected", reason = "" } = {}) => {
+const lockProductContext = ({ conversationId, card = {}, stage = "product_selected", reason = "", tenantId = null, channel = "", lastIntent = "" } = {}) => {
   if (!conversationId || !card) {
     console.log("ai_context_lost", {
       conversation_id: conversationId || "",
@@ -3837,9 +4373,13 @@ const lockProductContext = ({ conversationId, card = {}, stage = "product_select
   }
   const nextMemory = updateConversationMemory(conversationId, {
     contextLocked: true,
+    activeProductId: card.product_id || card.id || null,
+    activeVariantId: card.variant_id || null,
+    activeColor: card.color || "",
     selectedProductId: card.product_id || card.id || null,
     selectedVariantId: card.variant_id || null,
     selectedColor: card.color || "",
+    buyingStage: stage,
     checkoutStage: stage,
   });
   console.log("ai_context_locked", {
@@ -3859,7 +4399,157 @@ const lockProductContext = ({ conversationId, card = {}, stage = "product_select
       color: card.color || "",
     });
   }
+  if (tenantId) {
+    persistAiConversationMemory({ tenantId, channel, conversationId, reason: lastIntent || "product_cards_sent" });
+  }
   return nextMemory;
+};
+
+const persistentAiMemoryFromRuntime = (memory = {}) => {
+  const cards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
+  const activeCard = memory.lastProductCard || cards[0] || {};
+  const activeProductId = memory.activeProductId || memory.selectedProductId || activeCard.product_id || activeCard.id || null;
+  const activeVariantId = memory.activeVariantId || memory.selectedVariantId || activeCard.variant_id || null;
+  const activeColor = text(memory.activeColor || memory.selectedColor || activeCard.color || "");
+  return {
+    activeProductId,
+    activeVariantId,
+    activeColor,
+    activeSize: text(memory.activeSize || memory.selectedSize || ""),
+    lastShownProductIds: [...new Set(cards.map((card) => card.product_id || card.id).filter(Boolean).map(String))],
+    lastShownVariantIds: [...new Set(cards.map((card) => card.variant_id).filter(Boolean).map(String))],
+    lastProductQuery: text(memory.lastProductQuery || memory.lastVisualQuery || ""),
+    lastIntent: text(memory.lastIntent || ""),
+    buyingStage: normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || "browsing"),
+    pendingAction: text(memory.pendingAction || ""),
+    updatedAt: memory.updatedAt || nowIso(),
+    lastImageUrl: text(memory.lastImageUrl || ""),
+    lastVisualClarifiedImageUrl: text(memory.lastVisualClarifiedImageUrl || ""),
+    lastVisualAttributes: memory.lastVisualAttributes || memory.lastVisualAnalysis || null,
+    lastVisualConfidence: memory.lastVisualConfidence ?? null,
+    lastProductCards: cards,
+    lastProductCard: activeCard?.product_id || activeCard?.id || activeCard?.variant_id ? activeCard : null,
+    sentCardByMessageId: memory.sentCardByMessageId || {},
+    viewedImageUrls: Array.isArray(memory.viewedImageUrls) ? memory.viewedImageUrls : [],
+    viewedProductIds: Array.isArray(memory.viewedProductIds) ? memory.viewedProductIds : [],
+  };
+};
+
+const runtimeMemoryFromPersistent = (state = {}) => {
+  const cards = Array.isArray(state.lastProductCards) ? state.lastProductCards : [];
+  return {
+    activeProductId: state.activeProductId || null,
+    activeVariantId: state.activeVariantId || null,
+    activeColor: text(state.activeColor || ""),
+    activeSize: text(state.activeSize || ""),
+    selectedProductId: state.activeProductId || null,
+    selectedVariantId: state.activeVariantId || null,
+    selectedColor: text(state.activeColor || ""),
+    selectedSize: text(state.activeSize || ""),
+    lastProductCards: cards,
+    lastProductCard: state.lastProductCard || cards[0] || null,
+    sentCardByMessageId: state.sentCardByMessageId || {},
+    viewedImageUrls: Array.isArray(state.viewedImageUrls) ? state.viewedImageUrls : [],
+    viewedProductIds: Array.isArray(state.viewedProductIds) ? state.viewedProductIds : [],
+    lastProductQuery: text(state.lastProductQuery || ""),
+    lastIntent: text(state.lastIntent || ""),
+    buyingStage: normalizeCheckoutStage(state.buyingStage || "browsing"),
+    checkoutStage: normalizeCheckoutStage(state.buyingStage || "browsing"),
+    pendingAction: text(state.pendingAction || ""),
+    lastImageUrl: text(state.lastImageUrl || ""),
+    lastVisualClarifiedImageUrl: text(state.lastVisualClarifiedImageUrl || ""),
+    lastVisualAttributes: state.lastVisualAttributes || null,
+    lastVisualAnalysis: state.lastVisualAttributes || null,
+    lastVisualConfidence: state.lastVisualConfidence ?? null,
+    contextLocked: Boolean(state.activeProductId || state.activeVariantId || state.activeColor),
+  };
+};
+
+const loadPersistentAiConversationMemory = async ({ tenantId, channel = "", conversationId = "" } = {}) => {
+  if (!tenantId || !conversationId) return null;
+  const result = await db.query(
+    `
+    SELECT metadata->'ai_memory' AS ai_memory
+    FROM ai_channel_conversations
+    WHERE tenant_id = $1
+      AND external_conversation_id = $2
+      AND ($3::text = '' OR channel = $3 OR channel = 'facebook_messenger' OR $3 = 'facebook_messenger')
+    ORDER BY updated_at DESC
+    LIMIT 1
+    `,
+    [numberOrNull(tenantId), text(conversationId), text(channel)]
+  ).catch((error) => {
+    console.warn("[ai-memory] load failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      message: error?.message || "memory load failed",
+    });
+    return { rows: [] };
+  });
+  const state = result.rows[0]?.ai_memory || null;
+  if (state && typeof state === "object") {
+    const runtime = runtimeMemoryFromPersistent(state);
+    updateConversationMemory(conversationId, runtime);
+    console.log("[ai-memory] loaded state", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      activeProductId: runtime.activeProductId || runtime.selectedProductId || null,
+      activeVariantId: runtime.activeVariantId || runtime.selectedVariantId || null,
+      activeColor: runtime.activeColor || runtime.selectedColor || "",
+      buyingStage: runtime.buyingStage || runtime.checkoutStage || "",
+      lastShownProductCount: runtime.lastProductCards?.length || 0,
+    });
+    return runtime;
+  }
+  console.log("[ai-memory] loaded state", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    activeProductId: null,
+    activeVariantId: null,
+    activeColor: "",
+    buyingStage: "",
+    lastShownProductCount: 0,
+  });
+  return getConversationMemory(conversationId) || null;
+};
+
+const persistAiConversationMemory = ({ tenantId, channel = "", conversationId = "", reason = "" } = {}) => {
+  if (!tenantId || !conversationId) return null;
+  const memory = getConversationMemory(conversationId) || {};
+  const state = persistentAiMemoryFromRuntime(memory);
+  db.query(
+    `
+    UPDATE ai_channel_conversations
+    SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{ai_memory}', $4::jsonb, true),
+        updated_at = NOW()
+    WHERE tenant_id = $1
+      AND external_conversation_id = $2
+      AND ($3::text = '' OR channel = $3 OR channel = 'facebook_messenger' OR $3 = 'facebook_messenger')
+    `,
+    [numberOrNull(tenantId), text(conversationId), text(channel), json(state)]
+  ).then(() => {
+    console.log("[ai-memory] updated state", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      reason,
+      activeProductId: state.activeProductId || null,
+      activeVariantId: state.activeVariantId || null,
+      activeColor: state.activeColor || "",
+      activeSize: state.activeSize || "",
+      buyingStage: state.buyingStage || "",
+      lastShownProductCount: state.lastShownProductIds?.length || 0,
+      lastIntent: state.lastIntent || "",
+      pendingAction: state.pendingAction || "",
+    });
+  }).catch((error) => {
+    console.warn("[ai-memory] update failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      reason,
+      message: error?.message || "memory update failed",
+    });
+  });
+  return state;
 };
 
 const unlockProductContext = ({ conversationId, reason = "" } = {}) => {
@@ -3867,9 +4557,13 @@ const unlockProductContext = ({ conversationId, reason = "" } = {}) => {
   const memory = getConversationMemory(conversationId) || {};
   const nextMemory = updateConversationMemory(conversationId, {
     contextLocked: false,
+    activeProductId: null,
+    activeVariantId: null,
+    activeColor: "",
     selectedProductId: null,
     selectedVariantId: null,
     selectedColor: "",
+    buyingStage: "browsing",
     checkoutStage: "browsing",
   });
   console.log("ai_context_lost", {
@@ -4000,9 +4694,12 @@ const downloadImageForVision = async ({ imageUrl = "", token = "" } = {}) => {
 
 const visualSearchQueryFromUnderstanding = (understanding = {}) => {
   const detected = understanding?.detected || {};
-  return [
+  const baseTerms = [
     detected.brand_family || detected.brand,
+    detected.brand_guess,
     detected.likely_model,
+    detected.model_guess,
+    detected.model_family,
     ...(Array.isArray(detected.colors) ? detected.colors : []),
     ...(Array.isArray(detected.main_colors) ? detected.main_colors : []),
     detected.product_type || detected.category,
@@ -4010,7 +4707,17 @@ const visualSearchQueryFromUnderstanding = (understanding = {}) => {
     detected.high_top_low_top,
     ...(Array.isArray(detected.distinctive_features) ? detected.distinctive_features.slice(0, 4) : []),
     ...(Array.isArray(detected.model_keywords) ? detected.model_keywords.slice(0, 4) : []),
-  ].map(text).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+    ...(Array.isArray(detected.english_keywords) ? detected.english_keywords.slice(0, 6) : []),
+    ...(Array.isArray(detected.arabic_keywords) ? detected.arabic_keywords.slice(0, 6) : []),
+  ].map(text).filter(Boolean);
+  const normalized = baseTerms.join(" ").toLowerCase();
+  const aliases = [];
+  if (/north\s*face|northface|\u0646\u0648\u0631\u062b\s*\u0641\u064a\u0633|\u0646\u0648\u0631\u062b\u0641\u064a\u0633/.test(normalized)) aliases.push("north face", "northface", "\u0646\u0648\u0631\u062b \u0641\u064a\u0633");
+  if (/jordan|air\s*jordan|aj4|j4|\u062c\u0648\u0631\u062f\u0646/.test(normalized)) aliases.push("jordan", "air jordan", "\u062c\u0648\u0631\u062f\u0646");
+  if (/jordan\s*4|air\s*jordan\s*4|aj4|j4|\u062c\u0648\u0631\u062f\u0646\s*(4|\u0664|\u0641\u0648\u0631)/.test(normalized)) aliases.push("air jordan 4", "jordan 4", "aj4", "j4", "\u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631");
+  if (/nike|\u0646\u0627\u064a\u0643/.test(normalized)) aliases.push("nike", "\u0646\u0627\u064a\u0643");
+  if (/adidas|\u0627\u062f\u064a\u062f\u0627\u0633/.test(normalized)) aliases.push("adidas", "\u0627\u062f\u064a\u062f\u0627\u0633");
+  return [...new Set([...aliases, ...baseTerms])].join(" ").replace(/\s+/g, " ").trim();
 };
 
 const normalizedSearchText = (value = "") => text(value).toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, " ");
@@ -4022,6 +4729,8 @@ const visualQueryTokens = (query = "") => {
     hasJordan: /\bjordan\b|جوردن/.test(normalized),
     hasJordan4: /\bjordan\s*4\b|\bair\s+jordan\s*4\b|\bretro\s*4\b|جوردن\s*4/.test(normalized),
     hasNike: /\bnike\b|نايك/.test(normalized),
+    hasNorthFace: /\bnorth\s*face\b|\bnorthface\b|نورث\s*فيس|نورثفيس/.test(normalized),
+    hasAdidas: /\badidas\b|اديداس/.test(normalized),
     hasLowTop: /\blow\b|\blowtop\b|\blow top\b|\blow profile\b|\bslim sole\b|\bflat sole\b/.test(normalized),
     hasCasualSkate: /\bcasual\b|\bskate\b|\bdunk\b|\bcourt\b|\bstreetwear\b|\blifestyle\b/.test(normalized),
     hasGraphicPattern: /\bgraphic\b|\bpattern\b|\bprinted\b|\bside panel\b|\bpanel\b|\bcartoon\b|\bcomic\b|\billustration\b|\bside graphic\b|\bprinted side\b/.test(normalized),
@@ -4202,7 +4911,9 @@ const rankStrictVisualProducts = ({ products = [], analysis = {} } = {}) =>
 
 const visualDecisionForConfidence = ({ visualConfidence = 0, matchConfidence = 0, hasExact = false, alternativesRequested = false } = {}) => {
   const confidence = Math.max(0, Math.min(100, Math.round(Math.min(visualConfidence || 0, matchConfidence || 0))));
-  if (visualConfidence < 70 || !matchConfidence) return { replyType: "clarification", limit: 0, confidence };
+  if (!matchConfidence) return { replyType: "clarification", limit: 0, confidence };
+  if (visualConfidence < 45 && matchConfidence < 80) return { replyType: "clarification", limit: 0, confidence };
+  if (visualConfidence < 70 && matchConfidence >= 80) return { replyType: "close_match", limit: hasExact ? 1 : 2, confidence: Math.round(matchConfidence) };
   if (confidence < 70) return { replyType: "no_match", limit: 0, confidence };
   if (confidence < 80) return { replyType: "close_match", limit: alternativesRequested ? 2 : 1, confidence };
   if (confidence <= 90) return { replyType: hasExact ? "exact_match" : "close_match", limit: 2, confidence };
@@ -4261,6 +4972,9 @@ const searchVisualInventory = async ({ tenantId, query = "", metadata = {}, conv
   const queryInfo = visualQueryTokens(query);
   const fallbackQueries = [
     query,
+    queryInfo.hasNorthFace ? "north face northface نورث فيس sneaker shoe" : "",
+    queryInfo.hasAdidas ? "adidas اديداس sneaker shoe" : "",
+    queryInfo.hasNike ? "nike نايك sneaker shoe" : "",
     queryInfo.hasGraphicPattern ? "black white low sneaker graphic side printed side pattern casual skate" : "",
     queryInfo.hasLowTop || queryInfo.hasCasualSkate ? "low casual skate sneaker dunk style black white" : "",
     queryInfo.hasJordan4 ? "air jordan 4 jordan 4 retro 4" : "",
@@ -4282,6 +4996,9 @@ const searchVisualInventory = async ({ tenantId, query = "", metadata = {}, conv
           ...(Array.isArray(metadata.keywords) ? metadata.keywords : []),
           ...(queryInfo.hasJordan4 ? ["air jordan 4", "jordan 4", "retro 4"] : []),
           ...(queryInfo.hasJordan ? ["jordan"] : []),
+          ...(queryInfo.hasNorthFace ? ["north face", "northface", "نورث فيس"] : []),
+          ...(queryInfo.hasNike ? ["nike", "نايك"] : []),
+          ...(queryInfo.hasAdidas ? ["adidas", "اديداس"] : []),
           ...(queryInfo.hasGraphicPattern ? ["graphic side", "printed side", "pattern", "cartoon", "comic", "black white panel"] : []),
           ...(queryInfo.hasLowTop || queryInfo.hasCasualSkate ? ["low", "casual", "skate", "dunk style", "low sneaker", "black white"] : []),
         ],
@@ -4453,6 +5170,16 @@ const detectOtherColorsRequest = (message = "") =>
   Boolean(hasTerm(message, ["\u0623\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0627\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0644\u0648\u0646 \u062a\u0627\u0646\u064a", "other colors", "another color"]));
 
 const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIntent = "", metadata = {} } = {}) => {
+  const signature = outboundSignature({ messageText: replyText, productCards: [], trigger: detectedIntent || metadata?.trigger || "" });
+  const dedupe = await checkAndStoreOutboundSignature({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId: message.external_conversation_id,
+    signature,
+    trigger: detectedIntent || metadata?.trigger || "",
+    preview: replyText,
+  });
+  if (dedupe.duplicate) return { dedupe_skipped: true, delivery_status: "skipped", signature };
   const result = await sendMetaInboxOutboundMessage({
     tenantId: config.tenant_id,
     channel: message.channel,
@@ -4463,6 +5190,7 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
   });
+  if (result?.dedupe_skipped) return result;
   const inserted = await appendAiGeneratedSupportReply({
     tenantId: config.tenant_id,
     sessionId: message.external_conversation_id,
@@ -4551,6 +5279,16 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   const finalIntroText = modelNameSearch && gatedCards.length >= 2
     ? [modelColorLimitIntro, gate.introText || introText].filter(Boolean).join("\n")
     : gate.introText || introText;
+  const signature = outboundSignature({ messageText: finalIntroText, productCards: gatedCards, trigger: detectedIntent || metadata?.trigger || "" });
+  const dedupe = await checkAndStoreOutboundSignature({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId: message.external_conversation_id,
+    signature,
+    trigger: detectedIntent || metadata?.trigger || "",
+    preview: finalIntroText || gatedCards.map((card) => card.name || card.product_id || "").join(", "),
+  });
+  if (dedupe.duplicate) return { dedupe_skipped: true, blocked: true, reason: "duplicate_outbound", signature };
   if (modelNameSearch) {
     console.log("ai_model_color_limit_applied", {
       tenant_id: config.tenant_id,
@@ -4590,7 +5328,16 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
   });
-  rememberLastProductCards({ conversationId: message.external_conversation_id, productCards: gatedCards, sentMessages: result?.product_card_messages || [] });
+  if (result?.dedupe_skipped) return result;
+  rememberLastProductCards({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId: message.external_conversation_id,
+    productCards: gatedCards,
+    sentMessages: result?.product_card_messages || [],
+    messageText: message.message_text || "",
+    lastIntent: detectedIntent || "product_cards_sent",
+  });
   await recordLeadSignals({ config, message, reason: "product_cards_sent" }).catch(() => {});
   const preview = gatedCards.map(productCardReplyText).join("\n\n").slice(0, 500);
   await appendAiGeneratedSupportReply({
@@ -5000,10 +5747,102 @@ const handleSizeAvailabilityLinkIfMatched = async ({ config, message } = {}) => 
   return { handled: true, reason: "size_availability_storefront_link" };
 };
 
+const sendVisualClarificationOnce = async ({ config, message, metadata = {}, reason = "visual_search_clarification" } = {}) => {
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  const sameImage = memory.lastVisualClarifiedImageUrl && metadata?.image_url && imageIdentity(memory.lastVisualClarifiedImageUrl) === imageIdentity(metadata.image_url);
+  if (memory.lastIntent === "visual_clarification" && sameImage) {
+    console.log("[ai-vision] low confidence", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      reason: "clarification_already_sent_for_same_image",
+      suppressed: true,
+    });
+    return { suppressed: true };
+  }
+  await sendAndLogMetaText({
+    config,
+    message,
+    text: VISUAL_CLARIFICATION_REPLY,
+    detectedIntent: "visual_search_clarification",
+    metadata,
+  });
+  updateConversationMemory(message.external_conversation_id, {
+    lastIntent: "visual_clarification",
+    lastVisualReplyType: "clarification",
+    lastVisualClarifiedImageUrl: text(metadata?.image_url || memory.lastImageUrl || ""),
+    pendingAction: "awaiting_clearer_image_or_model",
+  });
+  persistAiConversationMemory({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId: message.external_conversation_id,
+    reason,
+  });
+  return { sent: true };
+};
+
 const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   const [imageAttachment] = imageAttachments(message.attachments || []);
-  if (!imageAttachment) return null;
-  const imageUrl = text(imageAttachment.url || imageAttachment.image_url || imageAttachment.imageUrl);
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  const retryLastImage = !imageAttachment && hasTerm(message.message_text, ["\u0627\u0647\u0648", "\u0623\u0647\u0648", "\u0627\u0647\u064a", "\u0623\u0647\u064a", "\u062f\u064a", "\u0627\u0644\u0635\u0648\u0631\u0629", "\u0628\u0639\u062a", "\u0628\u0639\u062a\u062a", "\u062a\u0645\u0627\u0645", "\u0647\u064a \u062f\u064a", "\u0647\u0648 \u062f\u0647"]);
+  if (!imageAttachment && Array.isArray(message.attachments) && message.attachments.length) {
+    console.log("[ai-vision] no image url found", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      attachment_count: message.attachments.length,
+      attachment_types: message.attachments.map((attachment) => attachment?.type || "").filter(Boolean),
+    });
+  }
+  if (!imageAttachment && !retryLastImage) return null;
+  if (imageAttachment) {
+    console.log("[ai-vision] image attachment detected", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      channel: message.channel,
+      attachment_type: imageAttachment.type || "",
+      attachment_count: Array.isArray(message.attachments) ? message.attachments.length : 0,
+    });
+  }
+  let imageUrl = text(imageAttachment?.url || "");
+  if (!imageUrl && retryLastImage && memory.lastImageUrl) {
+    imageUrl = text(memory.lastImageUrl);
+    console.log("[ai-vision] reused last image", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      image_url: imageUrl,
+    });
+  }
+  if (!imageUrl) {
+    console.log("[ai-vision] no image url found", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      attachment_count: Array.isArray(message.attachments) ? message.attachments.length : 0,
+    });
+    if (retryLastImage && memory.lastIntent === "visual_clarification") {
+      await sendAndLogMetaText({
+        config,
+        message,
+        text: "\u0627\u0628\u0639\u062a\u0644\u064a \u0635\u0648\u0631\u0629 \u0623\u0648 \u0627\u0633\u0645 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0648\u0623\u0646\u0627 \u0623\u062c\u064a\u0628\u0647\u0648\u0644\u0643.",
+        detectedIntent: "visual_search_missing_reusable_image",
+        metadata: { reason: "no_last_image_url" },
+      });
+      updateConversationMemory(message.external_conversation_id, { lastIntent: "visual_clarification" });
+      persistAiConversationMemory({ tenantId: config.tenant_id, channel: message.channel, conversationId: message.external_conversation_id, reason: "visual_missing_reusable_image" });
+      return { handled: true, reason: "visual_missing_reusable_image" };
+    }
+    return null;
+  }
+  console.log("[ai-vision] image url extracted", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    image_url: imageUrl,
+    reused_last_image: Boolean(retryLastImage && !imageAttachment),
+  });
+  updateConversationMemory(message.external_conversation_id, {
+    lastImageUrl: imageUrl,
+    pendingAction: "visual_search",
+  });
+  persistAiConversationMemory({ tenantId: config.tenant_id, channel: message.channel, conversationId: message.external_conversation_id, reason: "visual_image_url_extracted" });
   const visualDebug = text(process.env.VISUAL_DEBUG).toLowerCase() === "true";
   const pipeline = {
     attachment_detected: true,
@@ -5037,6 +5876,11 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   emitAiInboxEvent(config.tenant_id, "ai_inbox:image_search_triggered", {
     sessionId: message.external_conversation_id,
     channel: message.channel,
+  });
+  console.log("[ai-vision] analyzing image", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    image_url: imageUrl,
   });
   let understanding = null;
   let downloadedImageInput = null;
@@ -5119,33 +5963,39 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     confidence: understanding?.confidence || 0,
     openai_model: understanding?.openai_model || "",
   });
+  console.log("[ai-vision] attributes extracted", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    attributes: {
+      brand_guess: visualAnalysis.brand || "",
+      model_guess: visualAnalysis.modelFamily || "",
+      category_type: visualAnalysis.shoeType || "",
+      gender_guess: visualAnalysis.raw?.gender_style || visualAnalysis.raw?.gender_audience || "",
+      main_colors: visualAnalysis.primaryColors || [],
+      silhouette: visualAnalysis.silhouette || "",
+      material_features: [...(visualAnalysis.raw?.materials || []), ...(visualAnalysis.notableFeatures || [])].slice(0, 12),
+      confidence: visualAnalysis.confidence,
+    },
+  });
+  updateConversationMemory(message.external_conversation_id, {
+    lastImageUrl: imageUrl,
+    lastVisualAttributes: visualAnalysis,
+    lastVisualAnalysis: visualAnalysis,
+    lastVisualConfidence: visualAnalysis.confidence / 100,
+  });
+  persistAiConversationMemory({ tenantId: config.tenant_id, channel: message.channel, conversationId: message.external_conversation_id, reason: "visual_attributes_extracted" });
   const searchQuery = visualQuery || message.message_text || "sneaker shoe";
   pipeline.inventory_search_query = searchQuery;
   if (visualAnalysis.confidence < 70) {
     pipeline.confidence_score = visualAnalysis.confidence / 100;
     pipeline.fallback_reason = pipeline.fallback_reason || "visual_understanding_confidence_below_70";
-    console.log("ai_sales_brain_v2_confidence_decision", {
+    console.log("[ai-vision] low confidence", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
       visual_confidence: visualAnalysis.confidence,
-      selected_products: [],
-      final_reply_type: "clarification",
+      visual_query: searchQuery,
       reason: pipeline.fallback_reason,
     });
-    await sendAndLogMetaText({
-      config,
-      message,
-      text: VISUAL_CLARIFICATION_REPLY,
-      detectedIntent: "visual_search_clarification",
-      metadata: { visual_query: searchQuery, confidence_score: visualAnalysis.confidence / 100, fallback_reason: pipeline.fallback_reason, visual_pipeline: pipeline },
-    });
-    updateConversationMemory(message.external_conversation_id, {
-      lastVisualQuery: searchQuery,
-      lastVisualConfidence: visualAnalysis.confidence / 100,
-      lastVisualReplyType: "clarification",
-      lastVisualAnalysis: visualAnalysis,
-    });
-    return { handled: true, reason: "visual_search_clarification" };
   }
   const indexedSearch = await searchIndexedProductImageMatches({
     tenantId: config.tenant_id,
@@ -5206,6 +6056,16 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
           breakdown: product.visual_score_breakdown?.strict_sales_brain_v2 || product.visual_score_breakdown || null,
         })),
       });
+      console.log("[ai-vision] candidate products scored", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        candidates: exactCards.map((product) => ({
+          product_id: product.product_id || product.id || null,
+          name: product.name || "",
+          score: Number(product.visual_confidence_score || 0),
+          source: "exact_image_match",
+        })),
+      });
       if (decision.limit < 1) {
         console.log("ai_sales_brain_v2_confidence_decision", {
           tenant_id: config.tenant_id,
@@ -5215,12 +6075,11 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
           selected_products: [],
           final_reply_type: decision.replyType,
         });
-        await sendAndLogMetaText({
+        await sendVisualClarificationOnce({
           config,
           message,
-          text: VISUAL_CLARIFICATION_REPLY,
-          detectedIntent: "visual_search_clarification",
-          metadata: { visual_query: searchQuery, confidence_score: decision.confidence / 100, fallback_reason: "strict_exact_match_below_threshold", visual_pipeline: pipeline },
+          metadata: { image_url: imageUrl, visual_query: searchQuery, confidence_score: decision.confidence / 100, fallback_reason: "strict_exact_match_below_threshold", visual_pipeline: pipeline },
+          reason: "strict_exact_match_below_threshold",
         });
         return { handled: true, reason: "visual_search_clarification" };
       }
@@ -5251,12 +6110,23 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
         selected_exact_product: pipeline.selected_exact_product,
         top_image_matches: pipeline.top_image_matches,
       });
+      console.log("[ai-vision] selected matches", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        reply_type: decision.replyType,
+        selected: exactCards.map((product) => ({
+          product_id: product.product_id || product.id || null,
+          variant_id: product.variant_id || null,
+          name: product.name || "",
+          confidence: product.visual_confidence_score || 0,
+        })),
+      });
       await sendAndLogProductCards({
         config,
         message,
         productCards: exactCards,
         detectedIntent: "visual_search_exact_inventory_match",
-        introText: "لقيته عندنا ",
+        introText: "\u0623\u064a\u0648\u0647 \u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627\u060c \u062f\u0647 \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0639\u0646\u062f\u0646\u0627",
         metadata: {
           visual_query: searchQuery,
           confidence_score: pipeline.confidence_score,
@@ -5268,11 +6138,16 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
         },
       });
       updateConversationMemory(message.external_conversation_id, {
+        lastImageUrl: imageUrl,
         lastVisualQuery: searchQuery,
         lastVisualConfidence: pipeline.confidence_score,
         lastVisualReplyType: decision.replyType,
         lastVisualAnalysis: visualAnalysis,
+        lastVisualAttributes: visualAnalysis,
+        lastIntent: "visual_search",
+        pendingAction: "",
       });
+      persistAiConversationMemory({ tenantId: config.tenant_id, channel: message.channel, conversationId: message.external_conversation_id, reason: "visual_exact_match_sent" });
       return { handled: true, reason: "visual_search_exact_inventory_match_sent" };
     }
     pipeline.fallback_reason = "exact_index_match_product_card_lookup_failed";
@@ -5297,6 +6172,16 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   pipeline.inventory_search_attempts = searchResult.attempts;
   const ranked = rankStrictVisualProducts({ products: searchResult.products, analysis: visualAnalysis });
   console.log("ai_sales_brain_v2_candidate_scores", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    candidates: ranked.slice(0, 8).map((product) => ({
+      product_id: product.product_id || product.id || null,
+      name: product.name || "",
+      score: Number(product.visual_confidence_score || 0),
+      breakdown: product.visual_score_breakdown?.strict_sales_brain_v2 || product.visual_score_breakdown || null,
+    })),
+  });
+  console.log("[ai-vision] candidate products scored", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
     candidates: ranked.slice(0, 8).map((product) => ({
@@ -5357,15 +6242,35 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     limit: decision.limit,
   });
   if (!selectedCards.length) {
+    console.log("[ai-vision] low confidence", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      visual_confidence: visualAnalysis.confidence,
+      match_confidence: topConfidence * 100,
+      reason: pipeline.fallback_reason || "no_selected_cards",
+    });
+  } else {
+    console.log("[ai-vision] selected matches", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      reply_type: decision.replyType,
+      selected: selectedCards.map((product) => ({
+        product_id: product.product_id || product.id || null,
+        variant_id: product.variant_id || null,
+        name: product.name || "",
+        confidence: product.visual_confidence_score || topConfidence,
+      })),
+    });
+  }
+  if (!selectedCards.length) {
     const fallbackDebug = visualDebug
       ? `\n\nDebug:\nquery: ${searchQuery}\nmatched: none\nconfidence: ${topConfidence}`
       : "";
-    await sendAndLogMetaText({
+    await sendVisualClarificationOnce({
       config,
       message,
-      text: `${VISUAL_CLARIFICATION_REPLY}${fallbackDebug}`,
-      detectedIntent: "visual_search_no_match",
-      metadata: { visual_query: searchQuery, confidence_score: topConfidence, fallback_reason: pipeline.fallback_reason, visual_pipeline: pipeline },
+      metadata: { image_url: imageUrl, visual_query: searchQuery, confidence_score: topConfidence, fallback_reason: pipeline.fallback_reason, visual_pipeline: pipeline, debug: fallbackDebug },
+      reason: "visual_search_no_match",
     });
     return { handled: true, reason: "visual_search_no_match" };
   }
@@ -5385,7 +6290,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     message,
     productCards: selectedCards,
     detectedIntent: "visual_search",
-    introText: [decision.replyType === "exact_match" ? "" : VISUAL_CLOSE_MATCH_REPLY, debugText].filter(Boolean).join("\n\n"),
+    introText: [decision.replyType === "exact_match" ? "\u0623\u064a\u0648\u0647 \u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627\u060c \u062f\u0647 \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0639\u0646\u062f\u0646\u0627" : "\u062f\u0647 \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647 \u0627\u0644\u0635\u0648\u0631\u0629 \u0639\u0646\u062f\u064a\u060c \u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f", debugText].filter(Boolean).join("\n\n"),
     metadata: {
       visual_query: searchQuery,
       confidence_score: topConfidence,
@@ -5398,11 +6303,16 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     },
   });
   updateConversationMemory(message.external_conversation_id, {
+    lastImageUrl: imageUrl,
     lastVisualQuery: searchQuery,
     lastVisualConfidence: topConfidence,
     lastVisualReplyType: decision.replyType,
     lastVisualAnalysis: visualAnalysis,
+    lastVisualAttributes: visualAnalysis,
+    lastIntent: "visual_search",
+    pendingAction: "",
   });
+  persistAiConversationMemory({ tenantId: config.tenant_id, channel: message.channel, conversationId: message.external_conversation_id, reason: "visual_search_sent" });
   return { handled: true, reason: "visual_search_sent" };
 };
 
@@ -5482,6 +6392,12 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     return { handled: true, reason: "more_images_color_clarification" };
   }
   if (!baseCard) {
+    console.log("[ai-memory] missing active product", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      contextual_intent: "more_images",
+      keyword,
+    });
     await sendAndLogMetaText({
       config,
       message,
@@ -5491,6 +6407,14 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     });
     return { handled: true, reason: "missing_product_context" };
   }
+  console.log("[ai-memory] contextual intent resolved", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    contextual_intent: "more_images",
+    product_id: baseCard.product_id || baseCard.id || null,
+    variant_id: baseCard.variant_id || null,
+    color: baseCard.color || "",
+  });
   lockProductContext({
     conversationId: message.external_conversation_id,
     card: baseCard,
@@ -5537,7 +6461,15 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     instagramBusinessAccountId: config.instagram_business_account_id,
     preferredConfigId: config.id,
   });
-  rememberLastProductCards({ conversationId: message.external_conversation_id, productCards: moreImageCards, sentMessages: result?.product_card_messages || [] });
+  rememberLastProductCards({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId: message.external_conversation_id,
+    productCards: moreImageCards,
+    sentMessages: result?.product_card_messages || [],
+    messageText: message.message_text || "",
+    lastIntent: "more_images",
+  });
   lockProductContext({
     conversationId: message.external_conversation_id,
     card: baseCard,
@@ -5590,55 +6522,91 @@ const handleAlternativesIfMatched = async ({ config, message } = {}) => {
   if (!keyword) return null;
   const memory = getConversationMemory(message.external_conversation_id) || {};
   const baseCard = lastProductCardFromMemory(message.external_conversation_id);
-  const query = text(memory.lastVisualQuery || baseCard?.name || message.message_text);
-  if (!query) return null;
-  unlockProductContext({
-    conversationId: message.external_conversation_id,
-    reason: "alternatives_requested",
-  });
-  const analysis = memory.lastVisualAnalysis || {
-    brand: baseCard?.name || "",
-    modelFamily: baseCard?.name || "",
-    confidence: Math.max(70, Number(memory.lastVisualConfidence || 0) * 100),
-  };
-  const searchResult = await searchVisualInventory({
-    tenantId: config.tenant_id,
-    query,
-    metadata: { visual_search: true, allow_alternatives: true, visual_query: query },
-    conversationId: message.external_conversation_id,
-  });
-  const currentId = String(baseCard?.product_id || "");
-  const ranked = rankStrictVisualProducts({ products: searchResult.products, analysis })
-    .filter((product) => String(product.product_id || product.id || "") !== currentId);
-  const cards = oneCardPerProduct(normalizeProductCards(ranked, { limit: 4 })).slice(0, 2);
-  console.log("ai_sales_brain_v2_alternatives", {
+  if (!baseCard && !memory.selectedProductId && !memory.activeProductId) {
+    console.log("[ai-memory] missing active product", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      contextual_intent: "alternatives",
+      keyword,
+    });
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: "\u0628\u062f\u0627\u0626\u0644 \u0644\u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644\u061f \u0627\u0628\u0639\u062a\u0644\u064a \u0627\u0633\u0645 \u0627\u0644\u0645\u0646\u062a\u062c \u0623\u0648 \u0635\u0648\u0631\u062a\u0647.",
+      detectedIntent: "contextual_alternatives_missing_product",
+      metadata: { contextual_intent: "alternatives", reason: "missing_active_product" },
+    });
+    return { handled: true, reason: "missing_active_product_for_alternatives" };
+  }
+  const activeProductId = baseCard?.product_id || baseCard?.id || memory.selectedProductId || memory.activeProductId || null;
+  const activeVariantId = baseCard?.variant_id || memory.selectedVariantId || memory.activeVariantId || null;
+  const activeColor = baseCard?.color || memory.selectedColor || memory.activeColor || "";
+  const customerSize = memory.selectedSize || memory.activeSize || extractShoeSize(message.message_text) || "";
+  console.log("[ai-memory] contextual intent resolved", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
-    query,
-    selected_products: cards.map((product) => ({
-      product_id: product.product_id || product.id || null,
-      name: product.name || "",
-      score: Number(product.visual_confidence_score || 0),
-    })),
-    final_reply_type: cards.length ? "close_match" : "no_match",
+    contextual_intent: "alternatives",
+    product_id: activeProductId,
+    variant_id: activeVariantId,
+    color: activeColor,
+    size: customerSize,
   });
+  const alternatives = await findSimilarProductsForAi({
+    tenantId: config.tenant_id,
+    activeProductId,
+    activeVariantId,
+    activeColor,
+    customerSize,
+    limit: 6,
+  });
+  const cards = oneCardPerProduct(normalizeProductCards(alternatives.products, { limit: 6 })).slice(0, 4);
   if (!cards.length) {
     await sendAndLogMetaText({
       config,
       message,
-      text: VISUAL_CLARIFICATION_REPLY,
+      text: "\u0645\u0634 \u0644\u0627\u0642\u064a \u0628\u062f\u0627\u0626\u0644 \u0642\u0631\u064a\u0628\u0629 \u0644\u0646\u0641\u0633 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u062d\u0627\u0644\u064a\u064b\u0627\u060c \u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647\u0647 \u0641\u064a \u0646\u0641\u0633 \u0627\u0644\u0633\u0639\u0631\u061f",
       detectedIntent: "visual_alternatives_no_match",
-      metadata: { visual_query: query, keyword },
+      metadata: { active_product_id: activeProductId, active_variant_id: activeVariantId, active_color: activeColor, requested_size: customerSize, keyword },
     });
     return { handled: true, reason: "visual_alternatives_no_match" };
   }
+  const originalContext = {
+    activeProductId: memory.activeProductId || memory.selectedProductId || activeProductId,
+    activeVariantId: memory.activeVariantId || memory.selectedVariantId || activeVariantId,
+    activeColor: memory.activeColor || memory.selectedColor || activeColor,
+    selectedProductId: memory.selectedProductId || memory.activeProductId || activeProductId,
+    selectedVariantId: memory.selectedVariantId || memory.activeVariantId || activeVariantId,
+    selectedColor: memory.selectedColor || memory.activeColor || activeColor,
+    contextLocked: true,
+    checkoutStage: memory.checkoutStage || "product_details",
+    buyingStage: memory.buyingStage || memory.checkoutStage || "product_details",
+  };
   await sendAndLogProductCards({
     config,
     message,
     productCards: cards,
     detectedIntent: "visual_alternatives",
-    introText: VISUAL_CLOSE_MATCH_REPLY,
-    metadata: { visual_query: query, allow_alternatives: true, final_reply_type: "close_match" },
+    introText: "\u062f\u064a \u0623\u0642\u0631\u0628 \u0628\u062f\u0627\u0626\u0644 \u0644\u0644\u0645\u0648\u062f\u064a\u0644 \u0627\u0644\u0644\u064a \u0628\u062a\u0633\u0623\u0644 \u0639\u0646\u0647:",
+    metadata: {
+      active_product_id: activeProductId,
+      active_variant_id: activeVariantId,
+      active_color: activeColor,
+      requested_size: customerSize,
+      allow_alternatives: true,
+      final_reply_type: "close_match",
+    },
+  });
+  updateConversationMemory(message.external_conversation_id, {
+    ...originalContext,
+    lastIntent: "alternatives",
+    lastShownProductIds: cards.map((card) => String(card.product_id || card.id || "")).filter(Boolean),
+    lastShownVariantIds: cards.map((card) => String(card.variant_id || "")).filter(Boolean),
+  });
+  persistAiConversationMemory({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId: message.external_conversation_id,
+    reason: "alternatives_original_context_restored",
   });
   return { handled: true, reason: "visual_alternatives_sent" };
 };
@@ -5647,7 +6615,29 @@ const handleOtherColorsIfMatched = async ({ config, message } = {}) => {
   if (!detectOtherColorsRequest(message.message_text) && !detectAllColorsRequest(message.message_text)) return null;
   const context = resolveContextProductCard({ message, allowAmbiguous: true });
   const baseCard = context.card;
-  if (!baseCard) return null;
+  if (!baseCard) {
+    console.log("[ai-memory] missing active product", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      contextual_intent: "other_colors",
+    });
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: "\u0623\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629 \u0644\u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644\u061f \u0627\u0628\u0639\u062a\u0644\u064a \u0627\u0633\u0645 \u0627\u0644\u0645\u0646\u062a\u062c \u0623\u0648 \u0635\u0648\u0631\u062a\u0647.",
+      detectedIntent: "contextual_other_colors_missing_product",
+      metadata: { contextual_intent: "other_colors", reason: "missing_active_product" },
+    });
+    return { handled: true, reason: "missing_active_product_for_other_colors" };
+  }
+  console.log("[ai-memory] contextual intent resolved", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    contextual_intent: "other_colors",
+    product_id: baseCard.product_id || baseCard.id || null,
+    variant_id: baseCard.variant_id || null,
+    color: baseCard.color || "",
+  });
   const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: baseCard.name || message.message_text });
   if (!product) return null;
   const limit = 3;
@@ -5713,10 +6703,21 @@ const handleSizesIfMatched = async ({ config, message } = {}) => {
     : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
   updateConversationMemory(message.external_conversation_id, {
     checkoutStage: "product_details",
+    buyingStage: "product_details",
     contextLocked: true,
+    activeProductId: baseCard.product_id || baseCard.id || null,
+    activeVariantId: baseCard.variant_id || null,
+    activeColor: baseCard.color || "",
     selectedProductId: baseCard.product_id || baseCard.id || null,
     selectedVariantId: baseCard.variant_id || null,
     selectedColor: baseCard.color || "",
+    lastIntent: "sizes_request",
+  });
+  persistAiConversationMemory({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId: message.external_conversation_id,
+    reason: "sizes_request",
   });
   console.log("ai_checkout_blocked", {
     tenant_id: config.tenant_id,
@@ -5749,7 +6750,24 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   const availabilityKeyword = hasTerm(message.message_text, ["\u0645\u062a\u0648\u0641\u0631", "\u0641\u064a\u0647", "\u0641\u064a", "\u0645\u0648\u062c\u0648\u062f", "available"]);
   if (!requestedSize && !availabilityKeyword) return null;
   const context = resolveContextProductCard({ message });
-  if (!context.card && !context.ambiguous) return null;
+  if (!context.card && !context.ambiguous) {
+    console.log("[ai-memory] missing active product", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      contextual_intent: "size_check",
+      requested_size: requestedSize || "",
+    });
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: requestedSize
+        ? `\u0645\u0642\u0627\u0633 ${requestedSize} \u0644\u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644\u061f \u0627\u0628\u0639\u062a\u0644\u064a \u0627\u0633\u0645 \u0627\u0644\u0645\u0646\u062a\u062c \u0623\u0648 \u0635\u0648\u0631\u062a\u0647.`
+        : "\u062a\u0642\u0635\u062f \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644\u061f \u0627\u0628\u0639\u062a\u0644\u064a \u0627\u0633\u0645 \u0627\u0644\u0645\u0646\u062a\u062c \u0623\u0648 \u0635\u0648\u0631\u062a\u0647.",
+      detectedIntent: "contextual_size_missing_product",
+      metadata: { requested_size: requestedSize || "", reason: "missing_active_product" },
+    });
+    return { handled: true, reason: "missing_active_product_for_size_check" };
+  }
   console.log("ai_intent_priority_selected", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -5767,7 +6785,21 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     return { handled: true, reason: "size_check_color_clarification" };
   }
   const baseCard = context.card;
-  const sizes = [...new Set((Array.isArray(baseCard.sizes) ? baseCard.sizes : baseCard.available_sizes || []).map(text).filter(Boolean))];
+  const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
+  const selectedVariantForSize = requestedSize
+    ? chooseVariantForSize(product, requestedSize, baseCard.variant_id)
+    : null;
+  console.log("[ai-memory] contextual intent resolved", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    contextual_intent: "size_check",
+    product_id: baseCard.product_id || baseCard.id || null,
+    variant_id: baseCard.variant_id || null,
+    color: baseCard.color || "",
+    requested_size: requestedSize || "",
+  });
+  const memorySizes = [...new Set((Array.isArray(baseCard.sizes) ? baseCard.sizes : baseCard.available_sizes || []).map(text).filter(Boolean))];
+  const sizes = memorySizes.length ? memorySizes : availableSizesForProduct(product, baseCard);
   console.log("stock_check_source", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -5775,7 +6807,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     variant_id: baseCard.variant_id || null,
     color: baseCard.color || "",
     requested_size: requestedSize || "",
-    source: "memory_product_card_sizes_from_product_variants",
+    source: memorySizes.length ? "memory_product_card_sizes_from_product_variants" : "searchAiOrderProducts.product_variants.stock",
     sizes,
   });
   const colorLabel = text(baseCard.color);
@@ -5800,27 +6832,74 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   }
   const requestedDigits = sizeDigits(requestedSize);
   const hasSize = sizes.some((size) => sizeDigits(size) === requestedDigits);
+  const priceText = formatSalesPrice(selectedVariantForSize?.price || product?.product_price || baseCard.price);
+  const lowStockLine = hasSize && selectedVariantForSize && Number(selectedVariantForSize.stock || 0) > 0 && Number(selectedVariantForSize.stock || 0) <= LOW_STOCK_THRESHOLD
+    ? "المقاس ده الكمية منه محدودة."
+    : "";
   console.log("stock_consistency_check", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
     product_id: baseCard.product_id || null,
     variant_id: baseCard.variant_id || null,
     requested_size: requestedSize,
-    stock_check_source: "memory_product_card_sizes_from_product_variants",
+    stock_check_source: memorySizes.length ? "memory_product_card_sizes_from_product_variants" : "product_variants.stock",
     available: hasSize,
   });
   const replyText = hasSize
-    ? `\u0623\u064a\u0648\u0647\u060c \u0645\u0642\u0627\u0633 ${requestedSize} \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase} \u2705\n\n\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629 \u0644\u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f\n\u0648\u0644\u0627 \u0623\u0648\u0631\u064a\u0643 \u0628\u0627\u0642\u064a \u0627\u0644\u0623\u0644\u0648\u0627\u0646\u061f`
+    ? [
+      `أيوه ${requestedSize} متوفر في ${colorPhrase} ✅`,
+      priceText ? `السعر ${priceText}.` : "",
+      lowStockLine,
+      "",
+      "تحب أحجزهولك؟",
+      "ابعتلي:",
+      "• الاسم",
+      "• رقم التليفون",
+      "• المحافظة",
+      "• المنطقة",
+    ].filter((line) => line !== "").join("\n")
     : sizes.length
       ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}`
       : "\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0639\u0646\u062f\u064a \u0644\u0644\u0648\u0646 \u062f\u0647\u060c \u0623\u0631\u0627\u062c\u0639\u0647\u0627\u0644\u0643\u061f";
   lockProductContext({
     conversationId: message.external_conversation_id,
     card: baseCard,
-    stage: "product_details",
+    stage: hasSize ? "size_selected" : "product_details",
     reason: "contextual_size_check",
   });
-  if (hasSize) updateConversationMemory(message.external_conversation_id, { selectedSize: requestedSize });
+  if (hasSize) {
+    updateConversationMemory(message.external_conversation_id, {
+      selectedSize: requestedSize,
+      activeSize: requestedSize,
+      selectedVariantId: selectedVariantForSize?.id || baseCard.variant_id || null,
+      activeVariantId: selectedVariantForSize?.id || baseCard.variant_id || null,
+      selectedColor: selectedVariantForSize?.color || baseCard.color || "",
+      activeColor: selectedVariantForSize?.color || baseCard.color || "",
+      buyingStage: "size_selected",
+      checkoutStage: "size_selected",
+      bookingConfirmationAsked: true,
+      lastIntent: "contextual_size_check",
+    });
+    console.log("[sales-brain] buying intent detected", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      signal: "size_available",
+      selected_size: requestedSize,
+    });
+    console.log("[sales-brain] stage changed", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      from: "product_details",
+      to: "size_selected",
+      selected_size: requestedSize,
+    });
+  }
+  persistAiConversationMemory({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId: message.external_conversation_id,
+    reason: "contextual_size_check",
+  });
   console.log("ai_checkout_blocked", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -6057,6 +7136,183 @@ const checkoutMissingPrompt = (missing = []) => {
   if (missing.includes("address")) return "\u0627\u0628\u0639\u062a\u0644\u064a \u0627\u0644\u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u062a\u0641\u0635\u064a\u0644\u064a \u0644\u0648\u0633\u0645\u062d\u062a.";
   return "";
 };
+
+const formatSalesPrice = (value = null) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return "";
+  return `${Math.round(amount)} جنيه`;
+};
+
+const salesBrainBuyingIntentSignal = (message = "") =>
+  hasAnyArabicCommerceTerm(message, [
+    "هطلب",
+    "احجز",
+    "عايزه",
+    "عايزة",
+    "عايز ده",
+    "مناسب",
+    "تمام",
+    "خدته",
+    "متاح",
+    "كام",
+    "ابعته",
+    "ابعتو",
+    "ابعتوه",
+    "ماشي",
+  ]) || Boolean(extractShoeSize(message));
+
+const detectPriceObjection = (message = "") =>
+  Boolean(hasAnyArabicCommerceTerm(message, [
+    "غالي",
+    "غالية",
+    "كتير",
+    "السعر عالي",
+    "السعر غالي",
+    "عالي",
+  ]));
+
+const detectSalesFinalConfirmation = (message = "") =>
+  Boolean(hasAnyArabicCommerceTerm(message, [
+    "اكد",
+    "أكد",
+    "اكد الطلب",
+    "أكد الطلب",
+    "تمام اكد",
+    "تمام أكد",
+    "اه اكد",
+    "ايوه اكد",
+    "ماشي اكد",
+    "تمام",
+    "ماشي",
+    "ايوه",
+    "أيوه",
+    "اه",
+  ]));
+
+const detectSalesCheckoutStart = (message = "", memory = {}) =>
+  Boolean(hasAnyArabicCommerceTerm(message, [
+    "تمام",
+    "ماشي",
+    "احجز",
+    "احجزه",
+    "احجزهولي",
+    "عايزه",
+    "عايزة",
+    "هطلب",
+    "ابعته",
+  ])) && Boolean(memory?.activeProductId || memory?.selectedProductId || memory?.lastProductCard?.product_id);
+
+const EGYPT_GOVERNORATE_KEYWORDS = [
+  "القاهرة", "القاهره", "cairo",
+  "الجيزة", "الجيزه", "giza",
+  "الإسكندرية", "الاسكندرية", "اسكندرية", "alexandria",
+  "دمياط", "damietta",
+  "الدقهلية", "الدقهليه", "dakahlia",
+  "البحر الأحمر", "البحر الاحمر", "red sea",
+  "البحيرة", "البحيره", "beheira",
+  "الفيوم", "fayoum",
+  "الغربية", "الغربيه", "gharbia",
+  "الإسماعيلية", "الاسماعيلية", "ismailia",
+  "المنوفية", "المنوفيه", "menofia",
+  "المنيا", "minya",
+  "القليوبية", "القليوبيه", "qalyubia",
+  "الوادي الجديد", "new valley",
+  "السويس", "suez",
+  "أسوان", "اسوان", "aswan",
+  "أسيوط", "اسيوط", "assiut",
+  "بني سويف", "beni suef",
+  "بورسعيد", "port said",
+  "الشرقية", "الشرقيه", "sharqia",
+  "جنوب سيناء", "south sinai",
+  "كفر الشيخ", "kafr el sheikh",
+  "مطروح", "matrouh",
+  "الأقصر", "الاقصر", "luxor",
+  "قنا", "qena",
+  "شمال سيناء", "north sinai",
+  "سوهاج", "sohag",
+];
+
+const extractSalesGovernorate = (value = "") => {
+  const normalized = text(value).toLowerCase();
+  return EGYPT_GOVERNORATE_KEYWORDS.find((item) => normalized.includes(item.toLowerCase())) || "";
+};
+
+const splitFirstName = (name = "") => text(name).split(/\s+/).filter(Boolean)[0] || "";
+
+const isSalesControlWordName = (value = "") =>
+  ["تمام", "ماشي", "احجز", "احجزه", "عايزه", "عايزة", "هطلب", "اكد", "أكد"].includes(text(value).toLowerCase());
+
+const mergeSalesCustomerInfo = ({ known = {}, parsed = {}, messageText = "" } = {}) => {
+  const address = parsed.customer_address || known.customerAddress || known.customer_address || "";
+  const governorate = known.governorate || extractSalesGovernorate(messageText) || extractSalesGovernorate(address);
+  const parsedName = isSalesControlWordName(parsed.customer_name) ? "" : parsed.customer_name;
+  return {
+    customerName: parsedName || known.customerName || known.customer_name || "",
+    customerFirstName: splitFirstName(parsedName || known.customerName || known.customer_name || ""),
+    customerPhone: normalizeEgyptPhone(parsed.customer_phone || known.customerPhone || known.customer_phone || ""),
+    customerAddress: address,
+    governorate,
+    area: known.area || known.city_area || address,
+  };
+};
+
+const missingSalesCheckoutFields = (info = {}) => {
+  const missing = [];
+  if (!splitFirstName(info.customerName || info.customerFirstName)) missing.push("first_name");
+  if (!normalizeEgyptPhone(info.customerPhone)) missing.push("phone");
+  if (!text(info.governorate)) missing.push("governorate");
+  if (!text(info.customerAddress || info.area)) missing.push("address");
+  return missing;
+};
+
+const salesMissingPrompt = (missing = []) => {
+  const labels = [];
+  if (missing.includes("first_name")) labels.push("الاسم الأول");
+  if (missing.includes("phone")) labels.push("رقم التليفون");
+  if (missing.includes("governorate")) labels.push("المحافظة");
+  if (missing.includes("address")) labels.push("المنطقة/العنوان");
+  return labels.length
+    ? `تمام، ابعتلي ${labels.join(" و ")}.`
+    : "";
+};
+
+const loadKnownSalesCustomerInfo = async ({ tenantId, channel = "", conversationId = "" } = {}) => {
+  if (!tenantId || !conversationId) return {};
+  const result = await db.query(
+    `
+    SELECT customer_name, metadata
+    FROM ai_channel_conversations
+    WHERE tenant_id = $1
+      AND external_conversation_id = $2
+      AND ($3::text = '' OR channel = $3 OR channel = 'facebook_messenger' OR $3 = 'facebook_messenger')
+    ORDER BY updated_at DESC
+    LIMIT 1
+    `,
+    [numberOrNull(tenantId), text(conversationId), text(channel)]
+  ).catch(() => ({ rows: [] }));
+  const row = result.rows[0] || {};
+  const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
+  return {
+    customerName: text(row.customer_name || metadata.checkout_customer_name || ""),
+    customerPhone: normalizeEgyptPhone(metadata.checkout_customer_phone || ""),
+    customerAddress: text(metadata.checkout_customer_address || ""),
+    governorate: text(metadata.checkout_governorate || ""),
+    area: text(metadata.checkout_area || ""),
+  };
+};
+
+const buildSalesOrderSummary = ({ productName = "", size = "", price = "", address = "" } = {}) =>
+  [
+    "تمام",
+    "",
+    `المنتج: ${productName || "الموديل المختار"}`,
+    size ? `المقاس: ${size}` : "",
+    price ? `السعر: ${price}` : "",
+    "",
+    `الشحن إلى: ${address || "العنوان اللي بعتّه"}`,
+    "",
+    "أأكد الطلب؟",
+  ].filter((line) => line !== "").join("\n");
 
 const sendCheckoutConfirmationMetaMessage = async ({
   config,
@@ -6471,6 +7727,281 @@ const ensureCheckoutDraftForMemory = async ({ config, message, memory = {}, sele
     created: Boolean(draft?.order?.id),
     reason: "created_order_draft",
   };
+};
+
+const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) => {
+  const conversationId = message.external_conversation_id;
+  const memory = getConversationMemory(conversationId) || {};
+  const stage = normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || "browsing");
+  const context = resolveContextProductCard({ message, allowAmbiguous: false });
+  const baseCard = context.card || memory.lastProductCard || null;
+  const hasProductContext = Boolean(baseCard?.product_id || baseCard?.id || memory.activeProductId || memory.selectedProductId);
+  const buyingSignal = salesBrainBuyingIntentSignal(message.message_text);
+
+  if (detectPriceObjection(message.message_text) && hasProductContext) {
+    console.log("[sales-brain] buying intent detected", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      signal: "price_objection",
+      buying_stage: stage,
+    });
+    updateConversationMemory(conversationId, {
+      buyingStage: stage || "interested",
+      checkoutStage: stage || "interested",
+      lastIntent: "price_objection",
+    });
+    persistAiConversationMemory({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId,
+      reason: "sales_brain_price_objection",
+    });
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: "فاهمك، السعر مقابل الخامة والتقفيل والمقاس المتاح. تحب أوريك بدائل قريبة في نفس الميزانية؟",
+      detectedIntent: "sales_price_objection",
+      metadata: { buying_stage: stage, product_id: baseCard?.product_id || baseCard?.id || null },
+    });
+    return { handled: true, reason: "sales_price_objection" };
+  }
+
+  if (!hasProductContext) return null;
+
+  const shouldCollect = stage === "checkout_collecting" ||
+    (checkoutStageAtLeast(stage, "size_selected") && detectSalesCheckoutStart(message.message_text, memory));
+  const shouldFinalize = stage === "order_ready" && detectSalesFinalConfirmation(message.message_text);
+  if (!shouldCollect && !shouldFinalize) return null;
+
+  const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
+  if (!product) return null;
+  const selectedSize = text(memory.activeSize || memory.selectedSize || extractShoeSize(message.message_text) || "");
+  const variant = chooseVariantForSize(product, selectedSize, memory.activeVariantId || memory.selectedVariantId || baseCard.variant_id);
+  const selectedColor = variant?.color || memory.activeColor || memory.selectedColor || baseCard.color || "";
+  const priceText = formatSalesPrice(variant?.price || product.product_price || baseCard.price);
+
+  if (shouldFinalize) {
+    const known = mergeSalesCustomerInfo({
+      known: memory,
+      parsed: {
+        customer_name: memory.customerName,
+        customer_phone: memory.customerPhone,
+        customer_address: memory.customerAddress,
+      },
+      messageText: memory.customerAddress || "",
+    });
+    const missing = missingSalesCheckoutFields(known);
+    if (missing.length) {
+      updateConversationMemory(conversationId, {
+        buyingStage: "checkout_collecting",
+        checkoutStage: "checkout_collecting",
+      });
+      console.log("[sales-brain] stage changed", {
+        tenant_id: config.tenant_id,
+        conversation_id: conversationId,
+        from: "order_ready",
+        to: "checkout_collecting",
+        reason: "missing_fields_before_final_confirmation",
+        missing,
+      });
+      await sendAndLogMetaText({
+        config,
+        message,
+        text: salesMissingPrompt(missing),
+        detectedIntent: "sales_checkout_missing_fields",
+        metadata: { missing_fields: missing, buying_stage: "checkout_collecting" },
+      });
+      return { handled: true, reason: "sales_checkout_missing_fields" };
+    }
+    try {
+      const draft = await createAiOrderDraft({
+        tenant_id: config.tenant_id,
+        channel: channelAlias(message.channel),
+        source: channelAlias(message.channel),
+        conversation_id: conversationId,
+        session_id: conversationId,
+        external_customer_id: message.external_customer_id,
+        customer_name: known.customerName || message.customer_name || "",
+        customer_phone: known.customerPhone,
+        customer_address: known.customerAddress,
+        governorate: known.governorate,
+        city_area: known.area || known.customerAddress,
+        product,
+        variant,
+        size: selectedSize,
+        color: selectedColor,
+        original_customer_message: message.message_text,
+        metadata: {
+          source: channelAlias(message.channel),
+          sales_intent: "sales_brain_order_ready_confirmation",
+          external_customer_id: message.external_customer_id,
+        },
+      });
+      await upsertCheckoutCustomerProfile({
+        config,
+        message,
+        parsed: {
+          customer_name: known.customerName,
+          customer_phone: known.customerPhone,
+          customer_address: known.customerAddress,
+        },
+        orderId: draft?.order?.id || null,
+      });
+      updateConversationMemory(conversationId, {
+        orderDraftId: draft?.order?.id || null,
+        buyingStage: "order_created",
+        checkoutStage: "order_created",
+        lastIntent: "sales_order_created",
+      });
+      persistAiConversationMemory({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId,
+        reason: "sales_brain_order_created",
+      });
+      console.log("[sales-brain] draft order created", {
+        tenant_id: config.tenant_id,
+        conversation_id: conversationId,
+        order_id: draft?.order?.id || null,
+        product_id: product.id || null,
+        variant_id: variant?.id || null,
+        selected_size: selectedSize,
+      });
+      await sendAndLogMetaText({
+        config,
+        message,
+        text: `تمام يا ${known.customerFirstName || "فندم"}\nعملتلك مسودة الطلب ✅\nهنتواصل معاك للتأكيد النهائي.`,
+        detectedIntent: "sales_draft_order_created",
+        metadata: { order_id: draft?.order?.id || null, buying_stage: "order_created" },
+      });
+      return { handled: true, reason: "sales_draft_order_created" };
+    } catch (error) {
+      console.error("[sales-brain] draft order failed", {
+        tenant_id: config.tenant_id,
+        conversation_id: conversationId,
+        code: error?.code || "",
+        message: error?.message || "",
+      });
+      if (["OUT_OF_STOCK", "UNCLEAR_STOCK"].includes(error?.code || "")) {
+        updateConversationMemory(conversationId, {
+          buyingStage: "stock_conflict",
+          checkoutStage: "stock_conflict",
+          lastIntent: "sales_stock_conflict",
+        });
+        console.log("ai_stock_conflict_state", {
+          tenant_id: config.tenant_id,
+          conversation_id: conversationId,
+          reason: error.code || "stock_conflict",
+        });
+        await sendAndLogMetaText({
+          config,
+          message,
+          text: "استلمت بياناتك ✅\nبس ظهر تعارض في المخزون للمقاس ده.\nهراجع الطلب وأرجعلك حالاً.",
+          detectedIntent: "sales_stock_conflict",
+          metadata: { buying_stage: "stock_conflict", code: error?.code || "" },
+        });
+        return { handled: true, reason: "sales_stock_conflict" };
+      }
+      return null;
+    }
+  }
+
+  const knownCustomer = await loadKnownSalesCustomerInfo({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId,
+  });
+  const parsed = parseCheckoutCustomerDetails(message.message_text);
+  const merged = mergeSalesCustomerInfo({
+    known: { ...knownCustomer, ...memory },
+    parsed,
+    messageText: message.message_text,
+  });
+  const missing = missingSalesCheckoutFields(merged);
+
+  console.log("[sales-brain] buying intent detected", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    signal: buyingSignal ? "checkout_or_customer_info" : "checkout_stage_continuation",
+    buying_stage: stage,
+  });
+  updateConversationMemory(conversationId, {
+    customerName: merged.customerName,
+    customerFirstName: merged.customerFirstName,
+    customerPhone: merged.customerPhone,
+    customerAddress: merged.customerAddress,
+    governorate: merged.governorate,
+    area: merged.area,
+    selectedProductId: product.id || baseCard.product_id || null,
+    activeProductId: product.id || baseCard.product_id || null,
+    selectedVariantId: variant?.id || baseCard.variant_id || null,
+    activeVariantId: variant?.id || baseCard.variant_id || null,
+    selectedColor,
+    activeColor: selectedColor,
+    selectedSize,
+    activeSize: selectedSize,
+    buyingStage: missing.length ? "checkout_collecting" : "order_ready",
+    checkoutStage: missing.length ? "checkout_collecting" : "order_ready",
+    lastIntent: missing.length ? "sales_checkout_collecting" : "sales_order_ready",
+  });
+  console.log("[sales-brain] collecting customer info", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    missing_fields: missing,
+    has_name: Boolean(merged.customerName),
+    has_phone: Boolean(merged.customerPhone),
+    has_address: Boolean(merged.customerAddress),
+  });
+  console.log("[sales-brain] stage changed", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    from: stage,
+    to: missing.length ? "checkout_collecting" : "order_ready",
+  });
+  persistAiConversationMemory({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId,
+    reason: missing.length ? "sales_brain_checkout_collecting" : "sales_brain_order_ready",
+  });
+
+  if (missing.length) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: salesMissingPrompt(missing),
+      detectedIntent: "sales_checkout_collecting",
+      metadata: { missing_fields: missing, buying_stage: "checkout_collecting" },
+    });
+    return { handled: true, reason: "sales_checkout_collecting" };
+  }
+
+  console.log("[sales-brain] order ready", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    product_id: product.id || null,
+    variant_id: variant?.id || null,
+    selected_size: selectedSize,
+  });
+  await sendAndLogMetaText({
+    config,
+    message,
+    text: buildSalesOrderSummary({
+      productName: product.name || baseCard.name || "",
+      size: selectedSize,
+      price: priceText,
+      address: merged.customerAddress || merged.area,
+    }),
+    detectedIntent: "sales_order_ready",
+    metadata: {
+      buying_stage: "order_ready",
+      product_id: product.id || null,
+      variant_id: variant?.id || null,
+      selected_size: selectedSize,
+      selected_color: selectedColor,
+    },
+  });
+  return { handled: true, reason: "sales_order_ready" };
 };
 
 const handleCheckoutContinuationIfMatched = async ({ config, message } = {}) => {
@@ -7144,6 +8675,18 @@ export const sendMetaInboxOutboundMessage = async ({
   if (!scopedTenantId || !safeRecipientId || (!safeMessage && !cards.length)) {
     throw Object.assign(new Error("tenant_id, recipient id, and message are required"), { status: 400, code: "META_SEND_INPUT_REQUIRED" });
   }
+  const sendSignature = outboundSignature({ messageText: safeMessage, productCards: cards, trigger: cards.length ? "product_cards" : "text" });
+  const sendDedupe = await checkAndStoreOutboundSignature({
+    tenantId: scopedTenantId,
+    channel: normalizedChannel,
+    conversationId,
+    signature: sendSignature,
+    trigger: cards.length ? "product_cards" : "text",
+    preview: safeMessage || cards.map((card) => card.name || card.product_id || "").join(", "),
+  });
+  if (sendDedupe.duplicate) {
+    return { dedupe_skipped: true, delivery_status: "skipped", signature: sendSignature, results: [], product_card_messages: [] };
+  }
   const { config, token, source } = await resolveMetaSendConfig({
     tenantId: scopedTenantId,
     channel: normalizedChannel,
@@ -7381,6 +8924,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
     });
     const alias = channelAlias(message.channel);
     const messageId = text(message.external_message_id || message.dedupe_key || "");
+    const inboundKey = inboundIdempotencyKey(message);
+    console.log("[ai-dedupe] inbound key created", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      inbound_key: inboundKey,
+      has_meta_mid: Boolean(text(message.external_message_id || message.raw?.event?.message?.mid || "")),
+    });
     const previousDedupeStatus = getMessageProcessingStatus(messageId);
     if (messageId) {
       console.log("dedupe_previous_status", {
@@ -7391,6 +8941,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
       });
     }
     if (isDuplicateMessage(messageId)) {
+      console.log("[ai-dedupe] duplicate inbound skipped", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        inbound_key: inboundKey,
+        source: "memory",
+      });
       pushAIEvent({
         type: "DUPLICATE_MESSAGE_SKIPPED",
         status: "warning",
@@ -7433,7 +8989,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           dedupe_key: message.dedupe_key || inboxResult?.dedupe_key || "",
         },
       }).catch(() => {});
-    await upsertChannelConversationMapping({
+    const channelConversation = await upsertChannelConversationMapping({
       tenantId: config.tenant_id,
       channel: message.channel,
       externalConversationId: message.external_conversation_id,
@@ -7454,6 +9010,41 @@ export const processMetaWebhook = async ({ req } = {}) => {
       },
       lastMessageAt: message.timestamp,
     }).catch(() => {});
+    if (channelAlias(message.channel) === "facebook") {
+      const finalAvatarStorage = await loadMessengerProfileAvatarStorage({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        psid: message.external_customer_id,
+        profileId: message.customer_profile_id || channelConversation?.customer_profile_id || null,
+      });
+      console.log("messenger_profile_avatar_saved", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        psid: maskIdForLog(message.external_customer_id),
+        profile_id: message.customer_profile_id || channelConversation?.customer_profile_id || null,
+        graph_profile_pic: text(message.raw?.messenger_profile?.profile_pic),
+        ai_customer_profiles_profile_pic_url: finalAvatarStorage.ai_customer_profiles_profile_pic_url,
+        ai_support_sessions_customer_avatar_url: finalAvatarStorage.ai_support_sessions_customer_avatar_url,
+        ai_channel_conversations_customer_avatar_url: finalAvatarStorage.ai_channel_conversations_customer_avatar_url || text(channelConversation?.customer_avatar_url),
+        source: "webhook_mapping_final",
+      });
+    }
+    if (await hasProcessedInboundKey({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+      inboundKey,
+    })) {
+      console.log("[ai-dedupe] duplicate inbound skipped", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        inbound_key: inboundKey,
+      });
+      markMessageProcessingStatus(messageId, "sent");
+      results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, duplicate: true, sent: false, reason: "persistent_duplicate_inbound" });
+      continue;
+    }
     if (inboxResult?.duplicate && previousDedupeStatus !== "failed") {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, duplicate: true, sent: false, reason: "duplicate_message" });
       continue;
@@ -7519,14 +9110,21 @@ export const processMetaWebhook = async ({ req } = {}) => {
       channel: alias,
       external_customer_id: message.external_customer_id,
     });
+    await loadPersistentAiConversationMemory({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+    });
     await recordLeadSignals({ config, message, reason: "inbound_message" }).catch(() => {});
     if (!["suggest_only", "auto_reply_after_approval"].includes(autoReplyMode)) {
       try {
         const preAiHandlers = [
+          handleVisualSearchIfMatched,
           handleBrandCorrectionIfMatched,
           handleNegativeIntentIfMatched,
           handleCheckoutDataIfMatched,
           handleContextualSizeCheckIfMatched,
+          handleSalesBrainBuyingStageIfMatched,
           handleCheckoutContinuationIfMatched,
           handleHumanHandoffIfMatched,
           answerFaqIfMatched,
@@ -7536,7 +9134,6 @@ export const processMetaWebhook = async ({ req } = {}) => {
           handleSizesIfMatched,
           handleOrderDraftIfMatched,
           handleSizeAvailabilityLinkIfMatched,
-          handleVisualSearchIfMatched,
         ];
         let handled = null;
         for (const handler of preAiHandlers) {
@@ -7545,6 +9142,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
         }
         if (handled?.handled) {
           markMessageProcessingStatus(messageId, "sent");
+          await storeProcessedInboundKey({
+            tenantId: config.tenant_id,
+            channel: message.channel,
+            conversationId: message.external_conversation_id,
+            inboundKey,
+            status: "sent",
+          });
           results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true, reason: handled.reason });
           continue;
         }
@@ -7600,6 +9204,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
       });
       if (fallback?.handled) {
         markMessageProcessingStatus(messageId, "sent");
+        await storeProcessedInboundKey({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          inboundKey,
+          status: "sent",
+        });
         results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true, reason: fallback.reason, ai_error_recovered: true });
         continue;
       }
@@ -7665,6 +9276,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
         detectedIntent: "repeated_product_card_prevented",
         metadata: { repeated_product_card_prevented: true, checkout_stage: memory.checkoutStage || "" },
       });
+      await storeProcessedInboundKey({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        inboundKey,
+        status: "sent",
+      });
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true, reason: "repeated_product_card_prevented" });
       continue;
     }
@@ -7708,8 +9326,28 @@ export const processMetaWebhook = async ({ req } = {}) => {
         instagramBusinessAccountId: config.instagram_business_account_id || instagramBusinessAccountIds[0] || "",
         preferredConfigId: config.id,
       });
+      if (sendResult?.dedupe_skipped) {
+        markMessageProcessingStatus(messageId, "sent");
+        await storeProcessedInboundKey({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          inboundKey,
+          status: "sent",
+        });
+        results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "duplicate_outbound" });
+        continue;
+      }
       if (productCards.length) {
-        rememberLastProductCards({ conversationId: message.external_conversation_id, productCards, sentMessages: sendResult?.product_card_messages || [] });
+        rememberLastProductCards({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          productCards,
+          sentMessages: sendResult?.product_card_messages || [],
+          messageText: message.message_text || "",
+          lastIntent: aiPayload.detected_intent || "ai_product_cards",
+        });
         await recordLeadSignals({ config, message, reason: "product_cards_sent" }).catch(() => {});
         console.log("ai_inbox_suggested_action_generated", {
           tenant_id: config.tenant_id,
@@ -7763,6 +9401,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
         },
       }).catch(() => {});
       markMessageProcessingStatus(messageId, "sent");
+      await storeProcessedInboundKey({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        inboundKey,
+        status: "sent",
+      });
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true });
     } catch (error) {
       console.error("[meta-inbox] auto_reply_send_failed", {

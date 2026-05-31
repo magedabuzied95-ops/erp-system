@@ -694,6 +694,8 @@ console.log("[server] AI Inbox routes mounted", {
   routeCount: registeredAiInboxEndpoints.length,
   hasSalesCloser: registeredAiInboxEndpoints.includes("GET /api/ai-inbox/conversations/:conversationId/sales-closer"),
   hasTestSalesCloser: registeredAiInboxEndpoints.includes("GET /api/ai-inbox/test-sales-closer"),
+  hasDebugMessengerProfileGet: registeredAiInboxEndpoints.includes("GET /api/ai-inbox/conversations/:conversationId/debug-messenger-profile"),
+  hasDebugMessengerProfilePost: registeredAiInboxEndpoints.includes("POST /api/ai-inbox/conversations/:conversationId/debug-messenger-profile"),
   routes: registeredAiInboxEndpoints,
 });
 app.use("/api/integrations/meta", metaIntegrationRoutes);

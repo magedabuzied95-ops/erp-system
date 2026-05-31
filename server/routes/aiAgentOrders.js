@@ -4,7 +4,7 @@ import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { emitToRooms } from "../utils/socket.js";
-import { sendMetaInboxOutboundMessage, syncMessengerProfileForConversation } from "../services/metaIntegrationService.js";
+import { debugMessengerProfileForConversation, sendMetaInboxOutboundMessage, syncMessengerProfileForConversation } from "../services/metaIntegrationService.js";
 import { getAIEvents, pushAIEvent } from "../services/aiEventLogger.js";
 import { resolveIntent } from "../services/aiIntentResolver.js";
 import { buildProductContext, ensureProductLinkInReply } from "../services/aiProductContext.js";
@@ -1535,6 +1535,69 @@ router.post("/conversations/:conversationId/sync-messenger-profile", protect, pe
     return res.json({ success: true, ...result, conversation });
   } catch (error) {
     return sendError(res, error, "Could not fetch Messenger profile");
+  }
+});
+
+router.post("/conversations/:conversationId/debug-messenger-profile", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = decodeRouteId(req.params.conversationId);
+  try {
+    const result = await debugMessengerProfileForConversation({
+      tenantId,
+      conversationId,
+      externalCustomerId: req.body?.external_customer_id || req.body?.psid || "",
+    });
+    return res.json(result);
+  } catch (error) {
+    return sendError(res, error, "Could not debug Messenger profile");
+  }
+});
+
+router.get("/conversations/:conversationId/debug-messenger-profile", protect, permit("settings", "view"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = decodeRouteId(req.params.conversationId);
+  try {
+    const result = await debugMessengerProfileForConversation({
+      tenantId,
+      conversationId,
+      externalCustomerId: req.query?.external_customer_id || req.query?.psid || "",
+    });
+    const responseBody = {
+      resolved_psid: result.resolved_psid || "",
+      resolved_page_id: result.resolved_page_id || "",
+      config_id: result.config_id || null,
+      token_found: result.token_found === true,
+      graph_status: result.graph_status || 200,
+      graph_error: result.graph_error || null,
+      raw_graph_response: result.raw_graph_response || null,
+      first_name: result.first_name || "",
+      last_name: result.last_name || "",
+      profile_pic: result.profile_pic || "",
+      avatar_missing_from_meta_response: result.avatar_missing_from_meta_response === true,
+      ai_customer_profiles_profile_pic_url: result.stored_ai_customer_profiles_profile_pic_url || result.stored_profile_pic_url || "",
+      ai_support_sessions_customer_avatar_url: result.stored_ai_support_sessions_customer_avatar_url || "",
+      ai_channel_conversations_customer_avatar_url: result.stored_ai_channel_conversations_customer_avatar_url || "",
+    };
+    console.log("messenger_profile_debug_get_response", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      response: responseBody,
+    });
+    return res.json(responseBody);
+  } catch (error) {
+    if (error?.debugProfile) {
+      console.error("messenger_profile_debug_graph_failed", {
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        ...error.debugProfile,
+      });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Meta Graph profile request failed",
+        ...error.debugProfile,
+      });
+    }
+    return sendError(res, error, "Could not debug Messenger profile");
   }
 });
 
