@@ -1505,6 +1505,10 @@ router.get("/conversations", protect, permit("settings", "view"), async (req, re
   }
 });
 
+router.get("/debug-ping", (req, res) => {
+  return res.json({ ok: true, version: "ai-debug-v1" });
+});
+
 router.get("/conversations/:conversationId/messages", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);

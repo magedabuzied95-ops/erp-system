@@ -679,6 +679,9 @@ app.use("/api/ai-inbox", aiAgentOrderRoutes);
 const registeredAiAgentEndpoints = collectRouterEndpoints(aiAgentOrderRoutes, "/api/ai-agent");
 const registeredAiInboxEndpoints = collectRouterEndpoints(aiAgentOrderRoutes, "/api/ai-inbox");
 const aiDebugInboxRoute = "GET /api/ai-inbox/conversations/:conversationId/ai-debug";
+console.log("[ai-debug-route-check]");
+console.log(`route registered: ${registeredAiInboxEndpoints.includes(aiDebugInboxRoute)}`);
+console.log("path: /api/ai-inbox/conversations/:conversationId/ai-debug");
 console.log("[ai-debug] route registered", {
   route: aiDebugInboxRoute,
   mounted: registeredAiInboxEndpoints.includes(aiDebugInboxRoute),
