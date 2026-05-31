@@ -36,7 +36,7 @@ import {
   createAiOrderDraft,
   searchAiOrderProducts,
 } from "./aiAgentOrderService.js";
-import { searchIndexedProductImageMatches } from "./aiVisualProductImageIndexService.js";
+import { searchAiVisualProductsPro } from "./aiVisualSearchProService.js";
 import { getConversationMemory, updateConversationMemory } from "./aiConversationMemory.js";
 import { extractShoeSize } from "./aiMessageExtractors.js";
 import { ensureAiSalesAgentSchema, getAiAgentSettings, upsertAiCustomerProfile } from "./aiSalesAgentService.js";
@@ -5275,10 +5275,15 @@ const persistentAiMemoryFromRuntime = (memory = {}) => {
     lastVisualClarifiedImageUrl: text(memory.lastVisualClarifiedImageUrl || ""),
     lastVisualAttributes: memory.lastVisualAttributes || memory.lastVisualAnalysis || null,
     lastVisualConfidence: memory.lastVisualConfidence ?? null,
+    lastVisualQueryText: text(memory.lastVisualQueryText || memory.lastVisualQuery || ""),
+    lastVisualMatches: Array.isArray(memory.lastVisualMatches) ? memory.lastVisualMatches.slice(0, 12) : [],
+    visualSearchStage: text(memory.visualSearchStage || ""),
     knownName: text(memory.knownName || memory.customerName || ""),
     knownPhone: normalizeEgyptPhone(memory.knownPhone || memory.customerPhone || ""),
     preferredSizes: Array.isArray(memory.preferredSizes) ? memory.preferredSizes.map(text).filter(Boolean).slice(0, 8) : [],
     preferredBrands: Array.isArray(memory.preferredBrands) ? memory.preferredBrands.map(text).filter(Boolean).slice(0, 12) : [],
+    preferredColors: Array.isArray(memory.preferredColors) ? memory.preferredColors.map(text).filter(Boolean).slice(0, 12) : [],
+    preferredCategories: Array.isArray(memory.preferredCategories) ? memory.preferredCategories.map(text).filter(Boolean).slice(0, 12) : [],
     lastAddressSummary: text(memory.lastAddressSummary || memory.customerAddress || ""),
     customerId: memory.customerId || null,
     customerContext: memory.customerContext || null,
@@ -5365,10 +5370,15 @@ const runtimeMemoryFromPersistent = (state = {}) => {
     lastVisualAttributes: state.lastVisualAttributes || null,
     lastVisualAnalysis: state.lastVisualAttributes || null,
     lastVisualConfidence: state.lastVisualConfidence ?? null,
+    lastVisualQueryText: text(state.lastVisualQueryText || ""),
+    lastVisualMatches: Array.isArray(state.lastVisualMatches) ? state.lastVisualMatches : [],
+    visualSearchStage: text(state.visualSearchStage || ""),
     knownName: text(state.knownName || ""),
     knownPhone: normalizeEgyptPhone(state.knownPhone || ""),
     preferredSizes: Array.isArray(state.preferredSizes) ? state.preferredSizes.map(text).filter(Boolean) : [],
     preferredBrands: Array.isArray(state.preferredBrands) ? state.preferredBrands.map(text).filter(Boolean) : [],
+    preferredColors: Array.isArray(state.preferredColors) ? state.preferredColors.map(text).filter(Boolean) : [],
+    preferredCategories: Array.isArray(state.preferredCategories) ? state.preferredCategories.map(text).filter(Boolean) : [],
     lastAddressSummary: text(state.lastAddressSummary || ""),
     customerId: state.customerId || null,
     customerContext: state.customerContext || null,
@@ -5833,10 +5843,10 @@ const rankStrictVisualProducts = ({ products = [], analysis = {} } = {}) =>
 
 const visualDecisionForConfidence = ({ visualConfidence = 0, matchConfidence = 0, hasExact = false, alternativesRequested = false } = {}) => {
   const confidence = Math.max(0, Math.min(100, Math.round(Math.min(visualConfidence || 0, matchConfidence || 0))));
-  if (!matchConfidence) return { replyType: "clarification", limit: 0, confidence };
-  if (visualConfidence < 45 && matchConfidence < 80) return { replyType: "clarification", limit: 0, confidence };
+  if (!matchConfidence) return { replyType: "no_match", limit: 0, confidence };
+  if (visualConfidence < 45 && matchConfidence < 45) return { replyType: "no_match", limit: 2, confidence: Math.round(matchConfidence) };
   if (visualConfidence < 70 && matchConfidence >= 80) return { replyType: "close_match", limit: hasExact ? 1 : 2, confidence: Math.round(matchConfidence) };
-  if (confidence < 70) return { replyType: "no_match", limit: 0, confidence };
+  if (confidence < 70) return { replyType: "no_match", limit: 2, confidence };
   if (confidence < 80) return { replyType: "close_match", limit: alternativesRequested ? 2 : 1, confidence };
   if (confidence <= 90) return { replyType: hasExact ? "exact_match" : "close_match", limit: 2, confidence };
   return { replyType: hasExact ? "exact_match" : "close_match", limit: alternativesRequested ? 2 : 1, confidence };
@@ -6456,6 +6466,47 @@ const detectVisualCorrectionText = (message = "") => {
     : null;
 };
 
+const detectVisualCorrectionTextV3 = (message = "") => {
+  const correction = detectVisualCorrectionText(message);
+  const raw = text(message);
+  const normalized = normalizedSearchText(raw)
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
+    .replace(/\u0649/g, "\u064a")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/[\u0664\u06f4]/g, "4");
+  const corrections = correction ? [correction] : [];
+  if (/\bthe\s+north\s+face\b|\bnorth\s*face\b|\bnorthface\b|\u0646\u0648\u0631[ثت]\s*\u0641\u064a\u0633|\u0646\u0648\u0631[ثت]\u0641\u064a\u0633/.test(normalized)) {
+    corrections.push({ brand: "North Face", query: "North Face \u0646\u0648\u0631\u062b \u0641\u064a\u0633", keywords: ["north face", "the north face", "northface", "\u0646\u0648\u0631\u062b \u0641\u064a\u0633", "\u0646\u0648\u0631\u062a \u0641\u064a\u0633"] });
+  }
+  if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|\u062c\u0648\u0631\u062f\u0646\s*(?:\u0641\u0648\u0631|4)/.test(normalized)) {
+    corrections.push({ brand: "Jordan", model: "Jordan 4", query: "Jordan 4 \u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631", keywords: ["air jordan 4", "jordan 4", "aj4", "j4", "\u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631", "\u062c\u0648\u0631\u062f\u0646 4"] });
+  } else if (/\bjordan\b|\u062c\u0648\u0631\u062f\u0646/.test(normalized)) {
+    corrections.push({ brand: "Jordan", query: "Jordan \u062c\u0648\u0631\u062f\u0646", keywords: ["jordan", "air jordan", "\u062c\u0648\u0631\u062f\u0646"] });
+  }
+  if (/\bnike\b|\u0646\u0627\u064a\u0643/.test(normalized)) {
+    corrections.push({ brand: "Nike", query: "Nike \u0646\u0627\u064a\u0643", keywords: ["nike", "\u0646\u0627\u064a\u0643"] });
+  }
+  if (/\badidas\b|\u0627\u062f\u064a\u062f\u0627\u0633/.test(normalized)) {
+    corrections.push({ brand: "Adidas", query: "Adidas \u0627\u062f\u064a\u062f\u0627\u0633", keywords: ["adidas", "\u0627\u062f\u064a\u062f\u0627\u0633", "\u0623\u062f\u064a\u062f\u0627\u0633"] });
+  }
+  if (/\bskechers\b|\bsketchers\b|\u0633\u0643\u064a\u062a\u0634\u0631\u0632/.test(normalized)) {
+    corrections.push({ brand: "Skechers", query: "Skechers \u0633\u0643\u064a\u062a\u0634\u0631\u0632", keywords: ["skechers", "sketchers", "\u0633\u0643\u064a\u062a\u0634\u0631\u0632"] });
+  }
+  if (/\bcrocs\b|\u0643\u0631\u0648\u0643\u0633/.test(normalized)) {
+    corrections.push({ brand: "Crocs", query: "Crocs \u0643\u0631\u0648\u0643\u0633", keywords: ["crocs", "\u0643\u0631\u0648\u0643\u0633"] });
+  }
+  const selected = corrections.at(-1) || null;
+  return selected
+    ? {
+        ...selected,
+        text: raw,
+        query: selected.query || selected.brand || selected.model || raw,
+        keywords: distinctTextArray(selected.keywords || [selected.brand, selected.model, raw], 12),
+      }
+    : null;
+};
+
 const handleBrandCorrectionIfMatched = async ({ config, message } = {}) => {
   if (!detectNorthFaceCorrection(message.message_text)) return null;
   console.log("ai_intent_priority_selected", {
@@ -6543,8 +6594,8 @@ const handleProductSearchIfMatched = async ({ config, message } = {}) => {
   const classification = message.orchestratorIntent || {};
   if (classification.intent !== AI_INTENTS.PRODUCT_SEARCH) return null;
   const memory = getConversationMemory(message.external_conversation_id) || {};
-  const visualCorrection = detectVisualCorrectionText(message.message_text);
-  if (memory.lastIntent === "visual_clarification" && memory.lastImageUrl && visualCorrection) {
+  const visualCorrection = detectVisualCorrectionTextV3(message.message_text);
+  if (memory.lastImageUrl && visualCorrection) {
     console.log("[visual-correction] detected", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
@@ -6885,7 +6936,7 @@ const sendVisualClarificationOnce = async ({ config, message, metadata = {}, rea
 const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   const [imageAttachment] = imageAttachments(message.attachments || []);
   const memory = getConversationMemory(message.external_conversation_id) || {};
-  const visualCorrection = memory.lastIntent === "visual_clarification" ? detectVisualCorrectionText(message.message_text) : null;
+  const visualCorrection = memory.lastImageUrl ? detectVisualCorrectionTextV3(message.message_text) : null;
   const retryLastImage = !imageAttachment && (
     Boolean(visualCorrection) ||
     hasTerm(message.message_text, ["\u0627\u0647\u0648", "\u0623\u0647\u0648", "\u0627\u0647\u064a", "\u0623\u0647\u064a", "\u062f\u064a", "\u0627\u0644\u0635\u0648\u0631\u0629", "\u0628\u0639\u062a", "\u0628\u0639\u062a\u062a", "\u062a\u0645\u0627\u0645", "\u0647\u064a \u062f\u064a", "\u0647\u0648 \u062f\u0647"])
@@ -7069,6 +7120,33 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
       message: error?.message || "visual image processing failed",
     });
   }
+  if (visualCorrection) {
+    const detected = understanding?.detected && typeof understanding.detected === "object" ? understanding.detected : {};
+    understanding = {
+      ...(understanding || {}),
+      detected: {
+        ...detected,
+        brand_guess: visualCorrection.brand || detected.brand_guess || detected.brand || "",
+        brand_family: visualCorrection.brand || detected.brand_family || detected.brand || "",
+        model_guess: visualCorrection.model || detected.model_guess || detected.likely_model || "",
+        likely_model: visualCorrection.model || detected.likely_model || detected.model_guess || "",
+        model_family: visualCorrection.model || detected.model_family || detected.likely_model || "",
+        english_keywords: distinctTextArray([...(Array.isArray(detected.english_keywords) ? detected.english_keywords : []), ...(visualCorrection.keywords || [])], 16),
+        arabic_keywords: distinctTextArray([...(Array.isArray(detected.arabic_keywords) ? detected.arabic_keywords : []), ...(visualCorrection.keywords || [])], 16),
+        field_confidence: {
+          ...(detected.field_confidence || {}),
+          brand_guess: visualCorrection.brand ? 0.95 : detected.field_confidence?.brand_guess || 0,
+          model_guess: visualCorrection.model ? 0.95 : detected.field_confidence?.model_guess || 0,
+        },
+      },
+      confidence: Math.max(Number(understanding?.confidence || 0), 0.7),
+    };
+    pipeline.raw_vision_response = {
+      ...(pipeline.raw_vision_response || {}),
+      detected: understanding.detected,
+      correction_applied: visualCorrection.query,
+    };
+  }
   const visualQuery = visualSearchQueryFromUnderstanding(understanding);
   pipeline.normalized_visual_query = visualQuery;
   const visualAnalysis = visualAnalysisFromUnderstanding(understanding);
@@ -7126,12 +7204,19 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
       reason: pipeline.fallback_reason,
     });
   }
-  const indexedSearch = await searchIndexedProductImageMatches({
+  const indexedSearch = await searchAiVisualProductsPro({
     tenantId: config.tenant_id,
     detected: understanding?.detected || {},
     visualQuery: searchQuery,
     uploadedImageUrl: imageUrl,
     uploadedImageBuffer: downloadedImageInput?.imageBuffer || null,
+    correctionText: visualCorrection?.query || "",
+    previousVisualAttributes: memory.lastVisualAttributes || memory.lastVisualAnalysis || null,
+    preferredSize: memory.activeSize || memory.selectedSize || memory.preferredSize || "",
+    customerPreferenceProfile: {
+      ...memory,
+      customerContext: memory.customerContext || {},
+    },
   }).catch((error) => {
     console.warn("ai_inbox_visual_index_search_failed", {
       tenant_id: config.tenant_id,
@@ -7143,6 +7228,27 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   pipeline.indexed_product_images_count = indexedSearch.searchedCount || 0;
   pipeline.exact_image_match_score = Number(indexedSearch.exactMatch?.score || indexedSearch.topMatches?.[0]?.score || 0);
   pipeline.top_image_matches = indexedSearch.topMatches || [];
+  pipeline.visual_search_pro = {
+    queryEmbeddingGenerated: Boolean(indexedSearch.queryEmbeddingGenerated),
+    embeddingModel: indexedSearch.embeddingModel || "",
+    visual_confidence: understanding?.confidence || 0,
+    brand_guess: indexedSearch.attributes?.brand || visualAnalysis.brand || "",
+    model_guess: indexedSearch.attributes?.model || visualAnalysis.modelFamily || "",
+    colors: indexedSearch.attributes?.mainColors || visualAnalysis.primaryColors || [],
+    top_5_candidates: (indexedSearch.topMatches || []).slice(0, 5).map((candidate) => ({
+      ...candidate,
+      imageSimilarityScore: candidate.imageSimilarityScore || candidate.score_breakdown?.imageSimilarityScore || 0,
+      finalScore: candidate.finalScore || candidate.score || candidate.score_breakdown?.finalScore || 0,
+    })),
+    correction_used: Boolean(indexedSearch.correctionUsed || visualCorrection),
+    embedding_error: indexedSearch.embeddingError || "",
+    reason_why_candidate_ranked_first: indexedSearch.reasonWhyFirstRanked || indexedSearch.topMatches?.[0]?.score_breakdown?.reasonWhyRankedFirst || "",
+    customerPreferenceScore: indexedSearch.topMatches?.[0]?.customerPreferenceScore || indexedSearch.topMatches?.[0]?.score_breakdown?.customerPreferenceScore || 0,
+    preferredSizes: indexedSearch.customerPreferenceProfile?.preferredSizes || memory.preferredSizes || [],
+    preferredBrands: indexedSearch.customerPreferenceProfile?.preferredBrands || memory.preferredBrands || [],
+    preferredColors: indexedSearch.customerPreferenceProfile?.preferredColors || memory.preferredColors || [],
+    why_candidate_was_boosted: indexedSearch.topMatches?.[0]?.whyCandidateWasBoosted || indexedSearch.topMatches?.[0]?.score_breakdown?.whyCandidateWasBoosted || "",
+  };
   console.log("ai_inbox_visual_exact_inventory_match_stage", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -7195,7 +7301,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
           source: "exact_image_match",
         })),
       });
-      if (decision.limit < 1 && !visualCorrection) {
+      if (decision.limit < 1 && !visualCorrection && !exactCards.length) {
         console.log("ai_sales_brain_v2_confidence_decision", {
           tenant_id: config.tenant_id,
           conversation_id: message.external_conversation_id,
@@ -7255,7 +7361,9 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
         message,
         productCards: exactCards,
         detectedIntent: "visual_search_exact_inventory_match",
-        introText: "\u0623\u064a\u0648\u0647 \u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627\u060c \u062f\u0647 \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0639\u0646\u062f\u0646\u0627",
+        introText: decision.replyType === "exact_match"
+          ? "\u0623\u064a\u0648\u0647\u060c \u062f\u0647 \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0639\u0646\u062f\u0646\u0627"
+          : "\u062f\u0647 \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647 \u0627\u0644\u0635\u0648\u0631\u0629 \u0639\u0646\u062f\u064a\u060c \u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f",
         metadata: {
           visual_query: searchQuery,
           confidence_score: pipeline.confidence_score,
@@ -7277,10 +7385,17 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
       updateConversationMemory(message.external_conversation_id, {
         lastImageUrl: imageUrl,
         lastVisualQuery: searchQuery,
+        lastVisualQueryText: searchQuery,
         lastVisualConfidence: pipeline.confidence_score,
         lastVisualReplyType: decision.replyType,
         lastVisualAnalysis: visualAnalysis,
         lastVisualAttributes: visualAnalysis,
+        lastVisualMatches: exactCards.map((product) => product.product_id || product.id).filter(Boolean),
+        visualSearchStage: decision.replyType,
+        preferredColors: distinctTextArray([...(memory.preferredColors || []), exactCards[0]?.matched_variant_color, exactCards[0]?.color], 12),
+        preferredBrands: distinctTextArray([...(memory.preferredBrands || []), exactCards[0]?.brand], 12),
+        preferredCategories: distinctTextArray([...(memory.preferredCategories || []), exactCards[0]?.category, exactCards[0]?.product_type], 12),
+        ...(decision.replyType === "exact_match" ? { activeProductId: exactCards[0]?.product_id || exactCards[0]?.id || null } : {}),
         ...(visualCorrection ? { lastVisualClarification: visualCorrection.query } : {}),
         lastIntent: "visual_search",
         pendingAction: "",
@@ -7341,7 +7456,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     matchConfidence: topConfidence * 100,
     hasExact: false,
   });
-  const effectiveLimit = visualCorrection && cards.length ? Math.max(1, decision.limit) : decision.limit;
+  const effectiveLimit = cards.length ? Math.max(1, decision.limit) : decision.limit;
   const selectedCards = (newCards.length ? newCards : cards).slice(0, effectiveLimit);
   const strongMatch = false;
   pipeline.matched_products = selectedCards.map((product) => ({
@@ -7429,7 +7544,14 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     message,
     productCards: selectedCards,
     detectedIntent: "visual_search",
-    introText: [decision.replyType === "exact_match" ? "\u0623\u064a\u0648\u0647 \u0645\u0648\u062c\u0648\u062f \u0645\u0639\u0627\u064a\u0627\u060c \u062f\u0647 \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0639\u0646\u062f\u0646\u0627" : "\u062f\u0647 \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647 \u0627\u0644\u0635\u0648\u0631\u0629 \u0639\u0646\u062f\u064a\u060c \u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f", debugText].filter(Boolean).join("\n\n"),
+    introText: [
+      decision.replyType === "exact_match"
+        ? "\u0623\u064a\u0648\u0647\u060c \u062f\u0647 \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0639\u0646\u062f\u0646\u0627"
+        : decision.replyType === "close_match"
+          ? "\u062f\u0647 \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647 \u0627\u0644\u0635\u0648\u0631\u0629 \u0639\u0646\u062f\u064a\u060c \u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0646\u0641\u0633 \u0627\u0644\u0644\u0648\u0646\u061f"
+          : "\u0645\u0634 \u0644\u0627\u0642\u064a \u0646\u0641\u0633 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0628\u0627\u0644\u0638\u0628\u0637\u060c \u0628\u0633 \u062f\u064a \u0623\u0642\u0631\u0628 \u0627\u062e\u062a\u064a\u0627\u0631\u0627\u062a \u0634\u0628\u0647\u0647.",
+      debugText,
+    ].filter(Boolean).join("\n\n"),
     metadata: {
       visual_query: searchQuery,
       confidence_score: topConfidence,
@@ -7452,16 +7574,29 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   updateConversationMemory(message.external_conversation_id, {
     lastImageUrl: imageUrl,
     lastVisualQuery: searchQuery,
+    lastVisualQueryText: searchQuery,
     lastVisualConfidence: topConfidence,
     lastVisualReplyType: decision.replyType,
     lastVisualAnalysis: visualAnalysis,
     lastVisualAttributes: visualAnalysis,
+    lastVisualMatches: selectedCards.map((product) => product.product_id || product.id).filter(Boolean),
+    visualSearchStage: decision.replyType,
+    preferredColors: distinctTextArray([...(memory.preferredColors || []), selectedCards[0]?.matched_variant_color, selectedCards[0]?.color], 12),
+    preferredBrands: distinctTextArray([...(memory.preferredBrands || []), selectedCards[0]?.brand], 12),
+    preferredCategories: distinctTextArray([...(memory.preferredCategories || []), selectedCards[0]?.category, selectedCards[0]?.product_type], 12),
+    ...(decision.replyType === "exact_match" ? { activeProductId: selectedCards[0]?.product_id || selectedCards[0]?.id || null } : {}),
     ...(visualCorrection ? { lastVisualClarification: visualCorrection.query } : {}),
     lastIntent: "visual_search",
     pendingAction: "",
   });
   persistAiConversationMemory({ tenantId: config.tenant_id, channel: message.channel, conversationId: message.external_conversation_id, reason: "visual_search_sent" });
   return { handled: true, reason: "visual_search_sent" };
+};
+
+const handleVisualCorrectionIfMatched = async ({ config, message } = {}) => {
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  if (!memory.lastImageUrl || !detectVisualCorrectionTextV3(message.message_text)) return null;
+  return handleVisualSearchIfMatched({ config, message });
 };
 
 const handleHumanHandoffIfMatched = async ({ config, message } = {}) => {
@@ -7867,6 +8002,7 @@ const handleColorSelectionIfMatched = async ({ config, message } = {}) => {
     selectedVariantTitle: matchedCard.title || matchedCard.name || "",
     selectedAvailableSizes: matchedCard.sizes || matchedCard.available_sizes || [],
     selectedImageUrl: matchedCard.image_url || "",
+    preferredColors: distinctTextArray([...(memory.preferredColors || []), matchedCard.color || requestedColor], 12),
     activeProductId: matchedCard.product_id || matchedCard.id || null,
     activeVariantId: matchedCard.variant_id || null,
     activeColor: matchedCard.color || requestedColor,
@@ -8166,6 +8302,8 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
       selectedVariantTitle: baseCard.title || baseCard.name || "",
       selectedAvailableSizes: sizes,
       selectedImageUrl: baseCard.image_url || "",
+      preferredSizes: distinctTextArray([...(memoryForSize.preferredSizes || []), requestedSize], 8),
+      preferredColors: distinctTextArray([...(memoryForSize.preferredColors || []), selectedVariantForSize?.color || baseCard.color || ""], 12),
       selectionStage: "size_selected",
       buyingStage: "size_selected",
       checkoutStage: "size_selected",
@@ -8745,6 +8883,7 @@ const customerProfileToContext = ({ profile = {}, orders = [], memory = {}, matc
     preferredSizes,
     preferredBrands,
     preferredCategories: Array.isArray(memory.preferredCategories) ? memory.preferredCategories : [],
+    preferredColors: Array.isArray(memory.preferredColors) ? memory.preferredColors : [],
     lastOrders: orders.slice(0, 5).map((order) => ({
       id: order.id,
       invoice_number: order.invoice_number || order.public_order_number || "",
@@ -8912,6 +9051,7 @@ const loadCustomerBrainContext = async ({ config, message } = {}) => {
     preferredSizes: customerContext.preferredSizes,
     preferredBrands: customerContext.preferredBrands,
     preferredCategories: customerContext.preferredCategories,
+    preferredColors: customerContext.preferredColors,
     lastAddressSummary: customerContext.address || "",
     customerContext,
   });
@@ -8936,18 +9076,21 @@ const learnCustomerBrainPreferences = async ({ config, message } = {}) => {
   const size = extractShoeSize(message.message_text || "");
   const brands = detectedCustomerBrands(message.message_text || "");
   const categories = detectedCustomerCategories(message.message_text || "");
+  const color = detectSelectionColor(message.message_text || "") || detectExplicitColor(message.message_text || "");
   const preferredSizes = distinctTextArray([...(memory.preferredSizes || []), size], 8);
   const preferredBrands = distinctTextArray([...(memory.preferredBrands || []), ...brands], 12);
   const preferredCategories = distinctTextArray([...(memory.preferredCategories || []), ...categories], 12);
+  const preferredColors = distinctTextArray([...(memory.preferredColors || []), color, memory.selectedColor, memory.activeColor], 12);
   const knownName = isSalesControlWordName(parsed.customer_name) ? memory.knownName : (parsed.customer_name || memory.knownName || "");
   const knownPhone = normalizeEgyptPhone(parsed.customer_phone || memory.knownPhone || "");
   const lastAddressSummary = parsed.customer_address || memory.lastAddressSummary || "";
-  const learned = Boolean(size || brands.length || categories.length || parsed.customer_name || parsed.customer_phone || parsed.customer_address);
+  const learned = Boolean(size || brands.length || categories.length || color || parsed.customer_name || parsed.customer_phone || parsed.customer_address);
 
   updateConversationMemory(conversationId, {
     preferredSizes,
     preferredBrands,
     preferredCategories,
+    preferredColors,
     knownName,
     knownPhone,
     lastAddressSummary,
@@ -8960,6 +9103,7 @@ const learnCustomerBrainPreferences = async ({ config, message } = {}) => {
       preferred_sizes: preferredSizes,
       preferred_brands: preferredBrands,
       preferred_categories: preferredCategories,
+      preferred_colors: preferredColors,
       has_name: Boolean(knownName),
       has_phone: Boolean(knownPhone),
       has_address: Boolean(lastAddressSummary),
@@ -10589,6 +10733,7 @@ const handlerNames = (handlers = []) => handlers.map((handler) => handler?.name 
 const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
   const fallbackHandlers = [
     handleOrchestratorClarificationIfNeeded,
+    handleVisualCorrectionIfMatched,
     handleBrandCorrectionIfMatched,
     handleNegativeIntentIfMatched,
     handleCheckoutDataIfMatched,
