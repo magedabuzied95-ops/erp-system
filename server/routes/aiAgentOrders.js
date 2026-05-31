@@ -4,7 +4,7 @@ import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { emitToRooms } from "../utils/socket.js";
-import { debugMessengerProfileForConversation, sendMetaInboxOutboundMessage, syncMessengerProfileForConversation } from "../services/metaIntegrationService.js";
+import { debugMessengerProfileForConversation, getAiInboxConversationDebug, sendMetaInboxOutboundMessage, syncMessengerProfileForConversation } from "../services/metaIntegrationService.js";
 import { getAIEvents, pushAIEvent } from "../services/aiEventLogger.js";
 import { resolveIntent } from "../services/aiIntentResolver.js";
 import { buildProductContext, ensureProductLinkInReply } from "../services/aiProductContext.js";
@@ -1518,6 +1518,21 @@ router.get("/conversations/:conversationId/messages", protect, permit("settings"
     return res.json({ success: true, conversation_id: conversationId, ...payload });
   } catch (error) {
     return sendError(res, error, "Failed to load AI inbox messages");
+  }
+});
+
+router.get("/conversations/:conversationId/ai-debug", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(req.params.conversationId);
+    const payload = await getAiInboxConversationDebug({
+      tenantId,
+      conversationId,
+      channel: req.query?.channel || "",
+    });
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI debug metadata");
   }
 });
 

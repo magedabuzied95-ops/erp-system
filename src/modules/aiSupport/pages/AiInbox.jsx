@@ -106,6 +106,15 @@ const relativeTime = (value) => {
 const absoluteTime = (value) => (value ? new Date(value).toLocaleString() : "");
 const isMetaChannel = (value = "") => ["facebook_messenger", "instagram"].includes(clean(value).toLowerCase());
 const isFacebookMessengerChannel = (value = "") => ["facebook_messenger", "facebook", "messenger"].includes(clean(value).toLowerCase());
+const canViewAiDebugPanel = (user = {}) => {
+  const role = clean(user.role || user.role_name || user.user_role || user.type).toLowerCase();
+  return Boolean(
+    import.meta.env.DEV ||
+      user.is_super_admin ||
+      user.is_admin ||
+      ["admin", "super_admin", "superadmin", "owner"].includes(role)
+  );
+};
 const canSyncMessengerProfile = (conversation) => {
   const channel = clean(conversation?.channel || conversation?.source).toLowerCase();
   const source = clean(conversation?.source).toLowerCase();
@@ -773,6 +782,122 @@ function CustomerContextCard({ conversation = {} }) {
   );
 }
 
+function DebugField({ label, value }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
+      <div className="mt-1 break-words text-xs font-black text-slate-100">{value || "Unknown"}</div>
+    </div>
+  );
+}
+
+function DebugTags({ label, values = [] }) {
+  const items = asArray(values).filter((item) => item !== null && item !== undefined && clean(item) !== "");
+  return (
+    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {items.length ? items.slice(0, 12).map((item) => <Pill key={String(item)} tone="zinc">{String(item)}</Pill>) : <span className="text-xs text-slate-500">None</span>}
+      </div>
+    </div>
+  );
+}
+
+function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
+  const memory = data?.memory || {};
+  const events = asArray(data?.debug_events);
+  const confidence = data?.confidence === null || data?.confidence === undefined ? "" : Number(data.confidence).toFixed(2);
+  return (
+    <div className="mb-4 rounded-2xl border border-violet-300/15 bg-violet-400/[0.045] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-300/10 text-violet-100 ring-1 ring-violet-300/20"><Brain className="h-4 w-4" /></span>
+          <div>
+            <div className="text-sm font-black text-white">AI Debug</div>
+            <div className="text-xs text-slate-500">Intent, route, memory, and recent decisions</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {open ? (
+            <button type="button" onClick={onRefresh} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100 disabled:opacity-50">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Refresh
+            </button>
+          ) : null}
+          <button type="button" onClick={onToggle} className="inline-flex h-9 items-center gap-2 rounded-xl border border-violet-300/20 bg-violet-300/10 px-3 text-xs font-black text-violet-100">
+            {open ? <EyeOff className="h-4 w-4" /> : <InfoIcon className="h-4 w-4" />}
+            {open ? "Hide" : "Show"}
+          </button>
+        </div>
+      </div>
+
+      {open ? (
+        <div className="mt-4 space-y-4">
+          {error ? <div className="rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
+          {loading && !data ? <LoadingBlock text="Loading AI debug metadata..." /> : null}
+          {data ? (
+            <>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <DebugField label="Current intent" value={data.current_intent} />
+                <DebugField label="Confidence" value={confidence} />
+                <DebugField label="Route / brain" value={data.route} />
+                <DebugField label="Buying stage" value={memory.buyingStage} />
+                <DebugField label="Active product" value={memory.activeProductId} />
+                <DebugField label="Active variant" value={memory.activeVariantId} />
+                <DebugField label="Active size" value={memory.activeSize} />
+                <DebugField label="Active color" value={memory.activeColor} />
+                <DebugField label="Known name" value={memory.knownName} />
+                <DebugField label="Known phone" value={memory.knownPhone} />
+                <DebugField label="Visual confidence" value={memory.lastVisualConfidence === null || memory.lastVisualConfidence === undefined ? "" : String(memory.lastVisualConfidence)} />
+                <DebugField label="Processed keys" value={String(data.processed_inbound_key_count || 0)} />
+              </div>
+              <div className="grid gap-2 lg:grid-cols-3">
+                <DebugTags label="Last shown products" values={memory.lastShownProductIds} />
+                <DebugTags label="Preferred sizes" values={memory.preferredSizes} />
+                <DebugTags label="Preferred brands" values={memory.preferredBrands} />
+              </div>
+              <div className="grid gap-3 lg:grid-cols-[10rem_minmax(0,1fr)]">
+                <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Last image</div>
+                  {memory.lastImageUrl ? <img src={memory.lastImageUrl} alt="Last visual search" className="mt-2 aspect-square w-full rounded-xl object-cover ring-1 ring-white/10" loading="lazy" /> : <div className="mt-2 grid aspect-square place-items-center rounded-xl bg-white/[0.045] text-xs text-slate-500">No image</div>}
+                </div>
+                <DebugField label="Last outbound signature preview" value={data.last_outbound_signature_preview} />
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
+                <SectionTitle icon={Clock3} title="Recent AI decisions" />
+                <div className="space-y-2">
+                  {events.length ? events.map((event, index) => (
+                    <div key={`${event.timestamp || "event"}-${index}`} className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill tone={event.skipped_duplicate ? "amber" : "cyan"}>{event.classified_intent || "Unknown"}</Pill>
+                        {event.selected_route ? <Pill tone="violet">{event.selected_route}</Pill> : null}
+                        {event.confidence !== null && event.confidence !== undefined ? <Pill tone="zinc">confidence {Number(event.confidence).toFixed(2)}</Pill> : null}
+                        {event.skipped_duplicate ? <Pill tone="amber">duplicate skipped</Pill> : null}
+                        <span className="text-xs text-slate-500">{absoluteTime(event.timestamp)}</span>
+                      </div>
+                      {event.message_text ? <p className="mt-2 text-sm leading-6 text-slate-300" dir={isRtlText(event.message_text) ? "rtl" : "auto"}>{event.message_text}</p> : null}
+                      {event.reply_preview ? <p className="mt-2 rounded-lg bg-cyan-300/5 p-2 text-xs leading-5 text-cyan-100" dir={isRtlText(event.reply_preview) ? "rtl" : "auto"}>{event.reply_preview}</p> : null}
+                      {event.memory_changes ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {event.memory_changes.activeSize ? <Pill tone="zinc">size {event.memory_changes.activeSize}</Pill> : null}
+                          {event.memory_changes.activeColor ? <Pill tone="zinc">{event.memory_changes.activeColor}</Pill> : null}
+                          {event.memory_changes.buyingStage ? <Pill tone="zinc">{event.memory_changes.buyingStage}</Pill> : null}
+                          {event.memory_changes.activeProductId ? <Pill tone="zinc">product {event.memory_changes.activeProductId}</Pill> : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  )) : <EmptyBlock text="No AI debug decisions have been stored for this conversation yet." />}
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing = false, onSyncMessengerProfile }) {
   const profile = conversation?.customer_profile || {};
   const identityName = customerDisplayName(conversation);
@@ -936,6 +1061,7 @@ export default function AiInbox() {
   const [replyText, setReplyText] = useState("");
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
   const [suggestedReplies, setSuggestedReplies] = useState({ sessionId: "", items: [], intent: "", confidence: 0, error: "" });
+  const [aiDebug, setAiDebug] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
   const [suggesting, setSuggesting] = useState(false);
   const [profileSyncing, setProfileSyncing] = useState(false);
   const [profileDebugging, setProfileDebugging] = useState(false);
@@ -1108,6 +1234,35 @@ export default function AiInbox() {
       : selectedChannelStatus.ai_replies_enabled && selectedTokenActive && selectedMessagingActive
         ? { status: "LIVE", label: "AI LIVE", color: "green" }
         : selectedChannelStatus.aiStatus || { status: "OFF", label: "AI OFF", color: "gray" };
+  const canViewAiDebug = useMemo(() => canViewAiDebugPanel(getCurrentUser?.() || {}), []);
+
+  const loadAiDebug = useCallback(async () => {
+    if (!selectedConversation?.session_id || !canViewAiDebug) return;
+    const sessionId = selectedConversation.session_id;
+    setAiDebug((current) => ({ ...current, sessionId, loading: true, error: "" }));
+    try {
+      const payload = await api.get(aiInboxConversationEndpoint(sessionId, "/ai-debug"), {
+        params: { tenant_id: tenantId, channel: selectedConversation.channel || selectedConversation.source || "" },
+        headers,
+        perfComponent: "AiInbox.aiDebug",
+      });
+      setAiDebug((current) => ({ ...current, sessionId, loading: false, data: payload, error: "" }));
+    } catch (err) {
+      setAiDebug((current) => ({ ...current, sessionId, loading: false, error: err?.message || "Failed to load AI debug metadata" }));
+    }
+  }, [canViewAiDebug, headers, selectedConversation?.channel, selectedConversation?.session_id, selectedConversation?.source, tenantId]);
+
+  const toggleAiDebug = useCallback(() => {
+    setAiDebug((current) => {
+      const open = !current.open;
+      return { ...current, open, error: open ? current.error : "" };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!aiDebug.open || !canViewAiDebug || !selectedConversation?.session_id) return;
+    void loadAiDebug();
+  }, [aiDebug.open, canViewAiDebug, loadAiDebug, selectedConversation?.session_id]);
 
   const patchConversation = useCallback((sessionId, updater) => {
     setInbox((current) => ({
@@ -1733,6 +1888,16 @@ export default function AiInbox() {
                     </div>
                   </div>
                   <CustomerContextCard conversation={safeConversation} />
+                  {canViewAiDebug ? (
+                    <AiDebugPanel
+                      open={aiDebug.open}
+                      loading={aiDebug.loading && aiDebug.sessionId === safeConversation.session_id}
+                      error={aiDebug.sessionId === safeConversation.session_id ? aiDebug.error : ""}
+                      data={aiDebug.sessionId === safeConversation.session_id ? aiDebug.data : null}
+                      onToggle={toggleAiDebug}
+                      onRefresh={loadAiDebug}
+                    />
+                  ) : null}
                   <div className="mb-4 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-xs sm:grid-cols-3">
                     <div><span className="text-slate-500">Webhook</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "Healthy" : "Failed"}</div></div>
                     <div><span className="text-slate-500">Token</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "Active" : "Expired"}</div></div>

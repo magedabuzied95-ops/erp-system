@@ -191,7 +191,7 @@ const detectProductDetailQuestion = (message = "") =>
       ])
   );
 
-const AI_INTENTS = Object.freeze({
+export const AI_INTENTS = Object.freeze({
   PRODUCT_SEARCH: "PRODUCT_SEARCH",
   VISUAL_SEARCH: "VISUAL_SEARCH",
   PRICE_CHECK: "PRICE_CHECK",
@@ -212,7 +212,7 @@ const AI_INTENTS = Object.freeze({
 
 const ORCHESTRATOR_CONFIDENCE_THRESHOLD = 0.58;
 
-const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {}) => {
+export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {}) => {
   const messageText = text(message.message_text);
   const normalized = messageText.toLowerCase().replace(/\s+/g, " ");
   const imageCount = imageAttachments(message.attachments || []).length;
@@ -270,6 +270,10 @@ const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {}) => {
     intent = AI_INTENTS.CHECKOUT;
     confidence = 0.88;
     reason = "checkout_stage_customer_data";
+  } else if (!size && (brands.length || categories.length)) {
+    intent = AI_INTENTS.PRODUCT_SEARCH;
+    confidence = brands.length ? 0.86 : 0.76;
+    reason = brands.length ? "brand_entity_product_query" : "category_entity_product_query";
   } else if (size || hasAnyArabicCommerceTerm(messageText, ["متاح", "موجود", "فيه", "available"])) {
     intent = AI_INTENTS.SIZE_CHECK;
     confidence = size ? 0.9 : 0.72;
@@ -682,6 +686,100 @@ const storeProcessedInboundKey = async ({ tenantId, channel = "", conversationId
     status,
   });
   return recent;
+};
+
+const maskPhoneForDebug = (value = "") => {
+  const digits = text(value).replace(/[^\d]/g, "");
+  if (!digits) return "";
+  return `${"*".repeat(Math.max(0, digits.length - 3))}${digits.slice(-3)}`;
+};
+
+const compactMemoryForDebug = (memory = {}) => ({
+  buyingStage: text(memory.buyingStage || memory.checkoutStage || ""),
+  activeProductId: memory.activeProductId || memory.selectedProductId || null,
+  activeVariantId: memory.activeVariantId || memory.selectedVariantId || null,
+  activeSize: text(memory.activeSize || memory.selectedSize || ""),
+  activeColor: text(memory.activeColor || memory.selectedColor || ""),
+  lastShownProductIds: Array.isArray(memory.lastShownProductIds) ? memory.lastShownProductIds.slice(0, 12) : [],
+  preferredSizes: Array.isArray(memory.preferredSizes) ? memory.preferredSizes.slice(0, 8) : [],
+  preferredBrands: Array.isArray(memory.preferredBrands) ? memory.preferredBrands.slice(0, 12) : [],
+  knownName: text(memory.knownName || memory.customerName || ""),
+  knownPhone: maskPhoneForDebug(memory.knownPhone || memory.customerPhone || ""),
+  lastImageUrl: text(memory.lastImageUrl || ""),
+  lastVisualConfidence: memory.lastVisualConfidence ?? memory.lastVisualAttributes?.confidence ?? null,
+});
+
+const storeAiDebugEvent = async ({ tenantId, channel = "", conversationId = "", event = {} } = {}) => {
+  if (!tenantId || !conversationId) return null;
+  const metadata = await loadConversationMetadata({ tenantId, channel, conversationId });
+  const current = recentMetaArray(metadata, "ai_debug_events");
+  const safeEvent = {
+    timestamp: nowIso(),
+    message_text: text(event.message_text || "").slice(0, 240),
+    classified_intent: text(event.classified_intent || event.intent || ""),
+    confidence: Number.isFinite(Number(event.confidence)) ? Number(event.confidence) : null,
+    selected_route: text(event.selected_route || event.route || ""),
+    memory_changes: event.memory_changes && typeof event.memory_changes === "object" ? event.memory_changes : {},
+    reply_preview: text(event.reply_preview || "").slice(0, 260),
+    skipped_duplicate: event.skipped_duplicate === true,
+    handled_reason: text(event.handled_reason || ""),
+  };
+  const next = [safeEvent, ...current].slice(0, 20);
+  await db.query(
+    `
+    UPDATE ai_channel_conversations
+    SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{ai_debug_events}', $4::jsonb, true),
+        updated_at = NOW()
+    WHERE tenant_id = $1
+      AND external_conversation_id = $2
+      AND ($3::text = '' OR channel = $3 OR channel = 'facebook_messenger' OR $3 = 'facebook_messenger')
+    `,
+    [numberOrNull(tenantId), text(conversationId), text(channel), json(next)]
+  ).catch((error) => {
+    console.warn("[ai-debug] event store failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      message: error?.message || "",
+    });
+  });
+  console.log("[ai-debug] event stored", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    intent: safeEvent.classified_intent,
+    route: safeEvent.selected_route,
+    skipped_duplicate: safeEvent.skipped_duplicate,
+  });
+  return next;
+};
+
+export const getAiInboxConversationDebug = async ({ tenantId, channel = "", conversationId = "" } = {}) => {
+  if (!tenantId || !conversationId) {
+    throw Object.assign(new Error("tenant_id and conversation_id are required"), { status: 400 });
+  }
+  const metadata = await loadConversationMetadata({ tenantId, channel, conversationId });
+  const memory = metadata.ai_memory && typeof metadata.ai_memory === "object" ? metadata.ai_memory : {};
+  const debugEvents = recentMetaArray(metadata, "ai_debug_events").slice(0, 20);
+  const inboundKeys = recentMetaArray(metadata, "ai_processed_inbound_keys");
+  const outboundSignatures = recentMetaArray(metadata, "ai_recent_outbound_signatures");
+  const latestOutboundSignature = outboundSignatures[outboundSignatures.length - 1] || {};
+  const latestEvent = debugEvents[0] || {};
+  const data = {
+    conversation_id: conversationId,
+    current_intent: text(latestEvent.classified_intent || memory.lastIntent || ""),
+    confidence: latestEvent.confidence ?? null,
+    route: text(latestEvent.selected_route || latestEvent.handled_reason || ""),
+    memory: compactMemoryForDebug(memory),
+    processed_inbound_key_count: inboundKeys.length,
+    last_outbound_signature_preview: text(latestOutboundSignature?.preview || latestOutboundSignature?.signature || ""),
+    debug_events: debugEvents,
+  };
+  console.log("[ai-debug] panel data loaded", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    event_count: debugEvents.length,
+    current_intent: data.current_intent,
+  });
+  return data;
 };
 
 const outboundSignature = ({ messageText = "", productCards = [], trigger = "" } = {}) => {
@@ -9753,10 +9851,36 @@ export const processMetaWebhook = async ({ req } = {}) => {
         inbound_key: inboundKey,
       });
       markMessageProcessingStatus(messageId, "sent");
+      await storeAiDebugEvent({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        event: {
+          message_text: message.message_text || "[attachment]",
+          classified_intent: "DUPLICATE",
+          selected_route: "dedupe",
+          memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
+          skipped_duplicate: true,
+          handled_reason: "persistent_duplicate_inbound",
+        },
+      }).catch(() => {});
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, duplicate: true, sent: false, reason: "persistent_duplicate_inbound" });
       continue;
     }
     if (inboxResult?.duplicate && previousDedupeStatus !== "failed") {
+      await storeAiDebugEvent({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        event: {
+          message_text: message.message_text || "[attachment]",
+          classified_intent: "DUPLICATE",
+          selected_route: "inbox_insert",
+          memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
+          skipped_duplicate: true,
+          handled_reason: "duplicate_message",
+        },
+      }).catch(() => {});
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, duplicate: true, sent: false, reason: "duplicate_message" });
       continue;
     }
@@ -9842,10 +9966,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
       });
     });
     await recordLeadSignals({ config, message, reason: "inbound_message" }).catch(() => {});
+    let latestDebugClassification = null;
+    let latestDebugRoute = "";
     if (!["suggest_only", "auto_reply_after_approval"].includes(autoReplyMode)) {
       try {
         const runtimeMemory = getConversationMemory(message.external_conversation_id) || {};
         const classification = classifyMetaConversationIntent({ message, memory: runtimeMemory });
+        latestDebugClassification = classification;
         message.orchestratorIntent = classification;
         console.log("[orchestrator] intent classified", {
           tenant_id: config.tenant_id,
@@ -9873,6 +10000,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           });
         }
         const preAiHandlers = routeMetaIntentHandlers({ classification });
+        latestDebugRoute = handlerNames(preAiHandlers).join(", ");
         console.log("[orchestrator] routed", {
           tenant_id: config.tenant_id,
           conversation_id: message.external_conversation_id,
@@ -9885,6 +10013,21 @@ export const processMetaWebhook = async ({ req } = {}) => {
           if (handled?.handled) break;
         }
         if (handled?.handled) {
+          await storeAiDebugEvent({
+            tenantId: config.tenant_id,
+            channel: message.channel,
+            conversationId: message.external_conversation_id,
+            event: {
+              message_text: message.message_text || "[attachment]",
+              classified_intent: classification.intent,
+              confidence: classification.confidence,
+              selected_route: handled.reason || latestDebugRoute || classification.route || "",
+              memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
+              reply_preview: handled.reply_preview || handled.answer || "",
+              skipped_duplicate: false,
+              handled_reason: handled.reason || "",
+            },
+          }).catch(() => {});
           markMessageProcessingStatus(messageId, "sent");
           await storeProcessedInboundKey({
             tenantId: config.tenant_id,
@@ -9947,6 +10090,21 @@ export const processMetaWebhook = async ({ req } = {}) => {
         return null;
       });
       if (fallback?.handled) {
+        await storeAiDebugEvent({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          event: {
+            message_text: message.message_text || "[attachment]",
+            classified_intent: latestDebugClassification?.intent || message.orchestratorIntent?.intent || "AI_GENERATION_FAILED",
+            confidence: latestDebugClassification?.confidence ?? message.orchestratorIntent?.confidence,
+            selected_route: "generation_failed_fallback",
+            memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
+            reply_preview: fallback.reply_preview || fallback.answer || "",
+            skipped_duplicate: false,
+            handled_reason: fallback.reason || "ai_generation_failed_fallback",
+          },
+        }).catch(() => {});
         markMessageProcessingStatus(messageId, "sent");
         await storeProcessedInboundKey({
           tenantId: config.tenant_id,
@@ -10027,6 +10185,21 @@ export const processMetaWebhook = async ({ req } = {}) => {
         inboundKey,
         status: "sent",
       });
+      await storeAiDebugEvent({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        event: {
+          message_text: message.message_text || "[attachment]",
+          classified_intent: latestDebugClassification?.intent || message.orchestratorIntent?.intent || aiPayload.detected_intent || "",
+          confidence: latestDebugClassification?.confidence ?? message.orchestratorIntent?.confidence,
+          selected_route: "repeated_product_card_guard",
+          memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
+          reply_preview: prompt || legacyPrompt || "",
+          skipped_duplicate: false,
+          handled_reason: "repeated_product_card_prevented",
+        },
+      }).catch(() => {});
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true, reason: "repeated_product_card_prevented" });
       continue;
     }
@@ -10079,6 +10252,21 @@ export const processMetaWebhook = async ({ req } = {}) => {
           inboundKey,
           status: "sent",
         });
+        await storeAiDebugEvent({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          event: {
+            message_text: message.message_text || "[attachment]",
+            classified_intent: latestDebugClassification?.intent || message.orchestratorIntent?.intent || aiPayload.detected_intent || "",
+            confidence: latestDebugClassification?.confidence ?? message.orchestratorIntent?.confidence,
+            selected_route: "outbound_dedupe",
+            memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
+            reply_preview: outboundPreview,
+            skipped_duplicate: true,
+            handled_reason: "duplicate_outbound",
+          },
+        }).catch(() => {});
         results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "duplicate_outbound" });
         continue;
       }
@@ -10152,6 +10340,21 @@ export const processMetaWebhook = async ({ req } = {}) => {
         inboundKey,
         status: "sent",
       });
+      await storeAiDebugEvent({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        event: {
+          message_text: message.message_text || "[attachment]",
+          classified_intent: latestDebugClassification?.intent || message.orchestratorIntent?.intent || aiPayload.detected_intent || "",
+          confidence: latestDebugClassification?.confidence ?? message.orchestratorIntent?.confidence ?? aiPayload.confidence,
+          selected_route: latestDebugRoute || aiPayload.route || aiPayload.brain || "AI support flow",
+          memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
+          reply_preview: outboundPreview,
+          skipped_duplicate: false,
+          handled_reason: aiPayload.detected_intent || "",
+        },
+      }).catch(() => {});
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true });
     } catch (error) {
       console.error("[meta-inbox] auto_reply_send_failed", {

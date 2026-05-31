@@ -16,6 +16,7 @@
     "db:setup": "node server/scripts/dbSetup.js",
     "db:seed": "node server/scripts/seedFoundation.js",
     "catalog:delete-all": "node server/scripts/deleteAllProducts.js",
+    "test:ai-inbox": "node server/scripts/testAiInboxFlows.js",
     "start": "npm --prefix \"./server\" run start"
   },
   "dependencies": {
