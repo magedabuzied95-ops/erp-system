@@ -2,6 +2,7 @@ import db from "../database/db.js";
 import { ensureProductVariantImagesSchema } from "./productVariantImagesService.js";
 import { publishPost as publishPostService } from "./socialPublisherService.js";
 import { publishStoryEverywhere as publishStoryEverywhereService } from "./storyPublisherService.js";
+import { generateDesignedAiMarketingStoryImage } from "./storyImageService.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { validateMetaToken } from "./metaTokenService.js";
 import { syncMarketingAnalyticsForTenant } from "./marketingAnalyticsService.js";
@@ -410,17 +411,32 @@ const normalizeQueueRow = (row = {}) => {
   const resolvedProductUrl = cleanText(row.product_url || design.product_url || design.cta_url || metadata.product_url || metadata.cta_url);
   const resolvedCtaUrl = cleanText(design.cta_url || resolvedProductUrl);
   const resolvedProductSlug = cleanText(design.product_slug || metadata.product_slug || row.product_slug || "");
+  const resolvedStoryAsset = cleanText(
+    row.rendered_image_url ||
+      row.story_image_url ||
+      row.final_asset_url ||
+      design.rendered_image_url ||
+      design.story_image_url ||
+      design.final_asset_url ||
+      metadata.rendered_image_url ||
+      metadata.story_image_url ||
+      metadata.final_asset_url
+  );
   return {
     ...row,
     product_url: resolvedProductUrl,
     product_slug: resolvedProductSlug,
     cta_url: resolvedCtaUrl,
+    rendered_image_url: resolvedStoryAsset,
+    story_image_url: resolvedStoryAsset,
+    final_asset_url: resolvedStoryAsset,
     media_urls: normalizeJsonArray(row.media_urls, []),
     design_json: {
       ...design,
       ...(resolvedProductUrl ? { product_url: resolvedProductUrl } : {}),
       ...(resolvedCtaUrl ? { cta_url: resolvedCtaUrl } : {}),
       ...(resolvedProductSlug ? { product_slug: resolvedProductSlug } : {}),
+      ...(resolvedStoryAsset ? { rendered_image_url: resolvedStoryAsset, story_image_url: resolvedStoryAsset, final_asset_url: resolvedStoryAsset } : {}),
     },
     metadata,
     published_platforms: normalizeJsonArray(row.published_platforms, []),
@@ -484,6 +500,9 @@ export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
       media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
       primary_image_url TEXT NOT NULL DEFAULT '',
       variant_image_url TEXT NOT NULL DEFAULT '',
+      rendered_image_url TEXT NOT NULL DEFAULT '',
+      story_image_url TEXT NOT NULL DEFAULT '',
+      final_asset_url TEXT NOT NULL DEFAULT '',
       color TEXT NOT NULL DEFAULT '',
       size TEXT NOT NULL DEFAULT '',
       product_url TEXT NOT NULL DEFAULT '',
@@ -507,6 +526,9 @@ export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
       ADD COLUMN IF NOT EXISTS media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS primary_image_url TEXT NOT NULL DEFAULT '',
       ADD COLUMN IF NOT EXISTS variant_image_url TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS rendered_image_url TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS story_image_url TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS final_asset_url TEXT NOT NULL DEFAULT '',
       ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '',
       ADD COLUMN IF NOT EXISTS size TEXT NOT NULL DEFAULT '',
       ADD COLUMN IF NOT EXISTS publish_status VARCHAR(30) NOT NULL DEFAULT 'draft',
@@ -700,7 +722,7 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
   const rows = [];
   for (const row of result.rows.map(normalizeQueueRow)) {
     if (row.strategy_type !== "last_size") {
-      rows.push(await hydrateQueueStoryMetadata(tenantId, row));
+      rows.push(await hydrateQueueStoryForRender(tenantId, row));
       continue;
     }
     const validation = await validateLastPieceQueueItem(tenantId, row);
@@ -708,7 +730,7 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
       await db.query(`DELETE FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2`, [row.id, tenantId]);
       continue;
     }
-    rows.push(await hydrateQueueStoryMetadata(tenantId, applyCurrentLastPieceStock(row, validation.stock)));
+    rows.push(await hydrateQueueStoryForRender(tenantId, applyCurrentLastPieceStock(row, validation.stock)));
   }
   return rows;
 };
@@ -993,6 +1015,21 @@ const hydrateQueueStoryMetadata = async (tenantId, item = {}) => {
   return withStoryLinks(withSizes, link);
 };
 
+const hydrateQueueStoryForRender = async (tenantId, item = {}) => {
+  const hydrated = await hydrateQueueStoryMetadata(tenantId, item);
+  if (!isStoryQueueItem(hydrated) || queueStoryFinalAssetUrl(hydrated)) return hydrated;
+  try {
+    return await ensureQueueStoryRenderedAsset(tenantId, hydrated);
+  } catch (error) {
+    console.error("[ai-story-asset] render failed", {
+      tenant_id: tenantId,
+      queue_id: hydrated?.id || null,
+      error: error?.message || "Failed to render AI story asset",
+    });
+    return hydrated;
+  }
+};
+
 const resolveAiContentMedia = ({ product = {}, variant = null, strategy = "", contentType = "story" } = {}) => {
   const activeVariants = sellableVariants(product);
   const productImages = productMediaUrls(product);
@@ -1158,6 +1195,7 @@ const queueItemPostPayload = (item = {}) => {
 const queueItemStoryPayload = (item = {}) => {
   const design = item.design_json || {};
   const productLink = cleanText(item.cta_url || design.cta_url || item.product_url || design.product_url);
+  const finalAssetUrl = cleanText(item.rendered_image_url || item.story_image_url || item.final_asset_url || design.rendered_image_url || design.story_image_url || design.final_asset_url);
   const slideImages = [
     ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.image_url) : []),
     ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.image_url) : []),
@@ -1178,9 +1216,14 @@ const queueItemStoryPayload = (item = {}) => {
     product_name: design.product_name || item.title || "",
     title: item.title || design.product_name || "",
     caption: item.caption || design.caption || "",
-    image_url: mediaUrls[0] || "",
-    media_urls: mediaUrls,
+    image_url: finalAssetUrl,
+    media_urls: finalAssetUrl ? [finalAssetUrl] : [],
+    rendered_image_url: finalAssetUrl,
+    story_image_url: finalAssetUrl,
+    final_asset_url: finalAssetUrl,
+    source_product_image_url: mediaUrls[0] || "",
     story_type: "ai_center",
+    require_generated_story_asset: true,
     product_slug: item.product_slug || design.product_slug || "",
     product_url: item.product_url || design.product_url || productLink || "",
     cta_url: productLink,
@@ -1188,6 +1231,107 @@ const queueItemStoryPayload = (item = {}) => {
     availability_text: "Available now",
     design_json: design,
   };
+};
+
+const isStoryQueueItem = (item = {}) => {
+  const design = item.design_json || {};
+  return cleanText(item.content_type).toLowerCase() === "story" || cleanText(design.layout_type).toLowerCase().includes("story");
+};
+
+const queueStoryFinalAssetUrl = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return cleanText(
+    item.rendered_image_url ||
+      item.story_image_url ||
+      item.final_asset_url ||
+      design.rendered_image_url ||
+      design.story_image_url ||
+      design.final_asset_url ||
+      metadata.rendered_image_url ||
+      metadata.story_image_url ||
+      metadata.final_asset_url
+  );
+};
+
+const rawStoryImageUrls = (item = {}) => {
+  const design = item.design_json || {};
+  const slideImages = [
+    ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.image_url) : []),
+    ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.image_url) : []),
+  ];
+  return uniqueImageUrls([
+    item.primary_image_url,
+    item.variant_image_url,
+    item.image_url,
+    design.primary_image_url,
+    design.variant_image_url,
+    design.image_url,
+    ...(Array.isArray(item.media_urls) ? item.media_urls : []),
+    ...(Array.isArray(design.media_urls) ? design.media_urls : []),
+    ...slideImages,
+  ]).filter((url) => !/(^|\/)uploads\/stories\//.test(url));
+};
+
+const ensureQueueStoryRenderedAsset = async (tenantId, item = {}) => {
+  if (!isStoryQueueItem(item)) return item;
+  const existingAsset = queueStoryFinalAssetUrl(item);
+  if (existingAsset) return normalizeQueueRow(item);
+
+  const rawImages = rawStoryImageUrls(item);
+  const design = item.design_json || {};
+  const renderedAssetUrl = await generateDesignedAiMarketingStoryImage({
+    tenantId,
+    postId: item.id,
+    story: {
+      ...item,
+      image_url: rawImages[0] || item.image_url || design.image_url || "",
+      source_product_image_url: rawImages[0] || "",
+      media_urls: rawImages,
+      available_sizes: design.available_sizes,
+      sizes_label: design.sizes_label,
+      price: item.price || design.price || design.product_price,
+      currency: item.currency || design.currency,
+      strategy_type: item.strategy_type || design.strategy_type,
+      layout_type: item.layout_type || design.layout_type,
+      design_json: {
+        ...design,
+        image_url: rawImages[0] || design.image_url || item.image_url || "",
+        media_urls: rawImages,
+      },
+    },
+  });
+
+  const nextDesign = {
+    ...design,
+    rendered_image_url: renderedAssetUrl,
+    story_image_url: renderedAssetUrl,
+    final_asset_url: renderedAssetUrl,
+    source_product_image_url: rawImages[0] || "",
+  };
+  const nextMetadata = {
+    ...(item.metadata || {}),
+    rendered_image_url: renderedAssetUrl,
+    story_image_url: renderedAssetUrl,
+    final_asset_url: renderedAssetUrl,
+    story_asset_renderer: "ai_marketing_center_v1",
+    story_asset_generated_at: new Date().toISOString(),
+  };
+  const updated = await db.query(
+    `
+    UPDATE ai_marketing_content_queue
+    SET rendered_image_url = $3,
+        story_image_url = $3,
+        final_asset_url = $3,
+        design_json = $4::jsonb,
+        metadata = $5::jsonb,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND tenant_id = $2
+    RETURNING *
+    `,
+    [item.id, tenantId, renderedAssetUrl, JSON.stringify(nextDesign), JSON.stringify(nextMetadata)]
+  );
+  return updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : normalizeQueueRow({ ...item, ...nextMetadata, design_json: nextDesign });
 };
 
 const persistQueuePublishResult = async ({ tenantId, id, item, result, platformResults, statusOverride = null, errorOverride = null }) => {
@@ -3233,10 +3377,11 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
       reason: validation.reason || "stale_last_piece",
     });
   }
-  const publishItem = await hydrateQueueStoryMetadata(
+  let publishItem = await hydrateQueueStoryMetadata(
     tenantId,
     currentItem?.strategy_type === "last_size" ? applyCurrentLastPieceStock(currentItem, validation.stock) : currentItem
   );
+  publishItem = await ensureQueueStoryRenderedAsset(tenantId, publishItem);
   await db.query(
     `
     UPDATE ai_marketing_content_queue
@@ -3267,7 +3412,7 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
       };
       return persistQueuePublishResult({ tenantId, id, item: publishItem, result, platformResults, statusOverride: "failed", errorOverride: result.error_message });
     }
-    const isStory = publishItem.content_type === "story" || String(publishItem.design_json?.layout_type || "").toLowerCase().includes("story");
+    const isStory = isStoryQueueItem(publishItem);
     const publishResult = isStory
       ? await publishStoryEverywhereService({ story: queueItemStoryPayload(publishItem), settings })
       : await publishPostService(queueItemPostPayload(publishItem), settings);

@@ -308,6 +308,144 @@ export const isGeneratedStoryImageUrl = (value) => /(^|\/)uploads\/stories\//.te
 
 const uniqueList = (items = []) => Array.from(new Set(items.map(trimString).filter(Boolean)));
 
+const numberValue = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const naturalSizeSort = (left, right) => {
+  const leftText = trimString(left);
+  const rightText = trimString(right);
+  const leftNumber = Number(leftText.replace(",", "."));
+  const rightNumber = Number(rightText.replace(",", "."));
+  if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) return leftNumber - rightNumber;
+  return leftText.localeCompare(rightText, undefined, { numeric: true, sensitivity: "base" });
+};
+
+const uniqueStoryTextValues = (items = []) =>
+  uniqueList(items.map((item) => trimString(item))).sort(naturalSizeSort);
+
+const storyAssetTextLines = (value, { maxChars = 24, maxLines = 2 } = {}) => {
+  const words = trimString(value).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > maxChars && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+    if (lines.length >= maxLines) break;
+  }
+  if (line && lines.length < maxLines) lines.push(line);
+  return lines.length ? lines : [trimString(value).slice(0, maxChars)].filter(Boolean);
+};
+
+const storySvgText = ({ lines, x, y, size, weight = 700, color = "#111827", anchor = "middle", lineHeight = 1.18 }) => `
+  <text x="${x}" y="${y}" text-anchor="${anchor}" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${weight}" letter-spacing="0" fill="${color}">
+    ${lines.map((line, index) => `<tspan x="${x}" dy="${index === 0 ? 0 : Math.round(size * lineHeight)}">${escapeXml(line)}</tspan>`).join("")}
+  </text>`;
+
+const storyAssetPrice = (story = {}, design = {}) => {
+  const rawPrice = trimString(story.price || story.product_price || design.price || design.product_price);
+  if (!rawPrice) return "";
+  const currency = trimString(story.currency || design.currency || "EGP");
+  return rawPrice.toLowerCase().includes(currency.toLowerCase()) ? rawPrice : `${rawPrice} ${currency}`;
+};
+
+const storyAssetSizes = (story = {}, design = {}) => {
+  const sizes = uniqueStoryTextValues([
+    ...(Array.isArray(story.available_sizes) ? story.available_sizes : []),
+    ...(Array.isArray(design.available_sizes) ? design.available_sizes : []),
+    ...(Array.isArray(story.sizes) ? story.sizes : []),
+    ...(Array.isArray(design.sizes) ? design.sizes : []),
+    story.size,
+    design.size_name,
+  ]);
+  const existing = trimString(story.sizes_label || design.sizes_label);
+  if (existing) return existing;
+  return sizes.length ? `AVAILABLE SIZES: ${sizes.join(", ")}` : "AVAILABLE NOW";
+};
+
+const storyAssetBadge = (story = {}, design = {}) => {
+  const text = [story.strategy_type, story.layout_type, design.strategy_type, design.layout_type, story.caption, design.caption]
+    .map(trimString)
+    .join(" ")
+    .toLowerCase();
+  const stock = numberValue(story.stock ?? design.stock, 0);
+  return text.includes("last_size") || text.includes("last piece") || text.includes("last size") || (stock > 0 && stock <= 2)
+    ? "LAST SIZE"
+    : "NEW COLLECTION";
+};
+
+const storyAssetTitle = (story = {}, design = {}) =>
+  trimString(story.product_name || story.title || design.product_name || design.title || "New product");
+
+const storyAssetCta = (story = {}, design = {}) => trimString(story.cta_text || design.cta_text || "SHOP NOW");
+
+const storyAssetImageSource = (story = {}, design = {}) => {
+  const slideImages = [
+    ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.image_url) : []),
+    ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.image_url) : []),
+  ];
+  return uniqueList([
+    story.source_product_image_url,
+    story.primary_image_url,
+    story.variant_image_url,
+    story.image_url,
+    design.primary_image_url,
+    design.variant_image_url,
+    design.image_url,
+    ...(Array.isArray(story.media_urls) ? story.media_urls : []),
+    ...(Array.isArray(design.media_urls) ? design.media_urls : []),
+    ...slideImages,
+  ]).find((source) => !isGeneratedStoryImageUrl(source));
+};
+
+const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta }) => {
+  const titleLines = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 });
+  const sizesLines = storyAssetTextLines(sizes, { maxChars: 36, maxLines: 2 });
+  const priceLines = storyAssetTextLines(price || "Available now", { maxChars: 20, maxLines: 1 });
+  return `
+<svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" viewBox="0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="storyBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="0.48" stop-color="#eef2f6"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.0"/>
+      <stop offset="0.34" stop-color="#111827" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#020617" stop-opacity="0.96"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="22" stdDeviation="28" flood-color="#0f172a" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#storyBg)"/>
+  <circle cx="930" cy="190" r="210" fill="#22d3ee" opacity="0.18"/>
+  <circle cx="170" cy="420" r="250" fill="#f43f5e" opacity="0.11"/>
+  <rect x="50" y="50" width="980" height="1820" rx="58" fill="none" stroke="#0f172a" stroke-opacity="0.10" stroke-width="3"/>
+  <rect x="92" y="92" width="258" height="58" rx="29" fill="#0f172a"/>
+  <text x="221" y="130" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="900" fill="#ffffff" letter-spacing="1.6">ERP STORE</text>
+  <rect x="706" y="92" width="282" height="58" rx="29" fill="#ffffff" fill-opacity="0.88" stroke="#0f172a" stroke-opacity="0.08"/>
+  <text x="847" y="130" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="900" fill="#0f172a" letter-spacing="1.8">${escapeXml(badge)}</text>
+  <rect x="70" y="1090" width="940" height="760" rx="52" fill="url(#panel)"/>
+  <g filter="url(#softShadow)">
+    <rect x="116" y="1162" width="848" height="1" fill="#ffffff" opacity="0.22"/>
+  </g>
+  ${storySvgText({ lines: titleLines, x: 540, y: 1260, size: titleLines.length > 1 ? 56 : 66, weight: 900, color: "#ffffff" })}
+  ${storySvgText({ lines: priceLines, x: 540, y: 1430, size: 50, weight: 900, color: "#f8fafc" })}
+  ${storySvgText({ lines: sizesLines, x: 540, y: 1520, size: 30, weight: 800, color: "#cbd5e1" })}
+  <rect x="245" y="1636" width="590" height="106" rx="53" fill="#ffffff"/>
+  <text x="540" y="1704" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="35" font-weight="950" fill="#0f172a" letter-spacing="1.2">${escapeXml(cta)}</text>
+  <text x="540" y="1810" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="800" fill="#e2e8f0" letter-spacing="1.2">MESSAGE US TO ORDER</text>
+</svg>`;
+};
+
 const normalizeInputImage = async (source) => {
   const inputBuffer = await readImageBuffer(source);
   const normalizedBuffer = await sharp(inputBuffer, { animated: false }).rotate().png().toBuffer();
@@ -523,6 +661,38 @@ export const generateSingleProductStory = async ({ product = {}, image, postId =
       productNameSize: 56,
     }),
     composites,
+  });
+};
+
+export const generateDesignedAiMarketingStoryImage = async ({ story = {}, postId = null, tenantId = null } = {}) => {
+  const design = story.design_json || {};
+  const source = storyAssetImageSource(story, design);
+  if (!source) {
+    const error = new Error("AI story rendered asset requires a product image source.");
+    error.status = 400;
+    throw error;
+  }
+
+  const imageComposite = await createContainedImageComposite({
+    source,
+    boxX: 92,
+    boxY: 210,
+    boxWidth: 896,
+    boxHeight: 860,
+    maxImageHeight: 820,
+    useSafeLimit: false,
+  });
+
+  return writeStoryFile({
+    filename: storyFilename({ tenantId, postId, suffix: "ai-center-story" }),
+    background: designedStoryBackgroundSvg({
+      badge: storyAssetBadge(story, design),
+      title: storyAssetTitle(story, design),
+      price: storyAssetPrice(story, design),
+      sizes: storyAssetSizes(story, design),
+      cta: storyAssetCta(story, design),
+    }),
+    composites: [imageComposite],
   });
 };
 

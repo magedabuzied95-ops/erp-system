@@ -95,6 +95,22 @@ const uniqueMediaUrls = (item = {}) =>
 
 const firstText = (...values) => values.map((value) => String(value || "").trim()).find(Boolean) || "";
 
+const queueStoryAssetUrl = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return firstText(
+    item.rendered_image_url,
+    item.story_image_url,
+    item.final_asset_url,
+    design.rendered_image_url,
+    design.story_image_url,
+    design.final_asset_url,
+    metadata.rendered_image_url,
+    metadata.story_image_url,
+    metadata.final_asset_url
+  );
+};
+
 const queuePostUrl = (item = {}) => {
   const design = item.design_json || {};
   const results = item.platform_publish_results || {};
@@ -772,7 +788,7 @@ function QueueItem({ item, queueType = "queue", publishing, actionDisabled = fal
 function Thumb({ item }) {
   const { isFeedContent, isStoryContent } = getPreviewContentFlags(item);
   const isPost = isFeedContent && !isStoryContent;
-  const imageUrl = item.primary_image_url || uniqueMediaUrls(item)[0] || "";
+  const imageUrl = isStoryContent ? queueStoryAssetUrl(item) || item.primary_image_url || uniqueMediaUrls(item)[0] || "" : item.primary_image_url || uniqueMediaUrls(item)[0] || "";
   return (
     <div className={`relative overflow-hidden rounded-xl border border-white/10 bg-slate-950 ${isPost ? "aspect-square w-16" : "aspect-[9/16] w-16"}`}>
       {imageUrl ? <img src={imageUrl} alt="" className="h-full w-full object-cover" /> : null}
@@ -835,13 +851,26 @@ function PreviewModal({ item, onClose, onApprove, onPublish }) {
   }
   const mediaUrls = uniqueMediaUrls(item);
   const storySlides = buildStoryCreativeSlides({ item, mediaUrls });
+  const renderedStoryAssetUrl = queueStoryAssetUrl(item);
   const storyAudio = storySlides[0]?.audio || design.audio || null;
   const sizesLabel = sizesLabelFrom(storySlides[0], design, item);
   const storyLink = storySlides[0]?.cta_url || storySlides[0]?.product_url || item.cta_url || item.product_url || design.cta_url || design.product_url || "";
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
       <div className="grid max-h-[92vh] w-full max-w-6xl gap-5 overflow-y-auto rounded-[28px] border border-white/10 bg-[#090d17] p-5 shadow-2xl lg:grid-cols-[minmax(0,760px)_minmax(300px,1fr)]">
-        <StoryCreativePreview slides={storySlides} title="Story slides" />
+        {renderedStoryAssetUrl ? (
+          <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">Story asset</h3>
+              <Badge tone="emerald">Rendered</Badge>
+            </div>
+            <div className="mx-auto aspect-[9/16] max-h-[72vh] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950 shadow-2xl">
+              <img src={renderedStoryAssetUrl} alt="Rendered story preview" className="h-full w-full object-cover" />
+            </div>
+          </div>
+        ) : (
+          <StoryCreativePreview slides={storySlides} title="Story slides" />
+        )}
         <div>
           <div className="flex items-start justify-between gap-3">
             <div>
