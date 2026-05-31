@@ -461,66 +461,116 @@ const storyAssetBadge = (story = {}, design = {}) => {
 const storyAssetTitle = (story = {}, design = {}) =>
   trimString(story.product_name || story.title || design.product_name || design.title || "New product");
 
-const storyAssetCta = (story = {}, design = {}) => trimString(story.cta_text || design.cta_text || "SHOP NOW");
+const storyAssetCta = (story = {}, design = {}) => trimString(story.cta_text || design.cta_text || "View details");
 
-const storyAssetImageSource = (story = {}, design = {}) => {
-  const slideImages = [
-    ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.image_url) : []),
-    ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.image_url) : []),
-  ];
-  return uniqueList([
+const storySlideImages = (design = {}) => [
+  ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.source_product_image_url || slide?.variant_image_url || slide?.image_url) : []),
+  ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.source_product_image_url || slide?.variant_image_url || slide?.image_url) : []),
+];
+
+const storyAssetImageSources = (story = {}, design = {}) => {
+  const variantImages = uniqueList([
     story.source_product_image_url,
-    story.primary_image_url,
     story.variant_image_url,
+    design.source_product_image_url,
+    design.variant_image_url,
+    ...(Array.isArray(story.variant_media_urls) ? story.variant_media_urls : []),
+    ...(Array.isArray(design.variant_media_urls) ? design.variant_media_urls : []),
+    ...storySlideImages(design),
+    ...(Array.isArray(story.media_urls) ? story.media_urls : []),
+    ...(Array.isArray(design.source_media_urls) ? design.source_media_urls : []),
+    ...(Array.isArray(design.media_urls) ? design.media_urls : []),
+  ]).filter((source) => !isGeneratedStoryImageUrl(source));
+  const coverImages = uniqueList([
+    story.primary_image_url,
     story.image_url,
     design.primary_image_url,
-    design.variant_image_url,
     design.image_url,
-    ...(Array.isArray(story.media_urls) ? story.media_urls : []),
-    ...(Array.isArray(design.media_urls) ? design.media_urls : []),
-    ...slideImages,
-  ]).find((source) => !isGeneratedStoryImageUrl(source));
+  ]).filter((source) => !isGeneratedStoryImageUrl(source));
+  return variantImages.length ? variantImages : coverImages;
 };
 
+const storyAssetImageSource = (story = {}, design = {}) => storyAssetImageSources(story, design)[0] || "";
+
 const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta }) => {
-  const titleLines = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 });
-  const sizesLines = storyAssetTextLines(sizes, { maxChars: 36, maxLines: 2 });
+  const titleLines = storyAssetTextLines(title, { maxChars: 28, maxLines: 2 });
+  const sizesLines = storyAssetTextLines(sizes, { maxChars: 34, maxLines: 1 });
   const priceLines = storyAssetTextLines(price || "Available now", { maxChars: 20, maxLines: 1 });
+  const headingLines = storyAssetTextLines(badge || "NEW COLLECTION", { maxChars: 18, maxLines: 1 });
   return `
 <svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" viewBox="0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="storyBg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#f8fafc"/>
-      <stop offset="0.48" stop-color="#eef2f6"/>
-      <stop offset="1" stop-color="#111827"/>
+      <stop offset="0" stop-color="#050816"/>
+      <stop offset="0.46" stop-color="#101827"/>
+      <stop offset="1" stop-color="#020617"/>
     </linearGradient>
-    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.0"/>
-      <stop offset="0.34" stop-color="#111827" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#020617" stop-opacity="0.96"/>
+    <radialGradient id="cyanGlow" cx="22%" cy="18%" r="30%">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="goldGlow" cx="85%" cy="22%" r="26%">
+      <stop offset="0" stop-color="#fbbf24" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#fbbf24" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bottomFade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="0.36" stop-color="#000000" stop-opacity="0.44"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.82"/>
     </linearGradient>
-    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="22" stdDeviation="28" flood-color="#0f172a" flood-opacity="0.22"/>
+    <linearGradient id="ctaFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a5f3fc"/>
+      <stop offset="0.55" stop-color="#67e8f9"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+    <filter id="productShadow" x="-45%" y="-45%" width="190%" height="190%">
+      <feDropShadow dx="0" dy="34" stdDeviation="28" flood-color="#000000" flood-opacity="0.50"/>
+    </filter>
+    <filter id="ctaGlow" x="-35%" y="-80%" width="170%" height="260%">
+      <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="#67e8f9" flood-opacity="0.22"/>
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#082f49" flood-opacity="0.30"/>
+    </filter>
+    <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="38"/>
     </filter>
   </defs>
   <rect width="100%" height="100%" fill="url(#storyBg)"/>
-  <circle cx="930" cy="190" r="210" fill="#22d3ee" opacity="0.18"/>
-  <circle cx="170" cy="420" r="250" fill="#f43f5e" opacity="0.11"/>
-  <rect x="50" y="50" width="980" height="1820" rx="58" fill="none" stroke="#0f172a" stroke-opacity="0.10" stroke-width="3"/>
-  <rect x="92" y="92" width="258" height="58" rx="29" fill="#0f172a"/>
-  <text x="221" y="130" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="900" fill="#ffffff" letter-spacing="1.6">ERP STORE</text>
-  <rect x="706" y="92" width="282" height="58" rx="29" fill="#ffffff" fill-opacity="0.88" stroke="#0f172a" stroke-opacity="0.08"/>
-  <text x="847" y="130" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="900" fill="#0f172a" letter-spacing="1.8">${escapeXml(badge)}</text>
-  <rect x="70" y="1090" width="940" height="760" rx="52" fill="url(#panel)"/>
-  <g filter="url(#softShadow)">
-    <rect x="116" y="1162" width="848" height="1" fill="#ffffff" opacity="0.22"/>
+  <rect width="100%" height="100%" fill="url(#cyanGlow)"/>
+  <rect width="100%" height="100%" fill="url(#goldGlow)"/>
+  <rect y="922" width="1080" height="998" fill="url(#bottomFade)"/>
+
+  <g opacity="0.95">
+    <rect x="48" y="36" width="315" height="8" rx="4" fill="#ffffff"/>
+    <rect x="381" y="36" width="315" height="8" rx="4" fill="#ffffff" fill-opacity="0.35"/>
+    <rect x="714" y="36" width="315" height="8" rx="4" fill="#ffffff" fill-opacity="0.35"/>
   </g>
-  ${storySvgText({ lines: titleLines, x: 540, y: 1260, size: titleLines.length > 1 ? 56 : 66, weight: 900, color: "#ffffff" })}
-  ${storySvgText({ lines: priceLines, x: 540, y: 1430, size: 50, weight: 900, color: "#f8fafc" })}
-  ${storySvgText({ lines: sizesLines, x: 540, y: 1520, size: 30, weight: 800, color: "#cbd5e1" })}
-  <rect x="245" y="1636" width="590" height="106" rx="53" fill="#ffffff"/>
-  <text x="540" y="1704" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="35" font-weight="950" fill="#0f172a" letter-spacing="1.2">${escapeXml(cta)}</text>
-  <text x="540" y="1810" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="800" fill="#e2e8f0" letter-spacing="1.2">MESSAGE US TO ORDER</text>
+
+  <g>
+    <circle cx="94" cy="102" r="36" fill="#020617"/>
+    <text x="94" y="113" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="950" fill="#ffffff">ERP</text>
+    <text x="144" y="94" text-anchor="start" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="950" fill="#ffffff">ERP Store</text>
+    <text x="144" y="121" text-anchor="start" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="800" fill="#cbd5e1">Story preview</text>
+    <rect x="769" y="78" width="260" height="48" rx="24" fill="#ffffff" fill-opacity="0.80"/>
+    <text x="899" y="110" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="950" fill="#0f172a">${escapeXml(badge || "NEW COLLECTION")}</text>
+  </g>
+
+  <g filter="url(#softBlur)">
+    <circle cx="540" cy="548" r="235" fill="#ffffff" fill-opacity="0.50"/>
+    <circle cx="540" cy="564" r="178" fill="#67e8f9" fill-opacity="0.18"/>
+    <ellipse cx="540" cy="1088" rx="360" ry="52" fill="#000000" fill-opacity="0.34"/>
+    <ellipse cx="540" cy="1040" rx="360" ry="100" fill="#ffffff" fill-opacity="0.12"/>
+  </g>
+
+  ${storySvgText({ lines: headingLines, x: 54, y: 1248, size: 76, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1.04 })}
+  <rect x="54" y="1308" width="${Math.min(760, Math.max(310, sizes.length * 13 + 80))}" height="44" rx="22" fill="#ffffff" fill-opacity="0.92" stroke="#ffffff" stroke-opacity="0.12"/>
+  ${storySvgText({ lines: sizesLines, x: 86, y: 1337, size: 21, weight: 950, color: "#0f172a", anchor: "start", lineHeight: 1 })}
+  ${storySvgText({ lines: titleLines, x: 54, y: 1408, size: titleLines.length > 1 ? 50 : 58, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1.12 })}
+  ${storySvgText({ lines: priceLines, x: 54, y: 1580, size: 72, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
+  <text x="54" y="1638" text-anchor="start" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="900" fill="#ffffff" fill-opacity="0.84">Available now</text>
+  <g filter="url(#ctaGlow)">
+    <rect x="682" y="1576" width="336" height="90" rx="45" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.30"/>
+    <text x="850" y="1632" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="950" fill="#0f172a">${escapeXml(cta || "View details")}</text>
+  </g>
 </svg>`;
 };
 
@@ -745,51 +795,98 @@ export const generateSingleProductStory = async ({ product = {}, image, postId =
 };
 
 export const generateDesignedAiMarketingStoryImage = async ({ story = {}, postId = null, tenantId = null } = {}) => {
+  const rendered = await generateDesignedAiMarketingStoryImages({ story, postId, tenantId });
+  return rendered.final_asset_url || rendered.media_urls?.[0] || "";
+};
+
+export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postId = null, tenantId = null } = {}) => {
   const design = story.design_json || {};
-  const source = storyAssetImageSource(story, design);
+  const sources = storyAssetImageSources(story, design);
+  const source = sources[0] || "";
   console.log("[story-render-start]", {
     queueId: story.id || postId || null,
     tenantId: tenantId || story.tenant_id || null,
     sourceProductImageUrl: source || "",
+    sourceImageCount: sources.length,
     title: storyAssetTitle(story, design),
     layout: story.layout_type || design.layout_type || "",
   });
   try {
-    if (!source) {
+    if (!sources.length) {
       const error = new Error("AI story rendered asset requires a product image source.");
       error.status = 400;
       throw error;
     }
 
-    const imageComposite = await createContainedImageComposite({
-      source,
-      boxX: 92,
-      boxY: 210,
-      boxWidth: 896,
-      boxHeight: 860,
-      maxImageHeight: 820,
-      useSafeLimit: false,
-    });
-
-    const outputUrl = await writeStoryFile({
-      filename: storyFilename({ tenantId, postId, suffix: "ai-center-story" }),
-      background: designedStoryBackgroundSvg({
-        badge: storyAssetBadge(story, design),
-        title: storyAssetTitle(story, design),
-        price: storyAssetPrice(story, design),
-        sizes: storyAssetSizes(story, design),
-        cta: storyAssetCta(story, design),
-      }),
-      composites: [imageComposite],
-    });
+    const designSlides = Array.isArray(design.slides) ? design.slides : [];
+    const outputSlides = [];
+    for (const [index, slideSource] of sources.entries()) {
+      const slide = designSlides.find((candidate) =>
+        trimString(candidate?.source_product_image_url || candidate?.variant_image_url || candidate?.image_url) === slideSource
+      ) || designSlides[index] || {};
+      const slideStory = {
+        ...story,
+        ...slide,
+        source_product_image_url: slideSource,
+        image_url: slideSource,
+        price: slide.price || story.price,
+        currency: slide.currency || story.currency,
+        available_sizes: Array.isArray(slide.available_sizes) && slide.available_sizes.length ? slide.available_sizes : story.available_sizes,
+        sizes_label: slide.sizes_label || story.sizes_label,
+        strategy_type: slide.strategy_type || story.strategy_type,
+        layout_type: slide.layout_type || story.layout_type,
+      };
+      const slideDesign = {
+        ...design,
+        ...slide,
+        image_url: slideSource,
+      };
+      const imageComposite = await createContainedImageComposite({
+        source: slideSource,
+        boxX: 36,
+        boxY: 245,
+        boxWidth: 1008,
+        boxHeight: 950,
+        maxImageHeight: 950,
+        useSafeLimit: false,
+      });
+      const outputUrl = await writeStoryFile({
+        filename: storyFilename({ tenantId, postId, suffix: `ai-center-story-${index + 1}` }),
+        background: designedStoryBackgroundSvg({
+          badge: storyAssetBadge(slideStory, slideDesign),
+          title: storyAssetTitle(slideStory, slideDesign),
+          price: storyAssetPrice(slideStory, slideDesign),
+          sizes: storyAssetSizes(slideStory, slideDesign),
+          cta: storyAssetCta(slideStory, slideDesign),
+        }),
+        composites: [imageComposite],
+      });
+      outputSlides.push({
+        index,
+        source_product_image_url: slideSource,
+        rendered_asset_url: outputUrl,
+        image_url: outputUrl,
+        final_asset_url: outputUrl,
+        story_image_url: outputUrl,
+      });
+    }
+    const outputUrl = outputSlides[0]?.rendered_asset_url || "";
     console.log("[story-render-success]", {
       queueId: story.id || postId || null,
       tenantId: tenantId || story.tenant_id || null,
       final_asset_url: outputUrl,
+      slide_asset_count: outputSlides.length,
       width: CANVAS_WIDTH,
       height: CANVAS_HEIGHT,
     });
-    return outputUrl;
+    return {
+      final_asset_url: outputUrl,
+      rendered_image_url: outputUrl,
+      story_image_url: outputUrl,
+      media_urls: outputSlides.map((slide) => slide.rendered_asset_url).filter(Boolean),
+      slides: outputSlides,
+      source_media_urls: sources,
+    };
   } catch (error) {
     console.error("[story-render-failed]", {
       queueId: story.id || postId || null,

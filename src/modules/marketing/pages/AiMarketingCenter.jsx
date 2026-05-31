@@ -100,12 +100,13 @@ const queueStoryAssetUrl = (item = {}) => {
   const design = item.design_json || {};
   const metadata = item.metadata || {};
   return firstText(
+    item.final_asset_url,
+    item.selectedPublishUrl,
     item.rendered_image_url,
     item.story_image_url,
-    item.final_asset_url,
+    design.final_asset_url,
     design.rendered_image_url,
     design.story_image_url,
-    design.final_asset_url,
     metadata.rendered_image_url,
     metadata.story_image_url,
     metadata.final_asset_url
@@ -123,12 +124,16 @@ const storyDebugUrls = (item = {}) => {
   const finalAssetUrl = firstText(item.final_asset_url, design.final_asset_url, metadata.final_asset_url);
   const renderedImageUrl = firstText(item.rendered_image_url, design.rendered_image_url, metadata.rendered_image_url);
   const storyImageUrl = firstText(item.story_image_url, design.story_image_url, metadata.story_image_url);
+  const finalAssetUrlRaw = firstText(item.final_asset_url_raw, item.final_asset_url, design.final_asset_url, metadata.final_asset_url);
+  const selectedPublishUrlRaw = firstText(item.selectedPublishUrl_raw, finalAssetUrlRaw, renderedImageUrl, storyImageUrl);
   return {
     productImageUrl: storyProductImageUrl(item),
     rendered_image_url: renderedImageUrl,
     story_image_url: storyImageUrl,
     final_asset_url: finalAssetUrl,
     selectedPublishUrl: firstText(finalAssetUrl, renderedImageUrl, storyImageUrl),
+    final_asset_url_raw: finalAssetUrlRaw,
+    selectedPublishUrl_raw: selectedPublishUrlRaw,
   };
 };
 
@@ -450,10 +455,39 @@ function AiMarketingCenter() {
     }
     try {
       setGeneratingStoryAssetIds((current) => new Set(current).add(String(id)));
-      const updatedItem = await generateAutonomousAiMarketingQueueStoryAsset(id);
-      if (!updatedItem?.id) throw new Error("Story asset generation returned no queue item.");
-      setQueue((current) => current.map((row) => (String(row.id) === String(id) ? updatedItem : row)));
-      setPreview((current) => (current && String(current.id) === String(id) ? updatedItem : current));
+      const payload = await generateAutonomousAiMarketingQueueStoryAsset(id);
+      const assetUrl = firstText(payload?.final_asset_url, payload?.selectedPublishUrl, payload?.story_image_url, payload?.rendered_image_url);
+      const updatedItem = payload?.item?.id
+        ? payload.item
+        : assetUrl
+          ? {
+              ...item,
+              rendered_image_url: firstText(payload?.rendered_image_url, assetUrl),
+              story_image_url: firstText(payload?.story_image_url, assetUrl),
+              final_asset_url: assetUrl,
+              selectedPublishUrl: firstText(payload?.selectedPublishUrl, assetUrl),
+              final_asset_url_raw: firstText(payload?.final_asset_url_raw, assetUrl),
+              selectedPublishUrl_raw: firstText(payload?.selectedPublishUrl_raw, payload?.selectedPublishUrl, assetUrl),
+              metadata: {
+                ...(item.metadata || {}),
+                story_asset_error: "",
+              },
+            }
+          : null;
+      if (!updatedItem?.id) throw new Error("Story asset generation returned no queue item or asset URL.");
+      const itemWithTopLevelUrls = assetUrl
+        ? {
+            ...updatedItem,
+            rendered_image_url: firstText(payload?.rendered_image_url, updatedItem.rendered_image_url, assetUrl),
+            story_image_url: firstText(payload?.story_image_url, updatedItem.story_image_url, assetUrl),
+            final_asset_url: firstText(payload?.final_asset_url, updatedItem.final_asset_url, assetUrl),
+            selectedPublishUrl: firstText(payload?.selectedPublishUrl, updatedItem.selectedPublishUrl, payload?.final_asset_url, assetUrl),
+            final_asset_url_raw: firstText(payload?.final_asset_url_raw, updatedItem.final_asset_url_raw, payload?.final_asset_url, assetUrl),
+            selectedPublishUrl_raw: firstText(payload?.selectedPublishUrl_raw, updatedItem.selectedPublishUrl_raw, payload?.selectedPublishUrl, assetUrl),
+          }
+        : updatedItem;
+      setQueue((current) => current.map((row) => (String(row.id) === String(id) ? itemWithTopLevelUrls : row)));
+      setPreview((current) => (current && String(current.id) === String(id) ? itemWithTopLevelUrls : current));
       toast.success("Story asset generated");
     } catch (error) {
       const message = formatApiError(error, "Story asset generation failed");
@@ -929,6 +963,11 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
   const mediaUrls = uniqueMediaUrls(item);
   const storySlides = buildStoryCreativeSlides({ item, mediaUrls });
   const renderedStoryAssetUrl = queueStoryAssetUrl(item);
+  const generatedStorySlides = storySlides.filter((slide) =>
+    firstText(slide.rendered_asset_url, slide.final_asset_url, slide.story_image_url) ||
+    isGeneratedStoryAssetUrl(slide.image_url)
+  );
+  const hasMultipleGeneratedStorySlides = generatedStorySlides.length > 1;
   const storyAudio = storySlides[0]?.audio || design.audio || null;
   const sizesLabel = sizesLabelFrom(storySlides[0], design, item);
   const storyLink = storySlides[0]?.cta_url || storySlides[0]?.product_url || item.cta_url || item.product_url || design.cta_url || design.product_url || "";
@@ -937,7 +976,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
       <div className="grid max-h-[92vh] w-full max-w-6xl gap-5 overflow-y-auto rounded-[28px] border border-white/10 bg-[#090d17] p-5 shadow-2xl lg:grid-cols-[minmax(0,760px)_minmax(300px,1fr)]">
-        {renderedStoryAssetUrl ? (
+        {renderedStoryAssetUrl && !hasMultipleGeneratedStorySlides ? (
           <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">Story asset</h3>
@@ -948,7 +987,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             </div>
           </div>
         ) : (
-          <StoryCreativePreview slides={storySlides} title="Story slides" />
+          <StoryCreativePreview slides={hasMultipleGeneratedStorySlides ? generatedStorySlides : storySlides} title="Story slides" />
         )}
         <div>
           <div className="flex items-start justify-between gap-3">
@@ -986,6 +1025,8 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
               <DebugUrlRow label="story_image_url" value={debugUrls.story_image_url} />
               <DebugUrlRow label="final_asset_url" value={debugUrls.final_asset_url} />
               <DebugUrlRow label="selectedPublishUrl" value={debugUrls.selectedPublishUrl} />
+              <DebugUrlRow label="final_asset_url_raw" value={debugUrls.final_asset_url_raw} />
+              <DebugUrlRow label="selectedPublishUrl_raw" value={debugUrls.selectedPublishUrl_raw} />
             </div>
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/80 p-4">
@@ -1063,6 +1104,8 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
                   <DebugUrlRow label="story_image_url" value={debugUrls.story_image_url} />
                   <DebugUrlRow label="final_asset_url" value={debugUrls.final_asset_url} />
                   <DebugUrlRow label="selectedPublishUrl" value={debugUrls.selectedPublishUrl} />
+                  <DebugUrlRow label="final_asset_url_raw" value={debugUrls.final_asset_url_raw} />
+                  <DebugUrlRow label="selectedPublishUrl_raw" value={debugUrls.selectedPublishUrl_raw} />
                 </div>
               </div>
               <details className="rounded-xl border border-white/10 bg-black/30 p-3">

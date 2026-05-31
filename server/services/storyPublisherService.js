@@ -87,6 +87,15 @@ const getStoryImageCandidate = (story = {}) => {
   return candidates.find((item) => isPublicHttpsUrl(item.publicUrl)) || { raw: "", publicUrl: "" };
 };
 
+const getStoryImageCandidates = (story = {}) => {
+  const rawCandidates = uniqueList([story.image_url, ...parseMediaUrls(story.media_urls)]);
+  const generatedCandidates = rawCandidates.filter(isGeneratedStoryImageUrl);
+  const orderedCandidates = generatedCandidates.length ? [...generatedCandidates, ...rawCandidates.filter((item) => !isGeneratedStoryImageUrl(item))] : rawCandidates;
+  return orderedCandidates
+    .map((raw) => ({ raw, publicUrl: toPublicUploadUrl(raw) }))
+    .filter((item) => isPublicHttpsUrl(item.publicUrl));
+};
+
 const logFinalStoryMedia = async ({ story, platform, candidate }) => {
   let metadata;
   try {
@@ -113,7 +122,10 @@ const shouldRequireGeneratedStoryAsset = (story = {}) =>
 const assertGeneratedStoryAsset = async ({ story, platform, candidate }) => {
   const metadata = await logFinalStoryMedia({ story, platform, candidate });
   const finalMediaUrl = candidate.publicUrl || "";
-  if (shouldRequireGeneratedStoryAsset(story) && !finalMediaUrl.includes("/uploads/stories/")) {
+  const generatedStoryAsset = isGeneratedStoryImageUrl(candidate.raw || candidate.publicUrl) ||
+    /\/(?:erp\/)?stories\//i.test(finalMediaUrl) ||
+    (metadata?.width === 1080 && metadata?.height === 1920);
+  if (shouldRequireGeneratedStoryAsset(story) && !generatedStoryAsset) {
     throw new Error("Fast story publish blocked: Instagram media URL is not generated story asset");
   }
   if (shouldRequireGeneratedStoryAsset(story) && (metadata?.width !== 1080 || metadata?.height !== 1920)) {
@@ -305,6 +317,27 @@ const publishWhatsAppStory = async () => {
   return { status: "skipped", id: null, error: reason };
 };
 
+const storyForCandidate = (story = {}, candidate = {}) => ({
+  ...story,
+  image_url: candidate.raw || candidate.publicUrl || "",
+  media_urls: [candidate.raw || candidate.publicUrl || ""].filter(Boolean),
+});
+
+const aggregatePlatformSlideResults = (platform, results = []) => {
+  if (results.length <= 1) return results[0] || { status: "failed", id: null, error: `${platform} story did not run` };
+  const published = results.filter((item) => item.status === "published");
+  const status = published.length === results.length ? "published" : published.length ? "partial_success" : "failed";
+  return {
+    status,
+    id: published.map((item) => item.id).filter(Boolean).join(","),
+    platform_story_id: published.map((item) => item.platform_story_id || item.id).filter(Boolean).join(","),
+    slide_results: results,
+    slide_count: results.length,
+    published_slide_count: published.length,
+    error: status === "published" ? null : results.filter((item) => item.status !== "published").map((item) => item.error).filter(Boolean).join("; "),
+  };
+};
+
 export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
   console.log("[story-all] starting", { post_id: story?.id || null, story_type: story?.story_type || "story" });
   let accessToken;
@@ -327,16 +360,22 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
     return { status: "failed", published_at: null, story_publish_results: failed, ...storyLinkMetadata(story), error_message: error?.message || "Meta access token is not valid." };
   }
 
+  const candidates = getStoryImageCandidates(story);
+  const publishCandidates = candidates.length ? candidates : [getStoryImageCandidate(story)].filter((candidate) => candidate.publicUrl);
+
   if (shouldRequireGeneratedStoryAsset(story)) {
-    const candidate = getStoryImageCandidate(story);
-    await assertGeneratedStoryAsset({ story, platform: "preflight", candidate });
+    for (const candidate of publishCandidates) {
+      await assertGeneratedStoryAsset({ story, platform: "preflight", candidate });
+    }
   }
 
-  const [instagram, facebook, whatsapp] = await Promise.all([
-    publishInstagramStory({ story, settings, accessToken }),
-    publishFacebookStory({ story, settings, accessToken }),
+  const [instagramSlides, facebookSlides, whatsapp] = await Promise.all([
+    Promise.all(publishCandidates.map((candidate) => publishInstagramStory({ story: storyForCandidate(story, candidate), settings, accessToken }))),
+    Promise.all(publishCandidates.map((candidate) => publishFacebookStory({ story: storyForCandidate(story, candidate), settings, accessToken }))),
     publishWhatsAppStory(),
   ]);
+  const instagram = aggregatePlatformSlideResults("Instagram", instagramSlides);
+  const facebook = aggregatePlatformSlideResults("Facebook", facebookSlides);
 
   const supported = [instagram, facebook];
   const successCount = supported.filter((item) => item.status === "published").length;

@@ -2,7 +2,7 @@ import db from "../database/db.js";
 import { ensureProductVariantImagesSchema } from "./productVariantImagesService.js";
 import { publishPost as publishPostService } from "./socialPublisherService.js";
 import { publishStoryEverywhere as publishStoryEverywhereService } from "./storyPublisherService.js";
-import { generateDesignedAiMarketingStoryImage } from "./storyImageService.js";
+import { generateDesignedAiMarketingStoryImages } from "./storyImageService.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { validateMetaToken } from "./metaTokenService.js";
 import { syncMarketingAnalyticsForTenant } from "./marketingAnalyticsService.js";
@@ -1296,8 +1296,13 @@ const queueItemStoryPayload = (item = {}) => {
   const design = item.design_json || {};
   const productLink = cleanText(item.cta_url || design.cta_url || item.product_url || design.product_url);
   const finalAssetUrl = storySelectedPublishUrl(item);
+  const generatedMediaUrls = uniqueImageUrls([
+    ...(Array.isArray(design.generated_media_urls) ? design.generated_media_urls : []),
+    ...(Array.isArray(item.media_urls) ? item.media_urls : []),
+    ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.rendered_asset_url || slide?.final_asset_url || slide?.story_image_url || slide?.image_url) : []),
+  ]).filter((url) => isKnownRenderedStoryUrl(url, item) || sameImageUrl(url, finalAssetUrl));
   const slideImages = [
-    ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.image_url) : []),
+    ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.source_product_image_url || slide?.original_image_url || slide?.image_url) : []),
     ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.image_url) : []),
   ];
   const mediaUrls = uniqueImageUrls([
@@ -1317,7 +1322,7 @@ const queueItemStoryPayload = (item = {}) => {
     title: item.title || design.product_name || "",
     caption: item.caption || design.caption || "",
     image_url: finalAssetUrl,
-    media_urls: finalAssetUrl ? [finalAssetUrl] : [],
+    media_urls: generatedMediaUrls.length ? generatedMediaUrls : (finalAssetUrl ? [finalAssetUrl] : []),
     rendered_image_url: finalAssetUrl,
     story_image_url: finalAssetUrl,
     final_asset_url: finalAssetUrl,
@@ -1386,23 +1391,47 @@ const rawStorySelectedPublishUrl = (item = {}) => {
   );
 };
 
+const isKnownRenderedStoryUrl = (url = "", item = {}) => {
+  const value = cleanImageUrl(url);
+  if (!value) return false;
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  const knownAssets = [
+    item.final_asset_url,
+    item.rendered_image_url,
+    item.story_image_url,
+    design.final_asset_url,
+    design.rendered_image_url,
+    design.story_image_url,
+    metadata.final_asset_url,
+    metadata.rendered_image_url,
+    metadata.story_image_url,
+    ...(Array.isArray(design.generated_media_urls) ? design.generated_media_urls : []),
+    ...(Array.isArray(metadata.generated_media_urls) ? metadata.generated_media_urls : []),
+  ].map(cleanImageUrl).filter(Boolean);
+  return /(^|\/)uploads\/stories\//.test(value) || knownAssets.some((asset) => sameImageUrl(asset, value));
+};
+
 const rawStoryImageUrls = (item = {}) => {
   const design = item.design_json || {};
   const slideImages = [
-    ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.image_url) : []),
-    ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.image_url) : []),
+    ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.source_product_image_url || slide?.variant_image_url || slide?.original_image_url || slide?.image_url) : []),
+    ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.source_product_image_url || slide?.variant_image_url || slide?.original_image_url || slide?.image_url) : []),
   ];
   return uniqueImageUrls([
-    item.primary_image_url,
     item.variant_image_url,
-    item.image_url,
-    design.primary_image_url,
     design.variant_image_url,
-    design.image_url,
+    ...(Array.isArray(item.variant_media_urls) ? item.variant_media_urls : []),
+    ...(Array.isArray(design.variant_media_urls) ? design.variant_media_urls : []),
+    ...(Array.isArray(design.source_media_urls) ? design.source_media_urls : []),
+    ...slideImages,
     ...(Array.isArray(item.media_urls) ? item.media_urls : []),
     ...(Array.isArray(design.media_urls) ? design.media_urls : []),
-    ...slideImages,
-  ]).filter((url) => !/(^|\/)uploads\/stories\//.test(url));
+    item.primary_image_url,
+    item.image_url,
+    design.primary_image_url,
+    design.image_url,
+  ]).filter((url) => !isKnownRenderedStoryUrl(url, item));
 };
 
 const storyProductImageUrl = (item = {}) => rawStoryImageUrls(item)[0] || "";
@@ -1442,8 +1471,10 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
   const rawImages = rawStoryImageUrls(item);
   const design = item.design_json || {};
   let renderedAssetUrl = "";
+  let renderedAssetUrls = [];
+  let renderedSlides = [];
   try {
-    renderedAssetUrl = absoluteStoryAssetUrl(await generateDesignedAiMarketingStoryImage({
+    const rendered = await generateDesignedAiMarketingStoryImages({
       tenantId,
       postId: item.id,
       story: {
@@ -1461,9 +1492,19 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
           ...design,
           image_url: rawImages[0] || design.image_url || item.image_url || "",
           media_urls: rawImages,
+          source_media_urls: rawImages,
         },
       },
-    }));
+    });
+    renderedAssetUrls = uniqueImageUrls((rendered.media_urls || []).map(absoluteStoryAssetUrl));
+    renderedSlides = Array.isArray(rendered.slides) ? rendered.slides.map((slide, index) => ({
+      ...slide,
+      rendered_asset_url: absoluteStoryAssetUrl(slide.rendered_asset_url || slide.final_asset_url || slide.image_url),
+      image_url: absoluteStoryAssetUrl(slide.rendered_asset_url || slide.final_asset_url || slide.image_url),
+      source_product_image_url: rawImages[index] || slide.source_product_image_url || "",
+      slide_number: index + 1,
+    })) : [];
+    renderedAssetUrl = renderedAssetUrls[0] || absoluteStoryAssetUrl(rendered.final_asset_url);
   } catch (error) {
     await markQueueStoryRenderFailure(tenantId, item, error);
     throw error;
@@ -1481,16 +1522,38 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
 
   const nextDesign = {
     ...design,
+    source_media_urls: rawImages,
+    generated_media_urls: renderedAssetUrls,
     rendered_image_url: renderedAssetUrl,
     story_image_url: renderedAssetUrl,
     final_asset_url: renderedAssetUrl,
     source_product_image_url: rawImages[0] || "",
+    media_urls: renderedAssetUrls,
+    slides: (renderedSlides.length ? renderedSlides : renderedAssetUrls.map((url, index) => ({
+      image_url: url,
+      rendered_asset_url: url,
+      final_asset_url: url,
+      source_product_image_url: rawImages[index] || "",
+      slide_number: index + 1,
+    }))).map((slide, index) => ({
+      ...(Array.isArray(design.slides) ? design.slides[index] || {} : {}),
+      ...slide,
+      image_url: slide.rendered_asset_url || slide.image_url,
+      rendered_asset_url: slide.rendered_asset_url || slide.image_url,
+      final_asset_url: slide.final_asset_url || slide.rendered_asset_url || slide.image_url,
+      story_image_url: slide.story_image_url || slide.rendered_asset_url || slide.image_url,
+      source_product_image_url: slide.source_product_image_url || rawImages[index] || "",
+      original_image_url: slide.source_product_image_url || rawImages[index] || "",
+      slide_number: index + 1,
+    })),
   };
   const nextMetadata = {
     ...(item.metadata || {}),
     rendered_image_url: renderedAssetUrl,
     story_image_url: renderedAssetUrl,
     final_asset_url: renderedAssetUrl,
+    generated_media_urls: renderedAssetUrls,
+    generated_slide_count: renderedAssetUrls.length,
     story_asset_error: "",
     story_asset_renderer: "ai_marketing_center_v1",
     story_asset_generated_at: new Date().toISOString(),
@@ -1501,13 +1564,15 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     SET rendered_image_url = $3,
         story_image_url = $3,
         final_asset_url = $3,
+        media_urls = $6::jsonb,
+        image_url = $3,
         design_json = $4::jsonb,
         metadata = $5::jsonb,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = $1 AND tenant_id = $2
     RETURNING *
     `,
-    [item.id, tenantId, renderedAssetUrl, JSON.stringify(nextDesign), JSON.stringify(nextMetadata)]
+    [item.id, tenantId, renderedAssetUrl, JSON.stringify(nextDesign), JSON.stringify(nextMetadata), JSON.stringify(renderedAssetUrls)]
   );
   console.log("[story-asset-url-persist]", {
     queueId: item.id,
@@ -1515,6 +1580,8 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     story_image_url: renderedAssetUrl,
     final_asset_url: renderedAssetUrl,
     selectedPublishUrl: renderedAssetUrl,
+    generated_media_urls: renderedAssetUrls,
+    generated_slide_count: renderedAssetUrls.length,
     rendered_image_url_valid: isPublicStoryAssetUrl(renderedAssetUrl),
     final_asset_url_valid: isPublicStoryAssetUrl(renderedAssetUrl),
   });
