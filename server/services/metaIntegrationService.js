@@ -35,7 +35,7 @@ import {
 import { searchIndexedProductImageMatches } from "./aiVisualProductImageIndexService.js";
 import { getConversationMemory, updateConversationMemory } from "./aiConversationMemory.js";
 import { extractShoeSize } from "./aiMessageExtractors.js";
-import { getAiAgentSettings } from "./aiSalesAgentService.js";
+import { getAiAgentSettings, upsertAiCustomerProfile } from "./aiSalesAgentService.js";
 import { evaluateProductDecisionGate } from "./aiProductDecisionGate.js";
 import {
   buildSizeAvailabilityStorefrontUrl,
@@ -158,23 +158,60 @@ const detectProductDetailQuestion = (message = "") =>
       ])
   );
 
+const AI_CHECKOUT_STATES = new Set([
+  "browsing",
+  "product_selected",
+  "product_details",
+  "buying_intent",
+  "checkout",
+  "checkout_data_collected",
+  "order_confirmed",
+  "stock_conflict",
+  "human_review",
+]);
+
+const normalizeCheckoutStage = (stage = "") => {
+  const normalized = text(stage);
+  if (normalized === "checkout_confirmed" || normalized === "confirmed") return "order_confirmed";
+  if (normalized === "handoff" || normalized === "checkout_review") return "human_review";
+  return AI_CHECKOUT_STATES.has(normalized) ? normalized : normalized;
+};
+
 const checkoutStageRank = (stage = "") => ({
   browsing: 0,
   product_selected: 1,
   product_details: 2,
   buying_intent: 3,
   checkout: 4,
+  checkout_data_collected: 5,
+  order_confirmed: 6,
+  stock_conflict: 6,
+  human_review: 7,
   selecting_size: 2,
   size_selected: 2,
   awaiting_booking_confirmation: 3,
   collecting_contact: 4,
   awaiting_checkout_info: 4,
-  checkout_confirmed: 5,
-  handoff: 6,
-}[text(stage)] ?? 0);
+  checkout_confirmed: 6,
+  confirmed: 6,
+  handoff: 7,
+  checkout_review: 7,
+}[normalizeCheckoutStage(stage)] ?? 0);
 
 const checkoutStageAtLeast = (stage = "", minimum = "browsing") =>
   checkoutStageRank(stage) >= checkoutStageRank(minimum);
+
+const logAiStateTransition = ({ tenantId, conversationId, orderId = null, from = "", to = "", reason = "" } = {}) => {
+  if (!to || normalizeCheckoutStage(from) === normalizeCheckoutStage(to)) return;
+  console.log("ai_state_transition", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    order_id: orderId,
+    from: normalizeCheckoutStage(from),
+    to: normalizeCheckoutStage(to),
+    reason,
+  });
+};
 
 const detectCheckoutConfirmation = (message = "") =>
   Boolean(hasTerm(message, [
@@ -5163,13 +5200,72 @@ const latestAiDraftOrderForCheckout = async ({ tenantId, conversationId, orderDr
     WHERE tenant_id = $1
       AND ($2::bigint IS NULL OR id = $2::bigint)
       AND ($3::text = '' OR ai_agent_conversation_id = $3)
-      AND COALESCE(ai_agent_status, '') IN ('ai_draft', 'stock_conflict', 'confirmed')
+      AND (
+        COALESCE(ai_agent_status, '') IN ('ai_draft', 'stock_conflict', 'confirmed', 'pending_review', 'human_review', 'order_confirmed')
+        OR COALESCE(status, '') IN ('ai_draft', 'pending_review', 'confirmed')
+      )
     ORDER BY CASE WHEN $2::bigint IS NOT NULL AND id = $2::bigint THEN 0 ELSE 1 END, created_at DESC
     LIMIT 1
     `,
     [tenantId, numberOrNull(orderDraftId), text(conversationId)]
   );
   return result.rows[0] || null;
+};
+
+const upsertCheckoutCustomerProfile = async ({ config, message, parsed = {}, orderId = null } = {}) => {
+  const phone = normalizeEgyptPhone(parsed.customer_phone);
+  if (!config?.tenant_id || !phone) return null;
+  try {
+    const profile = await upsertAiCustomerProfile({
+      tenantId: config.tenant_id,
+      sessionId: message.external_conversation_id,
+      metadata: {
+        customer_name: parsed.customer_name,
+        customer_phone: phone,
+        city_area: parsed.customer_address,
+        area: parsed.customer_address,
+      },
+      message: message.message_text,
+      response: {
+        answer: parsed.customer_address,
+        ai_order: orderId ? { id: orderId } : null,
+      },
+    });
+    await db.query(
+      `
+      UPDATE ai_channel_conversations
+      SET customer_profile_id = COALESCE($4::bigint, customer_profile_id),
+          customer_name = COALESCE(NULLIF($5, ''), customer_name),
+          metadata = COALESCE(metadata, '{}'::jsonb) || $6::jsonb,
+          updated_at = NOW()
+      WHERE tenant_id = $1
+        AND channel = $2
+        AND external_conversation_id = $3
+      `,
+      [
+        config.tenant_id,
+        message.channel,
+        text(message.external_conversation_id),
+        numberOrNull(profile?.id),
+        text(parsed.customer_name),
+        json({
+          checkout_customer_phone: phone,
+          checkout_customer_address: text(parsed.customer_address),
+          checkout_order_id: orderId || null,
+          checkout_profile_updated_at: nowIso(),
+        }),
+      ]
+    ).catch(() => {});
+    return profile;
+  } catch (error) {
+    console.error("ai_checkout_customer_profile_failed", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      order_id: orderId,
+      message: error?.message || "",
+    });
+    return null;
+  }
 };
 
 const updateAiDraftOrderCheckoutData = async ({ tenantId, orderId, parsed = {}, existing = {} } = {}) => {
@@ -5204,11 +5300,47 @@ const updateAiDraftOrderCheckoutData = async ({ tenantId, orderId, parsed = {}, 
   return result.rows[0] || null;
 };
 
+const orderHasStockConflict = async ({ tenantId, orderId } = {}) => {
+  const result = await db.query(
+    `
+    SELECT COUNT(*)::int AS conflicts
+    FROM order_items oi
+    JOIN product_variants pv ON pv.id = oi.variant_id
+    WHERE COALESCE(oi.tenant_id, $1) = $1
+      AND oi.order_id = $2
+      AND COALESCE(pv.stock, 0) < COALESCE(oi.quantity, 1)
+    `,
+    [tenantId, orderId]
+  );
+  return Number(result.rows[0]?.conflicts || 0) > 0;
+};
+
 const flagAiCheckoutStockConflict = async ({ tenantId, orderId, reason = "", error = null } = {}) => {
+  const existingResult = await db.query(
+    `
+    SELECT id, status, ai_agent_status, ai_agent_conversation_id
+    FROM orders
+    WHERE tenant_id = $1 AND id = $2
+    LIMIT 1
+    `,
+    [tenantId, orderId]
+  );
+  const existing = existingResult.rows[0] || {};
+  if (text(existing.status) === "confirmed" || text(existing.ai_agent_status) === "confirmed") {
+    console.log("ai_invalid_state_detected", {
+      tenant_id: tenantId,
+      conversation_id: existing.ai_agent_conversation_id || "",
+      order_id: orderId,
+      status: existing.status || "",
+      ai_agent_status: existing.ai_agent_status || "",
+      reason: "confirmed_with_stock_conflict",
+    });
+  }
   const result = await db.query(
     `
     UPDATE orders
-    SET ai_agent_status = 'stock_conflict',
+    SET status = 'pending_review',
+        ai_agent_status = 'stock_conflict',
         ai_agent_metadata = COALESCE(ai_agent_metadata, '{}'::jsonb) || $3::jsonb,
         updated_at = NOW()
     WHERE tenant_id = $1 AND id = $2
@@ -5235,6 +5367,22 @@ const flagAiCheckoutStockConflict = async ({ tenantId, orderId, reason = "", err
     `,
     [tenantId, orderId]
   ).catch(() => {});
+  console.log("ai_stock_conflict_state", {
+    tenant_id: tenantId,
+    conversation_id: result.rows[0]?.ai_agent_conversation_id || existing.ai_agent_conversation_id || "",
+    order_id: orderId,
+    status: result.rows[0]?.status || "pending_review",
+    ai_agent_status: result.rows[0]?.ai_agent_status || "stock_conflict",
+    reason: reason || error?.code || error?.message || "stock_conflict",
+  });
+  logAiStateTransition({
+    tenantId,
+    conversationId: result.rows[0]?.ai_agent_conversation_id || existing.ai_agent_conversation_id || "",
+    orderId,
+    from: existing.ai_agent_status || existing.status || "",
+    to: "stock_conflict",
+    reason: "stock_conflict_detected",
+  });
   return result.rows[0] || null;
 };
 
@@ -5256,13 +5404,15 @@ const checkoutMissingPrompt = (missing = []) => {
 const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
   const conversationId = message.external_conversation_id;
   const memory = getConversationMemory(conversationId) || {};
-  if (!checkoutStageAtLeast(memory.checkoutStage, "checkout") && !memory.orderDraftId) return null;
+  const stage = normalizeCheckoutStage(memory.checkoutStage);
+  const terminalCheckoutStage = ["checkout_data_collected", "order_confirmed", "stock_conflict", "human_review"].includes(stage);
+  if (!checkoutStageAtLeast(stage, "checkout") && !memory.orderDraftId && !terminalCheckoutStage) return null;
 
   console.log("ai_checkout_data_received", {
     tenant_id: config.tenant_id,
     conversation_id: conversationId,
     order_id: memory.orderDraftId || null,
-    checkout_stage: memory.checkoutStage || "",
+    checkout_stage: stage || "",
   });
 
   const order = await latestAiDraftOrderForCheckout({
@@ -5275,8 +5425,26 @@ const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
       tenant_id: config.tenant_id,
       conversation_id: conversationId,
       reason: "missing_draft_order",
-      checkout_stage: memory.checkoutStage || "",
+      checkout_stage: stage || "",
     });
+    if (terminalCheckoutStage) {
+      const result = await sendAndLogMetaText({
+        config,
+        message,
+        text: "\u0627\u0633\u062a\u0644\u0645\u062a \u0631\u0633\u0627\u0644\u062a\u0643 \u2705\n\u0647\u0631\u0627\u062c\u0639 \u0627\u0644\u0637\u0644\u0628 \u0648\u0623\u0631\u062c\u0639\u0644\u0643 \u062d\u0627\u0644\u0627\u064b.",
+        detectedIntent: "checkout_conversation_resumed",
+        metadata: { checkout_stage: stage, reason: "missing_draft_order_watchdog" },
+      });
+      console.log("ai_conversation_resumed", {
+        tenant_id: config.tenant_id,
+        conversation_id: conversationId,
+        order_id: memory.orderDraftId || null,
+        checkout_stage: stage,
+        message_id: result?.message_id || result?.id || "",
+        reason: "missing_draft_order_watchdog",
+      });
+      return { handled: true, reason: "checkout_watchdog_missing_order" };
+    }
     return null;
   }
 
@@ -5301,9 +5469,23 @@ const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
     parsed: merged,
     existing: order,
   });
+  await upsertCheckoutCustomerProfile({
+    config,
+    message,
+    parsed: merged,
+    orderId: order.id,
+  });
+  logAiStateTransition({
+    tenantId: config.tenant_id,
+    conversationId,
+    orderId: order.id,
+    from: stage || order.ai_agent_status || order.status || "",
+    to: "checkout_data_collected",
+    reason: "checkout_customer_data_received",
+  });
   updateConversationMemory(conversationId, {
     orderDraftId: order.id,
-    checkoutStage: "checkout",
+    checkoutStage: "checkout_data_collected",
     customerName: merged.customer_name,
     customerPhone: merged.customer_phone,
     customerAddress: merged.customer_address,
@@ -5353,6 +5535,41 @@ const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
   let stockConflict = text(updatedOrder?.ai_agent_status || order.ai_agent_status) === "stock_conflict"
     ? updatedOrder || order
     : null;
+  const confirmedWithItemConflict = !stockConflict
+    && text(updatedOrder?.status || order.status) === "confirmed"
+    && await orderHasStockConflict({ tenantId: config.tenant_id, orderId: order.id }).catch(() => false);
+  if (confirmedWithItemConflict) {
+    console.log("ai_invalid_state_detected", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      order_id: order.id,
+      status: updatedOrder?.status || order.status || "",
+      ai_agent_status: updatedOrder?.ai_agent_status || order.ai_agent_status || "",
+      reason: "confirmed_order_items_stock_conflict",
+    });
+    stockConflict = await flagAiCheckoutStockConflict({
+      tenantId: config.tenant_id,
+      orderId: order.id,
+      reason: "confirmed_order_items_stock_conflict",
+    });
+    confirmed = null;
+  }
+  if (stockConflict && text(stockConflict.status) !== "pending_review") {
+    console.log("ai_invalid_state_detected", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      order_id: order.id,
+      status: stockConflict.status || "",
+      ai_agent_status: stockConflict.ai_agent_status || "",
+      reason: "stock_conflict_without_pending_review",
+    });
+    stockConflict = await flagAiCheckoutStockConflict({
+      tenantId: config.tenant_id,
+      orderId: order.id,
+      reason: "normalize_stock_conflict_status",
+    });
+    confirmed = null;
+  }
   if (!confirmed && !stockConflict) {
     try {
       confirmed = await confirmAiOrder({
@@ -5420,12 +5637,20 @@ const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
       code: text(stockConflict.ai_agent_metadata?.stock_conflict_reason || stockConflict.stock_conflict_reason || ""),
       existing: text(updatedOrder?.ai_agent_status || order.ai_agent_status) === "stock_conflict",
     });
+    console.log("ai_conversation_resumed", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      order_id: order.id,
+      checkout_stage: "stock_conflict",
+      reason: stage === "stock_conflict" ? "stock_conflict_followup" : "stock_conflict_response",
+    });
   }
 
   const displayName = merged.customer_name || "\u0641\u0646\u062f\u0645";
   const replyText = stockConflict
-    ? `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\u060c \u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0628\u0633 \u0638\u0647\u0631 \u0639\u0646\u062f\u064a \u062a\u0639\u0627\u0631\u0636 \u0641\u064a \u0627\u0644\u0645\u062e\u0632\u0648\u0646 \u0644\u0644\u0645\u0642\u0627\u0633 \u062f\u0647\u060c \u0647\u0631\u0627\u062c\u0639\u0647\u0648\u0644\u0643 \u062d\u0627\u0644\u064b\u0627.`
+    ? "\u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0628\u0633 \u0638\u0647\u0631 \u062a\u0639\u0627\u0631\u0636 \u0641\u064a \u0627\u0644\u0645\u062e\u0632\u0648\u0646 \u0644\u0644\u0645\u0642\u0627\u0633 \u062f\u0647.\n\u0647\u0631\u0627\u062c\u0639 \u0627\u0644\u0637\u0644\u0628 \u0648\u0623\u0631\u062c\u0639\u0644\u0643 \u062d\u0627\u0644\u0627\u064b."
     : `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\u060c \u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0647\u0623\u0643\u062f \u0627\u0644\u0623\u0648\u0631\u062f\u0631 \u0648\u0623\u062c\u0647\u0632\u0647\u0648\u0644\u0643.`;
+  const nextStage = stockConflict ? "stock_conflict" : "order_confirmed";
   const result = await sendAndLogMetaText({
     config,
     message,
@@ -5434,15 +5659,23 @@ const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
     metadata: {
       order_id: order.id,
       confirmed_order_id: confirmed?.order?.id || null,
-      checkout_stage: stockConflict ? "stock_conflict" : "confirmed",
+      checkout_stage: nextStage,
       stock_conflict: Boolean(stockConflict),
     },
   });
   updateConversationMemory(conversationId, {
-    checkoutStage: stockConflict ? "checkout" : "checkout_confirmed",
+    checkoutStage: nextStage,
     orderDraftId: order.id,
     checkoutDataReceived: true,
     stockConflict: Boolean(stockConflict),
+  });
+  logAiStateTransition({
+    tenantId: config.tenant_id,
+    conversationId,
+    orderId: order.id,
+    from: "checkout_data_collected",
+    to: nextStage,
+    reason: stockConflict ? "stock_conflict_after_checkout_data" : "order_confirmed_after_checkout_data",
   });
   console.log("ai_checkout_confirmation_sent", {
     tenant_id: config.tenant_id,
