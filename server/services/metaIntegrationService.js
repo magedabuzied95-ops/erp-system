@@ -28,6 +28,7 @@ import {
 } from "./aiProductCards.js";
 import { understandProductImageForSearch } from "./openaiSupportService.js";
 import {
+  confirmAiOrder,
   createAiOrderDraft,
   searchAiOrderProducts,
 } from "./aiAgentOrderService.js";
@@ -230,6 +231,42 @@ const isOnlyShoeSizeMessage = (message = "", size = "") => {
   const selectedDigits = sizeDigits(size);
   if (!messageDigits || !selectedDigits || messageDigits !== selectedDigits) return false;
   return !text(message).replace(/[\d\u0660-\u0669\u06f0-\u06f9\s.,،:;!؟?()-]/g, "");
+};
+
+const normalizeEgyptPhone = (value = "") => {
+  const normalized = text(value)
+    .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
+  const match = normalized.match(/(?:\+?20|0020)?\s*(01[0125][\s-]?\d{3}[\s-]?\d{4})/);
+  return match ? match[1].replace(/[^\d]/g, "") : "";
+};
+
+const parseCheckoutCustomerDetails = (messageText = "") => {
+  const raw = text(messageText);
+  const phone = normalizeEgyptPhone(raw);
+  const lines = raw
+    .split(/\r?\n|،|,/)
+    .map((line) => text(line))
+    .filter(Boolean);
+  const phoneLineIndex = lines.findIndex((line) => normalizeEgyptPhone(line));
+  const phonePattern = /(?:\+?20|0020)?\s*01[0125][\s-]?\d{3}[\s-]?\d{4}/g;
+  const withoutPhone = (value = "") => text(value.replace(phone, "").replace(phonePattern, ""));
+  const nameCandidate = withoutPhone(
+    phoneLineIndex > 0
+      ? lines.slice(0, phoneLineIndex).join(" ")
+      : lines.find((line) => !normalizeEgyptPhone(line) && line.length <= 80 && !/(شارع|بجوار|منطقة|محافظة|مدينة|عمارة|دور|شقة|address|street)/i.test(line)) || ""
+  );
+  const addressCandidate = withoutPhone(
+    phoneLineIndex >= 0
+      ? lines.slice(phoneLineIndex + 1).join(" ")
+      : lines.filter((line) => line !== nameCandidate).join(" ")
+  );
+  const fallbackAddress = withoutPhone(raw).replace(nameCandidate, "").trim();
+  return {
+    customer_name: nameCandidate.slice(0, 120),
+    customer_phone: phone,
+    customer_address: (addressCandidate || fallbackAddress).slice(0, 500),
+  };
 };
 
 export const evaluateMetaCheckoutContinuation = ({ memory = {}, messageText = "" } = {}) => {
@@ -5118,6 +5155,305 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   return { handled: true, reason: hasSize ? "contextual_size_available" : "contextual_size_unavailable" };
 };
 
+const latestAiDraftOrderForCheckout = async ({ tenantId, conversationId, orderDraftId } = {}) => {
+  const result = await db.query(
+    `
+    SELECT *
+    FROM orders
+    WHERE tenant_id = $1
+      AND ($2::bigint IS NULL OR id = $2::bigint)
+      AND ($3::text = '' OR ai_agent_conversation_id = $3)
+      AND COALESCE(ai_agent_status, '') IN ('ai_draft', 'stock_conflict', 'confirmed')
+    ORDER BY CASE WHEN $2::bigint IS NOT NULL AND id = $2::bigint THEN 0 ELSE 1 END, created_at DESC
+    LIMIT 1
+    `,
+    [tenantId, numberOrNull(orderDraftId), text(conversationId)]
+  );
+  return result.rows[0] || null;
+};
+
+const updateAiDraftOrderCheckoutData = async ({ tenantId, orderId, parsed = {}, existing = {} } = {}) => {
+  const customerName = text(parsed.customer_name || existing.customer_name || "");
+  const customerPhone = text(parsed.customer_phone || existing.customer_phone || "");
+  const customerAddress = text(parsed.customer_address || existing.customer_address || "");
+  const result = await db.query(
+    `
+    UPDATE orders
+    SET customer_name = $3,
+        customer_phone = $4,
+        customer_address = $5,
+        ai_agent_metadata = COALESCE(ai_agent_metadata, '{}'::jsonb) || $6::jsonb,
+        updated_at = NOW()
+    WHERE tenant_id = $1 AND id = $2
+    RETURNING *
+    `,
+    [
+      tenantId,
+      orderId,
+      customerName,
+      customerPhone,
+      customerAddress,
+      json({
+        checkout_data_received_at: nowIso(),
+        checkout_customer_name: customerName,
+        checkout_customer_phone: customerPhone,
+        checkout_customer_address: customerAddress,
+      }),
+    ]
+  );
+  return result.rows[0] || null;
+};
+
+const flagAiCheckoutStockConflict = async ({ tenantId, orderId, reason = "", error = null } = {}) => {
+  const result = await db.query(
+    `
+    UPDATE orders
+    SET ai_agent_status = 'stock_conflict',
+        ai_agent_metadata = COALESCE(ai_agent_metadata, '{}'::jsonb) || $3::jsonb,
+        updated_at = NOW()
+    WHERE tenant_id = $1 AND id = $2
+    RETURNING *
+    `,
+    [
+      tenantId,
+      orderId,
+      json({
+        stock_conflict_at: nowIso(),
+        stock_conflict_reason: reason || error?.code || error?.message || "stock_conflict",
+        stock_conflict_message: error?.message || "",
+      }),
+    ]
+  );
+  await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET needs_human_support = TRUE,
+        escalation_reason = COALESCE(NULLIF(escalation_reason, ''), 'ai_checkout_stock_conflict'),
+        updated_at = NOW()
+    WHERE tenant_id = $1
+      AND session_id = (SELECT ai_agent_conversation_id FROM orders WHERE tenant_id = $1 AND id = $2 LIMIT 1)
+    `,
+    [tenantId, orderId]
+  ).catch(() => {});
+  return result.rows[0] || null;
+};
+
+const missingCheckoutFields = (order = {}) => {
+  const missing = [];
+  if (!text(order.customer_name)) missing.push("name");
+  if (!normalizeEgyptPhone(order.customer_phone)) missing.push("phone");
+  if (!text(order.customer_address)) missing.push("address");
+  return missing;
+};
+
+const checkoutMissingPrompt = (missing = []) => {
+  if (missing.includes("name")) return "\u062a\u0645\u0627\u0645\u060c \u0645\u0645\u0643\u0646 \u0627\u0644\u0627\u0633\u0645\u061f";
+  if (missing.includes("phone")) return "\u062a\u0645\u0627\u0645 \u064a\u0627 \u0641\u0646\u062f\u0645\u060c \u0645\u0645\u0643\u0646 \u0631\u0642\u0645 \u0627\u0644\u0645\u0648\u0628\u0627\u064a\u0644\u061f";
+  if (missing.includes("address")) return "\u0627\u0628\u0639\u062a\u0644\u064a \u0627\u0644\u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u062a\u0641\u0635\u064a\u0644\u064a \u0644\u0648\u0633\u0645\u062d\u062a.";
+  return "";
+};
+
+const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
+  const conversationId = message.external_conversation_id;
+  const memory = getConversationMemory(conversationId) || {};
+  if (!checkoutStageAtLeast(memory.checkoutStage, "checkout") && !memory.orderDraftId) return null;
+
+  console.log("ai_checkout_data_received", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    order_id: memory.orderDraftId || null,
+    checkout_stage: memory.checkoutStage || "",
+  });
+
+  const order = await latestAiDraftOrderForCheckout({
+    tenantId: config.tenant_id,
+    conversationId,
+    orderDraftId: memory.orderDraftId,
+  });
+  if (!order) {
+    console.log("ai_checkout_no_reply_blocked", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      reason: "missing_draft_order",
+      checkout_stage: memory.checkoutStage || "",
+    });
+    return null;
+  }
+
+  const parsed = parseCheckoutCustomerDetails(message.message_text);
+  const merged = {
+    customer_name: parsed.customer_name || order.customer_name || "",
+    customer_phone: parsed.customer_phone || order.customer_phone || "",
+    customer_address: parsed.customer_address || order.customer_address || "",
+  };
+  console.log("ai_checkout_data_parsed", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    order_id: order.id,
+    has_name: Boolean(merged.customer_name),
+    has_phone: Boolean(merged.customer_phone),
+    has_address: Boolean(merged.customer_address),
+  });
+
+  const updatedOrder = await updateAiDraftOrderCheckoutData({
+    tenantId: config.tenant_id,
+    orderId: order.id,
+    parsed: merged,
+    existing: order,
+  });
+  updateConversationMemory(conversationId, {
+    orderDraftId: order.id,
+    checkoutStage: "checkout",
+    customerName: merged.customer_name,
+    customerPhone: merged.customer_phone,
+    customerAddress: merged.customer_address,
+  });
+  console.log("ai_checkout_order_updated", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    order_id: order.id,
+    customer_name: merged.customer_name || "",
+    has_phone: Boolean(merged.customer_phone),
+    has_address: Boolean(merged.customer_address),
+  });
+
+  const missing = missingCheckoutFields(updatedOrder || merged);
+  if (missing.length) {
+    const prompt = checkoutMissingPrompt(missing);
+    if (!prompt) {
+      console.log("ai_checkout_no_reply_blocked", {
+        tenant_id: config.tenant_id,
+        conversation_id: conversationId,
+        order_id: order.id,
+        reason: "missing_checkout_fields_without_prompt",
+        missing,
+      });
+      return { handled: true, reason: "checkout_data_incomplete" };
+    }
+    const result = await sendAndLogMetaText({
+      config,
+      message,
+      text: prompt,
+      detectedIntent: "checkout_data_missing",
+      metadata: { order_id: order.id, missing_checkout_fields: missing, checkout_stage: "checkout" },
+    });
+    console.log("ai_checkout_confirmation_sent", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      order_id: order.id,
+      message_id: result?.message_id || result?.id || "",
+      missing_checkout_fields: missing,
+    });
+    return { handled: true, reason: "checkout_data_missing" };
+  }
+
+  let confirmed = text(updatedOrder?.ai_agent_status || order.ai_agent_status) === "confirmed"
+    ? { order: updatedOrder || order }
+    : null;
+  let stockConflict = text(updatedOrder?.ai_agent_status || order.ai_agent_status) === "stock_conflict"
+    ? updatedOrder || order
+    : null;
+  if (!confirmed && !stockConflict) {
+    try {
+      confirmed = await confirmAiOrder({
+        tenant_id: config.tenant_id,
+        order_id: order.id,
+        conversation_id: conversationId,
+      });
+    } catch (error) {
+      if (["OUT_OF_STOCK", "UNCLEAR_STOCK"].includes(error?.code || "")) {
+        stockConflict = await flagAiCheckoutStockConflict({
+          tenantId: config.tenant_id,
+          orderId: order.id,
+          reason: error.code,
+          error,
+        });
+        console.log("ai_checkout_stock_conflict", {
+          tenant_id: config.tenant_id,
+          conversation_id: conversationId,
+          order_id: order.id,
+          code: error.code || "",
+          message: error.message || "",
+        });
+      } else {
+        console.error("ai_checkout_no_reply_blocked", {
+          tenant_id: config.tenant_id,
+          conversation_id: conversationId,
+          order_id: order.id,
+          reason: "confirm_ai_order_failed",
+          code: error?.code || "",
+          message: error?.message || "",
+        });
+        await db.query(
+          `
+          UPDATE ai_support_sessions
+          SET needs_human_support = TRUE,
+              escalation_reason = COALESCE(NULLIF(escalation_reason, ''), 'ai_checkout_confirmation_failed'),
+              updated_at = NOW()
+          WHERE tenant_id = $1 AND session_id = $2
+          `,
+          [config.tenant_id, conversationId]
+        ).catch(() => {});
+        const fallbackResult = await sendAndLogMetaText({
+          config,
+          message,
+          text: `\u062a\u0645\u0627\u0645 \u064a\u0627 ${merged.customer_name || "\u0641\u0646\u062f\u0645"}\u060c \u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0647\u0631\u0627\u062c\u0639 \u0627\u0644\u0623\u0648\u0631\u062f\u0631 \u0648\u0623\u0631\u062c\u0639\u0644\u0643 \u062d\u0627\u0644\u064b\u0627.`,
+          detectedIntent: "checkout_confirmation_review",
+          metadata: { order_id: order.id, checkout_stage: "checkout_review", confirm_error: error?.message || "" },
+        });
+        console.log("ai_checkout_confirmation_sent", {
+          tenant_id: config.tenant_id,
+          conversation_id: conversationId,
+          order_id: order.id,
+          message_id: fallbackResult?.message_id || fallbackResult?.id || "",
+          review_required: true,
+        });
+        return { handled: true, reason: "checkout_confirmation_review" };
+      }
+    }
+  }
+  if (stockConflict) {
+    console.log("ai_checkout_stock_conflict", {
+      tenant_id: config.tenant_id,
+      conversation_id: conversationId,
+      order_id: order.id,
+      code: text(stockConflict.ai_agent_metadata?.stock_conflict_reason || stockConflict.stock_conflict_reason || ""),
+      existing: text(updatedOrder?.ai_agent_status || order.ai_agent_status) === "stock_conflict",
+    });
+  }
+
+  const displayName = merged.customer_name || "\u0641\u0646\u062f\u0645";
+  const replyText = stockConflict
+    ? `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\u060c \u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0628\u0633 \u0638\u0647\u0631 \u0639\u0646\u062f\u064a \u062a\u0639\u0627\u0631\u0636 \u0641\u064a \u0627\u0644\u0645\u062e\u0632\u0648\u0646 \u0644\u0644\u0645\u0642\u0627\u0633 \u062f\u0647\u060c \u0647\u0631\u0627\u062c\u0639\u0647\u0648\u0644\u0643 \u062d\u0627\u0644\u064b\u0627.`
+    : `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\u060c \u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0647\u0623\u0643\u062f \u0627\u0644\u0623\u0648\u0631\u062f\u0631 \u0648\u0623\u062c\u0647\u0632\u0647\u0648\u0644\u0643.`;
+  const result = await sendAndLogMetaText({
+    config,
+    message,
+    text: replyText,
+    detectedIntent: stockConflict ? "checkout_stock_conflict" : "checkout_order_confirmed",
+    metadata: {
+      order_id: order.id,
+      confirmed_order_id: confirmed?.order?.id || null,
+      checkout_stage: stockConflict ? "stock_conflict" : "confirmed",
+      stock_conflict: Boolean(stockConflict),
+    },
+  });
+  updateConversationMemory(conversationId, {
+    checkoutStage: stockConflict ? "checkout" : "checkout_confirmed",
+    orderDraftId: order.id,
+    checkoutDataReceived: true,
+    stockConflict: Boolean(stockConflict),
+  });
+  console.log("ai_checkout_confirmation_sent", {
+    tenant_id: config.tenant_id,
+    conversation_id: conversationId,
+    order_id: order.id,
+    message_id: result?.message_id || result?.id || "",
+    stock_conflict: Boolean(stockConflict),
+  });
+  return { handled: true, reason: stockConflict ? "checkout_stock_conflict" : "checkout_order_confirmed" };
+};
+
 const ensureCheckoutDraftForMemory = async ({ config, message, memory = {}, selectedSize = "" } = {}) => {
   if (memory.orderDraftId) return { order_id: memory.orderDraftId, created: false, reason: "existing_order_draft" };
   const baseCard = lastProductCardFromMemory(message.external_conversation_id);
@@ -6120,6 +6456,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
     if (!["suggest_only", "auto_reply_after_approval"].includes(autoReplyMode)) {
       try {
         const preAiHandlers = [
+          handleCheckoutDataIfMatched,
           handleContextualSizeCheckIfMatched,
           handleCheckoutContinuationIfMatched,
           handleHumanHandoffIfMatched,
