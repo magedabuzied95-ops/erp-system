@@ -965,7 +965,21 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             <Info label="Story link" value={storyLink || "n/a"} />
           </div>
           <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4">
-            <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-amber-100">Story publish asset debug</div>
+            <div className="mb-3 grid gap-2">
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">Story publish asset debug</div>
+              <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.08] p-3 text-xs font-black uppercase tracking-[0.14em] text-amber-100">
+                GENERATE ASSET BUILD: 2026-05-31
+              </div>
+              <button
+                type="button"
+                onClick={onGenerateStoryAsset}
+                disabled={generatingStoryAsset}
+                className={`${buttonClass} border border-amber-300/25 bg-amber-300/15 text-amber-100 hover:bg-amber-300/25 disabled:opacity-60`}
+              >
+                <RefreshCw className={`h-4 w-4 ${generatingStoryAsset ? "animate-spin" : ""}`} />
+                {generatingStoryAsset ? "Generating Story Asset..." : "Generate Story Asset"}
+              </button>
+            </div>
             <div className="grid gap-2">
               <DebugUrlRow label="productImageUrl" value={debugUrls.productImageUrl} />
               <DebugUrlRow label="rendered_image_url" value={debugUrls.rendered_image_url} />
@@ -1022,6 +1036,9 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             <div className="mt-3 grid gap-3">
               <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.08] p-3 text-xs font-black uppercase tracking-[0.14em] text-amber-100">
                 DEBUG ASSET URLS BUILD: 2026-05-31
+              </div>
+              <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.08] p-3 text-xs font-black uppercase tracking-[0.14em] text-amber-100">
+                GENERATE ASSET BUILD: 2026-05-31
               </div>
               <Info label="Stored product URL" value={storyLink || "n/a"} />
               {storyAssetError ? (
