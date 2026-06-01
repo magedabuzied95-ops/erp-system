@@ -6,6 +6,7 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Banknote,
+  Bell,
   CalendarDays,
   CheckCheck,
   CheckCircle2,
@@ -342,6 +343,15 @@ Object.assign(labels.ar, {
   workedToday: "عملت اليوم",
   checkedInAt: "تم تسجيل حضورك في",
   attendancePercent: "نسبة الحضور",
+  attendanceDays: "أيام الحضور",
+  daysUnit: "يوم",
+  fromTotalDays: "من أصل",
+  openTasksSubtitle: "مهام مفتوحة",
+  totalAdvancesSubtitle: "إجمالي السلف",
+  currentMonthSubtitle: "الشهر الحالي",
+  notificationsShort: "تنبيهات",
+  tasksShort: "مهام",
+  requestsShort: "طلبات",
   pendingTasks: "مهام معلقة",
   salaryNotGenerated: "لم يتم إنشاء راتب هذا الشهر بعد",
   noTasksToday: "لا توجد مهام اليوم",
@@ -396,6 +406,15 @@ Object.assign(labels.en, {
   workedToday: "Worked today",
   checkedInAt: "You checked in at",
   attendancePercent: "Attendance %",
+  attendanceDays: "Attendance Days",
+  daysUnit: "days",
+  fromTotalDays: "of",
+  openTasksSubtitle: "Open tasks",
+  totalAdvancesSubtitle: "Total advances",
+  currentMonthSubtitle: "Current month",
+  notificationsShort: "Alerts",
+  tasksShort: "Tasks",
+  requestsShort: "Requests",
   pendingTasks: "Pending Tasks",
   salaryNotGenerated: "This month salary has not been generated yet.",
   noTasksToday: "No tasks assigned today.",
@@ -1188,7 +1207,6 @@ export default function EmployeePayrollPortal() {
   const workedMinutes = todayCheckIn ? minutesBetween(todayCheckIn, todayCheckOut || nowTick) : 0;
   const expectedDays = Number(attendance.expected_working_days || attendance.expected_days || 0);
   const presentDays = Number(attendance.attended_days || attendance.present_days || 0);
-  const attendancePercent = expectedDays > 0 ? Math.min(100, Math.round((presentDays / expectedDays) * 100)) : 0;
   const pendingTasks = tasks.filter((task) => ["pending", "overdue", "reassigned"].includes(taskStatusKey(task.status)));
   const inProgressTasks = tasks.filter((task) => taskStatusKey(task.status) === "in_progress");
   const completedTasks = tasks.filter((task) => ["completed", "done"].includes(taskStatusKey(task.status)));
@@ -2024,9 +2042,32 @@ export default function EmployeePayrollPortal() {
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                <button type="button" onClick={() => setActiveTab("tasks")} className="rounded-xl bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700" dir="ltr">{pendingTasks.length}</button>
-                <button type="button" onClick={() => setActiveTab("requests")} className="rounded-xl bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700" dir="ltr">{requestBadgeIds.length}</button>
-                <button type="button" onClick={() => setActiveTab("notifications")} className="rounded-xl bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700" dir="ltr">{portal.unread_notifications_count || badgeCounts.pendingNotifications || 0}</button>
+                {[
+                  {
+                    key: "notifications",
+                    count: portal.unread_notifications_count || badgeCounts.pendingNotifications || 0,
+                    label: ui("notificationsShort"),
+                    Icon: Bell,
+                    className: (portal.unread_notifications_count || badgeCounts.pendingNotifications || 0) > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600",
+                  },
+                  { key: "tasks", count: pendingTasks.length, label: ui("tasksShort"), Icon: ClipboardList, className: "bg-blue-50 text-blue-700" },
+                  { key: "requests", count: requestBadgeIds.length, label: ui("requestsShort"), Icon: MessageCircle, className: "bg-orange-50 text-orange-700" },
+                ].map(({ key, count, label, Icon, className }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setActiveTab(key)}
+                    title={`${label}: ${count}`}
+                    aria-label={`${label}: ${count}`}
+                    className={`flex min-w-[42px] flex-col items-center justify-center rounded-xl px-1.5 py-1 text-[9px] font-black leading-none ${className}`}
+                  >
+                    <span className="inline-flex items-center gap-0.5" dir="ltr">
+                      <Icon className="h-3 w-3" />
+                      <span>{count}</span>
+                    </span>
+                    <span className="mt-0.5 max-w-[42px] truncate">{label}</span>
+                  </button>
+                ))}
               </div>
             </div>
             <div className="h-6 shrink-0" aria-hidden="true" />
@@ -2123,17 +2164,42 @@ export default function EmployeePayrollPortal() {
 
             {activeTab === "home" ? (
               <>
-                <div className="relative z-0 mt-0 grid grid-cols-4 gap-2 [transform:none]">
+                <div className="relative z-0 mt-0 grid grid-cols-2 gap-2 [transform:none]">
                   {[
-                    [text.netSalary, payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-", WalletCards],
-                    [text.advances, money(wallet.total_advances ?? portal.advances), CreditCard],
-                    [ui("attendancePercent"), `${attendancePercent}%`, CalendarDays],
-                    [ui("pendingTasks"), pendingTasks.length, ClipboardList],
-                  ].map(([label, value, Icon]) => (
-                    <div key={label} className="min-h-20 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-                      <Icon className="h-4 w-4 text-slate-500" />
-                      <div className="mt-2 truncate text-[10px] font-black text-slate-500">{label}</div>
-                      <div className="mt-1 truncate text-sm font-black tabular-nums" dir="ltr">{value}</div>
+                    {
+                      label: ui("attendanceDays"),
+                      value: `${presentDays} ${ui("daysUnit")}`,
+                      subtitle: `${ui("fromTotalDays")} ${expectedDays} ${ui("daysUnit")}`,
+                      Icon: CalendarDays,
+                    },
+                    {
+                      label: ui("pendingTasks"),
+                      value: pendingTasks.length,
+                      subtitle: ui("openTasksSubtitle"),
+                      Icon: ClipboardList,
+                    },
+                    {
+                      label: text.advances,
+                      value: money(wallet.total_advances ?? portal.advances),
+                      subtitle: ui("totalAdvancesSubtitle"),
+                      Icon: CreditCard,
+                      numeric: true,
+                    },
+                    {
+                      label: text.netSalary,
+                      value: payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-",
+                      subtitle: portal.current_payroll_period || ui("currentMonthSubtitle"),
+                      Icon: WalletCards,
+                      numeric: true,
+                    },
+                  ].map(({ label, value, subtitle, Icon, numeric }) => (
+                    <div key={label} className="min-h-[104px] rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[11px] font-black leading-4 text-slate-500">{label}</div>
+                        <Icon className="h-4 w-4 shrink-0 text-slate-500" />
+                      </div>
+                      <div className={`mt-2 break-words text-[15px] font-black leading-5 tabular-nums text-slate-950 ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
+                      <div className="mt-1 text-[11px] font-bold leading-4 text-slate-400">{subtitle}</div>
                     </div>
                   ))}
                 </div>
