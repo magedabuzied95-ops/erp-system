@@ -7,8 +7,6 @@ import {
 import {
   buildEmployeePayrollPortalPayload,
   createEmployeePortalRequest,
-  diagnoseEmployeePortalIdentifier,
-  getEmployeePortalVerificationResult,
   loadEmployeePortalByToken,
   recordEmployeePortalAudit,
   recordEmployeePortalAttendance,
@@ -17,43 +15,7 @@ import {
 import { isPerfDebugEnabled, logPerfTiming } from "../utils/perfDebug.js";
 
 const router = express.Router();
-const failedAttempts = new Map();
-const maxFailedAttempts = 5;
-const windowMs = 15 * 60 * 1000;
-
-const attemptKey = (req) => `${req.params.token || ""}:${req.ip || req.socket?.remoteAddress || "unknown"}`;
-
-const readAttempt = (key) => {
-  const current = failedAttempts.get(key);
-  if (!current || current.resetAt <= Date.now()) {
-    failedAttempts.delete(key);
-    return { count: 0, resetAt: Date.now() + windowMs };
-  }
-  return current;
-};
-
-const recordFailure = (key) => {
-  const current = readAttempt(key);
-  const next = { count: current.count + 1, resetAt: current.resetAt };
-  failedAttempts.set(key, next);
-  return next;
-};
-
-const portalVerificationFromRequest = (req) =>
-  req.query.verify ||
-  req.query.identifier ||
-  req.query.code ||
-  req.query.employee_code ||
-  req.query.employeeCode ||
-  req.query.phone ||
-  req.body?.verification ||
-  req.body?.verify ||
-  req.body?.identifier ||
-  req.body?.code ||
-  req.body?.employee_code ||
-  req.body?.employeeCode ||
-  req.body?.phone ||
-  "";
+const invalidPortalLinkMessage = "Invalid employee portal link. Please request a new link from management.";
 
 const walletDebugEnabled = () =>
   ["1", "true", "yes", "on"].includes(String(process.env.DEBUG_EMPLOYEE_PORTAL || "").toLowerCase()) ||
@@ -81,43 +43,22 @@ const auditContextFromRequest = (req) => ({
   },
 });
 
-const logVerificationDebug = ({ req, token, enteredIdentifier = "", employee = null, matchedEmployeeId = null, reason = "", matchedField = "", diagnostic = null }) => {
+const logPortalTokenDebug = ({ req, token, employee = null, reason = "" }) => {
   if (!walletDebugEnabled()) return;
-  console.info("[employee-payroll-portal] verification", {
+  console.info("[employee-payroll-portal] token-auth", {
     requestId: req.id,
     tokenSuffix: String(token || "").slice(-8),
-    enteredIdentifier,
-    matchedEmployeeId: matchedEmployeeId || employee?.id || null,
+    employeeId: employee?.id || null,
     tokenEmployeeId: employee?.id || null,
     tokenEmployeeCode: employee?.employee_code || null,
     tokenEmployeeStatus: employee?.status || null,
-    tokenEmployeeHasPhone: Boolean(employee?.phone || employee?.mobile || employee?.phone_number),
     tokenEmployeeBranchId: employee?.branch_id || null,
-    matchedField,
     failureReason: reason || "",
-    diagnostic,
   });
 };
 
-const employeePortalDiagnostic = async ({ verification = "", employee = null } = {}) => {
-  const diagnostic = await diagnoseEmployeePortalIdentifier(verification).catch((error) => ({
-    reason: "employee_not_found",
-    diagnostic_error: error?.message || String(error),
-  }));
-  return {
-    reason: diagnostic.reason || "verification_failed",
-    matched_employee_id: diagnostic.matched_employee_id || null,
-    token_employee_id: employee?.id || null,
-    identifier_matches_token_employee: String(diagnostic.matched_employee_id || "") === String(employee?.id || ""),
-    matched_employee_code: diagnostic.employee?.employee_code || null,
-    matched_employee_status: diagnostic.employee?.status || null,
-    matched_employee_branch_id: diagnostic.employee?.branch_id || null,
-    matched_employee_has_token: Boolean(diagnostic.employee?.employee_portal_token),
-  };
-};
-
 const invalidTokenResponse = (req, res, token) => {
-  logVerificationDebug({
+  logPortalTokenDebug({
     req,
     token,
     reason: "invalid_token",
@@ -125,12 +66,12 @@ const invalidTokenResponse = (req, res, token) => {
   return res.status(404).json({
     success: false,
     code: "invalid_token",
-    message: "Invalid employee portal link. Please request a new link from management.",
+    message: invalidPortalLinkMessage,
   });
 };
 
 const employeeNotFoundResponse = (req, res, token) => {
-  logVerificationDebug({
+  logPortalTokenDebug({
     req,
     token,
     reason: "employee_not_found",
@@ -138,25 +79,7 @@ const employeeNotFoundResponse = (req, res, token) => {
   return res.status(404).json({
     success: false,
     code: "employee_not_found",
-    message: "Invalid employee portal link. Please request a new link from management.",
-  });
-};
-
-const verificationFailedResponse = (req, res, { token, employee, verification, failed }) => {
-  const isLocked = failed.count >= maxFailedAttempts;
-  logVerificationDebug({
-    req,
-    token,
-    enteredIdentifier: verification,
-    employee,
-    matchedEmployeeId: employee?.id || null,
-    reason: isLocked ? "too_many_attempts" : "verification_failed",
-  });
-  return res.status(isLocked ? 429 : 400).json({
-    success: false,
-    code: isLocked ? "too_many_attempts" : "verification_failed",
-    message: isLocked ? "Too many verification attempts. Please try again later." : "Invalid employee phone or code",
-    attempts_remaining: Math.max(0, maxFailedAttempts - failed.count),
+    message: invalidPortalLinkMessage,
   });
 };
 
@@ -171,52 +94,11 @@ const loadVerifiedEmployee = async (req, res) => {
     employeeNotFoundResponse(req, res, token);
     return null;
   }
-  const verification = portalVerificationFromRequest(req);
-  if (!verification) {
-    logVerificationDebug({
-      req,
-      token,
-      employee,
-      matchedEmployeeId: employee.id,
-      matchedField: "employee_portal_token",
-    });
-    return employee;
-  }
-  const key = attemptKey(req);
-  const currentAttempt = readAttempt(key);
-  if (currentAttempt.count >= maxFailedAttempts) {
-    res.status(429).json({
-      success: false,
-      message: "Too many verification attempts. Please try again later.",
-      retry_after_seconds: Math.ceil((currentAttempt.resetAt - Date.now()) / 1000),
-    });
-    return null;
-  }
-  const verificationResult = getEmployeePortalVerificationResult(employee, verification);
-  if (!verificationResult.ok) {
-    const diagnostic = await employeePortalDiagnostic({ verification, employee });
-    logVerificationDebug({
-      req,
-      token,
-      enteredIdentifier: verification,
-      employee,
-      matchedEmployeeId: diagnostic.matched_employee_id,
-      reason: diagnostic.reason,
-      diagnostic,
-    });
-    const failed = recordFailure(key);
-    verificationFailedResponse(req, res, { token, employee, verification, failed });
-    return null;
-  }
-  logVerificationDebug({
+  logPortalTokenDebug({
     req,
     token,
-    enteredIdentifier: verification,
     employee,
-    matchedEmployeeId: employee.id,
-    matchedField: verificationResult.matchedField,
   });
-  failedAttempts.delete(key);
   return employee;
 };
 
@@ -236,84 +118,12 @@ router.get("/:token", async (req, res) => {
       return employeeNotFoundResponse(req, res, token);
     }
 
-    const verification = portalVerificationFromRequest(req);
-    if (!verification) {
-      await recordEmployeePortalAudit({
-        employee,
-        action: "token_login",
-        audit: auditContextFromRequest(req),
-        metadata: { matched_field: "employee_portal_token" },
-      });
-      failedAttempts.delete(attemptKey(req));
-      const includeOptional = ["1", "true", "yes", "on"].includes(String(req.query.include_optional || req.query.includeOptional || "").toLowerCase());
-      const portal = await buildEmployeePayrollPortalPayload({
-        employee,
-        includeOptional,
-        timings,
-        timeZone: req.query.timezone || req.query.time_zone || req.query.tz || "Africa/Cairo",
-      });
-      timings.total_ms = nowMs() - totalStartedAt;
-      logPortalPerf("GET /api/employee-portal/:token", timings, {
-        requestId: req.id,
-        employeeId: employee.id,
-        includeOptional,
-        token_authenticated: true,
-      });
-      return res.json({
-        success: true,
-        requires_verification: false,
-        warnings: portal.warnings || [],
-        portal,
-      });
-    }
-
-    const key = attemptKey(req);
-    const currentAttempt = readAttempt(key);
-    if (currentAttempt.count >= maxFailedAttempts) {
-      timings.total_ms = nowMs() - totalStartedAt;
-      logPortalPerf("GET /api/employee-portal/:token", timings, { requestId: req.id, failed: true, reason: "too_many_attempts" });
-      return res.status(429).json({
-        success: false,
-        message: "Too many verification attempts. Please try again later.",
-        retry_after_seconds: Math.ceil((currentAttempt.resetAt - Date.now()) / 1000),
-      });
-    }
-
-    sectionStartedAt = nowMs();
-    const verificationResult = getEmployeePortalVerificationResult(employee, verification);
-    markPortalTiming(timings, "verification_ms", sectionStartedAt);
-    if (!verificationResult.ok) {
-      const diagnostic = await employeePortalDiagnostic({ verification, employee });
-      logVerificationDebug({
-        req,
-        token,
-        enteredIdentifier: verification,
-        employee,
-        matchedEmployeeId: diagnostic.matched_employee_id,
-        reason: diagnostic.reason,
-        diagnostic,
-      });
-      const failed = recordFailure(key);
-      timings.total_ms = nowMs() - totalStartedAt;
-      logPortalPerf("GET /api/employee-portal/:token", timings, { requestId: req.id, failed: true, reason: "verification_failed" });
-      return verificationFailedResponse(req, res, { token, employee, verification, failed });
-    }
-
-    logVerificationDebug({
-      req,
-      token,
-      enteredIdentifier: verification,
-      employee,
-      matchedEmployeeId: employee.id,
-      matchedField: verificationResult.matchedField,
-    });
     await recordEmployeePortalAudit({
       employee,
-      action: "login",
+      action: "token_login",
       audit: auditContextFromRequest(req),
-      metadata: { matched_field: verificationResult.matchedField },
+      metadata: { matched_field: "employee_portal_token" },
     });
-    failedAttempts.delete(key);
     const includeOptional = ["1", "true", "yes", "on"].includes(String(req.query.include_optional || req.query.includeOptional || "").toLowerCase());
     const portal = await buildEmployeePayrollPortalPayload({
       employee,
@@ -326,10 +136,10 @@ router.get("/:token", async (req, res) => {
       requestId: req.id,
       employeeId: employee.id,
       includeOptional,
+      token_authenticated: true,
     });
     return res.json({
       success: true,
-      requires_verification: false,
       warnings: portal.warnings || [],
       portal,
     });

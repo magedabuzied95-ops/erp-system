@@ -15,7 +15,6 @@ import {
   Gift,
   Home,
   Loader2,
-  LockKeyhole,
   MessageCircle,
   Play,
   QrCode,
@@ -37,12 +36,8 @@ import { logPagePerf } from "../../../shared/lib/perfDebug";
 const labels = {
   ar: {
     title: "محفظة الموظف",
-    subtitle: "ادخل رقم الهاتف أو كود الموظف لعرض المرتب والمحفظة بأمان.",
-    unlock: "فتح المحفظة",
-    secret: "رقم الهاتف أو كود الموظف",
-    secretPlaceholder: "مثال: 010... أو EMP-001",
-    secretHelp: "استخدم رقم الهاتف المسجل في النظام أو كود الموظف",
-    secure: "الأرقام مخفية حتى يتم التحقق",
+    subtitle: "رابطك الآمن يفتح المرتب والحضور والطلبات مباشرة.",
+    secure: "يتم التحقق من هذا الرابط بأمان.",
     netSalary: "صافي المرتب",
     totalAdvances: "إجمالي السلف",
     pendingCommissions: "عمولات معلقة",
@@ -75,7 +70,8 @@ const labels = {
     addHome: "إضافة للشاشة الرئيسية",
     installHint: "افتح من المتصفح ثم اختر إضافة إلى الشاشة الرئيسية.",
     retry: "إعادة المحاولة",
-    invalid: "تعذر فتح المحفظة. تأكد من الرابط أو بيانات التحقق.",
+    invalid: "رابط بوابة الموظف غير صالح. يرجى طلب رابط جديد من الإدارة.",
+    invalidLink: "رابط بوابة الموظف غير صالح. يرجى طلب رابط جديد من الإدارة.",
     loading: "جار التحميل...",
     language: "English",
     employeeCode: "كود الموظف",
@@ -92,12 +88,8 @@ const labels = {
   },
   en: {
     title: "Employee Wallet",
-    subtitle: "Enter your phone number or employee code to securely view payroll and wallet.",
-    unlock: "Unlock wallet",
-    secret: "Phone number or employee code",
-    secretPlaceholder: "Example: 010... or EMP-001",
-    secretHelp: "Use the phone number registered in the system or the employee code",
-    secure: "Numbers stay hidden until verification succeeds",
+    subtitle: "Your secure employee link opens payroll, attendance, and requests.",
+    secure: "This private link is validated securely.",
     netSalary: "Net salary",
     totalAdvances: "Total advances",
     pendingCommissions: "Pending commissions",
@@ -130,7 +122,8 @@ const labels = {
     addHome: "Add to Home Screen",
     installHint: "Open from your browser menu and choose Add to Home Screen.",
     retry: "Try again",
-    invalid: "Unable to unlock the wallet. Check the link or verification details.",
+    invalid: "Invalid employee portal link. Please request a new link from management.",
+    invalidLink: "Invalid employee portal link. Please request a new link from management.",
     loading: "Loading...",
     language: "العربية",
     employeeCode: "Employee code",
@@ -249,6 +242,24 @@ Object.assign(labels.en, {
   pending: "Pending",
   approved: "Approved",
   rejected: "Rejected",
+  myShiftToday: "My Shift Today",
+  shiftName: "Shift Name",
+  startTime: "Start Time",
+  endTime: "End Time",
+  expectedHours: "Expected Hours",
+  workingDays: "Working Days",
+  beforeShift: "Before Shift",
+  onShift: "On Shift",
+  late: "Late",
+  afterShift: "After Shift",
+  attendanceActions: "Attendance Actions",
+  earlyCheckoutTitle: "Early Checkout",
+  earlyCheckoutMessage: "You are checking out before the end of your shift. Are you sure?",
+  cancel: "Cancel",
+  confirmCheckout: "Confirm Checkout",
+  decisionDate: "Decision Date",
+  decisionBy: "Approved/Rejected By",
+  earlyLeaveMinutes: "Early Leave Minutes",
 });
 
 Object.assign(labels.ar, {
@@ -419,6 +430,32 @@ const formatShiftLabelLocal = (row = {}, language = "en", fallback = "-") => {
   return [name, timeRange].filter(Boolean).join(" ") || fallback;
 };
 
+const shiftDateTimeToday = (timeValue) => {
+  const text = String(timeValue || "").trim();
+  const match = text.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const date = new Date();
+  date.setHours(Number(match[1]), Number(match[2]), 0, 0);
+  return date;
+};
+
+const getShiftStatus = (shift = {}, text = labels.en) => {
+  const start = shiftDateTimeToday(shift.start_time || shift.startTime);
+  const end = shiftDateTimeToday(shift.end_time || shift.endTime);
+  if (!start || !end) return text.beforeShift || labels.en.beforeShift;
+  const now = new Date();
+  const lateLimit = new Date(start.getTime() + Number(shift.allowed_late_minutes || 0) * 60000);
+  if (now < start) return text.beforeShift || labels.en.beforeShift;
+  if (now > end) return text.afterShift || labels.en.afterShift;
+  if (now > lateLimit) return text.late || labels.en.late;
+  return text.onShift || labels.en.onShift;
+};
+
+const isBeforeShiftEnd = (shift = {}) => {
+  const end = shiftDateTimeToday(shift.end_time || shift.endTime);
+  return Boolean(end && new Date() < end);
+};
+
 const formatIsoDateLocal = (value, language = "en", fallback = "-") => {
   const date = parseSafeDate(value);
   if (!date) return fallback;
@@ -543,9 +580,8 @@ function TimelineItem({ item, text, language }) {
 export default function EmployeePayrollPortal() {
   const { token } = useParams();
   const [language, setLanguage] = useState(() => (navigator.language || "").toLowerCase().startsWith("ar") ? "ar" : "en");
-  const [verification, setVerification] = useState("");
   const [portal, setPortal] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [installPrompt, setInstallPrompt] = useState(null);
   const [branchToken, setBranchToken] = useState("");
@@ -561,6 +597,7 @@ export default function EmployeePayrollPortal() {
   const [portalNotice, setPortalNotice] = useState("");
   const [optionalLoading, setOptionalLoading] = useState(false);
   const [optionalLoaded, setOptionalLoaded] = useState(false);
+  const [earlyCheckoutOpen, setEarlyCheckoutOpen] = useState(false);
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
@@ -574,11 +611,54 @@ export default function EmployeePayrollPortal() {
     return () => window.removeEventListener("beforeinstallprompt", onBeforeInstall);
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    const loadByToken = async () => {
+      if (!token) {
+        setLoading(false);
+        setError(text.invalidLink || labels.en.invalidLink);
+        return;
+      }
+      const startedAt = safeNow();
+      try {
+        setLoading(true);
+        setError("");
+        const response = await api.get(`/employee-portal/${encodeURIComponent(token)}`, {
+          params: { timezone: browserTimeZone() },
+          suppressErrorStatuses: [400, 404, 429],
+        });
+        if (!active) return;
+        setPortal(response.portal || null);
+        setOptionalLoaded(false);
+        setPortalNotice("");
+        logPagePerf("employee-wallet.token-load", startedAt, {
+          payroll_generated: Boolean(response.portal?.payroll_generated),
+        });
+      } catch (err) {
+        if (!active) return;
+        setPortal(null);
+        setError(err?.responseBody?.message || err?.message || text.invalidLink || labels.en.invalidLink);
+        logPagePerf("employee-wallet.token-load", startedAt, {
+          failed: true,
+          status: err?.status || err?.responseBody?.status,
+        });
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadByToken();
+    return () => {
+      active = false;
+    };
+  }, [token, language]);
+
   const wallet = portal?.wallet_summary || {};
   const profile = portal?.employee_profile || portal?.employee || {};
   const attendance = portal?.attendance?.summary || portal?.recent_attendance_summary || {};
   const attendanceRows = safeArray(portal?.attendance?.timeline);
   const employeeRequests = safeArray(portal?.employee_requests);
+  const currentShift = portal?.currentShift || profile.currentShift || {};
+  const ui = (key) => text[key] || labels.en[key] || key;
   const tasks = safeArray(portal?.tasks);
   const mobileTabs = [
     ["wallet", text.walletTab, WalletCards],
@@ -619,51 +699,13 @@ export default function EmployeePayrollPortal() {
     ];
   }, [portal, text]);
 
-  const unlock = async (event) => {
-    event?.preventDefault?.();
-    if (!verification.trim()) return;
-    const startedAt = safeNow();
-    try {
-      setLoading(true);
-      setError("");
-      const location = await getBrowserLocation().catch(() => null);
-      const response = await api.get(`/employee-portal/${encodeURIComponent(token)}`, {
-        params: {
-          verify: verification.trim(),
-          latitude: location?.latitude,
-          longitude: location?.longitude,
-          accuracy: location?.accuracy,
-          timezone: browserTimeZone(),
-        },
-        suppressErrorStatuses: [400, 429],
-      });
-      setPortal(response.portal || null);
-      setOptionalLoaded(false);
-      setPortalNotice("");
-      logPagePerf("employee-wallet.unlock", startedAt, {
-        payroll_generated: Boolean(response.portal?.payroll_generated),
-        active_tab: activeTab,
-      });
-    } catch (err) {
-      setPortal(null);
-      setError(err?.responseBody?.message || err?.message || text.invalid);
-      logPagePerf("employee-wallet.unlock", startedAt, {
-        failed: true,
-        status: err?.status || err?.responseBody?.status,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loadOptionalSections = async () => {
-    if (!verification.trim() || optionalLoading || optionalLoaded) return;
+    if (optionalLoading || optionalLoaded) return;
     const startedAt = safeNow();
     try {
       setOptionalLoading(true);
       const response = await api.get(`/employee-portal/${encodeURIComponent(token)}`, {
         params: {
-          verify: verification.trim(),
           include_optional: true,
           timezone: browserTimeZone(),
         },
@@ -725,15 +767,17 @@ export default function EmployeePayrollPortal() {
   };
 
   const submitAttendanceAction = async (actionType) => {
-    if (!verification.trim()) return;
+    if (actionType === "check_out" && !earlyCheckoutOpen && isBeforeShiftEnd(currentShift)) {
+      setEarlyCheckoutOpen(true);
+      return;
+    }
+    setEarlyCheckoutOpen(false);
     const startedAt = safeNow();
     try {
       setAttendanceSaving(actionType);
       setPortalNotice("");
       const location = await getBrowserLocation();
       const response = await api.post(`/employee-portal/${encodeURIComponent(token)}/attendance/actions`, {
-        identifier: verification.trim(),
-        verification: verification.trim(),
         action: actionType,
         gps_lat: location.latitude,
         gps_lng: location.longitude,
@@ -765,14 +809,12 @@ export default function EmployeePayrollPortal() {
 
   const submitRequest = async (event) => {
     event.preventDefault();
-    if (!verification.trim()) return;
     const startedAt = safeNow();
     try {
       setRequestSaving(true);
       setPortalNotice("");
       const location = await getBrowserLocation().catch(() => null);
       const response = await api.post(`/employee-portal/${encodeURIComponent(token)}/requests`, {
-        verification: verification.trim(),
         request_type: requestType,
         amount: requestType === "advance" ? requestAmount : undefined,
         request_date: requestDate || undefined,
@@ -800,13 +842,11 @@ export default function EmployeePayrollPortal() {
   };
 
   const updateWalletTask = async (taskId, status) => {
-    if (!verification.trim()) return;
     const startedAt = safeNow();
     try {
       setTaskSavingId(`${taskId}:${status}`);
       const location = await getBrowserLocation().catch(() => null);
       const response = await api.patch(`/employee-portal/${encodeURIComponent(token)}/tasks/${taskId}/status`, {
-        verification: verification.trim(),
         status,
         timezone: browserTimeZone(),
         location,
@@ -846,28 +886,16 @@ export default function EmployeePayrollPortal() {
           </div>
         </header>
 
-        {!portal ? (
-          <form onSubmit={unlock} className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <label className="block text-sm font-black text-slate-800" htmlFor="employee-secret">{text.secret}</label>
-            <div className="mt-2 flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <LockKeyhole className="h-4 w-4 text-slate-500" />
-              <input
-                id="employee-secret"
-                value={verification}
-                onChange={(event) => setVerification(event.target.value)}
-                placeholder={text.secretPlaceholder}
-                className="min-h-11 flex-1 bg-transparent text-base font-bold outline-none"
-                dir="auto"
-                autoComplete="one-time-code"
-              />
-            </div>
-            <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{text.secretHelp}</p>
-            {error ? <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold leading-6 text-red-800">{error}</div> : null}
-            <button type="submit" disabled={loading || !verification.trim()} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white disabled:opacity-50">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
-              {loading ? text.loading : text.unlock}
-            </button>
-          </form>
+        {!portal && loading ? (
+          <div className="mt-4 flex items-center justify-center gap-2 rounded-3xl border border-slate-200 bg-white p-6 text-sm font-black text-slate-600 shadow-sm">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {text.loading}
+          </div>
+        ) : !portal ? (
+          <div className="mt-4 rounded-3xl border border-red-200 bg-white p-5 text-sm font-bold leading-6 text-red-800 shadow-sm">
+            <AlertTriangle className="h-6 w-6" />
+            <div className="mt-3">{error || text.invalidLink || labels.en.invalidLink}</div>
+          </div>
         ) : (
           <section className="mt-4 space-y-4">
             <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -912,6 +940,87 @@ export default function EmployeePayrollPortal() {
                 <div className="mt-0.5 text-xs text-slate-500">{text.installHint}</div>
               </div>
             </button>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-base font-black">{ui("myShiftToday")}</h3>
+                <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-white">{getShiftStatus(currentShift, { ...labels.en, ...text })}</span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-black">
+                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{ui("shiftName")}</div><div className="mt-1" dir="auto">{shiftNameLocal(currentShift.shift_name || currentShift.shiftName, language) || "-"}</div></div>
+                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{ui("expectedHours")}</div><div className="mt-1 tabular-nums" dir="ltr">{currentShift.expected_hours || currentShift.expectedHours || "-"}</div></div>
+                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{ui("startTime")}</div><div className="mt-1" dir="ltr">{formatShiftTimeLocal(currentShift.start_time || currentShift.startTime, language)}</div></div>
+                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{ui("endTime")}</div><div className="mt-1" dir="ltr">{formatShiftTimeLocal(currentShift.end_time || currentShift.endTime, language)}</div></div>
+                <div className="col-span-2 rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{ui("workingDays")}</div><div className="mt-1" dir="auto">{safeArray(currentShift.working_days || currentShift.workingDays).join(", ") || "-"}</div></div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-base font-black">{ui("attendanceActions")}</h3>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-50">
+                  {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {text.checkIn}
+                </button>
+                <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:opacity-50">
+                  {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
+                  {text.checkOut}
+                </button>
+              </div>
+              {portalNotice ? <div className="mt-3 rounded-2xl bg-slate-100 px-3 py-2 text-sm font-bold leading-6 text-slate-700" dir="auto">{portalNotice}</div> : null}
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-base font-black">{text.attendanceSummary}</h3>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-sm font-bold">
+                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{text.presentDays}</div><div className="mt-1 text-xl font-black tabular-nums">{attendance.attended_days || 0}</div></div>
+                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{text.lateDays}</div><div className="mt-1 text-xl font-black tabular-nums">{attendance.late_days || 0}</div></div>
+                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{text.expectedDays}</div><div className="mt-1 text-xl font-black tabular-nums">{attendance.expected_working_days || 0}</div></div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-base font-black">{text.attendanceTimeline}</h3>
+              <div className="mt-3 grid gap-2">
+                {attendanceRows.length ? attendanceRows.slice(0, 7).map((row) => (
+                  <div key={`top-${row.date}-${row.check_in || ""}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="font-black tabular-nums" dir="ltr">{attendanceLocalDate(row, language)}</div>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-700">{row.attendance_status || row.status || "-"}</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                      <div><span className="font-black text-slate-950">{text.checkIn}: </span><span dir="ltr">{formatTimeLocal(row.check_in, language)}</span></div>
+                      <div><span className="font-black text-slate-950">{text.checkOut}: </span><span dir="ltr">{formatTimeLocal(row.check_out, language)}</span></div>
+                      <div><span className="font-black text-slate-950">{text.lateMinutes}: </span><span dir="ltr">{row.late_minutes || 0}</span></div>
+                      <div><span className="font-black text-slate-950">{ui("earlyLeaveMinutes")}: </span><span dir="ltr">{row.early_leave_minutes || 0}</span></div>
+                    </div>
+                  </div>
+                )) : <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-sm font-bold text-slate-500">{text.noAttendance}</div>}
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-base font-black">{text.requests}</h3>
+                <button type="button" onClick={() => setActiveTab("requests")} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">{text.sendRequest}</button>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {employeeRequests.length ? employeeRequests.slice(0, 4).map((item) => (
+                  <div key={`summary-${item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{item.request_type === "advance" ? text.requestAdvance : item.request_type === "hr_note" ? text.sendHrNote : text.requestVacation}</span>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-black ${item.status === "approved" ? "bg-emerald-100 text-emerald-800" : item.status === "rejected" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>
+                        {text[item.status] || item.status}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                      <div>{ui("decisionDate")}: <span dir="ltr">{formatDateLocal(item.decision_date || item.reviewed_at, language)}</span></div>
+                      <div>{ui("decisionBy")}: <span dir="auto">{item.approved_rejected_by || item.decision_by || "-"}</span></div>
+                    </div>
+                  </div>
+                )) : <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">{text.noRequests}</div>}
+              </div>
+            </section>
 
             <nav className="sticky top-2 z-10 grid grid-cols-5 gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur">
               {mobileTabs.map(([key, label, Icon]) => (
@@ -1076,11 +1185,11 @@ export default function EmployeePayrollPortal() {
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={!verification.trim() || attendanceSaving} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-50">
+                <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-50">
                   {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   {text.checkIn}
                 </button>
-                <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={!verification.trim() || attendanceSaving} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:opacity-50">
+                <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:opacity-50">
                   {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
                   {text.checkOut}
                 </button>
@@ -1161,6 +1270,10 @@ export default function EmployeePayrollPortal() {
                       </span>
                     </div>
                     <div className="mt-1 text-xs text-slate-500" dir="auto">{item.message || "-"}</div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                      <div>{ui("decisionDate")}: <span dir="ltr">{formatDateLocal(item.decision_date || item.reviewed_at, language)}</span></div>
+                      <div>{ui("decisionBy")}: <span dir="auto">{item.approved_rejected_by || item.decision_by || "-"}</span></div>
+                    </div>
                     {item.amount ? <div className="mt-1 text-xs font-black text-slate-600" dir="ltr">{money(item.amount)}</div> : null}
                     {item.admin_note ? <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-slate-700" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
                   </div>
@@ -1186,6 +1299,22 @@ export default function EmployeePayrollPortal() {
           </section>
         )}
       </div>
+      {earlyCheckoutOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
+            <h2 className="text-xl font-black text-slate-950">{ui("earlyCheckoutTitle")}</h2>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{ui("earlyCheckoutMessage")}</p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setEarlyCheckoutOpen(false)} className="min-h-12 rounded-2xl border border-slate-200 px-4 text-sm font-black text-slate-700">
+                {ui("cancel")}
+              </button>
+              <button type="button" onClick={() => submitAttendanceAction("check_out")} className="min-h-12 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white">
+                {ui("confirmCheckout")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
