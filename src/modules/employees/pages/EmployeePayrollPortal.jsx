@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
@@ -43,56 +43,56 @@ import { useViewportHeight } from "../../../hooks/useViewportHeight";
 
 const labels = {
   ar: {
-    title: "محفظة الموظف",
-    subtitle: "رابطك الآمن يفتح المرتب والحضور والطلبات مباشرة.",
-    secure: "يتم التحقق من هذا الرابط بأمان.",
-    netSalary: "صافي المرتب",
-    totalAdvances: "إجمالي السلف",
-    pendingCommissions: "عمولات معلقة",
-    totalDeductions: "إجمالي الخصومات",
-    payrollStatus: "حالة المرتب",
-    baseSalary: "المرتب الأساسي",
-    commission: "العمولة",
-    bonuses: "المكافآت",
-    advances: "السلف",
-    deductions: "الخصومات",
-    absenceDeductions: "خصم الغياب",
-    penalties: "الجزاءات",
-    otherDeductions: "خصومات أخرى",
-    attendanceDays: "أيام الحضور",
-    payrollPeriod: "فترة المرتب",
-    paymentStatus: "حالة الصرف",
-    generated: "تم إنشاء المرتب",
-    notGenerated: "لم يتم إنشاء المرتب بعد",
-    pendingPayment: "في انتظار الصرف",
-    emptyTitle: "لا يوجد مرتب حتى الآن",
-    emptyBody: "سيظهر كشف المرتب والمعاملات بعد إنشاء أو اعتماد المرتب من الإدارة.",
-    timeline: "حركة المحفظة",
-    noTransactions: "لا توجد معاملات حديثة.",
-    attendanceImpact: "تأثير الحضور",
-    expectedDays: "الأيام المتوقعة",
-    absenceDays: "أيام الغياب",
-    missingHours: "ساعات ناقصة",
-    downloadPayslip: "تحميل كشف المرتب",
-    shareWhatsapp: "مشاركة واتساب",
-    addHome: "إضافة للشاشة الرئيسية",
-    installHint: "افتح من المتصفح ثم اختر إضافة إلى الشاشة الرئيسية.",
-    retry: "إعادة المحاولة",
-    invalid: "رابط بوابة الموظف غير صالح. يرجى طلب رابط جديد من الإدارة.",
-    invalidLink: "رابط بوابة الموظف غير صالح. يرجى طلب رابط جديد من الإدارة.",
-    loading: "جار التحميل...",
+    title: "ظ…ط­ظپط¸ط© ط§ظ„ظ…ظˆط¸ظپ",
+    subtitle: "ط±ط§ط¨ط·ظƒ ط§ظ„ط¢ظ…ظ† ظٹظپطھط­ ط§ظ„ظ…ط±طھط¨ ظˆط§ظ„ط­ط¶ظˆط± ظˆط§ظ„ط·ظ„ط¨ط§طھ ظ…ط¨ط§ط´ط±ط©.",
+    secure: "ظٹطھظ… ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ظ‡ط°ط§ ط§ظ„ط±ط§ط¨ط· ط¨ط£ظ…ط§ظ†.",
+    netSalary: "طµط§ظپظٹ ط§ظ„ظ…ط±طھط¨",
+    totalAdvances: "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط³ظ„ظپ",
+    pendingCommissions: "ط¹ظ…ظˆظ„ط§طھ ظ…ط¹ظ„ظ‚ط©",
+    totalDeductions: "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط®طµظˆظ…ط§طھ",
+    payrollStatus: "ط­ط§ظ„ط© ط§ظ„ظ…ط±طھط¨",
+    baseSalary: "ط§ظ„ظ…ط±طھط¨ ط§ظ„ط£ط³ط§ط³ظٹ",
+    commission: "ط§ظ„ط¹ظ…ظˆظ„ط©",
+    bonuses: "ط§ظ„ظ…ظƒط§ظپط¢طھ",
+    advances: "ط§ظ„ط³ظ„ظپ",
+    deductions: "ط§ظ„ط®طµظˆظ…ط§طھ",
+    absenceDeductions: "ط®طµظ… ط§ظ„ط؛ظٹط§ط¨",
+    penalties: "ط§ظ„ط¬ط²ط§ط،ط§طھ",
+    otherDeductions: "ط®طµظˆظ…ط§طھ ط£ط®ط±ظ‰",
+    attendanceDays: "ط£ظٹط§ظ… ط§ظ„ط­ط¶ظˆط±",
+    payrollPeriod: "ظپطھط±ط© ط§ظ„ظ…ط±طھط¨",
+    paymentStatus: "ط­ط§ظ„ط© ط§ظ„طµط±ظپ",
+    generated: "طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ظ…ط±طھط¨",
+    notGenerated: "ظ„ظ… ظٹطھظ… ط¥ظ†ط´ط§ط، ط§ظ„ظ…ط±طھط¨ ط¨ط¹ط¯",
+    pendingPayment: "ظپظٹ ط§ظ†طھط¸ط§ط± ط§ظ„طµط±ظپ",
+    emptyTitle: "ظ„ط§ ظٹظˆط¬ط¯ ظ…ط±طھط¨ ط­طھظ‰ ط§ظ„ط¢ظ†",
+    emptyBody: "ط³ظٹط¸ظ‡ط± ظƒط´ظپ ط§ظ„ظ…ط±طھط¨ ظˆط§ظ„ظ…ط¹ط§ظ…ظ„ط§طھ ط¨ط¹ط¯ ط¥ظ†ط´ط§ط، ط£ظˆ ط§ط¹طھظ…ط§ط¯ ط§ظ„ظ…ط±طھط¨ ظ…ظ† ط§ظ„ط¥ط¯ط§ط±ط©.",
+    timeline: "ط­ط±ظƒط© ط§ظ„ظ…ط­ظپط¸ط©",
+    noTransactions: "ظ„ط§ طھظˆط¬ط¯ ظ…ط¹ط§ظ…ظ„ط§طھ ط­ط¯ظٹط«ط©.",
+    attendanceImpact: "طھط£ط«ظٹط± ط§ظ„ط­ط¶ظˆط±",
+    expectedDays: "ط§ظ„ط£ظٹط§ظ… ط§ظ„ظ…طھظˆظ‚ط¹ط©",
+    absenceDays: "ط£ظٹط§ظ… ط§ظ„ط؛ظٹط§ط¨",
+    missingHours: "ط³ط§ط¹ط§طھ ظ†ط§ظ‚طµط©",
+    downloadPayslip: "طھط­ظ…ظٹظ„ ظƒط´ظپ ط§ظ„ظ…ط±طھط¨",
+    shareWhatsapp: "ظ…ط´ط§ط±ظƒط© ظˆط§طھط³ط§ط¨",
+    addHome: "ط¥ط¶ط§ظپط© ظ„ظ„ط´ط§ط´ط© ط§ظ„ط±ط¦ظٹط³ظٹط©",
+    installHint: "ط§ظپطھط­ ظ…ظ† ط§ظ„ظ…طھطµظپط­ ط«ظ… ط§ط®طھط± ط¥ط¶ط§ظپط© ط¥ظ„ظ‰ ط§ظ„ط´ط§ط´ط© ط§ظ„ط±ط¦ظٹط³ظٹط©.",
+    retry: "ط¥ط¹ط§ط¯ط© ط§ظ„ظ…ط­ط§ظˆظ„ط©",
+    invalid: "ط±ط§ط¨ط· ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ ط؛ظٹط± طµط§ظ„ط­. ظٹط±ط¬ظ‰ ط·ظ„ط¨ ط±ط§ط¨ط· ط¬ط¯ظٹط¯ ظ…ظ† ط§ظ„ط¥ط¯ط§ط±ط©.",
+    invalidLink: "ط±ط§ط¨ط· ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ ط؛ظٹط± طµط§ظ„ط­. ظٹط±ط¬ظ‰ ط·ظ„ط¨ ط±ط§ط¨ط· ط¬ط¯ظٹط¯ ظ…ظ† ط§ظ„ط¥ط¯ط§ط±ط©.",
+    loading: "ط¬ط§ط± ط§ظ„طھط­ظ…ظٹظ„...",
     language: "English",
-    employeeCode: "كود الموظف",
-    branch: "الفرع",
-    jobTitle: "الوظيفة",
+    employeeCode: "ظƒظˆط¯ ط§ظ„ظ…ظˆط¸ظپ",
+    branch: "ط§ظ„ظپط±ط¹",
+    jobTitle: "ط§ظ„ظˆط¸ظٹظپط©",
     transactionTypes: {
-      advance: "سلفة شخصية",
-      penalty: "جزاء",
-      bonus: "مكافأة",
-      reward: "مكافأة",
-      commission: "عمولة",
-      salary_approval: "اعتماد المرتب",
-      attendance_deduction: "خصم حضور",
+      advance: "ط³ظ„ظپط© ط´ط®طµظٹط©",
+      penalty: "ط¬ط²ط§ط،",
+      bonus: "ظ…ظƒط§ظپط£ط©",
+      reward: "ظ…ظƒط§ظپط£ط©",
+      commission: "ط¹ظ…ظˆظ„ط©",
+      salary_approval: "ط§ط¹طھظ…ط§ط¯ ط§ظ„ظ…ط±طھط¨",
+      attendance_deduction: "ط®طµظ… ط­ط¶ظˆط±",
     },
   },
   en: {
@@ -134,7 +134,7 @@ const labels = {
     invalid: "Invalid employee portal link. Please request a new link from management.",
     invalidLink: "Invalid employee portal link. Please request a new link from management.",
     loading: "Loading...",
-    language: "العربية",
+    language: "ط§ظ„ط¹ط±ط¨ظٹط©",
     employeeCode: "Employee code",
     branch: "Branch",
     jobTitle: "Job title",
@@ -151,57 +151,57 @@ const labels = {
 };
 
 Object.assign(labels.ar, {
-  walletTab: "المحفظة",
-  attendanceTab: "الحضور",
-  tasksTab: "المهام",
-  requestsTab: "الطلبات",
-  performanceTab: "الأداء",
-  tasks: "مهامي",
-  noTasks: "لا توجد مهام مطلوبة الآن.",
-  startTask: "بدء",
-  completeTask: "تم التنفيذ",
-  taskUpdated: "تم تحديث المهمة",
-  attendanceSummary: "ملخص حضور الشهر",
-  attendanceTimeline: "حركة الحضور اليومية",
-  presentDays: "أيام الحضور",
-  attendedDays: "الحضور",
-  attendedDaysSuffix: "يوم",
-  absentDays: "أيام الغياب",
-  lateDays: "أيام التأخير",
-  overtimeHours: "ساعات إضافية",
-  deductedAbsenceAmount: "خصم الغياب",
-  checkIn: "حضور",
-  checkOut: "انصراف",
-  shift: "الشيفت",
-  dailyStatus: "الحالة",
-  lateMinutes: "دقائق التأخير",
-  notes: "ملاحظات",
-  noAttendance: "لا توجد سجلات حضور لهذا الشهر.",
-  myQrAttendance: "حضوري بالـ QR",
-  branchToken: "كود أو رمز QR الفرع",
-  branchTokenPlaceholder: "امسح QR أو أدخل كود الفرع",
-  attendanceSaved: "تم تسجيل الحضور",
-  checkoutSaved: "تم تسجيل الانصراف",
-  attendanceError: "تعذر تسجيل الحضور",
-  outsideBranchRadius: "أنت خارج نطاق الفرع",
-  locationRequired: "يجب السماح بالموقع",
-  requests: "طلبات الموظف",
-  requestVacation: "طلب إجازة",
-  requestAdvance: "طلب سلفة",
-  sendHrNote: "رسالة للموارد البشرية",
-  requestType: "نوع الطلب",
-  amount: "المبلغ",
-  requestDate: "تاريخ الطلب",
-  endDate: "تاريخ النهاية",
-  message: "الرسالة",
-  sendRequest: "إرسال الطلب",
-  requestSent: "تم إرسال الطلب",
-  noRequests: "لا توجد طلبات حتى الآن.",
-  requestHistory: "آخر الطلبات",
-  adminNote: "رد الإدارة",
-  pending: "قيد المراجعة",
-  approved: "مقبول",
-  rejected: "مرفوض",
+  walletTab: "ط§ظ„ظ…ط­ظپط¸ط©",
+  attendanceTab: "ط§ظ„ط­ط¶ظˆط±",
+  tasksTab: "ط§ظ„ظ…ظ‡ط§ظ…",
+  requestsTab: "ط§ظ„ط·ظ„ط¨ط§طھ",
+  performanceTab: "ط§ظ„ط£ط¯ط§ط،",
+  tasks: "ظ…ظ‡ط§ظ…ظٹ",
+  noTasks: "ظ„ط§ طھظˆط¬ط¯ ظ…ظ‡ط§ظ… ظ…ط·ظ„ظˆط¨ط© ط§ظ„ط¢ظ†.",
+  startTask: "ط¨ط¯ط،",
+  completeTask: "طھظ… ط§ظ„طھظ†ظپظٹط°",
+  taskUpdated: "طھظ… طھط­ط¯ظٹط« ط§ظ„ظ…ظ‡ظ…ط©",
+  attendanceSummary: "ظ…ظ„ط®طµ ط­ط¶ظˆط± ط§ظ„ط´ظ‡ط±",
+  attendanceTimeline: "ط­ط±ظƒط© ط§ظ„ط­ط¶ظˆط± ط§ظ„ظٹظˆظ…ظٹط©",
+  presentDays: "ط£ظٹط§ظ… ط§ظ„ط­ط¶ظˆط±",
+  attendedDays: "ط§ظ„ط­ط¶ظˆط±",
+  attendedDaysSuffix: "ظٹظˆظ…",
+  absentDays: "ط£ظٹط§ظ… ط§ظ„ط؛ظٹط§ط¨",
+  lateDays: "ط£ظٹط§ظ… ط§ظ„طھط£ط®ظٹط±",
+  overtimeHours: "ط³ط§ط¹ط§طھ ط¥ط¶ط§ظپظٹط©",
+  deductedAbsenceAmount: "ط®طµظ… ط§ظ„ط؛ظٹط§ط¨",
+  checkIn: "ط­ط¶ظˆط±",
+  checkOut: "ط§ظ†طµط±ط§ظپ",
+  shift: "ط§ظ„ط´ظٹظپطھ",
+  dailyStatus: "ط§ظ„ط­ط§ظ„ط©",
+  lateMinutes: "ط¯ظ‚ط§ط¦ظ‚ ط§ظ„طھط£ط®ظٹط±",
+  notes: "ظ…ظ„ط§ط­ط¸ط§طھ",
+  noAttendance: "ظ„ط§ طھظˆط¬ط¯ ط³ط¬ظ„ط§طھ ط­ط¶ظˆط± ظ„ظ‡ط°ط§ ط§ظ„ط´ظ‡ط±.",
+  myQrAttendance: "ط­ط¶ظˆط±ظٹ ط¨ط§ظ„ظ€ QR",
+  branchToken: "ظƒظˆط¯ ط£ظˆ ط±ظ…ط² QR ط§ظ„ظپط±ط¹",
+  branchTokenPlaceholder: "ط§ظ…ط³ط­ QR ط£ظˆ ط£ط¯ط®ظ„ ظƒظˆط¯ ط§ظ„ظپط±ط¹",
+  attendanceSaved: "طھظ… طھط³ط¬ظٹظ„ ط§ظ„ط­ط¶ظˆط±",
+  checkoutSaved: "طھظ… طھط³ط¬ظٹظ„ ط§ظ„ط§ظ†طµط±ط§ظپ",
+  attendanceError: "طھط¹ط°ط± طھط³ط¬ظٹظ„ ط§ظ„ط­ط¶ظˆط±",
+  outsideBranchRadius: "ط£ظ†طھ ط®ط§ط±ط¬ ظ†ط·ط§ظ‚ ط§ظ„ظپط±ط¹",
+  locationRequired: "ظٹط¬ط¨ ط§ظ„ط³ظ…ط§ط­ ط¨ط§ظ„ظ…ظˆظ‚ط¹",
+  requests: "ط·ظ„ط¨ط§طھ ط§ظ„ظ…ظˆط¸ظپ",
+  requestVacation: "ط·ظ„ط¨ ط¥ط¬ط§ط²ط©",
+  requestAdvance: "ط·ظ„ط¨ ط³ظ„ظپط©",
+  sendHrNote: "ط±ط³ط§ظ„ط© ظ„ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©",
+  requestType: "ظ†ظˆط¹ ط§ظ„ط·ظ„ط¨",
+  amount: "ط§ظ„ظ…ط¨ظ„ط؛",
+  requestDate: "طھط§ط±ظٹط® ط§ظ„ط·ظ„ط¨",
+  endDate: "طھط§ط±ظٹط® ط§ظ„ظ†ظ‡ط§ظٹط©",
+  message: "ط§ظ„ط±ط³ط§ظ„ط©",
+  sendRequest: "ط¥ط±ط³ط§ظ„ ط§ظ„ط·ظ„ط¨",
+  requestSent: "طھظ… ط¥ط±ط³ط§ظ„ ط§ظ„ط·ظ„ط¨",
+  noRequests: "ظ„ط§ طھظˆط¬ط¯ ط·ظ„ط¨ط§طھ ط­طھظ‰ ط§ظ„ط¢ظ†.",
+  requestHistory: "ط¢ط®ط± ط§ظ„ط·ظ„ط¨ط§طھ",
+  adminNote: "ط±ط¯ ط§ظ„ط¥ط¯ط§ط±ط©",
+  pending: "ظ‚ظٹط¯ ط§ظ„ظ…ط±ط§ط¬ط¹ط©",
+  approved: "ظ…ظ‚ط¨ظˆظ„",
+  rejected: "ظ…ط±ظپظˆط¶",
 });
 
 Object.assign(labels.en, {
@@ -277,21 +277,21 @@ Object.assign(labels.en, {
 });
 
 Object.assign(labels.ar, {
-  performance: "الأداء والنقاط",
-  overallScore: "نقاط الأداء",
-  attendanceScore: "الحضور",
-  salesScore: "المبيعات",
-  punctualityScore: "الالتزام",
-  serviceScore: "خدمة العملاء",
-  penaltiesImpact: "تأثير الجزاءات",
-  rewardPoints: "نقاط المكافآت",
-  achievements: "الشارات",
-  goals: "الأهداف",
-  leaderboard: "ترتيب الشهر",
-  monthlySalesTarget: "هدف المبيعات",
-  attendanceTarget: "هدف الحضور",
-  branchKpi: "مؤشر الفرع",
-  noBadges: "لم تحصل على شارات بعد.",
+  performance: "ط§ظ„ط£ط¯ط§ط، ظˆط§ظ„ظ†ظ‚ط§ط·",
+  overallScore: "ظ†ظ‚ط§ط· ط§ظ„ط£ط¯ط§ط،",
+  attendanceScore: "ط§ظ„ط­ط¶ظˆط±",
+  salesScore: "ط§ظ„ظ…ط¨ظٹط¹ط§طھ",
+  punctualityScore: "ط§ظ„ط§ظ„طھط²ط§ظ…",
+  serviceScore: "ط®ط¯ظ…ط© ط§ظ„ط¹ظ…ظ„ط§ط،",
+  penaltiesImpact: "طھط£ط«ظٹط± ط§ظ„ط¬ط²ط§ط،ط§طھ",
+  rewardPoints: "ظ†ظ‚ط§ط· ط§ظ„ظ…ظƒط§ظپط¢طھ",
+  achievements: "ط§ظ„ط´ط§ط±ط§طھ",
+  goals: "ط§ظ„ط£ظ‡ط¯ط§ظپ",
+  leaderboard: "طھط±طھظٹط¨ ط§ظ„ط´ظ‡ط±",
+  monthlySalesTarget: "ظ‡ط¯ظپ ط§ظ„ظ…ط¨ظٹط¹ط§طھ",
+  attendanceTarget: "ظ‡ط¯ظپ ط§ظ„ط­ط¶ظˆط±",
+  branchKpi: "ظ…ط¤ط´ط± ط§ظ„ظپط±ط¹",
+  noBadges: "ظ„ظ… طھط­طµظ„ ط¹ظ„ظ‰ ط´ط§ط±ط§طھ ط¨ط¹ط¯.",
 });
 
 Object.assign(labels.en, {
@@ -313,55 +313,55 @@ Object.assign(labels.en, {
 });
 
 Object.assign(labels.ar, {
-  homeTab: "الرئيسية",
-  salaryTab: "الراتب",
-  talkToManagement: "كلم الإدارة",
-  chatTitle: "محادثة الإدارة",
-  chatSubtitle: "اكتب رسالتك وسيتم الرد عليك من الإدارة.",
-  chatPlaceholder: "اكتب رسالتك هنا...",
-  sendMessage: "إرسال",
-  noChatMessages: "لا توجد رسائل حتى الآن.",
-  chatLoadError: "تعذر تحميل المحادثة.",
-  chatSendError: "تعذر إرسال الرسالة.",
-  chatSecureNotice: "هذه المحادثة خاصة بينك وبين الإدارة",
-  attachFile: "إرفاق ملف",
-  removeAttachment: "حذف المرفق",
-  imageAttachment: "صورة",
-  fileAttachment: "ملف",
-  unsupportedAttachment: "نوع الملف غير مدعوم.",
-  management: "الإدارة",
-  you: "أنت",
-  employeeDashboard: "بوابة الموظف",
-  present: "حاضر",
-  absent: "غائب",
-  checkedOut: "تم الانصراف",
-  checkedIn: "تم تسجيل الحضور",
-  notCheckedIn: "لم يتم تسجيل الحضور",
-  workedToday: "عملت اليوم",
-  checkedInAt: "تم تسجيل حضورك في",
-  attendancePercent: "نسبة الحضور",
-  pendingTasks: "مهام معلقة",
-  salaryNotGenerated: "لم يتم إنشاء راتب هذا الشهر بعد",
-  noTasksToday: "لا توجد مهام اليوم",
-  noTasksSubtitle: "كل شيء مكتمل حاليا.",
-  noRequestsSubmitted: "لم تقدم أي طلبات بعد.",
-  noTimeline: "لا توجد حركات على المحفظة حتى الآن.",
-  advanceRequest: "طلب سلفة",
-  leaveRequest: "طلب إجازة",
-  latePermission: "إذن تأخير",
-  hrNote: "ملاحظة للموارد البشرية",
-  pendingTasksTitle: "مهام معلقة",
-  inProgressTasks: "قيد التنفيذ",
-  completedTasks: "مكتملة",
-  dueDate: "تاريخ الاستحقاق",
-  priority: "الأولوية",
-  uploadProof: "إرفاق إثبات",
-  payrollBreakdown: "تفاصيل الراتب",
-  salaryAndBonus: "راتب / مكافأة",
-  deductionOrPenalty: "خصم / جزاء",
-  advanceReceived: "سلفة مستلمة",
-  reason: "السبب",
-  currentNetSalary: "صافي الراتب الحالي",
+  homeTab: "ط§ظ„ط±ط¦ظٹط³ظٹط©",
+  salaryTab: "ط§ظ„ط±ط§طھط¨",
+  talkToManagement: "ظƒظ„ظ… ط§ظ„ط¥ط¯ط§ط±ط©",
+  chatTitle: "ظ…ط­ط§ط¯ط«ط© ط§ظ„ط¥ط¯ط§ط±ط©",
+  chatSubtitle: "ط§ظƒطھط¨ ط±ط³ط§ظ„طھظƒ ظˆط³ظٹطھظ… ط§ظ„ط±ط¯ ط¹ظ„ظٹظƒ ظ…ظ† ط§ظ„ط¥ط¯ط§ط±ط©.",
+  chatPlaceholder: "ط§ظƒطھط¨ ط±ط³ط§ظ„طھظƒ ظ‡ظ†ط§...",
+  sendMessage: "ط¥ط±ط³ط§ظ„",
+  noChatMessages: "ظ„ط§ طھظˆط¬ط¯ ط±ط³ط§ط¦ظ„ ط­طھظ‰ ط§ظ„ط¢ظ†.",
+  chatLoadError: "طھط¹ط°ط± طھط­ظ…ظٹظ„ ط§ظ„ظ…ط­ط§ط¯ط«ط©.",
+  chatSendError: "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط§ظ„ط±ط³ط§ظ„ط©.",
+  chatSecureNotice: "ظ‡ط°ظ‡ ط§ظ„ظ…ط­ط§ط¯ط«ط© ط®ط§طµط© ط¨ظٹظ†ظƒ ظˆط¨ظٹظ† ط§ظ„ط¥ط¯ط§ط±ط©",
+  attachFile: "ط¥ط±ظپط§ظ‚ ظ…ظ„ظپ",
+  removeAttachment: "ط­ط°ظپ ط§ظ„ظ…ط±ظپظ‚",
+  imageAttachment: "طµظˆط±ط©",
+  fileAttachment: "ظ…ظ„ظپ",
+  unsupportedAttachment: "ظ†ظˆط¹ ط§ظ„ظ…ظ„ظپ ط؛ظٹط± ظ…ط¯ط¹ظˆظ….",
+  management: "ط§ظ„ط¥ط¯ط§ط±ط©",
+  you: "ط£ظ†طھ",
+  employeeDashboard: "ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ",
+  present: "ط­ط§ط¶ط±",
+  absent: "ط؛ط§ط¦ط¨",
+  checkedOut: "طھظ… ط§ظ„ط§ظ†طµط±ط§ظپ",
+  checkedIn: "طھظ… طھط³ط¬ظٹظ„ ط§ظ„ط­ط¶ظˆط±",
+  notCheckedIn: "ظ„ظ… ظٹطھظ… طھط³ط¬ظٹظ„ ط§ظ„ط­ط¶ظˆط±",
+  workedToday: "ط¹ظ…ظ„طھ ط§ظ„ظٹظˆظ…",
+  checkedInAt: "طھظ… طھط³ط¬ظٹظ„ ط­ط¶ظˆط±ظƒ ظپظٹ",
+  attendancePercent: "ظ†ط³ط¨ط© ط§ظ„ط­ط¶ظˆط±",
+  pendingTasks: "ظ…ظ‡ط§ظ… ظ…ط¹ظ„ظ‚ط©",
+  salaryNotGenerated: "ظ„ظ… ظٹطھظ… ط¥ظ†ط´ط§ط، ط±ط§طھط¨ ظ‡ط°ط§ ط§ظ„ط´ظ‡ط± ط¨ط¹ط¯",
+  noTasksToday: "ظ„ط§ طھظˆط¬ط¯ ظ…ظ‡ط§ظ… ط§ظ„ظٹظˆظ…",
+  noTasksSubtitle: "ظƒظ„ ط´ظٹط، ظ…ظƒطھظ…ظ„ ط­ط§ظ„ظٹط§.",
+  noRequestsSubmitted: "ظ„ظ… طھظ‚ط¯ظ… ط£ظٹ ط·ظ„ط¨ط§طھ ط¨ط¹ط¯.",
+  noTimeline: "ظ„ط§ طھظˆط¬ط¯ ط­ط±ظƒط§طھ ط¹ظ„ظ‰ ط§ظ„ظ…ط­ظپط¸ط© ط­طھظ‰ ط§ظ„ط¢ظ†.",
+  advanceRequest: "ط·ظ„ط¨ ط³ظ„ظپط©",
+  leaveRequest: "ط·ظ„ط¨ ط¥ط¬ط§ط²ط©",
+  latePermission: "ط¥ط°ظ† طھط£ط®ظٹط±",
+  hrNote: "ظ…ظ„ط§ط­ط¸ط© ظ„ظ„ظ…ظˆط§ط±ط¯ ط§ظ„ط¨ط´ط±ظٹط©",
+  pendingTasksTitle: "ظ…ظ‡ط§ظ… ظ…ط¹ظ„ظ‚ط©",
+  inProgressTasks: "ظ‚ظٹط¯ ط§ظ„طھظ†ظپظٹط°",
+  completedTasks: "ظ…ظƒطھظ…ظ„ط©",
+  dueDate: "طھط§ط±ظٹط® ط§ظ„ط§ط³طھط­ظ‚ط§ظ‚",
+  priority: "ط§ظ„ط£ظˆظ„ظˆظٹط©",
+  uploadProof: "ط¥ط±ظپط§ظ‚ ط¥ط«ط¨ط§طھ",
+  payrollBreakdown: "طھظپط§طµظٹظ„ ط§ظ„ط±ط§طھط¨",
+  salaryAndBonus: "ط±ط§طھط¨ / ظ…ظƒط§ظپط£ط©",
+  deductionOrPenalty: "ط®طµظ… / ط¬ط²ط§ط،",
+  advanceReceived: "ط³ظ„ظپط© ظ…ط³طھظ„ظ…ط©",
+  reason: "ط§ظ„ط³ط¨ط¨",
+  currentNetSalary: "طµط§ظپظٹ ط§ظ„ط±ط§طھط¨ ط§ظ„ط­ط§ظ„ظٹ",
 });
 
 Object.assign(labels.en, {
@@ -664,8 +664,8 @@ const shiftNameLocal = (name = "", language = "en") => {
   if (!text) return "";
   if (language !== "ar") return text;
   const lower = text.toLowerCase();
-  if (lower.includes("closing") || lower.includes("close")) return "قفل";
-  if (lower.includes("opening") || lower.includes("open")) return "فتح";
+  if (lower.includes("closing") || lower.includes("close")) return "ظ‚ظپظ„";
+  if (lower.includes("opening") || lower.includes("open")) return "ظپطھط­";
   return text;
 };
 
@@ -916,10 +916,10 @@ function chatMessagePreview(message = {}, text = {}) {
   const body = String(message.body || message.reply_body || "").trim();
   if (body) return body.length > 80 ? `${body.slice(0, 77)}...` : body;
   const type = message.attachment_type || message.reply_attachment_type;
-  if (type === "image") return text.imageAttachment || "صورة";
-  if (type === "audio") return "رسالة صوتية";
-  if (message.attachment_url || message.reply_attachment_name) return text.fileAttachment || "ملف";
-  return "رسالة";
+  if (type === "image") return text.imageAttachment || "طµظˆط±ط©";
+  if (type === "audio") return "ط±ط³ط§ظ„ط© طµظˆطھظٹط©";
+  if (message.attachment_url || message.reply_attachment_name) return text.fileAttachment || "ظ…ظ„ظپ";
+  return "ط±ط³ط§ظ„ط©";
 }
 
 function ChatAttachment({ message, text, compact = false, onImageClick }) {
@@ -1050,7 +1050,7 @@ export default function EmployeePayrollPortal() {
       appleTitle.setAttribute("name", "apple-mobile-web-app-title");
       document.head.appendChild(appleTitle);
     }
-    appleTitle.setAttribute("content", "الموظف");
+    appleTitle.setAttribute("content", "ط§ظ„ظ…ظˆط¸ظپ");
 
     return () => {
       link.remove();
@@ -1063,7 +1063,7 @@ export default function EmployeePayrollPortal() {
           document.head.appendChild(restored);
         });
       }
-      appleTitle?.setAttribute("content", previousAppleTitle || "الموظف");
+      appleTitle?.setAttribute("content", previousAppleTitle || "ط§ظ„ظ…ظˆط¸ظپ");
     };
   }, [token]);
 
@@ -1332,10 +1332,10 @@ export default function EmployeePayrollPortal() {
     const onRequestUpdated = (event = {}) => {
       if (String(event.employee_id || "") !== String(profile.id || "")) return;
       const notice = event.status === "approved"
-        ? "تمت الموافقة على طلبك"
+        ? "طھظ…طھ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط·ظ„ط¨ظƒ"
         : event.status === "rejected"
-          ? "تم رفض طلبك"
-          : "تم تحديث طلبك";
+          ? "طھظ… ط±ظپط¶ ط·ظ„ط¨ظƒ"
+          : "طھظ… طھط­ط¯ظٹط« ط·ظ„ط¨ظƒ";
       setRequestRealtimeNotice(notice);
       setPortalNotice(notice);
       loadPortalByToken({ silent: true, clearNotice: false });
@@ -1758,7 +1758,7 @@ export default function EmployeePayrollPortal() {
   const enableNotifications = async ({ forceRefresh = false } = {}) => {
     if (!pushSupported()) {
       setNotificationState("unsupported");
-      setNotificationMessage("الإشعارات غير مدعومة على هذا المتصفح.");
+      setNotificationMessage("ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط؛ظٹط± ظ…ط¯ط¹ظˆظ…ط© ط¹ظ„ظ‰ ظ‡ط°ط§ ط§ظ„ظ…طھطµظپط­.");
       return;
     }
     try {
@@ -1769,14 +1769,14 @@ export default function EmployeePayrollPortal() {
         : window.Notification.permission;
       setNotificationState(permission);
       if (permission !== "granted") {
-        setNotificationMessage("فعّل الإشعارات من إعدادات المتصفح لاستقبال التنبيهات.");
+        setNotificationMessage("ظپط¹ظ‘ظ„ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ظ…ظ† ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ظ…طھطµظپط­ ظ„ط§ط³طھظ‚ط¨ط§ظ„ ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ.");
         return;
       }
 
       const keyResponse = await api.get(`/employee-portal/${encodeURIComponent(token)}/push/public-key`);
       const publicKey = keyResponse?.publicKey || "";
       if (!publicKey) {
-        setNotificationMessage("الإشعارات جاهزة على الجهاز، لكن مفاتيح الإرسال غير مفعلة على الخادم.");
+        setNotificationMessage("ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط¬ط§ظ‡ط²ط© ط¹ظ„ظ‰ ط§ظ„ط¬ظ‡ط§ط²طŒ ظ„ظƒظ† ظ…ظپط§طھظٹط­ ط§ظ„ط¥ط±ط³ط§ظ„ ط؛ظٹط± ظ…ظپط¹ظ„ط© ط¹ظ„ظ‰ ط§ظ„ط®ط§ط¯ظ….");
         return;
       }
       const registration = forceRefresh
@@ -1810,10 +1810,10 @@ export default function EmployeePayrollPortal() {
         portal_url: `${window.location.origin}/employee-app/${encodeURIComponent(token)}${window.location.search}`,
       });
       setNotificationState("granted");
-      setNotificationMessage(forceRefresh ? "تم تحديث الإشعارات بنجاح" : "الإشعارات مفعلة");
+      setNotificationMessage(forceRefresh ? "طھظ… طھط­ط¯ظٹط« ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط¨ظ†ط¬ط§ط­" : "ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ظ…ظپط¹ظ„ط©");
     } catch (err) {
       console.warn("[employee-payroll-portal] push subscription failed", err);
-      setNotificationMessage(err?.responseBody?.message || err?.message || "تعذر تفعيل الإشعارات الآن.");
+      setNotificationMessage(err?.responseBody?.message || err?.message || "طھط¹ط°ط± طھظپط¹ظٹظ„ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ط¢ظ†.");
     } finally {
       setNotificationSaving(false);
     }
@@ -1822,7 +1822,7 @@ export default function EmployeePayrollPortal() {
   const resetNotifications = async () => {
     if (!pushSupported()) {
       setNotificationState("unsupported");
-      setNotificationMessage("الإشعارات غير مدعومة على هذا الجهاز.");
+      setNotificationMessage("ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط؛ظٹط± ظ…ط¯ط¹ظˆظ…ط© ط¹ظ„ظ‰ ظ‡ط°ط§ ط§ظ„ط¬ظ‡ط§ط².");
       return;
     }
     try {
@@ -1848,16 +1848,16 @@ export default function EmployeePayrollPortal() {
         : window.Notification.permission;
       setNotificationState(permission);
       if (permission !== "granted") {
-        setNotificationMessage("فعّل الإشعارات من إعدادات المتصفح لاستقبال التنبيهات.");
+        setNotificationMessage("ظپط¹ظ‘ظ„ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ظ…ظ† ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ظ…طھطµظپط­ ظ„ط§ط³طھظ‚ط¨ط§ظ„ ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ.");
         return;
       }
       await navigator.serviceWorker.register(`/employee-portal-sw.js?v=${Date.now()}`);
       await navigator.serviceWorker.ready;
       await enableNotifications({ forceRefresh: true });
-      setNotificationMessage("تمت إعادة ضبط الإشعارات بنجاح");
+      setNotificationMessage("طھظ…طھ ط¥ط¹ط§ط¯ط© ط¶ط¨ط· ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط¨ظ†ط¬ط§ط­");
     } catch (err) {
       console.warn("[employee-payroll-portal] push reset failed", err);
-      setNotificationMessage(err?.responseBody?.message || err?.message || "تعذر إعادة ضبط الإشعارات الآن.");
+      setNotificationMessage(err?.responseBody?.message || err?.message || "طھط¹ط°ط± ط¥ط¹ط§ط¯ط© ط¶ط¨ط· ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ط¢ظ†.");
     } finally {
       setNotificationSaving(false);
     }
@@ -2022,11 +2022,11 @@ export default function EmployeePayrollPortal() {
                     <Smartphone className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-black">بوابة الموظف كتطبيق</h3>
+                    <h3 className="text-sm font-black">ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ ظƒطھط·ط¨ظٹظ‚</h3>
                     <p className="mt-1 text-xs font-bold leading-5 text-emerald-800">
                       {isIosDevice()
-                        ? "على iPhone: اضغط مشاركة ثم Add to Home Screen ثم افتح التطبيق من الأيقونة وفعّل الإشعارات."
-                        : "أضف بوابة الموظف إلى الشاشة الرئيسية لتعمل كتطبيق مستقل."}
+                        ? "ط¹ظ„ظ‰ iPhone: ط§ط¶ط؛ط· ظ…ط´ط§ط±ظƒط© ط«ظ… Add to Home Screen ط«ظ… ط§ظپطھط­ ط§ظ„طھط·ط¨ظٹظ‚ ظ…ظ† ط§ظ„ط£ظٹظ‚ظˆظ†ط© ظˆظپط¹ظ‘ظ„ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ."
+                        : "ط£ط¶ظپ ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ ط¥ظ„ظ‰ ط§ظ„ط´ط§ط´ط© ط§ظ„ط±ط¦ظٹط³ظٹط© ظ„طھط¹ظ…ظ„ ظƒطھط·ط¨ظٹظ‚ ظ…ط³طھظ‚ظ„."}
                     </p>
                     {installPrompt ? (
                       <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 text-xs font-black text-white">
@@ -2043,25 +2043,25 @@ export default function EmployeePayrollPortal() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="text-sm font-black text-slate-950">
-                    {notificationState === "granted" ? "الإشعارات مفعلة" : "فعّل الإشعارات لاستقبال تنبيهات المهام والطلبات والراتب"}
+                    {notificationState === "granted" ? "ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ظ…ظپط¹ظ„ط©" : "ظپط¹ظ‘ظ„ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ظ„ط§ط³طھظ‚ط¨ط§ظ„ طھظ†ط¨ظٹظ‡ط§طھ ط§ظ„ظ…ظ‡ط§ظ… ظˆط§ظ„ط·ظ„ط¨ط§طھ ظˆط§ظ„ط±ط§طھط¨"}
                   </h3>
                   <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
                     {isIosDevice() && !standalone
-                      ? "على iPhone: اضغط مشاركة ثم Add to Home Screen ثم افتح التطبيق من الأيقونة وفعّل الإشعارات."
-                      : notificationMessage || (notificationState === "unsupported" ? "الإشعارات غير مدعومة على هذا الجهاز." : "سنرسل تنبيهًا عند تعيين مهمة أو تحديث طلب أو إنشاء الراتب.")}
+                      ? "ط¹ظ„ظ‰ iPhone: ط§ط¶ط؛ط· ظ…ط´ط§ط±ظƒط© ط«ظ… Add to Home Screen ط«ظ… ط§ظپطھط­ ط§ظ„طھط·ط¨ظٹظ‚ ظ…ظ† ط§ظ„ط£ظٹظ‚ظˆظ†ط© ظˆظپط¹ظ‘ظ„ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ."
+                      : notificationMessage || (notificationState === "unsupported" ? "ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط؛ظٹط± ظ…ط¯ط¹ظˆظ…ط© ط¹ظ„ظ‰ ظ‡ط°ط§ ط§ظ„ط¬ظ‡ط§ط²." : "ط³ظ†ط±ط³ظ„ طھظ†ط¨ظٹظ‡ظ‹ط§ ط¹ظ†ط¯ طھط¹ظٹظٹظ† ظ…ظ‡ظ…ط© ط£ظˆ طھط­ط¯ظٹط« ط·ظ„ط¨ ط£ظˆ ط¥ظ†ط´ط§ط، ط§ظ„ط±ط§طھط¨.")}
                   </p>
                 </div>
                 {notificationState !== "granted" && notificationState !== "unsupported" ? (
                   <button type="button" onClick={() => enableNotifications()} disabled={notificationSaving} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
                     {notificationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                    تفعيل الإشعارات
+                    طھظپط¹ظٹظ„ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ
                   </button>
                 ) : null}
               </div>
               {notificationState === "granted" ? (
                 <button type="button" onClick={resetNotifications} disabled={notificationSaving} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
                   {notificationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  <span className="text-xs">إعادة ضبط الإشعارات</span>
+                  <span className="text-xs">ط¥ط¹ط§ط¯ط© ط¶ط¨ط· ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ</span>
                 </button>
               ) : null}
             </div>
@@ -2460,7 +2460,7 @@ export default function EmployeePayrollPortal() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate text-[15px] font-black leading-5">{ui("chatTitle")}</h2>
-                  <p className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">متصل الآن</p>
+                  <p className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">ظ…طھطµظ„ ط§ظ„ط¢ظ†</p>
                 </div>
                 <button type="button" onClick={closeEmployeeChat} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white">
                   <X className="h-4 w-4" />
@@ -2477,7 +2477,7 @@ export default function EmployeePayrollPortal() {
               style={chatMessagesStyle}
               onScroll={handleChatScroll}
             >
-              <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229]/90 px-3 py-1 text-[11px] font-black text-slate-300">اليوم</div>
+              <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229]/90 px-3 py-1 text-[11px] font-black text-slate-300">ط§ظ„ظٹظˆظ…</div>
               {chatLoading ? (
                 <div className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-3 py-5 text-sm font-bold text-slate-200">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -2517,14 +2517,14 @@ export default function EmployeePayrollPortal() {
                   <div className="mt-2">{ui("noChatMessages")}</div>
                 </div>
               )}
-              {chatTyping ? <div className="w-fit rounded-2xl bg-[#202c33] px-3 py-1.5 text-[12px] font-bold text-emerald-200">الإدارة تكتب الآن...</div> : null}
+              {chatTyping ? <div className="w-fit rounded-2xl bg-[#202c33] px-3 py-1.5 text-[12px] font-bold text-emerald-200">ط§ظ„ط¥ط¯ط§ط±ط© طھظƒطھط¨ ط§ظ„ط¢ظ†...</div> : null}
               {showChatJump ? (
                 <button type="button" onClick={scrollChatToBottom} className="sticky bottom-3 z-10 ms-auto flex h-9 w-9 items-center justify-center rounded-full bg-[#202c33] text-white shadow-lg">
                   <ArrowDownCircle className="h-5 w-5" />
                 </button>
               ) : null}
             </div>
-            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="relative z-30 flex-none border-t border-white/10 bg-[#1f2c33] px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-1.5">
+            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="relative z-30 flex-none border-t border-white/10 bg-[#1f2c33] px-2 pb-[max(4px,env(safe-area-inset-bottom))] pt-1">
               {replyToChat ? (
                 <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-white/10 px-2.5 py-1.5 text-[11px] font-bold leading-4 text-white">
                   <button type="button" onClick={() => scrollToChatMessage(replyToChat.id)} className="min-w-0 flex-1 border-r-2 border-emerald-300 pr-2 text-start">
@@ -2538,8 +2538,8 @@ export default function EmployeePayrollPortal() {
                 <div className="mb-1.5 flex items-center justify-between rounded-xl bg-red-500/10 px-2.5 py-1.5 text-[11px] font-black text-red-100">
                   <span dir="ltr">{Math.floor(recordingState.seconds / 60)}:{String(recordingState.seconds % 60).padStart(2, "0")}</span>
                   <div className="flex gap-2">
-                    <button type="button" onClick={cancelVoiceRecording}>إلغاء</button>
-                    <button type="button" onClick={sendVoiceRecording} className="text-emerald-200">إرسال</button>
+                    <button type="button" onClick={cancelVoiceRecording}>ط¥ظ„ط؛ط§ط،</button>
+                    <button type="button" onClick={sendVoiceRecording} className="text-emerald-200">ط¥ط±ط³ط§ظ„</button>
                   </div>
                 </div>
               ) : null}
@@ -2551,7 +2551,7 @@ export default function EmployeePayrollPortal() {
                   </button>
                 </div>
               ) : null}
-              <div className="flex min-h-[44px] items-end gap-1.5">
+              <div className="flex h-[44px] items-center gap-1.5">
                 <input
                   ref={chatFileInputRef}
                   type="file"
@@ -2559,16 +2559,17 @@ export default function EmployeePayrollPortal() {
                   accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.webm,.m4a,.mp4,.mp3,.wav,image/jpeg,image/png,image/webp,audio/webm,audio/mp4,audio/mpeg,audio/wav,audio/x-wav,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={chooseChatAttachment}
                 />
-                <button type="button" onClick={() => chatFileInputRef.current?.click()} className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label={ui("attachFile")}>
+                <button type="button" onClick={() => chatFileInputRef.current?.click()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label={ui("attachFile")}>
                   <Paperclip className="h-4 w-4" />
                 </button>
                 {recordingState.supported ? (
-                  <button type="button" onClick={startVoiceRecording} className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="تسجيل صوتي">
+                  <button type="button" onClick={startVoiceRecording} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="طھط³ط¬ظٹظ„ طµظˆطھظٹ">
                     <Mic className="h-4 w-4" />
                   </button>
                 ) : null}
-                <textarea
+                <input
                   ref={chatInputRef}
+                  type="text"
                   value={chatBody}
                   onChange={(event) => { setChatBody(event.target.value); emitChatTyping(); }}
                   onFocus={() => {
@@ -2577,10 +2578,16 @@ export default function EmployeePayrollPortal() {
                     window.setTimeout(() => logEmployeeChatViewport("while-keyboard-open-delayed"), 300);
                   }}
                   placeholder={ui("chatPlaceholder")}
-                  className="max-h-24 min-h-[42px] flex-1 resize-none rounded-[1.35rem] border border-white/10 bg-white/10 px-3.5 py-[9px] !text-[16px] font-bold leading-[22px] text-white outline-none [transform:none] [zoom:1] placeholder:text-slate-400 focus:border-emerald-400"
+                  inputMode="text"
+                  enterKeyHint="send"
+                  autoCorrect="on"
+                  autoComplete="off"
+                  autoCapitalize="sentences"
+                  spellCheck="true"
+                  className="h-[42px] min-h-[42px] min-w-0 flex-1 rounded-[22px] border border-white/10 bg-white/10 px-3 py-0 !text-[16px] font-bold leading-5 text-white outline-none [transform:none] [zoom:1] placeholder:text-slate-400 focus:border-emerald-400"
                   dir="auto"
                 />
-                <button type="submit" disabled={chatSaving || (!chatBody.trim() && !chatAttachment)} className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
+                <button type="submit" disabled={chatSaving || (!chatBody.trim() && !chatAttachment)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
                   {chatSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </button>
               </div>
