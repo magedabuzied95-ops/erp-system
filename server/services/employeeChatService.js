@@ -26,15 +26,22 @@ const messageSelect = `
     m.attachment_name,
     m.attachment_size,
     m.attachment_mime,
+    m.reply_to_message_id,
+    rm.sender_type AS reply_sender_type,
+    rm.body AS reply_body,
+    rm.attachment_type AS reply_attachment_type,
+    rm.attachment_name AS reply_attachment_name,
     m.read_at,
     m.created_at
   FROM employee_chat_messages m
+  LEFT JOIN employee_chat_messages rm ON rm.id = m.reply_to_message_id
 `;
 
 const attachmentLabelSql = (alias = "m") => `
   CASE
     WHEN NULLIF(TRIM(${alias}.body), '') IS NOT NULL THEN ${alias}.body
     WHEN ${alias}.attachment_type = 'image' THEN 'صورة'
+    WHEN ${alias}.attachment_type = 'audio' THEN 'رسالة صوتية'
     WHEN ${alias}.attachment_url IS NOT NULL THEN 'ملف'
     ELSE ''
   END
@@ -50,6 +57,15 @@ const chatPushPreview = (message = {}) => {
     return `رسالة جديدة: ${shortText}`;
   }
   if (message.attachment_type === "image") return "تم إرسال صورة";
+  if (message.attachment_url) return "تم إرسال ملف";
+  return "لديك رسالة جديدة في تطبيق الموظف";
+};
+
+const employeeChatPushBody = (message = {}) => {
+  const body = clean(message.body);
+  if (body) return `رسالة جديدة: ${body.length > 80 ? `${body.slice(0, 77)}...` : body}`;
+  if (message.attachment_type === "image") return "تم إرسال صورة";
+  if (message.attachment_type === "audio") return "تم إرسال رسالة صوتية";
   if (message.attachment_url) return "تم إرسال ملف";
   return "لديك رسالة جديدة في تطبيق الموظف";
 };
@@ -105,13 +121,19 @@ const emitChatEvent = (rooms = [], eventName, payload = {}) => {
 
 const attachmentFromUpload = (file = null) => {
   if (!file) return null;
+  const mimetype = String(file.mimetype || "");
   return {
     attachment_url: `/uploads/employee-chat/${file.filename}`,
-    attachment_type: String(file.mimetype || "").startsWith("image/") ? "image" : "file",
+    attachment_type: mimetype.startsWith("image/") ? "image" : mimetype.startsWith("audio/") ? "audio" : "file",
     attachment_name: file.originalname || file.filename,
     attachment_size: Number(file.size || 0),
     attachment_mime: file.mimetype || "",
   };
+};
+
+const normalizeReplyId = (value = null) => {
+  const number = Number(value || 0);
+  return Number.isFinite(number) && number > 0 ? Math.trunc(number) : null;
 };
 
 const validateMessageInput = ({ body = "", attachment = null } = {}) => {
@@ -183,18 +205,21 @@ export const getEmployeeChat = async ({ employee } = {}) => {
   return { thread, messages };
 };
 
-export const sendEmployeeChatMessage = async ({ employee, body = "", file = null } = {}) => {
+export const sendEmployeeChatMessage = async ({ employee, body = "", file = null, replyToMessageId = null } = {}) => {
   const attachment = attachmentFromUpload(file);
   const text = validateMessageInput({ body, attachment });
   const thread = await getOrCreateEmployeeChatThread(employee);
+  const replyTo = normalizeReplyId(replyToMessageId);
   const result = await db.query(
     `
     INSERT INTO employee_chat_messages (
       thread_id, sender_type, sender_employee_id, sender_user_id, body,
       attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime,
-      read_at, created_at
+      reply_to_message_id, read_at, created_at
     )
-    VALUES ($1, 'employee', $2, NULL, $3, $4, $5, $6, $7, $8, NULL, NOW())
+    VALUES ($1, 'employee', $2, NULL, $3, $4, $5, $6, $7, $8,
+      (SELECT id FROM employee_chat_messages WHERE id = $9 AND thread_id = $1),
+      NULL, NOW())
     RETURNING *
     `,
     [
@@ -206,6 +231,7 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
       attachment?.attachment_name || null,
       attachment?.attachment_size || null,
       attachment?.attachment_mime || null,
+      replyTo,
     ]
   );
   await db.query(
@@ -217,7 +243,7 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
     [thread.id, employee.branch_id || null, employee.tenant_id || null]
   );
   const updatedThread = await loadThreadSummary(thread.id);
-  const message = result.rows[0];
+  const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(result.rows[0]?.id)) || result.rows[0];
   emitChatEvent([adminChatRoom(employee.tenant_id), employeeChatRoom(employee.id)], "employee-chat:new-message", {
     thread: updatedThread,
     message,
@@ -335,18 +361,21 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
   return { thread, messages };
 };
 
-export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, userId = null, body = "", file = null } = {}) => {
+export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, userId = null, body = "", file = null, replyToMessageId = null } = {}) => {
   const attachment = attachmentFromUpload(file);
   const text = validateMessageInput({ body, attachment });
   const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: true });
+  const replyTo = normalizeReplyId(replyToMessageId);
   const result = await db.query(
     `
     INSERT INTO employee_chat_messages (
       thread_id, sender_type, sender_employee_id, sender_user_id, body,
       attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime,
-      read_at, created_at
+      reply_to_message_id, read_at, created_at
     )
-    VALUES ($1, 'admin', NULL, $2, $3, $4, $5, $6, $7, $8, NULL, NOW())
+    VALUES ($1, 'admin', NULL, $2, $3, $4, $5, $6, $7, $8,
+      (SELECT id FROM employee_chat_messages WHERE id = $9 AND thread_id = $1),
+      NULL, NOW())
     RETURNING *
     `,
     [
@@ -358,6 +387,7 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
       attachment?.attachment_name || null,
       attachment?.attachment_size || null,
       attachment?.attachment_mime || null,
+      replyTo,
     ]
   );
   await db.query(
@@ -369,7 +399,7 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
     [thread.id]
   );
   const updatedThread = await loadThreadSummary(thread.id);
-  const message = result.rows[0];
+  const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(result.rows[0]?.id)) || result.rows[0];
   emitChatEvent([employeeChatRoom(thread.employee_id), adminChatRoom(thread.tenant_id)], "employee-chat:new-message", {
     thread: updatedThread,
     message,
@@ -383,7 +413,7 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
       tenantId: thread.tenant_id,
       employeeId: thread.employee_id,
       title: " رسالة جديدة من الإدارة",
-      body: chatPushPreview(message),
+      body: employeeChatPushBody(message),
       url: thread.employee_portal_token ? `/employee-app/${encodeURIComponent(thread.employee_portal_token)}?tab=chat` : "/employee-app/?tab=chat",
       tag: "employee-chat",
       data: {

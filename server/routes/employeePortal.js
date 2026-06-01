@@ -186,7 +186,12 @@ router.get("/:token/chat", async (req, res) => {
 router.post("/:token/chat/messages", verifyEmployeePortalToken, uploadEmployeeChatAttachment, async (req, res) => {
   try {
     const employee = req.employeePortalEmployee;
-    const result = await sendEmployeeChatMessage({ employee, body: req.body?.body || req.body?.message || "", file: req.file || null });
+    const result = await sendEmployeeChatMessage({
+      employee,
+      body: req.body?.body || req.body?.message || "",
+      file: req.file || null,
+      replyToMessageId: req.body?.reply_to_message_id || req.body?.replyToMessageId || null,
+    });
     return res.status(201).json({ success: true, ...result });
   } catch (error) {
     console.error("[employee-payroll-portal] chat message error", error);

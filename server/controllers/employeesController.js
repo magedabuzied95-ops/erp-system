@@ -26,6 +26,7 @@ import {
   markAdminEmployeeChatThreadRead,
   sendAdminEmployeeChatMessage,
 } from "../services/employeeChatService.js";
+import { sendEmployeePortalPush } from "../services/employeePortalPushService.js";
 
 const safeQuery = async (client, text, params = []) => {
   try {
@@ -290,6 +291,7 @@ export const sendEmployeeChatThreadMessageRecord = async (req, res) => {
       userId,
       body: req.body?.body || req.body?.message || "",
       file: req.file || null,
+      replyToMessageId: req.body?.reply_to_message_id || req.body?.replyToMessageId || null,
     });
     return res.status(201).json({ success: true, ...result });
   } catch (error) {
@@ -447,6 +449,16 @@ export const createEmployeePenaltyRecord = async (req, res) => {
       data: req.body || {},
       defaultStatus: canApprovePayrollPenalty(req.user) ? "approved" : "pending",
     });
+    if (String(penalty?.status || "").toLowerCase() === "approved") {
+      sendEmployeePortalPush({
+        tenantId: penalty.tenant_id || tenantId,
+        employeeId: penalty.employee_id || req.params.employeeId,
+        title: "⚠️ جزاء جديد",
+        body: `تم تسجيل جزاء بقيمة ${Number(penalty.amount || 0)} جنيه.`,
+        tag: "penalty-added",
+        data: { event: "penalty_added", penalty_id: penalty.id, amount: Number(penalty.amount || 0), tab: "salary" },
+      }).catch((pushError) => console.warn("[employees] penalty push skipped", pushError?.message || pushError));
+    }
     return res.status(201).json({ success: true, penalty });
   } catch (error) {
     console.error("[employees] penalty create error", error);
@@ -458,6 +470,16 @@ export const updateEmployeePenaltyRecord = async (req, res) => {
   try {
     const { tenantId } = getTenantContext(req);
     const penalty = await updateEmployeePenalty({ tenantId, id: req.params.id, data: req.body || {} });
+    if (String(penalty?.status || "").toLowerCase() === "approved") {
+      sendEmployeePortalPush({
+        tenantId: penalty.tenant_id || tenantId,
+        employeeId: penalty.employee_id,
+        title: "⚠️ جزاء جديد",
+        body: `تم تسجيل جزاء بقيمة ${Number(penalty.amount || 0)} جنيه.`,
+        tag: "penalty-added",
+        data: { event: "penalty_added", penalty_id: penalty.id, amount: Number(penalty.amount || 0), tab: "salary" },
+      }).catch((pushError) => console.warn("[employees] penalty push skipped", pushError?.message || pushError));
+    }
     return res.json({ success: true, penalty });
   } catch (error) {
     console.error("[employees] penalty update error", error);

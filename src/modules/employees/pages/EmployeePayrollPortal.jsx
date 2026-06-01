@@ -18,6 +18,7 @@ import {
   Home,
   Loader2,
   MessageCircle,
+  Mic,
   Paperclip,
   Play,
   QrCode,
@@ -444,6 +445,11 @@ const allowedChatAttachment = (file) => {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "audio/webm",
+    "audio/mp4",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/x-wav",
   ]).has(file.type);
 };
 
@@ -1373,6 +1379,7 @@ export default function EmployeePayrollPortal() {
       const response = await api.get(`/employee-portal/${encodeURIComponent(token)}/chat`, {
         suppressErrorStatuses: [400, 404, 429],
       });
+      setChatThread(response.thread || null);
       setChatMessages(safeArray(response.messages));
     } catch (err) {
       setChatError(err?.responseBody?.message || err?.message || ui("chatLoadError"));
@@ -1420,12 +1427,24 @@ export default function EmployeePayrollPortal() {
         )
       );
     };
+    const onTyping = (payload = {}) => {
+      if (payload.sender_type !== "admin") return;
+      setChatTyping(true);
+      if (chatTypingTimerRef.current) window.clearTimeout(chatTypingTimerRef.current);
+      chatTypingTimerRef.current = window.setTimeout(() => setChatTyping(false), 3000);
+    };
+    const onStopTyping = (payload = {}) => {
+      if (payload.sender_type !== "admin") return;
+      setChatTyping(false);
+    };
 
     chatSocket.on("connect", onConnect);
     chatSocket.on("disconnect", onDisconnect);
     chatSocket.on("connect_error", onDisconnect);
     chatSocket.on("employee-chat:new-message", onMessage);
     chatSocket.on("employee-chat:read", onRead);
+    chatSocket.on("employee-chat:typing", onTyping);
+    chatSocket.on("employee-chat:stop-typing", onStopTyping);
     chatSocket.connect();
 
     return () => {
@@ -1434,6 +1453,8 @@ export default function EmployeePayrollPortal() {
       chatSocket.off("connect_error", onDisconnect);
       chatSocket.off("employee-chat:new-message", onMessage);
       chatSocket.off("employee-chat:read", onRead);
+      chatSocket.off("employee-chat:typing", onTyping);
+      chatSocket.off("employee-chat:stop-typing", onStopTyping);
       chatSocket.disconnect();
       if (chatSocketRef.current === chatSocket) chatSocketRef.current = null;
       setChatSocketConnected(false);
@@ -1518,11 +1539,13 @@ export default function EmployeePayrollPortal() {
       const formData = new FormData();
       if (message) formData.append("body", message);
       if (chatAttachment) formData.append("attachment", chatAttachment);
+      if (replyToChat?.id) formData.append("reply_to_message_id", replyToChat.id);
       await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/messages`, formData, {
         suppressErrorStatuses: [400, 404, 429],
       });
       setChatBody("");
       setChatAttachment(null);
+      setReplyToChat(null);
       if (chatFileInputRef.current) chatFileInputRef.current.value = "";
       await loadEmployeeChat({ silent: true });
     } catch (err) {
@@ -1546,6 +1569,69 @@ export default function EmployeePayrollPortal() {
     }
     setChatError("");
     setChatAttachment(file);
+  };
+
+  const emitChatTyping = () => {
+    const socket = chatSocketRef.current;
+    if (!socket?.connected) return;
+    if (!chatTypingStopRef.current) socket.emit("employee-chat:typing", { thread_id: chatThread?.id || null });
+    if (chatTypingStopRef.current) window.clearTimeout(chatTypingStopRef.current);
+    chatTypingStopRef.current = window.setTimeout(() => {
+      socket.emit("employee-chat:stop-typing", { thread_id: chatThread?.id || null });
+      chatTypingStopRef.current = null;
+    }, 2500);
+  };
+
+  const scrollChatToBottom = () => {
+    if (!chatMessagesRef.current) return;
+    chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+    setShowChatJump(false);
+  };
+
+  const handleChatScroll = () => {
+    const node = chatMessagesRef.current;
+    if (!node) return;
+    setShowChatJump(node.scrollHeight - node.scrollTop - node.clientHeight > 140);
+  };
+
+  const startVoiceRecording = async () => {
+    if (!recordingState.supported || recordingState.active) return;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported?.("audio/webm") ? "audio/webm" : "";
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    recordingChunksRef.current = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data?.size) recordingChunksRef.current.push(event.data);
+    };
+    recorder.onstop = () => stream.getTracks().forEach((track) => track.stop());
+    mediaRecorderRef.current = recorder;
+    recorder.start();
+    setRecordingState((current) => ({ ...current, active: true, seconds: 0 }));
+    recordingTimerRef.current = window.setInterval(() => {
+      setRecordingState((current) => ({ ...current, seconds: current.seconds + 1 }));
+    }, 1000);
+  };
+
+  const cancelVoiceRecording = () => {
+    mediaRecorderRef.current?.stop();
+    recordingChunksRef.current = [];
+    if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+    setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
+  };
+
+  const sendVoiceRecording = () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) return;
+    recorder.onstop = async () => {
+      recorder.stream?.getTracks?.().forEach((track) => track.stop());
+      if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+      const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      recordingChunksRef.current = [];
+      setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
+      if (!blob.size) return;
+      setChatAttachment(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type || "audio/webm" }));
+    };
+    recorder.stop();
   };
 
   useEffect(() => {
@@ -2311,6 +2397,7 @@ export default function EmployeePayrollPortal() {
               ref={chatMessagesRef}
               className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain scroll-smooth px-3 py-2"
               style={chatMessagesStyle}
+              onScroll={handleChatScroll}
             >
               <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229]/90 px-3 py-1 text-[11px] font-black text-slate-300">اليوم</div>
               {chatLoading ? (
@@ -2322,10 +2409,17 @@ export default function EmployeePayrollPortal() {
                 chatMessages.map((message) => {
                   const employeeMessage = message.sender_type === "employee";
                   return (
-                    <div key={message.id} className={`flex ${employeeMessage ? "justify-end" : "justify-start"}`}>
+                    <div id={`employee-chat-message-${message.id}`} key={message.id} className={`flex ${employeeMessage ? "justify-end" : "justify-start"}`}>
                       <div className={`relative w-fit max-w-[72%] break-words rounded-[1.05rem] px-2 py-1 text-[15px] font-medium leading-5 shadow-sm ${employeeMessage ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}>
-                        <ChatAttachment message={message} text={text} compact />
+                        {message.reply_to_message_id ? (
+                          <button type="button" onClick={() => document.getElementById(`employee-chat-message-${message.reply_to_message_id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })} className="mb-1 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
+                            <div className="font-black">{message.reply_sender_type === "employee" ? ui("you") : ui("management")}</div>
+                            <div className="truncate">{chatMessagePreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name }, text)}</div>
+                          </button>
+                        ) : null}
+                        <ChatAttachment message={message} text={text} compact onImageClick={setChatImagePreview} />
                         {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
+                        <button type="button" onClick={() => setReplyToChat(message)} className="mt-1 text-[10px] font-bold text-slate-300/60">رد</button>
                         <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
                           <span>{formatTimeLocal(message.created_at, language)}</span>
                           {employeeMessage ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
@@ -2340,8 +2434,32 @@ export default function EmployeePayrollPortal() {
                   <div className="mt-2">{ui("noChatMessages")}</div>
                 </div>
               )}
+              {chatTyping ? <div className="w-fit rounded-2xl bg-[#202c33] px-3 py-1.5 text-[12px] font-bold text-emerald-200">الإدارة تكتب الآن...</div> : null}
+              {showChatJump ? (
+                <button type="button" onClick={scrollChatToBottom} className="sticky bottom-3 z-10 ms-auto flex h-9 w-9 items-center justify-center rounded-full bg-[#202c33] text-white shadow-lg">
+                  <ArrowDownCircle className="h-5 w-5" />
+                </button>
+              ) : null}
             </div>
             <form ref={chatComposerRef} onSubmit={submitChatMessage} className="sticky bottom-0 z-10 shrink-0 border-t border-white/10 bg-[#1f2c33] px-2.5 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5">
+              {replyToChat ? (
+                <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
+                  <div className="min-w-0">
+                    <div className="text-emerald-200">{replyToChat.sender_type === "employee" ? ui("you") : ui("management")}</div>
+                    <div className="truncate opacity-80">{chatMessagePreview(replyToChat, text)}</div>
+                  </div>
+                  <button type="button" onClick={() => setReplyToChat(null)} className="shrink-0 text-red-200"><X className="h-4 w-4" /></button>
+                </div>
+              ) : null}
+              {recordingState.active ? (
+                <div className="mb-2 flex items-center justify-between rounded-2xl bg-red-500/10 px-3 py-2 text-xs font-black text-red-100">
+                  <span dir="ltr">{Math.floor(recordingState.seconds / 60)}:{String(recordingState.seconds % 60).padStart(2, "0")}</span>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={cancelVoiceRecording}>إلغاء</button>
+                    <button type="button" onClick={sendVoiceRecording} className="text-emerald-200">إرسال</button>
+                  </div>
+                </div>
+              ) : null}
               {chatAttachment ? (
                 <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-[11px] font-bold text-white">
                   <span className="min-w-0 truncate" dir="auto">{chatAttachment.name}</span>
@@ -2355,15 +2473,20 @@ export default function EmployeePayrollPortal() {
                   ref={chatFileInputRef}
                   type="file"
                   className="hidden"
-                  accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.webm,.m4a,.mp4,.mp3,.wav,image/jpeg,image/png,image/webp,audio/webm,audio/mp4,audio/mpeg,audio/wav,audio/x-wav,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={chooseChatAttachment}
                 />
                 <button type="button" onClick={() => chatFileInputRef.current?.click()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label={ui("attachFile")}>
                   <Paperclip className="h-4 w-4" />
                 </button>
+                {recordingState.supported ? (
+                  <button type="button" onClick={startVoiceRecording} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="تسجيل صوتي">
+                    <Mic className="h-4 w-4" />
+                  </button>
+                ) : null}
                 <textarea
                   value={chatBody}
-                  onChange={(event) => setChatBody(event.target.value)}
+                  onChange={(event) => { setChatBody(event.target.value); emitChatTyping(); }}
                   onFocus={keepChatInputVisible}
                   placeholder={ui("chatPlaceholder")}
                   className="max-h-32 min-h-11 flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-white/10 px-4 py-2.5 text-[13px] font-bold leading-5 text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
@@ -2375,6 +2498,14 @@ export default function EmployeePayrollPortal() {
               </div>
             </form>
           </section>
+        </div>
+      ) : null}
+      {chatImagePreview ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4">
+          <button type="button" onClick={() => setChatImagePreview("")} className="absolute end-4 top-[calc(1rem+env(safe-area-inset-top))] flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white">
+            <X className="h-5 w-5" />
+          </button>
+          <img src={chatImagePreview} alt="" className="max-h-full max-w-full object-contain" />
         </div>
       ) : null}
       {earlyCheckoutOpen ? (

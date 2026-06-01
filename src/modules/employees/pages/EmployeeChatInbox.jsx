@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCheck, FileText, Loader2, MessageCircle, Paperclip, RefreshCw, Send, UserRound, X } from "lucide-react";
+import { ArrowDownCircle, CheckCheck, FileText, Loader2, MessageCircle, Mic, Paperclip, RefreshCw, Send, UserRound, X } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
 import { API_ORIGIN } from "../../../shared/constants/app";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 import { useViewportHeight } from "../../../hooks/useViewportHeight";
+import { socket } from "../../../socket";
 
 const formatChatTime = (value) => {
   if (!value) return "-";
@@ -53,6 +54,11 @@ const allowedAttachment = (file) => {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "audio/webm",
+    "audio/mp4",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/x-wav",
   ]).has(file.type);
 };
 
@@ -60,20 +66,39 @@ const messagePreview = (item = {}) => {
   const body = String(item.last_message || item.body || "").trim();
   if (body) return body;
   if (item.attachment_type === "image") return "صورة";
+  if (item.attachment_type === "audio") return "رسالة صوتية";
   if (item.attachment_url) return "ملف";
   return "لا توجد رسائل بعد";
 };
 
-function AttachmentView({ message }) {
+const replyPreview = (message = {}) => {
+  const body = String(message.body || message.reply_body || "").trim();
+  if (body) return body.length > 80 ? `${body.slice(0, 77)}...` : body;
+  const type = message.attachment_type || message.reply_attachment_type;
+  if (type === "image") return "صورة";
+  if (type === "audio") return "رسالة صوتية";
+  if (message.attachment_url || message.reply_attachment_name) return "ملف";
+  return "رسالة";
+};
+
+function AttachmentView({ message, onImageClick }) {
   if (!message?.attachment_url) return null;
   const href = attachmentUrl(message.attachment_url);
   const isImage = message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
+  const isAudio = message.attachment_type === "audio" || String(message.attachment_mime || "").startsWith("audio/");
   const name = message.attachment_name || (isImage ? "صورة" : "ملف");
   if (isImage) {
     return (
-      <a href={href} target="_blank" rel="noreferrer" className="mb-2 block overflow-hidden rounded-2xl border border-black/5 bg-black/5">
+      <button type="button" onClick={() => onImageClick?.(href)} className="mb-2 block overflow-hidden rounded-2xl border border-black/5 bg-black/5 text-start">
         <img src={href} alt={name} className="max-h-64 w-full object-cover" />
-      </a>
+      </button>
+    );
+  }
+  if (isAudio) {
+    return (
+      <div className="mb-2 rounded-2xl border border-black/10 bg-black/5 p-2">
+        <audio controls src={href} className="h-9 w-56 max-w-full" />
+      </div>
     );
   }
   return (
@@ -99,11 +124,21 @@ export default function EmployeeChatInbox() {
   const [sending, setSending] = useState(false);
   const [body, setBody] = useState("");
   const [attachment, setAttachment] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [typingEmployee, setTypingEmployee] = useState("");
+  const [showJump, setShowJump] = useState(false);
+  const [recordingState, setRecordingState] = useState({ active: false, seconds: 0, supported: false });
   const [error, setError] = useState("");
   const realtime = useRealtimeConnection();
   const fileInputRef = useRef(null);
   const messagesRef = useRef(null);
   const composerRef = useRef(null);
+  const typingTimerRef = useRef(null);
+  const typingStopRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const recordingChunksRef = useRef([]);
+  const recordingTimerRef = useRef(null);
   const { viewportHeight } = useViewportHeight();
   const chatViewportStyle = useMemo(
     () => ({ "--employee-chat-vh": viewportHeight ? `${viewportHeight}px` : "100dvh" }),
@@ -118,6 +153,10 @@ export default function EmployeeChatInbox() {
     () => messages.findIndex((message) => message.sender_type === "employee" && !message.read_at),
     [messages]
   );
+
+  useEffect(() => {
+    setRecordingState((current) => ({ ...current, supported: typeof window !== "undefined" && Boolean(window.MediaRecorder && navigator.mediaDevices?.getUserMedia) }));
+  }, []);
 
   const loadThreads = async () => {
     try {
@@ -200,16 +239,32 @@ export default function EmployeeChatInbox() {
         current.map((item) => (String(item.id) === String(payload.thread_id) ? { ...item, unread_count: 0 } : item))
       );
     };
+    const onTyping = (payload = {}) => {
+      if (payload.sender_type !== "employee") return;
+      if (payload.thread_id && String(payload.thread_id) !== String(selectedId)) return;
+      setTypingEmployee(payload.employee_name || selectedThread?.employee_name || "الموظف");
+      if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = window.setTimeout(() => setTypingEmployee(""), 3000);
+    };
+    const onStopTyping = (payload = {}) => {
+      if (payload.sender_type !== "employee") return;
+      if (payload.thread_id && String(payload.thread_id) !== String(selectedId)) return;
+      setTypingEmployee("");
+    };
 
     const offMessage = subscribeRealtime("employee-chat:new-message", onMessage);
     const offThread = subscribeRealtime("employee-chat:thread-updated", onThreadUpdated);
     const offRead = subscribeRealtime("employee-chat:read", onRead);
+    const offTyping = subscribeRealtime("employee-chat:typing", onTyping);
+    const offStopTyping = subscribeRealtime("employee-chat:stop-typing", onStopTyping);
     return () => {
       offMessage();
       offThread();
       offRead();
+      offTyping();
+      offStopTyping();
     };
-  }, [selectedId]);
+  }, [selectedId, selectedThread?.employee_name]);
 
   const keepInputVisible = () => {
     window.setTimeout(() => {
@@ -239,9 +294,11 @@ export default function EmployeeChatInbox() {
       const formData = new FormData();
       if (text) formData.append("body", text);
       if (attachment) formData.append("attachment", attachment);
+      if (replyTo?.id) formData.append("reply_to_message_id", replyTo.id);
       await api.post(`/employees/chat/threads/${encodeURIComponent(selectedId)}/messages`, formData);
       setBody("");
       setAttachment(null);
+      setReplyTo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       await loadThread(selectedId);
       await loadThreads();
@@ -266,6 +323,68 @@ export default function EmployeeChatInbox() {
     }
     setError("");
     setAttachment(file);
+  };
+
+  const emitTyping = () => {
+    if (!selectedThread?.employee_id || !socket?.connected) return;
+    const payload = { thread_id: selectedId, employee_id: selectedThread.employee_id };
+    if (!typingStopRef.current) socket.emit("employee-chat:typing", payload);
+    if (typingStopRef.current) window.clearTimeout(typingStopRef.current);
+    typingStopRef.current = window.setTimeout(() => {
+      socket.emit("employee-chat:stop-typing", payload);
+      typingStopRef.current = null;
+    }, 2500);
+  };
+
+  const scrollToBottom = () => {
+    if (!messagesRef.current) return;
+    messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+    setShowJump(false);
+  };
+
+  const onMessagesScroll = () => {
+    const node = messagesRef.current;
+    if (!node) return;
+    setShowJump(node.scrollHeight - node.scrollTop - node.clientHeight > 140);
+  };
+
+  const startVoiceRecording = async () => {
+    if (!recordingState.supported || recordingState.active) return;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported?.("audio/webm") ? "audio/webm" : "";
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    recordingChunksRef.current = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data?.size) recordingChunksRef.current.push(event.data);
+    };
+    recorder.onstop = () => stream.getTracks().forEach((track) => track.stop());
+    mediaRecorderRef.current = recorder;
+    recorder.start();
+    setRecordingState((current) => ({ ...current, active: true, seconds: 0 }));
+    recordingTimerRef.current = window.setInterval(() => {
+      setRecordingState((current) => ({ ...current, seconds: current.seconds + 1 }));
+    }, 1000);
+  };
+
+  const cancelVoiceRecording = () => {
+    mediaRecorderRef.current?.stop();
+    recordingChunksRef.current = [];
+    if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+    setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
+  };
+
+  const sendVoiceRecording = () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) return;
+    recorder.onstop = () => {
+      recorder.stream?.getTracks?.().forEach((track) => track.stop());
+      if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+      const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      recordingChunksRef.current = [];
+      setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
+      if (blob.size) setAttachment(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type || "audio/webm" }));
+    };
+    recorder.stop();
   };
 
   return (
@@ -353,6 +472,7 @@ export default function EmployeeChatInbox() {
               <div
                 ref={messagesRef}
                 className="min-h-0 flex-1 space-y-1 overflow-y-auto scroll-smooth px-3 py-2"
+                onScroll={onMessagesScroll}
                 style={{
                   backgroundColor: "#0b141a",
                   backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.055) 1px, transparent 0), linear-gradient(135deg, rgba(20,184,166,0.035), transparent 35%, rgba(15,23,42,0.18))",
@@ -367,18 +487,28 @@ export default function EmployeeChatInbox() {
                     جاري فتح المحادثة...
                   </div>
                 ) : messages.length ? (
-                  messages.map((message) => {
+                  messages.map((message, index) => {
                     const admin = message.sender_type === "admin";
                     return (
-                      <div key={message.id} className={`flex ${admin ? "justify-start" : "justify-end"}`}>
+                      <div key={message.id} id={`admin-chat-message-${message.id}`}>
+                        {index === firstUnreadIndex ? <div className="mx-auto mb-2 w-fit rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-black text-emerald-100">رسائل غير مقروءة</div> : null}
+                      <div className={`flex ${admin ? "justify-start" : "justify-end"}`}>
                         <div className={`relative w-fit max-w-[72%] break-words rounded-[1.05rem] px-2 py-1 text-[15px] font-medium leading-5 shadow-sm ${admin ? "rounded-bl-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]" : "rounded-br-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(0_0,100%_100%,0_100%)]"}`}>
-                          <AttachmentView message={message} />
+                          {message.reply_to_message_id ? (
+                            <button type="button" onClick={() => document.getElementById(`admin-chat-message-${message.reply_to_message_id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })} className="mb-1 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
+                              <div className="font-black">{message.reply_sender_type === "admin" ? "الإدارة" : selectedThread?.employee_name || "الموظف"}</div>
+                              <div className="truncate">{replyPreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name })}</div>
+                            </button>
+                          ) : null}
+                          <AttachmentView message={message} onImageClick={setImagePreview} />
                           {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
+                          <button type="button" onClick={() => setReplyTo(message)} className="mt-1 text-[10px] font-bold text-slate-300/60">رد</button>
                           <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
                             <span>{formatMessageTime(message.created_at)}</span>
                             {admin ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
                           </div>
                         </div>
+                      </div>
                       </div>
                     );
                   })
@@ -387,8 +517,32 @@ export default function EmployeeChatInbox() {
                     لا توجد رسائل في هذه المحادثة.
                   </div>
                 )}
+                {typingEmployee ? <div className="w-fit rounded-2xl bg-[#202c33] px-3 py-1.5 text-[12px] font-bold text-emerald-200">{typingEmployee} يكتب الآن...</div> : null}
+                {showJump ? (
+                  <button type="button" onClick={scrollToBottom} className="sticky bottom-3 z-10 ms-auto flex h-9 w-9 items-center justify-center rounded-full bg-[#202c33] text-white shadow-lg">
+                    <ArrowDownCircle className="h-5 w-5" />
+                  </button>
+                ) : null}
               </div>
               <form ref={composerRef} onSubmit={sendMessage} className="sticky bottom-0 shrink-0 border-t border-white/10 bg-[#1f2c33] px-2.5 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5">
+                {replyTo ? (
+                  <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
+                    <div className="min-w-0">
+                      <div className="text-emerald-200">{replyTo.sender_type === "admin" ? "الإدارة" : selectedThread?.employee_name || "الموظف"}</div>
+                      <div className="truncate opacity-80">{replyPreview(replyTo)}</div>
+                    </div>
+                    <button type="button" onClick={() => setReplyTo(null)} className="shrink-0 text-red-200"><X className="h-4 w-4" /></button>
+                  </div>
+                ) : null}
+                {recordingState.active ? (
+                  <div className="mb-2 flex items-center justify-between rounded-2xl bg-red-500/10 px-3 py-2 text-xs font-black text-red-100">
+                    <span dir="ltr">{Math.floor(recordingState.seconds / 60)}:{String(recordingState.seconds % 60).padStart(2, "0")}</span>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={cancelVoiceRecording}>إلغاء</button>
+                      <button type="button" onClick={sendVoiceRecording} className="text-emerald-200">إرسال</button>
+                    </div>
+                  </div>
+                ) : null}
                 {attachment ? (
                   <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-[11px] font-bold text-white">
                     <span className="min-w-0 truncate" dir="auto">{attachment.name}</span>
@@ -403,15 +557,20 @@ export default function EmployeeChatInbox() {
                     ref={fileInputRef}
                     type="file"
                     className="hidden"
-                    accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.webm,.m4a,.mp4,.mp3,.wav,image/jpeg,image/png,image/webp,audio/webm,audio/mp4,audio/mpeg,audio/wav,audio/x-wav,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     onChange={chooseAttachment}
                   />
                   <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="إرفاق ملف">
                     <Paperclip className="h-4 w-4" />
                   </button>
+                  {recordingState.supported ? (
+                    <button type="button" onClick={startVoiceRecording} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="تسجيل صوتي">
+                      <Mic className="h-4 w-4" />
+                    </button>
+                  ) : null}
                   <textarea
                     value={body}
-                    onChange={(event) => setBody(event.target.value)}
+                    onChange={(event) => { setBody(event.target.value); emitTyping(); }}
                     onFocus={keepInputVisible}
                     placeholder="اكتب رد الإدارة..."
                     className="min-h-11 flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-white/10 px-4 py-2.5 text-[13px] font-bold leading-5 text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
@@ -430,6 +589,14 @@ export default function EmployeeChatInbox() {
           )}
         </div>
       </div>
+      {imagePreview ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
+          <button type="button" onClick={() => setImagePreview("")} className="absolute end-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white">
+            <X className="h-5 w-5" />
+          </button>
+          <img src={imagePreview} alt="" className="max-h-full max-w-full object-contain" />
+        </div>
+      ) : null}
     </section>
   );
 }

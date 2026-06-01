@@ -16,7 +16,7 @@ from "socket.io";
 
 import { fileURLToPath }
 from "url";
-import { normalizeSocketRoomKey, setIo } from "./utils/socket.js";
+import { emitToRooms, normalizeSocketRoomKey, setIo } from "./utils/socket.js";
 import { isPerfDebugEnabled, runWithPerfContext, slowestPhaseFromTimings } from "./utils/perfDebug.js";
 import { logEmployeePushVapidCheck } from "./services/employeePortalPushService.js";
 import { loadEmployeePortalByToken } from "./services/employeePayrollPortalService.js";
@@ -258,6 +258,23 @@ io.on("connection", async (socket) => {
       socket.join(`employee-chat:employee:${employee.id}`);
       socket.join(`employee:${employee.id}`);
       if (employee.tenant_id) socket.join(`tenant:${employee.tenant_id}`);
+      socket.on("employee-chat:typing", (payload = {}) => {
+        emitToRooms([`employee-chat:tenant:${employee.tenant_id || "global"}`], "employee-chat:typing", {
+          thread_id: payload.thread_id || null,
+          employee_id: employee.id,
+          employee_name: employee.full_name || employee.name || "الموظف",
+          sender_type: "employee",
+          at: new Date().toISOString(),
+        });
+      });
+      socket.on("employee-chat:stop-typing", (payload = {}) => {
+        emitToRooms([`employee-chat:tenant:${employee.tenant_id || "global"}`], "employee-chat:stop-typing", {
+          thread_id: payload.thread_id || null,
+          employee_id: employee.id,
+          sender_type: "employee",
+          at: new Date().toISOString(),
+        });
+      });
       socket.emit("realtime:ready", {
         employee_id: employee.id,
         branch_id: employee.branch_id || null,
@@ -314,6 +331,26 @@ io.on("connection", async (socket) => {
     if (branchId) socket.join(`branch:${branchId}`);
     if (await socketUserCanViewEmployees(userId, user)) {
       socket.join(`employee-chat:tenant:${tenantId || "global"}`);
+      socket.on("employee-chat:typing", (payload = {}) => {
+        const employeeId = Number(payload.employee_id || payload.employeeId || 0);
+        if (!employeeId) return;
+        emitToRooms([`employee-chat:employee:${employeeId}`], "employee-chat:typing", {
+          thread_id: payload.thread_id || null,
+          employee_id: employeeId,
+          sender_type: "admin",
+          at: new Date().toISOString(),
+        });
+      });
+      socket.on("employee-chat:stop-typing", (payload = {}) => {
+        const employeeId = Number(payload.employee_id || payload.employeeId || 0);
+        if (!employeeId) return;
+        emitToRooms([`employee-chat:employee:${employeeId}`], "employee-chat:stop-typing", {
+          thread_id: payload.thread_id || null,
+          employee_id: employeeId,
+          sender_type: "admin",
+          at: new Date().toISOString(),
+        });
+      });
     }
     socket.emit("realtime:ready", { user_id: userId, branch_id: branchId || null, role, at: new Date().toISOString() });
   } catch (error) {
