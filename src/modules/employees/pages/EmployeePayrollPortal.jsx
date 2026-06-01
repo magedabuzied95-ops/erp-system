@@ -7,6 +7,7 @@ import {
   ArrowUpCircle,
   Banknote,
   CalendarDays,
+  CheckCheck,
   CheckCircle2,
   ClipboardList,
   Coins,
@@ -480,6 +481,14 @@ const isIosDevice = () => {
 };
 
 const pushSupported = () => isBrowser() && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const appBadgeSupported = () => isBrowser() && typeof navigator.setAppBadge === "function" && typeof navigator.clearAppBadge === "function";
+
+const setEmployeeAppBadge = (count = 0) => {
+  if (!appBadgeSupported()) return;
+  const safeCount = Math.max(0, Math.round(Number(count || 0)));
+  const action = safeCount > 0 ? navigator.setAppBadge(safeCount) : navigator.clearAppBadge();
+  Promise.resolve(action).catch(() => null);
+};
 
 const urlBase64ToUint8Array = (base64String = "") => {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -510,6 +519,27 @@ const endpointHost = (endpoint = "") => {
     return new URL(String(endpoint || "")).host;
   } catch {
     return "";
+  }
+};
+
+const badgeStorageKey = (token = "", scope = "") => `employee_portal_badge:${String(token || "").slice(-16)}:${scope}`;
+
+const readBadgeSet = (token = "", scope = "") => {
+  if (!isBrowser() || !token) return new Set();
+  try {
+    const rows = JSON.parse(window.localStorage.getItem(badgeStorageKey(token, scope)) || "[]");
+    return new Set(Array.isArray(rows) ? rows.map(String) : []);
+  } catch {
+    return new Set();
+  }
+};
+
+const writeBadgeSet = (token = "", scope = "", values = []) => {
+  if (!isBrowser() || !token) return;
+  try {
+    window.localStorage.setItem(badgeStorageKey(token, scope), JSON.stringify([...new Set(values.map(String))]));
+  } catch {
+    // Badge persistence is best-effort only.
   }
 };
 
@@ -916,6 +946,7 @@ export default function EmployeePayrollPortal() {
   const [chatAttachment, setChatAttachment] = useState(null);
   const [chatSocketConnected, setChatSocketConnected] = useState(false);
   const [requestRealtimeNotice, setRequestRealtimeNotice] = useState("");
+  const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0 });
   const chatSocketRef = useRef(null);
   const requestSocketRef = useRef(null);
   const requestNoticeTimerRef = useRef(null);
@@ -1109,6 +1140,21 @@ export default function EmployeePayrollPortal() {
   const walletTransactions = safeArray(portal?.recent_wallet_transactions);
   const lazyWarnings = safeArray(portal?.warnings);
   const leaderboardLazy = lazyWarnings.some((warning) => warning?.section === "leaderboard" && warning?.code === "lazy");
+  const requestBadgeIds = useMemo(
+    () => employeeRequests
+      .filter((item) => ["approved", "rejected"].includes(String(item.status || "").toLowerCase()))
+      .map((item) => String(item.id)),
+    [employeeRequests]
+  );
+  const taskBadgeIds = useMemo(
+    () => tasks
+      .filter((task) => ["pending", "overdue", "reassigned"].includes(taskStatusKey(task.status)))
+      .map((task) => String(task.id)),
+    [tasks]
+  );
+  const requestBadgeSignature = requestBadgeIds.join("|");
+  const taskBadgeSignature = taskBadgeIds.join("|");
+  const totalBadgeCount = badgeCounts.unreadChats + badgeCounts.pendingNotifications + badgeCounts.newTasks;
   const chatPanelStyle = useMemo(
     () => ({
       height: viewportHeight ? `${viewportHeight}px` : "100dvh",
@@ -1122,11 +1168,74 @@ export default function EmployeePayrollPortal() {
       height: viewportHeight && chatHeaderHeight && chatComposerHeight
         ? `${Math.max(viewportHeight - chatHeaderHeight - chatComposerHeight, 160)}px`
         : undefined,
-      backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 0)",
-      backgroundSize: "18px 18px",
+      backgroundColor: "#0b141a",
+      backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.055) 1px, transparent 0), linear-gradient(135deg, rgba(20,184,166,0.035), transparent 35%, rgba(15,23,42,0.18))",
+      backgroundSize: "18px 18px, 100% 100%",
     }),
     [chatComposerHeight, chatHeaderHeight, viewportHeight]
   );
+
+  useEffect(() => {
+    setEmployeeAppBadge(totalBadgeCount);
+  }, [totalBadgeCount]);
+
+  useEffect(() => {
+    if (!portal || !token) return undefined;
+    const viewed = readBadgeSet(token, "requests");
+    const nextCount = requestBadgeIds.filter((id) => !viewed.has(id)).length;
+    setBadgeCounts((current) => ({ ...current, pendingNotifications: activeTab === "requests" ? 0 : nextCount }));
+    return undefined;
+  }, [activeTab, portal, requestBadgeSignature, token]);
+
+  useEffect(() => {
+    if (!portal || !token) return undefined;
+    const viewed = readBadgeSet(token, "tasks");
+    const nextCount = taskBadgeIds.filter((id) => !viewed.has(id)).length;
+    setBadgeCounts((current) => ({ ...current, newTasks: activeTab === "tasks" ? 0 : nextCount }));
+    return undefined;
+  }, [activeTab, portal, taskBadgeSignature, token]);
+
+  useEffect(() => {
+    if (!token || activeTab !== "requests") return undefined;
+    writeBadgeSet(token, "requests", requestBadgeIds);
+    setBadgeCounts((current) => ({ ...current, pendingNotifications: 0 }));
+    return undefined;
+  }, [activeTab, requestBadgeSignature, token]);
+
+  useEffect(() => {
+    if (!token || activeTab !== "tasks") return undefined;
+    writeBadgeSet(token, "tasks", taskBadgeIds);
+    setBadgeCounts((current) => ({ ...current, newTasks: 0 }));
+    return undefined;
+  }, [activeTab, taskBadgeSignature, token]);
+
+  useEffect(() => {
+    if (!chatOpen) return undefined;
+    setBadgeCounts((current) => ({ ...current, unreadChats: 0 }));
+    return undefined;
+  }, [chatOpen]);
+
+  useEffect(() => {
+    if (!isBrowser() || !("serviceWorker" in navigator)) return undefined;
+    const onServiceWorkerMessage = (event) => {
+      if (event.data?.type !== "employee-portal:push-badge") return;
+      const tag = String(event.data.tag || event.data.payload?.tag || event.data.payload?.data?.tag || "");
+      const badgeType = tag === "employee-chat"
+        ? "unreadChats"
+        : ["task-assigned", "staff-task-update", "staff-task-overdue"].some((value) => tag.includes(value))
+          ? "newTasks"
+          : ["advance-approved", "advance-rejected", "leave-approved", "leave-rejected"].includes(tag)
+            ? "pendingNotifications"
+            : "";
+      if (!badgeType) return;
+      setBadgeCounts((current) => ({
+        ...current,
+        [badgeType]: badgeType === "unreadChats" && chatOpen ? 0 : badgeType === "newTasks" && activeTab === "tasks" ? 0 : badgeType === "pendingNotifications" && activeTab === "requests" ? 0 : Number(current[badgeType] || 0) + 1,
+      }));
+    };
+    navigator.serviceWorker.addEventListener("message", onServiceWorkerMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onServiceWorkerMessage);
+  }, [activeTab, chatOpen]);
 
   useEffect(() => {
     if (!portal || !token || !profile.id) return undefined;
@@ -2135,26 +2244,29 @@ export default function EmployeePayrollPortal() {
         <div className="fixed inset-0 z-50 flex items-end overflow-hidden bg-slate-950/70 p-0 sm:items-center sm:p-4">
           <section className="flex w-full flex-col overflow-hidden rounded-t-3xl border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:mx-auto sm:max-w-md sm:rounded-3xl" style={chatPanelStyle} dir={direction}>
             <div ref={chatHeaderRef} className="sticky top-0 z-10 shrink-0 bg-[#0b141a] pt-[env(safe-area-inset-top)]">
-              <header className="flex min-h-16 items-center justify-between gap-3 border-b border-white/10 bg-[#202c33] px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <h2 className="break-words text-lg font-black leading-tight sm:text-xl">{ui("chatTitle")}</h2>
-                  <p className="mt-1 truncate text-[11px] font-black text-emerald-200">{chatSocketConnected ? "متصل الآن" : "التحديث الاحتياطي يعمل"}</p>
+              <header className="flex min-h-14 items-center justify-between gap-2 border-b border-white/10 bg-[#1f2c33] px-3 py-2">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
+                  <UserRound className="h-4 w-4" />
                 </div>
-                <button type="button" onClick={() => setChatOpen(false)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white">
-                  <X className="h-5 w-5" />
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-[15px] font-black leading-5">{ui("chatTitle")}</h2>
+                  <p className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">متصل الآن</p>
+                </div>
+                <button type="button" onClick={() => setChatOpen(false)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white">
+                  <X className="h-4 w-4" />
                 </button>
               </header>
-              <div className="border-b border-white/5 bg-[#0b141a] px-4 py-2 text-center text-[11px] font-bold leading-5 text-slate-300">
+              <div className="mx-auto mt-1.5 w-fit rounded-full bg-[#182229]/90 px-2.5 py-0.5 text-center text-[10px] font-bold leading-4 text-slate-300">
                 {ui("chatSecureNotice")}
               </div>
               {chatError ? <div className="mx-4 my-2 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
             </div>
             <div
               ref={chatMessagesRef}
-              className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain scroll-smooth px-4 py-4"
+              className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain scroll-smooth px-3 py-2"
               style={chatMessagesStyle}
             >
-              <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229] px-3 py-1 text-[11px] font-black text-slate-300">اليوم</div>
+              <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229]/90 px-3 py-1 text-[11px] font-black text-slate-300">اليوم</div>
               {chatLoading ? (
                 <div className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-3 py-5 text-sm font-bold text-slate-200">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -2165,13 +2277,12 @@ export default function EmployeePayrollPortal() {
                   const employeeMessage = message.sender_type === "employee";
                   return (
                     <div key={message.id} className={`flex ${employeeMessage ? "justify-end" : "justify-start"}`}>
-                      <div className={`relative max-w-[78%] break-words rounded-[1.35rem] px-4 py-3 text-[15px] font-bold leading-7 shadow-sm ${employeeMessage ? "rounded-br-md bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-3 after:w-3 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-md bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-3 after:w-3 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}>
-                        <div className="mb-1 text-[11px] font-black leading-4 opacity-70">{employeeMessage ? ui("you") : ui("management")}</div>
+                      <div className={`relative w-fit max-w-[72%] break-words rounded-[1.05rem] px-2 py-1 text-[15px] font-medium leading-5 shadow-sm ${employeeMessage ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}>
                         <ChatAttachment message={message} text={text} compact />
                         {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
-                        <div className="mt-1.5 flex items-center justify-end gap-1 text-[10px] font-black leading-4 opacity-60" dir="ltr">
+                        <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
                           <span>{formatTimeLocal(message.created_at, language)}</span>
-                          {employeeMessage ? <span>{message.read_at ? "✓✓" : "✓"}</span> : null}
+                          {employeeMessage ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
                         </div>
                       </div>
                     </div>
@@ -2184,9 +2295,9 @@ export default function EmployeePayrollPortal() {
                 </div>
               )}
             </div>
-            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="sticky bottom-0 z-10 shrink-0 border-t border-white/10 bg-[#202c33] px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
+            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="sticky bottom-0 z-10 shrink-0 border-t border-white/10 bg-[#1f2c33] px-2.5 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5">
               {chatAttachment ? (
-                <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
+                <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-[11px] font-bold text-white">
                   <span className="min-w-0 truncate" dir="auto">{chatAttachment.name}</span>
                   <button type="button" onClick={() => { setChatAttachment(null); if (chatFileInputRef.current) chatFileInputRef.current.value = ""; }} className="font-black text-red-200">
                     {ui("removeAttachment")}
@@ -2201,18 +2312,18 @@ export default function EmployeePayrollPortal() {
                   accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={chooseChatAttachment}
                 />
-                <button type="button" onClick={() => chatFileInputRef.current?.click()} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label={ui("attachFile")}>
-                  <Paperclip className="h-5 w-5" />
+                <button type="button" onClick={() => chatFileInputRef.current?.click()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label={ui("attachFile")}>
+                  <Paperclip className="h-4 w-4" />
                 </button>
                 <textarea
                   value={chatBody}
                   onChange={(event) => setChatBody(event.target.value)}
                   onFocus={keepChatInputVisible}
                   placeholder={ui("chatPlaceholder")}
-                  className="max-h-32 min-h-12 flex-1 resize-none rounded-3xl border border-white/10 bg-white/10 px-4 py-3 text-[15px] font-bold leading-6 text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
+                  className="max-h-32 min-h-11 flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-white/10 px-4 py-2.5 text-[13px] font-bold leading-5 text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
                   dir="auto"
                 />
-                <button type="submit" disabled={chatSaving || (!chatBody.trim() && !chatAttachment)} className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
+                <button type="submit" disabled={chatSaving || (!chatBody.trim() && !chatAttachment)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
                   {chatSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </button>
               </div>

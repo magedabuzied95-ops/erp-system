@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Loader2, MessageCircle, Paperclip, RefreshCw, Send, UserRound, X } from "lucide-react";
+import { CheckCheck, FileText, Loader2, MessageCircle, Paperclip, RefreshCw, Send, UserRound, X } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
 import { API_ORIGIN } from "../../../shared/constants/app";
@@ -13,6 +13,16 @@ const formatChatTime = (value) => {
   return new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
     month: "short",
     day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
+
+const formatMessageTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
@@ -103,6 +113,10 @@ export default function EmployeeChatInbox() {
   const selectedThread = useMemo(
     () => threads.find((item) => String(item.id) === String(selectedId)) || thread,
     [selectedId, thread, threads]
+  );
+  const firstUnreadIndex = useMemo(
+    () => messages.findIndex((message) => message.sender_type === "employee" && !message.read_at),
+    [messages]
   );
 
   const loadThreads = async () => {
@@ -322,23 +336,31 @@ export default function EmployeeChatInbox() {
         <div className="flex min-h-0 flex-col bg-[#0b141a] md:min-h-[34rem]">
           {selectedThread ? (
             <>
-              <div className="shrink-0 border-b border-white/10 bg-[#202c33] p-4 text-white">
-                <div className="text-lg font-black" dir="auto">{selectedThread.employee_name || "موظف"}</div>
-                <div className="mt-1 text-xs font-bold text-slate-300" dir="auto">
+              <div className="shrink-0 border-b border-white/10 bg-[#1f2c33] px-4 py-2 text-white">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
+                    <UserRound className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[15px] font-black leading-5" dir="auto">{selectedThread.employee_name || "موظف"}</div>
+                    <div className="hidden">
                   {selectedThread.employee_code || "-"} · {selectedThread.branch_name || "بدون فرع"}
+                    </div>
+                    <div className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">متصل الآن</div>
+                  </div>
                 </div>
-                <div className="mt-1 text-[11px] font-black text-emerald-200">{realtime.connected ? "متصل الآن" : "التحديث الاحتياطي يعمل"}</div>
               </div>
               <div
                 ref={messagesRef}
-                className="min-h-0 flex-1 space-y-2 overflow-y-auto scroll-smooth p-4"
+                className="min-h-0 flex-1 space-y-1 overflow-y-auto scroll-smooth px-3 py-2"
                 style={{
-                  backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 0)",
-                  backgroundSize: "18px 18px",
+                  backgroundColor: "#0b141a",
+                  backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.055) 1px, transparent 0), linear-gradient(135deg, rgba(20,184,166,0.035), transparent 35%, rgba(15,23,42,0.18))",
+                  backgroundSize: "18px 18px, 100% 100%",
                 }}
               >
-                <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229] px-3 py-1 text-[11px] font-black text-slate-300">اليوم</div>
-                <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229]/90 px-3 py-1 text-[11px] font-bold text-slate-300">هذه المحادثة خاصة بين الموظف والإدارة</div>
+                <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229]/90 px-3 py-1 text-[11px] font-black text-slate-300">اليوم</div>
+                <div className="mx-auto mb-2 w-fit rounded-full bg-[#182229]/90 px-2.5 py-0.5 text-[10px] font-bold leading-4 text-slate-300">هذه المحادثة خاصة بين الموظف والإدارة</div>
                 {loadingThread ? (
                   <div className="flex items-center justify-center gap-2 rounded-xl bg-white/10 p-4 text-sm font-bold text-slate-200">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -349,12 +371,12 @@ export default function EmployeeChatInbox() {
                     const admin = message.sender_type === "admin";
                     return (
                       <div key={message.id} className={`flex ${admin ? "justify-start" : "justify-end"}`}>
-                        <div className={`relative max-w-[82%] break-words rounded-2xl px-3 py-2 text-sm font-bold leading-relaxed shadow-sm sm:max-w-[70%] ${admin ? "rounded-bl-sm bg-[#005c4b] text-white after:absolute after:bottom-0 after:-left-1 after:h-3 after:w-3 after:bg-[#005c4b] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]" : "rounded-br-sm bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-right-1 after:h-3 after:w-3 after:bg-[#202c33] after:[clip-path:polygon(0_0,100%_100%,0_100%)]"}`}>
+                        <div className={`relative w-fit max-w-[72%] break-words rounded-[1.05rem] px-2 py-1 text-[15px] font-medium leading-5 shadow-sm ${admin ? "rounded-bl-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]" : "rounded-br-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(0_0,100%_100%,0_100%)]"}`}>
                           <AttachmentView message={message} />
                           {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
-                          <div className="mt-1 flex items-center justify-end gap-1 text-[10px] font-black opacity-60" dir="ltr">
-                            <span>{formatChatTime(message.created_at)}</span>
-                            {admin ? <span>{message.read_at ? "✓✓" : "✓"}</span> : null}
+                          <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
+                            <span>{formatMessageTime(message.created_at)}</span>
+                            {admin ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
                           </div>
                         </div>
                       </div>
@@ -366,9 +388,9 @@ export default function EmployeeChatInbox() {
                   </div>
                 )}
               </div>
-              <form ref={composerRef} onSubmit={sendMessage} className="sticky bottom-0 shrink-0 border-t border-white/10 bg-[#202c33] p-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+              <form ref={composerRef} onSubmit={sendMessage} className="sticky bottom-0 shrink-0 border-t border-white/10 bg-[#1f2c33] px-2.5 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5">
                 {attachment ? (
-                  <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
+                  <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-[11px] font-bold text-white">
                     <span className="min-w-0 truncate" dir="auto">{attachment.name}</span>
                     <button type="button" onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="inline-flex items-center gap-1 font-black text-red-200">
                       <X className="h-3 w-3" />
@@ -384,18 +406,18 @@ export default function EmployeeChatInbox() {
                     accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     onChange={chooseAttachment}
                   />
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="إرفاق ملف">
-                    <Paperclip className="h-5 w-5" />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="إرفاق ملف">
+                    <Paperclip className="h-4 w-4" />
                   </button>
                   <textarea
                     value={body}
                     onChange={(event) => setBody(event.target.value)}
                     onFocus={keepInputVisible}
                     placeholder="اكتب رد الإدارة..."
-                    className="min-h-12 flex-1 resize-none rounded-3xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
+                    className="min-h-11 flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-white/10 px-4 py-2.5 text-[13px] font-bold leading-5 text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
                     dir="auto"
                   />
-                  <button type="submit" disabled={sending || (!body.trim() && !attachment)} className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
+                  <button type="submit" disabled={sending || (!body.trim() && !attachment)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </button>
                 </div>

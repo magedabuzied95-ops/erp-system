@@ -87,7 +87,30 @@ self.addEventListener("push", (event) => {
     };
   }
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  const badgeTag = payload.data?.tag || payload.tag || "employee-portal";
+  const updateBadge = () => {
+    const badgeCount = Number(payload.badgeCount || payload.badge_count || 1);
+    if (self.navigator?.setAppBadge) {
+      return self.navigator.setAppBadge(Number.isFinite(badgeCount) && badgeCount > 0 ? badgeCount : 1).catch(() => null);
+    }
+    return Promise.resolve();
+  };
+  const broadcastBadge = () =>
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      clients.forEach((client) => {
+        client.postMessage({
+          type: "employee-portal:push-badge",
+          tag: badgeTag,
+          payload,
+        });
+      });
+    });
+
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, options),
+    updateBadge(),
+    broadcastBadge(),
+  ]));
 });
 
 self.addEventListener("notificationclick", (event) => {
