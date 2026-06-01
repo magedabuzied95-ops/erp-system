@@ -920,9 +920,12 @@ export default function EmployeePayrollPortal() {
   const requestSocketRef = useRef(null);
   const requestNoticeTimerRef = useRef(null);
   const chatFileInputRef = useRef(null);
+  const chatHeaderRef = useRef(null);
   const chatMessagesRef = useRef(null);
   const chatComposerRef = useRef(null);
   const { viewportHeight } = useViewportHeight();
+  const [chatHeaderHeight, setChatHeaderHeight] = useState(0);
+  const [chatComposerHeight, setChatComposerHeight] = useState(0);
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
@@ -1110,8 +1113,19 @@ export default function EmployeePayrollPortal() {
     () => ({
       height: viewportHeight ? `${viewportHeight}px` : "100dvh",
       minHeight: viewportHeight ? `${viewportHeight}px` : "100dvh",
+      maxHeight: viewportHeight ? `${viewportHeight}px` : "100dvh",
     }),
     [viewportHeight]
+  );
+  const chatMessagesStyle = useMemo(
+    () => ({
+      height: viewportHeight && chatHeaderHeight && chatComposerHeight
+        ? `${Math.max(viewportHeight - chatHeaderHeight - chatComposerHeight, 160)}px`
+        : undefined,
+      backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 0)",
+      backgroundSize: "18px 18px",
+    }),
+    [chatComposerHeight, chatHeaderHeight, viewportHeight]
   );
 
   useEffect(() => {
@@ -1293,13 +1307,45 @@ export default function EmployeePayrollPortal() {
     if (!chatOpen) return undefined;
     const bodyOverflow = document.body.style.overflow;
     const htmlOverflow = document.documentElement.style.overflow;
+    const bodyPosition = document.body.style.position;
+    const bodyTop = document.body.style.top;
+    const bodyWidth = document.body.style.width;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
     return () => {
       document.body.style.overflow = bodyOverflow;
       document.documentElement.style.overflow = htmlOverflow;
+      document.body.style.position = bodyPosition;
+      document.body.style.top = bodyTop;
+      document.body.style.width = bodyWidth;
+      window.scrollTo(0, scrollY);
     };
   }, [chatOpen]);
+
+  useEffect(() => {
+    if (!chatOpen) return undefined;
+    const updateChromeHeights = () => {
+      setChatHeaderHeight(Math.ceil(chatHeaderRef.current?.getBoundingClientRect?.().height || 0));
+      setChatComposerHeight(Math.ceil(chatComposerRef.current?.getBoundingClientRect?.().height || 0));
+    };
+    updateChromeHeights();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateChromeHeights) : null;
+    if (observer) {
+      if (chatHeaderRef.current) observer.observe(chatHeaderRef.current);
+      if (chatComposerRef.current) observer.observe(chatComposerRef.current);
+    }
+    window.addEventListener("orientationchange", updateChromeHeights);
+    window.visualViewport?.addEventListener("resize", updateChromeHeights);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("orientationchange", updateChromeHeights);
+      window.visualViewport?.removeEventListener("resize", updateChromeHeights);
+    };
+  }, [chatOpen, viewportHeight]);
 
   useEffect(() => {
     if (!chatOpen) return undefined;
@@ -2088,26 +2134,25 @@ export default function EmployeePayrollPortal() {
       {chatOpen ? (
         <div className="fixed inset-0 z-50 flex items-end overflow-hidden bg-slate-950/70 p-0 sm:items-center sm:p-4">
           <section className="flex w-full flex-col overflow-hidden rounded-t-3xl border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:mx-auto sm:max-w-md sm:rounded-3xl" style={chatPanelStyle} dir={direction}>
-            <header className="shrink-0 flex items-center justify-between gap-3 border-b border-white/10 bg-[#202c33] px-4 py-3">
-              <div>
-                <h2 className="text-xl font-black">{ui("chatTitle")}</h2>
-                <p className="mt-1 text-[11px] font-black text-emerald-200">{chatSocketConnected ? "متصل الآن" : "التحديث الاحتياطي يعمل"}</p>
+            <div ref={chatHeaderRef} className="sticky top-0 z-10 shrink-0 bg-[#0b141a] pt-[env(safe-area-inset-top)]">
+              <header className="flex min-h-16 items-center justify-between gap-3 border-b border-white/10 bg-[#202c33] px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <h2 className="break-words text-lg font-black leading-tight sm:text-xl">{ui("chatTitle")}</h2>
+                  <p className="mt-1 truncate text-[11px] font-black text-emerald-200">{chatSocketConnected ? "متصل الآن" : "التحديث الاحتياطي يعمل"}</p>
+                </div>
+                <button type="button" onClick={() => setChatOpen(false)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </header>
+              <div className="border-b border-white/5 bg-[#0b141a] px-4 py-2 text-center text-[11px] font-bold leading-5 text-slate-300">
+                {ui("chatSecureNotice")}
               </div>
-              <button type="button" onClick={() => setChatOpen(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white">
-                <X className="h-5 w-5" />
-              </button>
-            </header>
-            <div className="shrink-0 border-b border-white/5 bg-[#0b141a] px-4 py-2 text-center text-[11px] font-bold text-slate-300">
-              {ui("chatSecureNotice")}
+              {chatError ? <div className="mx-4 my-2 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
             </div>
-            {chatError ? <div className="mx-4 mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
             <div
               ref={chatMessagesRef}
-              className="min-h-0 flex-1 space-y-2 overflow-y-auto scroll-smooth p-4"
-              style={{
-                backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 0)",
-                backgroundSize: "18px 18px",
-              }}
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain scroll-smooth px-4 py-4"
+              style={chatMessagesStyle}
             >
               <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229] px-3 py-1 text-[11px] font-black text-slate-300">اليوم</div>
               {chatLoading ? (
@@ -2120,11 +2165,11 @@ export default function EmployeePayrollPortal() {
                   const employeeMessage = message.sender_type === "employee";
                   return (
                     <div key={message.id} className={`flex ${employeeMessage ? "justify-end" : "justify-start"}`}>
-                      <div className={`relative max-w-[84%] break-words rounded-2xl px-3 py-2 text-sm font-bold leading-relaxed shadow-sm sm:max-w-[74%] ${employeeMessage ? "rounded-br-sm bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-3 after:w-3 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-sm bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-3 after:w-3 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}>
-                        <div className="mb-1 text-[10px] font-black opacity-70">{employeeMessage ? ui("you") : ui("management")}</div>
+                      <div className={`relative max-w-[78%] break-words rounded-[1.35rem] px-4 py-3 text-[15px] font-bold leading-7 shadow-sm ${employeeMessage ? "rounded-br-md bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-3 after:w-3 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-md bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-3 after:w-3 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}>
+                        <div className="mb-1 text-[11px] font-black leading-4 opacity-70">{employeeMessage ? ui("you") : ui("management")}</div>
                         <ChatAttachment message={message} text={text} compact />
                         {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
-                        <div className="mt-1 flex items-center justify-end gap-1 text-[10px] font-black opacity-60" dir="ltr">
+                        <div className="mt-1.5 flex items-center justify-end gap-1 text-[10px] font-black leading-4 opacity-60" dir="ltr">
                           <span>{formatTimeLocal(message.created_at, language)}</span>
                           {employeeMessage ? <span>{message.read_at ? "✓✓" : "✓"}</span> : null}
                         </div>
@@ -2139,7 +2184,7 @@ export default function EmployeePayrollPortal() {
                 </div>
               )}
             </div>
-            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="sticky bottom-0 shrink-0 border-t border-white/10 bg-[#202c33] p-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="sticky bottom-0 z-10 shrink-0 border-t border-white/10 bg-[#202c33] px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
               {chatAttachment ? (
                 <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
                   <span className="min-w-0 truncate" dir="auto">{chatAttachment.name}</span>
@@ -2164,7 +2209,7 @@ export default function EmployeePayrollPortal() {
                   onChange={(event) => setChatBody(event.target.value)}
                   onFocus={keepChatInputVisible}
                   placeholder={ui("chatPlaceholder")}
-                  className="min-h-12 flex-1 resize-none rounded-3xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
+                  className="max-h-32 min-h-12 flex-1 resize-none rounded-3xl border border-white/10 bg-white/10 px-4 py-3 text-[15px] font-bold leading-6 text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
                   dir="auto"
                 />
                 <button type="submit" disabled={chatSaving || (!chatBody.trim() && !chatAttachment)} className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
