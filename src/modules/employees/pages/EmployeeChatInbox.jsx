@@ -573,7 +573,7 @@ export default function EmployeeChatInbox() {
                     onChange={(event) => { setBody(event.target.value); emitTyping(); }}
                     onFocus={keepInputVisible}
                     placeholder="اكتب رد الإدارة..."
-                    className="min-h-11 flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-white/10 px-4 py-2.5 text-[13px] font-bold leading-5 text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
+                    className="min-h-[42px] flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-white/10 px-4 py-[9px] !text-[16px] font-bold leading-[22px] text-white outline-none [transform:none] [zoom:1] placeholder:text-slate-400 focus:border-emerald-400"
                     dir="auto"
                   />
                   <button type="submit" disabled={sending || (!body.trim() && !attachment)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
