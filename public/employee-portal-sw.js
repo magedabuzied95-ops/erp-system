@@ -1,8 +1,10 @@
-const CACHE_NAME = "employee-portal-shell-v2";
+const CACHE_NAME = "employee-portal-shell-v3";
 const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",
-  "/favicon.svg"
+  "/favicon.svg",
+  "/icons/employee-portal-192.png",
+  "/icons/employee-portal-512.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -45,7 +47,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/assets/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/favicon.svg") {
+  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/favicon.svg") {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
@@ -67,12 +69,13 @@ self.addEventListener("push", (event) => {
     payload = { title: "تنبيه جديد", body: event.data?.text() || "" };
   }
 
-  const title = payload.title || "تنبيه مهام";
+  const title = payload.title || "تنبيه جديد";
   const options = {
     body: payload.body || "لديك تحديث جديد في بوابة الموظف.",
-    icon: "/favicon.svg",
-    badge: "/favicon.svg",
-    data: payload.data || {}
+    icon: "/icons/employee-portal-192.png",
+    badge: "/icons/employee-portal-192.png",
+    tag: payload.data?.tag || payload.tag || "employee-portal",
+    data: payload.data || {},
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -80,11 +83,15 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/";
+  const data = event.notification.data || {};
+  const url = data.url || (data.token ? `/employee-portal/${encodeURIComponent(data.token)}${data.tab ? `?tab=${encodeURIComponent(data.tab)}` : ""}` : "/employee-portal/");
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      const existing = clients.find((client) => client.url.includes("/employee/portal/"));
-      if (existing) return existing.focus();
+      const existing = clients.find((client) => client.url.includes("/employee/portal/") || client.url.includes("/employee-portal/"));
+      if (existing) {
+        existing.navigate?.(url);
+        return existing.focus();
+      }
       return self.clients.openWindow(url);
     })
   );

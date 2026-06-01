@@ -1,15 +1,13 @@
 import express from "express";
 import {
-  getEmployeePortalPushKey,
-  subscribeEmployeePortalPushEndpoint,
-  unsubscribeEmployeePortalPushEndpoint,
-} from "../controllers/staffTasksController.js";
-import {
   buildEmployeePayrollPortalPayload,
   createEmployeePortalRequest,
+  getEmployeePortalPushPublicKey,
   loadEmployeePortalByToken,
   recordEmployeePortalAudit,
   recordEmployeePortalAttendance,
+  subscribeEmployeePortalPush,
+  unsubscribeEmployeePortalPush,
   updateEmployeeWalletTaskStatus,
 } from "../services/employeePayrollPortalService.js";
 import { isPerfDebugEnabled, logPerfTiming } from "../utils/perfDebug.js";
@@ -69,6 +67,34 @@ const invalidTokenResponse = (req, res, token) => {
     message: invalidPortalLinkMessage,
   });
 };
+
+const employeePortalManifest = (token) => ({
+  name: "بوابة الموظف",
+  short_name: "بوابة الموظف",
+  description: "بوابة الموظف لمتابعة المهام والطلبات والراتب.",
+  start_url: `/employee-portal/${encodeURIComponent(token)}?source=pwa`,
+  scope: "/employee-portal/",
+  display: "standalone",
+  orientation: "portrait",
+  dir: "rtl",
+  lang: "ar",
+  background_color: "#f1f5f9",
+  theme_color: "#0f172a",
+  icons: [
+    {
+      src: "/icons/employee-portal-192.png",
+      sizes: "192x192",
+      type: "image/png",
+      purpose: "any maskable",
+    },
+    {
+      src: "/icons/employee-portal-512.png",
+      sizes: "512x512",
+      type: "image/png",
+      purpose: "any maskable",
+    },
+  ],
+});
 
 const employeeNotFoundResponse = (req, res, token) => {
   logPortalTokenDebug({
@@ -285,8 +311,77 @@ router.patch("/:token/tasks/:id/status", async (req, res) => {
   }
 });
 
-router.get("/:token/push/public-key", getEmployeePortalPushKey);
-router.post("/:token/push/subscribe", subscribeEmployeePortalPushEndpoint);
-router.delete("/:token/push/unsubscribe", unsubscribeEmployeePortalPushEndpoint);
+router.get("/:token/manifest.webmanifest", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    return res.json(employeePortalManifest(String(req.params.token || "").trim()));
+  } catch (error) {
+    console.error("[employee-payroll-portal] manifest error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load employee portal manifest" });
+  }
+});
+
+router.get("/:token/push/public-key", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const payload = await getEmployeePortalPushPublicKey();
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error("[employee-payroll-portal] push key error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load push key" });
+  }
+});
+
+router.post("/:token/push/subscribe", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const result = await subscribeEmployeePortalPush({
+      employee,
+      subscription: req.body?.subscription || req.body || {},
+      userAgent: req.get?.("user-agent") || "",
+      portalUrl: req.body?.portal_url || req.body?.portalUrl || "",
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    console.error("[employee-payroll-portal] push subscribe error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save push subscription" });
+  }
+});
+
+router.post("/:token/push/unsubscribe", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const subscription = req.body?.subscription || {};
+    const result = await unsubscribeEmployeePortalPush({
+      employee,
+      endpoint: req.body?.endpoint || subscription.endpoint || "",
+    });
+    return res.json({ success: true, subscription: result });
+  } catch (error) {
+    console.error("[employee-payroll-portal] push unsubscribe error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to remove push subscription" });
+  }
+});
+
+router.delete("/:token/push/unsubscribe", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const result = await unsubscribeEmployeePortalPush({
+      employee,
+      endpoint: req.body?.endpoint || req.query?.endpoint || "",
+    });
+    return res.json({ success: true, subscription: result });
+  } catch (error) {
+    console.error("[employee-payroll-portal] push unsubscribe error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to remove push subscription" });
+  }
+});
 
 export default router;

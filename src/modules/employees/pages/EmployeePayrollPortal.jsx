@@ -403,6 +403,27 @@ const browserTimeZone = () => {
   }
 };
 
+const isBrowser = () => typeof window !== "undefined" && typeof navigator !== "undefined";
+
+const isStandaloneApp = () => {
+  if (!isBrowser()) return false;
+  return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
+};
+
+const isIosDevice = () => {
+  if (!isBrowser()) return false;
+  return /iphone|ipad|ipod/i.test(window.navigator.userAgent || "");
+};
+
+const pushSupported = () => isBrowser() && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+
+const urlBase64ToUint8Array = (base64String = "") => {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = `${base64String}${padding}`.replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+};
+
 const parseSafeDate = (value) => {
   if (!value || value === "-") return null;
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -765,9 +786,52 @@ export default function EmployeePayrollPortal() {
   const [optionalLoaded, setOptionalLoaded] = useState(false);
   const [earlyCheckoutOpen, setEarlyCheckoutOpen] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
+  const [standalone, setStandalone] = useState(() => isStandaloneApp());
+  const [notificationState, setNotificationState] = useState(() => {
+    if (!pushSupported()) return "unsupported";
+    return window.Notification.permission;
+  });
+  const [notificationSaving, setNotificationSaving] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
+
+  useEffect(() => {
+    if (!isBrowser() || !("serviceWorker" in navigator)) return undefined;
+    navigator.serviceWorker.register("/employee-portal-sw.js").catch((err) => {
+      console.warn("[employee-payroll-portal] service worker registration failed", err);
+    });
+    return undefined;
+  }, []);
+
+  useEffect(() => {
+    if (!isBrowser() || !token) return undefined;
+    let link = document.querySelector('link[rel="manifest"]');
+    const previousHref = link?.getAttribute("href") || "/manifest.webmanifest";
+    if (!link) {
+      link = document.createElement("link");
+      link.setAttribute("rel", "manifest");
+      document.head.appendChild(link);
+    }
+    link.setAttribute("href", `/api/employee-portal/${encodeURIComponent(token)}/manifest.webmanifest`);
+    return () => {
+      link?.setAttribute("href", previousHref);
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!isBrowser()) return undefined;
+    const media = window.matchMedia?.("(display-mode: standalone)");
+    const updateStandalone = () => setStandalone(isStandaloneApp());
+    updateStandalone();
+    media?.addEventListener?.("change", updateStandalone);
+    window.addEventListener("appinstalled", updateStandalone);
+    return () => {
+      media?.removeEventListener?.("change", updateStandalone);
+      window.removeEventListener("appinstalled", updateStandalone);
+    };
+  }, []);
 
   useEffect(() => {
     const onBeforeInstall = (event) => {
@@ -781,6 +845,12 @@ export default function EmployeePayrollPortal() {
   useEffect(() => {
     const timer = window.setInterval(() => setNowTick(Date.now()), 60000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isBrowser()) return;
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (["home", "attendance", "tasks", "requests", "salary"].includes(tab)) setActiveTab(tab);
   }, []);
 
   useEffect(() => {
@@ -840,6 +910,7 @@ export default function EmployeePayrollPortal() {
   const employeeRequests = safeArray(portal?.employee_requests);
   const currentShift = portal?.currentShift || profile.currentShift || {};
   const ui = (key) => text[key] || labels.en[key] || key;
+  const showInstallCard = !standalone && (Boolean(installPrompt) || isIosDevice());
   const tasks = safeArray(portal?.tasks);
   const todayKey = todayIsoLocal(language);
   const todayAttendance = attendanceRows.find((row) => attendanceLocalDate(row, language) === todayKey) || attendanceRows[0] || {};
@@ -927,6 +998,7 @@ export default function EmployeePayrollPortal() {
     installPrompt.prompt();
     await installPrompt.userChoice.catch(() => null);
     setInstallPrompt(null);
+    setStandalone(isStandaloneApp());
   };
 
   const downloadPayslip = () => {
@@ -959,6 +1031,50 @@ export default function EmployeePayrollPortal() {
   const shareWhatsapp = () => {
     const message = encodeURIComponent(`${text.title}\n${profile.name || ""}\n${window.location.href}`);
     window.open(`https://wa.me/?text=${message}`, "_blank", "noopener,noreferrer");
+  };
+
+  const enableNotifications = async () => {
+    if (!pushSupported()) {
+      setNotificationState("unsupported");
+      setNotificationMessage("الإشعارات غير مدعومة على هذا المتصفح.");
+      return;
+    }
+    try {
+      setNotificationSaving(true);
+      setNotificationMessage("");
+      const permission = window.Notification.permission === "default"
+        ? await window.Notification.requestPermission()
+        : window.Notification.permission;
+      setNotificationState(permission);
+      if (permission !== "granted") {
+        setNotificationMessage("فعّل الإشعارات من إعدادات المتصفح لاستقبال التنبيهات.");
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const keyResponse = await api.get(`/employee-portal/${encodeURIComponent(token)}/push/public-key`);
+      const publicKey = keyResponse?.publicKey || "";
+      if (!publicKey) {
+        setNotificationMessage("الإشعارات جاهزة على الجهاز، لكن مفاتيح الإرسال غير مفعلة على الخادم.");
+        return;
+      }
+      const existing = await registration.pushManager.getSubscription();
+      const subscription = existing || await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+      await api.post(`/employee-portal/${encodeURIComponent(token)}/push/subscribe`, {
+        subscription: subscription.toJSON(),
+        portal_url: window.location.href,
+      });
+      setNotificationState("granted");
+      setNotificationMessage("الإشعارات مفعلة");
+    } catch (err) {
+      console.warn("[employee-payroll-portal] push subscription failed", err);
+      setNotificationMessage(err?.responseBody?.message || err?.message || "تعذر تفعيل الإشعارات الآن.");
+    } finally {
+      setNotificationSaving(false);
+    }
   };
 
   const submitAttendanceAction = async (actionType) => {
@@ -1067,7 +1183,7 @@ export default function EmployeePayrollPortal() {
   };
 
   return (
-    <main dir={direction} className="min-h-[100dvh] overflow-x-hidden bg-slate-100 px-3 py-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] text-slate-950">
+    <main dir={direction} className="min-h-[100dvh] overflow-x-hidden bg-slate-100 px-3 pb-[calc(8.5rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] text-slate-950">
       <div className="mx-auto max-w-md">
         <header className="flex items-center justify-between gap-3 py-1">
           <div className="flex items-center gap-2 text-sm font-black text-slate-700">
@@ -1110,6 +1226,51 @@ export default function EmployeePayrollPortal() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {showInstallCard ? (
+              <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+                    <Smartphone className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-black">بوابة الموظف كتطبيق</h3>
+                    <p className="mt-1 text-xs font-bold leading-5 text-emerald-800">
+                      {isIosDevice()
+                        ? "على iPhone: اضغط مشاركة ثم Add to Home Screen ثم افتح التطبيق من الأيقونة وفعّل الإشعارات."
+                        : "أضف بوابة الموظف إلى الشاشة الرئيسية لتعمل كتطبيق مستقل."}
+                    </p>
+                    {installPrompt ? (
+                      <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 text-xs font-black text-white">
+                        <Download className="h-4 w-4" />
+                        {text.addHome}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-black text-slate-950">
+                    {notificationState === "granted" ? "الإشعارات مفعلة" : "فعّل الإشعارات لاستقبال تنبيهات المهام والطلبات والراتب"}
+                  </h3>
+                  <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+                    {isIosDevice() && !standalone
+                      ? "على iPhone: اضغط مشاركة ثم Add to Home Screen ثم افتح التطبيق من الأيقونة وفعّل الإشعارات."
+                      : notificationMessage || (notificationState === "unsupported" ? "الإشعارات غير مدعومة على هذا الجهاز." : "سنرسل تنبيهًا عند تعيين مهمة أو تحديث طلب أو إنشاء الراتب.")}
+                  </p>
+                </div>
+                {notificationState !== "granted" && notificationState !== "unsupported" ? (
+                  <button type="button" onClick={enableNotifications} disabled={notificationSaving} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
+                    {notificationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                    تفعيل الإشعارات
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -1160,7 +1321,7 @@ export default function EmployeePayrollPortal() {
               </>
             ) : null}
 
-            <nav className="fixed inset-x-3 bottom-3 z-40 mx-auto grid max-w-md grid-cols-5 gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur">
+            <nav className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 mx-auto grid max-w-md grid-cols-5 gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur">
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}
