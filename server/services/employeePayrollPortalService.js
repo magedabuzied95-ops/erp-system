@@ -140,6 +140,9 @@ export const warmEmployeePayrollPortalMetadataCache = async (clientOrPool = db) 
 const optionalEmployeeColumn = (columns, name) =>
   columns.has(name) ? `e.${name}` : `NULL::text`;
 
+const optionalEmployeeTextColumn = (columns, name, alias = name) =>
+  columns.has(name) ? `e.${name}::text AS ${alias}` : `NULL::text AS ${alias}`;
+
 const monthBounds = (month = "", timeZone = "Africa/Cairo") => {
   const normalized = /^\d{4}-\d{2}$/.test(String(month || "")) ? String(month).slice(0, 7) : localIsoDate(new Date(), timeZone).slice(0, 7);
   const start = `${normalized}-01`;
@@ -681,6 +684,7 @@ export const loadEmployeePortalByToken = async (token) => {
       e.id,
       e.tenant_id,
       e.employee_code,
+      ${optionalEmployeeTextColumn(columns, "employee_code_display")},
       e.full_name,
       ${optionalEmployeeColumn(columns, "phone")} AS phone,
       ${optionalEmployeeColumn(columns, "mobile")} AS mobile,
@@ -688,6 +692,9 @@ export const loadEmployeePortalByToken = async (token) => {
       e.job_title,
       e.position,
       e.salary,
+      e.status,
+      COALESCE(e.is_deleted, FALSE) AS is_deleted,
+      e.employee_portal_token,
       e.branch_id,
       b.name AS branch_name
     FROM employees e
@@ -699,6 +706,53 @@ export const loadEmployeePortalByToken = async (token) => {
     [token]
   );
   return result.rows[0] || null;
+};
+
+export const diagnoseEmployeePortalIdentifier = async (identifier = "") => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const input = clean(identifier);
+  const inputPhone = normalizePhone(input);
+  if (!input) return { reason: "employee_not_found", matched_employee_id: null };
+  const columns = await getEmployeeColumns(db);
+  const result = await db.query(
+    `
+    SELECT
+      e.id,
+      e.tenant_id,
+      e.employee_code,
+      ${optionalEmployeeTextColumn(columns, "employee_code_display")},
+      e.full_name,
+      ${optionalEmployeeColumn(columns, "phone")} AS phone,
+      ${optionalEmployeeColumn(columns, "mobile")} AS mobile,
+      ${optionalEmployeeColumn(columns, "phone_number")} AS phone_number,
+      e.status,
+      COALESCE(e.is_deleted, FALSE) AS is_deleted,
+      e.branch_id,
+      e.employee_portal_token
+    FROM employees e
+    WHERE COALESCE(e.is_deleted, FALSE) = FALSE
+      AND (
+        LOWER(COALESCE(e.employee_code, '')) = LOWER($1)
+        OR LOWER(COALESCE(${columns.has("employee_code_display") ? "e.employee_code_display::text" : "NULL::text"}, '')) = LOWER($1)
+        OR regexp_replace(COALESCE(${columns.has("phone") ? "e.phone" : "NULL::text"}, ''), '\\D', '', 'g') = $2
+        OR regexp_replace(COALESCE(${columns.has("mobile") ? "e.mobile" : "NULL::text"}, ''), '\\D', '', 'g') = $2
+        OR regexp_replace(COALESCE(${columns.has("phone_number") ? "e.phone_number" : "NULL::text"}, ''), '\\D', '', 'g') = $2
+      )
+    ORDER BY
+      CASE WHEN LOWER(COALESCE(e.employee_code, '')) = LOWER($1) THEN 0 ELSE 1 END,
+      e.id DESC
+    LIMIT 1
+    `,
+    [input, inputPhone || "__no_phone_match__"]
+  );
+  const employee = result.rows[0] || null;
+  if (!employee) return { reason: "employee_not_found", matched_employee_id: null };
+  if (String(employee.status || "").toLowerCase() !== "active") return { reason: "inactive_employee", matched_employee_id: employee.id, employee };
+  if (!clean(employee.employee_portal_token) || clean(employee.employee_portal_token).length < 32) return { reason: "missing_portal_token", matched_employee_id: employee.id, employee };
+  const hasPhone = [employee.phone, employee.mobile, employee.phone_number].some((value) => normalizePhone(value));
+  if (!hasPhone && inputPhone && clean(employee.employee_code).toLowerCase() !== input.toLowerCase()) return { reason: "missing_phone", matched_employee_id: employee.id, employee };
+  if (!employee.branch_id) return { reason: "branch_missing", matched_employee_id: employee.id, employee };
+  return { reason: "", matched_employee_id: employee.id, employee };
 };
 
 export const getEmployeePortalVerificationResult = (employee, verification) => {
@@ -720,6 +774,16 @@ export const getEmployeePortalVerificationResult = (employee, verification) => {
       ok: true,
       reason: "",
       matchedField: "employee_code",
+      normalizedInputPhone: inputPhone,
+    };
+  }
+
+  const displayCode = clean(employee?.employee_code_display).toLowerCase();
+  if (displayCode && normalizedInput === displayCode) {
+    return {
+      ok: true,
+      reason: "",
+      matchedField: "employee_code_display",
       normalizedInputPhone: inputPhone,
     };
   }

@@ -7,6 +7,7 @@ import {
 import {
   buildEmployeePayrollPortalPayload,
   createEmployeePortalRequest,
+  diagnoseEmployeePortalIdentifier,
   getEmployeePortalVerificationResult,
   loadEmployeePortalByToken,
   recordEmployeePortalAudit,
@@ -55,7 +56,8 @@ const portalVerificationFromRequest = (req) =>
   "";
 
 const walletDebugEnabled = () =>
-  ["1", "true", "yes", "on"].includes(String(process.env.DEBUG_EMPLOYEE_PORTAL || "").toLowerCase());
+  ["1", "true", "yes", "on"].includes(String(process.env.DEBUG_EMPLOYEE_PORTAL || "").toLowerCase()) ||
+  String(process.env.NODE_ENV || "development").toLowerCase() !== "production";
 
 const nowMs = () => Number(process.hrtime.bigint() / 1000000n);
 
@@ -79,16 +81,39 @@ const auditContextFromRequest = (req) => ({
   },
 });
 
-const logVerificationDebug = ({ req, token, enteredIdentifier = "", employee = null, matchedEmployeeId = null, reason = "", matchedField = "" }) => {
+const logVerificationDebug = ({ req, token, enteredIdentifier = "", employee = null, matchedEmployeeId = null, reason = "", matchedField = "", diagnostic = null }) => {
   if (!walletDebugEnabled()) return;
   console.info("[employee-payroll-portal] verification", {
     requestId: req.id,
-    token,
+    tokenSuffix: String(token || "").slice(-8),
     enteredIdentifier,
     matchedEmployeeId: matchedEmployeeId || employee?.id || null,
+    tokenEmployeeId: employee?.id || null,
+    tokenEmployeeCode: employee?.employee_code || null,
+    tokenEmployeeStatus: employee?.status || null,
+    tokenEmployeeHasPhone: Boolean(employee?.phone || employee?.mobile || employee?.phone_number),
+    tokenEmployeeBranchId: employee?.branch_id || null,
     matchedField,
     failureReason: reason || "",
+    diagnostic,
   });
+};
+
+const employeePortalDiagnostic = async ({ verification = "", employee = null } = {}) => {
+  const diagnostic = await diagnoseEmployeePortalIdentifier(verification).catch((error) => ({
+    reason: "employee_not_found",
+    diagnostic_error: error?.message || String(error),
+  }));
+  return {
+    reason: diagnostic.reason || "verification_failed",
+    matched_employee_id: diagnostic.matched_employee_id || null,
+    token_employee_id: employee?.id || null,
+    identifier_matches_token_employee: String(diagnostic.matched_employee_id || "") === String(employee?.id || ""),
+    matched_employee_code: diagnostic.employee?.employee_code || null,
+    matched_employee_status: diagnostic.employee?.status || null,
+    matched_employee_branch_id: diagnostic.employee?.branch_id || null,
+    matched_employee_has_token: Boolean(diagnostic.employee?.employee_portal_token),
+  };
 };
 
 const invalidTokenResponse = (req, res, token) => {
@@ -159,6 +184,16 @@ const loadVerifiedEmployee = async (req, res) => {
   const verification = portalVerificationFromRequest(req);
   const verificationResult = getEmployeePortalVerificationResult(employee, verification);
   if (!verificationResult.ok) {
+    const diagnostic = await employeePortalDiagnostic({ verification, employee });
+    logVerificationDebug({
+      req,
+      token,
+      enteredIdentifier: verification,
+      employee,
+      matchedEmployeeId: diagnostic.matched_employee_id,
+      reason: diagnostic.reason,
+      diagnostic,
+    });
     const failed = recordFailure(key);
     verificationFailedResponse(req, res, { token, employee, verification, failed });
     return null;
@@ -218,6 +253,16 @@ router.get("/:token", async (req, res) => {
     const verificationResult = getEmployeePortalVerificationResult(employee, verification);
     markPortalTiming(timings, "verification_ms", sectionStartedAt);
     if (!verificationResult.ok) {
+      const diagnostic = await employeePortalDiagnostic({ verification, employee });
+      logVerificationDebug({
+        req,
+        token,
+        enteredIdentifier: verification,
+        employee,
+        matchedEmployeeId: diagnostic.matched_employee_id,
+        reason: diagnostic.reason,
+        diagnostic,
+      });
       const failed = recordFailure(key);
       timings.total_ms = nowMs() - totalStartedAt;
       logPortalPerf("GET /api/employee-portal/:token", timings, { requestId: req.id, failed: true, reason: "verification_failed" });

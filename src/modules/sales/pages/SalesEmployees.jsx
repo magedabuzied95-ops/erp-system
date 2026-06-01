@@ -396,7 +396,10 @@ function SalesEmployees({ defaultTab = "staff" }) {
     const origin = String(import.meta.env.VITE_PUBLIC_APP_URL || import.meta.env.PUBLIC_APP_URL || window.location.origin || "").replace(/\/+$/, "");
     return `${origin}/employee-portal/${encodeURIComponent(token)}`;
   }, [payrollEmployee?.employee_portal_token]);
-  const effectivePayrollPortalUrl = portalQrUrl || payrollPortalUrl;
+  useEffect(() => {
+    setPortalQrUrl("");
+  }, [payrollEmployee?.id]);
+  const effectivePayrollPortalUrl = payrollPortalUrl || portalQrUrl;
   const pendingPortalRequestCount = useMemo(
     () => portalRequests.filter((request) => String(request.status || "").toLowerCase() === "pending").length,
     [portalRequests]

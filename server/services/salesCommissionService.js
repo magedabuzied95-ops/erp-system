@@ -1255,6 +1255,7 @@ export const listSalesEmployees = async ({ tenantId = null, includeInactive = fa
       e.employee_code AS code,
       e.phone,
       e.email,
+      e.employee_portal_token,
       e.role,
       e.salary AS base_salary,
       e.status AS employee_status,
