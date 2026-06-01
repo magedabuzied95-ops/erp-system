@@ -543,6 +543,15 @@ const writeBadgeSet = (token = "", scope = "", values = []) => {
   }
 };
 
+const postEmployeeBadgeMessage = (message = {}) => {
+  if (!isBrowser() || !navigator.serviceWorker?.controller) return;
+  try {
+    navigator.serviceWorker.controller.postMessage(message);
+  } catch {
+    // Service worker badge sync is best-effort only.
+  }
+};
+
 const parseSafeDate = (value) => {
   if (!value || value === "-") return null;
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -883,16 +892,34 @@ function TimelineItem({ item, text, language }) {
   );
 }
 
-function ChatAttachment({ message, text, compact = false }) {
+function chatMessagePreview(message = {}, text = {}) {
+  const body = String(message.body || message.reply_body || "").trim();
+  if (body) return body.length > 80 ? `${body.slice(0, 77)}...` : body;
+  const type = message.attachment_type || message.reply_attachment_type;
+  if (type === "image") return text.imageAttachment || "صورة";
+  if (type === "audio") return "رسالة صوتية";
+  if (message.attachment_url || message.reply_attachment_name) return text.fileAttachment || "ملف";
+  return "رسالة";
+}
+
+function ChatAttachment({ message, text, compact = false, onImageClick }) {
   if (!message?.attachment_url) return null;
   const href = chatAttachmentUrl(message.attachment_url);
   const isImage = message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
+  const isAudio = message.attachment_type === "audio" || String(message.attachment_mime || "").startsWith("audio/");
   const name = message.attachment_name || (isImage ? text.imageAttachment : text.fileAttachment);
   if (isImage) {
     return (
-      <a href={href} target="_blank" rel="noreferrer" className="mb-2 block overflow-hidden rounded-2xl border border-black/5 bg-black/5">
+      <button type="button" onClick={() => onImageClick?.(href)} className="mb-2 block overflow-hidden rounded-2xl border border-black/5 bg-black/5 text-start">
         <img src={href} alt={name} className={`${compact ? "max-h-56" : "max-h-64"} w-full object-cover`} />
-      </a>
+      </button>
+    );
+  }
+  if (isAudio) {
+    return (
+      <div className="mb-2 rounded-2xl border border-black/10 bg-black/5 p-2">
+        <audio controls src={href} className="h-9 w-56 max-w-full" />
+      </div>
     );
   }
   return (
@@ -944,6 +971,12 @@ export default function EmployeePayrollPortal() {
   const [chatError, setChatError] = useState("");
   const [chatBody, setChatBody] = useState("");
   const [chatAttachment, setChatAttachment] = useState(null);
+  const [chatThread, setChatThread] = useState(null);
+  const [replyToChat, setReplyToChat] = useState(null);
+  const [chatImagePreview, setChatImagePreview] = useState("");
+  const [chatTyping, setChatTyping] = useState(false);
+  const [showChatJump, setShowChatJump] = useState(false);
+  const [recordingState, setRecordingState] = useState({ active: false, seconds: 0, supported: false });
   const [chatSocketConnected, setChatSocketConnected] = useState(false);
   const [requestRealtimeNotice, setRequestRealtimeNotice] = useState("");
   const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0 });
@@ -954,12 +987,21 @@ export default function EmployeePayrollPortal() {
   const chatHeaderRef = useRef(null);
   const chatMessagesRef = useRef(null);
   const chatComposerRef = useRef(null);
+  const chatTypingTimerRef = useRef(null);
+  const chatTypingStopRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const recordingChunksRef = useRef([]);
+  const recordingTimerRef = useRef(null);
   const { viewportHeight } = useViewportHeight();
   const [chatHeaderHeight, setChatHeaderHeight] = useState(0);
   const [chatComposerHeight, setChatComposerHeight] = useState(0);
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
+
+  useEffect(() => {
+    setRecordingState((current) => ({ ...current, supported: isBrowser() && Boolean(window.MediaRecorder && navigator.mediaDevices?.getUserMedia) }));
+  }, []);
 
   useEffect(() => {
     if (!isBrowser() || !("serviceWorker" in navigator)) return undefined;
@@ -1177,7 +1219,8 @@ export default function EmployeePayrollPortal() {
 
   useEffect(() => {
     setEmployeeAppBadge(totalBadgeCount);
-  }, [totalBadgeCount]);
+    postEmployeeBadgeMessage({ type: "employee-portal:badge-sync", counts: badgeCounts });
+  }, [badgeCounts, totalBadgeCount]);
 
   useEffect(() => {
     if (!portal || !token) return undefined;
@@ -1198,6 +1241,7 @@ export default function EmployeePayrollPortal() {
   useEffect(() => {
     if (!token || activeTab !== "requests") return undefined;
     writeBadgeSet(token, "requests", requestBadgeIds);
+    postEmployeeBadgeMessage({ type: "employee-portal:badge-clear", scope: "requests" });
     setBadgeCounts((current) => ({ ...current, pendingNotifications: 0 }));
     return undefined;
   }, [activeTab, requestBadgeSignature, token]);
@@ -1205,12 +1249,14 @@ export default function EmployeePayrollPortal() {
   useEffect(() => {
     if (!token || activeTab !== "tasks") return undefined;
     writeBadgeSet(token, "tasks", taskBadgeIds);
+    postEmployeeBadgeMessage({ type: "employee-portal:badge-clear", scope: "tasks" });
     setBadgeCounts((current) => ({ ...current, newTasks: 0 }));
     return undefined;
   }, [activeTab, taskBadgeSignature, token]);
 
   useEffect(() => {
     if (!chatOpen) return undefined;
+    postEmployeeBadgeMessage({ type: "employee-portal:badge-clear", scope: "chat" });
     setBadgeCounts((current) => ({ ...current, unreadChats: 0 }));
     return undefined;
   }, [chatOpen]);
