@@ -8,6 +8,7 @@ import { createNotification } from "./notificationsService.js";
 import { listStaffTasks, updateStaffTaskStatus } from "./staffTasksService.js";
 import { ensureShiftResolutionSchema, resolveShiftForCheckIn } from "./attendanceShiftResolver.js";
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
+import { emitToRooms } from "../utils/socket.js";
 
 const tokenBytes = 32;
 
@@ -2183,32 +2184,57 @@ export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, 
     });
   }
   const isAdvanceRequest = request.request_type === "advance";
+  const isLeaveRequest = request.request_type === "vacation" || request.request_type === "leave";
   const advanceAmount = toNumber(request.amount);
   const requestPushTitle = isAdvanceRequest
     ? nextStatus === "approved"
       ? "تمت الموافقة على السلفة"
-      : "تم رفض طلب السلفة"
-    : "تحديث طلبك";
+      : "❌ تم رفض السلفة"
+    : isLeaveRequest
+      ? nextStatus === "approved"
+        ? "تمت الموافقة على الإجازة"
+        : "❌ تم رفض الإجازة"
+      : "تحديث طلب الموارد البشرية";
   const requestPushBody = isAdvanceRequest
     ? nextStatus === "approved"
-      ? `تمت الموافقة على طلب السلفة بقيمة ${advanceAmount} جنيه`
-      : `تم رفض طلب السلفة بقيمة ${advanceAmount} جنيه`
-    : nextStatus === "approved"
-      ? "تم قبول طلبك من الإدارة."
-      : "تم رفض طلبك من الإدارة.";
+      ? `تمت الموافقة على طلب السلفة بقيمة ${advanceAmount} جنيه.`
+      : "تم رفض طلب السلفة. راجع الإدارة لمعرفة التفاصيل."
+    : isLeaveRequest
+      ? nextStatus === "approved"
+        ? "تم اعتماد طلب الإجازة الخاص بك."
+        : "تم رفض طلب الإجازة."
+      : "تم تحديث طلبك من الإدارة.";
+  const requestPushEvent = isAdvanceRequest
+    ? `advance_${nextStatus}`
+    : isLeaveRequest
+      ? `leave_${nextStatus}`
+      : `request_${nextStatus}`;
+  const requestPushTag = isAdvanceRequest
+    ? `advance-${nextStatus}`
+    : isLeaveRequest
+      ? `leave-${nextStatus}`
+      : `employee-request-${request.id}-${nextStatus}`;
   await sendEmployeePortalPush({
     tenantId: request.tenant_id,
     employeeId: request.employee_id,
     title: requestPushTitle,
     body: requestPushBody,
     url: employeePortalToken ? `/employee-app/${encodeURIComponent(employeePortalToken)}?tab=requests` : "",
-    tag: `employee-request-${request.id}-${nextStatus}`,
+    tag: requestPushTag,
     data: {
-      event: isAdvanceRequest ? `advance_${nextStatus}` : `request_${nextStatus}`,
+      event: requestPushEvent,
       request_id: request.id,
       request_type: request.request_type,
       tab: "requests",
     },
   }).catch((error) => debugEmployeePortal("[employee-portal-push] request review skipped", { error: error?.message || error }));
+  const requestUpdatePayload = {
+    employee_id: request.employee_id,
+    request_id: request.id,
+    request_type: request.request_type,
+    status: request.status,
+    message: requestPushBody,
+  };
+  emitToRooms([`employee:${request.employee_id}`], "employee_portal:request_updated", requestUpdatePayload);
   return { ...request, created_advance: advance };
 };

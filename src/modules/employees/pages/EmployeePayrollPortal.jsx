@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
@@ -889,7 +889,10 @@ export default function EmployeePayrollPortal() {
   const [chatBody, setChatBody] = useState("");
   const [chatAttachment, setChatAttachment] = useState(null);
   const [chatSocketConnected, setChatSocketConnected] = useState(false);
+  const [requestRealtimeNotice, setRequestRealtimeNotice] = useState("");
   const chatSocketRef = useRef(null);
+  const requestSocketRef = useRef(null);
+  const requestNoticeTimerRef = useRef(null);
   const chatFileInputRef = useRef(null);
   const text = labels[language];
   const isRtl = language === "ar";
@@ -972,49 +975,55 @@ export default function EmployeePayrollPortal() {
     if (["home", "attendance", "tasks", "requests", "salary"].includes(tab)) setActiveTab(tab);
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    const loadByToken = async () => {
+  const loadPortalByToken = useCallback(
+    async ({ silent = false, clearNotice = true, activeRef = null } = {}) => {
       if (!token) {
-        setLoading(false);
+        if (!silent) setLoading(false);
         setError(text.invalidLink || labels.en.invalidLink);
         return;
       }
       const startedAt = safeNow();
       try {
-        setLoading(true);
+        if (!silent) setLoading(true);
         setError("");
         const response = await api.get(`/employee-portal/${encodeURIComponent(token)}`, {
           params: { timezone: browserTimeZone() },
           suppressErrorStatuses: [400, 404, 429],
         });
-        if (!active) return;
+        if (activeRef && !activeRef.current) return;
         setPortal(response.portal || null);
         if (response.portal && isBrowser()) {
           window.localStorage?.setItem("employee_portal_last_url", `/employee-app/${encodeURIComponent(token)}${window.location.search}`);
         }
         setOptionalLoaded(false);
-        setPortalNotice("");
+        if (clearNotice) setPortalNotice("");
         logPagePerf("employee-wallet.token-load", startedAt, {
           payroll_generated: Boolean(response.portal?.payroll_generated),
+          silent,
         });
       } catch (err) {
-        if (!active) return;
-        setPortal(null);
+        if (activeRef && !activeRef.current) return;
+        if (!silent) setPortal(null);
         setError(err?.responseBody?.message || err?.message || text.invalidLink || labels.en.invalidLink);
         logPagePerf("employee-wallet.token-load", startedAt, {
           failed: true,
           status: err?.status || err?.responseBody?.status,
+          silent,
         });
       } finally {
-        if (active) setLoading(false);
+        if (!silent && (!activeRef || activeRef.current)) setLoading(false);
       }
-    };
-    loadByToken();
+    },
+    [token, text]
+  );
+
+  useEffect(() => {
+    const activeRef = { current: true };
+    loadPortalByToken({ activeRef });
     return () => {
-      active = false;
+      activeRef.current = false;
     };
-  }, [token, language]);
+  }, [loadPortalByToken]);
 
   const wallet = portal?.wallet_summary || {};
   const payrollExists = Boolean(
@@ -1064,6 +1073,44 @@ export default function EmployeePayrollPortal() {
   const walletTransactions = safeArray(portal?.recent_wallet_transactions);
   const lazyWarnings = safeArray(portal?.warnings);
   const leaderboardLazy = lazyWarnings.some((warning) => warning?.section === "leaderboard" && warning?.code === "lazy");
+
+  useEffect(() => {
+    if (!portal || !token || !profile.id) return undefined;
+    const requestSocket = createSocket(SOCKET_URL, {
+      autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 8000,
+      transports: ["websocket", "polling"],
+      auth: { employeePortalToken: token },
+    });
+    requestSocketRef.current = requestSocket;
+
+    const onRequestUpdated = (event = {}) => {
+      if (String(event.employee_id || "") !== String(profile.id || "")) return;
+      const notice = event.status === "approved"
+        ? "تمت الموافقة على طلبك"
+        : event.status === "rejected"
+          ? "تم رفض طلبك"
+          : "تم تحديث طلبك";
+      setRequestRealtimeNotice(notice);
+      setPortalNotice(notice);
+      loadPortalByToken({ silent: true, clearNotice: false });
+      if (requestNoticeTimerRef.current) window.clearTimeout(requestNoticeTimerRef.current);
+      requestNoticeTimerRef.current = window.setTimeout(() => setRequestRealtimeNotice(""), 4500);
+    };
+
+    requestSocket.on("employee_portal:request_updated", onRequestUpdated);
+    requestSocket.connect();
+
+    return () => {
+      requestSocket.off("employee_portal:request_updated", onRequestUpdated);
+      requestSocket.disconnect();
+      if (requestSocketRef.current === requestSocket) requestSocketRef.current = null;
+      if (requestNoticeTimerRef.current) window.clearTimeout(requestNoticeTimerRef.current);
+    };
+  }, [portal, token, profile.id, loadPortalByToken]);
 
   const overviewCards = useMemo(() => {
     if (!portal) return [];
@@ -1893,6 +1940,11 @@ export default function EmployeePayrollPortal() {
           </section>
         )}
       </div>
+      {requestRealtimeNotice ? (
+        <div className="fixed inset-x-4 top-[calc(1rem+env(safe-area-inset-top))] z-50 mx-auto max-w-sm rounded-2xl border border-emerald-300/40 bg-emerald-600 px-4 py-3 text-center text-sm font-black text-white shadow-2xl">
+          {requestRealtimeNotice}
+        </div>
+      ) : null}
       {chatOpen ? (
         <div className="fixed inset-0 z-50 flex items-end bg-slate-950/70 p-0 sm:items-center sm:p-4">
           <section className="flex h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:mx-auto sm:max-w-md sm:rounded-3xl" dir={direction}>

@@ -256,6 +256,7 @@ io.on("connection", async (socket) => {
         branch_id: employee.branch_id || null,
       };
       socket.join(`employee-chat:employee:${employee.id}`);
+      socket.join(`employee:${employee.id}`);
       if (employee.tenant_id) socket.join(`tenant:${employee.tenant_id}`);
       socket.emit("realtime:ready", {
         employee_id: employee.id,
