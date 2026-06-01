@@ -18,6 +18,8 @@ import { fileURLToPath }
 from "url";
 import { normalizeSocketRoomKey, setIo } from "./utils/socket.js";
 import { isPerfDebugEnabled, runWithPerfContext, slowestPhaseFromTimings } from "./utils/perfDebug.js";
+import { logEmployeePushVapidCheck } from "./services/employeePortalPushService.js";
+import { loadEmployeePortalByToken } from "./services/employeePayrollPortalService.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -56,6 +58,7 @@ if (Object.values(metaSetupStatus).includes("missing")) {
   console.warn("[meta-setup] Meta OAuth is not fully configured. Set missing env vars before testing Connect Meta.");
 }
 console.log("[env] OPENAI_API_KEY loaded:", Boolean(process.env.OPENAI_API_KEY));
+logEmployeePushVapidCheck();
 console.log("[env] AI support OpenAI config:", {
   ai_support_enabled: process.env.AI_SUPPORT_ENABLED ?? "",
   ai_support_vision_enabled: process.env.AI_SUPPORT_VISION_ENABLED ?? "",
@@ -216,10 +219,56 @@ const emitOnlineUsers = () => {
   });
 };
 
+const socketUserCanViewEmployees = async (userId, user = {}) => {
+  if (user?.is_super_admin) return true;
+  const role = normalizeSocketRoomKey(user?.role_name || user?.role || "");
+  if (["admin", "super_admin", "superadmin"].includes(role)) return true;
+  if (!userId) return false;
+  const result = await db.query(
+    `
+    SELECT p.module, p.action
+    FROM users u
+    LEFT JOIN role_permissions rp ON rp.role_id = u.role_id
+    LEFT JOIN permissions p ON p.id = rp.permission_id
+    WHERE u.id = $1
+    `,
+    [userId]
+  );
+  return result.rows.some((permission) => {
+    const moduleName = String(permission.module || "").trim().toLowerCase();
+    const action = String(permission.action || "").trim().toLowerCase();
+    return moduleName === "*" || (moduleName === "employees" && ["view", "*"].includes(action));
+  });
+};
+
 io.on("connection", async (socket) => {
   try {
     const token = socket.handshake?.auth?.token || socket.handshake?.query?.token;
-    if (!token) throw new Error("missing socket token");
+    const employeePortalToken = socket.handshake?.auth?.employeePortalToken || socket.handshake?.query?.employeePortalToken;
+    if (!token && !employeePortalToken) throw new Error("missing socket token");
+
+    if (employeePortalToken && !token) {
+      const employee = await loadEmployeePortalByToken(String(employeePortalToken || "").trim());
+      if (!employee) throw new Error("invalid employee portal token");
+      socket.data.employeePortal = {
+        employee_id: employee.id,
+        tenant_id: employee.tenant_id || null,
+        branch_id: employee.branch_id || null,
+      };
+      socket.join(`employee-chat:employee:${employee.id}`);
+      if (employee.tenant_id) socket.join(`tenant:${employee.tenant_id}`);
+      socket.emit("realtime:ready", {
+        employee_id: employee.id,
+        branch_id: employee.branch_id || null,
+        portal: true,
+        at: new Date().toISOString(),
+      });
+      emitOnlineUsers();
+      socket.on("disconnect", () => {
+        emitOnlineUsers();
+      });
+      return;
+    }
 
     const decoded = jwt.verify(String(token), process.env.JWT_SECRET || "SECRET_KEY");
     const userResult = await db.query(
@@ -262,6 +311,9 @@ io.on("connection", async (socket) => {
     if (employeeRole && employeeRole !== role) socket.join(`role:${employeeRole}`);
     if (tenantId) socket.join(`tenant:${tenantId}`);
     if (branchId) socket.join(`branch:${branchId}`);
+    if (await socketUserCanViewEmployees(userId, user)) {
+      socket.join(`employee-chat:tenant:${tenantId || "global"}`);
+    }
     socket.emit("realtime:ready", { user_id: userId, branch_id: branchId || null, role, at: new Date().toISOString() });
   } catch (error) {
     console.warn("[socket] authentication failed", error?.message || error);

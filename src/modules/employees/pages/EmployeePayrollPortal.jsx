@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { io as createSocket } from "socket.io-client";
 import {
   AlertTriangle,
   ArrowDownCircle,
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
+import { SOCKET_URL } from "../../../shared/constants/app";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 
@@ -822,6 +824,8 @@ export default function EmployeePayrollPortal() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatError, setChatError] = useState("");
   const [chatBody, setChatBody] = useState("");
+  const [chatSocketConnected, setChatSocketConnected] = useState(false);
+  const chatSocketRef = useRef(null);
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
@@ -1059,9 +1063,67 @@ export default function EmployeePayrollPortal() {
   useEffect(() => {
     if (!chatOpen || !portal) return undefined;
     loadEmployeeChat();
+    return undefined;
+  }, [chatOpen, portal, token]);
+
+  useEffect(() => {
+    if (!chatOpen || !portal || !token) return undefined;
+    const chatSocket = createSocket(SOCKET_URL, {
+      autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 8000,
+      transports: ["websocket", "polling"],
+      auth: { employeePortalToken: token },
+    });
+    chatSocketRef.current = chatSocket;
+
+    const onConnect = () => setChatSocketConnected(true);
+    const onDisconnect = () => setChatSocketConnected(false);
+    const onMessage = (payload = {}) => {
+      const message = payload.message;
+      if (!message?.id) return;
+      setChatMessages((current) => {
+        if (current.some((item) => String(item.id) === String(message.id))) return current;
+        return [...current, message];
+      });
+    };
+    const onRead = (payload = {}) => {
+      if (!payload.thread_id) return;
+      setChatMessages((current) =>
+        current.map((message) =>
+          message.sender_type === payload.read_sender_type && !message.read_at
+            ? { ...message, read_at: payload.at || new Date().toISOString() }
+            : message
+        )
+      );
+    };
+
+    chatSocket.on("connect", onConnect);
+    chatSocket.on("disconnect", onDisconnect);
+    chatSocket.on("connect_error", onDisconnect);
+    chatSocket.on("employee-chat:new-message", onMessage);
+    chatSocket.on("employee-chat:read", onRead);
+    chatSocket.connect();
+
+    return () => {
+      chatSocket.off("connect", onConnect);
+      chatSocket.off("disconnect", onDisconnect);
+      chatSocket.off("connect_error", onDisconnect);
+      chatSocket.off("employee-chat:new-message", onMessage);
+      chatSocket.off("employee-chat:read", onRead);
+      chatSocket.disconnect();
+      if (chatSocketRef.current === chatSocket) chatSocketRef.current = null;
+      setChatSocketConnected(false);
+    };
+  }, [chatOpen, portal, token]);
+
+  useEffect(() => {
+    if (!chatOpen || !portal || chatSocketConnected) return undefined;
     const timer = window.setInterval(() => loadEmployeeChat({ silent: true }), 12000);
     return () => window.clearInterval(timer);
-  }, [chatOpen, portal, token]);
+  }, [chatOpen, portal, chatSocketConnected, token]);
 
   const submitChatMessage = async (event) => {
     event.preventDefault();
@@ -1752,13 +1814,14 @@ export default function EmployeePayrollPortal() {
               <div>
                 <h2 className="text-xl font-black">{ui("chatTitle")}</h2>
                 <p className="mt-1 text-xs font-bold leading-5 text-slate-300">{ui("chatSubtitle")}</p>
+                <p className="mt-1 text-[10px] font-black text-slate-400">{chatSocketConnected ? "التحديث الفوري يعمل" : "التحديث الاحتياطي يعمل كل 12 ثانية"}</p>
               </div>
               <button type="button" onClick={() => setChatOpen(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white">
                 <X className="h-5 w-5" />
               </button>
             </header>
             {chatError ? <div className="mx-4 mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
-            <div className="flex-1 space-y-2 overflow-y-auto p-4">
+            <div className="flex-1 space-y-2 overflow-y-auto scroll-smooth p-4">
               {chatLoading ? (
                 <div className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-3 py-5 text-sm font-bold text-slate-200">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1769,9 +1832,9 @@ export default function EmployeePayrollPortal() {
                   const employeeMessage = message.sender_type === "employee";
                   return (
                     <div key={message.id} className={`flex ${employeeMessage ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm font-bold leading-6 ${employeeMessage ? "bg-emerald-500 text-emerald-950" : "bg-white text-slate-950"}`}>
+                      <div className={`max-w-[82%] break-words rounded-2xl px-4 py-3 text-sm font-bold leading-relaxed sm:max-w-[70%] ${employeeMessage ? "bg-emerald-500 text-emerald-950" : "bg-white text-slate-950"}`}>
                         <div className="mb-1 text-[10px] font-black opacity-70">{employeeMessage ? ui("you") : ui("management")}</div>
-                        <div dir="auto">{message.body}</div>
+                        <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div>
                         <div className="mt-2 text-[10px] font-black opacity-60" dir="ltr">{formatTimeLocal(message.created_at, language)}</div>
                       </div>
                     </div>
@@ -1784,7 +1847,7 @@ export default function EmployeePayrollPortal() {
                 </div>
               )}
             </div>
-            <form onSubmit={submitChatMessage} className="border-t border-white/10 p-3">
+            <form onSubmit={submitChatMessage} className="shrink-0 border-t border-white/10 p-3">
               <div className="flex gap-2">
                 <textarea
                   value={chatBody}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2, MessageCircle, RefreshCw, Send, UserRound } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
+import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 
 const formatChatTime = (value) => {
   if (!value) return "-";
@@ -25,6 +26,7 @@ export default function EmployeeChatInbox() {
   const [sending, setSending] = useState(false);
   const [body, setBody] = useState("");
   const [error, setError] = useState("");
+  const realtime = useRealtimeConnection();
 
   const selectedThread = useMemo(
     () => threads.find((item) => String(item.id) === String(selectedId)) || thread,
@@ -69,11 +71,58 @@ export default function EmployeeChatInbox() {
   useEffect(() => {
     if (!selectedId) return undefined;
     loadThread(selectedId);
+    if (realtime.connected) return undefined;
     const timer = window.setInterval(() => {
       loadThread(selectedId);
       loadThreads();
     }, 12000);
     return () => window.clearInterval(timer);
+  }, [selectedId, realtime.connected]);
+
+  useEffect(() => {
+    const upsertThread = (nextThread) => {
+      if (!nextThread?.id) return;
+      setThreads((current) => {
+        const exists = current.some((item) => String(item.id) === String(nextThread.id));
+        const rows = exists
+          ? current.map((item) => (String(item.id) === String(nextThread.id) ? { ...item, ...nextThread } : item))
+          : [nextThread, ...current];
+        return rows.sort((a, b) => new Date(b.last_message_created_at || b.last_message_at || b.updated_at || 0) - new Date(a.last_message_created_at || a.last_message_at || a.updated_at || 0));
+      });
+    };
+
+    const onMessage = (payload = {}) => {
+      const nextThread = payload.thread;
+      const message = payload.message;
+      upsertThread(nextThread);
+      if (String(nextThread?.id || message?.thread_id) === String(selectedId)) {
+        setMessages((current) => {
+          if (!message?.id || current.some((item) => String(item.id) === String(message.id))) return current;
+          return [...current, message];
+        });
+        if (message?.sender_type === "employee") {
+          loadThread(selectedId);
+        }
+      }
+    };
+
+    const onThreadUpdated = (payload = {}) => upsertThread(payload.thread);
+
+    const onRead = (payload = {}) => {
+      if (!payload.thread_id) return;
+      setThreads((current) =>
+        current.map((item) => (String(item.id) === String(payload.thread_id) ? { ...item, unread_count: 0 } : item))
+      );
+    };
+
+    const offMessage = subscribeRealtime("employee-chat:new-message", onMessage);
+    const offThread = subscribeRealtime("employee-chat:thread-updated", onThreadUpdated);
+    const offRead = subscribeRealtime("employee-chat:read", onRead);
+    return () => {
+      offMessage();
+      offThread();
+      offRead();
+    };
   }, [selectedId]);
 
   const sendMessage = async (event) => {
@@ -101,6 +150,7 @@ export default function EmployeeChatInbox() {
           <div>
             <p className="text-[11px] font-black text-[var(--muted)]">الموظفون / المحادثات</p>
             <h2 className="mt-1 text-2xl font-black text-[var(--text)]">محادثات الموظفين</h2>
+            <p className="mt-1 text-xs font-bold text-[var(--muted)]">{realtime.connected ? "التحديث الفوري يعمل" : "التحديث الاحتياطي يعمل كل 12 ثانية"}</p>
           </div>
           <button type="button" onClick={loadThreads} className="theme-button-soft min-h-10 px-3 text-sm">
             <RefreshCw className={`h-4 w-4 ${loadingThreads ? "animate-spin" : ""}`} />
@@ -167,7 +217,7 @@ export default function EmployeeChatInbox() {
                   {selectedThread.employee_code || "-"} · {selectedThread.branch_name || "بدون فرع"}
                 </div>
               </div>
-              <div className="flex-1 space-y-2 overflow-y-auto p-4">
+              <div className="flex-1 space-y-2 overflow-y-auto scroll-smooth p-4">
                 {loadingThread ? (
                   <div className="flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 text-sm font-bold text-[var(--muted)]">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -178,8 +228,8 @@ export default function EmployeeChatInbox() {
                     const admin = message.sender_type === "admin";
                     return (
                       <div key={message.id} className={`flex ${admin ? "justify-start" : "justify-end"}`}>
-                        <div className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm font-bold leading-6 shadow-sm ${admin ? "bg-[var(--primary)] text-white" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"}`}>
-                          <div dir="auto">{message.body}</div>
+                        <div className={`max-w-[82%] break-words rounded-2xl px-4 py-3 text-sm font-bold leading-relaxed shadow-sm sm:max-w-[70%] ${admin ? "bg-[var(--primary)] text-white" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"}`}>
+                          <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div>
                           <div className={`mt-2 text-[10px] font-black ${admin ? "text-white/70" : "text-[var(--muted)]"}`} dir="ltr">{formatChatTime(message.created_at)}</div>
                         </div>
                       </div>
@@ -191,7 +241,7 @@ export default function EmployeeChatInbox() {
                   </div>
                 )}
               </div>
-              <form onSubmit={sendMessage} className="border-t border-[var(--border)] p-3">
+              <form onSubmit={sendMessage} className="shrink-0 border-t border-[var(--border)] p-3">
                 <div className="flex gap-2">
                   <textarea
                     value={body}

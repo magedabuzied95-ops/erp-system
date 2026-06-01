@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { ensureEmployeePayrollPortalSchema } from "./employeePayrollPortalService.js";
+import { emitToRooms } from "../utils/socket.js";
 
 const clean = (value = "") => String(value || "").trim();
 
@@ -23,6 +24,58 @@ const messageSelect = `
     m.created_at
   FROM employee_chat_messages m
 `;
+
+const adminChatRoom = (tenantId = null) => `employee-chat:tenant:${tenantId || "global"}`;
+const employeeChatRoom = (employeeId) => `employee-chat:employee:${employeeId}`;
+
+const loadThreadSummary = async (threadId, clientOrPool = db) => {
+  const result = await clientOrPool.query(
+    `
+    SELECT
+      t.id,
+      t.tenant_id,
+      t.employee_id,
+      t.branch_id,
+      t.status,
+      t.last_message_at,
+      t.created_at,
+      t.updated_at,
+      e.full_name AS employee_name,
+      e.employee_code,
+      b.name AS branch_name,
+      lm.body AS last_message,
+      lm.sender_type AS last_sender_type,
+      lm.created_at AS last_message_created_at,
+      COALESCE(unread.unread_count, 0)::int AS unread_count
+    FROM employee_chat_threads t
+    JOIN employees e ON e.id = t.employee_id
+    LEFT JOIN branches b ON b.id = t.branch_id
+    LEFT JOIN LATERAL (
+      SELECT body, sender_type, created_at
+      FROM employee_chat_messages m
+      WHERE m.thread_id = t.id
+      ORDER BY m.created_at DESC, m.id DESC
+      LIMIT 1
+    ) lm ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) AS unread_count
+      FROM employee_chat_messages m
+      WHERE m.thread_id = t.id AND m.sender_type = 'employee' AND m.read_at IS NULL
+    ) unread ON TRUE
+    WHERE t.id = $1
+    LIMIT 1
+    `,
+    [threadId]
+  );
+  return result.rows[0] || null;
+};
+
+const emitChatEvent = (rooms = [], eventName, payload = {}) => {
+  emitToRooms(rooms, eventName, {
+    ...payload,
+    at: new Date().toISOString(),
+  });
+};
 
 export const getOrCreateEmployeeChatThread = async (employee, clientOrPool = db) => {
   await ensureEmployeePayrollPortalSchema(clientOrPool);
@@ -64,14 +117,24 @@ const loadMessages = async (threadId, clientOrPool = db) => {
 
 export const getEmployeeChat = async ({ employee } = {}) => {
   const thread = await getOrCreateEmployeeChatThread(employee);
-  await db.query(
+  const readResult = await db.query(
     `
     UPDATE employee_chat_messages
     SET read_at = COALESCE(read_at, NOW())
     WHERE thread_id = $1 AND sender_type = 'admin' AND read_at IS NULL
+    RETURNING id
     `,
     [thread.id]
   );
+  if (readResult.rowCount > 0) {
+    emitChatEvent([adminChatRoom(employee.tenant_id)], "employee-chat:read", {
+      thread_id: thread.id,
+      employee_id: employee.id,
+      reader_type: "employee",
+      read_sender_type: "admin",
+      read_count: readResult.rowCount,
+    });
+  }
   const messages = await loadMessages(thread.id);
   return { thread, messages };
 };
@@ -99,7 +162,16 @@ export const sendEmployeeChatMessage = async ({ employee, body = "" } = {}) => {
     `,
     [thread.id, employee.branch_id || null, employee.tenant_id || null]
   );
-  return { thread: { ...thread, last_message_at: result.rows[0].created_at }, message: result.rows[0] };
+  const updatedThread = await loadThreadSummary(thread.id);
+  const message = result.rows[0];
+  emitChatEvent([adminChatRoom(employee.tenant_id), employeeChatRoom(employee.id)], "employee-chat:new-message", {
+    thread: updatedThread,
+    message,
+  });
+  emitChatEvent([adminChatRoom(employee.tenant_id)], "employee-chat:thread-updated", {
+    thread: updatedThread,
+  });
+  return { thread: updatedThread || { ...thread, last_message_at: message.created_at }, message };
 };
 
 export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } = {}) => {
@@ -171,14 +243,24 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
   if (!thread) throw chatError("Thread not found", 404, "thread_not_found");
 
   if (markRead) {
-    await db.query(
+    const readResult = await db.query(
       `
       UPDATE employee_chat_messages
       SET read_at = COALESCE(read_at, NOW())
       WHERE thread_id = $1 AND sender_type = 'employee' AND read_at IS NULL
+      RETURNING id
       `,
       [thread.id]
     );
+    if (readResult.rowCount > 0) {
+      emitChatEvent([employeeChatRoom(thread.employee_id), adminChatRoom(thread.tenant_id)], "employee-chat:read", {
+        thread_id: thread.id,
+        employee_id: thread.employee_id,
+        reader_type: "admin",
+        read_sender_type: "employee",
+        read_count: readResult.rowCount,
+      });
+    }
   }
 
   const messages = await loadMessages(thread.id);
@@ -208,18 +290,37 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
     `,
     [thread.id]
   );
-  return { thread, message: result.rows[0] };
+  const updatedThread = await loadThreadSummary(thread.id);
+  const message = result.rows[0];
+  emitChatEvent([employeeChatRoom(thread.employee_id), adminChatRoom(thread.tenant_id)], "employee-chat:new-message", {
+    thread: updatedThread,
+    message,
+  });
+  emitChatEvent([adminChatRoom(thread.tenant_id)], "employee-chat:thread-updated", {
+    thread: updatedThread,
+  });
+  return { thread: updatedThread || thread, message };
 };
 
 export const markAdminEmployeeChatThreadRead = async ({ tenantId = null, threadId } = {}) => {
   const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: false });
-  await db.query(
+  const readResult = await db.query(
     `
     UPDATE employee_chat_messages
     SET read_at = COALESCE(read_at, NOW())
     WHERE thread_id = $1 AND sender_type = 'employee' AND read_at IS NULL
+    RETURNING id
     `,
     [thread.id]
   );
+  if (readResult.rowCount > 0) {
+    emitChatEvent([employeeChatRoom(thread.employee_id), adminChatRoom(thread.tenant_id)], "employee-chat:read", {
+      thread_id: thread.id,
+      employee_id: thread.employee_id,
+      reader_type: "admin",
+      read_sender_type: "employee",
+      read_count: readResult.rowCount,
+    });
+  }
   return { thread };
 };

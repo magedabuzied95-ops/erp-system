@@ -10,6 +10,14 @@ const PUSH_OVERDUE_COOLDOWN_MS = 30 * 60_000;
 const hasVapidConfig = () =>
   Boolean(text(process.env.WEB_PUSH_PUBLIC_KEY) && text(process.env.WEB_PUSH_PRIVATE_KEY) && text(process.env.WEB_PUSH_SUBJECT));
 
+export const logEmployeePushVapidCheck = () => {
+  console.info("[employee-push:vapid-check]", {
+    hasPublicKey: Boolean(text(process.env.WEB_PUSH_PUBLIC_KEY)),
+    hasPrivateKey: Boolean(text(process.env.WEB_PUSH_PRIVATE_KEY)),
+    hasSubject: Boolean(text(process.env.WEB_PUSH_SUBJECT)),
+  });
+};
+
 const configureWebPush = () => {
   if (!hasVapidConfig()) return false;
   try {
