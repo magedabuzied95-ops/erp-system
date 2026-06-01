@@ -809,15 +809,14 @@ export default function EmployeePayrollPortal() {
   useEffect(() => {
     if (!isBrowser() || !token) return undefined;
     const previousManifests = Array.from(document.querySelectorAll('link[rel="manifest"]')).map((item) => ({
-      node: item,
       href: item.getAttribute("href") || "",
     }));
-    const [primary, ...duplicates] = previousManifests.map((item) => item.node);
-    duplicates.forEach((item) => item.remove());
-    const link = primary || document.createElement("link");
+    document.querySelectorAll('link[rel="manifest"]').forEach((item) => item.remove());
+    const link = document.createElement("link");
     link.setAttribute("rel", "manifest");
     link.setAttribute("href", `/api/employee-portal/${encodeURIComponent(token)}/manifest.webmanifest?v=${encodeURIComponent(token)}`);
-    if (!link.parentNode) document.head.appendChild(link);
+    link.setAttribute("data-employee-portal-manifest", "true");
+    document.head.appendChild(link);
 
     const previousAppleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute("content") || "";
     let appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
@@ -829,7 +828,16 @@ export default function EmployeePayrollPortal() {
     appleTitle.setAttribute("content", "الموظف");
 
     return () => {
-      if (previousManifests[0]) link.setAttribute("href", previousManifests[0].href || "/manifest.webmanifest?v=global");
+      link.remove();
+      if (!window.location.pathname.startsWith("/employee-app/") && !window.location.pathname.startsWith("/employee-portal/")) {
+        previousManifests.forEach((item) => {
+          if (!item.href) return;
+          const restored = document.createElement("link");
+          restored.setAttribute("rel", "manifest");
+          restored.setAttribute("href", item.href);
+          document.head.appendChild(restored);
+        });
+      }
       appleTitle?.setAttribute("content", previousAppleTitle || "الموظف");
     };
   }, [token]);
