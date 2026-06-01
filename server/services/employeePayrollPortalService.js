@@ -7,6 +7,7 @@ import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { createNotification } from "./notificationsService.js";
 import { listStaffTasks, updateStaffTaskStatus } from "./staffTasksService.js";
 import { ensureShiftResolutionSchema, resolveShiftForCheckIn } from "./attendanceShiftResolver.js";
+import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 
 const tokenBytes = 32;
 
@@ -217,6 +218,26 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP NULL`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_requests_employee_status ON employee_portal_requests (tenant_id, employee_id, status, created_at DESC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_requests_employee_created ON employee_portal_requests (tenant_id, employee_id, created_at DESC, id DESC)`);
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS employee_push_subscriptions (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NULL,
+      employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL DEFAULT '',
+      auth TEXT NOT NULL DEFAULT '',
+      user_agent TEXT,
+      portal_url TEXT NOT NULL DEFAULT '',
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_push_subscriptions ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_push_subscriptions ADD COLUMN IF NOT EXISTS portal_url TEXT NOT NULL DEFAULT ''`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_push_subscriptions ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_push_subscriptions ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_push_subscriptions_employee ON employee_push_subscriptions (employee_id, is_active, last_seen_at DESC)`);
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_advances (
       id BIGSERIAL PRIMARY KEY,
@@ -1471,6 +1492,84 @@ export const createEmployeePortalRequest = async ({ employee, data = {}, audit =
   return request;
 };
 
+export const getEmployeePortalPushPublicKey = async () => ({
+  publicKey: clean(process.env.WEB_PUSH_PUBLIC_KEY),
+  enabled: Boolean(clean(process.env.WEB_PUSH_PUBLIC_KEY) && clean(process.env.WEB_PUSH_PRIVATE_KEY)),
+});
+
+export const subscribeEmployeePortalPush = async ({ employee, subscription = {}, userAgent = "", portalUrl = "" } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  if (!employee?.id) {
+    const error = new Error("Employee is required");
+    error.status = 400;
+    throw error;
+  }
+  const endpoint = clean(subscription.endpoint);
+  const keys = subscription.keys && typeof subscription.keys === "object" ? subscription.keys : {};
+  const p256dh = clean(keys.p256dh);
+  const auth = clean(keys.auth);
+  if (!endpoint || !p256dh || !auth) {
+    const error = new Error("Valid push subscription is required");
+    error.status = 400;
+    throw error;
+  }
+
+  const result = await db.query(
+    `
+    INSERT INTO employee_push_subscriptions (
+      tenant_id, employee_id, endpoint, p256dh, auth, user_agent, portal_url, is_active, last_seen_at
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,NOW())
+    ON CONFLICT (endpoint) DO UPDATE
+    SET tenant_id = EXCLUDED.tenant_id,
+        employee_id = EXCLUDED.employee_id,
+        p256dh = EXCLUDED.p256dh,
+        auth = EXCLUDED.auth,
+        user_agent = EXCLUDED.user_agent,
+        portal_url = EXCLUDED.portal_url,
+        is_active = TRUE,
+        last_seen_at = NOW()
+    RETURNING id, employee_id, endpoint, created_at, last_seen_at
+    `,
+    [
+      employee.tenant_id || null,
+      employee.id,
+      endpoint,
+      p256dh,
+      auth,
+      clean(userAgent).slice(0, 500),
+      clean(portalUrl || subscription.portal_url || subscription.portalUrl),
+    ]
+  );
+
+  return {
+    subscription: result.rows[0],
+    vapid_configured: Boolean(clean(process.env.WEB_PUSH_PUBLIC_KEY) && clean(process.env.WEB_PUSH_PRIVATE_KEY)),
+  };
+};
+
+export const unsubscribeEmployeePortalPush = async ({ employee, endpoint = "" } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const safeEndpoint = clean(endpoint);
+  if (!employee?.id || !safeEndpoint) {
+    const error = new Error("Push subscription endpoint is required");
+    error.status = 400;
+    throw error;
+  }
+  const result = await db.query(
+    `
+    UPDATE employee_push_subscriptions
+    SET is_active = FALSE,
+        last_seen_at = NOW()
+    WHERE employee_id = $1
+      AND endpoint = $2
+    RETURNING id, employee_id, endpoint, is_active, last_seen_at
+    `,
+    [employee.id, safeEndpoint]
+  );
+  return result.rows[0] || null;
+};
+
 const employeePortalError = (code, messageAr, status = 400, extra = {}) => {
   const error = new Error(messageAr);
   error.status = status;
@@ -1976,5 +2075,18 @@ export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, 
   if (createAdvance && request.request_type === "advance" && request.status === "approved") {
     advance = await createAdvanceFromPortalRequest({ request, reviewedBy });
   }
+  await sendEmployeePortalPush({
+    tenantId: request.tenant_id,
+    employeeId: request.employee_id,
+    title: request.request_type === "advance" ? "تحديث طلب السلفة" : "تحديث طلبك",
+    body: nextStatus === "approved" ? "تم قبول طلبك من الإدارة." : "تم رفض طلبك من الإدارة.",
+    tag: `employee-request-${request.id}-${nextStatus}`,
+    data: {
+      event: request.request_type === "advance" ? `advance_${nextStatus}` : `request_${nextStatus}`,
+      request_id: request.id,
+      request_type: request.request_type,
+      tab: "requests",
+    },
+  }).catch((error) => debugEmployeePortal("[employee-portal-push] request review skipped", { error: error?.message || error }));
   return { ...request, created_advance: advance };
 };

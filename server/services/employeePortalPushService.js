@@ -38,6 +38,20 @@ const shouldSend = (map, key, cooldownMs) => {
   return true;
 };
 
+const portalNotificationUrl = (url = "", portalUrl = "", tab = "") => {
+  const base = text(url) || text(portalUrl) || "/";
+  const safeTab = text(tab);
+  if (!safeTab) return base;
+  try {
+    const parsed = new URL(base, "https://employee.portal");
+    parsed.searchParams.set("tab", safeTab);
+    return parsed.origin === "https://employee.portal" ? `${parsed.pathname}${parsed.search}${parsed.hash}` : parsed.toString();
+  } catch {
+    const separator = base.includes("?") ? "&" : "?";
+    return `${base}${separator}tab=${encodeURIComponent(safeTab)}`;
+  }
+};
+
 export const buildTaskPushBody = (task = {}) => {
   const title = text(task.task_title_ar || task.title_ar || task.title);
   if (!task.due_at) return title;
@@ -52,9 +66,9 @@ export const buildTaskPushBody = (task = {}) => {
 const deactivateSubscription = async (id, reason = "") => {
   await db.query(
     `
-    UPDATE employee_portal_push_subscriptions
+    UPDATE employee_push_subscriptions
     SET is_active = FALSE,
-        updated_at = NOW()
+        last_seen_at = NOW()
     WHERE id = $1
     `,
     [id]
@@ -78,11 +92,11 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
   const result = await db.query(
     `
     SELECT id, endpoint, p256dh, auth, portal_url
-    FROM employee_portal_push_subscriptions
+    FROM employee_push_subscriptions
     WHERE tenant_id = $1
       AND employee_id = $2
       AND is_active = TRUE
-    ORDER BY updated_at DESC
+    ORDER BY last_seen_at DESC
     `,
     [tenantId, employeeId]
   );
@@ -96,7 +110,7 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
       body: body || "",
       data: {
         ...(data || {}),
-        url: url || row.portal_url || "/",
+        url: portalNotificationUrl(url, row.portal_url, data?.tab),
         tag,
       },
     });
@@ -139,7 +153,7 @@ export const sendTaskAssignedPush = async (task = {}, employee = {}, eventType =
     title,
     body: buildTaskPushBody(task),
     tag: `staff-task-${eventType}-${task.id}`,
-    data: { task_id: task.id, event: eventType },
+    data: { task_id: task.id, event: eventType, tab: "tasks" },
   });
 };
 
@@ -158,7 +172,7 @@ export const sendTaskUpdatedPush = async (task = {}, { actorEmployeeId = null, e
     title: "تحديث على المهمة",
     body: text(task.task_title_ar || task.title_ar || task.title),
     tag: `staff-task-update-${task.id}`,
-    data: { task_id: task.id, event },
+    data: { task_id: task.id, event, tab: "tasks" },
   });
 };
 
@@ -175,7 +189,7 @@ export const sendTaskOverduePush = async (task = {}) => {
     title: "تذكير بمهمة متأخرة",
     body: text(task.task_title_ar || task.title_ar || task.title),
     tag: `staff-task-overdue-${task.id}`,
-    data: { task_id: task.id, event: "task_overdue" },
+    data: { task_id: task.id, event: "task_overdue", tab: "tasks" },
   });
 };
 

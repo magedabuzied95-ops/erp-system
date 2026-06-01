@@ -2,6 +2,7 @@ import db from "../database/db.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { ensureForeignKeyConstraint } from "../utils/schemaConstraints.js";
+import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 
 const DEFAULT_SETTINGS = {
   allow_sale_without_salesperson: true,
@@ -2115,6 +2116,16 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
         ]
       );
       payrollRun = payrollRunResult.rows[0] || null;
+      if (payrollRun) {
+        sendEmployeePortalPush({
+          tenantId,
+          employeeId: employee.id,
+          title: "تم إنشاء الراتب",
+          body: `تم إنشاء راتب شهر ${deductionMonth}.`,
+          tag: `payroll-generated-${payrollRun.id}`,
+          data: { event: "payroll_generated", payroll_id: payrollRun.id, tab: "salary" },
+        }).catch((pushError) => console.warn("[payroll] employee portal push skipped", pushError?.message || pushError));
+      }
     } catch (error) {
       console.warn("[payroll] payroll snapshot skipped", error.message);
     }
