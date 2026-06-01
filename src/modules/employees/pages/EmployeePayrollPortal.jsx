@@ -2012,7 +2012,7 @@ export default function EmployeePayrollPortal() {
           </div>
         ) : (
           <section className="mt-1 space-y-4 pb-4">
-            <div className="sticky top-[calc(env(safe-area-inset-top)+8px)] z-30 -mx-1 mb-4 flex min-h-[64px] items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-2.5 py-2 shadow-sm backdrop-blur">
+            <div className="sticky top-[calc(env(safe-area-inset-top)+8px)] z-30 flex min-h-[64px] items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-2.5 py-2 shadow-sm backdrop-blur">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-950 text-sm font-black text-white">
                 {profile.photo_url ? <img src={profile.photo_url} alt="" className="h-full w-full object-cover" /> : profile.avatar_initials || <UserRound className="h-5 w-5" />}
               </div>
@@ -2029,6 +2029,7 @@ export default function EmployeePayrollPortal() {
                 <button type="button" onClick={() => setActiveTab("notifications")} className="rounded-xl bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700" dir="ltr">{portal.unread_notifications_count || badgeCounts.pendingNotifications || 0}</button>
               </div>
             </div>
+            <div className="h-6 shrink-0" aria-hidden="true" />
 
             {activeTab === "home" && showInstallCard ? (
               <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950 shadow-sm">
@@ -2122,7 +2123,7 @@ export default function EmployeePayrollPortal() {
 
             {activeTab === "home" ? (
               <>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="relative z-0 mt-0 grid grid-cols-4 gap-2 [transform:none]">
                   {[
                     [text.netSalary, payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-", WalletCards],
                     [text.advances, money(wallet.total_advances ?? portal.advances), CreditCard],
