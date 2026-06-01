@@ -219,6 +219,44 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_requests_employee_status ON employee_portal_requests (tenant_id, employee_id, status, created_at DESC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_requests_employee_created ON employee_portal_requests (tenant_id, employee_id, created_at DESC, id DESC)`);
   await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS employee_chat_threads (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NULL,
+      employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      branch_id BIGINT NULL,
+      status VARCHAR(40) NOT NULL DEFAULT 'open',
+      last_message_at TIMESTAMP NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS status VARCHAR(40) NOT NULL DEFAULT 'open'`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_chat_threads_employee ON employee_chat_threads (employee_id)`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_threads_tenant_last ON employee_chat_threads (tenant_id, last_message_at DESC NULLS LAST, updated_at DESC)`);
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS employee_chat_messages (
+      id BIGSERIAL PRIMARY KEY,
+      thread_id BIGINT NOT NULL REFERENCES employee_chat_threads(id) ON DELETE CASCADE,
+      sender_type VARCHAR(20) NOT NULL CHECK (sender_type IN ('employee', 'admin')),
+      sender_employee_id BIGINT NULL REFERENCES employees(id) ON DELETE SET NULL,
+      sender_user_id BIGINT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      attachment_url TEXT NULL,
+      read_at TIMESTAMP NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS sender_employee_id BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS sender_user_id BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_url TEXT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_thread_created ON employee_chat_messages (thread_id, created_at ASC, id ASC)`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_unread ON employee_chat_messages (thread_id, sender_type, read_at) WHERE read_at IS NULL`);
+  await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_push_subscriptions (
       id BIGSERIAL PRIMARY KEY,
       tenant_id BIGINT NULL,
@@ -1508,6 +1546,11 @@ export const subscribeEmployeePortalPush = async ({ employee, subscription = {},
   const keys = subscription.keys && typeof subscription.keys === "object" ? subscription.keys : {};
   const p256dh = clean(keys.p256dh);
   const auth = clean(keys.auth);
+  console.info("[employee-push:subscribe]", {
+    employee_id: employee.id,
+    endpoint_exists: Boolean(endpoint),
+    keys_exist: Boolean(p256dh && auth),
+  });
   if (!endpoint || !p256dh || !auth) {
     const error = new Error("Valid push subscription is required");
     error.status = 400;
@@ -2071,18 +2114,51 @@ export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, 
     throw error;
   }
   const request = result.rows[0];
+  const employeeTokenResult = await db.query(
+    `
+    SELECT employee_portal_token
+    FROM employees
+    WHERE id = $1
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
+    LIMIT 1
+    `,
+    [request.employee_id, request.tenant_id]
+  );
+  const employeePortalToken = clean(employeeTokenResult.rows[0]?.employee_portal_token);
   let advance = null;
   if (createAdvance && request.request_type === "advance" && request.status === "approved") {
     advance = await createAdvanceFromPortalRequest({ request, reviewedBy });
   }
+  if (request.request_type === "advance" && nextStatus === "approved") {
+    console.info("[employee-push:advance-approved-trigger]", {
+      employee_id: request.employee_id,
+      request_id: request.id,
+      amount: toNumber(request.amount),
+    });
+  }
+  const isAdvanceRequest = request.request_type === "advance";
+  const advanceAmount = toNumber(request.amount);
+  const requestPushTitle = isAdvanceRequest
+    ? nextStatus === "approved"
+      ? "تمت الموافقة على السلفة"
+      : "تم رفض طلب السلفة"
+    : "تحديث طلبك";
+  const requestPushBody = isAdvanceRequest
+    ? nextStatus === "approved"
+      ? `تمت الموافقة على طلب السلفة بقيمة ${advanceAmount} جنيه`
+      : `تم رفض طلب السلفة بقيمة ${advanceAmount} جنيه`
+    : nextStatus === "approved"
+      ? "تم قبول طلبك من الإدارة."
+      : "تم رفض طلبك من الإدارة.";
   await sendEmployeePortalPush({
     tenantId: request.tenant_id,
     employeeId: request.employee_id,
-    title: request.request_type === "advance" ? "تحديث طلب السلفة" : "تحديث طلبك",
-    body: nextStatus === "approved" ? "تم قبول طلبك من الإدارة." : "تم رفض طلبك من الإدارة.",
+    title: requestPushTitle,
+    body: requestPushBody,
+    url: employeePortalToken ? `/employee-app/${encodeURIComponent(employeePortalToken)}?tab=requests` : "",
     tag: `employee-request-${request.id}-${nextStatus}`,
     data: {
-      event: request.request_type === "advance" ? `advance_${nextStatus}` : `request_${nextStatus}`,
+      event: isAdvanceRequest ? `advance_${nextStatus}` : `request_${nextStatus}`,
       request_id: request.id,
       request_type: request.request_type,
       tab: "requests",

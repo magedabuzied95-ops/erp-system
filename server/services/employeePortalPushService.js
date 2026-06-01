@@ -39,7 +39,8 @@ const shouldSend = (map, key, cooldownMs) => {
 };
 
 const portalNotificationUrl = (url = "", portalUrl = "", tab = "") => {
-  const base = (text(url) || text(portalUrl) || "/employee-app/").replace("/employee-portal/", "/employee-app/");
+  const requestedUrl = text(url);
+  const base = (requestedUrl && requestedUrl !== "/" ? requestedUrl : text(portalUrl) || "/employee-app/").replace("/employee-portal/", "/employee-app/");
   const safeTab = text(tab);
   if (!safeTab) return base;
   try {
@@ -101,6 +102,11 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
     [tenantId, employeeId]
   );
 
+  console.info("[employee-push:send-start]", {
+    employee_id: employeeId,
+    subscription_count: result.rows.length,
+  });
+
   let sent = 0;
   let failed = 0;
   let deactivated = 0;
@@ -125,9 +131,18 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
     try {
       await webPush.sendNotification(subscription, payload, { TTL: 60 * 60, topic: tag || undefined });
       sent += 1;
+      console.info("[employee-push:send-success]", {
+        employee_id: employeeId,
+        endpoint: row.endpoint,
+      });
     } catch (error) {
       failed += 1;
       const statusCode = Number(error.statusCode || error.status || 0);
+      console.warn("[employee-push:send-failed]", {
+        employee_id: employeeId,
+        statusCode,
+        message: error.message,
+      });
       if (statusCode === 404 || statusCode === 410) {
         deactivated += 1;
         await deactivateSubscription(row.id, `web-push ${statusCode}`);
