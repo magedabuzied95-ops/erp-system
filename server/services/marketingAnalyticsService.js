@@ -83,6 +83,41 @@ const safeJsonObject = (value, fallback = {}) => {
   return fallback;
 };
 
+const safeJsonArray = (value, fallback = []) => {
+  if (!value) return fallback;
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+};
+
+const tableColumnCache = new Map();
+
+const getTableColumns = async (tableName) => {
+  if (tableColumnCache.has(tableName)) return tableColumnCache.get(tableName);
+  const result = await db.query(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = $1
+    `,
+    [tableName]
+  );
+  const columns = new Set(result.rows.map((row) => row.column_name));
+  tableColumnCache.set(tableName, columns);
+  return columns;
+};
+
+const optionalQueueColumn = (columns, name, fallbackSql = "NULL") =>
+  columns.has(name) ? name : `${fallbackSql} AS ${name}`;
+
 const getSettingsRow = async (tenantId) => {
   const result = await db.query(
     `
@@ -154,17 +189,43 @@ const ensureAiMarketingPerformanceSchema = async () => {
 
 const getPublishedAiQueueItemsForTenant = async (tenantId) => {
   await ensureAiMarketingPerformanceSchema();
-  const exists = await db.query(`SELECT to_regclass('public.ai_marketing_content_queue') AS table_name`);
+  const exists = await db.query(`SELECT to_regclass('ai_marketing_content_queue') AS table_name`);
   if (!exists.rows[0]?.table_name) return [];
+  const columns = await getTableColumns("ai_marketing_content_queue");
+  const publishedPredicates = [
+    columns.has("status") ? "status = 'published'" : "",
+    columns.has("publish_status") ? "publish_status = 'published'" : "",
+    columns.has("published_at") ? "published_at IS NOT NULL" : "",
+    columns.has("platform_post_id") ? "NULLIF(platform_post_id, '') IS NOT NULL" : "",
+    columns.has("platform_publish_results") ? "platform_publish_results <> '{}'::jsonb" : "",
+    columns.has("published_platforms") ? "published_platforms <> '[]'::jsonb" : "",
+  ].filter(Boolean);
+  if (!columns.has("id") || !columns.has("tenant_id") || !publishedPredicates.length) return [];
+  const orderBy = [
+    columns.has("published_at") ? "published_at DESC NULLS LAST" : "",
+    columns.has("created_at") ? "created_at DESC NULLS LAST" : "",
+    "id DESC",
+  ].filter(Boolean).join(", ");
   const result = await db.query(
     `
-    SELECT id, tenant_id, title, content_type, strategy_type, color, published_at, created_at, platform_post_id,
-           facebook_post_id, instagram_media_id, instagram_publish_id, platform_publish_results, design_json, metadata
+    SELECT
+      ${optionalQueueColumn(columns, "id")},
+      tenant_id,
+      ${optionalQueueColumn(columns, "title", "''::text")},
+      ${optionalQueueColumn(columns, "content_type", "''::text")},
+      ${optionalQueueColumn(columns, "strategy_type", "''::text")},
+      ${optionalQueueColumn(columns, "color", "''::text")},
+      ${optionalQueueColumn(columns, "published_at", "NULL::timestamp")},
+      ${optionalQueueColumn(columns, "created_at", "NULL::timestamp")},
+      ${optionalQueueColumn(columns, "platform_post_id", "NULL::text")},
+      ${optionalQueueColumn(columns, "published_platforms", "'[]'::jsonb")},
+      ${optionalQueueColumn(columns, "platform_publish_results", "'{}'::jsonb")},
+      ${optionalQueueColumn(columns, "design_json", "'{}'::jsonb")},
+      ${optionalQueueColumn(columns, "metadata", "'{}'::jsonb")}
     FROM ai_marketing_content_queue
     WHERE tenant_id = $1::bigint
-      AND status = 'published'
-      AND (platform_post_id IS NOT NULL OR facebook_post_id IS NOT NULL OR instagram_media_id IS NOT NULL OR platform_publish_results <> '{}'::jsonb)
-    ORDER BY published_at DESC NULLS LAST, created_at DESC
+      AND (${publishedPredicates.join(" OR ")})
+    ORDER BY ${orderBy}
     `,
     [tenantId]
   );
@@ -184,12 +245,26 @@ const getDistinctTenantIdsForSync = async () => {
     ORDER BY tenant_id ASC
     `
   );
-  const queueTenants = await db.query(`
-    SELECT DISTINCT tenant_id
-    FROM ai_marketing_content_queue
-    WHERE status = 'published'
-      AND (platform_post_id IS NOT NULL OR facebook_post_id IS NOT NULL OR instagram_media_id IS NOT NULL OR platform_publish_results <> '{}'::jsonb)
-  `).catch(() => ({ rows: [] }));
+  let queueTenants = { rows: [] };
+  const exists = await db.query(`SELECT to_regclass('ai_marketing_content_queue') AS table_name`).catch(() => ({ rows: [] }));
+  if (exists.rows[0]?.table_name) {
+    const columns = await getTableColumns("ai_marketing_content_queue");
+    const predicates = [
+      columns.has("status") ? "status = 'published'" : "",
+      columns.has("publish_status") ? "publish_status = 'published'" : "",
+      columns.has("published_at") ? "published_at IS NOT NULL" : "",
+      columns.has("platform_post_id") ? "NULLIF(platform_post_id, '') IS NOT NULL" : "",
+      columns.has("platform_publish_results") ? "platform_publish_results <> '{}'::jsonb" : "",
+      columns.has("published_platforms") ? "published_platforms <> '[]'::jsonb" : "",
+    ].filter(Boolean);
+    if (columns.has("tenant_id") && predicates.length) {
+      queueTenants = await db.query(`
+        SELECT DISTINCT tenant_id
+        FROM ai_marketing_content_queue
+        WHERE ${predicates.join(" OR ")}
+      `).catch(() => ({ rows: [] }));
+    }
+  }
   return Array.from(new Set([...result.rows.map((row) => row.tenant_id), ...queueTenants.rows.map((row) => row.tenant_id)]));
 };
 
@@ -224,8 +299,13 @@ const buildAnalyticsCandidates = (post = {}) => {
 const buildAiQueueAnalyticsCandidates = (item = {}) => {
   const candidates = [];
   const results = safeJsonObject(item.platform_publish_results, {});
-  addCandidate(candidates, "facebook", item.facebook_post_id || results.facebook?.platform_post_id || results.facebook?.platform_story_id || results.facebook?.id, { ...item, id: item.id });
-  addCandidate(candidates, "instagram", item.instagram_media_id || item.instagram_publish_id || results.instagram?.platform_post_id || results.instagram?.platform_story_id || results.instagram?.id, { ...item, id: item.id });
+  addCandidate(candidates, "facebook", results.facebook?.platform_post_id || results.facebook?.platform_story_id || results.facebook?.id, { ...item, id: item.id });
+  addCandidate(candidates, "instagram", results.instagram?.platform_post_id || results.instagram?.platform_story_id || results.instagram?.id, { ...item, id: item.id });
+  if (!candidates.length && item.platform_post_id) {
+    const publishedPlatforms = safeJsonArray(item.published_platforms, []);
+    const guessedPlatform = publishedPlatforms.length === 1 && String(publishedPlatforms[0]).toLowerCase() === "instagram" ? "instagram" : "facebook";
+    addCandidate(candidates, guessedPlatform, item.platform_post_id, { ...item, id: item.id });
+  }
   return candidates.map((candidate) => ({ ...candidate, queue_id: item.id, source_item: item }));
 };
 

@@ -40,8 +40,8 @@ test("platform success, failure, IDs, and error metadata are extracted determini
   assert.deepEqual(publishedPlatformsFromResults(results), ["facebook"]);
   assert.deepEqual(failedPlatformsFromResults(results), ["instagram"]);
   assert.deepEqual(platformIdsFromResults(results), {
-    facebook_post_id: "fb_post_1",
-    instagram_media_id: "",
+    facebook: "fb_post_1",
+    instagram: "",
     instagram_publish_id: "",
   });
   assert.deepEqual(platformErrorFromResults(results), {

@@ -648,9 +648,6 @@ export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
       platform_error_message TEXT NULL,
       publish_attempts INTEGER NOT NULL DEFAULT 0,
       last_publish_attempt_at TIMESTAMP NULL,
-      facebook_post_id TEXT NULL,
-      instagram_media_id TEXT NULL,
-      instagram_publish_id TEXT NULL,
       platform_post_id TEXT NULL,
       published_platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
       platform_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -675,9 +672,6 @@ export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
       ADD COLUMN IF NOT EXISTS platform_error_message TEXT NULL,
       ADD COLUMN IF NOT EXISTS publish_attempts INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS last_publish_attempt_at TIMESTAMP NULL,
-      ADD COLUMN IF NOT EXISTS facebook_post_id TEXT NULL,
-      ADD COLUMN IF NOT EXISTS instagram_media_id TEXT NULL,
-      ADD COLUMN IF NOT EXISTS instagram_publish_id TEXT NULL,
       ADD COLUMN IF NOT EXISTS platform_post_id TEXT NULL,
       ADD COLUMN IF NOT EXISTS published_platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS platform_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -1536,8 +1530,8 @@ const platformErrorFromResults = (results = {}) => {
 };
 
 const platformIdsFromResults = (results = {}) => ({
-  facebook_post_id: cleanText(results.facebook?.platform_post_id || results.facebook?.platform_story_id || results.facebook?.id || ""),
-  instagram_media_id: cleanText(results.instagram?.platform_post_id || results.instagram?.platform_story_id || results.instagram?.id || ""),
+  facebook: cleanText(results.facebook?.platform_post_id || results.facebook?.platform_story_id || results.facebook?.id || ""),
+  instagram: cleanText(results.instagram?.platform_post_id || results.instagram?.platform_story_id || results.instagram?.id || ""),
   instagram_publish_id: cleanText(results.instagram?.publish_id || results.instagram?.instagram_publish_id || results.instagram?.container_id || ""),
 });
 
@@ -2345,10 +2339,7 @@ const persistQueuePublishResult = async ({ tenantId, id, item, result, platformR
         error_message = $9::text,
         platform_error_code = $10::text,
         platform_error_message = $11::text,
-        facebook_post_id = $12::text,
-        instagram_media_id = $13::text,
-        instagram_publish_id = $14::text,
-        metadata = metadata || $15::jsonb,
+        metadata = metadata || $12::jsonb,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = $1 AND tenant_id = $2
     RETURNING *
@@ -2365,9 +2356,6 @@ const persistQueuePublishResult = async ({ tenantId, id, item, result, platformR
       errorMessage,
       platformError.code || null,
       errorMessage,
-      ids.facebook_post_id || null,
-      ids.instagram_media_id || null,
-      ids.instagram_publish_id || null,
       JSON.stringify({
         publish_adapter: "meta_existing_connection",
         source_status: item?.status || null,
