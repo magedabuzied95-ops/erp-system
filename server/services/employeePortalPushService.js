@@ -6,6 +6,7 @@ const updateCooldown = new Map();
 const overdueCooldown = new Map();
 const PUSH_UPDATE_COOLDOWN_MS = 60_000;
 const PUSH_OVERDUE_COOLDOWN_MS = 30 * 60_000;
+const EMPLOYEE_FRONTEND_ORIGIN = "https://erp-system-ten-green.vercel.app";
 
 const endpointHost = (endpoint = "") => {
   try {
@@ -21,14 +22,20 @@ const endpointAgeSeconds = (value = null) => {
   return Math.max(0, Math.round((Date.now() - time) / 1000));
 };
 
+const webPushSubject = () => {
+  const configured = text(process.env.WEB_PUSH_SUBJECT);
+  if (configured && !configured.toLowerCase().startsWith("mailto:")) return configured.replace(/\/+$/g, "");
+  return text(process.env.PUBLIC_FRONTEND_URL || process.env.FRONTEND_URL || process.env.VITE_PUBLIC_FRONTEND_URL || EMPLOYEE_FRONTEND_ORIGIN).replace(/\/+$/g, "");
+};
+
 const hasVapidConfig = () =>
-  Boolean(text(process.env.WEB_PUSH_PUBLIC_KEY) && text(process.env.WEB_PUSH_PRIVATE_KEY) && text(process.env.WEB_PUSH_SUBJECT));
+  Boolean(text(process.env.WEB_PUSH_PUBLIC_KEY) && text(process.env.WEB_PUSH_PRIVATE_KEY) && webPushSubject());
 
 export const logEmployeePushVapidCheck = () => {
   console.info("[employee-push:vapid-check]", {
     hasPublicKey: Boolean(text(process.env.WEB_PUSH_PUBLIC_KEY)),
     hasPrivateKey: Boolean(text(process.env.WEB_PUSH_PRIVATE_KEY)),
-    hasSubject: Boolean(text(process.env.WEB_PUSH_SUBJECT)),
+    hasSubject: Boolean(webPushSubject()),
   });
 };
 
@@ -36,7 +43,7 @@ const configureWebPush = () => {
   if (!hasVapidConfig()) return false;
   try {
     webPush.setVapidDetails(
-      text(process.env.WEB_PUSH_SUBJECT),
+      webPushSubject(),
       text(process.env.WEB_PUSH_PUBLIC_KEY),
       text(process.env.WEB_PUSH_PRIVATE_KEY)
     );
@@ -46,7 +53,7 @@ const configureWebPush = () => {
       message: error.message,
       hasPublicKey: Boolean(text(process.env.WEB_PUSH_PUBLIC_KEY)),
       hasPrivateKey: Boolean(text(process.env.WEB_PUSH_PRIVATE_KEY)),
-      hasSubject: Boolean(text(process.env.WEB_PUSH_SUBJECT)),
+      hasSubject: Boolean(webPushSubject()),
     });
     return false;
   }
@@ -128,7 +135,7 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
       employeeId,
       hasPublicKey: Boolean(text(process.env.WEB_PUSH_PUBLIC_KEY)),
       hasPrivateKey: Boolean(text(process.env.WEB_PUSH_PRIVATE_KEY)),
-      hasSubject: Boolean(text(process.env.WEB_PUSH_SUBJECT)),
+      hasSubject: Boolean(webPushSubject()),
     });
     return { sent: 0, failed: 0, deactivated: 0, skipped: true };
   }
@@ -145,25 +152,36 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
     [tenantId, employeeId]
   );
 
+  const notificationTag = pushTagForEvent(data?.event, tag);
+  const isEmployeeChatPush = notificationTag === "employee-chat";
+  const safeTitle = isEmployeeChatPush
+    ? text(title) || " رسالة جديدة من الإدارة"
+    : text(title || "تنبيه جديد");
+  const safeBody = isEmployeeChatPush && text(body).length <= 10
+    ? "لديك رسالة جديدة في تطبيق الموظف"
+    : text(body || "");
+  const safeUrl = isEmployeeChatPush && (!text(url) || text(url) === "/")
+    ? "/employee-app/?tab=chat"
+    : url;
+
   console.info("[employee-push:send-start]", {
     employee_id: employeeId,
     subscription_count: result.rows.length,
     payloadKeys: ["title", "body", "tag", "url"],
-    titleLength: text(title || "تنبيه جديد").length,
-    bodyLength: text(body || "").length,
-    url,
-    tag: pushTagForEvent(data?.event, tag),
+    titleLength: safeTitle.length,
+    bodyLength: safeBody.length,
+    url: safeUrl,
+    tag: notificationTag,
   });
 
   let sent = 0;
   let failed = 0;
   let deactivated = 0;
   for (const row of result.rows) {
-    const notificationTag = pushTagForEvent(data?.event, tag);
-    const notificationUrl = portalNotificationUrl(url, row.portal_url, data?.tab);
+    const notificationUrl = portalNotificationUrl(safeUrl, row.portal_url, data?.tab);
     const payloadObject = {
-      title: title || "تنبيه جديد",
-      body: body || "",
+      title: safeTitle,
+      body: safeBody,
       icon: "/icons/employee-portal-192.png",
       badge: "/icons/employee-portal-192.png",
       tag: notificationTag,
@@ -179,8 +197,6 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
       delete payloadObject.badge;
       delete payloadObject.renotify;
       delete payloadObject.data;
-      payloadObject.title = title || "رسالة جديدة من الإدارة";
-      payloadObject.body = body || "لديك رسالة جديدة في تطبيق الموظف";
       payloadObject.url = notificationUrl;
     }
     const payload = JSON.stringify(payloadObject);
@@ -193,7 +209,11 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
     };
 
     try {
-      await webPush.sendNotification(subscription, payload, { TTL: 60 * 60, topic: notificationTag || undefined });
+      const sendOptions = { TTL: 60 * 60 };
+      if (notificationTag !== "employee-chat" && endpointHost(row.endpoint) !== "web.push.apple.com") {
+        sendOptions.topic = notificationTag || undefined;
+      }
+      await webPush.sendNotification(subscription, payload, sendOptions);
       sent += 1;
       console.info("[employee-push:send-success]", {
         employee_id: employeeId,

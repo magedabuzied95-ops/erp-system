@@ -45,10 +45,13 @@ const employeeChatRoom = (employeeId) => `employee-chat:employee:${employeeId}`;
 
 const chatPushPreview = (message = {}) => {
   const body = clean(message.body);
-  if (body) return body.length > 120 ? `${body.slice(0, 117)}...` : body;
+  if (body) {
+    const shortText = body.length > 80 ? `${body.slice(0, 77)}...` : body;
+    return `رسالة جديدة: ${shortText}`;
+  }
   if (message.attachment_type === "image") return "تم إرسال صورة";
   if (message.attachment_url) return "تم إرسال ملف";
-  return "رسالة جديدة";
+  return "لديك رسالة جديدة في تطبيق الموظف";
 };
 
 const loadThreadSummary = async (threadId, clientOrPool = db) => {
@@ -292,6 +295,7 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
       t.*,
       e.full_name AS employee_name,
       e.employee_code,
+      e.employee_portal_token,
       b.name AS branch_name
     FROM employee_chat_threads t
     JOIN employees e ON e.id = t.employee_id
@@ -378,8 +382,9 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
     await sendEmployeePortalPush({
       tenantId: thread.tenant_id,
       employeeId: thread.employee_id,
-      title: "رسالة جديدة من الإدارة",
+      title: " رسالة جديدة من الإدارة",
       body: chatPushPreview(message),
+      url: thread.employee_portal_token ? `/employee-app/${encodeURIComponent(thread.employee_portal_token)}?tab=chat` : "/employee-app/?tab=chat",
       tag: "employee-chat",
       data: {
         event: "employee_chat_message",
