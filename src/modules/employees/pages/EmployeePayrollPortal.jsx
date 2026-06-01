@@ -78,9 +78,10 @@ const labels = {
     branch: "الفرع",
     jobTitle: "الوظيفة",
     transactionTypes: {
-      advance: "سلفة",
+      advance: "سلفة شخصية",
       penalty: "جزاء",
       bonus: "مكافأة",
+      reward: "مكافأة",
       commission: "عمولة",
       salary_approval: "اعتماد المرتب",
       attendance_deduction: "خصم حضور",
@@ -130,9 +131,10 @@ const labels = {
     branch: "Branch",
     jobTitle: "Job title",
     transactionTypes: {
-      advance: "Advance",
+      advance: "Personal advance",
       penalty: "Penalty",
       bonus: "Bonus",
+      reward: "Reward",
       commission: "Commission",
       salary_approval: "Salary approval",
       attendance_deduction: "Attendance deduction",
@@ -154,6 +156,8 @@ Object.assign(labels.ar, {
   attendanceSummary: "ملخص حضور الشهر",
   attendanceTimeline: "حركة الحضور اليومية",
   presentDays: "أيام الحضور",
+  attendedDays: "الحضور",
+  attendedDaysSuffix: "يوم",
   absentDays: "أيام الغياب",
   lateDays: "أيام التأخير",
   overtimeHours: "ساعات إضافية",
@@ -185,7 +189,7 @@ Object.assign(labels.ar, {
   sendRequest: "إرسال الطلب",
   requestSent: "تم إرسال الطلب",
   noRequests: "لا توجد طلبات حتى الآن.",
-  requestHistory: "تنبيهات وسجل الطلبات",
+  requestHistory: "آخر الطلبات",
   adminNote: "رد الإدارة",
   pending: "قيد المراجعة",
   approved: "مقبول",
@@ -206,6 +210,8 @@ Object.assign(labels.en, {
   attendanceSummary: "Current month attendance",
   attendanceTimeline: "Daily attendance timeline",
   presentDays: "Present days",
+  attendedDays: "Attended",
+  attendedDaysSuffix: "days",
   absentDays: "Absent days",
   lateDays: "Late days",
   overtimeHours: "Overtime hours",
@@ -237,7 +243,7 @@ Object.assign(labels.en, {
   sendRequest: "Send request",
   requestSent: "Request sent",
   noRequests: "You have not submitted any requests.",
-  requestHistory: "Notifications and request history",
+  requestHistory: "Recent requests",
   adminNote: "Admin note",
   pending: "Pending",
   approved: "Approved",
@@ -311,8 +317,9 @@ Object.assign(labels.ar, {
   checkedInAt: "تم تسجيل حضورك في",
   attendancePercent: "نسبة الحضور",
   pendingTasks: "مهام معلقة",
-  salaryNotGenerated: "لم يتم إنشاء راتبك بعد.",
-  noTasksToday: "لا توجد مهام مسندة اليوم.",
+  salaryNotGenerated: "لم يتم إنشاء راتب هذا الشهر بعد",
+  noTasksToday: "لا توجد مهام اليوم",
+  noTasksSubtitle: "كل شيء مكتمل حاليا.",
   noRequestsSubmitted: "لم تقدم أي طلبات بعد.",
   noTimeline: "لا توجد حركات على المحفظة حتى الآن.",
   advanceRequest: "طلب سلفة",
@@ -346,8 +353,9 @@ Object.assign(labels.en, {
   checkedInAt: "You checked in at",
   attendancePercent: "Attendance %",
   pendingTasks: "Pending Tasks",
-  salaryNotGenerated: "Your salary has not been generated yet.",
+  salaryNotGenerated: "This month salary has not been generated yet.",
   noTasksToday: "No tasks assigned today.",
+  noTasksSubtitle: "Everything is clear right now.",
   noRequestsSubmitted: "You have not submitted any requests.",
   noTimeline: "No wallet activity yet.",
   advanceRequest: "Advance Request",
@@ -578,9 +586,55 @@ const formatMinutesShort = (minutes = 0) => {
 const taskStatusKey = (status = "") => String(status || "").trim().toLowerCase();
 
 const statusLabel = (status, text) => {
-  if (status === "pending_payment") return text.pendingPayment;
-  if (status === "not_generated") return text.notGenerated;
+  const key = String(status || "").trim().toLowerCase();
+  if (key === "pending_payment") return text.pendingPayment;
+  if (key === "not_generated" || key === "missing" || key === "not_generated_yet") return text.notGenerated;
   return text.generated;
+};
+
+const walletTransactionTypeLabel = (item = {}, text = labels.en, language = "en") => {
+  const rawType = String(item.type || item.transaction_type || item.kind || "").trim();
+  const normalizedType = rawType.toLowerCase();
+  if (language === "ar") {
+    const arTypes = {
+      advance: "\u0633\u0644\u0641\u0629 \u0634\u062e\u0635\u064a\u0629",
+      bonus: "\u0645\u0643\u0627\u0641\u0623\u0629",
+      commission: "\u0639\u0645\u0648\u0644\u0629",
+      penalty: "\u062c\u0632\u0627\u0621",
+      deduction: "\u062e\u0635\u0645",
+      attendance_deduction: "\u062e\u0635\u0645",
+      salary: "\u0631\u0627\u062a\u0628",
+      payroll: "\u0631\u0627\u062a\u0628",
+      salary_approval: "\u0631\u0627\u062a\u0628",
+      adjustment: "\u062a\u0639\u062f\u064a\u0644 \u0645\u062d\u0641\u0638\u0629",
+    };
+    return arTypes[normalizedType] || text.transactionTypes?.[normalizedType] || text.transactionTypes?.[rawType] || text.salaryAndBonus;
+  }
+  return item.label || text.transactionTypes?.[normalizedType] || text.transactionTypes?.[rawType] || text.salaryAndBonus;
+};
+
+const formatWalletDateLocal = (value, language = "en", fallback = "-") => {
+  const date = parseSafeDate(value);
+  if (!date) return fallback;
+  const formatParts = (timeZone) => {
+    const parts = new Intl.DateTimeFormat(localeForLanguage(language), {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const part = (type) => parts.find((item) => item.type === type)?.value || "";
+    return `${part("day")}-${part("month")}-${part("year")}`;
+  };
+  try {
+    return formatParts(browserTimeZone());
+  } catch {
+    try {
+      return formatParts("Africa/Cairo");
+    } catch {
+      return fallback;
+    }
+  }
 };
 
 const getBrowserLocation = () =>
@@ -600,13 +654,29 @@ const getBrowserLocation = () =>
     );
   });
 
+const requestTypeLabel = (item = {}, text = labels.en) => {
+  const type = String(item.request_type || item.type || "").trim().toLowerCase();
+  if (type === "advance") return text.requestAdvance;
+  if (type === "hr_note") return text.sendHrNote;
+  if (type === "late_permission") return text.latePermission;
+  return text.requestVacation;
+};
+
+const requestStatusClass = (status = "") => {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "approved") return "bg-emerald-100 text-emerald-800";
+  if (normalized === "rejected") return "bg-red-100 text-red-800";
+  return "bg-amber-100 text-amber-800";
+};
+
 const transactionIcon = (type) => {
-  if (type === "advance") return CreditCard;
-  if (type === "penalty") return AlertTriangle;
-  if (type === "bonus") return Gift;
-  if (type === "commission") return Coins;
-  if (type === "salary_approval") return CheckCircle2;
-  if (type === "attendance_deduction") return CalendarDays;
+  const key = String(type || "").trim().toLowerCase();
+  if (key === "advance") return CreditCard;
+  if (key === "penalty") return AlertTriangle;
+  if (key === "bonus") return Gift;
+  if (key === "commission") return Coins;
+  if (key === "salary" || key === "payroll" || key === "salary_approval") return CheckCircle2;
+  if (key === "deduction" || key === "attendance_deduction") return CalendarDays;
   return ReceiptText;
 };
 
@@ -646,10 +716,11 @@ function ProgressRow({ label, value, detail }) {
 }
 
 function TimelineItem({ item, text, language }) {
-  const Icon = transactionIcon(item.type);
+  const type = String(item.type || item.transaction_type || item.kind || "").trim().toLowerCase();
+  const Icon = transactionIcon(type);
   const credit = item.direction === "credit";
-  const isAdvance = item.type === "advance";
-  const label = isAdvance ? text.advanceReceived : credit ? text.salaryAndBonus : text.deductionOrPenalty;
+  const isAdvance = type === "advance";
+  const label = walletTransactionTypeLabel(item, text, language);
   const tone = isAdvance
     ? "bg-amber-50 text-amber-700"
     : credit
@@ -661,9 +732,9 @@ function TimelineItem({ item, text, language }) {
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
-        <div className="text-sm font-black text-slate-950">{item.label || label}</div>
+        <div className="text-sm font-black text-slate-950">{label}</div>
         <div className="mt-1 text-xs font-bold text-slate-500" dir="auto">{text.reason}: {item.description || item.status || "-"}</div>
-        <div className="mt-1 text-xs font-bold text-slate-400" dir="ltr">{formatDateLocal(item.date, language)}</div>
+        <div className="mt-1 text-xs font-bold text-slate-400" dir="ltr">{formatWalletDateLocal(item.date, language)}</div>
       </div>
       <div className={`whitespace-nowrap text-sm font-black tabular-nums ${isAdvance ? "text-amber-700" : credit ? "text-emerald-700" : "text-red-700"}`} dir="ltr">
         {credit ? "+" : "-"} {money(item.amount)}
@@ -674,7 +745,7 @@ function TimelineItem({ item, text, language }) {
 
 export default function EmployeePayrollPortal() {
   const { token } = useParams();
-  const [language, setLanguage] = useState("ar");
+  const language = "ar";
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -754,6 +825,7 @@ export default function EmployeePayrollPortal() {
   }, [token, language]);
 
   const wallet = portal?.wallet_summary || {};
+  const payrollStatusValue = payrollExists ? (wallet.payroll_status || portal?.payment_status) : "not_generated";
   const profile = portal?.employee_profile || portal?.employee || {};
   const attendance = portal?.attendance?.summary || portal?.recent_attendance_summary || {};
   const attendanceRows = safeArray(portal?.attendance?.timeline);
@@ -795,12 +867,12 @@ export default function EmployeePayrollPortal() {
   const overviewCards = useMemo(() => {
     if (!portal) return [];
     return [
-      { label: text.netSalary, value: portal.payroll_generated ? money(wallet.current_net_salary ?? portal.net_salary) : "-", icon: WalletCards, tone: "emerald" },
+      { label: text.netSalary, value: payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-", icon: WalletCards, tone: "emerald" },
       { label: text.totalAdvances, value: money(wallet.total_advances ?? portal.advances), icon: CreditCard, tone: "amber" },
       { label: text.pendingCommissions, value: money(wallet.pending_commissions), icon: Coins, tone: "sky" },
       { label: text.totalDeductions, value: money(wallet.total_deductions ?? portal.total_deductions), icon: ReceiptText, tone: "red" },
     ];
-  }, [portal, text, wallet]);
+  }, [payrollExists, portal, text, wallet]);
 
   const payslipCards = useMemo(() => {
     if (!portal) return [];
@@ -851,7 +923,7 @@ export default function EmployeePayrollPortal() {
 
   const downloadPayslip = () => {
     const p = portal?.payslip;
-    if (!p) return;
+    if (!payrollExists || !p) return;
     const rows = [
       [text.employeeCode, p.employee_code],
       [text.jobTitle, p.job_title || "-"],
@@ -987,20 +1059,13 @@ export default function EmployeePayrollPortal() {
   };
 
   return (
-    <main dir={direction} className="min-h-[100dvh] bg-slate-100 px-3 py-4 pb-[calc(6rem+env(safe-area-inset-bottom))] text-slate-950">
+    <main dir={direction} className="min-h-[100dvh] overflow-x-hidden bg-slate-100 px-3 py-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] text-slate-950">
       <div className="mx-auto max-w-md">
         <header className="flex items-center justify-between gap-3 py-1">
           <div className="flex items-center gap-2 text-sm font-black text-slate-700">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
             <span>{ui("employeeDashboard")}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setLanguage((current) => current === "ar" ? "en" : "ar")}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm"
-          >
-            {text.language}
-          </button>
         </header>
 
         {!portal && loading ? (
@@ -1014,7 +1079,7 @@ export default function EmployeePayrollPortal() {
             <div className="mt-3">{error || text.invalidLink || labels.en.invalidLink}</div>
           </div>
         ) : (
-          <section className="mt-4 space-y-4">
+          <section className="mt-4 space-y-4 pb-4">
             <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start gap-3">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 text-lg font-black text-white">
@@ -1044,7 +1109,7 @@ export default function EmployeePayrollPortal() {
               <>
                 <div className="grid grid-cols-4 gap-2">
                   {[
-                    [text.netSalary, portal.payroll_generated ? money(wallet.current_net_salary ?? portal.net_salary) : "-", WalletCards],
+                    [text.netSalary, payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-", WalletCards],
                     [text.advances, money(wallet.total_advances ?? portal.advances), CreditCard],
                     [ui("attendancePercent"), `${attendancePercent}%`, CalendarDays],
                     [ui("pendingTasks"), pendingTasks.length, ClipboardList],
@@ -1103,7 +1168,7 @@ export default function EmployeePayrollPortal() {
 
             {activeTab === "salary" ? <div className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
               <div className="text-xs font-black text-slate-300">{ui("currentNetSalary")}</div>
-              <div className="mt-2 text-4xl font-black tabular-nums" dir="ltr">{portal.payroll_generated ? money(wallet.current_net_salary ?? portal.net_salary) : "-"}</div>
+              <div className="mt-2 text-4xl font-black tabular-nums" dir="ltr">{payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-"}</div>
               <div className="mt-4 grid grid-cols-2 gap-2 text-sm font-black">
                 <div className="rounded-2xl bg-white/10 px-3 py-2">
                   <div className="text-xs text-slate-300">{text.payrollPeriod}</div>
@@ -1111,15 +1176,21 @@ export default function EmployeePayrollPortal() {
                 </div>
                 <div className="rounded-2xl bg-white/10 px-3 py-2">
                   <div className="text-xs text-slate-300">{text.payrollStatus}</div>
-                  <div className="mt-1">{statusLabel(wallet.payroll_status || portal.payment_status, text)}</div>
+                  <div className="mt-1">{statusLabel(payrollStatusValue, text)}</div>
                 </div>
               </div>
             </div> : null}
 
-            {activeTab === "salary" && !portal.payroll_generated ? (
+            {activeTab === "salary" && !payrollExists ? (
               <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm">
-                <FileText className="mx-auto h-8 w-8 text-slate-400" />
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100">
+                  <FileText className="h-6 w-6 text-slate-500" />
+                </div>
                 <h2 className="mt-3 text-xl font-black">{ui("salaryNotGenerated")}</h2>
+                <div className="mt-4 rounded-2xl bg-slate-50 px-3 py-3 text-sm font-black text-slate-700">
+                  <div className="text-xs text-slate-500">{text.payrollPeriod}</div>
+                  <div className="mt-1 tabular-nums" dir="ltr">{portal.current_payroll_period}</div>
+                </div>
               </div>
             ) : null}
 
@@ -1176,7 +1247,7 @@ export default function EmployeePayrollPortal() {
               </div>
             </div> : null}
 
-            {activeTab === "salary" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            {activeTab === "salary" && payrollExists ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               <h3 className="text-base font-black">{ui("payrollBreakdown")}</h3>
               <div className="mt-3 grid gap-2 text-sm font-bold">
                 {[
@@ -1194,7 +1265,7 @@ export default function EmployeePayrollPortal() {
                 ))}
                 <div className="mt-1 flex items-center justify-between border-t border-slate-200 pt-3 text-base font-black">
                   <span>{text.netSalary}</span>
-                  <span dir="ltr">{portal.payroll_generated ? money(wallet.current_net_salary ?? portal.net_salary) : "-"}</span>
+                  <span dir="ltr">{payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-"}</span>
                 </div>
               </div>
               <button type="button" onClick={downloadPayslip} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white">
@@ -1223,8 +1294,8 @@ export default function EmployeePayrollPortal() {
                   <div className="mt-1 text-xl font-black tabular-nums">{attendance.overtime_hours || 0}</div>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-3">
-                  <div className="text-slate-500">{text.expectedDays}</div>
-                  <div className="mt-1 text-xl font-black tabular-nums">{attendance.expected_working_days || 0}</div>
+                  <div className="text-slate-500">{ui("attendedDays")}</div>
+                  <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{presentDays} / {expectedDays} {ui("attendedDaysSuffix")}</div>
                 </div>
                 <div className="rounded-2xl bg-red-50 p-3 text-red-950">
                   <div className="text-red-700">{text.deductedAbsenceAmount}</div>
@@ -1263,6 +1334,15 @@ export default function EmployeePayrollPortal() {
             {activeTab === "tasks" ? (
               <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h3 className="text-base font-black">{text.tasks}</h3>
+                {!tasks.length ? (
+                  <div className="mt-3 rounded-3xl border border-emerald-100 bg-emerald-50 px-4 py-6 text-center">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-sm">
+                      <CheckCircle2 className="h-7 w-7" />
+                    </div>
+                    <div className="mt-3 text-xl font-black text-emerald-950">{ui("noTasksToday")}</div>
+                    <div className="mt-1 text-sm font-bold text-emerald-700">{ui("noTasksSubtitle")}</div>
+                  </div>
+                ) : null}
                 <div className="mt-3 grid gap-4">
                   {[
                     [ui("pendingTasksTitle"), pendingTasks],
@@ -1308,7 +1388,7 @@ export default function EmployeePayrollPortal() {
                             </div>
                           </div>
                         )) : (
-                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">{ui("noTasksToday")}</div>
+                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs font-black text-slate-400">0</div>
                         )}
                       </div>
                     </section>
@@ -1353,15 +1433,14 @@ export default function EmployeePayrollPortal() {
                 {employeeRequests.length ? employeeRequests.map((item) => (
                   <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
                     <div className="flex items-center justify-between gap-3">
-                      <span>{item.request_type === "advance" ? text.requestAdvance : item.request_type === "hr_note" ? text.sendHrNote : text.requestVacation}</span>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-black ${item.status === "approved" ? "bg-emerald-100 text-emerald-800" : item.status === "rejected" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>
+                      <span>{requestTypeLabel(item, text)}</span>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-black ${requestStatusClass(item.status)}`}>
                         {text[item.status] || item.status}
                       </span>
                     </div>
-                    <div className="mt-1 text-xs text-slate-500" dir="auto">{item.message || "-"}</div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
-                      <div>{ui("decisionDate")}: <span dir="ltr">{formatDateLocal(item.decision_date || item.reviewed_at, language)}</span></div>
-                      <div>{ui("decisionBy")}: <span dir="auto">{item.approved_rejected_by || item.decision_by || "-"}</span></div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold text-slate-500">
+                      <div>{text.requestType}: <span>{requestTypeLabel(item, text)}</span></div>
+                      <div>{text.requestDate}: <span dir="ltr">{formatDateLocal(item.request_date || item.created_at, language)}</span></div>
                     </div>
                     {item.amount ? <div className="mt-1 text-xs font-black text-slate-600" dir="ltr">{money(item.amount)}</div> : null}
                     {item.admin_note ? <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-slate-700" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
@@ -1407,3 +1486,4 @@ export default function EmployeePayrollPortal() {
     </main>
   );
 }
+
