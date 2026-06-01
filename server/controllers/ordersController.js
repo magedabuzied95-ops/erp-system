@@ -2523,6 +2523,24 @@ export const createOrder = async (req, res) => {
       : Math.max(0, Number(coupon_discount_amount || 0));
     const totalDiscount = nonCouponDiscount + couponDiscountAmount;
     const computedTotal = Math.max(0, computedSubtotal - totalDiscount + totalServiceFee);
+    console.log("[orders:discount-received]", {
+      order_payload_invoice_discount_type: invoice_discount_type || null,
+      order_payload_invoice_discount_value: invoice_discount_value,
+      order_payload_invoice_discount_amount: invoice_discount_amount,
+      order_payload_aggregate_discount_amount: discount_amount,
+      computed_subtotal: computedSubtotal,
+      computed_item_discount_amount: itemDiscountAmount,
+      computed_invoice_discount_type: normalizedInvoiceDiscountType,
+      computed_invoice_discount_value: invoiceDiscountValue,
+      computed_invoice_discount_amount: normalizedInvoiceDiscountAmount,
+      computed_coupon_discount_amount: couponDiscountAmount,
+      computed_loyalty_discount_amount: Number(loyalty_discount_amount || 0),
+      computed_service_fee: totalServiceFee,
+      computed_final_total: computedTotal,
+      expected_invoice_only_total: Math.max(0, computedSubtotal - normalizedInvoiceDiscountAmount + totalServiceFee),
+      payment_method,
+      received_paid_amount: paid_amount,
+    });
     const exchangeMode = exchange_mode === true || String(exchange_mode || "").toLowerCase() === "true";
     const exchangeCreditAmount = Math.max(0, Number(exchange_credit_amount || 0) || 0);
     const exchangeAppliedCredit = Math.min(exchangeCreditAmount, computedTotal);
@@ -2785,6 +2803,19 @@ export const createOrder = async (req, res) => {
     });
 
     let order = orderResult.rows[0];
+    console.log("[orders:discount-saved]", {
+      order_id: order?.id || null,
+      invoice_number: order?.invoice_number || "",
+      subtotal: Number(order?.subtotal || 0),
+      discount_amount: Number(order?.discount_amount || 0),
+      invoice_discount_type: order?.invoice_discount_type || null,
+      invoice_discount_value: Number(order?.invoice_discount_value || 0),
+      invoice_discount_amount: Number(order?.invoice_discount_amount || 0),
+      service_fee: Number(order?.service_fee || 0),
+      total_amount: Number(order?.total_amount || order?.total || 0),
+      paid_amount: Number(order?.paid_amount || 0),
+      payment_method: order?.payment_method || "",
+    });
     if (exchangeMode) {
       const exchangeOrderResult = await client.query(
         `

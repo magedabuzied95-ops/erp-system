@@ -96,6 +96,9 @@ const defaultState = {
   walletAmount: 0,
   vodafoneCashAmount: 0,
   customerWalletAmount: 0,
+  invoiceDiscountType: "fixed",
+  invoiceDiscountValue: 0,
+  invoiceDiscountReason: "",
   invoiceDiscount: 0,
   serviceFee: 0,
   quickCustomer: { name: "", phone: "", source_key: "" },
@@ -142,6 +145,20 @@ const WALK_IN_CUSTOMER = {
   id: null,
   name: "Walk-in Customer",
   type: "walk_in",
+};
+
+const normalizeInvoiceDiscountType = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "percentage" || normalized === "percent" ? "percentage" : "fixed";
+};
+
+const calculateInvoiceDiscountAmount = ({ subtotal = 0, type = "fixed", value = 0 } = {}) => {
+  const safeSubtotal = Math.max(0, Number(subtotal || 0));
+  const safeValue = Math.max(0, Number(value || 0));
+  const rawDiscount = normalizeInvoiceDiscountType(type) === "percentage"
+    ? safeSubtotal * (Math.min(100, safeValue) / 100)
+    : safeValue;
+  return Number(Math.min(safeSubtotal, Math.max(0, rawDiscount)).toFixed(2));
 };
 
 const getErrorMessage = (error, fallback) =>
@@ -1170,6 +1187,9 @@ function POSPro() {
   const [paymentAccountStatus, setPaymentAccountStatus] = useState(null);
   const [paymentAccountLoading, setPaymentAccountLoading] = useState(false);
   const [paymentAccountRefreshKey, setPaymentAccountRefreshKey] = useState(0);
+  const [invoiceDiscountType, setInvoiceDiscountType] = useState(defaultState.invoiceDiscountType);
+  const [invoiceDiscountValue, setInvoiceDiscountValue] = useState(defaultState.invoiceDiscountValue);
+  const [invoiceDiscountReason, setInvoiceDiscountReason] = useState(defaultState.invoiceDiscountReason);
   const [invoiceDiscount, setInvoiceDiscount] = useState(defaultState.invoiceDiscount);
   const [serviceFee, setServiceFee] = useState(defaultState.serviceFee);
   const [couponCode, setCouponCode] = useState("");
@@ -1250,12 +1270,15 @@ function POSPro() {
         walletAmount,
         vodafoneCashAmount,
         customerWalletAmount,
+        invoiceDiscountType,
+        invoiceDiscountValue,
+        invoiceDiscountReason,
         invoiceDiscount,
         serviceFee,
         selectedSalespersonId,
       });
     }
-  }, [activePosShift?.id, activePosShift?.branch_id, cardAmount, cart, cashAmount, customerWalletAmount, invoiceDiscount, invoiceNumber, paymentMode, posShiftBranch?.id, selectedSalespersonId, serviceFee, vodafoneCashAmount, walletAmount]);
+  }, [activePosShift?.id, activePosShift?.branch_id, cardAmount, cart, cashAmount, customerWalletAmount, invoiceDiscount, invoiceDiscountReason, invoiceDiscountType, invoiceDiscountValue, invoiceNumber, paymentMode, posShiftBranch?.id, selectedSalespersonId, serviceFee, vodafoneCashAmount, walletAmount]);
 
   useEffect(() => {
     if (!activePosShift?.id || shiftSessionRecoveredRef.current) return;
@@ -1277,6 +1300,9 @@ function POSPro() {
       setWalletAmount(savedSession.walletAmount ?? defaultState.walletAmount);
       setVodafoneCashAmount(savedSession.vodafoneCashAmount ?? defaultState.vodafoneCashAmount);
       setCustomerWalletAmount(savedSession.customerWalletAmount ?? defaultState.customerWalletAmount);
+      setInvoiceDiscountType(normalizeInvoiceDiscountType(savedSession.invoiceDiscountType ?? defaultState.invoiceDiscountType));
+      setInvoiceDiscountValue(savedSession.invoiceDiscountValue ?? savedSession.invoiceDiscount ?? defaultState.invoiceDiscountValue);
+      setInvoiceDiscountReason(savedSession.invoiceDiscountReason ?? defaultState.invoiceDiscountReason);
       setInvoiceDiscount(savedSession.invoiceDiscount ?? defaultState.invoiceDiscount);
       setServiceFee(savedSession.serviceFee ?? defaultState.serviceFee);
       if (savedSession.selectedSalespersonId) setSelectedSalespersonId(String(savedSession.selectedSalespersonId));
@@ -1302,6 +1328,9 @@ function POSPro() {
         walletAmount,
         vodafoneCashAmount,
         customerWalletAmount,
+        invoiceDiscountType,
+        invoiceDiscountValue,
+        invoiceDiscountReason,
         invoiceDiscount,
         serviceFee,
       });
@@ -1324,6 +1353,9 @@ function POSPro() {
     walletAmount,
     vodafoneCashAmount,
     customerWalletAmount,
+    invoiceDiscountType,
+    invoiceDiscountValue,
+    invoiceDiscountReason,
     invoiceDiscount,
     serviceFee,
   ]);
@@ -2280,16 +2312,36 @@ function POSPro() {
     return { productsByCode, variantsByCode };
   }, [products]);
 
+  const invoiceDiscountSubtotal = useMemo(
+    () => cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0),
+    [cart]
+  );
+  const computedInvoiceDiscount = useMemo(
+    () =>
+      calculateInvoiceDiscountAmount({
+        subtotal: invoiceDiscountSubtotal,
+        type: invoiceDiscountType,
+        value: invoiceDiscountValue,
+      }),
+    [invoiceDiscountSubtotal, invoiceDiscountType, invoiceDiscountValue]
+  );
+
+  useEffect(() => {
+    if (Math.abs(Number(invoiceDiscount || 0) - computedInvoiceDiscount) > 0.009) {
+      setInvoiceDiscount(computedInvoiceDiscount);
+    }
+  }, [computedInvoiceDiscount, invoiceDiscount]);
+
   const cartTotals = useMemo(
     () =>
       calcTotals({
         cart,
-        invoiceDiscount,
+        invoiceDiscount: computedInvoiceDiscount,
         serviceFee,
         loyaltyDiscount: loyaltyValidation && loyaltyValidation.valid === false ? 0 : Number(loyaltyValidation?.applied_amount || 0),
         couponDiscount: couponValidation?.valid ? Number(couponValidation.discount_amount || 0) : 0,
       }),
-    [cart, invoiceDiscount, serviceFee, loyaltyValidation, couponValidation]
+    [cart, computedInvoiceDiscount, serviceFee, loyaltyValidation, couponValidation]
   );
 
   const exchangeCreditAmount = Math.max(0, Number(exchangeState?.creditAmount || 0));
@@ -3075,7 +3127,10 @@ function POSPro() {
       setVodafoneCashAmount(0);
       setCustomerWalletAmount(0);
       setExchangeState(null);
-      setInvoiceDiscount(Number(loadedOrder.discount_amount || 0));
+      setInvoiceDiscountType(normalizeInvoiceDiscountType(loadedOrder.invoice_discount_type || "fixed"));
+      setInvoiceDiscountValue(Number(loadedOrder.invoice_discount_value ?? loadedOrder.invoice_discount_amount ?? 0));
+      setInvoiceDiscountReason(loadedOrder.invoice_discount_reason || "");
+      setInvoiceDiscount(Number(loadedOrder.invoice_discount_amount || 0));
       setServiceFee(Number(loadedOrder.service_fee || 0));
 
       const loadedCustomerId = loadedOrder.customer_id || loadedOrder.customer?.id || null;
@@ -3198,7 +3253,10 @@ function POSPro() {
       setVodafoneCashAmount(0);
       setCustomerWalletAmount(0);
       setExchangeState(null);
-      setInvoiceDiscount(Number(loadedOrder.discount_amount || 0));
+      setInvoiceDiscountType(normalizeInvoiceDiscountType(loadedOrder.invoice_discount_type || "fixed"));
+      setInvoiceDiscountValue(Number(loadedOrder.invoice_discount_value ?? loadedOrder.invoice_discount_amount ?? 0));
+      setInvoiceDiscountReason(loadedOrder.invoice_discount_reason || "");
+      setInvoiceDiscount(Number(loadedOrder.invoice_discount_amount || 0));
       setServiceFee(Number(loadedOrder.service_fee || 0));
       setSelectedCustomerId(loadedOrder.customer_id || null);
       setCustomerSearch(loadedOrder.customer_name || "");
@@ -3249,6 +3307,9 @@ function POSPro() {
       invoiceNumber: order?.invoice_number || order?.public_order_number || String(order?.id || ""),
       creditAmount: Number(returnTotal || order?.total_amount || order?.total || 0),
     });
+    setInvoiceDiscountType(defaultState.invoiceDiscountType);
+    setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
+    setInvoiceDiscountReason(defaultState.invoiceDiscountReason);
     setInvoiceDiscount(0);
     setServiceFee(0);
     handleClearSelectedCustomer();
@@ -3297,6 +3358,9 @@ function POSPro() {
     setVodafoneCashAmount(0);
     setCustomerWalletAmount(0);
     setExchangeState(null);
+    setInvoiceDiscountType(defaultState.invoiceDiscountType);
+    setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
+    setInvoiceDiscountReason(defaultState.invoiceDiscountReason);
     setInvoiceDiscount(0);
     setServiceFee(0);
     handleRemoveCoupon();
@@ -3763,6 +3827,10 @@ function POSPro() {
         payment_method: paymentMode,
         subtotal: cartTotals.subtotal,
         discount_amount: cartTotals.itemDiscountTotal + cartTotals.invoiceDiscount,
+        invoice_discount_type: cartTotals.invoiceDiscount > 0 ? invoiceDiscountType : null,
+        invoice_discount_value: cartTotals.invoiceDiscount > 0 ? Number(invoiceDiscountValue || 0) : 0,
+        invoice_discount_amount: cartTotals.invoiceDiscount,
+        invoice_discount_reason: cartTotals.invoiceDiscount > 0 ? String(invoiceDiscountReason || "").trim() : "",
         coupon_code: couponValidation?.valid ? couponValidation.coupon?.code || couponCode : null,
         coupon_discount_amount: couponValidation?.valid ? Number(couponValidation.discount_amount || 0) : 0,
         loyalty_points_redeemed: loyaltyUnavailable ? 0 : Number(loyaltyValidation?.applied_points || loyaltyRedeemPoints || 0),
@@ -3852,6 +3920,22 @@ function POSPro() {
         }),
       };
 
+      console.log("[pos:discount-checkout-payload]", {
+        subtotal: payload.subtotal,
+        item_discount_amount: cartTotals.itemDiscountTotal,
+        invoice_discount_type: payload.invoice_discount_type,
+        invoice_discount_value: payload.invoice_discount_value,
+        invoice_discount_amount: payload.invoice_discount_amount,
+        invoice_discount_reason: payload.invoice_discount_reason ? "[present]" : "",
+        aggregate_discount_amount: payload.discount_amount,
+        service_fee: payload.service_fee,
+        total: payload.total,
+        payment_due_amount: amountDueNow,
+        paid_amount: payload.paid_amount,
+        payment_method: payload.payment_method,
+        payment_breakdown_total: paymentBreakdown.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+      });
+
       if (import.meta.env.DEV) {
         console.log("[pos] final checkout payload", {
           ...payload,
@@ -3935,6 +4019,9 @@ function POSPro() {
         setVodafoneCashAmount(0);
         setCustomerWalletAmount(0);
         setExchangeState(null);
+        setInvoiceDiscountType(defaultState.invoiceDiscountType);
+        setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
+        setInvoiceDiscountReason(defaultState.invoiceDiscountReason);
         setInvoiceDiscount(0);
         setServiceFee(0);
         handleRemoveCoupon();
@@ -4103,6 +4190,9 @@ function POSPro() {
       setVodafoneCashAmount(0);
       setCustomerWalletAmount(0);
       setExchangeState(null);
+      setInvoiceDiscountType(defaultState.invoiceDiscountType);
+      setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
+      setInvoiceDiscountReason(defaultState.invoiceDiscountReason);
       setInvoiceDiscount(0);
       setServiceFee(0);
       setLoyaltyRedeemPoints(0);
@@ -4686,6 +4776,9 @@ function POSPro() {
       return;
     }
     setCart([]);
+    setInvoiceDiscountType(defaultState.invoiceDiscountType);
+    setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
+    setInvoiceDiscountReason(defaultState.invoiceDiscountReason);
     setInvoiceDiscount(0);
     setServiceFee(0);
     setCashAmount(0);
@@ -5383,6 +5476,12 @@ function POSPro() {
             marketingAttribution={marketingAttribution}
             setMarketingAttribution={setMarketingAttribution}
             onItemDiscountChange={handleItemDiscount}
+            invoiceDiscountType={invoiceDiscountType}
+            setInvoiceDiscountType={setInvoiceDiscountType}
+            invoiceDiscountValue={invoiceDiscountValue}
+            setInvoiceDiscountValue={setInvoiceDiscountValue}
+            invoiceDiscountReason={invoiceDiscountReason}
+            setInvoiceDiscountReason={setInvoiceDiscountReason}
             invoiceDiscount={invoiceDiscount}
             setInvoiceDiscount={setInvoiceDiscount}
             serviceFee={serviceFee}
@@ -5488,6 +5587,12 @@ function POSPro() {
             marketingAttribution={marketingAttribution}
             setMarketingAttribution={setMarketingAttribution}
             onItemDiscountChange={handleItemDiscount}
+            invoiceDiscountType={invoiceDiscountType}
+            setInvoiceDiscountType={setInvoiceDiscountType}
+            invoiceDiscountValue={invoiceDiscountValue}
+            setInvoiceDiscountValue={setInvoiceDiscountValue}
+            invoiceDiscountReason={invoiceDiscountReason}
+            setInvoiceDiscountReason={setInvoiceDiscountReason}
             invoiceDiscount={invoiceDiscount}
             setInvoiceDiscount={setInvoiceDiscount}
             serviceFee={serviceFee}
