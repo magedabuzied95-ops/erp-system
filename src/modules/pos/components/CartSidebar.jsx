@@ -792,7 +792,10 @@ function CartSidebar({
                 {posLabel("cart.paymentDetails", "Payment details")}
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-1.5 min-[420px]:grid-cols-4">
+            <div
+              className="pos-payment-method-grid grid w-full min-w-0 gap-2"
+              style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}
+            >
               {paymentMethods.map((method) => (
                 <ModeButton
                   key={method.key}
@@ -2274,15 +2277,15 @@ function ModeButton({ active, onClick, icon, label, tone = "green", title = "" }
       type="button"
       onClick={onClick}
       title={title || undefined}
-      className={`relative inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-xl border bg-black/25 px-2 text-[11px] font-black transition duration-200 ${active ? toneClasses.active : toneClasses.button}`}
+      className={`relative inline-flex h-7 w-full min-w-0 items-center justify-center gap-1 rounded-lg border bg-black/25 px-2 text-xs font-black transition duration-200 ${active ? toneClasses.active : toneClasses.button}`}
     >
       {active ? (
-        <span className={`absolute right-1 top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full ${toneClasses.check}`}>
-          <CheckCircle2 className="h-2.5 w-2.5" />
+        <span className={`absolute right-0.5 top-0.5 inline-flex h-3 w-3 items-center justify-center rounded-full ${toneClasses.check}`}>
+          <CheckCircle2 className="h-2 w-2" />
         </span>
       ) : null}
-      <span className={toneClasses.icon}>{icon}</span>
-      <span className="min-w-0 truncate">{label}</span>
+      <span className={`${toneClasses.icon} [&>svg]:h-3 [&>svg]:w-3`}>{icon}</span>
+      <span className="min-w-0 overflow-hidden truncate whitespace-nowrap">{label}</span>
     </button>
   );
 }
