@@ -326,6 +326,7 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
   const hasItems = await tableExists("order_items");
   const hasProducts = await tableExists("products");
   const hasVariants = await tableExists("product_variants");
+  const hasInvoiceDiscountAmount = await columnExists("orders", "invoice_discount_amount");
   const expenseParams = [];
   const orderParams = [];
   const orderTenant = tenantClause("o", tenantId, orderParams);
@@ -336,19 +337,27 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
   const salesRows = hasItems && (hasProducts || hasVariants)
     ? await safeQuery(
         `
-        SELECT COALESCE(SUM(
-          COALESCE(oi.total_amount, oi.sale_price * oi.quantity, 0) -
-          (COALESCE(pv.cost_price, p.cost_price, 0) * COALESCE(oi.quantity, 0))
-        ), 0) AS profit
-        FROM orders o
-        JOIN order_items oi ON oi.order_id = o.id
-        LEFT JOIN products p ON p.id = oi.product_id
-        LEFT JOIN product_variants pv ON pv.id = oi.variant_id
-        WHERE 1=1
-          ${orderDate}
-          ${orderBranch}
-          AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
-          ${orderTenant}
+        WITH order_profit AS (
+          SELECT
+            o.id,
+            COALESCE(SUM(
+              COALESCE(oi.total_amount, oi.sale_price * oi.quantity, 0) -
+              (COALESCE(pv.cost_price, p.cost_price, 0) * COALESCE(oi.quantity, 0))
+            ), 0) AS item_profit,
+            ${hasInvoiceDiscountAmount ? "COALESCE(o.invoice_discount_amount, 0)" : "0"} AS invoice_discount
+          FROM orders o
+          JOIN order_items oi ON oi.order_id = o.id
+          LEFT JOIN products p ON p.id = oi.product_id
+          LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+          WHERE 1=1
+            ${orderDate}
+            ${orderBranch}
+            AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            ${orderTenant}
+          GROUP BY o.id${hasInvoiceDiscountAmount ? ", o.invoice_discount_amount" : ""}
+        )
+        SELECT COALESCE(SUM(item_profit - invoice_discount), 0) AS profit
+        FROM order_profit
         `,
         orderParams,
         [{}],

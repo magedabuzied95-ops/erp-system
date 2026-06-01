@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Minus,
   Package,
+  Percent,
   Plus,
   Printer,
   ReceiptText,
@@ -322,6 +323,13 @@ function CartSidebar({
   checkoutLabel = "Create order",
   canUsePaymobTerminal = false,
   onItemDiscountChange,
+  invoiceDiscountType = "fixed",
+  setInvoiceDiscountType,
+  invoiceDiscountValue = 0,
+  setInvoiceDiscountValue,
+  invoiceDiscountReason = "",
+  setInvoiceDiscountReason,
+  invoiceDiscount = 0,
   couponCode = "",
   setCouponCode,
   couponValidation,
@@ -346,6 +354,7 @@ function CartSidebar({
   filtersModalOpen = false,
 }) {
   const [discountLoyaltyOpen, setDiscountLoyaltyOpen] = useState(false);
+  const [invoiceDiscountOpen, setInvoiceDiscountOpen] = useState(false);
   const [splitPaymentOpen, setSplitPaymentOpen] = useState(false);
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
@@ -388,6 +397,9 @@ function CartSidebar({
     { key: "wallet", paymentMode: "instapay", label: "INSTAPAY", fullLabel: "INSTAPAY", tone: "purple", icon: <Wallet className="h-4 w-4" />, setter: setWalletAmount },
     { key: "vodafone_cash", label: "V.CASH", fullLabel: "V.CASH", tone: "red", icon: <Smartphone className="h-4 w-4" />, setter: setVodafoneCashAmount },
   ];
+  const cartHasItems = cart.length > 0;
+  const subtotalAmount = Math.max(0, Number(totals?.subtotal || 0));
+  const totalDiscountAmount = Number(totals?.itemDiscountTotal || 0) + Number(totals?.invoiceDiscount || 0) + Number(totals?.loyaltyDiscount || 0) + Number(totals?.couponDiscount || 0);
   const activeMethodCount = paymentMethods.filter((method) => methodAmounts[method.key] > 0.009).length;
   const activePaymentMethodCount = activeMethodCount + (appliedCredit > 0.009 ? 1 : 0);
   const walletPaymentUsed = methodAmounts.wallet > 0.009;
@@ -446,34 +458,9 @@ function CartSidebar({
     setPaymentMode?.(appliedCredit > 0 ? "split" : selected?.paymentMode || method);
   };
   const openSplitPayment = () => {
+    setCustomerWalletAmount?.(0);
     setPaymentMode?.("split");
     setSplitPaymentOpen(true);
-  };
-  const applySplitPreset = (preset) => {
-    const splitBase = Math.max(0, totalAmount - appliedCredit);
-    if (preset === "50_50") {
-      const cash = Number((splitBase * 0.5).toFixed(2));
-      setCashAmount(cash);
-      setCardAmount(Number((splitBase - cash).toFixed(2)));
-      setWalletAmount(0);
-      setVodafoneCashAmount?.(0);
-    } else if (preset === "70_30") {
-      const cash = Number((splitBase * 0.7).toFixed(2));
-      setCashAmount(cash);
-      setCardAmount(Number((splitBase - cash).toFixed(2)));
-      setWalletAmount(0);
-      setVodafoneCashAmount?.(0);
-    } else if (preset === "30_70") {
-      const cash = Number((splitBase * 0.3).toFixed(2));
-      setCashAmount(cash);
-      setCardAmount(Number((splitBase - cash).toFixed(2)));
-      setWalletAmount(0);
-      setVodafoneCashAmount?.(0);
-    } else if (preset === "custom") {
-      clearPaymentMethods();
-    }
-    setActiveSplitMethod?.("cash");
-    setPaymentMode?.("split");
   };
   const applyCustomerCredit = () => {
     const credit = Math.min(customerWalletBalance, totalAmount);
@@ -655,9 +642,21 @@ function CartSidebar({
         </div>
 
         <div className="sticky bottom-0 mt-2 rounded-xl border border-emerald-300/25 bg-zinc-950/95 px-3 py-2 shadow-[0_-12px_30px_rgba(0,0,0,0.28)] backdrop-blur">
-          <div className="flex items-center justify-between gap-3" dir="auto">
+          <div className="space-y-1 text-[11px] font-bold text-zinc-400">
+            <div className="flex items-center justify-between gap-3">
+              <span>{posLabel("cart.subtotal", "Subtotal")}</span>
+              <span className="text-zinc-200 tabular-nums">{formatCurrency(subtotalAmount)}</span>
+            </div>
+            {totalDiscountAmount > 0 ? (
+              <div className="flex items-center justify-between gap-3 text-amber-100">
+                <span>{posLabel("cart.discount", "Discount")}</span>
+                <span className="tabular-nums">- {formatCurrency(totalDiscountAmount)}</span>
+              </div>
+            ) : null}
+          </div>
+          <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-white/10 pt-1.5" dir="auto">
             <span className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
-              {posLabel("cart.total", "Total")}
+              {posLabel("cart.totalAfterDiscount", "Total after discount")}
             </span>
             <span className="text-lg font-black leading-none text-emerald-300 tabular-nums">
               {formatCurrency(totals.total)}
@@ -779,13 +778,29 @@ function CartSidebar({
           <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">
             <div className="mb-1.5 flex items-center justify-between gap-2">
               <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{posLabel("cart.paymentMethods", "Payment Methods")}</div>
-              <button
-                type="button"
-                onClick={() => setPaymentDetailsOpen((open) => !open)}
-                className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-[10px] font-black text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                {posLabel("cart.paymentDetails", "Payment details")}
-              </button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {cartHasItems ? (
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceDiscountOpen(true)}
+                    className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2 text-[10px] font-black transition ${
+                      Number(invoiceDiscount || 0) > 0
+                        ? "border-amber-300/35 bg-amber-300/10 text-amber-50 hover:bg-amber-300/15"
+                        : "border-white/10 bg-black/20 text-zinc-300 hover:bg-white/[0.08] hover:text-white"
+                    }`}
+                  >
+                    <Percent className="h-3 w-3" />
+                    {posLabel("cart.discount", "Discount")}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setPaymentDetailsOpen((open) => !open)}
+                  className="h-7 rounded-lg border border-white/10 bg-black/20 px-2 text-[10px] font-black text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+                >
+                  {posLabel("cart.paymentDetails", "Payment details")}
+                </button>
+              </div>
             </div>
             <div
               className="pos-payment-method-grid grid w-full min-w-0 gap-2"
@@ -884,16 +899,31 @@ function CartSidebar({
         onClose={() => setDiscountLoyaltyOpen(false)}
       />
     ) : null}
+    {invoiceDiscountOpen ? (
+      <InvoiceDiscountModal
+        subtotal={subtotalAmount}
+        type={invoiceDiscountType}
+        value={invoiceDiscountValue}
+        reason={invoiceDiscountReason}
+        amount={Number(totals?.invoiceDiscount || 0)}
+        onTypeChange={setInvoiceDiscountType}
+        onValueChange={setInvoiceDiscountValue}
+        onReasonChange={setInvoiceDiscountReason}
+        onClose={() => setInvoiceDiscountOpen(false)}
+        onClear={() => {
+          setInvoiceDiscountType?.("fixed");
+          setInvoiceDiscountValue?.(0);
+          setInvoiceDiscountReason?.("");
+        }}
+      />
+    ) : null}
     {splitPaymentOpen && typeof document !== "undefined" ? (
       <SplitPaymentSheet
         totalAmount={totalAmount}
         appliedCredit={appliedCredit}
         methodAmounts={methodAmounts}
         paymentMethods={paymentMethods}
-        totalPaid={totalPaid}
-        remainingAmount={remainingAmount}
         onClose={() => setSplitPaymentOpen(false)}
-        onApplyPreset={applySplitPreset}
         onSetMethodAmount={(method, value) => setMethodAmount(method, value, { manual: true })}
         onFillMethod={selectPaymentMethod}
         onClear={clearPaymentMethods}
@@ -911,6 +941,156 @@ function CartSidebar({
       />
     ) : null}
     </>
+  );
+}
+
+function InvoiceDiscountModal({
+  subtotal = 0,
+  type = "fixed",
+  value = 0,
+  reason = "",
+  amount = 0,
+  onTypeChange,
+  onValueChange,
+  onReasonChange,
+  onClose,
+  onClear,
+}) {
+  const [draftType, setDraftType] = useState(() => (String(type || "").toLowerCase() === "percentage" ? "percentage" : "fixed"));
+  const [draftValue, setDraftValue] = useState(() => Math.max(0, Number(value || 0)));
+  const [draftReason, setDraftReason] = useState(() => String(reason || ""));
+  const normalizedType = String(draftType || "").toLowerCase() === "percentage" ? "percentage" : "fixed";
+  const safeSubtotal = Math.max(0, Number(subtotal || 0));
+  const safeValue = Math.max(0, Number(draftValue || 0));
+  const previewAmount = Number(Math.min(
+    safeSubtotal,
+    normalizedType === "percentage" ? safeSubtotal * (Math.min(100, safeValue) / 100) : safeValue
+  ).toFixed(2));
+  const exceedsSubtotal = normalizedType === "fixed" && safeValue > safeSubtotal + 0.009;
+  const exceedsPercentage = normalizedType === "percentage" && safeValue > 100;
+  const invalid = exceedsSubtotal || exceedsPercentage;
+
+  const applyDiscount = () => {
+    if (invalid) return;
+    onTypeChange?.(normalizedType);
+    onValueChange?.(safeValue);
+    onReasonChange?.(draftReason);
+    onClose?.();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 px-3 py-3 backdrop-blur-sm sm:items-center"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose?.();
+      }}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-4 text-white shadow-2xl shadow-black/60"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-200">{posLabel("cart.invoiceDiscount", "Invoice Discount")}</div>
+            <div className="mt-1 text-xs font-semibold text-zinc-400">{posLabel("cart.subtotal", "Subtotal")}: {formatCurrency(safeSubtotal)}</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            aria-label={posLabel("common.close", "Close")}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {[
+            ["fixed", posLabel("cart.fixedAmount", "Fixed amount")],
+            ["percentage", posLabel("cart.percentage", "Percentage")],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setDraftType(key);
+                setDraftValue(key === "percentage" ? Math.min(100, safeValue) : Math.min(safeSubtotal, safeValue));
+              }}
+              className={`min-h-10 rounded-xl border px-3 text-xs font-black transition ${
+                normalizedType === key
+                  ? "border-amber-300/50 bg-amber-300/15 text-amber-50 shadow-[0_0_20px_rgba(251,191,36,0.16)]"
+                  : "border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08] hover:text-white"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <label className="mt-4 block">
+          <span className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{posLabel("cart.discountValue", "Discount value")}</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min="0"
+            max={normalizedType === "percentage" ? 100 : safeSubtotal}
+            step="0.01"
+            value={draftValue || 0}
+            onChange={(event) => {
+              const nextValue = Math.max(0, Number(event.target.value || 0));
+              setDraftValue(normalizedType === "percentage" ? Math.min(100, nextValue) : Math.min(safeSubtotal, nextValue));
+            }}
+            className="mt-2 h-12 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-right text-lg font-black text-white outline-none transition focus:border-amber-300/50"
+          />
+        </label>
+
+        <label className="mt-3 block">
+          <span className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{posLabel("cart.discountReason", "Reason / note")}</span>
+          <textarea
+            value={draftReason || ""}
+            onChange={(event) => setDraftReason(event.target.value)}
+            rows={3}
+            className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-300/50"
+            placeholder={posLabel("cart.optional", "Optional")}
+          />
+        </label>
+
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-3">
+          <BreakdownTotalRow label={posLabel("cart.discount", "Discount")} value={invalid ? amount : previewAmount} tone={invalid ? "amber" : "emerald"} />
+          <BreakdownTotalRow label={posLabel("cart.totalAfterDiscount", "Total after discount")} value={Math.max(0, safeSubtotal - (invalid ? amount : previewAmount))} />
+          {invalid ? (
+            <div className="mt-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-100">
+              {normalizedType === "percentage"
+                ? posLabel("cart.discountPercentLimit", "Percentage discount cannot exceed 100%.")
+                : posLabel("cart.discountSubtotalLimit", "Discount cannot exceed subtotal.")}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setDraftType("fixed");
+              setDraftValue(0);
+              setDraftReason("");
+              onClear?.();
+            }}
+            className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 transition hover:bg-white/[0.08]"
+          >
+            {posLabel("cart.clearDiscount", "Clear discount")}
+          </button>
+          <button
+            type="button"
+            onClick={applyDiscount}
+            disabled={invalid}
+            className="min-h-12 rounded-2xl bg-amber-400 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {posLabel("cart.apply", "Apply")}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2111,17 +2291,16 @@ function SplitPaymentSheet({
   appliedCredit,
   methodAmounts,
   paymentMethods,
-  totalPaid,
-  remainingAmount,
   onClose,
-  onApplyPreset,
   onSetMethodAmount,
   onFillMethod,
   onClear,
 }) {
   const methodsTotal = paymentMethods.reduce((sum, method) => sum + Number(methodAmounts[method.key] || 0), 0);
-  const splitRemaining = Math.max(0, Number(totalAmount || 0) - Number(appliedCredit || 0) - methodsTotal);
-  const isMatched = splitRemaining <= 0.009;
+  const splitTotalPaid = Number(methodsTotal.toFixed(2));
+  const splitRemaining = Math.max(0, Number(totalAmount || 0) - splitTotalPaid);
+  const splitOverpaid = Math.max(0, splitTotalPaid - Number(totalAmount || 0));
+  const isMatched = splitRemaining <= 0.009 && splitOverpaid <= 0.009 && Math.abs(splitTotalPaid - Number(totalAmount || 0)) <= 0.009;
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <section className="flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-3xl border border-white/10 bg-zinc-950 p-4 text-white shadow-2xl shadow-black/60 sm:rounded-3xl" dir="auto">
@@ -2142,28 +2321,8 @@ function SplitPaymentSheet({
 
         <div className="mt-4 grid grid-cols-3 gap-2">
           <PaymentMetric label={posLabel("cart.total", "Total")} value={totalAmount} />
-          <PaymentMetric label={posLabel("cart.paid", "Paid")} value={totalPaid} tone={totalPaid > 0 ? "emerald" : "white"} />
-          <PaymentMetric label={posLabel("cart.remainingAmount", "Remaining")} value={splitRemaining} tone={splitRemaining > 0 ? "amber" : "emerald"} />
-        </div>
-
-        <div className="mt-4 overflow-x-auto pb-1">
-          <div className="flex min-w-max gap-2">
-            {[
-              ["50_50", "50 / 50"],
-              ["70_30", "70 / 30"],
-              ["30_70", "30 / 70"],
-              ["custom", posLabel("cart.custom", "Custom")],
-            ].map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onApplyPreset(key)}
-                className="min-h-11 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-4 text-sm font-black text-emerald-50 transition hover:bg-emerald-400/15"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <PaymentMetric label={posLabel("cart.paid", "Paid")} value={splitTotalPaid} tone={splitTotalPaid > 0 ? "emerald" : "white"} />
+          <PaymentMetric label={posLabel("cart.remainingAmount", "Remaining")} value={splitOverpaid > 0 ? splitOverpaid : splitRemaining} tone={splitOverpaid > 0 || splitRemaining > 0 ? "amber" : "emerald"} />
         </div>
 
         <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-auto pr-1">
@@ -2174,14 +2333,10 @@ function SplitPaymentSheet({
             const maxValue = Math.max(0, Number(totalAmount || 0) - Number(appliedCredit || 0) - otherTotal);
             return (
               <div key={method.key} className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-2">
-                <button
-                  type="button"
-                  onClick={() => onFillMethod(method.key)}
-                  className={`inline-flex min-h-12 items-center gap-2 rounded-xl border bg-black/25 px-3 text-sm font-black transition ${PAYMENT_TONE_CLASSES[method.tone]?.button || PAYMENT_TONE_CLASSES.green.button}`}
-                >
+                <div className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-black text-white">
                   <span className={PAYMENT_TONE_CLASSES[method.tone]?.icon || PAYMENT_TONE_CLASSES.green.icon}>{method.icon}</span>
                   <span className="truncate">{method.label}</span>
-                </button>
+                </div>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -2205,11 +2360,13 @@ function SplitPaymentSheet({
         </div>
 
         <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-3">
-          <BreakdownTotalRow label={posLabel("cart.totalPaid", "Total Paid")} value={totalPaid} />
-          <BreakdownTotalRow label={posLabel("cart.remainingAmount", "Remaining")} value={splitRemaining} tone={splitRemaining > 0 ? "amber" : "emerald"} />
+          <BreakdownTotalRow label={posLabel("cart.totalPaid", "Total Paid")} value={splitTotalPaid} />
+          <BreakdownTotalRow label={posLabel("cart.remainingAmount", "Remaining")} value={splitOverpaid > 0 ? splitOverpaid : splitRemaining} tone={splitOverpaid > 0 || splitRemaining > 0 ? "amber" : "emerald"} />
           {!isMatched ? (
             <div className="mt-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-100">
-              {posLabel("cart.emptySplitWarning", "Complete the split so remaining reaches zero before creating the order.")}
+              {splitOverpaid > 0
+                ? posLabel("cart.splitOverpaidWarning", "Total paid cannot exceed the order total.")
+                : posLabel("cart.emptySplitWarning", "Complete the split so remaining reaches zero before creating the order.")}
             </div>
           ) : null}
         </div>

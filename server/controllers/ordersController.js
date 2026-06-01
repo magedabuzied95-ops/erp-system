@@ -280,6 +280,10 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_trust_counted_at TIMESTAMP NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS invoice_discount_type VARCHAR(20)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS invoice_discount_value NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS invoice_discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS invoice_discount_reason TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS service_fee NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
@@ -800,6 +804,10 @@ const normalizeCreateOrderPayload = (body = {}) => {
     attendance_log_id: firstValue(body.attendance_log_id, body.attendanceLogId) || null,
     subtotal: firstValue(body.subtotal, body.sub_total),
     discount_amount: firstValue(body.discount_amount, body.discountAmount, body.discount),
+    invoice_discount_type: firstValue(body.invoice_discount_type, body.invoiceDiscountType),
+    invoice_discount_value: firstValue(body.invoice_discount_value, body.invoiceDiscountValue),
+    invoice_discount_amount: firstValue(body.invoice_discount_amount, body.invoiceDiscountAmount),
+    invoice_discount_reason: firstValue(body.invoice_discount_reason, body.invoiceDiscountReason),
     tax_amount: firstValue(body.tax_amount, body.taxAmount, body.tax),
     service_fee: firstValue(body.service_fee, body.serviceFee, body.shipping_fee, body.shippingFee),
     paid_amount: firstValue(body.paid_amount, body.paidAmount),
@@ -1056,6 +1064,10 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
       o.payment_status,
       o.subtotal,
       o.discount_amount,
+      o.invoice_discount_type,
+      o.invoice_discount_value,
+      o.invoice_discount_amount,
+      o.invoice_discount_reason,
       o.coupon_code,
       o.coupon_discount_amount,
       o.tax_amount,
@@ -1245,6 +1257,10 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
     totals: {
       subtotal: normalizeInvoiceMoney(order.subtotal),
       discount: normalizeInvoiceMoney(order.discount_amount),
+      invoice_discount_type: order.invoice_discount_type || "",
+      invoice_discount_value: normalizeInvoiceMoney(order.invoice_discount_value),
+      invoice_discount_amount: normalizeInvoiceMoney(order.invoice_discount_amount),
+      invoice_discount_reason: order.invoice_discount_reason || "",
       coupon_code: order.coupon_code || "",
       coupon_discount: normalizeInvoiceMoney(order.coupon_discount_amount),
       tax: 0,
@@ -2174,6 +2190,10 @@ export const createOrder = async (req, res) => {
       channel,
       subtotal,
       discount_amount,
+      invoice_discount_type = null,
+      invoice_discount_value = 0,
+      invoice_discount_amount = 0,
+      invoice_discount_reason = "",
       tax_amount = 0,
       tax_rate = 0,
       service_fee,
@@ -2447,7 +2467,32 @@ export const createOrder = async (req, res) => {
     }
 
     const computedSubtotal = Number.isFinite(Number(subtotal)) ? Number(subtotal) : totalPrice;
-    const nonCouponDiscount = Number(discount_amount || 0) + Number(loyalty_discount_amount || 0);
+    const normalizedInvoiceDiscountType = String(invoice_discount_type || "").trim().toLowerCase() === "percentage" ? "percentage" : "fixed";
+    const invoiceDiscountValue = Math.max(0, Number(invoice_discount_value || 0) || 0);
+    const requestedInvoiceDiscountAmount = Math.max(0, Number(invoice_discount_amount || 0) || 0);
+    const maxInvoiceDiscountAmount = computedSubtotal;
+    const computedInvoiceDiscountAmount = normalizedInvoiceDiscountType === "percentage"
+      ? money(computedSubtotal * (Math.min(100, invoiceDiscountValue) / 100))
+      : money(invoiceDiscountValue);
+    const normalizedInvoiceDiscountAmount = Math.min(
+      maxInvoiceDiscountAmount,
+      requestedInvoiceDiscountAmount > 0 ? requestedInvoiceDiscountAmount : computedInvoiceDiscountAmount
+    );
+    if (invoiceDiscountValue > 0 && normalizedInvoiceDiscountType === "percentage" && invoiceDiscountValue > 100) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return res.status(400).json({ success: false, message: "Invoice discount percentage cannot exceed 100%" });
+    }
+    if (requestedInvoiceDiscountAmount - computedSubtotal > 0.009 || (normalizedInvoiceDiscountType === "fixed" && invoiceDiscountValue - computedSubtotal > 0.009)) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return res.status(400).json({ success: false, message: "Invoice discount cannot exceed subtotal" });
+    }
+    const requestedDiscountAmount = Math.max(0, Number(discount_amount || 0) || 0);
+    const itemDiscountAmount = requestedDiscountAmount >= normalizedInvoiceDiscountAmount
+      ? Math.max(0, requestedDiscountAmount - normalizedInvoiceDiscountAmount)
+      : requestedDiscountAmount;
+    const nonCouponDiscount = itemDiscountAmount + normalizedInvoiceDiscountAmount + Number(loyalty_discount_amount || 0);
     const totalTax = normalizedTaxAmount;
     const totalServiceFee = Number(service_fee || 0);
     const couponBaseTotal = Math.max(0, computedSubtotal - nonCouponDiscount + totalServiceFee);
@@ -2607,7 +2652,11 @@ export const createOrder = async (req, res) => {
         coupon_discount_amount,
         paid_amount,
         change_amount,
-        notes
+        notes,
+        invoice_discount_type,
+        invoice_discount_value,
+        invoice_discount_amount,
+        invoice_discount_reason
       )
       VALUES (
         $1,
@@ -2659,7 +2708,11 @@ export const createOrder = async (req, res) => {
         $47,
         COALESCE($48::numeric, 0),
         COALESCE($49::numeric, 0),
-        $50
+        $50,
+        $51,
+        COALESCE($52::numeric, 0),
+        COALESCE($53::numeric, 0),
+        $54
       )
       RETURNING *
       `,
@@ -2714,6 +2767,10 @@ export const createOrder = async (req, res) => {
         receivedAmount,
         change_amount || Math.max(0, receivedAmount - (exchangeMode ? amountDueNow : computedTotal)),
         notes || "",
+        normalizedInvoiceDiscountAmount > 0 ? normalizedInvoiceDiscountType : null,
+        normalizedInvoiceDiscountAmount > 0 ? invoiceDiscountValue : 0,
+        normalizedInvoiceDiscountAmount,
+        normalizedInvoiceDiscountAmount > 0 ? String(invoice_discount_reason || "").trim() : "",
       ]
     ));
     if (POS_CHECKOUT_DEBUG) console.log("[orders][seller-debug] order save row seller fields", {
@@ -2929,7 +2986,7 @@ export const createOrder = async (req, res) => {
         const methodAccountId =
           method === "cash" ? cash_financial_account_id :
           method === "card" ? card_financial_account_id :
-          ["wallet", "instapay", "vodafone_cash"].includes(method) ? wallet_financial_account_id :
+          method === "wallet" ? wallet_financial_account_id :
           null;
         return {
           amount,
@@ -2951,6 +3008,7 @@ export const createOrder = async (req, res) => {
         sourceId: order.id,
         amount: accountEvent.amount,
         notes: `Order #${order.invoice_number || order.id}`,
+        invoiceNumber: order.invoice_number || "",
         createdBy: req.user?.id || null,
       }));
     }
@@ -4734,6 +4792,21 @@ export const editOrder = async (req, res) => {
     }
 
     const subtotalValue = newItems.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
+    const invoiceDiscountType = String(req.body.invoice_discount_type || "").trim().toLowerCase() === "percentage" ? "percentage" : "fixed";
+    const invoiceDiscountValue = Math.max(0, Number(req.body.invoice_discount_value || 0) || 0);
+    const requestedInvoiceDiscountAmount = Math.max(0, Number(req.body.invoice_discount_amount || 0) || 0);
+    const computedInvoiceDiscountAmount = invoiceDiscountType === "percentage"
+      ? money(subtotalValue * (Math.min(100, invoiceDiscountValue) / 100))
+      : money(invoiceDiscountValue);
+    if (invoiceDiscountValue > 0 && invoiceDiscountType === "percentage" && invoiceDiscountValue > 100) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, message: "Invoice discount percentage cannot exceed 100%" });
+    }
+    if (requestedInvoiceDiscountAmount - subtotalValue > 0.009 || (invoiceDiscountType === "fixed" && invoiceDiscountValue - subtotalValue > 0.009)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, message: "Invoice discount cannot exceed subtotal" });
+    }
+    const invoiceDiscountAmount = Math.min(subtotalValue, requestedInvoiceDiscountAmount > 0 ? requestedInvoiceDiscountAmount : computedInvoiceDiscountAmount);
     const discountValue = Number(req.body.discount_amount ?? newItems.reduce((sum, item) => sum + Number(item.discount_amount || 0), 0));
     const serviceValue = Number(req.body.service_fee ?? loaded.order.service_fee ?? 0);
     const taxValue = Number(req.body.tax_amount ?? 0);
@@ -4866,6 +4939,10 @@ export const editOrder = async (req, res) => {
           edit_additional_paid_amount = $20,
           edit_refund_or_credit_due = $21,
           edit_payment_difference = $22::jsonb,
+          invoice_discount_type = $23,
+          invoice_discount_value = $24,
+          invoice_discount_amount = $25,
+          invoice_discount_reason = $26,
           updated_at = NOW()
       WHERE id = $14
       RETURNING *
@@ -4901,6 +4978,10 @@ export const editOrder = async (req, res) => {
           refund_or_credit_due: refundOrCreditDue,
           additional_payment_breakdown: additionalPaymentBreakdown,
         }),
+        invoiceDiscountAmount > 0 ? invoiceDiscountType : null,
+        invoiceDiscountAmount > 0 ? invoiceDiscountValue : 0,
+        invoiceDiscountAmount,
+        invoiceDiscountAmount > 0 ? String(req.body.invoice_discount_reason || "").trim() : "",
       ]
     );
     await markCustomerTrustedForCompletedOrder(client, orderResult.rows[0]);
@@ -6246,6 +6327,10 @@ export const getPosEditOrder = async (req, res) => {
         o.card_amount,
         o.wallet_payment_amount,
         o.discount_amount,
+        o.invoice_discount_type,
+        o.invoice_discount_value,
+        o.invoice_discount_amount,
+        o.invoice_discount_reason,
         o.service_fee,
         o.subtotal,
         o.total_amount,
@@ -6361,6 +6446,7 @@ export const getPosEditOrder = async (req, res) => {
 
 export const getPublicInvoiceByToken = async (req, res) => {
   try {
+    await ensurePosShiftOrderColumnsNow(db, getTenantId(req, req.query?.tenant_id || req.query?.tenantId || req.user?.tenant_id || req.user?.tenantId));
     console.log("[public invoice token]", req.params.token);
     const invoice = await loadPublicInvoiceByToken(req.params.token, req);
     if (!invoice) {
@@ -6392,6 +6478,7 @@ export const getPublicInvoiceByToken = async (req, res) => {
 
 export const getPublicInvoicePdfByToken = async (req, res) => {
   try {
+    await ensurePosShiftOrderColumnsNow(db, getTenantId(req, req.query?.tenant_id || req.query?.tenantId || req.user?.tenant_id || req.user?.tenantId));
     console.log("[public invoice token]", req.params.token);
     const invoice = await loadPublicInvoiceByToken(req.params.token, req);
     if (!invoice) {
