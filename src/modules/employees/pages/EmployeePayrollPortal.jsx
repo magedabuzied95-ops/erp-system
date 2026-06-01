@@ -552,7 +552,7 @@ const writeBadgeSet = (token = "", scope = "", values = []) => {
 const postEmployeeBadgeMessage = (message = {}) => {
   if (!isBrowser() || !navigator.serviceWorker?.controller) return;
   try {
-    navigator.serviceWorker.controller.postMessage(message);
+    navigator.serviceWorker.controller.postMessage({ ...message, at: Date.now() });
   } catch {
     // Service worker badge sync is best-effort only.
   }
@@ -1225,6 +1225,7 @@ export default function EmployeePayrollPortal() {
 
   useEffect(() => {
     setEmployeeAppBadge(totalBadgeCount);
+    console.info("[employee-badge:update-total]", { total: totalBadgeCount, ...badgeCounts });
     postEmployeeBadgeMessage({ type: "employee-portal:badge-sync", counts: badgeCounts });
   }, [badgeCounts, totalBadgeCount]);
 
@@ -1247,23 +1248,38 @@ export default function EmployeePayrollPortal() {
   useEffect(() => {
     if (!token || activeTab !== "requests") return undefined;
     writeBadgeSet(token, "requests", requestBadgeIds);
-    postEmployeeBadgeMessage({ type: "employee-portal:badge-clear", scope: "requests" });
-    setBadgeCounts((current) => ({ ...current, pendingNotifications: 0 }));
+    console.info("[employee-badge:clear-portion]", { portion: "requests" });
+    postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "requests" });
+    setBadgeCounts((current) => {
+      const next = { ...current, pendingNotifications: 0 };
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks);
+      return next;
+    });
     return undefined;
   }, [activeTab, requestBadgeSignature, token]);
 
   useEffect(() => {
     if (!token || activeTab !== "tasks") return undefined;
     writeBadgeSet(token, "tasks", taskBadgeIds);
-    postEmployeeBadgeMessage({ type: "employee-portal:badge-clear", scope: "tasks" });
-    setBadgeCounts((current) => ({ ...current, newTasks: 0 }));
+    console.info("[employee-badge:clear-portion]", { portion: "tasks" });
+    postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "tasks" });
+    setBadgeCounts((current) => {
+      const next = { ...current, newTasks: 0 };
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks);
+      return next;
+    });
     return undefined;
   }, [activeTab, taskBadgeSignature, token]);
 
   useEffect(() => {
     if (!chatOpen) return undefined;
-    postEmployeeBadgeMessage({ type: "employee-portal:badge-clear", scope: "chat" });
-    setBadgeCounts((current) => ({ ...current, unreadChats: 0 }));
+    console.info("[employee-badge:clear-portion]", { portion: "chat" });
+    postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "chat" });
+    setBadgeCounts((current) => {
+      const next = { ...current, unreadChats: 0 };
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks);
+      return next;
+    });
     return undefined;
   }, [chatOpen]);
 
@@ -1381,6 +1397,15 @@ export default function EmployeePayrollPortal() {
       });
       setChatThread(response.thread || null);
       setChatMessages(safeArray(response.messages));
+      if (chatOpen) {
+        console.info("[employee-badge:clear-portion]", { portion: "chat", source: "chat-fetch" });
+        postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "chat" });
+        setBadgeCounts((current) => {
+          const next = { ...current, unreadChats: 0 };
+          setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks);
+          return next;
+        });
+      }
     } catch (err) {
       setChatError(err?.responseBody?.message || err?.message || ui("chatLoadError"));
     } finally {
