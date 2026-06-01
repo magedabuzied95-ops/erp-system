@@ -70,7 +70,7 @@ const invalidTokenResponse = (req, res, token) => {
 
 const employeePortalManifest = (token) => ({
   name: "بوابة الموظف",
-  short_name: "بوابة الموظف",
+  short_name: "الموظف",
   description: "بوابة الموظف لمتابعة المهام والطلبات والراتب.",
   start_url: `/employee-portal/${encodeURIComponent(token)}?source=pwa`,
   scope: "/employee-portal/",
@@ -92,6 +92,12 @@ const employeePortalManifest = (token) => ({
       sizes: "512x512",
       type: "image/png",
       purpose: "any maskable",
+    },
+    {
+      src: "/apple-touch-icon.png",
+      sizes: "180x180",
+      type: "image/png",
+      purpose: "any",
     },
   ],
 });

@@ -3,10 +3,41 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="manifest" href="/manifest.webmanifest?v=global" />
     <meta name="theme-color" content="#0f172a" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>erp-system</title>
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="الموظف" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      (function () {
+        try {
+          var path = window.location.pathname || "/";
+          var standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+          var lastEmployeePortalUrl = window.localStorage && window.localStorage.getItem("employee_portal_last_url");
+          if (standalone && (path === "/" || path === "/login") && lastEmployeePortalUrl) {
+            window.location.replace(lastEmployeePortalUrl);
+            return;
+          }
+          var match = path.match(/^\/employee-portal\/([^/?#]+)/);
+          if (!match) return;
+          var token = match[1];
+          var manifest = document.querySelector('link[rel="manifest"]') || document.createElement("link");
+          manifest.setAttribute("rel", "manifest");
+          manifest.setAttribute("href", "/api/employee-portal/" + encodeURIComponent(token) + "/manifest.webmanifest?v=" + encodeURIComponent(token));
+          if (!manifest.parentNode) document.head.appendChild(manifest);
+          var appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]') || document.createElement("meta");
+          appleTitle.setAttribute("name", "apple-mobile-web-app-title");
+          appleTitle.setAttribute("content", "الموظف");
+          if (!appleTitle.parentNode) document.head.appendChild(appleTitle);
+          window.localStorage && window.localStorage.setItem("employee_portal_last_url", path + window.location.search);
+        } catch (error) {
+          // PWA fallback must never block app startup.
+        }
+      })();
+    </script>
+    <title>M1 Employee Portal</title>
   </head>
   <body>
     <div id="root"></div>

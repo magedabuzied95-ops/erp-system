@@ -3,6 +3,7 @@ const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",
   "/favicon.svg",
+  "/apple-touch-icon.png",
   "/icons/employee-portal-192.png",
   "/icons/employee-portal-512.png",
 ];
@@ -47,7 +48,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/favicon.svg") {
+  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/favicon.svg" || url.pathname === "/apple-touch-icon.png") {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;

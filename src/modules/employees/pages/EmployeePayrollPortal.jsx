@@ -394,6 +394,7 @@ const safeNow = () => {
 };
 
 const localeForLanguage = (language = "en") => (language === "ar" ? "ar-EG-u-nu-latn" : "en-US");
+const EMPLOYEE_PORTAL_PWA_VERSION = "20260601";
 
 const browserTimeZone = () => {
   try {
@@ -799,7 +800,7 @@ export default function EmployeePayrollPortal() {
 
   useEffect(() => {
     if (!isBrowser() || !("serviceWorker" in navigator)) return undefined;
-    navigator.serviceWorker.register("/employee-portal-sw.js").catch((err) => {
+    navigator.serviceWorker.register(`/employee-portal-sw.js?v=${EMPLOYEE_PORTAL_PWA_VERSION}`).catch((err) => {
       console.warn("[employee-payroll-portal] service worker registration failed", err);
     });
     return undefined;
@@ -807,16 +808,29 @@ export default function EmployeePayrollPortal() {
 
   useEffect(() => {
     if (!isBrowser() || !token) return undefined;
-    let link = document.querySelector('link[rel="manifest"]');
-    const previousHref = link?.getAttribute("href") || "/manifest.webmanifest";
-    if (!link) {
-      link = document.createElement("link");
-      link.setAttribute("rel", "manifest");
-      document.head.appendChild(link);
+    const previousManifests = Array.from(document.querySelectorAll('link[rel="manifest"]')).map((item) => ({
+      node: item,
+      href: item.getAttribute("href") || "",
+    }));
+    const [primary, ...duplicates] = previousManifests.map((item) => item.node);
+    duplicates.forEach((item) => item.remove());
+    const link = primary || document.createElement("link");
+    link.setAttribute("rel", "manifest");
+    link.setAttribute("href", `/api/employee-portal/${encodeURIComponent(token)}/manifest.webmanifest?v=${encodeURIComponent(token)}`);
+    if (!link.parentNode) document.head.appendChild(link);
+
+    const previousAppleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute("content") || "";
+    let appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (!appleTitle) {
+      appleTitle = document.createElement("meta");
+      appleTitle.setAttribute("name", "apple-mobile-web-app-title");
+      document.head.appendChild(appleTitle);
     }
-    link.setAttribute("href", `/api/employee-portal/${encodeURIComponent(token)}/manifest.webmanifest`);
+    appleTitle.setAttribute("content", "الموظف");
+
     return () => {
-      link?.setAttribute("href", previousHref);
+      if (previousManifests[0]) link.setAttribute("href", previousManifests[0].href || "/manifest.webmanifest?v=global");
+      appleTitle?.setAttribute("content", previousAppleTitle || "الموظف");
     };
   }, [token]);
 
@@ -871,6 +885,9 @@ export default function EmployeePayrollPortal() {
         });
         if (!active) return;
         setPortal(response.portal || null);
+        if (response.portal && isBrowser()) {
+          window.localStorage?.setItem("employee_portal_last_url", `${window.location.pathname}${window.location.search}`);
+        }
         setOptionalLoaded(false);
         setPortalNotice("");
         logPagePerf("employee-wallet.token-load", startedAt, {
