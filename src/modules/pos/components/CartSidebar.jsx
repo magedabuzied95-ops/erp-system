@@ -343,6 +343,7 @@ function CartSidebar({
   onSelectCustomer,
   onClearCustomer,
   onCreateCustomerClick,
+  filtersModalOpen = false,
 }) {
   const [discountLoyaltyOpen, setDiscountLoyaltyOpen] = useState(false);
   const [splitPaymentOpen, setSplitPaymentOpen] = useState(false);
@@ -356,6 +357,8 @@ function CartSidebar({
   const exchangeActive = Boolean(exchangeState?.active && exchangeCreditAmount > 0);
   const totalAmount = Math.max(0, Number(paymentDueAmount ?? Math.max(0, newOrderTotal - exchangeAppliedCredit)));
   const editActive = Boolean(isEditingOrder && editPaymentSummary);
+  const hasSelectedCustomer = Boolean(selectedCustomerId || customer?.id || customer?.customer_id);
+  const showReturnCreditControl = !editActive && (hasSelectedCustomer || exchangeActive);
   const editRefundOrCreditDue = Math.max(0, Number(editPaymentSummary?.refundOrCreditDue || 0));
   const walletApplicable = Math.max(0, Math.min(customerWalletBalance, totalAmount));
   const customerCreditHelpText = POS_ARABIC_TEXT.customerCreditHelp;
@@ -504,34 +507,8 @@ function CartSidebar({
         onRefreshSellers={onRefreshSellers}
         allowSaleWithoutSalesperson={allowSaleWithoutSalesperson}
         canChangeSalesperson={canChangeSalesperson}
+        filtersModalOpen={filtersModalOpen}
       />
-
-      {!editActive ? (
-      <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-200">
-              {posLabel("cart.exchangeReturnCredit", "Exchange / Return Credit")}
-            </div>
-            <div className="mt-1 truncate text-xs font-bold text-amber-50">
-              {exchangeActive
-                ? `${exchangeState?.invoiceNumber || exchangeState?.originalOrderId || ""} - ${formatCurrency(exchangeCreditAmount)}`
-                : posLabel("cart.exchangeReturnCreditHint", "Scan or select an old invoice to apply return credit.")}
-            </div>
-          </div>
-          <div className="flex shrink-0 gap-1.5">
-            {exchangeActive ? (
-              <button type="button" onClick={onClearExchangeCredit} className="h-9 rounded-xl border border-white/10 bg-black/25 px-3 text-[10px] font-black text-zinc-200">
-                {posLabel("actions.clear", "Clear")}
-              </button>
-            ) : null}
-            <button type="button" onClick={() => setExchangeOpen(true)} className="h-9 rounded-xl border border-amber-300/25 bg-amber-300/15 px-3 text-[10px] font-black text-amber-50">
-              {exchangeActive ? posLabel("actions.change", "Change") : posLabel("actions.apply", "Apply")}
-            </button>
-          </div>
-        </div>
-      </div>
-      ) : null}
 
       <div className="theme-card pos-cart-panel flex min-h-0 flex-1 flex-col overflow-hidden p-3 shadow-xl shadow-[var(--shadow)]">
         <div className="flex items-center justify-between gap-3">
@@ -688,16 +665,6 @@ function CartSidebar({
           </div>
         </div>
 
-        {exchangeActive ? (
-          <ExchangeSummaryCard
-            oldCredit={exchangeCreditAmount}
-            newTotal={newOrderTotal}
-            amountDue={totalAmount}
-            remainingCredit={exchangeCustomerCredit}
-            invoiceNumber={exchangeState?.invoiceNumber}
-          />
-        ) : null}
-
         {editActive ? (
           <EditPaymentDifferenceCard
             alreadyPaid={editPaymentSummary.originalPaidAmount}
@@ -724,16 +691,44 @@ function CartSidebar({
             <div className="text-xs font-black text-white">{posLabel("cart.payment", "Payment")}</div>
             <span className="hidden text-[10px] font-semibold text-zinc-500 sm:inline">{posLabel("cart.checkout", "Checkout")}</span>
           </div>
-          <div
-            className={`rounded-full px-2 py-1 text-[10px] font-black ${
-              paymentSummary.paymentStatus === "Paid"
-                ? "bg-emerald-500/10 text-emerald-300"
-                : paymentSummary.paymentStatus === "Partial"
-                  ? "bg-amber-500/10 text-amber-300"
-                  : "bg-white/5 text-zinc-300"
-            }`}
-          >
-            {paymentSummary.paymentStatus}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {showReturnCreditControl ? (
+              <>
+                {exchangeActive ? (
+                  <button
+                    type="button"
+                    onClick={onClearExchangeCredit}
+                    title={`${exchangeState?.invoiceNumber || exchangeState?.originalOrderId || posLabel("cart.returnCredit", "Return credit")} - ${formatCurrency(exchangeCreditAmount)}`}
+                    className="h-7 rounded-lg border border-white/10 bg-black/25 px-2 text-[10px] font-black text-zinc-200 transition hover:bg-white/[0.08]"
+                  >
+                    {posLabel("actions.clear", "Clear")}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setExchangeOpen(true)}
+                  title={
+                    exchangeActive
+                      ? `${exchangeState?.invoiceNumber || exchangeState?.originalOrderId || posLabel("cart.returnCredit", "Return credit")} - ${formatCurrency(exchangeCreditAmount)}`
+                      : posLabel("cart.exchangeReturnCreditHint", "Scan or select an old invoice to apply return credit.")
+                  }
+                  className="h-7 rounded-lg border border-amber-300/35 bg-amber-300/10 px-2.5 text-[10px] font-black text-amber-50 transition hover:border-amber-200/60 hover:bg-amber-300/15 hover:shadow-[0_0_16px_rgba(251,191,36,0.18)]"
+                >
+                  {posLabel("cart.applyReturnCredit", "Apply Return Credit")}
+                </button>
+              </>
+            ) : null}
+            <div
+              className={`rounded-full px-2 py-1 text-[10px] font-black ${
+                paymentSummary.paymentStatus === "Paid"
+                  ? "bg-emerald-500/10 text-emerald-300"
+                  : paymentSummary.paymentStatus === "Partial"
+                    ? "bg-amber-500/10 text-amber-300"
+                    : "bg-white/5 text-zinc-300"
+              }`}
+            >
+              {paymentSummary.paymentStatus}
+            </div>
           </div>
         </div>
 
@@ -1532,6 +1527,7 @@ function InvoiceCustomerPicker({
   onRefreshSellers,
   allowSaleWithoutSalesperson = true,
   canChangeSalesperson = true,
+  filtersModalOpen = false,
 }) {
   const [customerSearchActive, setCustomerSearchActive] = useState(false);
   const [activeCustomerIndex, setActiveCustomerIndex] = useState(-1);
@@ -1595,7 +1591,11 @@ function InvoiceCustomerPicker({
   return (
     <div
       ref={customerSearchWrapRef}
-      className="sticky top-0 z-40 shrink-0 rounded-2xl border border-white/10 bg-zinc-950/95 p-2 shadow-xl shadow-black/30 backdrop-blur-xl"
+      aria-hidden={filtersModalOpen ? "true" : undefined}
+      className={[
+        "sticky top-0 z-40 shrink-0 rounded-2xl border border-white/10 bg-zinc-950/95 p-2 shadow-xl shadow-black/30 backdrop-blur-xl",
+        filtersModalOpen ? "invisible pointer-events-none opacity-0" : "",
+      ].join(" ")}
     >
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">

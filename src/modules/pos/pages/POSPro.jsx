@@ -4957,9 +4957,10 @@ function POSPro() {
         </div>
 
         <div className="relative z-30">
-          {filtersOpen ? (
+          {filtersOpen && typeof document !== "undefined" ? createPortal(
             <div
-              className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 px-4 py-4 backdrop-blur-xl sm:items-center sm:py-6"
+              className="fixed inset-0 flex items-end justify-center bg-black/75 px-4 py-4 backdrop-blur-xl sm:items-center sm:py-6"
+              style={{ zIndex: 2147483000 }}
               onMouseDown={(event) => {
                 if (event.target === event.currentTarget) setFiltersOpen(false);
               }}
@@ -5090,7 +5091,8 @@ function POSPro() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div>,
+            document.fullscreenElement || document.body
           ) : null}
 
           {customerCreateOpen && typeof document !== "undefined" ? createPortal(
@@ -5406,6 +5408,7 @@ function POSPro() {
             onSelectCustomer={handleSelectCustomer}
             onClearCustomer={handleClearSelectedCustomer}
             onCreateCustomerClick={openCustomerCreateModal}
+            filtersModalOpen={filtersOpen}
           />
           </div>
         </div>
@@ -5510,6 +5513,7 @@ function POSPro() {
             onSelectCustomer={handleSelectCustomer}
             onClearCustomer={handleClearSelectedCustomer}
             onCreateCustomerClick={openCustomerCreateModal}
+            filtersModalOpen={filtersOpen}
           />
         </MobileBottomSheet>
 
