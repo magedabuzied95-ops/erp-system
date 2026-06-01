@@ -990,6 +990,7 @@ export default function EmployeePayrollPortal() {
   const requestSocketRef = useRef(null);
   const requestNoticeTimerRef = useRef(null);
   const chatFileInputRef = useRef(null);
+  const chatInputRef = useRef(null);
   const chatHeaderRef = useRef(null);
   const chatMessagesRef = useRef(null);
   const chatComposerRef = useRef(null);
@@ -998,6 +999,7 @@ export default function EmployeePayrollPortal() {
   const mediaRecorderRef = useRef(null);
   const recordingChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
+  const chatSwipeRef = useRef({ id: null, startX: 0, startY: 0, active: false });
   const { viewportHeight } = useViewportHeight();
   const [chatHeaderHeight, setChatHeaderHeight] = useState(0);
   const [chatComposerHeight, setChatComposerHeight] = useState(0);
@@ -1205,22 +1207,21 @@ export default function EmployeePayrollPortal() {
   const totalBadgeCount = badgeCounts.unreadChats + badgeCounts.pendingNotifications + badgeCounts.newTasks;
   const chatPanelStyle = useMemo(
     () => ({
-      height: viewportHeight ? `${viewportHeight}px` : "100dvh",
-      minHeight: viewportHeight ? `${viewportHeight}px` : "100dvh",
-      maxHeight: viewportHeight ? `${viewportHeight}px` : "100dvh",
+      height: "100dvh",
+      maxHeight: "100dvh",
     }),
-    [viewportHeight]
+    []
   );
   const chatMessagesStyle = useMemo(
     () => ({
-      height: viewportHeight && chatHeaderHeight && chatComposerHeight
-        ? `${Math.max(viewportHeight - chatHeaderHeight - chatComposerHeight, 160)}px`
+      height: chatHeaderHeight && chatComposerHeight
+        ? `calc(100dvh - ${chatHeaderHeight + chatComposerHeight}px)`
         : undefined,
       backgroundColor: "#0b141a",
       backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.055) 1px, transparent 0), linear-gradient(135deg, rgba(20,184,166,0.035), transparent 35%, rgba(15,23,42,0.18))",
       backgroundSize: "18px 18px, 100% 100%",
     }),
-    [chatComposerHeight, chatHeaderHeight, viewportHeight]
+    [chatComposerHeight, chatHeaderHeight]
   );
 
   useEffect(() => {
@@ -1508,22 +1509,22 @@ export default function EmployeePayrollPortal() {
     if (!chatOpen) return undefined;
     const bodyOverflow = document.body.style.overflow;
     const htmlOverflow = document.documentElement.style.overflow;
-    const bodyPosition = document.body.style.position;
-    const bodyTop = document.body.style.top;
     const bodyWidth = document.body.style.width;
-    const scrollY = window.scrollY || window.pageYOffset || 0;
+    const bodyHeight = document.body.style.height;
+    const htmlHeight = document.documentElement.style.height;
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
     document.body.style.width = "100%";
     return () => {
+      document.activeElement?.blur?.();
+      chatInputRef.current?.blur?.();
       document.body.style.overflow = bodyOverflow;
       document.documentElement.style.overflow = htmlOverflow;
-      document.body.style.position = bodyPosition;
-      document.body.style.top = bodyTop;
       document.body.style.width = bodyWidth;
-      window.scrollTo(0, scrollY);
+      document.body.style.height = bodyHeight;
+      document.documentElement.style.height = htmlHeight;
+      window.scrollTo(0, 0);
+      window.dispatchEvent(new Event("resize"));
     };
   }, [chatOpen]);
 
@@ -1613,10 +1614,61 @@ export default function EmployeePayrollPortal() {
     setShowChatJump(false);
   };
 
+  const resetAfterChatClose = useCallback(() => {
+    document.activeElement?.blur?.();
+    chatInputRef.current?.blur?.();
+    document.body.style.height = "";
+    document.documentElement.style.height = "";
+    window.scrollTo(0, 0);
+    window.dispatchEvent(new Event("resize"));
+  }, []);
+
+  const closeEmployeeChat = useCallback(() => {
+    document.activeElement?.blur?.();
+    chatInputRef.current?.blur?.();
+    window.setTimeout(() => {
+      setChatOpen(false);
+      window.requestAnimationFrame?.(resetAfterChatClose);
+      window.setTimeout(resetAfterChatClose, 50);
+    }, 50);
+  }, [resetAfterChatClose]);
+
   const handleChatScroll = () => {
     const node = chatMessagesRef.current;
     if (!node) return;
     setShowChatJump(node.scrollHeight - node.scrollTop - node.clientHeight > 140);
+  };
+
+  const scrollToChatMessage = (messageId) => {
+    const node = document.getElementById(`employee-chat-message-${messageId}`);
+    if (!node) return;
+    node.scrollIntoView({ block: "center", behavior: "smooth" });
+    node.classList.add("ring-2", "ring-emerald-300", "ring-offset-2", "ring-offset-[#0b141a]");
+    window.setTimeout(() => {
+      node.classList.remove("ring-2", "ring-emerald-300", "ring-offset-2", "ring-offset-[#0b141a]");
+    }, 1200);
+  };
+
+  const beginChatSwipe = (event, message) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    chatSwipeRef.current = { id: message.id, startX: touch.clientX, startY: touch.clientY, active: true };
+  };
+
+  const moveChatSwipe = (event, message) => {
+    const touch = event.touches?.[0];
+    const swipe = chatSwipeRef.current;
+    if (!touch || !swipe.active || String(swipe.id) !== String(message.id)) return;
+    const deltaX = touch.clientX - swipe.startX;
+    const deltaY = touch.clientY - swipe.startY;
+    if (Math.abs(deltaY) > 36 || deltaX > -52) return;
+    setReplyToChat(message);
+    chatSwipeRef.current = { id: null, startX: 0, startY: 0, active: false };
+    if (navigator.vibrate) navigator.vibrate(10);
+  };
+
+  const endChatSwipe = () => {
+    chatSwipeRef.current = { id: null, startX: 0, startY: 0, active: false };
   };
 
   const startVoiceRecording = async () => {
@@ -2409,7 +2461,7 @@ export default function EmployeePayrollPortal() {
                   <h2 className="truncate text-[15px] font-black leading-5">{ui("chatTitle")}</h2>
                   <p className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">متصل الآن</p>
                 </div>
-                <button type="button" onClick={() => setChatOpen(false)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white">
+                <button type="button" onClick={closeEmployeeChat} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white">
                   <X className="h-4 w-4" />
                 </button>
               </header>
@@ -2434,17 +2486,22 @@ export default function EmployeePayrollPortal() {
                 chatMessages.map((message) => {
                   const employeeMessage = message.sender_type === "employee";
                   return (
-                    <div id={`employee-chat-message-${message.id}`} key={message.id} className={`flex ${employeeMessage ? "justify-end" : "justify-start"}`}>
-                      <div className={`relative w-fit max-w-[72%] break-words rounded-[1.05rem] px-2 py-1 text-[15px] font-medium leading-5 shadow-sm ${employeeMessage ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}>
+                    <div id={`employee-chat-message-${message.id}`} key={message.id} className={`flex rounded-2xl transition-shadow duration-300 ${employeeMessage ? "justify-end" : "justify-start"}`}>
+                      <div
+                        onTouchStart={(event) => beginChatSwipe(event, message)}
+                        onTouchMove={(event) => moveChatSwipe(event, message)}
+                        onTouchEnd={endChatSwipe}
+                        onTouchCancel={endChatSwipe}
+                        className={`relative w-fit max-w-[78%] touch-pan-y select-none break-words rounded-[1.05rem] px-3 py-2 text-[15px] font-medium leading-5 shadow-sm ${employeeMessage ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}
+                      >
                         {message.reply_to_message_id ? (
-                          <button type="button" onClick={() => document.getElementById(`employee-chat-message-${message.reply_to_message_id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })} className="mb-1 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
+                          <button type="button" onClick={() => scrollToChatMessage(message.reply_to_message_id)} className="mb-1.5 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
                             <div className="font-black">{message.reply_sender_type === "employee" ? ui("you") : ui("management")}</div>
                             <div className="truncate">{chatMessagePreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name }, text)}</div>
                           </button>
                         ) : null}
                         <ChatAttachment message={message} text={text} compact onImageClick={setChatImagePreview} />
                         {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
-                        <button type="button" onClick={() => setReplyToChat(message)} className="mt-1 text-[10px] font-bold text-slate-300/60">رد</button>
                         <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
                           <span>{formatTimeLocal(message.created_at, language)}</span>
                           {employeeMessage ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
@@ -2466,18 +2523,18 @@ export default function EmployeePayrollPortal() {
                 </button>
               ) : null}
             </div>
-            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="sticky bottom-0 z-10 shrink-0 border-t border-white/10 bg-[#1f2c33] px-2.5 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5">
+            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="sticky bottom-0 z-10 shrink-0 border-t border-white/10 bg-[#1f2c33] px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-1.5">
               {replyToChat ? (
-                <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
-                  <div className="min-w-0">
+                <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-white/10 px-2.5 py-1.5 text-[11px] font-bold leading-4 text-white">
+                  <button type="button" onClick={() => scrollToChatMessage(replyToChat.id)} className="min-w-0 flex-1 border-r-2 border-emerald-300 pr-2 text-start">
                     <div className="text-emerald-200">{replyToChat.sender_type === "employee" ? ui("you") : ui("management")}</div>
                     <div className="truncate opacity-80">{chatMessagePreview(replyToChat, text)}</div>
-                  </div>
-                  <button type="button" onClick={() => setReplyToChat(null)} className="shrink-0 text-red-200"><X className="h-4 w-4" /></button>
+                  </button>
+                  <button type="button" onClick={() => setReplyToChat(null)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-red-200"><X className="h-3.5 w-3.5" /></button>
                 </div>
               ) : null}
               {recordingState.active ? (
-                <div className="mb-2 flex items-center justify-between rounded-2xl bg-red-500/10 px-3 py-2 text-xs font-black text-red-100">
+                <div className="mb-1.5 flex items-center justify-between rounded-xl bg-red-500/10 px-2.5 py-1.5 text-[11px] font-black text-red-100">
                   <span dir="ltr">{Math.floor(recordingState.seconds / 60)}:{String(recordingState.seconds % 60).padStart(2, "0")}</span>
                   <div className="flex gap-2">
                     <button type="button" onClick={cancelVoiceRecording}>إلغاء</button>
@@ -2486,14 +2543,14 @@ export default function EmployeePayrollPortal() {
                 </div>
               ) : null}
               {chatAttachment ? (
-                <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-[11px] font-bold text-white">
+                <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-white/10 px-2.5 py-1.5 text-[11px] font-bold text-white">
                   <span className="min-w-0 truncate" dir="auto">{chatAttachment.name}</span>
                   <button type="button" onClick={() => { setChatAttachment(null); if (chatFileInputRef.current) chatFileInputRef.current.value = ""; }} className="font-black text-red-200">
                     {ui("removeAttachment")}
                   </button>
                 </div>
               ) : null}
-              <div className="flex items-end gap-2">
+              <div className="flex min-h-[44px] items-end gap-1.5">
                 <input
                   ref={chatFileInputRef}
                   type="file"
@@ -2501,23 +2558,24 @@ export default function EmployeePayrollPortal() {
                   accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.webm,.m4a,.mp4,.mp3,.wav,image/jpeg,image/png,image/webp,audio/webm,audio/mp4,audio/mpeg,audio/wav,audio/x-wav,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={chooseChatAttachment}
                 />
-                <button type="button" onClick={() => chatFileInputRef.current?.click()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label={ui("attachFile")}>
+                <button type="button" onClick={() => chatFileInputRef.current?.click()} className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label={ui("attachFile")}>
                   <Paperclip className="h-4 w-4" />
                 </button>
                 {recordingState.supported ? (
-                  <button type="button" onClick={startVoiceRecording} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="تسجيل صوتي">
+                  <button type="button" onClick={startVoiceRecording} className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="تسجيل صوتي">
                     <Mic className="h-4 w-4" />
                   </button>
                 ) : null}
                 <textarea
+                  ref={chatInputRef}
                   value={chatBody}
                   onChange={(event) => { setChatBody(event.target.value); emitChatTyping(); }}
                   onFocus={keepChatInputVisible}
                   placeholder={ui("chatPlaceholder")}
-                  className="max-h-32 min-h-11 flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-white/10 px-4 py-2.5 text-[13px] font-bold leading-5 text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
+                  className="max-h-24 min-h-[42px] flex-1 resize-none rounded-[1.35rem] border border-white/10 bg-white/10 px-3.5 py-2 text-[13px] font-bold leading-5 text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
                   dir="auto"
                 />
-                <button type="submit" disabled={chatSaving || (!chatBody.trim() && !chatAttachment)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
+                <button type="submit" disabled={chatSaving || (!chatBody.trim() && !chatAttachment)} className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
                   {chatSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </button>
               </div>

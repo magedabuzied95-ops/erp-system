@@ -2120,11 +2120,21 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
         sendEmployeePortalPush({
           tenantId,
           employeeId: employee.id,
-          title: "تم إنشاء الراتب",
+          title: "تم إصدار الراتب",
           body: `تم إنشاء راتب شهر ${deductionMonth}.`,
-          tag: `payroll-generated-${payrollRun.id}`,
+          tag: "payroll-generated",
           data: { event: "payroll_generated", payroll_id: payrollRun.id, tab: "salary" },
         }).catch((pushError) => console.warn("[payroll] employee portal push skipped", pushError?.message || pushError));
+        if (bonuses > 0) {
+          sendEmployeePortalPush({
+            tenantId,
+            employeeId: employee.id,
+            title: "مكافأة جديدة",
+            body: `تم إضافة مكافأة بقيمة ${bonuses} جنيه.`,
+            tag: "bonus-added",
+            data: { event: "bonus_added", payroll_id: payrollRun.id, amount: bonuses, tab: "salary" },
+          }).catch((pushError) => console.warn("[payroll] employee bonus push skipped", pushError?.message || pushError));
+        }
       }
     } catch (error) {
       console.warn("[payroll] payroll snapshot skipped", error.message);
