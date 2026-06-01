@@ -4,6 +4,7 @@ import { FileText, Loader2, MessageCircle, Paperclip, RefreshCw, Send, UserRound
 import { api } from "../../../shared/api/api";
 import { API_ORIGIN } from "../../../shared/constants/app";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
+import { useViewportHeight } from "../../../hooks/useViewportHeight";
 
 const formatChatTime = (value) => {
   if (!value) return "-";
@@ -91,6 +92,13 @@ export default function EmployeeChatInbox() {
   const [error, setError] = useState("");
   const realtime = useRealtimeConnection();
   const fileInputRef = useRef(null);
+  const messagesRef = useRef(null);
+  const composerRef = useRef(null);
+  const { viewportHeight } = useViewportHeight();
+  const chatViewportStyle = useMemo(
+    () => ({ "--employee-chat-vh": viewportHeight ? `${viewportHeight}px` : "100dvh" }),
+    [viewportHeight]
+  );
 
   const selectedThread = useMemo(
     () => threads.find((item) => String(item.id) === String(selectedId)) || thread,
@@ -189,6 +197,24 @@ export default function EmployeeChatInbox() {
     };
   }, [selectedId]);
 
+  const keepInputVisible = () => {
+    window.setTimeout(() => {
+      const activeElement = document.activeElement;
+      if (activeElement && composerRef.current?.contains(activeElement)) {
+        activeElement.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
+      if (messagesRef.current) {
+        messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+      }
+    }, 50);
+  };
+
+  useEffect(() => {
+    if (!selectedThread) return undefined;
+    keepInputVisible();
+    return undefined;
+  }, [selectedThread, messages.length, viewportHeight]);
+
   const sendMessage = async (event) => {
     event.preventDefault();
     const text = body.trim();
@@ -229,8 +255,8 @@ export default function EmployeeChatInbox() {
   };
 
   return (
-    <section className="theme-card overflow-hidden p-0" dir="rtl">
-      <div className="border-b border-[var(--border)] p-4">
+    <section className="theme-card flex h-[var(--employee-chat-vh)] min-h-[var(--employee-chat-vh)] flex-col overflow-hidden p-0 md:h-auto md:min-h-0" style={chatViewportStyle} dir="rtl">
+      <div className="shrink-0 border-b border-[var(--border)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-black text-[var(--muted)]">الموظفون / المحادثات</p>
@@ -245,15 +271,15 @@ export default function EmployeeChatInbox() {
         {error ? <div className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-200">{error}</div> : null}
       </div>
 
-      <div className="grid min-h-[34rem] md:grid-cols-[22rem_1fr]">
-        <aside className="border-b border-[var(--border)] bg-[var(--card)] md:border-b-0 md:border-l">
+      <div className="grid min-h-0 flex-1 md:min-h-[34rem] md:grid-cols-[22rem_1fr]">
+        <aside className="flex min-h-0 flex-col border-b border-[var(--border)] bg-[var(--card)] md:border-b-0 md:border-l">
           {loadingThreads ? (
             <div className="flex items-center justify-center gap-2 p-6 text-sm font-bold text-[var(--muted)]">
               <Loader2 className="h-4 w-4 animate-spin" />
               جاري التحميل...
             </div>
           ) : threads.length ? (
-            <div className="max-h-[34rem] overflow-y-auto p-2">
+            <div className="min-h-0 flex-1 overflow-y-auto p-2 md:max-h-[34rem]">
               {threads.map((item) => (
                 <button
                   key={item.id}
@@ -293,10 +319,10 @@ export default function EmployeeChatInbox() {
           )}
         </aside>
 
-        <div className="flex min-h-[34rem] flex-col bg-[#0b141a]">
+        <div className="flex min-h-0 flex-col bg-[#0b141a] md:min-h-[34rem]">
           {selectedThread ? (
             <>
-              <div className="border-b border-white/10 bg-[#202c33] p-4 text-white">
+              <div className="shrink-0 border-b border-white/10 bg-[#202c33] p-4 text-white">
                 <div className="text-lg font-black" dir="auto">{selectedThread.employee_name || "موظف"}</div>
                 <div className="mt-1 text-xs font-bold text-slate-300" dir="auto">
                   {selectedThread.employee_code || "-"} · {selectedThread.branch_name || "بدون فرع"}
@@ -304,7 +330,8 @@ export default function EmployeeChatInbox() {
                 <div className="mt-1 text-[11px] font-black text-emerald-200">{realtime.connected ? "متصل الآن" : "التحديث الاحتياطي يعمل"}</div>
               </div>
               <div
-                className="flex-1 space-y-2 overflow-y-auto scroll-smooth p-4"
+                ref={messagesRef}
+                className="min-h-0 flex-1 space-y-2 overflow-y-auto scroll-smooth p-4"
                 style={{
                   backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 0)",
                   backgroundSize: "18px 18px",
@@ -339,7 +366,7 @@ export default function EmployeeChatInbox() {
                   </div>
                 )}
               </div>
-              <form onSubmit={sendMessage} className="shrink-0 border-t border-white/10 bg-[#202c33] p-3">
+              <form ref={composerRef} onSubmit={sendMessage} className="sticky bottom-0 shrink-0 border-t border-white/10 bg-[#202c33] p-3 pb-[max(12px,env(safe-area-inset-bottom))]">
                 {attachment ? (
                   <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
                     <span className="min-w-0 truncate" dir="auto">{attachment.name}</span>
@@ -363,6 +390,7 @@ export default function EmployeeChatInbox() {
                   <textarea
                     value={body}
                     onChange={(event) => setBody(event.target.value)}
+                    onFocus={keepInputVisible}
                     placeholder="اكتب رد الإدارة..."
                     className="min-h-12 flex-1 resize-none rounded-3xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
                     dir="auto"

@@ -37,6 +37,7 @@ import { api } from "../../../shared/api/api";
 import { API_ORIGIN, SOCKET_URL } from "../../../shared/constants/app";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
+import { useViewportHeight } from "../../../hooks/useViewportHeight";
 
 const labels = {
   ar: {
@@ -894,6 +895,9 @@ export default function EmployeePayrollPortal() {
   const requestSocketRef = useRef(null);
   const requestNoticeTimerRef = useRef(null);
   const chatFileInputRef = useRef(null);
+  const chatMessagesRef = useRef(null);
+  const chatComposerRef = useRef(null);
+  const { viewportHeight } = useViewportHeight();
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
@@ -1073,6 +1077,13 @@ export default function EmployeePayrollPortal() {
   const walletTransactions = safeArray(portal?.recent_wallet_transactions);
   const lazyWarnings = safeArray(portal?.warnings);
   const leaderboardLazy = lazyWarnings.some((warning) => warning?.section === "leaderboard" && warning?.code === "lazy");
+  const chatPanelStyle = useMemo(
+    () => ({
+      height: viewportHeight ? `${viewportHeight}px` : "100dvh",
+      minHeight: viewportHeight ? `${viewportHeight}px` : "100dvh",
+    }),
+    [viewportHeight]
+  );
 
   useEffect(() => {
     if (!portal || !token || !profile.id) return undefined;
@@ -1236,6 +1247,36 @@ export default function EmployeePayrollPortal() {
     const timer = window.setInterval(() => loadEmployeeChat({ silent: true }), 12000);
     return () => window.clearInterval(timer);
   }, [chatOpen, portal, chatSocketConnected, token]);
+
+  const keepChatInputVisible = useCallback(() => {
+    window.setTimeout(() => {
+      const activeElement = document.activeElement;
+      if (activeElement && chatComposerRef.current?.contains(activeElement)) {
+        activeElement.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
+      if (chatMessagesRef.current) {
+        chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+      }
+    }, 50);
+  }, []);
+
+  useEffect(() => {
+    if (!chatOpen) return undefined;
+    const bodyOverflow = document.body.style.overflow;
+    const htmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = htmlOverflow;
+    };
+  }, [chatOpen]);
+
+  useEffect(() => {
+    if (!chatOpen) return undefined;
+    keepChatInputVisible();
+    return undefined;
+  }, [chatOpen, chatMessages.length, viewportHeight, keepChatInputVisible]);
 
   const submitChatMessage = async (event) => {
     event.preventDefault();
@@ -1946,9 +1987,9 @@ export default function EmployeePayrollPortal() {
         </div>
       ) : null}
       {chatOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/70 p-0 sm:items-center sm:p-4">
-          <section className="flex h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:mx-auto sm:max-w-md sm:rounded-3xl" dir={direction}>
-            <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#202c33] px-4 py-3">
+        <div className="fixed inset-0 z-50 flex items-end overflow-hidden bg-slate-950/70 p-0 sm:items-center sm:p-4">
+          <section className="flex w-full flex-col overflow-hidden rounded-t-3xl border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:mx-auto sm:max-w-md sm:rounded-3xl" style={chatPanelStyle} dir={direction}>
+            <header className="shrink-0 flex items-center justify-between gap-3 border-b border-white/10 bg-[#202c33] px-4 py-3">
               <div>
                 <h2 className="text-xl font-black">{ui("chatTitle")}</h2>
                 <p className="mt-1 text-[11px] font-black text-emerald-200">{chatSocketConnected ? "متصل الآن" : "التحديث الاحتياطي يعمل"}</p>
@@ -1957,12 +1998,13 @@ export default function EmployeePayrollPortal() {
                 <X className="h-5 w-5" />
               </button>
             </header>
-            <div className="border-b border-white/5 bg-[#0b141a] px-4 py-2 text-center text-[11px] font-bold text-slate-300">
+            <div className="shrink-0 border-b border-white/5 bg-[#0b141a] px-4 py-2 text-center text-[11px] font-bold text-slate-300">
               {ui("chatSecureNotice")}
             </div>
             {chatError ? <div className="mx-4 mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
             <div
-              className="flex-1 space-y-2 overflow-y-auto scroll-smooth p-4 pb-5"
+              ref={chatMessagesRef}
+              className="min-h-0 flex-1 space-y-2 overflow-y-auto scroll-smooth p-4"
               style={{
                 backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 0)",
                 backgroundSize: "18px 18px",
@@ -1998,7 +2040,7 @@ export default function EmployeePayrollPortal() {
                 </div>
               )}
             </div>
-            <form onSubmit={submitChatMessage} className="shrink-0 border-t border-white/10 bg-[#202c33] p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="sticky bottom-0 shrink-0 border-t border-white/10 bg-[#202c33] p-3 pb-[max(12px,env(safe-area-inset-bottom))]">
               {chatAttachment ? (
                 <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
                   <span className="min-w-0 truncate" dir="auto">{chatAttachment.name}</span>
@@ -2021,6 +2063,7 @@ export default function EmployeePayrollPortal() {
                 <textarea
                   value={chatBody}
                   onChange={(event) => setChatBody(event.target.value)}
+                  onFocus={keepChatInputVisible}
                   placeholder={ui("chatPlaceholder")}
                   className="min-h-12 flex-1 resize-none rounded-3xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
                   dir="auto"
