@@ -226,6 +226,7 @@ function RouteSkeleton() {
 function App() {
   useTranslation();
   const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
+  const employeeAppToken = isEmployeeAppRoute ? window.location.pathname.split("/")[2] || "" : "";
 
   useEffect(() => {
     if (isEmployeeAppRoute) return undefined;
@@ -245,12 +246,13 @@ function App() {
   }, [isEmployeeAppRoute]);
 
   if (isEmployeeAppRoute) {
+    console.debug("[employee-app-route-hit]", employeeAppToken);
     return (
       <DebugErrorBoundary title="Employee app screen crashed">
         <Suspense fallback={<RouteSkeleton />}>
           <Routes>
             <Route path="/employee-app/:token" element={<EmployeeAppShell />} />
-            <Route path="*" element={<Navigate to={window.location.pathname + window.location.search} replace />} />
+            <Route path="/employee-app/*" element={<EmployeeAppShell />} />
           </Routes>
         </Suspense>
       </DebugErrorBoundary>

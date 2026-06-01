@@ -1,6 +1,5 @@
 import ReactDOM from "react-dom/client";
 
-import App from "./App.jsx";
 import "./i18n/i18n";
 
 import "./index.css";
@@ -8,9 +7,7 @@ import { API_BASE_URL, API_ORIGIN, SOCKET_URL } from "./shared/constants/app";
 import { installChunkLoadRecovery } from "./shared/utils/chunkLoadRecovery";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
-import {
-  BrowserRouter
-} from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 /* ======================================================
    TOAST
@@ -87,27 +84,40 @@ if (typeof document !== "undefined") {
   }
 }
 
-ReactDOM.createRoot(
+const root = ReactDOM.createRoot(document.getElementById("root"));
+const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
 
-  document.getElementById("root")
+if (isEmployeeAppRoute) {
+  import("./modules/employees/pages/EmployeeAppShell.jsx").then(({ default: EmployeeAppShell }) => {
+    root.render(
+      <BrowserRouter>
+        <Routes>
+          <Route path="/employee-app/:token" element={<EmployeeAppShell />} />
+          <Route path="/employee-app/*" element={<EmployeeAppShell />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  });
+} else {
+  import("./App.jsx").then(({ default: App }) => {
+    root.render(
+      <ThemeProvider>
+        <BrowserRouter>
 
-).render(
+          {/* ======================================================
+             APP
+          ====================================================== */}
 
-  <ThemeProvider>
-    <BrowserRouter>
+          <App />
 
-      {/* ======================================================
-         APP
-      ====================================================== */}
+          {/* ======================================================
+             TOASTER
+          ====================================================== */}
 
-      <App />
+          <LocalizedToaster />
 
-      {/* ======================================================
-         TOASTER
-      ====================================================== */}
-
-      <LocalizedToaster />
-
-    </BrowserRouter>
-  </ThemeProvider>
-);
+        </BrowserRouter>
+      </ThemeProvider>
+    );
+  });
+}
