@@ -20,9 +20,22 @@ const messageSelect = `
     m.sender_user_id,
     m.body,
     m.attachment_url,
+    m.attachment_type,
+    m.attachment_name,
+    m.attachment_size,
+    m.attachment_mime,
     m.read_at,
     m.created_at
   FROM employee_chat_messages m
+`;
+
+const attachmentLabelSql = (alias = "m") => `
+  CASE
+    WHEN NULLIF(TRIM(${alias}.body), '') IS NOT NULL THEN ${alias}.body
+    WHEN ${alias}.attachment_type = 'image' THEN 'صورة'
+    WHEN ${alias}.attachment_url IS NOT NULL THEN 'ملف'
+    ELSE ''
+  END
 `;
 
 const adminChatRoom = (tenantId = null) => `employee-chat:tenant:${tenantId || "global"}`;
@@ -43,7 +56,7 @@ const loadThreadSummary = async (threadId, clientOrPool = db) => {
       e.full_name AS employee_name,
       e.employee_code,
       b.name AS branch_name,
-      lm.body AS last_message,
+      lm.last_message,
       lm.sender_type AS last_sender_type,
       lm.created_at AS last_message_created_at,
       COALESCE(unread.unread_count, 0)::int AS unread_count
@@ -51,7 +64,7 @@ const loadThreadSummary = async (threadId, clientOrPool = db) => {
     JOIN employees e ON e.id = t.employee_id
     LEFT JOIN branches b ON b.id = t.branch_id
     LEFT JOIN LATERAL (
-      SELECT body, sender_type, created_at
+      SELECT ${attachmentLabelSql("m")} AS last_message, sender_type, created_at
       FROM employee_chat_messages m
       WHERE m.thread_id = t.id
       ORDER BY m.created_at DESC, m.id DESC
@@ -75,6 +88,24 @@ const emitChatEvent = (rooms = [], eventName, payload = {}) => {
     ...payload,
     at: new Date().toISOString(),
   });
+};
+
+const attachmentFromUpload = (file = null) => {
+  if (!file) return null;
+  return {
+    attachment_url: `/uploads/employee-chat/${file.filename}`,
+    attachment_type: String(file.mimetype || "").startsWith("image/") ? "image" : "file",
+    attachment_name: file.originalname || file.filename,
+    attachment_size: Number(file.size || 0),
+    attachment_mime: file.mimetype || "",
+  };
+};
+
+const validateMessageInput = ({ body = "", attachment = null } = {}) => {
+  const text = clean(body);
+  if (!text && !attachment) throw chatError("Message or attachment is required", 400, "message_required");
+  if (text.length > 4000) throw chatError("Message is too long", 400, "message_too_long");
+  return text;
 };
 
 export const getOrCreateEmployeeChatThread = async (employee, clientOrPool = db) => {
@@ -139,20 +170,30 @@ export const getEmployeeChat = async ({ employee } = {}) => {
   return { thread, messages };
 };
 
-export const sendEmployeeChatMessage = async ({ employee, body = "" } = {}) => {
-  const text = clean(body);
-  if (!text) throw chatError("Message is required", 400, "message_required");
-  if (text.length > 4000) throw chatError("Message is too long", 400, "message_too_long");
+export const sendEmployeeChatMessage = async ({ employee, body = "", file = null } = {}) => {
+  const attachment = attachmentFromUpload(file);
+  const text = validateMessageInput({ body, attachment });
   const thread = await getOrCreateEmployeeChatThread(employee);
   const result = await db.query(
     `
     INSERT INTO employee_chat_messages (
-      thread_id, sender_type, sender_employee_id, sender_user_id, body, attachment_url, read_at, created_at
+      thread_id, sender_type, sender_employee_id, sender_user_id, body,
+      attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime,
+      read_at, created_at
     )
-    VALUES ($1, 'employee', $2, NULL, $3, NULL, NULL, NOW())
+    VALUES ($1, 'employee', $2, NULL, $3, $4, $5, $6, $7, $8, NULL, NOW())
     RETURNING *
     `,
-    [thread.id, employee.id, text]
+    [
+      thread.id,
+      employee.id,
+      text,
+      attachment?.attachment_url || null,
+      attachment?.attachment_type || null,
+      attachment?.attachment_name || null,
+      attachment?.attachment_size || null,
+      attachment?.attachment_mime || null,
+    ]
   );
   await db.query(
     `
@@ -191,7 +232,7 @@ export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } =
       e.full_name AS employee_name,
       e.employee_code,
       b.name AS branch_name,
-      lm.body AS last_message,
+      lm.last_message,
       lm.sender_type AS last_sender_type,
       lm.created_at AS last_message_created_at,
       COALESCE(unread.unread_count, 0)::int AS unread_count
@@ -199,7 +240,7 @@ export const listEmployeeChatThreads = async ({ tenantId = null, limit = 200 } =
     JOIN employees e ON e.id = t.employee_id
     LEFT JOIN branches b ON b.id = t.branch_id
     LEFT JOIN LATERAL (
-      SELECT body, sender_type, created_at
+      SELECT ${attachmentLabelSql("m")} AS last_message, sender_type, created_at
       FROM employee_chat_messages m
       WHERE m.thread_id = t.id
       ORDER BY m.created_at DESC, m.id DESC
@@ -267,20 +308,30 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
   return { thread, messages };
 };
 
-export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, userId = null, body = "" } = {}) => {
-  const text = clean(body);
-  if (!text) throw chatError("Message is required", 400, "message_required");
-  if (text.length > 4000) throw chatError("Message is too long", 400, "message_too_long");
+export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, userId = null, body = "", file = null } = {}) => {
+  const attachment = attachmentFromUpload(file);
+  const text = validateMessageInput({ body, attachment });
   const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: true });
   const result = await db.query(
     `
     INSERT INTO employee_chat_messages (
-      thread_id, sender_type, sender_employee_id, sender_user_id, body, attachment_url, read_at, created_at
+      thread_id, sender_type, sender_employee_id, sender_user_id, body,
+      attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime,
+      read_at, created_at
     )
-    VALUES ($1, 'admin', NULL, $2, $3, NULL, NULL, NOW())
+    VALUES ($1, 'admin', NULL, $2, $3, $4, $5, $6, $7, $8, NULL, NOW())
     RETURNING *
     `,
-    [thread.id, userId, text]
+    [
+      thread.id,
+      userId,
+      text,
+      attachment?.attachment_url || null,
+      attachment?.attachment_type || null,
+      attachment?.attachment_name || null,
+      attachment?.attachment_size || null,
+      attachment?.attachment_mime || null,
+    ]
   );
   await db.query(
     `

@@ -253,6 +253,10 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS sender_employee_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS sender_user_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_url TEXT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_type VARCHAR(40) NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_name TEXT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_size BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_mime TEXT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_thread_created ON employee_chat_messages (thread_id, created_at ASC, id ASC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_unread ON employee_chat_messages (thread_id, sender_type, read_at) WHERE read_at IS NULL`);
@@ -1546,10 +1550,11 @@ export const subscribeEmployeePortalPush = async ({ employee, subscription = {},
   const keys = subscription.keys && typeof subscription.keys === "object" ? subscription.keys : {};
   const p256dh = clean(keys.p256dh);
   const auth = clean(keys.auth);
-  console.info("[employee-push:subscribe]", {
+  console.info("[employee-push:subscribe-payload]", {
     employee_id: employee.id,
     endpoint_exists: Boolean(endpoint),
-    keys_exist: Boolean(p256dh && auth),
+    p256dh_exists: Boolean(p256dh),
+    auth_exists: Boolean(auth),
   });
   if (!endpoint || !p256dh || !auth) {
     const error = new Error("Valid push subscription is required");
@@ -1585,9 +1590,50 @@ export const subscribeEmployeePortalPush = async ({ employee, subscription = {},
     ]
   );
 
+  console.info("[employee-push:subscribe-db-save]", {
+    employee_id: employee.id,
+    subscription_id: result.rows[0]?.id || null,
+  });
+
+  const countResult = await db.query(
+    `
+    SELECT COUNT(*)::int AS count
+    FROM employee_push_subscriptions
+    WHERE employee_id = $1
+      AND is_active = TRUE
+    `,
+    [employee.id]
+  );
+  console.info("[employee-push:subscription-count]", {
+    employee_id: employee.id,
+    count: Number(countResult.rows[0]?.count || 0),
+  });
+
   return {
     subscription: result.rows[0],
     vapid_configured: Boolean(clean(process.env.WEB_PUSH_PUBLIC_KEY) && clean(process.env.WEB_PUSH_PRIVATE_KEY)),
+  };
+};
+
+export const getEmployeePortalPushSubscriptionDebug = async ({ employeeId } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const result = await db.query(
+    `
+    SELECT
+      COUNT(*)::int AS count,
+      COUNT(NULLIF(endpoint, ''))::int AS endpoint_count,
+      MAX(last_seen_at) AS last_seen_at
+    FROM employee_push_subscriptions
+    WHERE employee_id = $1
+      AND is_active = TRUE
+    `,
+    [employeeId]
+  );
+  return {
+    employee_id: Number(employeeId),
+    count: Number(result.rows[0]?.count || 0),
+    endpoint_count: Number(result.rows[0]?.endpoint_count || 0),
+    last_seen_at: result.rows[0]?.last_seen_at || null,
   };
 };
 

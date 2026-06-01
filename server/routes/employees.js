@@ -1,4 +1,5 @@
 import express from "express";
+import employeeChatUpload from "../config/employeeChatUpload.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -30,6 +31,17 @@ import {
 
 const router = express.Router();
 
+const uploadEmployeeChatAttachment = (req, res, next) => {
+  employeeChatUpload.single("attachment")(req, res, (error) => {
+    if (!error) return next();
+    return res.status(error.status || 400).json({
+      success: false,
+      code: error.code || "chat_attachment_invalid",
+      message: error.code === "LIMIT_FILE_SIZE" ? "Attachment is too large" : error.message || "Unsupported attachment",
+    });
+  });
+};
+
 const logPortalTokenRegenerateRouteHit = (req, _res, next) => {
   console.info("[employees] portal token regenerate route hit", {
     requestId: req.id,
@@ -52,7 +64,7 @@ router.get("/portal-requests", protect, permit("employees", "view"), getEmployee
 router.patch("/portal-requests/:id", protect, permit("employees", "edit"), reviewEmployeePortalRequestRecord);
 router.get("/chat/threads", protect, permit("employees", "view"), getEmployeeChatThreads);
 router.get("/chat/threads/:threadId", protect, permit("employees", "view"), getEmployeeChatThreadRecord);
-router.post("/chat/threads/:threadId/messages", protect, permit("employees", "edit"), sendEmployeeChatThreadMessageRecord);
+router.post("/chat/threads/:threadId/messages", protect, permit("employees", "edit"), uploadEmployeeChatAttachment, sendEmployeeChatThreadMessageRecord);
 router.patch("/chat/threads/:threadId/read", protect, permit("employees", "edit"), markEmployeeChatThreadReadRecord);
 router.get("/gamification/settings", protect, permit("employees", "view"), getEmployeeGamificationSettingsRecord);
 router.patch("/gamification/settings", protect, permit("employees", "edit"), updateEmployeeGamificationSettingsRecord);

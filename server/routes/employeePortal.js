@@ -1,7 +1,9 @@
 import express from "express";
+import employeeChatUpload from "../config/employeeChatUpload.js";
 import {
   buildEmployeePayrollPortalPayload,
   createEmployeePortalRequest,
+  getEmployeePortalPushSubscriptionDebug,
   getEmployeePortalPushPublicKey,
   loadEmployeePortalByToken,
   recordEmployeePortalAudit,
@@ -11,6 +13,8 @@ import {
   updateEmployeeWalletTaskStatus,
 } from "../services/employeePayrollPortalService.js";
 import { getEmployeeChat, sendEmployeeChatMessage } from "../services/employeeChatService.js";
+import { protect } from "../middleware/authMiddleware.js";
+import permit from "../middleware/permissionMiddleware.js";
 import { isPerfDebugEnabled, logPerfTiming } from "../utils/perfDebug.js";
 
 const router = express.Router();
@@ -116,6 +120,16 @@ const employeeNotFoundResponse = (req, res, token) => {
   });
 };
 
+router.get("/debug/subscriptions/:employeeId", protect, permit("employees", "view"), async (req, res) => {
+  try {
+    const debug = await getEmployeePortalPushSubscriptionDebug({ employeeId: req.params.employeeId });
+    return res.json({ success: true, ...debug });
+  } catch (error) {
+    console.error("[employee-payroll-portal] subscription debug error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load push subscription debug" });
+  }
+});
+
 const loadVerifiedEmployee = async (req, res) => {
   const token = String(req.params.token || "").trim();
   if (token.length < 32) {
@@ -135,6 +149,28 @@ const loadVerifiedEmployee = async (req, res) => {
   return employee;
 };
 
+const verifyEmployeePortalToken = async (req, res, next) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    req.employeePortalEmployee = employee;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+const uploadEmployeeChatAttachment = (req, res, next) => {
+  employeeChatUpload.single("attachment")(req, res, (error) => {
+    if (!error) return next();
+    return res.status(error.status || 400).json({
+      success: false,
+      code: error.code || "chat_attachment_invalid",
+      message: error.code === "LIMIT_FILE_SIZE" ? "Attachment is too large" : error.message || "Unsupported attachment",
+    });
+  });
+};
+
 router.get("/:token/chat", async (req, res) => {
   try {
     const employee = await loadVerifiedEmployee(req, res);
@@ -147,11 +183,10 @@ router.get("/:token/chat", async (req, res) => {
   }
 });
 
-router.post("/:token/chat/messages", async (req, res) => {
+router.post("/:token/chat/messages", verifyEmployeePortalToken, uploadEmployeeChatAttachment, async (req, res) => {
   try {
-    const employee = await loadVerifiedEmployee(req, res);
-    if (!employee) return;
-    const result = await sendEmployeeChatMessage({ employee, body: req.body?.body || req.body?.message || "" });
+    const employee = req.employeePortalEmployee;
+    const result = await sendEmployeeChatMessage({ employee, body: req.body?.body || req.body?.message || "", file: req.file || null });
     return res.status(201).json({ success: true, ...result });
   } catch (error) {
     console.error("[employee-payroll-portal] chat message error", error);
@@ -371,6 +406,10 @@ router.post("/:token/push/subscribe", async (req, res) => {
   try {
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
+    console.info("[employee-push:subscribe-request]", {
+      employee_id: employee.id,
+      token: String(req.params.token || ""),
+    });
     const result = await subscribeEmployeePortalPush({
       employee,
       subscription: req.body?.subscription || req.body || {},

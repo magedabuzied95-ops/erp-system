@@ -17,6 +17,7 @@ import {
   Home,
   Loader2,
   MessageCircle,
+  Paperclip,
   Play,
   QrCode,
   RefreshCw,
@@ -33,7 +34,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
-import { SOCKET_URL } from "../../../shared/constants/app";
+import { API_ORIGIN, SOCKET_URL } from "../../../shared/constants/app";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 
@@ -319,6 +320,12 @@ Object.assign(labels.ar, {
   noChatMessages: "لا توجد رسائل حتى الآن.",
   chatLoadError: "تعذر تحميل المحادثة.",
   chatSendError: "تعذر إرسال الرسالة.",
+  chatSecureNotice: "هذه المحادثة خاصة بينك وبين الإدارة",
+  attachFile: "إرفاق ملف",
+  removeAttachment: "حذف المرفق",
+  imageAttachment: "صورة",
+  fileAttachment: "ملف",
+  unsupportedAttachment: "نوع الملف غير مدعوم.",
   management: "الإدارة",
   you: "أنت",
   employeeDashboard: "بوابة الموظف",
@@ -365,6 +372,12 @@ Object.assign(labels.en, {
   noChatMessages: "No messages yet.",
   chatLoadError: "Unable to load chat.",
   chatSendError: "Unable to send message.",
+  chatSecureNotice: "This conversation is private between you and management.",
+  attachFile: "Attach file",
+  removeAttachment: "Remove attachment",
+  imageAttachment: "Image",
+  fileAttachment: "File",
+  unsupportedAttachment: "Unsupported file type.",
   management: "Management",
   you: "You",
   employeeDashboard: "Employee Portal",
@@ -406,6 +419,31 @@ const money = (value) => {
 };
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
+const chatAttachmentUrl = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^https?:\/\//i.test(text)) return text;
+  return `${API_ORIGIN}${text.startsWith("/") ? text : `/${text}`}`;
+};
+const formatFileSize = (value = 0) => {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+const allowedChatAttachment = (file) => {
+  if (!file) return true;
+  return new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ]).has(file.type);
+};
 
 const safeNow = () => {
   try {
@@ -789,6 +827,31 @@ function TimelineItem({ item, text, language }) {
   );
 }
 
+function ChatAttachment({ message, text, compact = false }) {
+  if (!message?.attachment_url) return null;
+  const href = chatAttachmentUrl(message.attachment_url);
+  const isImage = message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
+  const name = message.attachment_name || (isImage ? text.imageAttachment : text.fileAttachment);
+  if (isImage) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" className="mb-2 block overflow-hidden rounded-2xl border border-black/5 bg-black/5">
+        <img src={href} alt={name} className={`${compact ? "max-h-56" : "max-h-64"} w-full object-cover`} />
+      </a>
+    );
+  }
+  return (
+    <a href={href} target="_blank" rel="noreferrer" download className="mb-2 flex items-center gap-3 rounded-2xl border border-black/10 bg-black/5 p-3 text-inherit no-underline">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/70 text-slate-700">
+        <FileText className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-black" dir="auto">{name}</span>
+        <span className="mt-0.5 block text-[10px] font-bold opacity-70" dir="ltr">{message.attachment_mime || text.fileAttachment} {formatFileSize(message.attachment_size)}</span>
+      </span>
+    </a>
+  );
+}
+
 export default function EmployeePayrollPortal() {
   const { token } = useParams();
   const language = "ar";
@@ -824,8 +887,10 @@ export default function EmployeePayrollPortal() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatError, setChatError] = useState("");
   const [chatBody, setChatBody] = useState("");
+  const [chatAttachment, setChatAttachment] = useState(null);
   const [chatSocketConnected, setChatSocketConnected] = useState(false);
   const chatSocketRef = useRef(null);
+  const chatFileInputRef = useRef(null);
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
@@ -1128,20 +1193,41 @@ export default function EmployeePayrollPortal() {
   const submitChatMessage = async (event) => {
     event.preventDefault();
     const message = chatBody.trim();
-    if (!message || chatSaving) return;
+    if ((!message && !chatAttachment) || chatSaving) return;
     try {
       setChatSaving(true);
       setChatError("");
-      await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/messages`, { body: message }, {
+      const formData = new FormData();
+      if (message) formData.append("body", message);
+      if (chatAttachment) formData.append("attachment", chatAttachment);
+      await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/messages`, formData, {
         suppressErrorStatuses: [400, 404, 429],
       });
       setChatBody("");
+      setChatAttachment(null);
+      if (chatFileInputRef.current) chatFileInputRef.current.value = "";
       await loadEmployeeChat({ silent: true });
     } catch (err) {
       setChatError(err?.responseBody?.message || err?.message || ui("chatSendError"));
     } finally {
       setChatSaving(false);
     }
+  };
+
+  const chooseChatAttachment = (event) => {
+    const file = event.target.files?.[0] || null;
+    if (!file) {
+      setChatAttachment(null);
+      return;
+    }
+    if (!allowedChatAttachment(file) || file.size > 10 * 1024 * 1024) {
+      setChatError(ui("unsupportedAttachment"));
+      event.target.value = "";
+      setChatAttachment(null);
+      return;
+    }
+    setChatError("");
+    setChatAttachment(file);
   };
 
   useEffect(() => {
@@ -1506,7 +1592,7 @@ export default function EmployeePayrollPortal() {
               ))}
             </nav>
 
-            {activeTab === "salary" ? <div className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
+            {activeTab === "salary" && payrollExists ? <div className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
               <div className="text-xs font-black text-slate-300">{ui("currentNetSalary")}</div>
               <div className="mt-2 text-4xl font-black tabular-nums" dir="ltr">{payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-"}</div>
               <div className="mt-4 grid grid-cols-2 gap-2 text-sm font-black">
@@ -1791,7 +1877,7 @@ export default function EmployeePayrollPortal() {
               </div>
             </form> : null}
 
-            {activeTab === "salary" ? <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+            {activeTab === "salary" && payrollExists ? <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-base font-black">{text.timeline}</h3>
                 <ArrowUpCircle className="h-5 w-5 text-slate-400" />
@@ -1809,19 +1895,28 @@ export default function EmployeePayrollPortal() {
       </div>
       {chatOpen ? (
         <div className="fixed inset-0 z-50 flex items-end bg-slate-950/70 p-0 sm:items-center sm:p-4">
-          <section className="flex h-[88dvh] w-full flex-col rounded-t-3xl border border-slate-800 bg-slate-950 text-white shadow-2xl sm:mx-auto sm:max-w-md sm:rounded-3xl" dir={direction}>
-            <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
+          <section className="flex h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:mx-auto sm:max-w-md sm:rounded-3xl" dir={direction}>
+            <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#202c33] px-4 py-3">
               <div>
                 <h2 className="text-xl font-black">{ui("chatTitle")}</h2>
-                <p className="mt-1 text-xs font-bold leading-5 text-slate-300">{ui("chatSubtitle")}</p>
-                <p className="mt-1 text-[10px] font-black text-slate-400">{chatSocketConnected ? "التحديث الفوري يعمل" : "التحديث الاحتياطي يعمل كل 12 ثانية"}</p>
+                <p className="mt-1 text-[11px] font-black text-emerald-200">{chatSocketConnected ? "متصل الآن" : "التحديث الاحتياطي يعمل"}</p>
               </div>
               <button type="button" onClick={() => setChatOpen(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white">
                 <X className="h-5 w-5" />
               </button>
             </header>
+            <div className="border-b border-white/5 bg-[#0b141a] px-4 py-2 text-center text-[11px] font-bold text-slate-300">
+              {ui("chatSecureNotice")}
+            </div>
             {chatError ? <div className="mx-4 mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
-            <div className="flex-1 space-y-2 overflow-y-auto scroll-smooth p-4">
+            <div
+              className="flex-1 space-y-2 overflow-y-auto scroll-smooth p-4 pb-5"
+              style={{
+                backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 0)",
+                backgroundSize: "18px 18px",
+              }}
+            >
+              <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229] px-3 py-1 text-[11px] font-black text-slate-300">اليوم</div>
               {chatLoading ? (
                 <div className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-3 py-5 text-sm font-bold text-slate-200">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1832,10 +1927,14 @@ export default function EmployeePayrollPortal() {
                   const employeeMessage = message.sender_type === "employee";
                   return (
                     <div key={message.id} className={`flex ${employeeMessage ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[82%] break-words rounded-2xl px-4 py-3 text-sm font-bold leading-relaxed sm:max-w-[70%] ${employeeMessage ? "bg-emerald-500 text-emerald-950" : "bg-white text-slate-950"}`}>
+                      <div className={`relative max-w-[84%] break-words rounded-2xl px-3 py-2 text-sm font-bold leading-relaxed shadow-sm sm:max-w-[74%] ${employeeMessage ? "rounded-br-sm bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-3 after:w-3 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-sm bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-3 after:w-3 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}>
                         <div className="mb-1 text-[10px] font-black opacity-70">{employeeMessage ? ui("you") : ui("management")}</div>
-                        <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div>
-                        <div className="mt-2 text-[10px] font-black opacity-60" dir="ltr">{formatTimeLocal(message.created_at, language)}</div>
+                        <ChatAttachment message={message} text={text} compact />
+                        {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
+                        <div className="mt-1 flex items-center justify-end gap-1 text-[10px] font-black opacity-60" dir="ltr">
+                          <span>{formatTimeLocal(message.created_at, language)}</span>
+                          {employeeMessage ? <span>{message.read_at ? "✓✓" : "✓"}</span> : null}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1847,18 +1946,35 @@ export default function EmployeePayrollPortal() {
                 </div>
               )}
             </div>
-            <form onSubmit={submitChatMessage} className="shrink-0 border-t border-white/10 p-3">
-              <div className="flex gap-2">
+            <form onSubmit={submitChatMessage} className="shrink-0 border-t border-white/10 bg-[#202c33] p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+              {chatAttachment ? (
+                <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
+                  <span className="min-w-0 truncate" dir="auto">{chatAttachment.name}</span>
+                  <button type="button" onClick={() => { setChatAttachment(null); if (chatFileInputRef.current) chatFileInputRef.current.value = ""; }} className="font-black text-red-200">
+                    {ui("removeAttachment")}
+                  </button>
+                </div>
+              ) : null}
+              <div className="flex items-end gap-2">
+                <input
+                  ref={chatFileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={chooseChatAttachment}
+                />
+                <button type="button" onClick={() => chatFileInputRef.current?.click()} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label={ui("attachFile")}>
+                  <Paperclip className="h-5 w-5" />
+                </button>
                 <textarea
                   value={chatBody}
                   onChange={(event) => setChatBody(event.target.value)}
                   placeholder={ui("chatPlaceholder")}
-                  className="min-h-12 flex-1 resize-none rounded-2xl border border-white/10 bg-white/10 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
+                  className="min-h-12 flex-1 resize-none rounded-3xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
                   dir="auto"
                 />
-                <button type="submit" disabled={chatSaving || !chatBody.trim()} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-emerald-950 disabled:opacity-50">
+                <button type="submit" disabled={chatSaving || (!chatBody.trim() && !chatAttachment)} className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
                   {chatSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {ui("sendMessage")}
                 </button>
               </div>
             </form>

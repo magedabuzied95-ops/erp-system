@@ -1247,6 +1247,10 @@ CREATE TABLE IF NOT EXISTS employee_chat_messages (
   sender_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
   body TEXT NOT NULL DEFAULT '',
   attachment_url TEXT NULL,
+  attachment_type VARCHAR(40) NULL,
+  attachment_name TEXT NULL,
+  attachment_size BIGINT NULL,
+  attachment_mime TEXT NULL,
   read_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

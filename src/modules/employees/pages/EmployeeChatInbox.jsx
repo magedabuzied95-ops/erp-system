@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { Loader2, MessageCircle, RefreshCw, Send, UserRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { FileText, Loader2, MessageCircle, Paperclip, RefreshCw, Send, UserRound, X } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
+import { API_ORIGIN } from "../../../shared/constants/app";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 
 const formatChatTime = (value) => {
@@ -16,6 +17,67 @@ const formatChatTime = (value) => {
   }).format(date);
 };
 
+const attachmentUrl = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^https?:\/\//i.test(text)) return text;
+  return `${API_ORIGIN}${text.startsWith("/") ? text : `/${text}`}`;
+};
+
+const formatFileSize = (value = 0) => {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const allowedAttachment = (file) => {
+  if (!file) return true;
+  return new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ]).has(file.type);
+};
+
+const messagePreview = (item = {}) => {
+  const body = String(item.last_message || item.body || "").trim();
+  if (body) return body;
+  if (item.attachment_type === "image") return "صورة";
+  if (item.attachment_url) return "ملف";
+  return "لا توجد رسائل بعد";
+};
+
+function AttachmentView({ message }) {
+  if (!message?.attachment_url) return null;
+  const href = attachmentUrl(message.attachment_url);
+  const isImage = message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
+  const name = message.attachment_name || (isImage ? "صورة" : "ملف");
+  if (isImage) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" className="mb-2 block overflow-hidden rounded-2xl border border-black/5 bg-black/5">
+        <img src={href} alt={name} className="max-h-64 w-full object-cover" />
+      </a>
+    );
+  }
+  return (
+    <a href={href} target="_blank" rel="noreferrer" download className="mb-2 flex items-center gap-3 rounded-2xl border border-black/10 bg-black/5 p-3 text-inherit no-underline">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/70 text-slate-700">
+        <FileText className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-black" dir="auto">{name}</span>
+        <span className="mt-0.5 block text-[10px] font-bold opacity-70" dir="ltr">{message.attachment_mime || "ملف"} {formatFileSize(message.attachment_size)}</span>
+      </span>
+    </a>
+  );
+}
+
 export default function EmployeeChatInbox() {
   const [threads, setThreads] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -25,8 +87,10 @@ export default function EmployeeChatInbox() {
   const [loadingThread, setLoadingThread] = useState(false);
   const [sending, setSending] = useState(false);
   const [body, setBody] = useState("");
+  const [attachment, setAttachment] = useState(null);
   const [error, setError] = useState("");
   const realtime = useRealtimeConnection();
+  const fileInputRef = useRef(null);
 
   const selectedThread = useMemo(
     () => threads.find((item) => String(item.id) === String(selectedId)) || thread,
@@ -128,12 +192,17 @@ export default function EmployeeChatInbox() {
   const sendMessage = async (event) => {
     event.preventDefault();
     const text = body.trim();
-    if (!text || !selectedId) return;
+    if ((!text && !attachment) || !selectedId) return;
     try {
       setSending(true);
       setError("");
-      await api.post(`/employees/chat/threads/${encodeURIComponent(selectedId)}/messages`, { body: text });
+      const formData = new FormData();
+      if (text) formData.append("body", text);
+      if (attachment) formData.append("attachment", attachment);
+      await api.post(`/employees/chat/threads/${encodeURIComponent(selectedId)}/messages`, formData);
       setBody("");
+      setAttachment(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       await loadThread(selectedId);
       await loadThreads();
     } catch (err) {
@@ -141,6 +210,22 @@ export default function EmployeeChatInbox() {
     } finally {
       setSending(false);
     }
+  };
+
+  const chooseAttachment = (event) => {
+    const file = event.target.files?.[0] || null;
+    if (!file) {
+      setAttachment(null);
+      return;
+    }
+    if (!allowedAttachment(file) || file.size > 10 * 1024 * 1024) {
+      setError("نوع الملف غير مدعوم أو أكبر من 10MB");
+      event.target.value = "";
+      setAttachment(null);
+      return;
+    }
+    setError("");
+    setAttachment(file);
   };
 
   return (
@@ -193,7 +278,7 @@ export default function EmployeeChatInbox() {
                         ) : null}
                       </div>
                       <div className="mt-1 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{item.branch_name || "بدون فرع"}</div>
-                      <div className="mt-2 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{item.last_message || "لا توجد رسائل بعد"}</div>
+                      <div className="mt-2 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{messagePreview(item)}</div>
                       <div className="mt-2 text-[11px] font-black text-[var(--muted)]" dir="ltr">{formatChatTime(item.last_message_created_at || item.last_message_at || item.updated_at)}</div>
                     </div>
                   </div>
@@ -208,18 +293,27 @@ export default function EmployeeChatInbox() {
           )}
         </aside>
 
-        <div className="flex min-h-[34rem] flex-col bg-[var(--bg)]">
+        <div className="flex min-h-[34rem] flex-col bg-[#0b141a]">
           {selectedThread ? (
             <>
-              <div className="border-b border-[var(--border)] p-4">
-                <div className="text-lg font-black text-[var(--text)]" dir="auto">{selectedThread.employee_name || "موظف"}</div>
-                <div className="mt-1 text-xs font-bold text-[var(--muted)]" dir="auto">
+              <div className="border-b border-white/10 bg-[#202c33] p-4 text-white">
+                <div className="text-lg font-black" dir="auto">{selectedThread.employee_name || "موظف"}</div>
+                <div className="mt-1 text-xs font-bold text-slate-300" dir="auto">
                   {selectedThread.employee_code || "-"} · {selectedThread.branch_name || "بدون فرع"}
                 </div>
+                <div className="mt-1 text-[11px] font-black text-emerald-200">{realtime.connected ? "متصل الآن" : "التحديث الاحتياطي يعمل"}</div>
               </div>
-              <div className="flex-1 space-y-2 overflow-y-auto scroll-smooth p-4">
+              <div
+                className="flex-1 space-y-2 overflow-y-auto scroll-smooth p-4"
+                style={{
+                  backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 0)",
+                  backgroundSize: "18px 18px",
+                }}
+              >
+                <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229] px-3 py-1 text-[11px] font-black text-slate-300">اليوم</div>
+                <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229]/90 px-3 py-1 text-[11px] font-bold text-slate-300">هذه المحادثة خاصة بين الموظف والإدارة</div>
                 {loadingThread ? (
-                  <div className="flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 text-sm font-bold text-[var(--muted)]">
+                  <div className="flex items-center justify-center gap-2 rounded-xl bg-white/10 p-4 text-sm font-bold text-slate-200">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     جاري فتح المحادثة...
                   </div>
@@ -228,31 +322,53 @@ export default function EmployeeChatInbox() {
                     const admin = message.sender_type === "admin";
                     return (
                       <div key={message.id} className={`flex ${admin ? "justify-start" : "justify-end"}`}>
-                        <div className={`max-w-[82%] break-words rounded-2xl px-4 py-3 text-sm font-bold leading-relaxed shadow-sm sm:max-w-[70%] ${admin ? "bg-[var(--primary)] text-white" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"}`}>
-                          <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div>
-                          <div className={`mt-2 text-[10px] font-black ${admin ? "text-white/70" : "text-[var(--muted)]"}`} dir="ltr">{formatChatTime(message.created_at)}</div>
+                        <div className={`relative max-w-[82%] break-words rounded-2xl px-3 py-2 text-sm font-bold leading-relaxed shadow-sm sm:max-w-[70%] ${admin ? "rounded-bl-sm bg-[#005c4b] text-white after:absolute after:bottom-0 after:-left-1 after:h-3 after:w-3 after:bg-[#005c4b] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]" : "rounded-br-sm bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-right-1 after:h-3 after:w-3 after:bg-[#202c33] after:[clip-path:polygon(0_0,100%_100%,0_100%)]"}`}>
+                          <AttachmentView message={message} />
+                          {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
+                          <div className="mt-1 flex items-center justify-end gap-1 text-[10px] font-black opacity-60" dir="ltr">
+                            <span>{formatChatTime(message.created_at)}</span>
+                            {admin ? <span>{message.read_at ? "✓✓" : "✓"}</span> : null}
+                          </div>
                         </div>
                       </div>
                     );
                   })
                 ) : (
-                  <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--card)] p-6 text-center text-sm font-bold text-[var(--muted)]">
+                  <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-6 text-center text-sm font-bold text-slate-300">
                     لا توجد رسائل في هذه المحادثة.
                   </div>
                 )}
               </div>
-              <form onSubmit={sendMessage} className="shrink-0 border-t border-[var(--border)] p-3">
-                <div className="flex gap-2">
+              <form onSubmit={sendMessage} className="shrink-0 border-t border-white/10 bg-[#202c33] p-3">
+                {attachment ? (
+                  <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
+                    <span className="min-w-0 truncate" dir="auto">{attachment.name}</span>
+                    <button type="button" onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="inline-flex items-center gap-1 font-black text-red-200">
+                      <X className="h-3 w-3" />
+                      حذف
+                    </button>
+                  </div>
+                ) : null}
+                <div className="flex items-end gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    onChange={chooseAttachment}
+                  />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="إرفاق ملف">
+                    <Paperclip className="h-5 w-5" />
+                  </button>
                   <textarea
                     value={body}
                     onChange={(event) => setBody(event.target.value)}
                     placeholder="اكتب رد الإدارة..."
-                    className="min-h-12 flex-1 resize-none rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-sm font-bold text-[var(--text)] outline-none focus:border-[var(--primary)]"
+                    className="min-h-12 flex-1 resize-none rounded-3xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
                     dir="auto"
                   />
-                  <button type="submit" disabled={sending || !body.trim()} className="theme-button-primary min-h-12 px-4 disabled:opacity-50">
+                  <button type="submit" disabled={sending || (!body.trim() && !attachment)} className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    إرسال
                   </button>
                 </div>
               </form>
