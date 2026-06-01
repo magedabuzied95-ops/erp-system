@@ -87,7 +87,7 @@ const labels = {
     },
   },
   en: {
-    title: "Employee Wallet",
+    title: "Employee Portal",
     subtitle: "Your secure employee link opens payroll, attendance, and requests.",
     secure: "This private link is validated securely.",
     netSalary: "Net salary",
@@ -109,10 +109,10 @@ const labels = {
     generated: "Payroll generated",
     notGenerated: "Payroll not generated",
     pendingPayment: "Pending payment",
-    emptyTitle: "No payroll yet",
+    emptyTitle: "Your salary has not been generated yet.",
     emptyBody: "Payslip and wallet transactions will appear after management generates or approves payroll.",
     timeline: "Wallet timeline",
-    noTransactions: "No recent transactions.",
+    noTransactions: "No wallet activity yet.",
     attendanceImpact: "Attendance impact",
     expectedDays: "Expected days",
     absenceDays: "Absence days",
@@ -199,7 +199,7 @@ Object.assign(labels.en, {
   requestsTab: "Requests",
   performanceTab: "Performance",
   tasks: "My tasks",
-  noTasks: "No tasks are due right now.",
+  noTasks: "No tasks assigned today.",
   startTask: "Start",
   completeTask: "Complete",
   taskUpdated: "Task updated",
@@ -236,7 +236,7 @@ Object.assign(labels.en, {
   message: "Message",
   sendRequest: "Send request",
   requestSent: "Request sent",
-  noRequests: "No requests yet.",
+  noRequests: "You have not submitted any requests.",
   requestHistory: "Notifications and request history",
   adminNote: "Admin note",
   pending: "Pending",
@@ -296,6 +296,76 @@ Object.assign(labels.en, {
   attendanceTarget: "Attendance target",
   branchKpi: "Branch KPI",
   noBadges: "No badges yet.",
+});
+
+Object.assign(labels.ar, {
+  homeTab: "الرئيسية",
+  salaryTab: "الراتب",
+  employeeDashboard: "بوابة الموظف",
+  present: "حاضر",
+  absent: "غائب",
+  checkedOut: "تم الانصراف",
+  checkedIn: "تم تسجيل الحضور",
+  notCheckedIn: "لم يتم تسجيل الحضور",
+  workedToday: "عملت اليوم",
+  checkedInAt: "تم تسجيل حضورك في",
+  attendancePercent: "نسبة الحضور",
+  pendingTasks: "مهام معلقة",
+  salaryNotGenerated: "لم يتم إنشاء راتبك بعد.",
+  noTasksToday: "لا توجد مهام مسندة اليوم.",
+  noRequestsSubmitted: "لم تقدم أي طلبات بعد.",
+  noTimeline: "لا توجد حركات على المحفظة حتى الآن.",
+  advanceRequest: "طلب سلفة",
+  leaveRequest: "طلب إجازة",
+  latePermission: "إذن تأخير",
+  hrNote: "ملاحظة للموارد البشرية",
+  pendingTasksTitle: "مهام معلقة",
+  inProgressTasks: "قيد التنفيذ",
+  completedTasks: "مكتملة",
+  dueDate: "تاريخ الاستحقاق",
+  priority: "الأولوية",
+  uploadProof: "إرفاق إثبات",
+  payrollBreakdown: "تفاصيل الراتب",
+  salaryAndBonus: "راتب / مكافأة",
+  deductionOrPenalty: "خصم / جزاء",
+  advanceReceived: "سلفة مستلمة",
+  reason: "السبب",
+  currentNetSalary: "صافي الراتب الحالي",
+});
+
+Object.assign(labels.en, {
+  homeTab: "Home",
+  salaryTab: "Salary",
+  employeeDashboard: "Employee Portal",
+  present: "Present",
+  absent: "Absent",
+  checkedOut: "Checked out",
+  checkedIn: "Checked In",
+  notCheckedIn: "Not Checked In",
+  workedToday: "Worked today",
+  checkedInAt: "You checked in at",
+  attendancePercent: "Attendance %",
+  pendingTasks: "Pending Tasks",
+  salaryNotGenerated: "Your salary has not been generated yet.",
+  noTasksToday: "No tasks assigned today.",
+  noRequestsSubmitted: "You have not submitted any requests.",
+  noTimeline: "No wallet activity yet.",
+  advanceRequest: "Advance Request",
+  leaveRequest: "Leave Request",
+  latePermission: "Late Permission",
+  hrNote: "HR Note",
+  pendingTasksTitle: "Pending Tasks",
+  inProgressTasks: "In Progress",
+  completedTasks: "Completed",
+  dueDate: "Due Date",
+  priority: "Priority",
+  uploadProof: "Upload proof",
+  payrollBreakdown: "Payroll breakdown",
+  salaryAndBonus: "Salary / Bonus",
+  deductionOrPenalty: "Deduction / Penalty",
+  advanceReceived: "Advance Received",
+  reason: "Reason",
+  currentNetSalary: "Current Net Salary",
 });
 
 const money = (value) => {
@@ -489,6 +559,24 @@ const attendanceLocalDate = (row, language = "en") => {
   return formatIsoDateLocal(source, language);
 };
 
+const todayIsoLocal = (language = "en") => formatIsoDateLocal(new Date(), language);
+
+const minutesBetween = (startValue, endValue = new Date()) => {
+  const start = parseSafeDate(startValue);
+  const end = parseSafeDate(endValue) || new Date();
+  if (!start || !end) return 0;
+  return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 60000));
+};
+
+const formatMinutesShort = (minutes = 0) => {
+  const total = Math.max(0, Math.floor(Number(minutes || 0)));
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  return `${hours}h ${mins}m`;
+};
+
+const taskStatusKey = (status = "") => String(status || "").trim().toLowerCase();
+
 const statusLabel = (status, text) => {
   if (status === "pending_payment") return text.pendingPayment;
   if (status === "not_generated") return text.notGenerated;
@@ -560,17 +648,24 @@ function ProgressRow({ label, value, detail }) {
 function TimelineItem({ item, text, language }) {
   const Icon = transactionIcon(item.type);
   const credit = item.direction === "credit";
+  const isAdvance = item.type === "advance";
+  const label = isAdvance ? text.advanceReceived : credit ? text.salaryAndBonus : text.deductionOrPenalty;
+  const tone = isAdvance
+    ? "bg-amber-50 text-amber-700"
+    : credit
+      ? "bg-emerald-50 text-emerald-700"
+      : "bg-red-50 text-red-700";
   return (
     <div className="grid grid-cols-[auto_1fr_auto] gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className={`mt-1 flex h-9 w-9 items-center justify-center rounded-xl ${credit ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+      <div className={`mt-1 flex h-9 w-9 items-center justify-center rounded-xl ${tone}`}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
-        <div className="text-sm font-black text-slate-950">{text.transactionTypes[item.type] || item.label || item.type}</div>
-        <div className="mt-1 truncate text-xs font-bold text-slate-500" dir="auto">{item.description || item.status || "-"}</div>
-        <div className="mt-1 text-xs font-bold text-slate-400" dir="ltr">{formatDateTimeLocal(item.date, language)}</div>
+        <div className="text-sm font-black text-slate-950">{item.label || label}</div>
+        <div className="mt-1 text-xs font-bold text-slate-500" dir="auto">{text.reason}: {item.description || item.status || "-"}</div>
+        <div className="mt-1 text-xs font-bold text-slate-400" dir="ltr">{formatDateLocal(item.date, language)}</div>
       </div>
-      <div className={`whitespace-nowrap text-sm font-black tabular-nums ${credit ? "text-emerald-700" : "text-red-700"}`} dir="ltr">
+      <div className={`whitespace-nowrap text-sm font-black tabular-nums ${isAdvance ? "text-amber-700" : credit ? "text-emerald-700" : "text-red-700"}`} dir="ltr">
         {credit ? "+" : "-"} {money(item.amount)}
       </div>
     </div>
@@ -579,7 +674,7 @@ function TimelineItem({ item, text, language }) {
 
 export default function EmployeePayrollPortal() {
   const { token } = useParams();
-  const [language, setLanguage] = useState(() => (navigator.language || "").toLowerCase().startsWith("ar") ? "ar" : "en");
+  const [language, setLanguage] = useState("ar");
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -592,12 +687,13 @@ export default function EmployeePayrollPortal() {
   const [requestEndDate, setRequestEndDate] = useState("");
   const [requestMessage, setRequestMessage] = useState("");
   const [requestSaving, setRequestSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState("wallet");
+  const [activeTab, setActiveTab] = useState("home");
   const [taskSavingId, setTaskSavingId] = useState("");
   const [portalNotice, setPortalNotice] = useState("");
   const [optionalLoading, setOptionalLoading] = useState(false);
   const [optionalLoaded, setOptionalLoaded] = useState(false);
   const [earlyCheckoutOpen, setEarlyCheckoutOpen] = useState(false);
+  const [nowTick, setNowTick] = useState(Date.now());
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
@@ -609,6 +705,11 @@ export default function EmployeePayrollPortal() {
     };
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
     return () => window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowTick(Date.now()), 60000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -660,12 +761,26 @@ export default function EmployeePayrollPortal() {
   const currentShift = portal?.currentShift || profile.currentShift || {};
   const ui = (key) => text[key] || labels.en[key] || key;
   const tasks = safeArray(portal?.tasks);
+  const todayKey = todayIsoLocal(language);
+  const todayAttendance = attendanceRows.find((row) => attendanceLocalDate(row, language) === todayKey) || attendanceRows[0] || {};
+  const todayCheckIn = todayAttendance.check_in_at || todayAttendance.check_in;
+  const todayCheckOut = todayAttendance.check_out_at || todayAttendance.check_out;
+  const isCheckedIn = Boolean(todayCheckIn && !todayCheckOut);
+  const isCheckedOut = Boolean(todayCheckOut);
+  const employeeStatus = isCheckedOut ? ui("checkedOut") : isCheckedIn ? ui("present") : ui("absent");
+  const workedMinutes = todayCheckIn ? minutesBetween(todayCheckIn, todayCheckOut || nowTick) : 0;
+  const expectedDays = Number(attendance.expected_working_days || attendance.expected_days || 0);
+  const presentDays = Number(attendance.attended_days || attendance.present_days || 0);
+  const attendancePercent = expectedDays > 0 ? Math.min(100, Math.round((presentDays / expectedDays) * 100)) : 0;
+  const pendingTasks = tasks.filter((task) => ["pending", "overdue", "reassigned"].includes(taskStatusKey(task.status)));
+  const inProgressTasks = tasks.filter((task) => taskStatusKey(task.status) === "in_progress");
+  const completedTasks = tasks.filter((task) => ["completed", "done"].includes(taskStatusKey(task.status)));
   const mobileTabs = [
-    ["wallet", text.walletTab, WalletCards],
+    ["home", ui("homeTab"), Home],
     ["attendance", text.attendanceTab, CalendarDays],
     ["tasks", text.tasksTab, ClipboardList],
     ["requests", text.requestsTab, MessageCircle],
-    ["performance", text.performanceTab, Star],
+    ["salary", ui("salaryTab"), WalletCards],
   ];
   const performanceData = portal?.performance || {};
   const score = performanceData.score || {};
@@ -862,28 +977,30 @@ export default function EmployeePayrollPortal() {
     }
   };
 
+  const chooseRequestType = (value) => {
+    if (value === "late_permission") {
+      setRequestType("hr_note");
+      setRequestMessage((current) => current || ui("latePermission"));
+      return;
+    }
+    setRequestType(value);
+  };
+
   return (
-    <main dir={direction} className="min-h-[100dvh] bg-slate-100 px-3 py-4 pb-[calc(2rem+env(safe-area-inset-bottom))] text-slate-950">
+    <main dir={direction} className="min-h-[100dvh] bg-slate-100 px-3 py-4 pb-[calc(6rem+env(safe-area-inset-bottom))] text-slate-950">
       <div className="mx-auto max-w-md">
-        <header className="rounded-3xl bg-slate-950 p-5 text-white shadow-xl shadow-slate-300">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
-              <WalletCards className="h-6 w-6" />
-            </div>
-            <button
-              type="button"
-              onClick={() => setLanguage((current) => current === "ar" ? "en" : "ar")}
-              className="rounded-xl border border-white/15 px-3 py-2 text-xs font-black text-white"
-            >
-              {text.language}
-            </button>
+        <header className="flex items-center justify-between gap-3 py-1">
+          <div className="flex items-center gap-2 text-sm font-black text-slate-700">
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            <span>{ui("employeeDashboard")}</span>
           </div>
-          <h1 className="mt-4 text-3xl font-black leading-10">{text.title}</h1>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">{text.subtitle}</p>
-          <div className="mt-4 flex items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-slate-200">
-            <ShieldCheck className="h-4 w-4" />
-            <span>{text.secure}</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => setLanguage((current) => current === "ar" ? "en" : "ar")}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm"
+          >
+            {text.language}
+          </button>
         </header>
 
         {!portal && loading ? (
@@ -905,7 +1022,10 @@ export default function EmployeePayrollPortal() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-2xl font-black leading-8" dir="auto">{profile.name}</h2>
-                  <div className="mt-1 text-sm font-bold text-slate-500">{profile.job_title || "-"}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-bold text-slate-500">
+                    <span>{profile.job_title || "-"}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-black ${isCheckedIn ? "bg-emerald-100 text-emerald-800" : isCheckedOut ? "bg-slate-200 text-slate-700" : "bg-red-100 text-red-800"}`}>{employeeStatus}</span>
+                  </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-black">
                     <div className="rounded-xl bg-slate-100 px-3 py-2">
                       <div className="text-slate-500">{text.employeeCode}</div>
@@ -920,109 +1040,54 @@ export default function EmployeePayrollPortal() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={downloadPayslip} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white">
-                <Download className="h-4 w-4" />
-                {text.downloadPayslip}
-              </button>
-              <button type="button" onClick={shareWhatsapp} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-sm font-black text-white">
-                <MessageCircle className="h-4 w-4" />
-                {text.shareWhatsapp}
-              </button>
-            </div>
-
-            <button type="button" onClick={installApp} disabled={!installPrompt} className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-start text-sm font-bold text-slate-700 shadow-sm disabled:opacity-75">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
-                {installPrompt ? <Home className="h-5 w-5" /> : <Smartphone className="h-5 w-5" />}
-              </div>
-              <div>
-                <div className="font-black text-slate-950">{text.addHome}</div>
-                <div className="mt-0.5 text-xs text-slate-500">{text.installHint}</div>
-              </div>
-            </button>
-
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-base font-black">{ui("myShiftToday")}</h3>
-                <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-white">{getShiftStatus(currentShift, { ...labels.en, ...text })}</span>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-black">
-                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{ui("shiftName")}</div><div className="mt-1" dir="auto">{shiftNameLocal(currentShift.shift_name || currentShift.shiftName, language) || "-"}</div></div>
-                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{ui("expectedHours")}</div><div className="mt-1 tabular-nums" dir="ltr">{currentShift.expected_hours || currentShift.expectedHours || "-"}</div></div>
-                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{ui("startTime")}</div><div className="mt-1" dir="ltr">{formatShiftTimeLocal(currentShift.start_time || currentShift.startTime, language)}</div></div>
-                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{ui("endTime")}</div><div className="mt-1" dir="ltr">{formatShiftTimeLocal(currentShift.end_time || currentShift.endTime, language)}</div></div>
-                <div className="col-span-2 rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{ui("workingDays")}</div><div className="mt-1" dir="auto">{safeArray(currentShift.working_days || currentShift.workingDays).join(", ") || "-"}</div></div>
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-base font-black">{ui("attendanceActions")}</h3>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-50">
-                  {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  {text.checkIn}
-                </button>
-                <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:opacity-50">
-                  {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
-                  {text.checkOut}
-                </button>
-              </div>
-              {portalNotice ? <div className="mt-3 rounded-2xl bg-slate-100 px-3 py-2 text-sm font-bold leading-6 text-slate-700" dir="auto">{portalNotice}</div> : null}
-            </section>
-
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-base font-black">{text.attendanceSummary}</h3>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-sm font-bold">
-                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{text.presentDays}</div><div className="mt-1 text-xl font-black tabular-nums">{attendance.attended_days || 0}</div></div>
-                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{text.lateDays}</div><div className="mt-1 text-xl font-black tabular-nums">{attendance.late_days || 0}</div></div>
-                <div className="rounded-2xl bg-slate-50 p-3"><div className="text-slate-500">{text.expectedDays}</div><div className="mt-1 text-xl font-black tabular-nums">{attendance.expected_working_days || 0}</div></div>
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-base font-black">{text.attendanceTimeline}</h3>
-              <div className="mt-3 grid gap-2">
-                {attendanceRows.length ? attendanceRows.slice(0, 7).map((row) => (
-                  <div key={`top-${row.date}-${row.check_in || ""}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="font-black tabular-nums" dir="ltr">{attendanceLocalDate(row, language)}</div>
-                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-700">{row.attendance_status || row.status || "-"}</span>
+            {activeTab === "home" ? (
+              <>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    [text.netSalary, portal.payroll_generated ? money(wallet.current_net_salary ?? portal.net_salary) : "-", WalletCards],
+                    [text.advances, money(wallet.total_advances ?? portal.advances), CreditCard],
+                    [ui("attendancePercent"), `${attendancePercent}%`, CalendarDays],
+                    [ui("pendingTasks"), pendingTasks.length, ClipboardList],
+                  ].map(([label, value, Icon]) => (
+                    <div key={label} className="min-h-20 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+                      <Icon className="h-4 w-4 text-slate-500" />
+                      <div className="mt-2 truncate text-[10px] font-black text-slate-500">{label}</div>
+                      <div className="mt-1 truncate text-sm font-black tabular-nums" dir="ltr">{value}</div>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                      <div><span className="font-black text-slate-950">{text.checkIn}: </span><span dir="ltr">{formatTimeLocal(row.check_in, language)}</span></div>
-                      <div><span className="font-black text-slate-950">{text.checkOut}: </span><span dir="ltr">{formatTimeLocal(row.check_out, language)}</span></div>
-                      <div><span className="font-black text-slate-950">{text.lateMinutes}: </span><span dir="ltr">{row.late_minutes || 0}</span></div>
-                      <div><span className="font-black text-slate-950">{ui("earlyLeaveMinutes")}: </span><span dir="ltr">{row.early_leave_minutes || 0}</span></div>
+                  ))}
+                </div>
+
+                <section className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-black text-slate-300">{text.attendanceTab}</div>
+                      <h3 className="mt-1 text-2xl font-black">{isCheckedIn ? ui("checkedIn") : ui("notCheckedIn")}</h3>
                     </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${isCheckedIn ? "bg-emerald-400 text-emerald-950" : "bg-white/10 text-white"}`}>{employeeStatus}</span>
                   </div>
-                )) : <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-sm font-bold text-slate-500">{text.noAttendance}</div>}
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-base font-black">{text.requests}</h3>
-                <button type="button" onClick={() => setActiveTab("requests")} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">{text.sendRequest}</button>
-              </div>
-              <div className="mt-3 grid gap-2">
-                {employeeRequests.length ? employeeRequests.slice(0, 4).map((item) => (
-                  <div key={`summary-${item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
-                    <div className="flex items-center justify-between gap-3">
-                      <span>{item.request_type === "advance" ? text.requestAdvance : item.request_type === "hr_note" ? text.sendHrNote : text.requestVacation}</span>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-black ${item.status === "approved" ? "bg-emerald-100 text-emerald-800" : item.status === "rejected" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>
-                        {text[item.status] || item.status}
-                      </span>
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
-                      <div>{ui("decisionDate")}: <span dir="ltr">{formatDateLocal(item.decision_date || item.reviewed_at, language)}</span></div>
-                      <div>{ui("decisionBy")}: <span dir="auto">{item.approved_rejected_by || item.decision_by || "-"}</span></div>
-                    </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold">
+                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{text.checkIn}</div><div className="mt-1 text-sm font-black" dir="ltr">{formatTimeLocal(todayCheckIn, language)}</div></div>
+                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{ui("workedToday")}</div><div className="mt-1 text-sm font-black" dir="ltr">{formatMinutesShort(workedMinutes)}</div></div>
+                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{ui("startTime")}</div><div className="mt-1 text-sm font-black" dir="ltr">{formatShiftTimeLocal(currentShift.start_time || currentShift.startTime, language)}</div></div>
+                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{ui("endTime")}</div><div className="mt-1 text-sm font-black" dir="ltr">{formatShiftTimeLocal(currentShift.end_time || currentShift.endTime, language)}</div></div>
                   </div>
-                )) : <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">{text.noRequests}</div>}
-              </div>
-            </section>
+                  {todayCheckIn ? <div className="mt-3 text-xs font-bold text-slate-300">{ui("checkedInAt")} <span dir="ltr">{formatTimeLocal(todayCheckIn, language)}</span></div> : null}
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
+                      {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      {text.checkIn}
+                    </button>
+                    <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-3 text-sm font-black text-slate-950 disabled:opacity-50">
+                      {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
+                      {text.checkOut}
+                    </button>
+                  </div>
+                  {portalNotice ? <div className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white" dir="auto">{portalNotice}</div> : null}
+                </section>
+              </>
+            ) : null}
 
-            <nav className="sticky top-2 z-10 grid grid-cols-5 gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur">
+            <nav className="fixed inset-x-3 bottom-3 z-40 mx-auto grid max-w-md grid-cols-5 gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur">
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}
@@ -1036,8 +1101,8 @@ export default function EmployeePayrollPortal() {
               ))}
             </nav>
 
-            {activeTab === "wallet" ? <div className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
-              <div className="text-xs font-black text-slate-300">{text.netSalary}</div>
+            {activeTab === "salary" ? <div className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
+              <div className="text-xs font-black text-slate-300">{ui("currentNetSalary")}</div>
               <div className="mt-2 text-4xl font-black tabular-nums" dir="ltr">{portal.payroll_generated ? money(wallet.current_net_salary ?? portal.net_salary) : "-"}</div>
               <div className="mt-4 grid grid-cols-2 gap-2 text-sm font-black">
                 <div className="rounded-2xl bg-white/10 px-3 py-2">
@@ -1051,11 +1116,10 @@ export default function EmployeePayrollPortal() {
               </div>
             </div> : null}
 
-            {activeTab === "wallet" && !portal.payroll_generated ? (
+            {activeTab === "salary" && !portal.payroll_generated ? (
               <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm">
                 <FileText className="mx-auto h-8 w-8 text-slate-400" />
-                <h2 className="mt-3 text-xl font-black">{text.emptyTitle}</h2>
-                <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">{text.emptyBody}</p>
+                <h2 className="mt-3 text-xl font-black">{ui("salaryNotGenerated")}</h2>
               </div>
             ) : null}
 
@@ -1112,9 +1176,31 @@ export default function EmployeePayrollPortal() {
               </div>
             </div> : null}
 
-            {activeTab === "wallet" ? <div className="grid gap-3">
-              {overviewCards.map((card) => <MetricCard key={card.label} {...card} />)}
-              {payslipCards.map((card) => <MetricCard key={card.label} {...card} />)}
+            {activeTab === "salary" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-base font-black">{ui("payrollBreakdown")}</h3>
+              <div className="mt-3 grid gap-2 text-sm font-bold">
+                {[
+                  ["+", text.baseSalary, portal.base_salary],
+                  ["+", text.commission, portal.sales_commission ?? portal.commissions],
+                  ["+", text.bonuses, portal.bonuses],
+                  ["-", text.advances, portal.advances],
+                  ["-", text.penalties, portal.penalties],
+                  ["-", text.deductions, portal.total_deductions],
+                ].map(([sign, label, value]) => (
+                  <div key={label} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2">
+                    <span>{sign} {label}</span>
+                    <span className={sign === "+" ? "text-emerald-700" : "text-red-700"} dir="ltr">{money(value)}</span>
+                  </div>
+                ))}
+                <div className="mt-1 flex items-center justify-between border-t border-slate-200 pt-3 text-base font-black">
+                  <span>{text.netSalary}</span>
+                  <span dir="ltr">{portal.payroll_generated ? money(wallet.current_net_salary ?? portal.net_salary) : "-"}</span>
+                </div>
+              </div>
+              <button type="button" onClick={downloadPayslip} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white">
+                <Download className="h-4 w-4" />
+                {text.downloadPayslip}
+              </button>
             </div> : null}
 
             {activeTab === "attendance" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1174,70 +1260,73 @@ export default function EmployeePayrollPortal() {
               </div>
             </div> : null}
 
-            {activeTab === "attendance" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-white">
-                  <QrCode className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black">{text.myQrAttendance}</h3>
-                  <p className="text-xs font-bold text-slate-500" dir="auto">{profile.branch || portal?.qr_attendance?.branch || "-"}</p>
-                </div>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-50">
-                  {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  {text.checkIn}
-                </button>
-                <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:opacity-50">
-                  {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
-                  {text.checkOut}
-                </button>
-              </div>
-            </div> : null}
-
             {activeTab === "tasks" ? (
               <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h3 className="text-base font-black">{text.tasks}</h3>
-                <div className="mt-3 grid gap-2">
-                  {tasks.length ? tasks.map((task) => (
-                    <div key={task.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-black text-slate-950" dir="auto">{task.task_title_ar || task.title_ar || task.title}</div>
-                          <div className="mt-1 text-xs font-bold text-slate-500" dir="auto">{task.task_description_ar || task.description_ar || task.description || task.notes || "-"}</div>
-                        </div>
-                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-700">{task.status}</span>
+                <div className="mt-3 grid gap-4">
+                  {[
+                    [ui("pendingTasksTitle"), pendingTasks],
+                    [ui("inProgressTasks"), inProgressTasks],
+                    [ui("completedTasks"), completedTasks],
+                  ].map(([title, rows]) => (
+                    <section key={title}>
+                      <div className="mb-2 flex items-center justify-between text-xs font-black text-slate-500">
+                        <span>{title}</span>
+                        <span dir="ltr">{rows.length}</span>
                       </div>
-                      {["pending", "overdue", "reassigned"].includes(task.status) ? (
-                        <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task.id, "in_progress")} className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-800 disabled:opacity-50">
-                          {taskSavingId === `${task.id}:in_progress` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                          {text.startTask}
-                        </button>
-                      ) : null}
-                      {task.status === "in_progress" ? (
-                        <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task.id, "completed")} className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-50">
-                          {taskSavingId === `${task.id}:completed` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                          {text.completeTask}
-                        </button>
-                      ) : null}
-                    </div>
-                  )) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-sm font-bold text-slate-500">{text.noTasks}</div>
-                  )}
+                      <div className="grid gap-2">
+                        {rows.length ? rows.map((task) => (
+                          <div key={task.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-sm font-black text-slate-950" dir="auto">{task.task_title_ar || task.title_ar || task.title}</div>
+                                <div className="mt-1 text-xs font-bold text-slate-500" dir="auto">{task.task_description_ar || task.description_ar || task.description || task.notes || "-"}</div>
+                              </div>
+                              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-700">{task.status}</span>
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-slate-500">
+                              <div>{ui("dueDate")}: <span dir="ltr">{formatDateLocal(task.due_at || task.due_date || task.deadline, language)}</span></div>
+                              <div>{ui("priority")}: <span>{task.priority || "-"}</span></div>
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              {["pending", "overdue", "reassigned"].includes(taskStatusKey(task.status)) ? (
+                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task.id, "in_progress")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-800 disabled:opacity-50">
+                                  {taskSavingId === `${task.id}:in_progress` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                                  {text.startTask}
+                                </button>
+                              ) : null}
+                              {taskStatusKey(task.status) === "in_progress" ? (
+                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task.id, "completed")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-50">
+                                  {taskSavingId === `${task.id}:completed` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                  {text.completeTask}
+                                </button>
+                              ) : null}
+                              <button type="button" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-600">
+                                <FileText className="h-4 w-4" />
+                                {ui("uploadProof")}
+                              </button>
+                            </div>
+                          </div>
+                        )) : (
+                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">{ui("noTasksToday")}</div>
+                        )}
+                      </div>
+                    </section>
+                  ))}
                 </div>
               </div>
             ) : null}
 
             {activeTab === "requests" ? <form onSubmit={submitRequest} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               <h3 className="text-base font-black">{text.requests}</h3>
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 {[
-                  ["vacation", text.requestVacation],
-                  ["advance", text.requestAdvance],
-                  ["hr_note", text.sendHrNote],
+                  ["advance", ui("advanceRequest")],
+                  ["vacation", ui("leaveRequest")],
+                  ["late_permission", ui("latePermission")],
+                  ["hr_note", ui("hrNote")],
                 ].map(([value, label]) => (
-                  <button key={value} type="button" onClick={() => setRequestType(value)} className={`min-h-11 rounded-2xl px-2 text-xs font-black ${requestType === value ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"}`}>
+                  <button key={value} type="button" onClick={() => chooseRequestType(value)} className={`min-h-11 rounded-2xl px-2 text-xs font-black ${(value === requestType || (value === "late_permission" && requestMessage === ui("latePermission"))) ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-700"}`}>
                     {label}
                   </button>
                 ))}
@@ -1278,12 +1367,12 @@ export default function EmployeePayrollPortal() {
                     {item.admin_note ? <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-slate-700" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
                   </div>
                 )) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">{text.noRequests}</div>
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">{ui("noRequestsSubmitted")}</div>
                 )}
               </div>
             </form> : null}
 
-            {activeTab === "wallet" ? <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+            {activeTab === "salary" ? <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-base font-black">{text.timeline}</h3>
                 <ArrowUpCircle className="h-5 w-5 text-slate-400" />
@@ -1292,7 +1381,7 @@ export default function EmployeePayrollPortal() {
                 {walletTransactions.length ? walletTransactions.map((item) => (
                   <TimelineItem key={item.id} item={item} text={text} language={language} />
                 )) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-3 py-5 text-center text-sm font-bold text-slate-500">{text.noTransactions}</div>
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-3 py-5 text-center text-sm font-bold text-slate-500">{ui("noTimeline")}</div>
                 )}
               </div>
             </div> : null}
