@@ -489,6 +489,20 @@ const isIosDevice = () => {
 const pushSupported = () => isBrowser() && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 const appBadgeSupported = () => isBrowser() && typeof navigator.setAppBadge === "function" && typeof navigator.clearAppBadge === "function";
 
+const logEmployeeChatViewport = (phase = "") => {
+  if (!isBrowser()) return;
+  console.info("[employee-chat:viewport]", {
+    phase,
+    innerHeight: window.innerHeight,
+    visualViewportHeight: window.visualViewport?.height || null,
+    bodyStyleHeight: document.body?.style?.height || "",
+    documentElementStyleHeight: document.documentElement?.style?.height || "",
+    bodyOverflow: document.body?.style?.overflow || "",
+    documentElementOverflow: document.documentElement?.style?.overflow || "",
+    scrollY: window.scrollY || window.pageYOffset || 0,
+  });
+};
+
 const setEmployeeAppBadge = (count = 0) => {
   if (!appBadgeSupported()) return;
   const safeCount = Math.max(0, Math.round(Number(count || 0)));
@@ -1086,6 +1100,7 @@ export default function EmployeePayrollPortal() {
     if (!isBrowser()) return;
     const tab = new URLSearchParams(window.location.search).get("tab");
     if (tab === "chat") {
+      logEmployeeChatViewport("before-open-query-tab");
       setChatOpen(true);
       return;
     }
@@ -1534,6 +1549,7 @@ export default function EmployeePayrollPortal() {
       setChatHeaderHeight(Math.ceil(chatHeaderRef.current?.getBoundingClientRect?.().height || 0));
       setChatComposerHeight(Math.ceil(chatComposerRef.current?.getBoundingClientRect?.().height || 0));
     };
+    const logKeyboardViewport = () => logEmployeeChatViewport("while-keyboard-or-viewport-resize");
     updateChromeHeights();
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateChromeHeights) : null;
     if (observer) {
@@ -1542,10 +1558,14 @@ export default function EmployeePayrollPortal() {
     }
     window.addEventListener("orientationchange", updateChromeHeights);
     window.visualViewport?.addEventListener("resize", updateChromeHeights);
+    window.visualViewport?.addEventListener("resize", logKeyboardViewport);
+    window.addEventListener("resize", logKeyboardViewport);
     return () => {
       observer?.disconnect();
       window.removeEventListener("orientationchange", updateChromeHeights);
       window.visualViewport?.removeEventListener("resize", updateChromeHeights);
+      window.visualViewport?.removeEventListener("resize", logKeyboardViewport);
+      window.removeEventListener("resize", logKeyboardViewport);
     };
   }, [chatOpen, viewportHeight]);
 
@@ -1621,9 +1641,11 @@ export default function EmployeePayrollPortal() {
     document.documentElement.style.height = "";
     window.scrollTo(0, 0);
     window.dispatchEvent(new Event("resize"));
+    logEmployeeChatViewport("after-close-reset");
   }, []);
 
   const closeEmployeeChat = useCallback(() => {
+    logEmployeeChatViewport("before-close-blur");
     document.activeElement?.blur?.();
     chatInputRef.current?.blur?.();
     window.setTimeout(() => {
@@ -2087,7 +2109,10 @@ export default function EmployeePayrollPortal() {
 
                 <button
                   type="button"
-                  onClick={() => setChatOpen(true)}
+                  onClick={() => {
+                    logEmployeeChatViewport("before-open-button");
+                    setChatOpen(true);
+                  }}
                   className="flex min-h-20 w-full items-center justify-between gap-3 rounded-3xl border border-slate-800 bg-slate-950 p-4 text-right text-white shadow-xl shadow-slate-300"
                 >
                   <div>
