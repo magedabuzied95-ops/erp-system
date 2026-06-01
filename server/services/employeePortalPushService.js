@@ -72,6 +72,23 @@ export const buildTaskPushBody = (task = {}) => {
   }
 };
 
+const pushTagForEvent = (event = "", fallback = "") => {
+  const tags = {
+    task_assigned: "task-assigned",
+    task_reassigned: "task-assigned",
+    task_approved: "task-approved",
+    payroll_generated: "payroll-generated",
+    bonus_added: "bonus-added",
+    penalty_added: "penalty-added",
+    advance_approved: "advance-approved",
+    advance_rejected: "advance-rejected",
+    leave_approved: "leave-approved",
+    leave_rejected: "leave-rejected",
+    employee_chat_message: "employee-chat",
+  };
+  return tags[text(event)] || text(fallback) || "employee-portal";
+};
+
 const deactivateSubscription = async (id, reason = "") => {
   await db.query(
     `
@@ -119,13 +136,18 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
   let failed = 0;
   let deactivated = 0;
   for (const row of result.rows) {
+    const notificationTag = pushTagForEvent(data?.event, tag);
     const payload = JSON.stringify({
-      title: title || "تنبيه مهام",
+      title: title || "تنبيه جديد",
       body: body || "",
+      icon: "/icons/employee-portal-192.png",
+      badge: "/icons/employee-portal-192.png",
+      tag: notificationTag,
+      renotify: true,
       data: {
         ...(data || {}),
         url: portalNotificationUrl(url, row.portal_url, data?.tab),
-        tag,
+        tag: notificationTag,
       },
     });
     const subscription = {
@@ -137,7 +159,7 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
     };
 
     try {
-      await webPush.sendNotification(subscription, payload, { TTL: 60 * 60, topic: tag || undefined });
+      await webPush.sendNotification(subscription, payload, { TTL: 60 * 60, topic: notificationTag || undefined });
       sent += 1;
       console.info("[employee-push:send-success]", {
         employee_id: employeeId,
@@ -169,13 +191,12 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
 };
 
 export const sendTaskAssignedPush = async (task = {}, employee = {}, eventType = "task_assigned") => {
-  const title = eventType === "task_reassigned" ? "تحديث على المهمة" : "مهمة جديدة";
   return sendEmployeePortalPush({
     tenantId: task.tenant_id,
     employeeId: employee.id || task.current_assignee_id,
-    title,
-    body: buildTaskPushBody(task),
-    tag: `staff-task-${eventType}-${task.id}`,
+    title: "مهمة جديدة",
+    body: "تم إسناد مهمة جديدة لك.",
+    tag: "task-assigned",
     data: { task_id: task.id, event: eventType, tab: "tasks" },
   });
 };
@@ -189,13 +210,14 @@ export const sendTaskUpdatedPush = async (task = {}, { actorEmployeeId = null, e
   if (!shouldSend(updateCooldown, key, PUSH_UPDATE_COOLDOWN_MS)) {
     return { sent: 0, failed: 0, deactivated: 0, skipped: true, cooldown: true };
   }
+  const isTaskApproved = event === "status_changed" && String(task.status || "").toLowerCase() === "completed";
   return sendEmployeePortalPush({
     tenantId: task.tenant_id,
     employeeId,
-    title: "تحديث على المهمة",
-    body: text(task.task_title_ar || task.title_ar || task.title),
-    tag: `staff-task-update-${task.id}`,
-    data: { task_id: task.id, event, tab: "tasks" },
+    title: isTaskApproved ? "✅ تم اعتماد المهمة" : "تحديث على المهمة",
+    body: isTaskApproved ? "تم اعتماد المهمة المكتملة." : text(task.task_title_ar || task.title_ar || task.title),
+    tag: isTaskApproved ? "task-approved" : `staff-task-update-${task.id}`,
+    data: { task_id: task.id, event: isTaskApproved ? "task_approved" : event, tab: "tasks" },
   });
 };
 

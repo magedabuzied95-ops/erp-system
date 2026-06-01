@@ -1,6 +1,8 @@
 import db from "../database/db.js";
 import { ensureEmployeePayrollPortalSchema } from "./employeePayrollPortalService.js";
-import { emitToRooms } from "../utils/socket.js";
+import { sendEmployeePortalPush } from "./employeePortalPushService.js";
+import { createNotification } from "./notificationsService.js";
+import { emitToRooms, getRoomClientCount } from "../utils/socket.js";
 
 const clean = (value = "") => String(value || "").trim();
 
@@ -40,6 +42,14 @@ const attachmentLabelSql = (alias = "m") => `
 
 const adminChatRoom = (tenantId = null) => `employee-chat:tenant:${tenantId || "global"}`;
 const employeeChatRoom = (employeeId) => `employee-chat:employee:${employeeId}`;
+
+const chatPushPreview = (message = {}) => {
+  const body = clean(message.body);
+  if (body) return body.length > 120 ? `${body.slice(0, 117)}...` : body;
+  if (message.attachment_type === "image") return "تم إرسال صورة";
+  if (message.attachment_url) return "تم إرسال ملف";
+  return "رسالة جديدة";
+};
 
 const loadThreadSummary = async (threadId, clientOrPool = db) => {
   const result = await clientOrPool.query(
@@ -212,6 +222,19 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
   emitChatEvent([adminChatRoom(employee.tenant_id)], "employee-chat:thread-updated", {
     thread: updatedThread,
   });
+  await createNotification({
+    tenant_id: employee.tenant_id || null,
+    type: "employee_chat_message",
+    category: "employees",
+    priority: "medium",
+    title: "رسالة جديدة من موظف",
+    message: chatPushPreview(message),
+    action_url: "/employees/chat",
+    action_label: "فتح شات الموظفين",
+    entity_type: "employee_chat_thread",
+    entity_id: String(thread.id),
+    metadata: { employee_id: employee.id, thread_id: thread.id, message_id: message.id },
+  }).catch(() => null);
   return { thread: updatedThread || { ...thread, last_message_at: message.created_at }, message };
 };
 
@@ -350,6 +373,22 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
   emitChatEvent([adminChatRoom(thread.tenant_id)], "employee-chat:thread-updated", {
     thread: updatedThread,
   });
+  const activeEmployeeChatClients = await getRoomClientCount(employeeChatRoom(thread.employee_id));
+  if (activeEmployeeChatClients === 0) {
+    await sendEmployeePortalPush({
+      tenantId: thread.tenant_id,
+      employeeId: thread.employee_id,
+      title: "رسالة جديدة من الإدارة",
+      body: chatPushPreview(message),
+      tag: "employee-chat",
+      data: {
+        event: "employee_chat_message",
+        thread_id: thread.id,
+        message_id: message.id,
+        tab: "chat",
+      },
+    }).catch((error) => console.warn("[employee-chat] push skipped", error?.message || error));
+  }
   return { thread: updatedThread || thread, message };
 };
 

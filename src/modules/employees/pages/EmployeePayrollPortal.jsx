@@ -976,6 +976,10 @@ export default function EmployeePayrollPortal() {
   useEffect(() => {
     if (!isBrowser()) return;
     const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "chat") {
+      setChatOpen(true);
+      return;
+    }
     if (["home", "attendance", "tasks", "requests", "salary"].includes(tab)) setActiveTab(tab);
   }, []);
 

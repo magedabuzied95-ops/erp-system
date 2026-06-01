@@ -21,6 +21,16 @@ export const emitToRooms = (rooms = [], eventName, payload = {}) => {
   uniqueRooms.reduce((target, room) => target.to(room), io).emit(eventName, payload);
 };
 
+export const getRoomClientCount = async (room = "") => {
+  if (!io || !room) return 0;
+  try {
+    const sockets = await io.in(room).fetchSockets();
+    return sockets.length;
+  } catch {
+    return 0;
+  }
+};
+
 export const buildStaffTaskRooms = (task = {}, extraRooms = []) => {
   const rooms = new Set(extraRooms.filter(Boolean));
   if (task.assigned_user_id) rooms.add(`user:${task.assigned_user_id}`);
