@@ -1540,6 +1540,14 @@ export const getEmployeePortalPushPublicKey = async () => ({
   enabled: Boolean(clean(process.env.WEB_PUSH_PUBLIC_KEY) && clean(process.env.WEB_PUSH_PRIVATE_KEY)),
 });
 
+const pushEndpointHost = (endpoint = "") => {
+  try {
+    return new URL(clean(endpoint)).host;
+  } catch {
+    return "";
+  }
+};
+
 export const subscribeEmployeePortalPush = async ({ employee, subscription = {}, userAgent = "", portalUrl = "" } = {}) => {
   await ensureEmployeePayrollPortalSchema(db);
   if (!employee?.id) {
@@ -1554,8 +1562,12 @@ export const subscribeEmployeePortalPush = async ({ employee, subscription = {},
   console.info("[employee-push:subscribe-payload]", {
     employee_id: employee.id,
     endpoint_exists: Boolean(endpoint),
+    endpointHost: pushEndpointHost(endpoint),
     p256dh_exists: Boolean(p256dh),
     auth_exists: Boolean(auth),
+    p256dhLength: p256dh.length,
+    authLength: auth.length,
+    applicationServerKeyLength: Number(subscription.application_server_key_length || subscription.applicationServerKeyLength || subscription.applicationServerKey || 0) || 0,
   });
   if (!endpoint || !p256dh || !auth) {
     const error = new Error("Valid push subscription is required");
@@ -1594,6 +1606,10 @@ export const subscribeEmployeePortalPush = async ({ employee, subscription = {},
   console.info("[employee-push:subscribe-db-save]", {
     employee_id: employee.id,
     subscription_id: result.rows[0]?.id || null,
+    endpointHost: pushEndpointHost(result.rows[0]?.endpoint),
+    p256dhLength: p256dh.length,
+    authLength: auth.length,
+    portal_url: clean(portalUrl || subscription.portal_url || subscription.portalUrl),
   });
 
   const countResult = await db.query(
@@ -1621,20 +1637,33 @@ export const getEmployeePortalPushSubscriptionDebug = async ({ employeeId } = {}
   const result = await db.query(
     `
     SELECT
-      COUNT(*)::int AS count,
-      COUNT(NULLIF(endpoint, ''))::int AS endpoint_count,
-      MAX(last_seen_at) AS last_seen_at
+      id,
+      endpoint,
+      p256dh,
+      auth,
+      created_at,
+      last_seen_at,
+      is_active
     FROM employee_push_subscriptions
     WHERE employee_id = $1
-      AND is_active = TRUE
+    ORDER BY last_seen_at DESC NULLS LAST, created_at DESC
     `,
     [employeeId]
   );
+  const subscriptions = result.rows.map((row) => ({
+    id: row.id,
+    endpoint_host: pushEndpointHost(row.endpoint),
+    p256dh_length: clean(row.p256dh).length,
+    auth_length: clean(row.auth).length,
+    created_at: row.created_at || null,
+    last_seen_at: row.last_seen_at || null,
+    is_active: row.is_active === true,
+  }));
   return {
     employee_id: Number(employeeId),
-    count: Number(result.rows[0]?.count || 0),
-    endpoint_count: Number(result.rows[0]?.endpoint_count || 0),
-    last_seen_at: result.rows[0]?.last_seen_at || null,
+    count: subscriptions.length,
+    endpoint_count: subscriptions.filter((item) => item.endpoint_host).length,
+    subscriptions,
   };
 };
 

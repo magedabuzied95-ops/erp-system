@@ -71,13 +71,21 @@ self.addEventListener("push", (event) => {
   }
 
   const title = payload.title || "تنبيه جديد";
-  const options = {
+  let options = {
     body: payload.body || "لديك تحديث جديد في بوابة الموظف.",
-    icon: "/icons/employee-portal-192.png",
-    badge: "/icons/employee-portal-192.png",
+    icon: payload.icon || "/icons/employee-portal-192.png",
+    badge: payload.badge || "/icons/employee-portal-192.png",
     tag: payload.data?.tag || payload.tag || "employee-portal",
+    renotify: payload.renotify !== false,
     data: payload.data || {},
   };
+  if ((payload.data?.tag || payload.tag) === "employee-chat") {
+    options = {
+      body: payload.body || "لديك رسالة جديدة في تطبيق الموظف",
+      tag: "employee-chat",
+      data: { url: payload.url || payload.data?.url || "/employee-app/?tab=chat", tag: "employee-chat" },
+    };
+  }
 
   event.waitUntil(self.registration.showNotification(title, options));
 });

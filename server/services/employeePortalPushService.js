@@ -7,6 +7,20 @@ const overdueCooldown = new Map();
 const PUSH_UPDATE_COOLDOWN_MS = 60_000;
 const PUSH_OVERDUE_COOLDOWN_MS = 30 * 60_000;
 
+const endpointHost = (endpoint = "") => {
+  try {
+    return new URL(text(endpoint)).host;
+  } catch {
+    return "";
+  }
+};
+
+const endpointAgeSeconds = (value = null) => {
+  const time = value ? new Date(value).getTime() : 0;
+  if (!Number.isFinite(time) || time <= 0) return null;
+  return Math.max(0, Math.round((Date.now() - time) / 1000));
+};
+
 const hasVapidConfig = () =>
   Boolean(text(process.env.WEB_PUSH_PUBLIC_KEY) && text(process.env.WEB_PUSH_PRIVATE_KEY) && text(process.env.WEB_PUSH_SUBJECT));
 
@@ -89,7 +103,7 @@ const pushTagForEvent = (event = "", fallback = "") => {
   return tags[text(event)] || text(fallback) || "employee-portal";
 };
 
-const deactivateSubscription = async (id, reason = "") => {
+const deactivateSubscription = async (id, statusCode = 0, reason = "") => {
   await db.query(
     `
     UPDATE employee_push_subscriptions
@@ -99,7 +113,11 @@ const deactivateSubscription = async (id, reason = "") => {
     `,
     [id]
   );
-  console.warn("[employee-portal-push] subscription deactivated", { id, reason });
+  console.warn("[employee-push:subscription-deactivated]", {
+    subscriptionId: id,
+    statusCode,
+    reason,
+  });
 };
 
 export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body, url = "/", tag = "", data = {} } = {}) => {
@@ -117,7 +135,7 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
 
   const result = await db.query(
     `
-    SELECT id, endpoint, p256dh, auth, portal_url
+    SELECT id, endpoint, p256dh, auth, portal_url, created_at, last_seen_at
     FROM employee_push_subscriptions
     WHERE tenant_id = $1
       AND employee_id = $2
@@ -130,6 +148,11 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
   console.info("[employee-push:send-start]", {
     employee_id: employeeId,
     subscription_count: result.rows.length,
+    payloadKeys: ["title", "body", "tag", "url"],
+    titleLength: text(title || "تنبيه جديد").length,
+    bodyLength: text(body || "").length,
+    url,
+    tag: pushTagForEvent(data?.event, tag),
   });
 
   let sent = 0;
@@ -137,7 +160,8 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
   let deactivated = 0;
   for (const row of result.rows) {
     const notificationTag = pushTagForEvent(data?.event, tag);
-    const payload = JSON.stringify({
+    const notificationUrl = portalNotificationUrl(url, row.portal_url, data?.tab);
+    const payloadObject = {
       title: title || "تنبيه جديد",
       body: body || "",
       icon: "/icons/employee-portal-192.png",
@@ -146,10 +170,20 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
       renotify: true,
       data: {
         ...(data || {}),
-        url: portalNotificationUrl(url, row.portal_url, data?.tab),
+        url: notificationUrl,
         tag: notificationTag,
       },
-    });
+    };
+    if (notificationTag === "employee-chat") {
+      delete payloadObject.icon;
+      delete payloadObject.badge;
+      delete payloadObject.renotify;
+      delete payloadObject.data;
+      payloadObject.title = title || "رسالة جديدة من الإدارة";
+      payloadObject.body = body || "لديك رسالة جديدة في تطبيق الموظف";
+      payloadObject.url = notificationUrl;
+    }
+    const payload = JSON.stringify(payloadObject);
     const subscription = {
       endpoint: row.endpoint,
       keys: {
@@ -163,19 +197,27 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
       sent += 1;
       console.info("[employee-push:send-success]", {
         employee_id: employeeId,
-        endpoint: row.endpoint,
+        subscriptionId: row.id,
+        endpointHost: endpointHost(row.endpoint),
       });
     } catch (error) {
       failed += 1;
       const statusCode = Number(error.statusCode || error.status || 0);
       console.warn("[employee-push:send-failed]", {
         employee_id: employeeId,
+        subscriptionId: row.id,
         statusCode,
         message: error.message,
+        body: text(error.body || error.response?.body || "").slice(0, 1000),
+        errorBody: text(error.errorBody || "").slice(0, 1000),
+        endpointHost: endpointHost(row.endpoint),
+        endpointAge: endpointAgeSeconds(row.created_at),
+        p256dhLength: text(row.p256dh).length,
+        authLength: text(row.auth).length,
       });
-      if (statusCode === 404 || statusCode === 410) {
+      if ([400, 404, 410].includes(statusCode)) {
         deactivated += 1;
-        await deactivateSubscription(row.id, `web-push ${statusCode}`);
+        await deactivateSubscription(row.id, statusCode, `web-push ${statusCode}`);
       } else {
         console.warn("[employee-portal-push] send failed", {
           subscriptionId: row.id,

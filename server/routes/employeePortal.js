@@ -395,6 +395,10 @@ router.get("/:token/push/public-key", async (req, res) => {
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
     const payload = await getEmployeePortalPushPublicKey();
+    console.info("[employee-push:public-key]", {
+      hasKey: Boolean(payload.publicKey),
+      keyLength: String(payload.publicKey || "").length,
+    });
     return res.json({ success: true, ...payload });
   } catch (error) {
     console.error("[employee-payroll-portal] push key error", error);
@@ -408,11 +412,23 @@ router.post("/:token/push/subscribe", async (req, res) => {
     if (!employee) return;
     console.info("[employee-push:subscribe-request]", {
       employee_id: employee.id,
-      token: String(req.params.token || ""),
+      endpointHost: (() => {
+        try {
+          return new URL(String((req.body?.subscription || req.body || {}).endpoint || "")).host;
+        } catch {
+          return "";
+        }
+      })(),
+      p256dhLength: String((req.body?.subscription || req.body || {}).keys?.p256dh || "").length,
+      authLength: String((req.body?.subscription || req.body || {}).keys?.auth || "").length,
+      applicationServerKeyLength: Number(req.body?.application_server_key_length || req.body?.applicationServerKeyLength || (req.body?.subscription || {}).application_server_key_length || 0) || 0,
     });
     const result = await subscribeEmployeePortalPush({
       employee,
-      subscription: req.body?.subscription || req.body || {},
+      subscription: {
+        ...(req.body?.subscription || req.body || {}),
+        application_server_key_length: Number(req.body?.application_server_key_length || req.body?.applicationServerKeyLength || (req.body?.subscription || {}).application_server_key_length || 0) || 0,
+      },
       userAgent: req.get?.("user-agent") || "",
       portalUrl: req.body?.portal_url || req.body?.portalUrl || "",
     });

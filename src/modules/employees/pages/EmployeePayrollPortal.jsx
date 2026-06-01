@@ -488,6 +488,31 @@ const urlBase64ToUint8Array = (base64String = "") => {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 };
 
+const uint8ArrayToUrlBase64 = (value) => {
+  if (!value) return "";
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return window.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+};
+
+const pushSubscriptionUsesKey = (subscription, publicKey = "") => {
+  const existingKey = subscription?.options?.applicationServerKey;
+  if (!publicKey) return true;
+  if (!existingKey) return false;
+  return uint8ArrayToUrlBase64(existingKey) === String(publicKey).replace(/=+$/g, "");
+};
+
+const endpointHost = (endpoint = "") => {
+  try {
+    return new URL(String(endpoint || "")).host;
+  } catch {
+    return "";
+  }
+};
+
 const parseSafeDate = (value) => {
   if (!value || value === "-") return null;
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -1368,7 +1393,7 @@ export default function EmployeePayrollPortal() {
     window.open(`https://wa.me/?text=${message}`, "_blank", "noopener,noreferrer");
   };
 
-  const enableNotifications = async () => {
+  const enableNotifications = async ({ forceRefresh = false } = {}) => {
     if (!pushSupported()) {
       setNotificationState("unsupported");
       setNotificationMessage("الإشعارات غير مدعومة على هذا المتصفح.");
@@ -1386,27 +1411,91 @@ export default function EmployeePayrollPortal() {
         return;
       }
 
-      const registration = await navigator.serviceWorker.ready;
       const keyResponse = await api.get(`/employee-portal/${encodeURIComponent(token)}/push/public-key`);
       const publicKey = keyResponse?.publicKey || "";
       if (!publicKey) {
         setNotificationMessage("الإشعارات جاهزة على الجهاز، لكن مفاتيح الإرسال غير مفعلة على الخادم.");
         return;
       }
-      const existing = await registration.pushManager.getSubscription();
+      const registration = forceRefresh
+        ? await navigator.serviceWorker.register(`/employee-portal-sw.js?v=${Date.now()}`)
+        : await navigator.serviceWorker.ready;
+      let existing = await registration.pushManager.getSubscription();
+      if (existing && (forceRefresh || !pushSubscriptionUsesKey(existing, publicKey))) {
+        await api.post(`/employee-portal/${encodeURIComponent(token)}/push/unsubscribe`, {
+          subscription: existing.toJSON(),
+          endpoint: existing.endpoint,
+        }).catch(() => null);
+        await existing.unsubscribe().catch(() => null);
+        existing = null;
+      }
       const subscription = existing || await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       });
+      const subscriptionJson = subscription.toJSON();
+      const applicationServerKeyLength = urlBase64ToUint8Array(publicKey).length;
+      console.info("[employee-push:subscribe-request]", {
+        employee_id: profile.id || portal?.employee?.id || null,
+        endpointHost: endpointHost(subscriptionJson.endpoint),
+        p256dhLength: String(subscriptionJson.keys?.p256dh || "").length,
+        authLength: String(subscriptionJson.keys?.auth || "").length,
+        applicationServerKeyLength,
+      });
       await api.post(`/employee-portal/${encodeURIComponent(token)}/push/subscribe`, {
-        subscription: subscription.toJSON(),
+        subscription: subscriptionJson,
+        application_server_key_length: applicationServerKeyLength,
         portal_url: `${window.location.origin}/employee-app/${encodeURIComponent(token)}${window.location.search}`,
       });
       setNotificationState("granted");
-      setNotificationMessage("الإشعارات مفعلة");
+      setNotificationMessage(forceRefresh ? "تم تحديث الإشعارات بنجاح" : "الإشعارات مفعلة");
     } catch (err) {
       console.warn("[employee-payroll-portal] push subscription failed", err);
       setNotificationMessage(err?.responseBody?.message || err?.message || "تعذر تفعيل الإشعارات الآن.");
+    } finally {
+      setNotificationSaving(false);
+    }
+  };
+
+  const resetNotifications = async () => {
+    if (!pushSupported()) {
+      setNotificationState("unsupported");
+      setNotificationMessage("الإشعارات غير مدعومة على هذا الجهاز.");
+      return;
+    }
+    try {
+      setNotificationSaving(true);
+      setNotificationMessage("");
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const registration of registrations) {
+        const scriptUrl = registration.active?.scriptURL || registration.waiting?.scriptURL || registration.installing?.scriptURL || "";
+        const subscription = await registration.pushManager?.getSubscription?.().catch(() => null);
+        if (subscription?.endpoint) {
+          await api.post(`/employee-portal/${encodeURIComponent(token)}/push/unsubscribe`, {
+            subscription: subscription.toJSON(),
+            endpoint: subscription.endpoint,
+          }).catch(() => null);
+          await subscription.unsubscribe().catch(() => null);
+        }
+        if (scriptUrl.includes("/employee-portal-sw.js") || registration.scope.includes("/employee-app") || registration.scope === `${window.location.origin}/`) {
+          await registration.unregister().catch(() => null);
+        }
+      }
+      const permission = window.Notification.permission === "default"
+        ? await window.Notification.requestPermission()
+        : window.Notification.permission;
+      setNotificationState(permission);
+      if (permission !== "granted") {
+        setNotificationMessage("فعّل الإشعارات من إعدادات المتصفح لاستقبال التنبيهات.");
+        return;
+      }
+      await navigator.serviceWorker.register(`/employee-portal-sw.js?v=${Date.now()}`);
+      await navigator.serviceWorker.ready;
+      await enableNotifications({ forceRefresh: true });
+      setNotificationMessage("تمت إعادة ضبط الإشعارات بنجاح");
+    } catch (err) {
+      console.warn("[employee-payroll-portal] push reset failed", err);
+      setNotificationMessage(err?.responseBody?.message || err?.message || "تعذر إعادة ضبط الإشعارات الآن.");
     } finally {
       setNotificationSaving(false);
     }
@@ -1601,12 +1690,18 @@ export default function EmployeePayrollPortal() {
                   </p>
                 </div>
                 {notificationState !== "granted" && notificationState !== "unsupported" ? (
-                  <button type="button" onClick={enableNotifications} disabled={notificationSaving} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
+                  <button type="button" onClick={() => enableNotifications()} disabled={notificationSaving} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
                     {notificationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                     تفعيل الإشعارات
                   </button>
                 ) : null}
               </div>
+              {notificationState === "granted" ? (
+                <button type="button" onClick={resetNotifications} disabled={notificationSaving} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-xs font-black text-white disabled:opacity-50">
+                  {notificationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  <span className="text-xs">إعادة ضبط الإشعارات</span>
+                </button>
+              ) : null}
             </div>
 
             {activeTab === "home" ? (
