@@ -20,6 +20,12 @@ import {
   regenerateEmployeePortalToken,
   updateEmployeeGamificationSettings,
 } from "../services/employeePayrollPortalService.js";
+import {
+  getAdminEmployeeChatThread,
+  listEmployeeChatThreads,
+  markAdminEmployeeChatThreadRead,
+  sendAdminEmployeeChatMessage,
+} from "../services/employeeChatService.js";
 
 const safeQuery = async (client, text, params = []) => {
   try {
@@ -250,6 +256,55 @@ export const reviewEmployeePortalRequestRecord = async (req, res) => {
     perf.fail(error);
     console.error("[employees] portal request review error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to review employee portal request" });
+  }
+};
+
+export const getEmployeeChatThreads = async (req, res) => {
+  try {
+    const { tenantId } = getTenantContext(req);
+    const threads = await listEmployeeChatThreads({ tenantId, limit: req.query.limit });
+    return res.json({ success: true, threads });
+  } catch (error) {
+    console.error("[employees] chat threads list error", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to load employee chat threads" });
+  }
+};
+
+export const getEmployeeChatThreadRecord = async (req, res) => {
+  try {
+    const { tenantId } = getTenantContext(req);
+    const chat = await getAdminEmployeeChatThread({ tenantId, threadId: req.params.threadId, markRead: true });
+    return res.json({ success: true, ...chat });
+  } catch (error) {
+    console.error("[employees] chat thread load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load employee chat thread" });
+  }
+};
+
+export const sendEmployeeChatThreadMessageRecord = async (req, res) => {
+  try {
+    const { tenantId, userId } = getTenantContext(req);
+    const result = await sendAdminEmployeeChatMessage({
+      tenantId,
+      threadId: req.params.threadId,
+      userId,
+      body: req.body?.body || req.body?.message || "",
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    console.error("[employees] chat message send error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send employee chat message" });
+  }
+};
+
+export const markEmployeeChatThreadReadRecord = async (req, res) => {
+  try {
+    const { tenantId } = getTenantContext(req);
+    const result = await markAdminEmployeeChatThreadRead({ tenantId, threadId: req.params.threadId });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[employees] chat thread read error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to mark employee chat read" });
   }
 };
 

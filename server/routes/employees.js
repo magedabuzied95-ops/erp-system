@@ -12,12 +12,16 @@ import {
   getCommissionRules,
   getEmployeePenalties,
   getEmployeeGamificationSettingsRecord,
+  getEmployeeChatThreadRecord,
+  getEmployeeChatThreads,
   getEmployeePortalRequests,
   getSalesPerformance,
   getTopPerformers,
   grantEmployeeRewardRecord,
+  markEmployeeChatThreadReadRecord,
   regenerateEmployeePayrollPortalToken,
   reviewEmployeePortalRequestRecord,
+  sendEmployeeChatThreadMessageRecord,
   updateCommissionRule,
   updateEmployeePenaltyRecord,
   updateEmployeePayrollSettings,
@@ -46,6 +50,10 @@ router.post("/commission-rules", protect, permit("employees", "edit"), createCom
 router.put("/commission-rules/:id", protect, permit("employees", "edit"), updateCommissionRule);
 router.get("/portal-requests", protect, permit("employees", "view"), getEmployeePortalRequests);
 router.patch("/portal-requests/:id", protect, permit("employees", "edit"), reviewEmployeePortalRequestRecord);
+router.get("/chat/threads", protect, permit("employees", "view"), getEmployeeChatThreads);
+router.get("/chat/threads/:threadId", protect, permit("employees", "view"), getEmployeeChatThreadRecord);
+router.post("/chat/threads/:threadId/messages", protect, permit("employees", "edit"), sendEmployeeChatThreadMessageRecord);
+router.patch("/chat/threads/:threadId/read", protect, permit("employees", "edit"), markEmployeeChatThreadReadRecord);
 router.get("/gamification/settings", protect, permit("employees", "view"), getEmployeeGamificationSettingsRecord);
 router.patch("/gamification/settings", protect, permit("employees", "edit"), updateEmployeeGamificationSettingsRecord);
 router.post("/gamification/rewards", protect, permit("employees", "edit"), grantEmployeeRewardRecord);

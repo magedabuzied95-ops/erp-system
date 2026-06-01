@@ -483,6 +483,10 @@ CREATE TABLE IF NOT EXISTS orders (
   ai_agent_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   subtotal NUMERIC(12,2) NOT NULL DEFAULT 0,
   discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  invoice_discount_type VARCHAR(20),
+  invoice_discount_value NUMERIC(12,2) NOT NULL DEFAULT 0,
+  invoice_discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  invoice_discount_reason TEXT,
   tax_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
   service_fee NUMERIC(12,2) NOT NULL DEFAULT 0,
   total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -660,6 +664,12 @@ ALTER TABLE IF EXISTS orders
 
 ALTER TABLE IF EXISTS orders
   ADD COLUMN IF NOT EXISTS shift_id BIGINT NULL REFERENCES cashbox(id) ON DELETE SET NULL;
+
+ALTER TABLE IF EXISTS orders
+  ADD COLUMN IF NOT EXISTS invoice_discount_type VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS invoice_discount_value NUMERIC(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS invoice_discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS invoice_discount_reason TEXT;
 
 DROP VIEW IF EXISTS pos_orders CASCADE;
 
@@ -1214,6 +1224,36 @@ ALTER TABLE IF EXISTS orders
   ADD COLUMN IF NOT EXISTS wallet_payment_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_employees_tenant_branch ON employees (tenant_id, branch_id);
+
+CREATE TABLE IF NOT EXISTS employee_chat_threads (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'open',
+  last_message_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_chat_threads_employee ON employee_chat_threads (employee_id);
+CREATE INDEX IF NOT EXISTS idx_employee_chat_threads_tenant_last ON employee_chat_threads (tenant_id, last_message_at DESC NULLS LAST, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS employee_chat_messages (
+  id BIGSERIAL PRIMARY KEY,
+  thread_id BIGINT NOT NULL REFERENCES employee_chat_threads(id) ON DELETE CASCADE,
+  sender_type VARCHAR(20) NOT NULL CHECK (sender_type IN ('employee', 'admin')),
+  sender_employee_id BIGINT NULL REFERENCES employees(id) ON DELETE SET NULL,
+  sender_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  body TEXT NOT NULL DEFAULT '',
+  attachment_url TEXT NULL,
+  read_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_thread_created ON employee_chat_messages (thread_id, created_at ASC, id ASC);
+CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_unread ON employee_chat_messages (thread_id, sender_type, read_at) WHERE read_at IS NULL;
+
 CREATE INDEX IF NOT EXISTS idx_employee_shifts_tenant_employee ON employee_shifts (tenant_id, employee_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_employee_date ON attendance_logs (tenant_id, employee_id, attendance_date DESC);
 CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_branch_date ON attendance_logs (tenant_id, branch_id, attendance_date DESC);

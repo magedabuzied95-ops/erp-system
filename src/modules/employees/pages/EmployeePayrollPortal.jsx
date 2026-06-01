@@ -20,6 +20,7 @@ import {
   QrCode,
   RefreshCw,
   ReceiptText,
+  Send,
   ShieldCheck,
   Smartphone,
   Star,
@@ -27,6 +28,7 @@ import {
   Trophy,
   UserRound,
   WalletCards,
+  X,
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
@@ -307,6 +309,16 @@ Object.assign(labels.en, {
 Object.assign(labels.ar, {
   homeTab: "الرئيسية",
   salaryTab: "الراتب",
+  talkToManagement: "كلم الإدارة",
+  chatTitle: "محادثة الإدارة",
+  chatSubtitle: "اكتب رسالتك وسيتم الرد عليك من الإدارة.",
+  chatPlaceholder: "اكتب رسالتك هنا...",
+  sendMessage: "إرسال",
+  noChatMessages: "لا توجد رسائل حتى الآن.",
+  chatLoadError: "تعذر تحميل المحادثة.",
+  chatSendError: "تعذر إرسال الرسالة.",
+  management: "الإدارة",
+  you: "أنت",
   employeeDashboard: "بوابة الموظف",
   present: "حاضر",
   absent: "غائب",
@@ -343,6 +355,16 @@ Object.assign(labels.ar, {
 Object.assign(labels.en, {
   homeTab: "Home",
   salaryTab: "Salary",
+  talkToManagement: "Talk to management",
+  chatTitle: "Management chat",
+  chatSubtitle: "Send a message and management will reply here.",
+  chatPlaceholder: "Write your message...",
+  sendMessage: "Send",
+  noChatMessages: "No messages yet.",
+  chatLoadError: "Unable to load chat.",
+  chatSendError: "Unable to send message.",
+  management: "Management",
+  you: "You",
   employeeDashboard: "Employee Portal",
   present: "Present",
   absent: "Absent",
@@ -794,6 +816,12 @@ export default function EmployeePayrollPortal() {
   });
   const [notificationSaving, setNotificationSaving] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatSaving, setChatSaving] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatError, setChatError] = useState("");
+  const [chatBody, setChatBody] = useState("");
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
@@ -1009,6 +1037,48 @@ export default function EmployeePayrollPortal() {
       logPagePerf("employee-wallet.optional-sections", startedAt, { active_tab: activeTab, failed: true });
     } finally {
       setOptionalLoading(false);
+    }
+  };
+
+  const loadEmployeeChat = async ({ silent = false } = {}) => {
+    if (!token) return;
+    try {
+      if (!silent) setChatLoading(true);
+      setChatError("");
+      const response = await api.get(`/employee-portal/${encodeURIComponent(token)}/chat`, {
+        suppressErrorStatuses: [400, 404, 429],
+      });
+      setChatMessages(safeArray(response.messages));
+    } catch (err) {
+      setChatError(err?.responseBody?.message || err?.message || ui("chatLoadError"));
+    } finally {
+      if (!silent) setChatLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!chatOpen || !portal) return undefined;
+    loadEmployeeChat();
+    const timer = window.setInterval(() => loadEmployeeChat({ silent: true }), 12000);
+    return () => window.clearInterval(timer);
+  }, [chatOpen, portal, token]);
+
+  const submitChatMessage = async (event) => {
+    event.preventDefault();
+    const message = chatBody.trim();
+    if (!message || chatSaving) return;
+    try {
+      setChatSaving(true);
+      setChatError("");
+      await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/messages`, { body: message }, {
+        suppressErrorStatuses: [400, 404, 429],
+      });
+      setChatBody("");
+      await loadEmployeeChat({ silent: true });
+    } catch (err) {
+      setChatError(err?.responseBody?.message || err?.message || ui("chatSendError"));
+    } finally {
+      setChatSaving(false);
     }
   };
 
@@ -1315,6 +1385,20 @@ export default function EmployeePayrollPortal() {
                     </div>
                   ))}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setChatOpen(true)}
+                  className="flex min-h-20 w-full items-center justify-between gap-3 rounded-3xl border border-slate-800 bg-slate-950 p-4 text-right text-white shadow-xl shadow-slate-300"
+                >
+                  <div>
+                    <div className="text-lg font-black">{ui("talkToManagement")}</div>
+                    <div className="mt-1 text-xs font-bold text-slate-300">{ui("chatSubtitle")}</div>
+                  </div>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-950">
+                    <MessageCircle className="h-6 w-6" />
+                  </div>
+                </button>
 
                 <section className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
                   <div className="flex items-start justify-between gap-3">
@@ -1661,6 +1745,63 @@ export default function EmployeePayrollPortal() {
           </section>
         )}
       </div>
+      {chatOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/70 p-0 sm:items-center sm:p-4">
+          <section className="flex h-[88dvh] w-full flex-col rounded-t-3xl border border-slate-800 bg-slate-950 text-white shadow-2xl sm:mx-auto sm:max-w-md sm:rounded-3xl" dir={direction}>
+            <header className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
+              <div>
+                <h2 className="text-xl font-black">{ui("chatTitle")}</h2>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-300">{ui("chatSubtitle")}</p>
+              </div>
+              <button type="button" onClick={() => setChatOpen(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            {chatError ? <div className="mx-4 mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
+            <div className="flex-1 space-y-2 overflow-y-auto p-4">
+              {chatLoading ? (
+                <div className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-3 py-5 text-sm font-bold text-slate-200">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {text.loading}
+                </div>
+              ) : chatMessages.length ? (
+                chatMessages.map((message) => {
+                  const employeeMessage = message.sender_type === "employee";
+                  return (
+                    <div key={message.id} className={`flex ${employeeMessage ? "justify-end" : "justify-start"}`}>
+                      <div className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm font-bold leading-6 ${employeeMessage ? "bg-emerald-500 text-emerald-950" : "bg-white text-slate-950"}`}>
+                        <div className="mb-1 text-[10px] font-black opacity-70">{employeeMessage ? ui("you") : ui("management")}</div>
+                        <div dir="auto">{message.body}</div>
+                        <div className="mt-2 text-[10px] font-black opacity-60" dir="ltr">{formatTimeLocal(message.created_at, language)}</div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-3xl border border-dashed border-white/15 bg-white/5 px-4 py-8 text-center text-sm font-bold text-slate-300">
+                  <MessageCircle className="mx-auto h-8 w-8" />
+                  <div className="mt-2">{ui("noChatMessages")}</div>
+                </div>
+              )}
+            </div>
+            <form onSubmit={submitChatMessage} className="border-t border-white/10 p-3">
+              <div className="flex gap-2">
+                <textarea
+                  value={chatBody}
+                  onChange={(event) => setChatBody(event.target.value)}
+                  placeholder={ui("chatPlaceholder")}
+                  className="min-h-12 flex-1 resize-none rounded-2xl border border-white/10 bg-white/10 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-400 focus:border-emerald-400"
+                  dir="auto"
+                />
+                <button type="submit" disabled={chatSaving || !chatBody.trim()} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-emerald-950 disabled:opacity-50">
+                  {chatSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {ui("sendMessage")}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
       {earlyCheckoutOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
           <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">

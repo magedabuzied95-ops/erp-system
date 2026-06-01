@@ -2833,6 +2833,11 @@ const buildAttendanceTodaySummary = (rows = [], employeesCount = 0) => {
   const checkedOut = logs.filter((row) => row.check_out_at || row.check_out || row.status === "checked_out");
   const openLogs = logs.filter((row) => !(row.check_out_at || row.check_out));
   const lateLogs = logs.filter((row) => Number(row.late_minutes || 0) > 0);
+  const earlyCheckoutLogs = logs.filter((row) => Number(row.early_leave_minutes || 0) > 0);
+  const outsideGpsLogs = logs.filter((row) =>
+    String(row.check_in_gps_verification_result || "").toLowerCase() === "outside_range" ||
+    String(row.check_out_gps_verification_result || "").toLowerCase() === "outside_range"
+  );
   const totalWorkedMinutes = logs.reduce((sum, row) => sum + Number(row.work_minutes || 0), 0);
 
   return {
@@ -2841,6 +2846,8 @@ const buildAttendanceTodaySummary = (rows = [], employeesCount = 0) => {
     checkedOut: checkedOut.length,
     missingCheckout: openLogs.length,
     lateEmployees: lateLogs.length,
+    earlyCheckoutToday: earlyCheckoutLogs.length,
+    outsideGpsToday: outsideGpsLogs.length,
     absent: Math.max(0, Number(employeesCount || 0) - logs.length),
     totalWorkedMinutes,
     totalWorkedHours: formatMinutes(totalWorkedMinutes),

@@ -1463,6 +1463,8 @@ const defaultProviderForPaymentMethod = (paymentMethod = "") => {
   return "";
 };
 
+const strictMappedPaymentMethods = new Set(["instapay", "vodafone_cash"]);
+
 const normalizeMoneyAccount = (row = {}) => ({
   id: Number(row.id),
   tenant_id: Number(row.tenant_id),
@@ -2762,9 +2764,13 @@ export const recordFinancialAccountActivity = async (clientOrPool, data = {}) =>
   const branchId = numericFilter(data.branchId || data.branch_id);
   const paymentMethod = normalizePaymentMethodKey(data.paymentMethod || data.payment_method || "cash");
   if (paymentMethod === "customer_wallet") return null;
-  const fallbackTypes = paymentMethod === "card"
+  const sourceType = data.sourceType || data.source_type || null;
+  const sourceId = numericFilter(data.sourceId ?? data.source_id);
+  const fallbackTypes = strictMappedPaymentMethods.has(paymentMethod)
+    ? []
+    : paymentMethod === "card"
     ? ["card_settlement", "bank"]
-    : paymentMethod === "wallet" || paymentMethod === "vodafone_cash" || paymentMethod === "instapay"
+    : paymentMethod === "wallet"
       ? ["wallet", "digital_wallet"]
       : paymentMethod === "bank_transfer"
         ? ["bank"]
@@ -2780,6 +2786,16 @@ export const recordFinancialAccountActivity = async (clientOrPool, data = {}) =>
     branchId,
   });
   const moneyTransactionFinancialAccountId = explicitAccountId ?? mappedAccount?.financialAccountId ?? null;
+  const mappedAccountName = mappedAccount?.mapping?.financial_account_name || "";
+  console.log("[accounting:payment-post]", {
+    orderId: sourceId || null,
+    invoiceNumber: data.invoiceNumber || data.invoice_number || "",
+    rawMethod: data.paymentMethod || data.payment_method || "",
+    normalizedMethod: paymentMethod,
+    amount,
+    mappedAccountId: financialAccountId ? Number(financialAccountId) : null,
+    mappedAccountName,
+  });
   if (!financialAccountId) {
     return postMoneyTransaction(dbClient, {
       tenantId,
@@ -2791,18 +2807,16 @@ export const recordFinancialAccountActivity = async (clientOrPool, data = {}) =>
       transactionType: moneyTransactionTypeForActivity({
         entryType,
         direction,
-        sourceType: data.sourceType || data.source_type || null,
+        sourceType,
       }),
-      referenceType: data.sourceType || data.source_type || null,
-      referenceId: data.sourceId ?? data.source_id ?? null,
+      referenceType: sourceType,
+      referenceId: sourceId,
       notes: data.notes || "",
       createdBy: data.createdBy ?? data.created_by ?? null,
       idempotent: data.idempotent,
     });
   }
 
-  const sourceType = data.sourceType || data.source_type || null;
-  const sourceId = numericFilter(data.sourceId ?? data.source_id);
   const idempotent = sourceType && sourceId && data.idempotent !== false;
   if (idempotent) {
     const existing = await dbClient.query(
