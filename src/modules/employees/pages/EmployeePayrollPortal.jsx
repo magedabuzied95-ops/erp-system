@@ -315,6 +315,8 @@ Object.assign(labels.en, {
 Object.assign(labels.ar, {
   homeTab: "الرئيسية",
   salaryTab: "الراتب",
+  walletOnlyTab: "المحفظة",
+  notificationsTab: "التنبيهات",
   talkToManagement: "كلم الإدارة",
   chatTitle: "محادثة الإدارة",
   chatSubtitle: "اكتب رسالتك وسيتم الرد عليك من الإدارة.",
@@ -367,6 +369,8 @@ Object.assign(labels.ar, {
 Object.assign(labels.en, {
   homeTab: "Home",
   salaryTab: "Salary",
+  walletOnlyTab: "Wallet",
+  notificationsTab: "Notifications",
   talkToManagement: "Talk to management",
   chatTitle: "Management chat",
   chatSubtitle: "Send a message and management will reply here.",
@@ -1102,7 +1106,7 @@ export default function EmployeePayrollPortal() {
       setChatOpen(true);
       return;
     }
-    if (["home", "attendance", "tasks", "requests", "salary"].includes(tab)) setActiveTab(tab);
+    if (["home", "attendance", "tasks", "requests", "salary", "wallet", "notifications"].includes(tab)) setActiveTab(tab);
   }, []);
 
   const loadPortalByToken = useCallback(
@@ -1190,9 +1194,10 @@ export default function EmployeePayrollPortal() {
   const completedTasks = tasks.filter((task) => ["completed", "done"].includes(taskStatusKey(task.status)));
   const mobileTabs = [
     ["home", ui("homeTab"), Home],
-    ["attendance", text.attendanceTab, CalendarDays],
     ["tasks", text.tasksTab, ClipboardList],
     ["requests", text.requestsTab, MessageCircle],
+    ["attendance", text.attendanceTab, CalendarDays],
+    ["wallet", ui("walletOnlyTab"), CreditCard],
     ["salary", ui("salaryTab"), WalletCards],
   ];
   const performanceData = portal?.performance || {};
@@ -2006,33 +2011,26 @@ export default function EmployeePayrollPortal() {
             <div className="mt-3">{error || text.invalidLink || labels.en.invalidLink}</div>
           </div>
         ) : (
-          <section className="mt-4 space-y-4 pb-4">
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 text-lg font-black text-white">
-                  {profile.photo_url ? <img src={profile.photo_url} alt="" className="h-full w-full object-cover" /> : profile.avatar_initials || <UserRound className="h-7 w-7" />}
+          <section className="mt-2 space-y-3 pb-4">
+            <div className="sticky top-[env(safe-area-inset-top)] z-30 -mx-1 flex min-h-[64px] items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-2.5 py-2 shadow-sm backdrop-blur">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-950 text-sm font-black text-white">
+                {profile.photo_url ? <img src={profile.photo_url} alt="" className="h-full w-full object-cover" /> : profile.avatar_initials || <UserRound className="h-5 w-5" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-black leading-5" dir="auto">{profile.name}</div>
+                <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-black text-slate-500">
+                  <span className={`h-2 w-2 rounded-full ${isCheckedIn ? "bg-emerald-500" : isCheckedOut ? "bg-slate-400" : "bg-red-500"}`} />
+                  <span className="truncate">{employeeStatus}</span>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-2xl font-black leading-8" dir="auto">{profile.name}</h2>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-bold text-slate-500">
-                    <span>{profile.job_title || "-"}</span>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-black ${isCheckedIn ? "bg-emerald-100 text-emerald-800" : isCheckedOut ? "bg-slate-200 text-slate-700" : "bg-red-100 text-red-800"}`}>{employeeStatus}</span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-black">
-                    <div className="rounded-xl bg-slate-100 px-3 py-2">
-                      <div className="text-slate-500">{text.employeeCode}</div>
-                      <div className="mt-1 truncate" dir="auto">{profile.code || "-"}</div>
-                    </div>
-                    <div className="rounded-xl bg-slate-100 px-3 py-2">
-                      <div className="text-slate-500">{text.branch}</div>
-                      <div className="mt-1 truncate" dir="auto">{profile.branch || "-"}</div>
-                    </div>
-                  </div>
-                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button type="button" onClick={() => setActiveTab("tasks")} className="rounded-xl bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700" dir="ltr">{pendingTasks.length}</button>
+                <button type="button" onClick={() => setActiveTab("requests")} className="rounded-xl bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700" dir="ltr">{requestBadgeIds.length}</button>
+                <button type="button" onClick={() => setActiveTab("notifications")} className="rounded-xl bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700" dir="ltr">{portal.unread_notifications_count || badgeCounts.pendingNotifications || 0}</button>
               </div>
             </div>
 
-            {showInstallCard ? (
+            {activeTab === "home" && showInstallCard ? (
               <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950 shadow-sm">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
@@ -2056,7 +2054,7 @@ export default function EmployeePayrollPortal() {
               </div>
             ) : null}
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            {activeTab === "notifications" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="text-sm font-black text-slate-950">
@@ -2081,20 +2079,29 @@ export default function EmployeePayrollPortal() {
                   <span className="text-xs">إعادة ضبط الإشعارات</span>
                 </button>
               ) : null}
-            </div>
+            </div> : null}
 
-            {employeeNotifications.length ? (
-              <div className="rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm">
+            {activeTab === "notifications" ? (
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-black text-slate-950">آخر التنبيهات</h3>
-                  <ReceiptText className="h-4 w-4 text-emerald-600" />
+                  <h3 className="text-base font-black">{ui("notificationsTab")}</h3>
+                  <button
+                    type="button"
+                    onClick={() => setPortal((current) => current ? { ...current, notifications: safeArray(current.notifications).map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })), unread_notifications_count: 0 } : current)}
+                    className="rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700"
+                  >
+                    تعليم الكل كمقروء
+                  </button>
                 </div>
                 <div className="mt-3 grid gap-2">
-                  {employeeNotifications.slice(0, 3).map((item) => (
+                  {employeeNotifications.length ? employeeNotifications.map((item) => (
                     <button
                       key={item.id || `${item.type}-${item.order_id}`}
                       type="button"
-                      onClick={() => item.type === "commission_earned" ? setActiveTab("salary") : null}
+                      onClick={() => {
+                        setPortal((current) => current ? { ...current, notifications: safeArray(current.notifications).map((row) => String(row.id) === String(item.id) ? { ...row, read_at: row.read_at || new Date().toISOString() } : row) } : current);
+                        if (item.type === "commission_earned") setActiveTab("salary");
+                      }}
                       className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-start"
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -2106,7 +2113,9 @@ export default function EmployeePayrollPortal() {
                       </div>
                       <div className="mt-1 text-[11px] font-bold text-slate-400" dir="ltr">{formatDateLocal(item.created_at, language)} {formatTimeLocal(item.created_at, language)}</div>
                     </button>
-                  ))}
+                  )) : (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-sm font-bold text-slate-500">{text.noTransactions}</div>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -2128,22 +2137,27 @@ export default function EmployeePayrollPortal() {
                   ))}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    logEmployeeChatViewport("before-open-button");
-                    setChatOpen(true);
-                  }}
-                  className="flex min-h-20 w-full items-center justify-between gap-3 rounded-3xl border border-slate-800 bg-slate-950 p-4 text-right text-white shadow-xl shadow-slate-300"
-                >
-                  <div>
-                    <div className="text-lg font-black">{ui("talkToManagement")}</div>
-                    <div className="mt-1 text-xs font-bold text-slate-300">{ui("chatSubtitle")}</div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-950">
-                    <MessageCircle className="h-6 w-6" />
-                  </div>
-                </button>
+                <div className="grid grid-cols-3 gap-2">
+                  <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl bg-emerald-600 px-2 text-[11px] font-black text-white disabled:opacity-50">
+                    {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    {text.checkIn}
+                  </button>
+                  <button type="button" onClick={() => setActiveTab("requests")} className="inline-flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl bg-white px-2 text-[11px] font-black text-slate-800 shadow-sm">
+                    <MessageCircle className="h-4 w-4" />
+                    {ui("advanceRequest")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logEmployeeChatViewport("before-open-button");
+                      setChatOpen(true);
+                    }}
+                    className="inline-flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl bg-slate-950 px-2 text-[11px] font-black text-white shadow-sm"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    {ui("talkToManagement")}
+                  </button>
+                </div>
 
                 <section className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
                   <div className="flex items-start justify-between gap-3">
@@ -2172,10 +2186,32 @@ export default function EmployeePayrollPortal() {
                   </div>
                   {portalNotice ? <div className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white" dir="auto">{portalNotice}</div> : null}
                 </section>
+
+                {employeeNotifications.length ? (
+                  <div className="rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-black text-slate-950">آخر التنبيهات</h3>
+                      <button type="button" onClick={() => setActiveTab("notifications")} className="text-[11px] font-black text-emerald-700">{ui("notificationsTab")}</button>
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      {employeeNotifications.slice(0, 3).map((item) => (
+                        <button
+                          key={item.id || `${item.type}-${item.order_id}`}
+                          type="button"
+                          onClick={() => item.type === "commission_earned" ? setActiveTab("salary") : setActiveTab("notifications")}
+                          className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-start"
+                        >
+                          <div className="truncate text-sm font-black text-slate-900" dir="auto">{item.title}</div>
+                          <div className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-slate-600" dir="auto">{item.body}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : null}
 
-            <nav className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 mx-auto grid max-w-md grid-cols-5 gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur">
+            <nav className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 mx-auto grid max-w-md grid-cols-6 gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur">
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}
@@ -2474,7 +2510,22 @@ export default function EmployeePayrollPortal() {
               </div>
             </form> : null}
 
-            {activeTab === "salary" && payrollExists ? <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+            {activeTab === "wallet" ? <div className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
+              <div className="text-xs font-black text-slate-300">{ui("walletOnlyTab")}</div>
+              <div className="mt-2 text-3xl font-black tabular-nums" dir="ltr">{money(wallet.current_balance ?? wallet.current_net_salary ?? portal.net_salary ?? 0)}</div>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-black">
+                <div className="rounded-2xl bg-white/10 p-3">
+                  <div className="text-slate-300">{text.pendingCommissions}</div>
+                  <div className="mt-1 text-sm" dir="ltr">{money(wallet.pending_commissions || 0)}</div>
+                </div>
+                <div className="rounded-2xl bg-white/10 p-3">
+                  <div className="text-slate-300">{text.totalAdvances}</div>
+                  <div className="mt-1 text-sm" dir="ltr">{money(wallet.total_advances ?? portal.advances)}</div>
+                </div>
+              </div>
+            </div> : null}
+
+            {activeTab === "wallet" ? <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-base font-black">{text.timeline}</h3>
                 <ArrowUpCircle className="h-5 w-5 text-slate-400" />
