@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import db from "../database/db.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { normalizeWorkingDays } from "../utils/attendanceCalculator.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { createNotification } from "./notificationsService.js";
 import { listStaffTasks, updateStaffTaskStatus } from "./staffTasksService.js";
@@ -144,6 +145,48 @@ const monthBounds = (month = "", timeZone = "Africa/Cairo") => {
   const start = `${normalized}-01`;
   const end = new Date(Date.UTC(Number(normalized.slice(0, 4)), Number(normalized.slice(5, 7)), 0)).toISOString().slice(0, 10);
   return { month: normalized, start, end };
+};
+
+const weekdayCodes = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+const normalizeWorkingDayCodes = (workingDays) =>
+  normalizeWorkingDays(workingDays)
+    .map((day) => String(day || "").trim().toLowerCase().slice(0, 3))
+    .filter(Boolean);
+
+const countExpectedWorkingDays = ({ workingDays, periodStart, periodEnd }) => {
+  const days = new Set(normalizeWorkingDayCodes(workingDays));
+  if (!days.size) return 0;
+  const cursor = new Date(`${periodStart}T12:00:00Z`);
+  const end = new Date(`${periodEnd}T12:00:00Z`);
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime())) return 0;
+  let count = 0;
+  while (cursor <= end) {
+    if (days.has(weekdayCodes[cursor.getUTCDay()])) count += 1;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return count;
+};
+
+const normalizeShiftForPortal = (row = null) => {
+  if (!row) return null;
+  const workingDays = normalizeWorkingDayCodes(row.working_days);
+  const expectedHours = toNumber(row.expected_hours);
+  return {
+    id: row.id || null,
+    shift_name: row.shift_name || "",
+    shiftName: row.shift_name || "",
+    start_time: row.start_time || "",
+    startTime: row.start_time || "",
+    end_time: row.end_time || "",
+    endTime: row.end_time || "",
+    expected_hours: expectedHours,
+    expectedHours,
+    working_days: workingDays,
+    workingDays,
+    allowed_late_minutes: Number(row.allowed_late_minutes || 0),
+    overtime_after_minutes: Number(row.overtime_after_minutes || 0),
+  };
 };
 
 export const generateEmployeePortalToken = () => randomBytes(tokenBytes).toString("hex");
@@ -459,7 +502,35 @@ const getRecentAdvances = async ({ tenantId, employeeId }) => {
   }
 };
 
-const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodEnd }) => {
+const getActiveEmployeeShift = async ({ tenantId, employeeId }) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT
+        id,
+        shift_name,
+        start_time::text AS start_time,
+        end_time::text AS end_time,
+        expected_hours,
+        allowed_late_minutes,
+        overtime_after_minutes,
+        working_days
+      FROM employee_shifts
+      WHERE employee_id::text = $1::text
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id DESC
+      LIMIT 1
+      `,
+      [employeeId, tenantId]
+    );
+    return normalizeShiftForPortal(result.rows[0] || null);
+  } catch (error) {
+    debugEmployeePortal("[employee-portal] shift load failed", { employeeId, error: error?.message || error });
+    return null;
+  }
+};
+
+const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodEnd, currentShift = null }) => {
   try {
     const result = await db.query(
       `
@@ -479,6 +550,11 @@ const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodE
       [employeeId, tenantId, periodStart, periodEnd]
     );
     const row = result.rows[0] || {};
+    const expectedWorkingDays = countExpectedWorkingDays({
+      workingDays: currentShift?.working_days || currentShift?.workingDays || [],
+      periodStart,
+      periodEnd,
+    });
     return {
       records_count: Number(row.records_count || 0),
       attended_days: Number(row.attended_days || 0),
@@ -487,6 +563,7 @@ const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodE
       missing_checkout_days: Number(row.missing_checkout_days || 0),
       overtime_hours: Number(((Number(row.overtime_minutes || 0)) / 60).toFixed(2)),
       late_minutes: Number(row.late_minutes || 0),
+      expected_working_days: expectedWorkingDays,
       period_start: periodStart,
       period_end: periodEnd,
     };
@@ -499,13 +576,18 @@ const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodE
       missing_checkout_days: 0,
       overtime_hours: 0,
       late_minutes: 0,
+      expected_working_days: countExpectedWorkingDays({
+        workingDays: currentShift?.working_days || currentShift?.workingDays || [],
+        periodStart,
+        periodEnd,
+      }),
       period_start: periodStart,
       period_end: periodEnd,
     };
   }
 };
 
-const getAttendanceTimeline = async ({ tenantId, employeeId, periodStart, periodEnd }) => {
+const getAttendanceTimeline = async ({ tenantId, employeeId, periodStart, periodEnd, currentShift = null }) => {
   try {
     const result = await db.query(
       `
@@ -522,7 +604,9 @@ const getAttendanceTimeline = async ({ tenantId, employeeId, periodStart, period
         COALESCE(al.resolved_shift_end_time::text, s.end_time::text, '') AS resolved_shift_end_time,
         COALESCE(s.shift_name, '') AS shift_name
       FROM attendance_logs al
-      LEFT JOIN employee_shifts s ON s.id = COALESCE(al.selected_shift_id, al.shift_id)
+      LEFT JOIN employee_shifts s
+        ON s.id = COALESCE(al.selected_shift_id, al.shift_id)
+       AND s.employee_id::text = al.employee_id::text
       WHERE al.employee_id::text = $1::text
         AND ($2::bigint IS NULL OR al.tenant_id = $2::bigint)
         AND al.attendance_date BETWEEN $3::date AND $4::date
@@ -541,9 +625,9 @@ const getAttendanceTimeline = async ({ tenantId, employeeId, periodStart, period
       notes: row.notes || "",
       selected_shift_id: row.selected_shift_id || null,
       shift_id: row.selected_shift_id || null,
-      shift_name: row.shift_name || "",
-      resolved_shift_start_time: row.resolved_shift_start_time || "",
-      resolved_shift_end_time: row.resolved_shift_end_time || "",
+      shift_name: row.shift_name || currentShift?.shift_name || currentShift?.shiftName || "",
+      resolved_shift_start_time: row.resolved_shift_start_time || currentShift?.start_time || currentShift?.startTime || "",
+      resolved_shift_end_time: row.resolved_shift_end_time || currentShift?.end_time || currentShift?.endTime || "",
     }));
   } catch {
     return [];
@@ -1169,9 +1253,10 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
   const snapshot = payrollRun?.snapshot && typeof payrollRun.snapshot === "object" ? payrollRun.snapshot : {};
   const attendanceSnapshot = snapshot.attendance_deductions || {};
   startedAt = nowMs();
-  const [recentAdvances, pendingCommissions] = await Promise.all([
+  const [recentAdvances, pendingCommissions, currentShift] = await Promise.all([
     getRecentAdvances({ tenantId: employee.tenant_id, employeeId: employee.id }),
     getPendingCommissionsTotal({ tenantId: employee.tenant_id, employeeId: employee.id }),
+    getActiveEmployeeShift({ tenantId: employee.tenant_id, employeeId: employee.id }),
   ]);
   recordTiming(timings, "payroll_related_ms", startedAt);
 
@@ -1181,12 +1266,14 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     employeeId: employee.id,
     periodStart: bounds.start,
     periodEnd: bounds.end,
+    currentShift,
   });
   const attendanceTimeline = await getAttendanceTimeline({
     tenantId: employee.tenant_id,
     employeeId: employee.id,
     periodStart: bounds.start,
     periodEnd: bounds.end,
+    currentShift,
   });
   recordTiming(timings, "attendance_summary_ms", startedAt);
 
@@ -1285,13 +1372,31 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       branch: employee.branch_name || "",
       photo_url: "",
       avatar_initials: clean(employee.full_name).split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(),
+      currentShift,
+      shiftName: currentShift?.shiftName || "",
+      startTime: currentShift?.startTime || "",
+      endTime: currentShift?.endTime || "",
+      expectedHours: currentShift?.expectedHours || 0,
+      workingDays: currentShift?.workingDays || [],
     },
     employee: {
       name: employee.full_name,
       code: employee.employee_code,
       branch: employee.branch_name || "",
       job_title: employee.job_title || employee.position || "",
+      currentShift,
+      shiftName: currentShift?.shiftName || "",
+      startTime: currentShift?.startTime || "",
+      endTime: currentShift?.endTime || "",
+      expectedHours: currentShift?.expectedHours || 0,
+      workingDays: currentShift?.workingDays || [],
     },
+    currentShift,
+    shiftName: currentShift?.shiftName || "",
+    startTime: currentShift?.startTime || "",
+    endTime: currentShift?.endTime || "",
+    expectedHours: currentShift?.expectedHours || 0,
+    workingDays: currentShift?.workingDays || [],
     wallet_summary: walletSummary,
     recent_wallet_transactions: recentWalletTransactions,
     payslip,
@@ -1341,7 +1446,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       absence_days: toNumber(snapshot.absence_days, toNumber(attendanceSnapshot.absence_days, attendanceSummary.absence_days)),
       missing_hours: toNumber(snapshot.missing_hours, toNumber(attendanceSnapshot.missing_hours)),
       late_hours: toNumber(snapshot.late_hours, toNumber(attendanceSnapshot.late_hours)),
-      expected_working_days: toNumber(snapshot.expected_working_days, toNumber(attendanceSnapshot.expected_working_days)),
+      expected_working_days: toNumber(attendanceSummary.expected_working_days, toNumber(snapshot.expected_working_days, toNumber(attendanceSnapshot.expected_working_days))),
     },
   };
 };
