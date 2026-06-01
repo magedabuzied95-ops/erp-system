@@ -886,7 +886,7 @@ export default function EmployeePayrollPortal() {
         if (!active) return;
         setPortal(response.portal || null);
         if (response.portal && isBrowser()) {
-          window.localStorage?.setItem("employee_portal_last_url", `${window.location.pathname}${window.location.search}`);
+          window.localStorage?.setItem("employee_portal_last_url", `/employee-app/${encodeURIComponent(token)}${window.location.search}`);
         }
         setOptionalLoaded(false);
         setPortalNotice("");
@@ -1082,7 +1082,7 @@ export default function EmployeePayrollPortal() {
       });
       await api.post(`/employee-portal/${encodeURIComponent(token)}/push/subscribe`, {
         subscription: subscription.toJSON(),
-        portal_url: window.location.href,
+        portal_url: `${window.location.origin}/employee-app/${encodeURIComponent(token)}${window.location.search}`,
       });
       setNotificationState("granted");
       setNotificationMessage("الإشعارات مفعلة");

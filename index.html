@@ -17,10 +17,11 @@
           var standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
           var lastEmployeePortalUrl = window.localStorage && window.localStorage.getItem("employee_portal_last_url");
           if (standalone && (path === "/" || path === "/login") && lastEmployeePortalUrl) {
+            lastEmployeePortalUrl = lastEmployeePortalUrl.replace("/employee-portal/", "/employee-app/");
             window.location.replace(lastEmployeePortalUrl);
             return;
           }
-          var match = path.match(/^\/employee-portal\/([^/?#]+)/);
+          var match = path.match(/^\/employee-(?:portal|app)\/([^/?#]+)/);
           if (!match) return;
           var token = match[1];
           var manifest = document.querySelector('link[rel="manifest"]') || document.createElement("link");
@@ -31,7 +32,7 @@
           appleTitle.setAttribute("name", "apple-mobile-web-app-title");
           appleTitle.setAttribute("content", "الموظف");
           if (!appleTitle.parentNode) document.head.appendChild(appleTitle);
-          window.localStorage && window.localStorage.setItem("employee_portal_last_url", path + window.location.search);
+          window.localStorage && window.localStorage.setItem("employee_portal_last_url", "/employee-app/" + encodeURIComponent(token) + window.location.search);
         } catch (error) {
           // PWA fallback must never block app startup.
         }

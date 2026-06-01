@@ -39,7 +39,7 @@ const shouldSend = (map, key, cooldownMs) => {
 };
 
 const portalNotificationUrl = (url = "", portalUrl = "", tab = "") => {
-  const base = text(url) || text(portalUrl) || "/";
+  const base = (text(url) || text(portalUrl) || "/employee-app/").replace("/employee-portal/", "/employee-app/");
   const safeTab = text(tab);
   if (!safeTab) return base;
   try {

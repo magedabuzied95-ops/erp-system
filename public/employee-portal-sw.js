@@ -85,10 +85,10 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const data = event.notification.data || {};
-  const url = data.url || (data.token ? `/employee-portal/${encodeURIComponent(data.token)}${data.tab ? `?tab=${encodeURIComponent(data.tab)}` : ""}` : "/employee-portal/");
+  const url = data.url || (data.token ? `/employee-app/${encodeURIComponent(data.token)}${data.tab ? `?tab=${encodeURIComponent(data.tab)}` : ""}` : "/employee-app/");
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      const existing = clients.find((client) => client.url.includes("/employee/portal/") || client.url.includes("/employee-portal/"));
+      const existing = clients.find((client) => client.url.includes("/employee-app/") || client.url.includes("/employee-portal/") || client.url.includes("/employee/portal/"));
       if (existing) {
         existing.navigate?.(url);
         return existing.focus();

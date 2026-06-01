@@ -146,6 +146,7 @@ const EmployeeTopPerformers = lazy(() => import("./modules/employees/pages/TopPe
 const EmployeeShiftAnalytics = lazy(() => import("./modules/employees/pages/ShiftAnalytics"));
 const StaffTasks = lazy(() => import("./modules/employees/pages/StaffTasks"));
 const EmployeePortal = lazy(() => import("./modules/employees/pages/EmployeePortal"));
+const EmployeeAppShell = lazy(() => import("./modules/employees/pages/EmployeeAppShell"));
 const EmployeePayrollPortal = lazy(() => import("./modules/employees/pages/EmployeePayrollPortal"));
 const AttendanceDashboard = lazy(() => import("./modules/attendance/pages/AttendanceDashboard"));
 const AttendanceEmployees = lazy(() => import("./modules/attendance/pages/EmployeesAttendance"));
@@ -224,8 +225,10 @@ function RouteSkeleton() {
 
 function App() {
   useTranslation();
+  const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
 
   useEffect(() => {
+    if (isEmployeeAppRoute) return undefined;
     let cancelled = false;
     api.get("/settings/public", { suppressErrorStatuses: [401, 403, 404, 500] })
       .then((response) => {
@@ -239,7 +242,20 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isEmployeeAppRoute]);
+
+  if (isEmployeeAppRoute) {
+    return (
+      <DebugErrorBoundary title="Employee app screen crashed">
+        <Suspense fallback={<RouteSkeleton />}>
+          <Routes>
+            <Route path="/employee-app/:token" element={<EmployeeAppShell />} />
+            <Route path="*" element={<Navigate to={window.location.pathname + window.location.search} replace />} />
+          </Routes>
+        </Suspense>
+      </DebugErrorBoundary>
+    );
+  }
 
   return (
     <TenantProvider>
@@ -309,6 +325,11 @@ function App() {
       <Route
         path="/employee-portal/:token"
         element={<EmployeePayrollPortal />}
+      />
+
+      <Route
+        path="/employee-app/:token"
+        element={<EmployeeAppShell />}
       />
 
       <Route
