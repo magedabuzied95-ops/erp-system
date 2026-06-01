@@ -517,6 +517,37 @@ app.get("/api/health", async (req, res) => {
   res.status(200).json(healthPayload());
 });
 
+app.get("/api/debug/pwa", (req, res) => {
+  const queryManifestHref = String(req.query.manifestHref || "");
+  const currentPath =
+    String(req.query.currentPath || "") ||
+    (() => {
+      try {
+        const referer = req.get("referer") || "";
+        if (!referer) return "";
+        const url = new URL(referer);
+        return `${url.pathname}${url.search}`;
+      } catch {
+        return "";
+      }
+    })();
+
+  const tokenMatch = queryManifestHref.match(/\/api\/employee-portal\/([^/?#]+)\/manifest\.webmanifest/);
+  const token = tokenMatch ? decodeURIComponent(tokenMatch[1]) : "";
+  const manifestStartUrl =
+    String(req.query.manifestStartUrl || "") || (token ? `/employee-app/${encodeURIComponent(token)}?source=pwa` : "");
+  const manifestScope = String(req.query.manifestScope || "") || (token ? "/employee-app/" : "");
+
+  res.status(200).json({
+    currentPath,
+    manifestHref: queryManifestHref,
+    manifestStartUrl,
+    manifestScope,
+    standalone: String(req.query.standalone || "false") === "true",
+    employeePortalLastUrl: String(req.query.employeePortalLastUrl || ""),
+  });
+});
+
 const resolveFrontendOrigin = (req) => {
   const envOrigin = String(
     process.env.PUBLIC_APP_URL ||

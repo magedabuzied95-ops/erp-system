@@ -3,7 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="manifest" href="/manifest.webmanifest?v=global" />
     <meta name="theme-color" content="#0f172a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="الموظف" />
@@ -21,18 +20,26 @@
             window.location.replace(lastEmployeePortalUrl);
             return;
           }
-          var match = path.match(/^\/employee-(?:portal|app)\/([^/?#]+)/);
-          if (!match) return;
-          var token = match[1];
-          var manifest = document.querySelector('link[rel="manifest"]') || document.createElement("link");
+          var existingManifests = Array.prototype.slice.call(document.querySelectorAll('link[rel="manifest"]'));
+          existingManifests.forEach(function (item) {
+            item.parentNode && item.parentNode.removeChild(item);
+          });
+          var manifest = document.createElement("link");
           manifest.setAttribute("rel", "manifest");
-          manifest.setAttribute("href", "/api/employee-portal/" + encodeURIComponent(token) + "/manifest.webmanifest?v=" + encodeURIComponent(token));
-          if (!manifest.parentNode) document.head.appendChild(manifest);
+          var match = path.match(/^\/employee-(?:portal|app)\/([^/?#]+)/);
+          if (match) {
+            var token = match[1];
+            manifest.setAttribute("href", "/api/employee-portal/" + encodeURIComponent(token) + "/manifest.webmanifest?v=" + encodeURIComponent(token));
+            window.localStorage && window.localStorage.setItem("employee_portal_last_url", "/employee-app/" + encodeURIComponent(token) + window.location.search);
+          } else {
+            manifest.setAttribute("href", "/manifest.webmanifest?v=global");
+          }
+          document.head.appendChild(manifest);
+          if (!match) return;
           var appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]') || document.createElement("meta");
           appleTitle.setAttribute("name", "apple-mobile-web-app-title");
           appleTitle.setAttribute("content", "الموظف");
           if (!appleTitle.parentNode) document.head.appendChild(appleTitle);
-          window.localStorage && window.localStorage.setItem("employee_portal_last_url", "/employee-app/" + encodeURIComponent(token) + window.location.search);
         } catch (error) {
           // PWA fallback must never block app startup.
         }
