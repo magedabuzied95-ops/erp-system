@@ -825,6 +825,14 @@ export default function EmployeePayrollPortal() {
   }, [token, language]);
 
   const wallet = portal?.wallet_summary || {};
+  const payrollExists = Boolean(
+    wallet?.payroll_id ||
+    wallet?.payroll_status === "generated" ||
+    wallet?.payroll_status === "paid" ||
+    portal?.payroll_id ||
+    portal?.payroll_status === "generated" ||
+    portal?.payroll_status === "paid"
+  );
   const payrollStatusValue = payrollExists ? (wallet.payroll_status || portal?.payment_status) : "not_generated";
   const profile = portal?.employee_profile || portal?.employee || {};
   const attendance = portal?.attendance?.summary || portal?.recent_attendance_summary || {};
