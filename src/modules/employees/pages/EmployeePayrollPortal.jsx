@@ -1015,8 +1015,6 @@ export default function EmployeePayrollPortal() {
   const recordingTimerRef = useRef(null);
   const chatSwipeRef = useRef({ id: null, startX: 0, startY: 0, active: false });
   const { viewportHeight } = useViewportHeight();
-  const [chatHeaderHeight, setChatHeaderHeight] = useState(0);
-  const [chatComposerHeight, setChatComposerHeight] = useState(0);
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
@@ -1229,14 +1227,11 @@ export default function EmployeePayrollPortal() {
   );
   const chatMessagesStyle = useMemo(
     () => ({
-      height: chatHeaderHeight && chatComposerHeight
-        ? `calc(100dvh - ${chatHeaderHeight + chatComposerHeight}px)`
-        : undefined,
       backgroundColor: "#0b141a",
       backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.055) 1px, transparent 0), linear-gradient(135deg, rgba(20,184,166,0.035), transparent 35%, rgba(15,23,42,0.18))",
       backgroundSize: "18px 18px, 100% 100%",
     }),
-    [chatComposerHeight, chatHeaderHeight]
+    []
   );
 
   useEffect(() => {
@@ -1510,10 +1505,6 @@ export default function EmployeePayrollPortal() {
 
   const keepChatInputVisible = useCallback(() => {
     window.setTimeout(() => {
-      const activeElement = document.activeElement;
-      if (activeElement && chatComposerRef.current?.contains(activeElement)) {
-        activeElement.scrollIntoView({ block: "nearest", inline: "nearest" });
-      }
       if (chatMessagesRef.current) {
         chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
       }
@@ -1545,29 +1536,14 @@ export default function EmployeePayrollPortal() {
 
   useEffect(() => {
     if (!chatOpen) return undefined;
-    const updateChromeHeights = () => {
-      setChatHeaderHeight(Math.ceil(chatHeaderRef.current?.getBoundingClientRect?.().height || 0));
-      setChatComposerHeight(Math.ceil(chatComposerRef.current?.getBoundingClientRect?.().height || 0));
-    };
     const logKeyboardViewport = () => logEmployeeChatViewport("while-keyboard-or-viewport-resize");
-    updateChromeHeights();
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateChromeHeights) : null;
-    if (observer) {
-      if (chatHeaderRef.current) observer.observe(chatHeaderRef.current);
-      if (chatComposerRef.current) observer.observe(chatComposerRef.current);
-    }
-    window.addEventListener("orientationchange", updateChromeHeights);
-    window.visualViewport?.addEventListener("resize", updateChromeHeights);
     window.visualViewport?.addEventListener("resize", logKeyboardViewport);
     window.addEventListener("resize", logKeyboardViewport);
     return () => {
-      observer?.disconnect();
-      window.removeEventListener("orientationchange", updateChromeHeights);
-      window.visualViewport?.removeEventListener("resize", updateChromeHeights);
       window.visualViewport?.removeEventListener("resize", logKeyboardViewport);
       window.removeEventListener("resize", logKeyboardViewport);
     };
-  }, [chatOpen, viewportHeight]);
+  }, [chatOpen]);
 
   useEffect(() => {
     if (!chatOpen) return undefined;
@@ -2475,9 +2451,9 @@ export default function EmployeePayrollPortal() {
         </div>
       ) : null}
       {chatOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end overflow-hidden bg-slate-950/70 p-0 sm:items-center sm:p-4">
-          <section className="flex w-full flex-col overflow-hidden rounded-t-3xl border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:mx-auto sm:max-w-md sm:rounded-3xl" style={chatPanelStyle} dir={direction}>
-            <div ref={chatHeaderRef} className="sticky top-0 z-10 shrink-0 bg-[#0b141a] pt-[env(safe-area-inset-top)]">
+        <div className="fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950/70 p-0">
+          <section className="mx-auto flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:max-w-md" style={chatPanelStyle} dir={direction}>
+            <div ref={chatHeaderRef} className="sticky top-0 z-30 flex-none bg-[#0b141a] pt-[env(safe-area-inset-top)]">
               <header className="flex min-h-14 items-center justify-between gap-2 border-b border-white/10 bg-[#1f2c33] px-3 py-2">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
                   <UserRound className="h-4 w-4" />
@@ -2548,7 +2524,7 @@ export default function EmployeePayrollPortal() {
                 </button>
               ) : null}
             </div>
-            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="sticky bottom-0 z-10 shrink-0 border-t border-white/10 bg-[#1f2c33] px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-1.5">
+            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="relative z-30 flex-none border-t border-white/10 bg-[#1f2c33] px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-1.5">
               {replyToChat ? (
                 <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-white/10 px-2.5 py-1.5 text-[11px] font-bold leading-4 text-white">
                   <button type="button" onClick={() => scrollToChatMessage(replyToChat.id)} className="min-w-0 flex-1 border-r-2 border-emerald-300 pr-2 text-start">
