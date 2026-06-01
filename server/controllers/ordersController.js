@@ -2472,8 +2472,8 @@ export const createOrder = async (req, res) => {
     const requestedInvoiceDiscountAmount = Math.max(0, Number(invoice_discount_amount || 0) || 0);
     const maxInvoiceDiscountAmount = computedSubtotal;
     const computedInvoiceDiscountAmount = normalizedInvoiceDiscountType === "percentage"
-      ? money(computedSubtotal * (Math.min(100, invoiceDiscountValue) / 100))
-      : money(invoiceDiscountValue);
+      ? normalizeInvoiceMoney(computedSubtotal * (Math.min(100, invoiceDiscountValue) / 100))
+      : normalizeInvoiceMoney(invoiceDiscountValue);
     const normalizedInvoiceDiscountAmount = Math.min(
       maxInvoiceDiscountAmount,
       requestedInvoiceDiscountAmount > 0 ? requestedInvoiceDiscountAmount : computedInvoiceDiscountAmount
@@ -2881,6 +2881,14 @@ export const createOrder = async (req, res) => {
         amount: Number(receivedAmount || 0),
       });
     }
+    console.info("[orders:payment-normalized]", {
+      payment_method: normalizedSalePaymentMethod || payment_method || "cash",
+      payment_status: payment_status || "unpaid",
+      paid_amount: normalizeInvoiceMoney(receivedAmount),
+      remaining_amount: normalizeInvoiceMoney(Math.max(0, computedTotal - receivedAmount)),
+      split_payments: Array.isArray(paymentBreakdown) ? paymentBreakdown.length : 0,
+      money_account_id: financial_account_id || cash_financial_account_id || card_financial_account_id || wallet_financial_account_id || null,
+    });
     const paymentBreakdownResult = await timedCheckout(checkoutTiming, "payment_breakdown_ms", () => client.query(
       `
       UPDATE orders
@@ -4827,8 +4835,8 @@ export const editOrder = async (req, res) => {
     const invoiceDiscountValue = Math.max(0, Number(req.body.invoice_discount_value || 0) || 0);
     const requestedInvoiceDiscountAmount = Math.max(0, Number(req.body.invoice_discount_amount || 0) || 0);
     const computedInvoiceDiscountAmount = invoiceDiscountType === "percentage"
-      ? money(subtotalValue * (Math.min(100, invoiceDiscountValue) / 100))
-      : money(invoiceDiscountValue);
+      ? normalizeInvoiceMoney(subtotalValue * (Math.min(100, invoiceDiscountValue) / 100))
+      : normalizeInvoiceMoney(invoiceDiscountValue);
     if (invoiceDiscountValue > 0 && invoiceDiscountType === "percentage" && invoiceDiscountValue > 100) {
       await client.query("ROLLBACK");
       return res.status(400).json({ success: false, message: "Invoice discount percentage cannot exceed 100%" });
