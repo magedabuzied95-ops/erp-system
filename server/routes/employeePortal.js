@@ -135,6 +135,30 @@ const loadVerifiedEmployee = async (req, res) => {
   return employee;
 };
 
+router.get("/:token/chat", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const chat = await getEmployeeChat({ employee });
+    return res.json({ success: true, ...chat });
+  } catch (error) {
+    console.error("[employee-payroll-portal] chat load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load chat" });
+  }
+});
+
+router.post("/:token/chat/messages", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const result = await sendEmployeeChatMessage({ employee, body: req.body?.body || req.body?.message || "" });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    console.error("[employee-payroll-portal] chat message error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send message" });
+  }
+});
+
 router.get("/:token", async (req, res) => {
   const totalStartedAt = nowMs();
   const timings = {};
@@ -212,30 +236,6 @@ router.post("/:token/requests", async (req, res) => {
     logPortalPerf("POST /api/employee-portal/:token/requests", timings, { requestId: req.id, failed: true });
     console.error("[employee-payroll-portal] request create error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to create request" });
-  }
-});
-
-router.get("/:token/chat", async (req, res) => {
-  try {
-    const employee = await loadVerifiedEmployee(req, res);
-    if (!employee) return;
-    const chat = await getEmployeeChat({ employee });
-    return res.json({ success: true, ...chat });
-  } catch (error) {
-    console.error("[employee-payroll-portal] chat load error", error);
-    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load chat" });
-  }
-});
-
-router.post("/:token/chat/messages", async (req, res) => {
-  try {
-    const employee = await loadVerifiedEmployee(req, res);
-    if (!employee) return;
-    const result = await sendEmployeeChatMessage({ employee, body: req.body?.body || req.body?.message || "" });
-    return res.status(201).json({ success: true, ...result });
-  } catch (error) {
-    console.error("[employee-payroll-portal] chat message error", error);
-    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send message" });
   }
 });
 

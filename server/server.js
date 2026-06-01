@@ -659,6 +659,10 @@ console.log("[server] Employee routes mounted", {
   prefix: "/api/employees",
   routeCount: registeredEmployeeEndpoints.length,
   hasPortalTokenRegenerate: registeredEmployeeEndpoints.includes("POST /api/employees/:employeeId/portal-token/regenerate"),
+  hasEmployeeChatThreads: registeredEmployeeEndpoints.includes("GET /api/employees/chat/threads"),
+  hasEmployeeChatThreadDetail: registeredEmployeeEndpoints.includes("GET /api/employees/chat/threads/:threadId"),
+  hasEmployeeChatSend: registeredEmployeeEndpoints.includes("POST /api/employees/chat/threads/:threadId/messages"),
+  hasEmployeeChatRead: registeredEmployeeEndpoints.includes("PATCH /api/employees/chat/threads/:threadId/read"),
   routes: registeredEmployeeEndpoints,
 });
 app.use("/api", employeePenaltyRoutes);
@@ -694,6 +698,14 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/staff-tasks", staffTasksRoutes);
 app.use("/api/employee/portal", employeePortalRoutes);
 app.use("/api/employee-portal", employeePortalRoutes);
+const registeredEmployeePortalEndpoints = collectRouterEndpoints(employeePortalRoutes, "/api/employee-portal");
+console.log("[server] Employee portal routes mounted", {
+  prefix: "/api/employee-portal",
+  routeCount: registeredEmployeePortalEndpoints.length,
+  hasEmployeeChat: registeredEmployeePortalEndpoints.includes("GET /api/employee-portal/:token/chat"),
+  hasEmployeeChatSend: registeredEmployeePortalEndpoints.includes("POST /api/employee-portal/:token/chat/messages"),
+  routes: registeredEmployeePortalEndpoints,
+});
 app.use("/api/admin/staff-tasks", adminStaffTasksRoutes);
 console.log("[routes] /api/roles mounted");
 console.log("[server] marketing automation routes mounted");
