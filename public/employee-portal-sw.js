@@ -171,9 +171,11 @@ self.addEventListener("push", (event) => {
       tag: "employee-chat",
       data: { url: payload.url || payload.data?.url || "/employee-app/?tab=chat", tag: "employee-chat" },
     };
+    options.body = payload.body || "\u0644\u062f\u064a\u0643 \u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629 \u0645\u0646 \u0627\u0644\u0625\u062f\u0627\u0631\u0629";
   }
 
   const badgeTag = payload.data?.tag || payload.tag || "employee-portal";
+  const notificationTitle = badgeTag === "employee-chat" ? payload.title || "\u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629" : title;
   const broadcastBadge = () =>
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       clients.forEach((client) => {
@@ -186,7 +188,7 @@ self.addEventListener("push", (event) => {
     });
 
   event.waitUntil(Promise.all([
-    self.registration.showNotification(title, options),
+    self.registration.showNotification(notificationTitle, options),
     incrementBadgeForTag(badgeTag),
     broadcastBadge(),
   ]));

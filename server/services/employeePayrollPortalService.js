@@ -283,6 +283,36 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_push_subscriptions ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_push_subscriptions_employee ON employee_push_subscriptions (employee_id, is_active, last_seen_at DESC)`);
   await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS employee_portal_notifications (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NULL,
+      employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      type VARCHAR(120) NOT NULL,
+      order_id BIGINT NULL,
+      invoice_number VARCHAR(160) NULL,
+      amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      action_url TEXT NULL,
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      read_at TIMESTAMP NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS order_id BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(160) NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS action_url TEXT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+  await clientOrPool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_portal_notifications_order_type
+    ON employee_portal_notifications (tenant_id, employee_id, order_id, type)
+    WHERE order_id IS NOT NULL
+  `);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_notifications_employee_created ON employee_portal_notifications (tenant_id, employee_id, created_at DESC)`);
+  await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_advances (
       id BIGSERIAL PRIMARY KEY,
       tenant_id BIGINT NULL,
@@ -1243,6 +1273,146 @@ const getWalletTransactions = async ({ tenantId, employeeId, payrollRun, recentA
     .slice(0, 20);
 };
 
+const normalizeEmployeePortalNotification = (row = {}) => ({
+  id: row.id,
+  type: row.type,
+  employee_id: row.employee_id,
+  order_id: row.order_id,
+  invoice_number: row.invoice_number || "",
+  amount: toNumber(row.amount),
+  title: row.title || "",
+  body: row.body || "",
+  action_url: row.action_url || "",
+  metadata: row.metadata || {},
+  created_at: row.created_at,
+  read_at: row.read_at || null,
+});
+
+const getEmployeePortalNotifications = async ({ tenantId, employeeId, limit = 20 } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const result = await db.query(
+    `
+    SELECT id, type, employee_id, order_id, invoice_number, amount, title, body, action_url, metadata, created_at, read_at
+    FROM employee_portal_notifications
+    WHERE tenant_id = $1
+      AND employee_id = $2
+    ORDER BY created_at DESC, id DESC
+    LIMIT $3
+    `,
+    [tenantId, employeeId, Math.max(1, Math.min(50, Number(limit || 20)))]
+  );
+  return result.rows.map(normalizeEmployeePortalNotification);
+};
+
+const resolveEmployeePortalNotificationUrl = async (clientOrPool, { tenantId, employeeId, actionUrl = "", tab = "salary" } = {}) => {
+  const fallback = `/employee-app/?tab=${encodeURIComponent(tab || "salary")}`;
+  const requested = clean(actionUrl);
+  if (requested && !requested.startsWith("/employee-app/?") && !requested.endsWith("/employee-app/")) return requested;
+  const result = await clientOrPool.query(
+    `
+    SELECT employee_portal_token
+    FROM employees
+    WHERE id = $1
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+    LIMIT 1
+    `,
+    [employeeId, tenantId || null]
+  );
+  const token = clean(result.rows[0]?.employee_portal_token);
+  if (!token) return requested || fallback;
+  return `/employee-app/${encodeURIComponent(token)}?tab=${encodeURIComponent(tab || "salary")}`;
+};
+
+export const createEmployeePortalNotification = async ({
+  clientOrPool = db,
+  tenantId,
+  employeeId,
+  type,
+  orderId = null,
+  invoiceNumber = "",
+  amount = 0,
+  title,
+  body,
+  actionUrl = "",
+  metadata = {},
+  push = true,
+} = {}) => {
+  if (!tenantId || !employeeId || !type || !title) return null;
+  await ensureEmployeePayrollPortalSchema(clientOrPool);
+  const resolvedActionUrl = await resolveEmployeePortalNotificationUrl(clientOrPool, {
+    tenantId,
+    employeeId,
+    actionUrl,
+    tab: metadata?.tab || "salary",
+  });
+  if (orderId) {
+    const duplicate = await clientOrPool.query(
+      `
+      SELECT id, type, employee_id, order_id, invoice_number, amount, title, body, action_url, metadata, created_at, read_at
+      FROM employee_portal_notifications
+      WHERE employee_id = $1
+        AND order_id = $2
+        AND type = $3
+        AND ($4::bigint IS NULL OR tenant_id = $4::bigint OR tenant_id IS NULL)
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [employeeId, orderId, type, tenantId || null]
+    );
+    if (duplicate.rows[0]) return normalizeEmployeePortalNotification(duplicate.rows[0]);
+  }
+  const result = await clientOrPool.query(
+    `
+    INSERT INTO employee_portal_notifications (
+      tenant_id, employee_id, type, order_id, invoice_number, amount, title, body, action_url, metadata
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
+    ON CONFLICT (tenant_id, employee_id, order_id, type) WHERE order_id IS NOT NULL DO NOTHING
+    RETURNING id, type, employee_id, order_id, invoice_number, amount, title, body, action_url, metadata, created_at, read_at
+    `,
+    [
+      tenantId,
+      employeeId,
+      type,
+      orderId || null,
+      clean(invoiceNumber),
+      toNumber(amount),
+      clean(title),
+      clean(body),
+      resolvedActionUrl,
+      JSON.stringify(metadata || {}),
+    ]
+  );
+  const notification = result.rows[0] ? normalizeEmployeePortalNotification(result.rows[0]) : null;
+  if (!notification) return null;
+
+  emitToRooms([`employee:${employeeId}`], "employee_portal:notification", {
+    notification,
+    badge: { tag: type, tab: metadata?.tab || "salary" },
+    at: new Date().toISOString(),
+  });
+
+  if (push) {
+    await sendEmployeePortalPush({
+      tenantId,
+      employeeId,
+      title: notification.title,
+      body: notification.body,
+      url: notification.action_url || "/employee-app/?tab=salary",
+      tag: metadata?.tag || type,
+      data: {
+        event: type,
+        tab: metadata?.tab || "salary",
+        order_id: orderId || null,
+        invoice_number: invoiceNumber || "",
+        amount: toNumber(amount),
+      },
+    }).catch((error) => debugEmployeePortal("[employee-portal-notification] push skipped", { employeeId, type, error: error?.message || error }));
+  }
+
+  return notification;
+};
+
 const getEmployeeWalletTasks = async ({ employee }) => {
   try {
     const tasks = await listStaffTasks(
@@ -1298,7 +1468,10 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
   recordTiming(timings, "attendance_summary_ms", startedAt);
 
   startedAt = nowMs();
-  const employeeRequests = await getPortalRequestsForEmployee({ tenantId: employee.tenant_id, employeeId: employee.id });
+  const [employeeRequests, employeeNotifications] = await Promise.all([
+    getPortalRequestsForEmployee({ tenantId: employee.tenant_id, employeeId: employee.id }),
+    getEmployeePortalNotifications({ tenantId: employee.tenant_id, employeeId: employee.id }),
+  ]);
   recordTiming(timings, "requests_ms", startedAt);
 
   startedAt = nowMs();
@@ -1428,6 +1601,8 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       timeline: attendanceTimeline,
     },
     employee_requests: employeeRequests,
+    notifications: employeeNotifications,
+    unread_notifications_count: employeeNotifications.filter((item) => !item.read_at).length,
     tasks,
     task_summary: {
       today: tasks.length,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
@@ -1169,6 +1169,7 @@ export default function EmployeePayrollPortal() {
   const attendance = portal?.attendance?.summary || portal?.recent_attendance_summary || {};
   const attendanceRows = safeArray(portal?.attendance?.timeline);
   const employeeRequests = safeArray(portal?.employee_requests);
+  const employeeNotifications = safeArray(portal?.notifications);
   const currentShift = portal?.currentShift || profile.currentShift || {};
   const ui = (key) => text[key] || labels.en[key] || key;
   const showInstallCard = !standalone && (Boolean(installPrompt) || isIosDevice());
@@ -1303,7 +1304,7 @@ export default function EmployeePayrollPortal() {
         ? "unreadChats"
         : ["task-assigned", "staff-task-update", "staff-task-overdue"].some((value) => tag.includes(value))
           ? "newTasks"
-          : ["advance-approved", "advance-rejected", "leave-approved", "leave-rejected"].includes(tag)
+          : ["advance-approved", "advance-rejected", "leave-approved", "leave-rejected", "commission-earned", "commission_earned"].includes(tag)
             ? "pendingNotifications"
             : "";
       if (!badgeType) return;
@@ -1342,17 +1343,33 @@ export default function EmployeePayrollPortal() {
       if (requestNoticeTimerRef.current) window.clearTimeout(requestNoticeTimerRef.current);
       requestNoticeTimerRef.current = window.setTimeout(() => setRequestRealtimeNotice(""), 4500);
     };
+    const onPortalNotification = (event = {}) => {
+      const notification = event.notification || event;
+      if (String(notification.employee_id || "") !== String(profile.id || "")) return;
+      const notice = notification.title || notification.body || "تنبيه جديد";
+      setRequestRealtimeNotice(notice);
+      setPortalNotice(notification.body || notice);
+      setBadgeCounts((current) => ({
+        ...current,
+        pendingNotifications: activeTab === "salary" ? 0 : Number(current.pendingNotifications || 0) + 1,
+      }));
+      loadPortalByToken({ silent: true, clearNotice: false });
+      if (requestNoticeTimerRef.current) window.clearTimeout(requestNoticeTimerRef.current);
+      requestNoticeTimerRef.current = window.setTimeout(() => setRequestRealtimeNotice(""), 4500);
+    };
 
     requestSocket.on("employee_portal:request_updated", onRequestUpdated);
+    requestSocket.on("employee_portal:notification", onPortalNotification);
     requestSocket.connect();
 
     return () => {
       requestSocket.off("employee_portal:request_updated", onRequestUpdated);
+      requestSocket.off("employee_portal:notification", onPortalNotification);
       requestSocket.disconnect();
       if (requestSocketRef.current === requestSocket) requestSocketRef.current = null;
       if (requestNoticeTimerRef.current) window.clearTimeout(requestNoticeTimerRef.current);
     };
-  }, [portal, token, profile.id, loadPortalByToken]);
+  }, [activeTab, portal, token, profile.id, loadPortalByToken]);
 
   const overviewCards = useMemo(() => {
     if (!portal) return [];
@@ -2066,6 +2083,34 @@ export default function EmployeePayrollPortal() {
               ) : null}
             </div>
 
+            {employeeNotifications.length ? (
+              <div className="rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-black text-slate-950">آخر التنبيهات</h3>
+                  <ReceiptText className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {employeeNotifications.slice(0, 3).map((item) => (
+                    <button
+                      key={item.id || `${item.type}-${item.order_id}`}
+                      type="button"
+                      onClick={() => item.type === "commission_earned" ? setActiveTab("salary") : null}
+                      className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-start"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-black text-slate-900" dir="auto">{item.title}</div>
+                          <div className="mt-1 text-xs font-bold leading-5 text-slate-600" dir="auto">{item.body}</div>
+                        </div>
+                        {!item.read_at ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" /> : null}
+                      </div>
+                      <div className="mt-1 text-[11px] font-bold text-slate-400" dir="ltr">{formatDateLocal(item.created_at, language)} {formatTimeLocal(item.created_at, language)}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {activeTab === "home" ? (
               <>
                 <div className="grid grid-cols-4 gap-2">
@@ -2622,3 +2667,4 @@ export default function EmployeePayrollPortal() {
     </main>
   );
 }
+

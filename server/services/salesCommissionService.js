@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { createEmployeePortalNotification } from "./employeePayrollPortalService.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { ensureForeignKeyConstraint } from "../utils/schemaConstraints.js";
@@ -1426,6 +1427,21 @@ const calculateLineCommission = ({ lineAmount = 0, quantity = 0, commissionType 
   return { amount: commissionValue, fixedApplied: true };
 };
 
+const formatCommissionAmount = (value = 0) =>
+  Number(toNumber(value).toFixed(2)).toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+
+const orderCreatedDate = (order = {}) => {
+  const value = order.created_at || order.order_date || order.date || new Date();
+  try {
+    return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
+  } catch {
+    return "";
+  }
+};
+
 export const recordSalesCommissionForOrder = async (client, { tenantId = null, order = {}, items = [], createdBy = null } = {}) => {
   const salespersonId = order.sales_employee_id || order.salesperson_id || null;
   if (!salespersonId || ["cancelled", "canceled", "void"].includes(String(order.status || "").toLowerCase())) {
@@ -1497,6 +1513,42 @@ export const recordSalesCommissionForOrder = async (client, { tenantId = null, o
       ]
     );
     rows.push(insert.rows[0]);
+  }
+
+  if (rows.length > 0 && totalCommission > 0) {
+    const invoiceNumber = order.invoice_number || order.public_order_number || order.order_number || String(order.id || "");
+    const orderTotal = toNumber(order.total_amount ?? order.total ?? order.grand_total ?? 0);
+    const notification = await createEmployeePortalNotification({
+      clientOrPool: client,
+      tenantId,
+      employeeId: salespersonId,
+      type: "commission_earned",
+      orderId: order.id || null,
+      invoiceNumber,
+      amount: totalCommission,
+      title: "تم إضافة عمولة جديدة",
+      body: `تم إضافة عمولة بقيمة EGP ${formatCommissionAmount(totalCommission)} على فاتورة رقم ${invoiceNumber}`,
+      actionUrl: "/employee-app/?tab=salary",
+      metadata: {
+        tab: "salary",
+        tag: "commission-earned",
+        order_id: order.id || null,
+        invoice_number: invoiceNumber,
+        order_total: orderTotal,
+        order_date: order.created_at || null,
+        reason: `Sale ${formatCommissionAmount(orderTotal)} - ${orderCreatedDate(order)}`,
+        commission_row_ids: rows.map((row) => row.id),
+      },
+    });
+    if (notification) {
+      console.info("[employee-commission-notification:created]", {
+        employee_id: salespersonId,
+        order_id: order.id || null,
+        invoice_number: invoiceNumber,
+        amount: totalCommission,
+        notification_id: notification.id,
+      });
+    }
   }
 
   return { recorded: rows.length > 0, totalCommission, rows };

@@ -1,4 +1,4 @@
-import db from "../database/db.js";
+﻿import db from "../database/db.js";
 import { ensureEmployeePayrollPortalSchema } from "./employeePayrollPortalService.js";
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 import { createNotification } from "./notificationsService.js";
@@ -40,34 +40,67 @@ const messageSelect = `
 const attachmentLabelSql = (alias = "m") => `
   CASE
     WHEN NULLIF(TRIM(${alias}.body), '') IS NOT NULL THEN ${alias}.body
-    WHEN ${alias}.attachment_type = 'image' THEN 'صورة'
-    WHEN ${alias}.attachment_type = 'audio' THEN 'رسالة صوتية'
-    WHEN ${alias}.attachment_url IS NOT NULL THEN 'ملف'
+    WHEN ${alias}.attachment_type = 'image' THEN 'طµظˆط±ط©'
+    WHEN ${alias}.attachment_type = 'audio' THEN 'ط±ط³ط§ظ„ط© طµظˆطھظٹط©'
+    WHEN ${alias}.attachment_url IS NOT NULL THEN 'ظ…ظ„ظپ'
     ELSE ''
   END
 `;
 
 const adminChatRoom = (tenantId = null) => `employee-chat:tenant:${tenantId || "global"}`;
 const employeeChatRoom = (employeeId) => `employee-chat:employee:${employeeId}`;
+const EMPLOYEE_CHAT_PUSH_TITLE = "\u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629";
+const EMPLOYEE_CHAT_PUSH_FALLBACK_BODY = "\u0644\u062f\u064a\u0643 \u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629 \u0645\u0646 \u0627\u0644\u0625\u062f\u0627\u0631\u0629";
 
 const chatPushPreview = (message = {}) => {
   const body = clean(message.body);
   if (body) {
     const shortText = body.length > 80 ? `${body.slice(0, 77)}...` : body;
-    return `رسالة جديدة: ${shortText}`;
+    return `ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط©: ${shortText}`;
   }
-  if (message.attachment_type === "image") return "تم إرسال صورة";
-  if (message.attachment_url) return "تم إرسال ملف";
-  return "لديك رسالة جديدة في تطبيق الموظف";
+  if (message.attachment_type === "image") return "طھظ… ط¥ط±ط³ط§ظ„ طµظˆط±ط©";
+  if (message.attachment_url) return "طھظ… ط¥ط±ط³ط§ظ„ ظ…ظ„ظپ";
+  return "ظ„ط¯ظٹظƒ ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط© ظپظٹ طھط·ط¨ظٹظ‚ ط§ظ„ظ…ظˆط¸ظپ";
 };
 
 const employeeChatPushBody = (message = {}) => {
   const body = clean(message.body);
-  if (body) return `رسالة جديدة: ${body.length > 80 ? `${body.slice(0, 77)}...` : body}`;
-  if (message.attachment_type === "image") return "تم إرسال صورة";
-  if (message.attachment_type === "audio") return "تم إرسال رسالة صوتية";
-  if (message.attachment_url) return "تم إرسال ملف";
-  return "لديك رسالة جديدة في تطبيق الموظف";
+  if (body) return `ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط©: ${body.length > 80 ? `${body.slice(0, 77)}...` : body}`;
+  if (message.attachment_type === "image") return "طھظ… ط¥ط±ط³ط§ظ„ طµظˆط±ط©";
+  if (message.attachment_type === "audio") return "طھظ… ط¥ط±ط³ط§ظ„ ط±ط³ط§ظ„ط© طµظˆطھظٹط©";
+  if (message.attachment_url) return "طھظ… ط¥ط±ط³ط§ظ„ ظ…ظ„ظپ";
+  return "ظ„ط¯ظٹظƒ ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط© ظپظٹ طھط·ط¨ظٹظ‚ ط§ظ„ظ…ظˆط¸ظپ";
+};
+
+const employeeChatMessagePreview = (message = {}) => {
+  const body = clean(message.body);
+  if (body) return body.length > 80 ? `${body.slice(0, 77)}...` : body;
+  if (message.attachment_type === "image") return "\u0635\u0648\u0631\u0629";
+  if (message.attachment_type === "audio") return "\u0631\u0633\u0627\u0644\u0629 \u0635\u0648\u062a\u064a\u0629";
+  if (message.attachment_url) return "\u0645\u0644\u0641";
+  return "";
+};
+
+const employeeManagementPushBody = (message = {}, senderName = "") => {
+  const safeSenderName = clean(senderName);
+  const preview = employeeChatMessagePreview(message);
+  if (!safeSenderName || !preview) return EMPLOYEE_CHAT_PUSH_FALLBACK_BODY;
+  return `${safeSenderName}: ${preview}`;
+};
+
+const loadAdminSenderName = async ({ userId = null, tenantId = null } = {}) => {
+  if (!userId) return "";
+  const result = await db.query(
+    `
+    SELECT name
+    FROM users
+    WHERE id = $1
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+    LIMIT 1
+    `,
+    [userId, tenantId]
+  );
+  return clean(result.rows[0]?.name);
 };
 
 const loadThreadSummary = async (threadId, clientOrPool = db) => {
@@ -256,10 +289,10 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
     type: "employee_chat_message",
     category: "employees",
     priority: "medium",
-    title: "رسالة جديدة من موظف",
+    title: "ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط© ظ…ظ† ظ…ظˆط¸ظپ",
     message: chatPushPreview(message),
     action_url: "/employees/chat",
-    action_label: "فتح شات الموظفين",
+    action_label: "ظپطھط­ ط´ط§طھ ط§ظ„ظ…ظˆط¸ظپظٹظ†",
     entity_type: "employee_chat_thread",
     entity_id: String(thread.id),
     metadata: { employee_id: employee.id, thread_id: thread.id, message_id: message.id },
@@ -409,11 +442,12 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
   });
   const activeEmployeeChatClients = await getRoomClientCount(employeeChatRoom(thread.employee_id));
   if (activeEmployeeChatClients === 0) {
+    const senderName = await loadAdminSenderName({ userId, tenantId: thread.tenant_id });
     await sendEmployeePortalPush({
       tenantId: thread.tenant_id,
       employeeId: thread.employee_id,
-      title: " رسالة جديدة من الإدارة",
-      body: employeeChatPushBody(message),
+      title: EMPLOYEE_CHAT_PUSH_TITLE,
+      body: employeeManagementPushBody(message, senderName),
       url: thread.employee_portal_token ? `/employee-app/${encodeURIComponent(thread.employee_portal_token)}?tab=chat` : "/employee-app/?tab=chat",
       tag: "employee-chat",
       data: {

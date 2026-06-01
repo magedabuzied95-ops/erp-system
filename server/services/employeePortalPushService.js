@@ -163,13 +163,15 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
   const safeUrl = isEmployeeChatPush && (!text(url) || text(url) === "/")
     ? "/employee-app/?tab=chat"
     : url;
+  const notificationTitle = isEmployeeChatPush ? text(title) || "\u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629" : safeTitle;
+  const notificationBody = isEmployeeChatPush ? text(body) || "\u0644\u062f\u064a\u0643 \u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629 \u0645\u0646 \u0627\u0644\u0625\u062f\u0627\u0631\u0629" : safeBody;
 
   console.info("[employee-push:send-start]", {
     employee_id: employeeId,
     subscription_count: result.rows.length,
     payloadKeys: ["title", "body", "tag", "url"],
-    titleLength: safeTitle.length,
-    bodyLength: safeBody.length,
+    titleLength: notificationTitle.length,
+    bodyLength: notificationBody.length,
     url: safeUrl,
     tag: notificationTag,
   });
@@ -180,8 +182,8 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
   for (const row of result.rows) {
     const notificationUrl = portalNotificationUrl(safeUrl, row.portal_url, data?.tab);
     const payloadObject = {
-      title: safeTitle,
-      body: safeBody,
+      title: notificationTitle,
+      body: notificationBody,
       icon: "/icons/employee-portal-192.png",
       badge: "/icons/employee-portal-192.png",
       tag: notificationTag,
