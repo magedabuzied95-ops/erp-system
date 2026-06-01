@@ -1428,6 +1428,7 @@ const DEFAULT_MONEY_ACCOUNTS = [
 
 const normalizePaymentMethodKey = (value) => {
   const key = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (key === "visa") return "card";
   if (key === "bank" || key === "transfer") return "bank_transfer";
   if (key === "vodafone") return "vodafone_cash";
   if (key === "insta_pay") return "instapay";

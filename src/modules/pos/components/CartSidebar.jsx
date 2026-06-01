@@ -173,12 +173,14 @@ const getLocalizedPaymentLabel = (mode, paymentSummary = {}) => {
   const raw = String(mode || paymentSummary.method || paymentSummary.payment_method || "").toLowerCase();
   const legacyLabel = getPaymentLabel(mode, paymentSummary);
   const labels = {
-    cash: receiptPrintLabel("cash", "Cash"),
-    card: receiptPrintLabel("card", "Card"),
-    visa: receiptPrintLabel("card", "Card"),
-    wallet: receiptPrintLabel("wallet", "Wallet"),
+    cash: "CASH",
+    card: "VISA",
+    visa: "VISA",
+    wallet: "INSTAPAY",
+    instapay: "INSTAPAY",
+    vodafone_cash: "V.CASH",
     customer_wallet: receiptPrintLabel("customerWallet", "Customer wallet"),
-    split: receiptPrintLabel("split", "Split"),
+    split: "SPLIT",
     transfer: receiptPrintLabel("transfer", "Transfer"),
     bank_transfer: receiptPrintLabel("transfer", "Transfer"),
   };
@@ -221,6 +223,16 @@ function BrandedSocialIcon({ type, className = "" }) {
 
 const getPaymentLabel = (mode, paymentSummary = {}) => {
   const raw = String(mode || paymentSummary.method || paymentSummary.payment_method || "").toLowerCase();
+  const productionLabels = {
+    cash: "CASH",
+    card: "VISA",
+    visa: "VISA",
+    wallet: "INSTAPAY",
+    instapay: "INSTAPAY",
+    vodafone_cash: "V.CASH",
+    split: "SPLIT",
+  };
+  if (productionLabels[raw]) return productionLabels[raw];
   const labels = {
     cash: "نقداً",
     card: "فيزا",
@@ -278,6 +290,8 @@ function CartSidebar({
   setCardAmount,
   walletAmount,
   setWalletAmount,
+  vodafoneCashAmount = 0,
+  setVodafoneCashAmount,
   customerWalletAmount = 0,
   setCustomerWalletAmount,
   loyaltyProfile,
@@ -350,17 +364,26 @@ function CartSidebar({
     cash: Math.max(0, Number(cashAmount || 0)),
     card: Math.max(0, Number(cardAmount || 0)),
     wallet: Math.max(0, Number(walletAmount || 0)),
+    vodafone_cash: Math.max(0, Number(vodafoneCashAmount || 0)),
   };
-  const methodTotal = methodAmounts.cash + methodAmounts.card + methodAmounts.wallet;
+  const methodTotal = methodAmounts.cash + methodAmounts.card + methodAmounts.wallet + methodAmounts.vodafone_cash;
   const totalPaid = appliedCredit + methodTotal;
   const remainingAmount = Math.max(0, totalAmount - totalPaid);
   const hasPaymentBreakdown = appliedCredit > 0 || methodTotal > 0;
   const paymentMismatch = Math.abs(totalAmount - totalPaid) > 0.009;
-  const selectedMethod = ["cash", "card", "wallet"].includes(activeSplitMethod) ? activeSplitMethod : "cash";
+  const normalizedPaymentMode = String(paymentMode || "").toLowerCase();
+  const selectedMethod = normalizedPaymentMode === "split"
+    ? (["cash", "card", "wallet", "vodafone_cash"].includes(activeSplitMethod) ? activeSplitMethod : "cash")
+    : normalizedPaymentMode === "instapay"
+      ? "wallet"
+      : ["cash", "card", "wallet", "vodafone_cash"].includes(normalizedPaymentMode)
+        ? normalizedPaymentMode
+        : "cash";
   const paymentMethods = [
-    { key: "cash", label: posLabel("cart.cash", "Cash"), fullLabel: posLabel("cart.fullCash", "Full Cash"), icon: <Banknote className="h-4 w-4" />, setter: setCashAmount },
-    { key: "card", label: posLabel("cart.card", "Card"), fullLabel: posLabel("cart.fullCard", "Full Card"), icon: <CreditCard className="h-4 w-4" />, setter: setCardAmount },
-    { key: "wallet", label: posLabel("cart.companyWallet", "Company wallet"), fullLabel: posLabel("cart.fullWallet", "Full Wallet"), icon: <Wallet className="h-4 w-4" />, setter: setWalletAmount },
+    { key: "cash", label: "CASH", fullLabel: "CASH", tone: "green", icon: <Banknote className="h-4 w-4" />, setter: setCashAmount },
+    { key: "card", label: "VISA", fullLabel: "VISA", tone: "blue", icon: <CreditCard className="h-4 w-4" />, setter: setCardAmount },
+    { key: "wallet", paymentMode: "instapay", label: "INSTAPAY", fullLabel: "INSTAPAY", tone: "purple", icon: <Wallet className="h-4 w-4" />, setter: setWalletAmount },
+    { key: "vodafone_cash", label: "V.CASH", fullLabel: "V.CASH", tone: "red", icon: <Smartphone className="h-4 w-4" />, setter: setVodafoneCashAmount },
   ];
   const activeMethodCount = paymentMethods.filter((method) => methodAmounts[method.key] > 0.009).length;
   const activePaymentMethodCount = activeMethodCount + (appliedCredit > 0.009 ? 1 : 0);
@@ -372,11 +395,13 @@ function CartSidebar({
     if (method === "cash") setCashAmount(0);
     if (method === "card") setCardAmount(0);
     if (method === "wallet") setWalletAmount(0);
+    if (method === "vodafone_cash") setVodafoneCashAmount?.(0);
   };
   const clearPaymentMethods = () => {
     setCashAmount(0);
     setCardAmount(0);
     setWalletAmount(0);
+    setVodafoneCashAmount?.(0);
   };
   const setMethodAmount = (method, value, options = {}) => {
     const parsed = Math.max(0, Number(value || 0));
@@ -385,11 +410,13 @@ function CartSidebar({
       .reduce((sum, [, amount]) => sum + Number(amount || 0), 0);
     const capped = Math.min(parsed, Math.max(0, totalAmount - appliedCredit - otherTotal));
     const setter = paymentMethods.find((item) => item.key === method)?.setter;
+    const selected = paymentMethods.find((item) => item.key === method);
     setter?.(Number(capped.toFixed(2)));
-    if (options.manual) setPaymentMode?.(appliedCredit > 0 || otherTotal > 0 ? "split" : method);
+    if (options.manual) setPaymentMode?.(appliedCredit > 0 || otherTotal > 0 ? "split" : selected?.paymentMode || method);
   };
   const selectPaymentMethod = (method) => {
     setActiveSplitMethod?.(method);
+    const selected = paymentMethods.find((item) => item.key === method);
     const otherTotal = Object.entries(methodAmounts)
       .filter(([key]) => key !== method)
       .reduce((sum, [, amount]) => sum + Number(amount || 0), 0);
@@ -398,12 +425,12 @@ function CartSidebar({
         if (item.key !== method) item.setter(0);
       });
       setMethodAmount(method, totalAmount);
-      setPaymentMode?.(method);
+      setPaymentMode?.(selected?.paymentMode || method);
       return;
     }
     const fillAmount = Math.max(0, totalAmount - appliedCredit - otherTotal);
     setMethodAmount(method, fillAmount);
-    setPaymentMode?.(appliedCredit > 0 || otherTotal > 0 ? "split" : method);
+    setPaymentMode?.(appliedCredit > 0 || otherTotal > 0 ? "split" : selected?.paymentMode || method);
   };
   const selectFullPayment = (method) => {
     setActiveSplitMethod?.(method);
@@ -411,7 +438,9 @@ function CartSidebar({
     setCashAmount(method === "cash" ? fullAmount : 0);
     setCardAmount(method === "card" ? fullAmount : 0);
     setWalletAmount(method === "wallet" ? fullAmount : 0);
-    setPaymentMode?.(appliedCredit > 0 ? "split" : method);
+    setVodafoneCashAmount?.(method === "vodafone_cash" ? fullAmount : 0);
+    const selected = paymentMethods.find((item) => item.key === method);
+    setPaymentMode?.(appliedCredit > 0 ? "split" : selected?.paymentMode || method);
   };
   const openSplitPayment = () => {
     setPaymentMode?.("split");
@@ -424,16 +453,19 @@ function CartSidebar({
       setCashAmount(cash);
       setCardAmount(Number((splitBase - cash).toFixed(2)));
       setWalletAmount(0);
+      setVodafoneCashAmount?.(0);
     } else if (preset === "70_30") {
       const cash = Number((splitBase * 0.7).toFixed(2));
       setCashAmount(cash);
       setCardAmount(Number((splitBase - cash).toFixed(2)));
       setWalletAmount(0);
+      setVodafoneCashAmount?.(0);
     } else if (preset === "30_70") {
       const cash = Number((splitBase * 0.3).toFixed(2));
       setCashAmount(cash);
       setCardAmount(Number((splitBase - cash).toFixed(2)));
       setWalletAmount(0);
+      setVodafoneCashAmount?.(0);
     } else if (preset === "custom") {
       clearPaymentMethods();
     }
@@ -446,6 +478,7 @@ function CartSidebar({
     setCashAmount(0);
     setCardAmount(0);
     setWalletAmount(0);
+    setVodafoneCashAmount?.(0);
     setPaymentMode?.(credit >= totalAmount ? "customer_wallet" : "split");
   };
 
@@ -767,13 +800,15 @@ function CartSidebar({
                   onClick={() => selectFullPayment(method.key)}
                   icon={method.icon}
                   label={method.fullLabel || method.label}
+                  tone={method.tone}
                 />
               ))}
               <ModeButton
                 active={splitPaymentOpen || String(paymentMode || "").toLowerCase() === "split"}
                 onClick={openSplitPayment}
                 icon={<ReceiptText className="h-4 w-4" />}
-                label={posLabel("cart.split", "Split")}
+                label="SPLIT"
+                tone="gold"
               />
             </div>
           </div>
@@ -2139,9 +2174,9 @@ function SplitPaymentSheet({
                 <button
                   type="button"
                   onClick={() => onFillMethod(method.key)}
-                  className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
+                  className={`inline-flex min-h-12 items-center gap-2 rounded-xl border bg-black/25 px-3 text-sm font-black transition ${PAYMENT_TONE_CLASSES[method.tone]?.button || PAYMENT_TONE_CLASSES.green.button}`}
                 >
-                  {method.icon}
+                  <span className={PAYMENT_TONE_CLASSES[method.tone]?.icon || PAYMENT_TONE_CLASSES.green.icon}>{method.icon}</span>
                   <span className="truncate">{method.label}</span>
                 </button>
                 <input
@@ -2199,19 +2234,54 @@ function SplitPaymentSheet({
   );
 }
 
-function ModeButton({ active, onClick, icon, label, title = "" }) {
+const PAYMENT_TONE_CLASSES = {
+  green: {
+    button: "border-emerald-400/40 text-emerald-50 hover:border-emerald-300/70 hover:bg-emerald-400/10 hover:shadow-[0_0_18px_rgba(52,211,153,0.22)]",
+    active: "border-emerald-300/90 bg-emerald-400/15 text-emerald-50 shadow-[0_0_24px_rgba(52,211,153,0.32)] scale-[1.02]",
+    icon: "text-emerald-300",
+    check: "bg-emerald-300 text-black",
+  },
+  blue: {
+    button: "border-blue-400/40 text-blue-50 hover:border-blue-300/70 hover:bg-blue-400/10 hover:shadow-[0_0_18px_rgba(96,165,250,0.22)]",
+    active: "border-blue-300/90 bg-blue-400/15 text-blue-50 shadow-[0_0_24px_rgba(96,165,250,0.32)] scale-[1.02]",
+    icon: "text-blue-300",
+    check: "bg-blue-300 text-black",
+  },
+  purple: {
+    button: "border-purple-400/40 text-purple-50 hover:border-purple-300/70 hover:bg-purple-400/10 hover:shadow-[0_0_18px_rgba(192,132,252,0.22)]",
+    active: "border-purple-300/90 bg-purple-400/15 text-purple-50 shadow-[0_0_24px_rgba(192,132,252,0.32)] scale-[1.02]",
+    icon: "text-purple-300",
+    check: "bg-purple-300 text-black",
+  },
+  red: {
+    button: "border-red-500/40 text-red-50 hover:border-red-400/75 hover:bg-red-500/10 hover:shadow-[0_0_18px_rgba(220,38,38,0.24)]",
+    active: "border-red-400/90 bg-red-500/15 text-red-50 shadow-[0_0_24px_rgba(220,38,38,0.34)] scale-[1.02]",
+    icon: "text-red-400",
+    check: "bg-red-400 text-black",
+  },
+  gold: {
+    button: "border-amber-400/40 text-amber-50 hover:border-amber-300/70 hover:bg-amber-400/10 hover:shadow-[0_0_18px_rgba(251,191,36,0.22)]",
+    active: "border-amber-300/90 bg-amber-400/15 text-amber-50 shadow-[0_0_24px_rgba(251,191,36,0.32)] scale-[1.02]",
+    icon: "text-amber-300",
+    check: "bg-amber-300 text-black",
+  },
+};
+
+function ModeButton({ active, onClick, icon, label, tone = "green", title = "" }) {
+  const toneClasses = PAYMENT_TONE_CLASSES[tone] || PAYMENT_TONE_CLASSES.green;
   return (
     <button
       type="button"
       onClick={onClick}
       title={title || undefined}
-      className={`inline-flex h-8 min-w-0 items-center justify-center gap-1 rounded-xl px-2 text-[11px] font-black transition ${
-        active
-          ? "bg-emerald-500 text-black"
-          : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
-      }`}
+      className={`relative inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-xl border bg-black/25 px-2 text-[11px] font-black transition duration-200 ${active ? toneClasses.active : toneClasses.button}`}
     >
-      {icon}
+      {active ? (
+        <span className={`absolute right-1 top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full ${toneClasses.check}`}>
+          <CheckCircle2 className="h-2.5 w-2.5" />
+        </span>
+      ) : null}
+      <span className={toneClasses.icon}>{icon}</span>
       <span className="min-w-0 truncate">{label}</span>
     </button>
   );

@@ -360,7 +360,7 @@ const { default: aiAgentOrderRoutes } = await import("./routes/aiAgentOrders.js"
 const { default: metaIntegrationRoutes, metaWebhookRoutes, handleMetaWebhookVerification, handleMetaWebhookSelfTest } = await import("./routes/metaIntegration.js");
 const { getMetaWebhookUrl, getPublicAppUrl } = await import("./utils/publicUrl.js");
 const { default: smartWarehouseRoutes } = await import("./routes/smartWarehouse.js");
-const { ensureEmployeePenaltiesSchema, ensureSalesCommissionSchema } = await import("./services/salesCommissionService.js");
+const { ensureEmployeePenaltiesSchema, ensureSalesCommissionSchema, repairOrdersSalesEmployeeForeignKey } = await import("./services/salesCommissionService.js");
 const { ensureEmployeePayrollPortalSchema } = await import("./services/employeePayrollPortalService.js");
 const { ensureAiAgentOrderSchema } = await import("./services/aiAgentOrderService.js");
 const { ensureAiSalesAgentSchema } = await import("./services/aiSalesAgentService.js");
@@ -890,6 +890,7 @@ server.listen(PORT, HOST, () => {
       console.log("[server] variants inventory schema ensured");
       await ensureOrdersSchema(db, null);
       console.log("[server] orders schema ensured");
+      await repairOrdersSalesEmployeeForeignKey(db, { source: "startup:after_orders_schema" });
       await ensureProductClassificationSchema();
       console.log("[server] product classification schema ensured");
       await ensureStorefrontSchema();
@@ -963,6 +964,10 @@ server.listen(PORT, HOST, () => {
       console.log("[server] boot success");
     } catch (error) {
       console.error("[server] startup non-fatal schema error", error);
+      if (error?.sellerFkRepair) {
+        console.error("[server] startup fatal seller FK repair error", error);
+        process.exit(1);
+      }
     } finally {
       globalThis.__SCHEMA_STARTUP_RUNNING = false;
     }

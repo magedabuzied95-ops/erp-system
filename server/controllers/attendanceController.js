@@ -1087,6 +1087,7 @@ const normalizeAttendance = (row = {}) => ({
   check_out_gps_verification_result: row.check_out_gps_verification_result || "",
   attendance_source: row.attendance_source || "manual",
   status: normalizeAttendanceStatus(row),
+  attendance_status: Number(row.late_minutes || 0) > 0 ? "late" : "on_time",
   work_minutes: Number(row.work_minutes || 0),
   late_minutes: Number(row.late_minutes || 0),
   early_leave_minutes: Number(row.early_leave_minutes || 0),

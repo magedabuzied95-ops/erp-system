@@ -94,6 +94,7 @@ const defaultState = {
   cashAmount: 0,
   cardAmount: 0,
   walletAmount: 0,
+  vodafoneCashAmount: 0,
   customerWalletAmount: 0,
   invoiceDiscount: 0,
   serviceFee: 0,
@@ -1163,6 +1164,7 @@ function POSPro() {
   const [cashAmount, setCashAmount] = useState(defaultState.cashAmount);
   const [cardAmount, setCardAmount] = useState(defaultState.cardAmount);
   const [walletAmount, setWalletAmount] = useState(defaultState.walletAmount);
+  const [vodafoneCashAmount, setVodafoneCashAmount] = useState(defaultState.vodafoneCashAmount);
   const [customerWalletAmount, setCustomerWalletAmount] = useState(defaultState.customerWalletAmount);
   const [exchangeState, setExchangeState] = useState(null);
   const [paymentAccountStatus, setPaymentAccountStatus] = useState(null);
@@ -1246,13 +1248,14 @@ function POSPro() {
         cashAmount,
         cardAmount,
         walletAmount,
+        vodafoneCashAmount,
         customerWalletAmount,
         invoiceDiscount,
         serviceFee,
         selectedSalespersonId,
       });
     }
-  }, [activePosShift?.id, activePosShift?.branch_id, cardAmount, cart, cashAmount, customerWalletAmount, invoiceDiscount, invoiceNumber, paymentMode, posShiftBranch?.id, selectedSalespersonId, serviceFee, walletAmount]);
+  }, [activePosShift?.id, activePosShift?.branch_id, cardAmount, cart, cashAmount, customerWalletAmount, invoiceDiscount, invoiceNumber, paymentMode, posShiftBranch?.id, selectedSalespersonId, serviceFee, vodafoneCashAmount, walletAmount]);
 
   useEffect(() => {
     if (!activePosShift?.id || shiftSessionRecoveredRef.current) return;
@@ -1272,6 +1275,7 @@ function POSPro() {
       setCashAmount(savedSession.cashAmount ?? defaultState.cashAmount);
       setCardAmount(savedSession.cardAmount ?? defaultState.cardAmount);
       setWalletAmount(savedSession.walletAmount ?? defaultState.walletAmount);
+      setVodafoneCashAmount(savedSession.vodafoneCashAmount ?? defaultState.vodafoneCashAmount);
       setCustomerWalletAmount(savedSession.customerWalletAmount ?? defaultState.customerWalletAmount);
       setInvoiceDiscount(savedSession.invoiceDiscount ?? defaultState.invoiceDiscount);
       setServiceFee(savedSession.serviceFee ?? defaultState.serviceFee);
@@ -1296,6 +1300,7 @@ function POSPro() {
         cashAmount,
         cardAmount,
         walletAmount,
+        vodafoneCashAmount,
         customerWalletAmount,
         invoiceDiscount,
         serviceFee,
@@ -1317,6 +1322,7 @@ function POSPro() {
     cashAmount,
     cardAmount,
     walletAmount,
+    vodafoneCashAmount,
     customerWalletAmount,
     invoiceDiscount,
     serviceFee,
@@ -2317,14 +2323,16 @@ function POSPro() {
         cashAmount,
         cardAmount,
         walletAmount,
+        vodafoneCashAmount,
         customerWalletAmount,
       }),
-    [amountDueNow, paymentMode, cashAmount, cardAmount, walletAmount, customerWalletAmount]
+    [amountDueNow, paymentMode, cashAmount, cardAmount, walletAmount, vodafoneCashAmount, customerWalletAmount]
   );
 
   const paymobTerminalAmount = useMemo(() => {
     if (paymentMode === "split") return Number(cardAmount || 0);
-    return Number(paymentSummary.paidAmount || amountDueNow || 0);
+    if (paymentMode === "card") return Number(paymentSummary.paidAmount || amountDueNow || 0);
+    return 0;
   }, [amountDueNow, cardAmount, paymentMode, paymentSummary.paidAmount]);
 
   const activePaymentAccountMethod = useMemo(() => {
@@ -2335,12 +2343,13 @@ function POSPro() {
 
   const activePaymentAccountAmount = useMemo(() => {
     if (paymentMode === "split") {
+      if (activePaymentAccountMethod === "vodafone_cash") return Number(vodafoneCashAmount || 0);
       if (activePaymentAccountMethod === "wallet") return Number(walletAmount || 0);
       if (activePaymentAccountMethod === "card") return Number(cardAmount || 0);
       return Number(cashAmount || 0);
     }
     return Number(paymentSummary.paidAmount || amountDueNow || 0);
-  }, [activePaymentAccountMethod, amountDueNow, cardAmount, cashAmount, paymentMode, paymentSummary.paidAmount, walletAmount]);
+  }, [activePaymentAccountMethod, amountDueNow, cardAmount, cashAmount, paymentMode, paymentSummary.paidAmount, vodafoneCashAmount, walletAmount]);
 
   const existingPaymobOrder = cart.length === 0 ? lastOrder || lastShareContext || null : null;
   const existingPaymobOrderId = existingPaymobOrder?.order_id || existingPaymobOrder?.orderId || existingPaymobOrder?.id || null;
@@ -2456,11 +2465,14 @@ function POSPro() {
     if (paymentMode === "card" && (Number(cardAmount || 0) === 0 || Number(cardAmount || 0) === previousTotal)) {
       setCardAmount(amountDueNow);
     }
-    if (paymentMode === "wallet" && (Number(walletAmount || 0) === 0 || Number(walletAmount || 0) === previousTotal)) {
+    if ((paymentMode === "instapay" || paymentMode === "wallet") && (Number(walletAmount || 0) === 0 || Number(walletAmount || 0) === previousTotal)) {
       setWalletAmount(amountDueNow);
     }
+    if (paymentMode === "vodafone_cash" && (Number(vodafoneCashAmount || 0) === 0 || Number(vodafoneCashAmount || 0) === previousTotal)) {
+      setVodafoneCashAmount(amountDueNow);
+    }
     previousTotalRef.current = amountDueNow;
-  }, [paymentMode, amountDueNow, cashAmount, cardAmount, walletAmount, customerWalletAmount, customerCreditBalance]);
+  }, [paymentMode, amountDueNow, cashAmount, cardAmount, walletAmount, vodafoneCashAmount, customerWalletAmount, customerCreditBalance]);
 
   useEffect(() => {
     if (!canUseCustomerCredit) {
@@ -2481,11 +2493,13 @@ function POSPro() {
     const nextCash = Math.min(Math.max(0, Number(cashAmount || 0)), Math.max(0, total - credit));
     const nextCard = Math.min(Math.max(0, Number(cardAmount || 0)), Math.max(0, total - credit - nextCash));
     const nextWallet = Math.min(Math.max(0, Number(walletAmount || 0)), Math.max(0, total - credit - nextCash - nextCard));
+    const nextVodafoneCash = Math.min(Math.max(0, Number(vodafoneCashAmount || 0)), Math.max(0, total - credit - nextCash - nextCard - nextWallet));
 
     if (nextCash !== Number(cashAmount || 0)) setCashAmount(nextCash);
     if (nextCard !== Number(cardAmount || 0)) setCardAmount(nextCard);
     if (nextWallet !== Number(walletAmount || 0)) setWalletAmount(nextWallet);
-  }, [amountDueNow, cardAmount, cashAmount, customerWalletAmount, walletAmount]);
+    if (nextVodafoneCash !== Number(vodafoneCashAmount || 0)) setVodafoneCashAmount(nextVodafoneCash);
+  }, [amountDueNow, cardAmount, cashAmount, customerWalletAmount, vodafoneCashAmount, walletAmount]);
 
   useEffect(() => {
     let active = true;
@@ -3058,6 +3072,7 @@ function POSPro() {
       setCashAmount(0);
       setCardAmount(0);
       setWalletAmount(0);
+      setVodafoneCashAmount(0);
       setCustomerWalletAmount(0);
       setExchangeState(null);
       setInvoiceDiscount(Number(loadedOrder.discount_amount || 0));
@@ -3180,6 +3195,7 @@ function POSPro() {
       setCashAmount(0);
       setCardAmount(0);
       setWalletAmount(0);
+      setVodafoneCashAmount(0);
       setCustomerWalletAmount(0);
       setExchangeState(null);
       setInvoiceDiscount(Number(loadedOrder.discount_amount || 0));
@@ -3225,6 +3241,7 @@ function POSPro() {
     setCashAmount(0);
     setCardAmount(0);
     setWalletAmount(0);
+    setVodafoneCashAmount(0);
     setCustomerWalletAmount(0);
     setExchangeState({
       active: true,
@@ -3277,6 +3294,7 @@ function POSPro() {
     setCashAmount(0);
     setCardAmount(0);
     setWalletAmount(0);
+    setVodafoneCashAmount(0);
     setCustomerWalletAmount(0);
     setExchangeState(null);
     setInvoiceDiscount(0);
@@ -3603,7 +3621,7 @@ function POSPro() {
       return null;
     }
 
-    const enteredPaymentTotal = Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + requestedCustomerWalletAmount;
+    const enteredPaymentTotal = Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + Number(vodafoneCashAmount || 0) + requestedCustomerWalletAmount;
     const paymentTarget = Number(amountDueNow || 0);
     if (enteredPaymentTotal - paymentTarget > 0.009) {
       toast.error("Payment total cannot exceed amount due now");
@@ -3667,8 +3685,9 @@ function POSPro() {
       });
       const terminalManualCashAmount = paymentMode === "split" ? Number(cashAmount || 0) : 0;
       const terminalManualWalletAmount = paymentMode === "split" ? Number(walletAmount || 0) : 0;
+      const terminalManualVodafoneCashAmount = paymentMode === "split" ? Number(vodafoneCashAmount || 0) : 0;
       const terminalManualCustomerWalletAmount = paymentMode === "split" ? Number(customerWalletAmount || 0) : 0;
-      const terminalManualPaidAmount = Math.max(0, terminalManualCashAmount + terminalManualWalletAmount + terminalManualCustomerWalletAmount);
+      const terminalManualPaidAmount = Math.max(0, terminalManualCashAmount + terminalManualWalletAmount + terminalManualVodafoneCashAmount + terminalManualCustomerWalletAmount);
       const checkoutPaymentSummary = paymobTerminalCheckout
         ? {
             paidAmount: terminalManualPaidAmount,
@@ -3700,10 +3719,17 @@ function POSPro() {
             : 0;
       const payloadWalletAmount = paymobTerminalCheckout
         ? terminalManualWalletAmount
-        : paymentMode === "wallet"
+        : paymentMode === "instapay" || paymentMode === "wallet"
           ? paymentSummary.paidAmount
           : paymentMode === "split"
             ? Number(walletAmount || 0)
+            : 0;
+      const payloadVodafoneCashAmount = paymobTerminalCheckout
+        ? terminalManualVodafoneCashAmount
+        : paymentMode === "vodafone_cash"
+          ? paymentSummary.paidAmount
+          : paymentMode === "split"
+            ? Number(vodafoneCashAmount || 0)
             : 0;
       const payloadCustomerWalletAmount = paymobTerminalCheckout
         ? terminalManualCustomerWalletAmount
@@ -3723,7 +3749,8 @@ function POSPro() {
           : null,
         { method: "cash", amount: payloadCashAmount },
         { method: "card", amount: payloadCardAmount },
-        { method: "wallet", amount: payloadWalletAmount },
+        { method: "instapay", amount: payloadWalletAmount },
+        { method: "vodafone_cash", amount: payloadVodafoneCashAmount },
         { method: "customer_wallet", amount: payloadCustomerWalletAmount },
       ].filter((item) => item && Number(item.amount || 0) > 0);
       const additionalPaymentBreakdown = editingOrder?.id
@@ -3753,7 +3780,7 @@ function POSPro() {
         branch_id: checkoutBranchId,
         cash_amount: payloadCashAmount,
         card_amount: payloadCardAmount,
-        wallet_payment_amount: payloadWalletAmount,
+        wallet_payment_amount: payloadWalletAmount + payloadVodafoneCashAmount,
         payment_breakdown: paymentBreakdown,
         payments: paymentBreakdown,
         edit_order_id: editingOrder?.id || null,
@@ -3905,6 +3932,7 @@ function POSPro() {
         setCashAmount(0);
         setCardAmount(0);
         setWalletAmount(0);
+        setVodafoneCashAmount(0);
         setCustomerWalletAmount(0);
         setExchangeState(null);
         setInvoiceDiscount(0);
@@ -4072,6 +4100,7 @@ function POSPro() {
       setCashAmount(0);
       setCardAmount(0);
       setWalletAmount(0);
+      setVodafoneCashAmount(0);
       setCustomerWalletAmount(0);
       setExchangeState(null);
       setInvoiceDiscount(0);
@@ -4662,6 +4691,7 @@ function POSPro() {
     setCashAmount(0);
     setCardAmount(0);
     setWalletAmount(0);
+    setVodafoneCashAmount(0);
     setCustomerWalletAmount(0);
     setExchangeState(null);
     clearPosPersistedState();
@@ -5317,6 +5347,8 @@ function POSPro() {
             setCardAmount={setCardAmount}
             walletAmount={walletAmount}
             setWalletAmount={setWalletAmount}
+            vodafoneCashAmount={vodafoneCashAmount}
+            setVodafoneCashAmount={setVodafoneCashAmount}
             customerWalletAmount={customerWalletAmount}
             setCustomerWalletAmount={setCustomerWalletAmount}
             loyaltyProfile={loyaltyProfile}
@@ -5419,6 +5451,8 @@ function POSPro() {
             setCardAmount={setCardAmount}
             walletAmount={walletAmount}
             setWalletAmount={setWalletAmount}
+            vodafoneCashAmount={vodafoneCashAmount}
+            setVodafoneCashAmount={setVodafoneCashAmount}
             customerWalletAmount={customerWalletAmount}
             setCustomerWalletAmount={setCustomerWalletAmount}
             loyaltyProfile={loyaltyProfile}

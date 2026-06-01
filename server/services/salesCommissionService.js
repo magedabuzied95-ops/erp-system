@@ -72,6 +72,16 @@ const normalizeOptionalLookupId = (value) => {
   return text ? text : null;
 };
 
+const normalizePgTextArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null || value === "") return [];
+  return String(value)
+    .replace(/^\{|\}$/g, "")
+    .split(",")
+    .map((item) => item.replace(/^"|"$/g, "").trim())
+    .filter(Boolean);
+};
+
 const normalizePenaltyStatus = (value = "pending") => {
   const normalized = String(value || "pending").trim().toLowerCase();
   return PENALTY_STATUSES.includes(normalized) ? normalized : "pending";
@@ -671,7 +681,351 @@ const addEmployeeSalesProfileForeignKeys = async (clientOrPool = db) => {
   }
 };
 
+const quoteIdentifier = (value) => `"${String(value).replace(/"/g, '""')}"`;
+
+const readOrdersSalesEmployeeFkTarget = async (clientOrPool = db) => {
+  const result = await clientOrPool.query(
+    `
+    SELECT
+      tc.constraint_name,
+      ccu.table_name AS referenced_table,
+      ccu.column_name AS referenced_column
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.constraint_column_usage ccu
+      ON tc.constraint_name = ccu.constraint_name
+    WHERE tc.constraint_name = 'orders_sales_employee_id_fkey'
+    `
+  );
+  return result.rows || [];
+};
+
+const readOrdersSalesEmployeeFkDefinition = async (clientOrPool = db) => {
+  const result = await clientOrPool.query(
+    `
+    SELECT
+      conname,
+      pg_get_constraintdef(oid) AS constraint_definition
+    FROM pg_constraint
+    WHERE conname = 'orders_sales_employee_id_fkey'
+    `
+  );
+  return result.rows || [];
+};
+
+export const logOrdersSalesEmployeeFkDefinition = async (clientOrPool = db, label = "[seller-fk-check:definition]", context = {}) => {
+  const rows = await readOrdersSalesEmployeeFkDefinition(clientOrPool);
+  console.log(label, { ...context, rows });
+  return rows;
+};
+
+export const logOrdersSalesEmployeeFkTarget = async (clientOrPool = db, context = {}) => {
+  try {
+    const rows = await readOrdersSalesEmployeeFkTarget(clientOrPool);
+    console.info("[seller-fk-check:found]", {
+      ...context,
+      constraint_name: "orders_sales_employee_id_fkey",
+      rows,
+      referenced_table: rows[0]?.referenced_table || null,
+      referenced_column: rows[0]?.referenced_column || null,
+    });
+    return rows;
+  } catch (error) {
+    console.error("[seller-fk-check:error]", {
+      ...context,
+      step: "read_current_fk_target",
+      constraint_name: "orders_sales_employee_id_fkey",
+      message: error?.message || String(error),
+      code: error?.code || null,
+    });
+    return [];
+  }
+};
+
+const getForeignKeysForColumns = async (clientOrPool, tableName, columns = []) => {
+  const result = await clientOrPool.query(
+    `
+    SELECT
+      c.conname,
+      c.confrelid::regclass::text AS referenced_table,
+      ARRAY_AGG(a.attname ORDER BY keys.ordinality) AS columns
+    FROM pg_constraint c
+    JOIN UNNEST(c.conkey) WITH ORDINALITY AS keys(attnum, ordinality) ON TRUE
+    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = keys.attnum
+    WHERE c.contype = 'f'
+      AND c.conrelid = to_regclass($1)
+    GROUP BY c.oid, c.conname, c.confrelid
+    `,
+    [tableName]
+  );
+  const wanted = new Set(columns);
+  return result.rows
+    .map((row) => ({ ...row, columns: normalizePgTextArray(row.columns) }))
+    .filter((row) => row.columns.some((column) => wanted.has(column)));
+};
+
+const isReferencedTable = (value, tableName) => {
+  const normalized = String(value || "");
+  return normalized === tableName || normalized.endsWith(`.${tableName}`);
+};
+
+const dropForeignKeysReferencing = async (clientOrPool, tableName, columns = [], referencedTable) => {
+  if (!(await tableExists(clientOrPool, tableName))) return;
+  const foreignKeys = await getForeignKeysForColumns(clientOrPool, tableName, columns);
+  for (const foreignKey of foreignKeys) {
+    if (!isReferencedTable(foreignKey.referenced_table, referencedTable)) continue;
+    await clientOrPool.query(`ALTER TABLE ${quoteIdentifier(tableName)} DROP CONSTRAINT IF EXISTS ${quoteIdentifier(foreignKey.conname)}`);
+    console.warn("[seller-fk-check:dropped]", {
+      table: tableName,
+      constraint: foreignKey.conname,
+      columns: foreignKey.columns,
+      referenced_table: foreignKey.referenced_table,
+      reason: `referenced_${referencedTable}`,
+    });
+    console.warn("[schema] dropped legacy seller foreign key", {
+      table: tableName,
+      constraint: foreignKey.conname,
+      columns: foreignKey.columns,
+      referencedTable: foreignKey.referenced_table,
+    });
+  }
+};
+
+const hasOrphanEmployeeReference = async (clientOrPool, tableName, columnName) => {
+  if (!(await tableExists(clientOrPool, tableName))) return false;
+  const result = await clientOrPool.query(`
+    SELECT 1
+    FROM ${quoteIdentifier(tableName)} record
+    LEFT JOIN employees e ON e.id = record.${quoteIdentifier(columnName)}
+    WHERE record.${quoteIdentifier(columnName)} IS NOT NULL
+      AND e.id IS NULL
+    LIMIT 1
+  `);
+  return result.rows.length > 0;
+};
+
+const addEmployeeReferenceForeignKey = async (clientOrPool, tableName, columnName, constraintName) => {
+  if (!(await tableExists(clientOrPool, tableName))) return;
+  if (await hasOrphanEmployeeReference(clientOrPool, tableName, columnName)) {
+    console.warn(`[schema] skipped ${constraintName} because orphan ${columnName} values exist`);
+    return;
+  }
+  await ensureForeignKeyConstraint(
+    clientOrPool,
+    tableName,
+    constraintName,
+    `
+    ALTER TABLE ${quoteIdentifier(tableName)}
+    ADD CONSTRAINT ${quoteIdentifier(constraintName)}
+    FOREIGN KEY (${quoteIdentifier(columnName)}) REFERENCES employees(id) ON DELETE SET NULL
+    `
+  );
+};
+
+export const repairOrdersSalesEmployeeForeignKey = async (clientOrPool = db, context = {}) => {
+  console.log("[seller-fk-check:start]");
+  console.info("[seller-fk-check:start]", {
+    ...context,
+    table: "orders",
+    column: "sales_employee_id",
+    expected_referenced_table: "employees",
+    expected_referenced_column: "id",
+  });
+  try {
+    if (!(await tableExists(clientOrPool, "orders"))) {
+      console.warn("[seller-fk-check:found]", { ...context, table: "orders", exists: false });
+      return { skipped: true, reason: "orders_table_missing" };
+    }
+    const current = await logOrdersSalesEmployeeFkTarget(clientOrPool, context);
+    const beforeDefinition = await logOrdersSalesEmployeeFkDefinition(clientOrPool, "[seller-fk-check:before]", context);
+    const referencesEmployees = current.some((row) => isReferencedTable(row.referenced_table, "employees") && row.referenced_column === "id");
+    if (referencesEmployees) {
+      console.log("[seller-fk-check:after]", { ...context, rows: beforeDefinition, alreadyCorrect: true });
+      return { skipped: false, alreadyCorrect: true };
+    }
+
+    await clientOrPool.query(`ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_sales_employee_id_fkey`);
+    console.warn("[seller-fk-check:dropped]", {
+      ...context,
+      table: "orders",
+      constraint: "orders_sales_employee_id_fkey",
+      previous_target: current,
+    });
+
+    if (await hasOrphanEmployeeReference(clientOrPool, "orders", "sales_employee_id")) {
+      console.warn("[seller-fk-check:error]", {
+        ...context,
+        table: "orders",
+        column: "sales_employee_id",
+        constraint: "orders_sales_employee_id_fkey",
+        reason: "orphan_employee_references_exist",
+      });
+      await logOrdersSalesEmployeeFkDefinition(clientOrPool, "[seller-fk-check:after]", { ...context, skipped: true, reason: "orphan_employee_references_exist" });
+      return { skipped: true, reason: "orphan_employee_references_exist" };
+    }
+
+    const created = await ensureForeignKeyConstraint(
+      clientOrPool,
+      "orders",
+      "orders_sales_employee_id_fkey",
+      `
+      ALTER TABLE orders
+      ADD CONSTRAINT orders_sales_employee_id_fkey
+      FOREIGN KEY (sales_employee_id) REFERENCES employees(id) ON DELETE SET NULL
+      `
+    );
+    if (created) {
+      console.info("[seller-fk-check:created]", {
+        ...context,
+        table: "orders",
+        column: "sales_employee_id",
+        constraint: "orders_sales_employee_id_fkey",
+        referenced_table: "employees",
+        referenced_column: "id",
+      });
+    } else {
+      console.info("[seller-fk-check:created]", {
+        ...context,
+        table: "orders",
+        column: "sales_employee_id",
+        constraint: "orders_sales_employee_id_fkey",
+        created: false,
+        reason: "constraint_already_exists",
+      });
+    }
+    await logOrdersSalesEmployeeFkTarget(clientOrPool, { ...context, after: "repair" });
+    await logOrdersSalesEmployeeFkDefinition(clientOrPool, "[seller-fk-check:after]", { ...context, after: "repair" });
+    return { skipped: false, created };
+  } catch (error) {
+    console.error("[seller-fk-check:error]", {
+      ...context,
+      table: "orders",
+      column: "sales_employee_id",
+      constraint: "orders_sales_employee_id_fkey",
+      message: error?.message || String(error),
+      code: error?.code || null,
+    });
+    error.sellerFkRepair = true;
+    throw error;
+  }
+};
+
+const migrateSellerEmployeeReferences = async (clientOrPool = db) => {
+  const hasOrders = await tableExists(clientOrPool, "orders");
+  const hasOrderItems = await tableExists(clientOrPool, "order_items");
+  const hasEmployeeSales = await tableExists(clientOrPool, "employee_sales");
+
+  await dropForeignKeysReferencing(clientOrPool, "orders", ["sales_employee_id", "salesperson_id"], "users");
+  await dropForeignKeysReferencing(clientOrPool, "order_items", ["sales_employee_id"], "users");
+  await dropForeignKeysReferencing(clientOrPool, "employee_sales", ["sales_employee_id"], "users");
+
+  if (hasOrders) {
+    await clientOrPool.query(`
+      UPDATE orders o
+      SET
+        seller_user_id = COALESCE(o.seller_user_id, o.sales_employee_id),
+        sales_employee_id = e.id,
+        salesperson_id = CASE
+          WHEN o.salesperson_id IS NULL OR o.salesperson_id = o.sales_employee_id THEN e.id
+          ELSE o.salesperson_id
+        END
+      FROM employees e
+      WHERE o.sales_employee_id IS NOT NULL
+        AND e.user_id = o.sales_employee_id
+        AND NOT EXISTS (SELECT 1 FROM employees direct_employee WHERE direct_employee.id = o.sales_employee_id)
+        AND (o.tenant_id IS NULL OR e.tenant_id IS NULL OR e.tenant_id = o.tenant_id)
+    `);
+
+    await clientOrPool.query(`
+      UPDATE orders o
+      SET
+        seller_user_id = COALESCE(o.seller_user_id, o.salesperson_id),
+        salesperson_id = e.id,
+        sales_employee_id = COALESCE(o.sales_employee_id, e.id)
+      FROM employees e
+      WHERE o.salesperson_id IS NOT NULL
+        AND e.user_id = o.salesperson_id
+        AND NOT EXISTS (SELECT 1 FROM employees direct_employee WHERE direct_employee.id = o.salesperson_id)
+        AND (o.tenant_id IS NULL OR e.tenant_id IS NULL OR e.tenant_id = o.tenant_id)
+    `);
+  }
+
+  if (hasOrderItems) {
+    await clientOrPool.query(`
+      UPDATE order_items oi
+      SET sales_employee_id = e.id
+      FROM employees e
+      WHERE oi.sales_employee_id IS NOT NULL
+        AND e.user_id = oi.sales_employee_id
+        AND NOT EXISTS (SELECT 1 FROM employees direct_employee WHERE direct_employee.id = oi.sales_employee_id)
+        AND (oi.tenant_id IS NULL OR e.tenant_id IS NULL OR e.tenant_id = oi.tenant_id)
+    `);
+  }
+
+  if (hasEmployeeSales) {
+    await clientOrPool.query(`
+      UPDATE employee_sales es
+      SET sales_employee_id = e.id
+      FROM employees e
+      WHERE es.sales_employee_id IS NOT NULL
+        AND e.user_id = es.sales_employee_id
+        AND NOT EXISTS (SELECT 1 FROM employees direct_employee WHERE direct_employee.id = es.sales_employee_id)
+        AND (es.tenant_id IS NULL OR e.tenant_id IS NULL OR e.tenant_id = es.tenant_id)
+    `);
+  }
+
+  if (hasOrders && hasOrderItems) {
+    await clientOrPool.query(`
+      UPDATE order_items oi
+      SET sales_employee_id = COALESCE(o.sales_employee_id, o.salesperson_id)
+      FROM orders o
+      WHERE oi.order_id = o.id
+        AND oi.sales_employee_id IS NULL
+        AND COALESCE(o.sales_employee_id, o.salesperson_id) IS NOT NULL
+    `);
+  }
+
+  if (hasOrders) {
+    await clientOrPool.query(`
+      UPDATE orders o
+      SET sales_employee_id = NULL
+      WHERE o.sales_employee_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM employees e WHERE e.id = o.sales_employee_id)
+    `);
+
+    await clientOrPool.query(`
+      UPDATE orders o
+      SET salesperson_id = NULL
+      WHERE o.salesperson_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM employees e WHERE e.id = o.salesperson_id)
+    `);
+  }
+
+  if (hasOrderItems) {
+    await clientOrPool.query(`
+      UPDATE order_items oi
+      SET sales_employee_id = NULL
+      WHERE oi.sales_employee_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM employees e WHERE e.id = oi.sales_employee_id)
+    `);
+  }
+
+  if (hasEmployeeSales) {
+    await clientOrPool.query(`
+      UPDATE employee_sales es
+      SET sales_employee_id = NULL
+      WHERE es.sales_employee_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM employees e WHERE e.id = es.sales_employee_id)
+    `);
+  }
+
+  await repairOrdersSalesEmployeeForeignKey(clientOrPool, { source: "migrateSellerEmployeeReferences" });
+  await addEmployeeReferenceForeignKey(clientOrPool, "orders", "salesperson_id", "orders_salesperson_id_employee_fkey");
+  await addEmployeeReferenceForeignKey(clientOrPool, "order_items", "sales_employee_id", "order_items_sales_employee_id_employee_fkey");
+  await addEmployeeReferenceForeignKey(clientOrPool, "employee_sales", "sales_employee_id", "employee_sales_sales_employee_id_employee_fkey");
+};
+
 export const ensureSalesCommissionSchema = async (clientOrPool = db) => {
+  console.info("[seller-fk-check:start]", { source: "ensureSalesCommissionSchema", step: "ensure_invoked" });
   await ensureAttendanceSchema(clientOrPool);
   await ensureEmployeePenaltiesSchema(clientOrPool);
   await clientOrPool.query(`
@@ -839,6 +1193,8 @@ export const ensureSalesCommissionSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_sales_employee_created ON orders (tenant_id, sales_employee_id, created_at DESC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_seller_user_created ON orders (tenant_id, seller_user_id, created_at DESC)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS sales_employee_id BIGINT NULL`);
+  await migrateSellerEmployeeReferences(clientOrPool);
+  console.info("[seller-fk-check:found]", { source: "ensureSalesCommissionSchema", step: "ensure_completed" });
 
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS returned_quantity INTEGER NOT NULL DEFAULT 0`);
 

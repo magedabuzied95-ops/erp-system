@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import db from "../database/db.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
-import { normalizeWorkingDays } from "../utils/attendanceCalculator.js";
+import { calculateAttendanceMetrics, normalizeWorkingDays } from "../utils/attendanceCalculator.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { createNotification } from "./notificationsService.js";
 import { listStaffTasks, updateStaffTaskStatus } from "./staffTasksService.js";
@@ -218,6 +218,9 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS admin_note TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS reviewed_by BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP NULL`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_requests_employee_status ON employee_portal_requests (tenant_id, employee_id, status, created_at DESC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_requests_employee_created ON employee_portal_requests (tenant_id, employee_id, created_at DESC, id DESC)`);
   await clientOrPool.query(`
@@ -597,6 +600,7 @@ const getAttendanceTimeline = async ({ tenantId, employeeId, periodStart, period
         COALESCE(check_out_at, check_out) AS check_out,
         COALESCE(status, '') AS status,
         COALESCE(late_minutes, 0) AS late_minutes,
+        COALESCE(early_leave_minutes, 0) AS early_leave_minutes,
         COALESCE(overtime_minutes, 0) AS overtime_minutes,
         COALESCE(notes, '') AS notes,
         COALESCE(al.selected_shift_id, al.shift_id) AS selected_shift_id,
@@ -621,6 +625,8 @@ const getAttendanceTimeline = async ({ tenantId, employeeId, periodStart, period
       check_out: row.check_out,
       status: row.status || (row.check_in ? "present" : "absent"),
       late_minutes: Number(row.late_minutes || 0),
+      attendance_status: Number(row.late_minutes || 0) > 0 ? "late" : "on_time",
+      early_leave_minutes: Number(row.early_leave_minutes || 0),
       overtime_hours: Number((Number(row.overtime_minutes || 0) / 60).toFixed(2)),
       notes: row.notes || "",
       selected_shift_id: row.selected_shift_id || null,
@@ -638,7 +644,7 @@ const getPortalRequestsForEmployee = async ({ tenantId, employeeId }) => {
   await ensureEmployeePayrollPortalSchema(db);
   const result = await db.query(
     `
-    SELECT id, request_type, amount, request_date, end_date, message, status, admin_note, created_at, reviewed_at
+    SELECT id, request_type, amount, request_date, end_date, message, status, admin_note, reviewed_by, created_at, reviewed_at
     FROM employee_portal_requests
     WHERE employee_id::text = $1::text
       AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
@@ -657,6 +663,10 @@ const getPortalRequestsForEmployee = async ({ tenantId, employeeId }) => {
     message: row.message || "",
     status: row.status || "pending",
     admin_note: row.admin_note || "",
+    decision_date: row.reviewed_at || null,
+    reviewed_by: row.reviewed_by || null,
+    decision_by: row.reviewed_by || null,
+    approved_rejected_by: row.reviewed_by || null,
     created_at: row.created_at,
     reviewed_at: row.reviewed_at,
   }));
@@ -1754,14 +1764,38 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     error.status = 409;
     throw error;
   }
+  const checkOutAt = new Date();
+  const shift = existing.rows[0].selected_shift_id || existing.rows[0].shift_id
+    ? (await db.query(
+        `
+        SELECT *
+        FROM employee_shifts
+        WHERE id = $1
+          AND employee_id::text = $2::text
+          AND ($3::bigint IS NULL OR tenant_id = $3::bigint)
+        LIMIT 1
+        `,
+        [existing.rows[0].selected_shift_id || existing.rows[0].shift_id, employee.id, employee.tenant_id]
+      )).rows[0] || null
+    : await getActiveEmployeeShift({ tenantId: employee.tenant_id, employeeId: employee.id });
+  const metrics = calculateAttendanceMetrics({
+    attendanceDate,
+    checkIn: existing.rows[0].check_in_at || existing.rows[0].check_in,
+    checkOut: checkOutAt,
+    shift: {
+      ...(shift || {}),
+      start_time: existing.rows[0].resolved_shift_start_time || shift?.start_time || shift?.startTime,
+      end_time: existing.rows[0].resolved_shift_end_time || shift?.end_time || shift?.endTime,
+    },
+  });
   if (existing.rows[0].check_out || existing.rows[0].check_out_at || String(existing.rows[0].status || "").toLowerCase() === "checked_out") {
     throw employeePortalError("already_checked_out", "تم تسجيل الانصراف بالفعل", 409);
   }
   const result = await db.query(
     `
     UPDATE attendance_logs
-    SET check_out = COALESCE(check_out, NOW()),
-        check_out_at = COALESCE(check_out_at, NOW()),
+    SET check_out = COALESCE(check_out, $11),
+        check_out_at = COALESCE(check_out_at, $11),
         check_out_latitude = COALESCE(check_out_latitude, $5::numeric),
         check_out_longitude = COALESCE(check_out_longitude, $6::numeric),
         check_out_gps_distance_meters = COALESCE(check_out_gps_distance_meters, $7::numeric),
@@ -1770,16 +1804,32 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         user_agent = COALESCE(user_agent, NULLIF($10, '')),
         attendance_source = 'employee_portal',
         status = 'checked_out',
-        work_minutes = CASE
-          WHEN COALESCE(check_in_at, check_in) IS NULL THEN COALESCE(work_minutes, 0)
-          ELSE GREATEST(0, EXTRACT(EPOCH FROM (NOW() - COALESCE(check_in_at, check_in))) / 60)::int
-        END,
+        work_minutes = $12,
+        late_minutes = $13,
+        early_leave_minutes = $14,
+        overtime_minutes = $15,
         notes = TRIM(CONCAT_WS(E'\n', NULLIF(notes, ''), NULLIF($4, ''))),
         updated_at = NOW()
     WHERE tenant_id = $1 AND employee_id = $2 AND attendance_date = $3::date
     RETURNING *
     `,
-    [employee.tenant_id, employee.id, attendanceDate, notes, gps.latitude, gps.longitude, gps.distance_meters, gps.verification_result, audit.ip || "", audit.userAgent || audit.user_agent || ""]
+    [
+      employee.tenant_id,
+      employee.id,
+      attendanceDate,
+      notes,
+      gps.latitude,
+      gps.longitude,
+      gps.distance_meters,
+      gps.verification_result,
+      audit.ip || "",
+      audit.userAgent || audit.user_agent || "",
+      checkOutAt,
+      metrics.work_minutes,
+      metrics.late_minutes,
+      metrics.early_leave_minutes,
+      metrics.overtime_minutes,
+    ]
   );
   await recordEmployeePortalAudit({ employee, action: "attendance_check_out", audit: auditWithGps, metadata: { branch_id: branch.id, attendance_id: result.rows[0]?.id } });
   return { action, attendance: result.rows[0], branch: { id: branch.id, name: branch.name } };

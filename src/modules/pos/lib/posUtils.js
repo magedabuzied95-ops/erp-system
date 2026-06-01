@@ -228,14 +228,15 @@ export const derivePaymentSummary = ({
   cashAmount = 0,
   cardAmount = 0,
   walletAmount = 0,
+  vodafoneCashAmount = 0,
   customerWalletAmount = 0,
 }) => {
   const rawPaidAmount =
     paymentMode === "split"
-      ? Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + Number(customerWalletAmount || 0)
+      ? Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + Number(vodafoneCashAmount || 0) + Number(customerWalletAmount || 0)
       : paymentMode === "customer_wallet"
         ? Number(customerWalletAmount || 0)
-        : Number(cashAmount || cardAmount || walletAmount || 0);
+        : Number(cashAmount || cardAmount || walletAmount || vodafoneCashAmount || 0);
   const paidAmount = Math.min(Math.max(0, rawPaidAmount), Math.max(0, Number(total || 0)));
 
   const changeAmount = 0;
@@ -254,10 +255,11 @@ export const derivePaymentSummary = ({
     dueAmount,
     paymentStatus,
     walletAmount: Number(walletAmount || 0),
+    vodafoneCashAmount: Number(vodafoneCashAmount || 0),
     customerWalletAmount: Number(customerWalletAmount || 0),
     cashAmount: Number(cashAmount || 0),
     cardAmount: Number(cardAmount || 0),
-    remainingCashOrCard: Math.max(0, Number(total || 0) - Number(walletAmount || 0) - Number(customerWalletAmount || 0)),
+    remainingCashOrCard: Math.max(0, Number(total || 0) - Number(walletAmount || 0) - Number(vodafoneCashAmount || 0) - Number(customerWalletAmount || 0)),
   };
 };
 

@@ -16,8 +16,10 @@ import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { getSetting } from "../services/settingsService.js";
 import {
+  ensureSalesCommissionSchema,
   getSalesSettings,
   getSalespersonSnapshot,
+  logOrdersSalesEmployeeFkTarget,
   recordSalesCommissionForOrder,
 } from "../services/salesCommissionService.js";
 import {
@@ -136,6 +138,7 @@ const assertInsertShape = ({ table, context, columns = [], placeholders = "", pa
 
 const normalizeMoneyPaymentMethod = (value) => {
   const key = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (key === "visa") return "card";
   if (key === "vodafone") return "vodafone_cash";
   if (key === "insta_pay") return "instapay";
   if (["store_credit", "customer_credit", "credit_balance"].includes(key)) return "customer_wallet";
@@ -152,6 +155,23 @@ const parsePaymentBreakdownRows = (value) => {
     return [];
   }
 };
+
+const normalizeSubmittedPaymentBreakdown = (value) =>
+  parsePaymentBreakdownRows(value)
+    .map((payment) => {
+      if (!payment || typeof payment !== "object") return null;
+      const method = normalizeMoneyPaymentMethod(payment.method || payment.payment_method);
+      const amount = Number(payment.amount ?? payment.paid_amount ?? payment.value ?? 0);
+      if (!method || !Number.isFinite(amount) || amount <= 0) return null;
+      return {
+        method,
+        account_id: payment.account_id || payment.financial_account_id || null,
+        amount,
+        ...(payment.original_order_id ? { original_order_id: payment.original_order_id } : {}),
+        ...(payment.invoice_number ? { invoice_number: payment.invoice_number } : {}),
+      };
+    })
+    .filter(Boolean);
 
 const resolveOrderTotalAmount = (order = {}) => {
   const candidates = [
@@ -2166,6 +2186,8 @@ export const createOrder = async (req, res) => {
       wallet_payment_amount = null,
       cash_amount = 0,
       card_amount = 0,
+      payment_breakdown = null,
+      payments = null,
       skip_loyalty_earning = false,
       full_wallet_redemption_only = false,
       seller_user_id = null,
@@ -2255,6 +2277,7 @@ export const createOrder = async (req, res) => {
       await ensureAttendanceSchema();
       await ensurePosShiftOrderColumns(client, tenantId);
       await ensurePosUserShiftSchema(client);
+      await ensureSalesCommissionSchema(client);
       await ensureLoyaltySchema(db);
       await ensureWalletSchema(client);
     });
@@ -2363,6 +2386,12 @@ export const createOrder = async (req, res) => {
     }
     const persistedSellerName = sellerName || "";
     const persistedSalespersonName = salespersonSnapshot?.salesperson_name || sellerName || null;
+    console.log("[orders:seller-debug]", {
+      selectedSellerId: requestedSalesEmployeeId || requestedSellerUserId || null,
+      selectedSellerType: requestedSalesEmployeeId ? "employee" : requestedSellerUserId ? "user" : "none",
+      resolvedEmployeeId: resolvedSalesEmployeeId || null,
+      resolvedUserId: resolvedSellerUserId || null,
+    });
     if (POS_CHECKOUT_DEBUG) console.log("[orders][seller-debug] persisted seller in order save", {
       requestedSellerUserId,
       requestedSalesEmployeeId,
@@ -2519,6 +2548,12 @@ export const createOrder = async (req, res) => {
       payment_method: payment_method || "cash",
       payment_status: payment_status || "unpaid",
       totals: { subtotal: computedSubtotal, discount_amount: totalDiscount, tax_amount: totalTax, service_fee: totalServiceFee, total: computedTotal },
+    });
+    await logOrdersSalesEmployeeFkTarget(client, {
+      source: "createOrder:before_insert",
+      tenantId,
+      requestedSalesEmployeeId: requestedSalesEmployeeId || null,
+      resolvedSalesEmployeeId: resolvedSalesEmployeeId || null,
     });
     const orderResult = await timedCheckout(checkoutTiming, "order_insert_ms", () => client.query(
       `
@@ -2719,7 +2754,8 @@ export const createOrder = async (req, res) => {
       );
       order = exchangeOrderResult.rows[0] || order;
     }
-    const paymentBreakdown = [
+    const submittedPaymentBreakdown = normalizeSubmittedPaymentBreakdown(payment_breakdown || payments);
+    const paymentBreakdown = submittedPaymentBreakdown.length ? submittedPaymentBreakdown : [
       exchangeMode
         ? {
             method: "exchange_credit",
@@ -2845,6 +2881,10 @@ export const createOrder = async (req, res) => {
       }
     }
 
+    const cashDrawerSaleAmount = paymentBreakdown
+      .filter((payment) => normalizeMoneyPaymentMethod(payment.method || payment.payment_method) === "cash")
+      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
     markOrderStep("create payment transaction", { order_id: order.id, payment_method: payment_method || "cash", amount: receivedAmount });
     await timedCheckout(checkoutTiming, "payment_treasury_update_ms", async () => {
       await client.query(
@@ -2857,20 +2897,15 @@ export const createOrder = async (req, res) => {
 
       await client.query(
         `
-        UPDATE cashbox
+      UPDATE cashbox
         SET balance = balance + $1
         WHERE id = 1
           AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
         `,
-        [receivedAmount, tenantId]
+        [cashDrawerSaleAmount, tenantId]
       );
     });
 
-    const cashDrawerSaleAmount = Number(cash_amount || 0) > 0
-      ? Number(cash_amount || 0)
-      : String(payment_method || "cash").toLowerCase() === "cash"
-        ? Number(receivedAmount || 0)
-        : 0;
     if (cashDrawerSaleAmount > 0) {
       await timedCheckout(checkoutTiming, "payment_treasury_update_ms", () => recordCashDrawerEvent(client, {
         tenantId,
@@ -2884,30 +2919,25 @@ export const createOrder = async (req, res) => {
       }));
     }
 
-    const saleAccountEvents = [
-      {
-        amount: Number(cash_amount || 0) > 0 ? Number(cash_amount || 0) : normalizedSalePaymentMethod === "cash" ? Number(receivedAmount || 0) : 0,
-        paymentMethod: "cash",
-        financialAccountId: cash_financial_account_id || financial_account_id,
-      },
-      {
-        amount: Number(card_amount || 0) > 0 ? Number(card_amount || 0) : normalizedSalePaymentMethod === "card" ? Number(receivedAmount || 0) : 0,
-        paymentMethod: "card",
-        financialAccountId: card_financial_account_id || financial_account_id,
-      },
-      {
-        amount: companyWalletPaymentAmount,
-        paymentMethod: "wallet",
-        financialAccountId: wallet_financial_account_id || financial_account_id,
-      },
-    ];
-    if (!saleAccountEvents.some((event) => event.amount > 0) && Number(receivedAmount || 0) > 0 && !customerWalletPaymentMethods.includes(normalizedSalePaymentMethod)) {
-      saleAccountEvents.push({
-        amount: Number(receivedAmount || 0),
-        paymentMethod: normalizedSalePaymentMethod,
-        financialAccountId: financial_account_id,
-      });
-    }
+    const saleAccountEvents = paymentBreakdown
+      .map((payment) => {
+        const method = normalizeMoneyPaymentMethod(payment.method || payment.payment_method);
+        if (["customer_wallet", "exchange_credit", "return_credit"].includes(method)) return null;
+        const amount = Number(payment.amount || 0);
+        if (!Number.isFinite(amount) || amount <= 0) return null;
+        const explicitAccountId = payment.account_id || payment.financial_account_id || null;
+        const methodAccountId =
+          method === "cash" ? cash_financial_account_id :
+          method === "card" ? card_financial_account_id :
+          ["wallet", "instapay", "vodafone_cash"].includes(method) ? wallet_financial_account_id :
+          null;
+        return {
+          amount,
+          paymentMethod: method,
+          financialAccountId: explicitAccountId || methodAccountId || financial_account_id,
+        };
+      })
+      .filter(Boolean);
     for (const accountEvent of saleAccountEvents) {
       if (accountEvent.amount <= 0) continue;
       await timedCheckout(checkoutTiming, "payment_treasury_update_ms", () => recordFinancialAccountActivity(client, {

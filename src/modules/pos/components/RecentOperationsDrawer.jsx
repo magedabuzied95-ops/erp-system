@@ -111,13 +111,15 @@ const getOrderPhone = (order = {}) => order.customer_phone || order.customer_rec
 const getPaymentMethod = (order = {}) => {
   const raw = String(order.payment_method || "").toLowerCase();
   const labels = {
-    cash: "نقدي",
-    card: "فيزا",
-    visa: "فيزا",
-    wallet: "محفظة",
-    split: "متعدد",
+    cash: "CASH",
+    card: "VISA",
+    visa: "VISA",
+    wallet: "INSTAPAY",
+    instapay: "INSTAPAY",
+    vodafone_cash: "V.CASH",
+    split: "SPLIT",
   };
-  return labels[raw] || raw || "نقدي";
+  return labels[raw] || raw || "CASH";
 };
 
 const getOrderStatus = (order = {}) => {
