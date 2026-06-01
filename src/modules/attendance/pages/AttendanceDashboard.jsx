@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, CalendarDays, Clock3, RefreshCcw, ShieldCheck, UserCheck, Users } from "lucide-react";
+import { AlertTriangle, CalendarDays, Clock3, LogOut, MapPinOff, RefreshCcw, UserCheck, UserX } from "lucide-react";
 
 import { getAttendanceToday } from "../attendanceApi";
 
@@ -94,8 +94,10 @@ export default function AttendanceDashboard() {
     };
 
     loadToday();
+    const interval = window.setInterval(loadToday, 30000);
     return () => {
       active = false;
+      window.clearInterval(interval);
     };
   }, [refreshIndex]);
 
@@ -137,17 +139,17 @@ export default function AttendanceDashboard() {
         ) : null}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <MetricCard label="Present now" value={loading ? "-" : summary.presentNow ?? 0} hint="Employees with a valid scan today" tone="emerald" icon={<UserCheck className="h-5 w-5" />} />
-          <MetricCard label="Checked out" value={loading ? "-" : summary.checkedOut ?? 0} hint="Completed attendance logs" tone="cyan" icon={<ShieldCheck className="h-5 w-5" />} />
-          <MetricCard label="Missing checkout" value={loading ? "-" : summary.missingCheckout ?? 0} hint="Open logs that still need a checkout" tone="amber" icon={<AlertTriangle className="h-5 w-5" />} />
-          <MetricCard label="Late employees" value={loading ? "-" : summary.lateEmployees ?? 0} hint="Arrivals outside the grace window" tone="rose" icon={<Clock3 className="h-5 w-5" />} />
-          <MetricCard label="Total employees" value={loading ? "-" : summary.totalEmployees ?? 0} hint={`Absent today: ${summary.absent ?? 0}`} tone="slate" icon={<Users className="h-5 w-5" />} />
+          <MetricCard label="Present Today" value={loading ? "-" : summary.presentNow ?? 0} hint="Employees with attendance today" tone="emerald" icon={<UserCheck className="h-5 w-5" />} />
+          <MetricCard label="Late Today" value={loading ? "-" : summary.lateEmployees ?? 0} hint="Arrivals after grace period" tone="rose" icon={<Clock3 className="h-5 w-5" />} />
+          <MetricCard label="Absent Today" value={loading ? "-" : summary.absent ?? 0} hint={`Total employees: ${summary.totalEmployees ?? 0}`} tone="amber" icon={<UserX className="h-5 w-5" />} />
+          <MetricCard label="Early Checkout Today" value={loading ? "-" : summary.earlyCheckoutToday ?? 0} hint="Checked out before shift end" tone="cyan" icon={<LogOut className="h-5 w-5" />} />
+          <MetricCard label="Outside GPS Today" value={loading ? "-" : summary.outsideGpsToday ?? 0} hint="GPS validations outside radius" tone="slate" icon={<MapPinOff className="h-5 w-5" />} />
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-white">Attendance log</h2>
+              <h2 className="text-lg font-black text-white">Live employee table</h2>
               <p className="text-sm text-slate-400">Latest scans for {payload?.date || new Date().toISOString().slice(0, 10)}</p>
             </div>
             <div className="text-sm text-slate-400">{summary.totalWorkedHours ? `Worked hours ${summary.totalWorkedHours}` : ""}</div>
@@ -161,20 +163,21 @@ export default function AttendanceDashboard() {
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Branch</th>
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Check in</th>
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Check out</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Worked</th>
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Status</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Late Minutes</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Early Leave Minutes</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-400">
+                    <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">
                       Loading today&apos;s attendance...
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-400">
+                    <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">
                       No attendance logs found for today.
                     </td>
                   </tr>
@@ -188,11 +191,12 @@ export default function AttendanceDashboard() {
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.branch_name || "-"}</td>
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatTime(row.check_in_at || row.check_in)}</td>
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatTime(row.check_out_at || row.check_out)}</td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.work_minutes ? `${Math.floor(row.work_minutes / 60)}h ${row.work_minutes % 60}m` : "-"}</td>
                       <td className="border-b border-white/5 px-3 py-4">
                         <StatusPill status={row.status} />
                         <div className="mt-2 text-xs text-slate-500">{formatDate(row.attendance_date)}</div>
                       </td>
+                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.late_minutes ?? 0}</td>
+                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.early_leave_minutes ?? 0}</td>
                     </tr>
                   ))
                 )}

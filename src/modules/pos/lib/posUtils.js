@@ -197,9 +197,10 @@ export const calcTotals = ({
   );
 
   const baseAfterItemDiscount = Math.max(0, subtotal - itemDiscountTotal);
+  const invoiceDiscountValue = Math.min(Math.max(0, Number(invoiceDiscount || 0)), Math.max(0, subtotal));
   const afterInvoiceDiscount = Math.max(
     0,
-    baseAfterItemDiscount - Number(invoiceDiscount || 0)
+    baseAfterItemDiscount - invoiceDiscountValue
   );
   const taxableBase = Math.max(0, afterInvoiceDiscount + Number(serviceFee || 0));
   const taxAmount = 0;
@@ -211,7 +212,7 @@ export const calcTotals = ({
   return {
     subtotal,
     itemDiscountTotal,
-    invoiceDiscount: Number(invoiceDiscount || 0),
+    invoiceDiscount: invoiceDiscountValue,
     serviceFee: Number(serviceFee || 0),
     taxableBase,
     taxAmount,

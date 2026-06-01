@@ -8,6 +8,7 @@ import {
   ClipboardList,
   FileText,
   LayoutDashboard,
+  MessageCircle,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -15,12 +16,14 @@ import {
 const AttendanceCenter = lazy(() => import("../../attendance/components/AttendanceCenter"));
 const SalesEmployees = lazy(() => import("../../sales/pages/SalesEmployees"));
 const EmployeeAnalyticsWorkspace = lazy(() => import("../components/EmployeeAnalyticsWorkspace"));
+const EmployeeChatInbox = lazy(() => import("./EmployeeChatInbox"));
 
 const tabDefinitions = [
   { id: "overview", labelKey: "overview", icon: LayoutDashboard },
   { id: "employees", labelKey: "employees", icon: UsersRound },
   { id: "attendance", labelKey: "attendance", icon: CalendarClock },
   { id: "payroll", labelKey: "payroll", icon: BadgeDollarSign },
+  { id: "chat", labelKey: "chat", icon: MessageCircle },
   { id: "analytics", labelKey: "analytics", icon: BarChart3 },
   { id: "reports", labelKey: "reports", icon: FileText },
 ];
@@ -93,6 +96,7 @@ export default function EmployeeHub() {
         {activeTab === "employees" ? <SalesEmployees defaultTab="staff" embedded /> : null}
         {activeTab === "attendance" ? <AttendanceCenter /> : null}
         {activeTab === "payroll" ? <SalesEmployees defaultTab="payroll" embedded /> : null}
+        {activeTab === "chat" ? <EmployeeChatInbox /> : null}
         {activeTab === "analytics" ? <EmployeeAnalyticsWorkspace embedded /> : null}
       </Suspense>
       {activeTab === "reports" ? <EmployeeReports onSelectTab={(tab) => navigate(`/employees/${tab}`)} t={t} isRtl={isRtl} /> : null}
@@ -123,6 +127,12 @@ function EmployeeOverview({ onSelectTab, t, isRtl }) {
       title: t("common.employeeHub.cards.payroll.title"),
       text: t("common.employeeHub.cards.payroll.text"),
       icon: BadgeDollarSign,
+    },
+    {
+      tab: "chat",
+      title: t("common.employeeHub.cards.chat.title", "شات الموظفين"),
+      text: t("common.employeeHub.cards.chat.text", "متابعة رسائل الموظفين من بوابة الموظف والرد عليها من الإدارة."),
+      icon: MessageCircle,
     },
     {
       tab: "analytics",

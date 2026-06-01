@@ -159,6 +159,7 @@
         "employees": "Employees",
         "attendance": "Attendance",
         "payroll": "Payroll",
+        "chat": "Employee Chat",
         "analytics": "Analytics",
         "salesPerformance": "Sales Performance",
         "advances": "Advances",
@@ -186,6 +187,10 @@
         "payroll": {
           "title": "Payroll",
           "text": "Base salary, commissions, bonuses, deductions, employee advances, and final salary calculation."
+        },
+        "chat": {
+          "title": "Employee Chat",
+          "text": "Secure messages between employees and management from the employee portal."
         },
         "salesPerformance": {
           "title": "Sales Performance",
