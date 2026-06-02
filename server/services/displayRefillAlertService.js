@@ -3,6 +3,10 @@ import { createEmployeePortalNotification } from "./employeePayrollPortalService
 import { emitToRooms } from "../utils/socket.js";
 
 const clean = (value = "") => String(value ?? "").trim();
+const textOrNull = (value) => {
+  const next = clean(value);
+  return next || null;
+};
 const numberOrNull = (value) => {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
@@ -12,6 +16,25 @@ const stockNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 };
+const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && value !== "") ?? null;
+const normalizeTextComparable = (value = "") => clean(value).toLowerCase().replace(/\s+/g, " ").replace(/^eu\s+/i, "").replace(/^size\s+/i, "");
+const normalizeSizeComparable = (value = "") => {
+  const raw = clean(value);
+  if (!raw) return "";
+  const numeric = raw.match(/\d+(?:\.\d+)?/)?.[0];
+  if (numeric) return numeric;
+  return normalizeTextComparable(raw);
+};
+const normalizeColorComparable = (value = "") => normalizeTextComparable(value);
+const normalizeComparable = (value = "") => normalizeTextComparable(value);
+const normalizeStockValue = (row = {}) =>
+  stockNumber(firstDefined(row.stock, row.quantity, row.stock_quantity, row.available_quantity, row.available_stock, row.current_stock, row.remaining_stock));
+const normalizeSoldQuantity = (row = {}) => {
+  const value = firstDefined(row.quantity, row.qty, row.sold_quantity, row.item_quantity, row.item_qty, row.count, row.amount);
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 1;
+};
+
 // Historical alerts created with the previous rule are intentionally not auto-deleted here.
 // They cannot be safely reconstructed from current stock alone.
 // Admin review SQL example:
@@ -19,8 +42,6 @@ const stockNumber = (value) => {
 // FROM employee_display_refill_alerts
 // WHERE status = 'pending'
 // ORDER BY created_at DESC, id DESC;
-const normalizeComparable = (value = "") =>
-  clean(value).toLowerCase().replace(/[ط¥ط£ط¢]/g, "ط§").replace(/ط©/g, "ظ‡").replace(/\s+/g, " ");
 
 let schemaReadyPromise = null;
 
@@ -75,15 +96,32 @@ export const ensureDisplayRefillAlertSchema = async (clientOrPool = db) => {
 };
 
 const parseSizeNumber = (value = "") => {
-  const normalized = clean(value).replace(/[ظ -ظ©غ°-غ¹]/g, (digit) => String("ظ ظ،ظ¢ظ£ظ¤ظ¥ظ¦ظ§ظ¨ظ©غ°غ±غ²غ³غ´غµغ¶غ·غ¸غ¹".indexOf(digit) % 10));
+  const normalized = clean(value).replace(/[^0-9.]+/g, " ");
   const parsed = Number(normalized.match(/\d+(?:\.\d+)?/)?.[0] || NaN);
   return Number.isFinite(parsed) ? parsed : null;
 };
 
 const variantImageFromRows = (rows = [], color = "") => {
-  const normalizedColor = normalizeComparable(color);
-  const sameColor = rows.find((row) => clean(row.variant_image_url) && (!normalizedColor || normalizeComparable(row.color) === normalizedColor));
+  const normalizedColor = normalizeColorComparable(color);
+  const sameColor = rows.find((row) => clean(row.variant_image_url) && (!normalizedColor || normalizeColorComparable(firstDefined(row.color, row.variant_color, row.color_name, row.product_color)) === normalizedColor));
   return clean(sameColor?.variant_image_url || rows.find((row) => clean(row.variant_image_url))?.variant_image_url);
+};
+
+const rowMatchesSoldVariant = (row = {}, soldVariantId = null, soldSize = "", soldColor = "", soldColorId = null) => {
+  const rowVariantId = numberOrNull(row.id);
+  if (soldVariantId && rowVariantId && rowVariantId === soldVariantId) return true;
+  const rowColorId = numberOrNull(row.color_id);
+  if (soldColorId && rowColorId && rowColorId === soldColorId) return true;
+  const rowSize = normalizeSizeComparable(row.size);
+  const soldSizeComparable = normalizeSizeComparable(soldSize);
+  const rowColor = normalizeColorComparable(firstDefined(row.color, row.variant_color, row.color_name, row.product_color, row.product_variant_color));
+  const soldColorComparable = normalizeColorComparable(soldColor);
+  return Boolean(
+    soldSizeComparable &&
+      rowSize &&
+      rowSize === soldSizeComparable &&
+      (!soldColorComparable || !rowColor || rowColor === soldColorComparable)
+  );
 };
 
 const normalizeAlert = (row = {}) => ({
@@ -119,10 +157,11 @@ const loadOrderItems = async ({ orderId, sellerEmployeeId } = {}) => {
       oi.id AS order_item_id,
       oi.product_id,
       oi.variant_id,
-      COALESCE(oi.quantity, 0) AS sold_quantity,
+      COALESCE(oi.quantity, oi.qty, oi.sold_quantity, oi.item_quantity, 1) AS sold_quantity,
       oi.product_name,
-      COALESCE(NULLIF(oi.color, ''), NULLIF(pv.color, '')) AS color_name,
-      COALESCE(NULLIF(oi.size, ''), NULLIF(pv.size, '')) AS sold_size,
+      COALESCE(NULLIF(oi.color, ''), NULLIF(oi.variant_color, ''), NULLIF(pv.color, ''), NULLIF(p.color, '')) AS color_name,
+      COALESCE(NULLIF(oi.color_id::text, ''), NULLIF(pv.color_id::text, ''), NULLIF(p.color_id::text, '')) AS color_id,
+      COALESCE(NULLIF(oi.size, ''), NULLIF(oi.variant_size, ''), NULLIF(pv.size, ''), NULLIF(p.size, '')) AS sold_size,
       COALESCE(NULLIF(oi.variant_image, ''), NULLIF(pv.image_url, ''), NULLIF(sold_pvi.image_url, '')) AS sold_variant_image_url,
       COALESCE(NULLIF(oi.product_image, ''), NULLIF(p.image_url, '')) AS product_image_url
     FROM order_items oi
@@ -146,18 +185,21 @@ const loadOrderItems = async ({ orderId, sellerEmployeeId } = {}) => {
   return result.rows;
 };
 
-const loadSameColorVariants = async ({ tenantId, productId, colorName } = {}) => {
+const loadSameColorVariants = async ({ tenantId, productId, colorName, soldColorId } = {}) => {
+  const params = [numberOrNull(productId), numberOrNull(tenantId), clean(colorName), textOrNull(soldColorId)];
   const result = await db.query(
     `
     SELECT
       pv.id,
       pv.product_id,
       pv.color,
+      pv.color AS variant_color,
+      pv.color_id,
       pv.size,
-      COALESCE(pv.color_id, NULL) AS color_id,
-      COALESCE(pv.stock, 0) AS stock,
+      COALESCE(pv.stock, pv.quantity, pv.stock_quantity, pv.available_quantity, pv.current_stock, 0) AS stock,
       COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, ''), NULLIF(pvi.image_url, '')) AS variant_image_url
     FROM product_variants pv
+    LEFT JOIN products p ON p.id = pv.product_id
     LEFT JOIN LATERAL (
       SELECT image_url
       FROM product_variant_images pvi
@@ -170,18 +212,27 @@ const loadSameColorVariants = async ({ tenantId, productId, colorName } = {}) =>
     ) pvi ON TRUE
     WHERE pv.product_id = $1
       AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
-      AND LOWER(COALESCE(pv.color, '')) = LOWER($3)
+      AND (
+        LOWER(TRIM(COALESCE(pv.color, ''))) = LOWER(TRIM($3))
+        OR LOWER(TRIM(COALESCE(p.color, ''))) = LOWER(TRIM($3))
+        OR ($4::text IS NOT NULL AND NULLIF(pv.color_id, 0)::text = $4::text)
+      )
       AND COALESCE(pv.is_active, TRUE) = TRUE
       AND pv.deleted_at IS NULL
     `,
-    [numberOrNull(productId), numberOrNull(tenantId), clean(colorName)]
+    params
   );
   return result.rows;
 };
 
 const sortVariantsBySize = (variants = []) =>
   [...variants]
-    .map((row) => ({ ...row, size_number: parseSizeNumber(row.size) }))
+    .map((row) => ({
+      ...row,
+      size_number: parseSizeNumber(row.size),
+      size_comparable: normalizeSizeComparable(row.size),
+      stock: normalizeStockValue(row),
+    }))
     .filter((row) => clean(row.size))
     .sort((a, b) => {
       if (a.size_number !== null && b.size_number !== null) return a.size_number - b.size_number;
@@ -190,17 +241,17 @@ const sortVariantsBySize = (variants = []) =>
       return clean(a.size).localeCompare(clean(b.size), "en");
     });
 
-const resolvePreSaleSmallestVariant = ({ variants = [], soldVariantId = null, soldSize = "", soldQuantity = 0 } = {}) => {
+const resolvePreSaleSmallestVariant = ({ variants = [], soldVariantId = null, soldSize = "", soldQuantity = 0, soldColor = "", soldColorId = null } = {}) => {
   const soldVariantKey = numberOrNull(soldVariantId);
-  const soldComparableSize = normalizeComparable(soldSize);
+  const soldComparableSize = normalizeSizeComparable(soldSize);
   const safeSoldQuantity = Math.max(0, Number(soldQuantity) || 0);
   return sortVariantsBySize(variants)
     .map((row) => {
-      const sameVariant = soldVariantKey && numberOrNull(row.id) === soldVariantKey;
-      const sameSizeFallback = !soldVariantKey && soldComparableSize && normalizeComparable(row.size) === soldComparableSize;
+      const soldVariantMatch = rowMatchesSoldVariant(row, soldVariantKey, soldSize, soldColor, soldColorId);
       return {
         ...row,
-        pre_sale_stock: stockNumber(row.stock) + (sameVariant || sameSizeFallback ? safeSoldQuantity : 0),
+        is_sold_variant: soldVariantMatch,
+        pre_sale_stock: normalizeStockValue(row) + (soldVariantMatch ? safeSoldQuantity : 0),
       };
     })
     .find((row) => row.pre_sale_stock > 0) || null;
@@ -208,9 +259,9 @@ const resolvePreSaleSmallestVariant = ({ variants = [], soldVariantId = null, so
 
 const resolveReplacementVariant = (variants = [], soldSize = "") => {
   const soldNumber = parseSizeNumber(soldSize);
-  const sorted = sortVariantsBySize(variants).filter((row) => stockNumber(row.stock) > 0);
+  const sorted = sortVariantsBySize(variants).filter((row) => normalizeStockValue(row) > 0);
   if (soldNumber !== null) return sorted.find((row) => row.size_number !== null && row.size_number > soldNumber) || null;
-  const soldIndex = sorted.findIndex((row) => normalizeComparable(row.size) === normalizeComparable(soldSize));
+  const soldIndex = sorted.findIndex((row) => normalizeSizeComparable(row.size) === normalizeSizeComparable(soldSize));
   return soldIndex >= 0 ? sorted[soldIndex + 1] || null : null;
 };
 
@@ -260,6 +311,10 @@ const insertAlert = async (alert = {}) => {
   return normalizeAlert(result.rows[0]);
 };
 
+const logDecision = (payload) => {
+  console.info("[display-refill-alert:decision]", payload);
+};
+
 export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmployeeId } = {}) => {
   await ensureDisplayRefillAlertSchema();
   const safeOrderId = numberOrNull(orderId);
@@ -273,55 +328,78 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
   const items = await loadOrderItems({ orderId: safeOrderId, sellerEmployeeId: safeEmployeeId });
   const created = [];
   for (const item of items) {
-    const colorName = clean(item.color_name);
-    const soldSize = clean(item.sold_size);
+    const colorName = clean(firstDefined(item.color_name, item.color, item.variant_color));
+    const soldSize = clean(firstDefined(item.sold_size, item.size, item.variant_size));
     const productId = numberOrNull(item.product_id);
-    const soldQuantity = Math.max(0, Number(item.sold_quantity) || 0);
+    const soldQuantity = normalizeSoldQuantity(item);
     const soldVariantId = numberOrNull(item.variant_id);
-    if (!productId || !colorName || !soldSize) {
-      console.info("[display-refill-alert:skipped]", { reason: "missing_product_color_or_size", orderId: safeOrderId, orderItemId: item.order_item_id });
+    const soldColorId = numberOrNull(item.color_id);
+
+    const baseDecision = {
+      order_id: safeOrderId,
+      seller_employee_id: safeEmployeeId,
+      product_id: productId,
+      variant_id: soldVariantId,
+      color_name: colorName || null,
+      sold_size: soldSize || null,
+      sold_quantity: soldQuantity,
+      same_color_variants_count: 0,
+      variants: [],
+      pre_sale_smallest_size: null,
+      replacement_size: null,
+      skip_reason: null,
+    };
+
+    if (!productId || (!colorName && !soldColorId) || !soldSize) {
+      logDecision({ ...baseDecision, skip_reason: "missing_product_color_or_size" });
       continue;
     }
-    const variants = await loadSameColorVariants({ tenantId: item.tenant_id, productId, colorName });
+
+    const variants = await loadSameColorVariants({ tenantId: item.tenant_id, productId, colorName, soldColorId });
+    const sortedVariants = sortVariantsBySize(variants);
+    const soldVariant = sortedVariants.find((row) => rowMatchesSoldVariant(row, soldVariantId, soldSize, colorName, soldColorId)) || null;
     const preSaleSmallest = resolvePreSaleSmallestVariant({
-      variants,
-      soldVariantId,
+      variants: sortedVariants,
+      soldVariantId: soldVariant?.id || soldVariantId,
       soldSize,
       soldQuantity,
+      soldColor: colorName,
+      soldColorId,
     });
     const preSaleSmallestSize = clean(preSaleSmallest?.size);
-    if (!preSaleSmallestSize) {
-      console.info("[display-refill-alert:skipped]", {
-        reason: "missing_pre_sale_smallest_size",
-        sold_size: soldSize,
-        product_id: productId,
-        color_name: colorName,
-        orderId: safeOrderId,
-        orderItemId: item.order_item_id,
-      });
-      continue;
-    }
-    if (normalizeComparable(soldSize) !== normalizeComparable(preSaleSmallestSize)) {
-      console.info("[display-refill-alert:skipped]", {
-        reason: "sold_size_not_displayed_smallest",
-        sold_size: soldSize,
-        pre_sale_smallest_size: preSaleSmallestSize,
-        product_id: productId,
-        color_name: colorName,
-      });
-      continue;
-    }
-    const replacement = resolveReplacementVariant(variants, soldSize);
+    const replacement = resolveReplacementVariant(sortedVariants, soldSize);
     const replacementSize = replacement ? clean(replacement.size) : null;
-    if (!replacementSize) {
-      console.info("[display-refill-alert:skipped]", {
-        reason: "no_replacement_size_available",
-        sold_size: soldSize,
-        product_id: productId,
-        color_name: colorName,
-      });
+
+    const decisionVariants = sortedVariants.map((row) => ({
+      size: clean(row.size),
+      current_stock: normalizeStockValue(row),
+      pre_sale_stock: stockNumber(row.pre_sale_stock ?? normalizeStockValue(row)),
+      is_sold_variant: Boolean(rowMatchesSoldVariant(row, soldVariantId, soldSize, colorName, soldColorId)),
+    }));
+
+    const decisionBase = {
+      ...baseDecision,
+      same_color_variants_count: sortedVariants.length,
+      variants: decisionVariants,
+      pre_sale_smallest_size: preSaleSmallestSize || null,
+      replacement_size: replacementSize || null,
+    };
+
+    if (!preSaleSmallestSize) {
+      logDecision({ ...decisionBase, skip_reason: "missing_pre_sale_smallest_size" });
       continue;
     }
+
+    if (normalizeSizeComparable(soldSize) !== normalizeSizeComparable(preSaleSmallestSize)) {
+      logDecision({ ...decisionBase, skip_reason: "sold_size_not_displayed_smallest" });
+      continue;
+    }
+
+    if (!replacementSize) {
+      logDecision({ ...decisionBase, skip_reason: "no_replacement_size_available" });
+      continue;
+    }
+
     const duplicate = await duplicateExists({
       employeeId: safeEmployeeId,
       productId,
@@ -330,13 +408,11 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       replacementSize,
     });
     if (duplicate) {
-      console.info("[display-refill-alert:skipped]", { reason: "duplicate_pending_today", alertId: duplicate.id, productId, colorName, soldSize, replacementSize });
+      logDecision({ ...decisionBase, skip_reason: "duplicate_pending_today", duplicate_alert_id: duplicate.id });
       continue;
     }
 
-    const imageUrl = clean(item.sold_variant_image_url) ||
-      variantImageFromRows(variants, colorName) ||
-      clean(item.product_image_url);
+    const imageUrl = clean(item.sold_variant_image_url) || variantImageFromRows(sortedVariants, colorName) || clean(item.product_image_url);
     const invoiceNumber = clean(item.invoice_number || item.display_order_number || item.public_order_number || safeOrderId);
     const alert = await insertAlert({
       employee_id: safeEmployeeId,
@@ -348,17 +424,18 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       color_name: colorName,
       sold_size: soldSize,
       replacement_size: replacementSize,
-      remaining_stock: replacement?.stock || 0,
+      remaining_stock: replacement?.stock ?? normalizeStockValue(replacement),
       image_url: imageUrl,
     });
-    const body = `اعرض مقاس ${replacementSize} بدل ${soldSize} من ${clean(item.product_name)} - ${colorName}`;
+
+    const body = `اعرض ${replacementSize} بدل ${soldSize} من ${clean(item.product_name)} - ${colorName}`;
     await createEmployeePortalNotification({
       tenantId: item.tenant_id,
       employeeId: safeEmployeeId,
       type: "display_refill_alert",
       orderId: safeOrderId,
       invoiceNumber,
-      title: "ظ†ظˆط§ظ‚طµ ط§ظ„ط¹ط±ط¶",
+      title: "تنبيه إعادة العرض",
       body,
       actionUrl: "",
       metadata: {
@@ -371,11 +448,14 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
         image_url: imageUrl,
       },
     }).catch((error) => console.warn("[display-refill-alert:notification-skipped]", { alertId: alert.id, message: error?.message || String(error) }));
+
     emitToRooms([`employee:${safeEmployeeId}`], "employee_portal:display_refill_alert", {
       alert,
       badge: { tag: "display_refill_alert", tab: "display-refill" },
       at: new Date().toISOString(),
     });
+
+    logDecision({ ...decisionBase, skip_reason: null, created_alert_id: alert.id });
     console.info("[display-refill-alert:created]", {
       alertId: alert.id,
       employeeId: safeEmployeeId,
