@@ -131,6 +131,13 @@ router.post(
 );
 
 router.post(
+  "/:id/shipment/bosta/create",
+  protect,
+  permit("orders", "edit"),
+  createOrderBostaShipment
+);
+
+router.post(
   "/:id/shipping/bosta/create",
   protect,
   permit("orders", "edit"),

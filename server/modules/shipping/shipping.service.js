@@ -39,6 +39,12 @@ const bostaDeliveryError = (payload = {}, fallbackMessage = "Bosta delivery crea
   return error;
 };
 
+const isBostaCredentialsMissingError = (error = {}) => {
+  const code = text(error?.code || error?.payload?.code || error?.payload?.errorCode).toUpperCase();
+  const message = text(error?.message || error?.payload?.message).toLowerCase();
+  return code === "BOSTA_API_KEY_MISSING" || message.includes("bosta api key is missing") || message.includes("bosta credentials are missing");
+};
+
 const BOSTA_WEBHOOK_STATUS_MAP = {
   created: "shipment_created",
   shipment_created: "shipment_created",
@@ -583,6 +589,73 @@ const loadOrderShipmentContext = async (client, orderId) => {
   return { order, items: itemsResult.rows, city: cityResult.rows[0], zone: zoneResult.rows[0], district: districtResult.rows[0] };
 };
 
+const markBostaShipmentCreatedFallback = async (client, order, reason = "bosta_credentials_missing") => {
+  const status = "shipment_created";
+  const shipmentId = text(order.shipping_provider_delivery_id || order.shipment_id || order.shipping_tracking_number || order.tracking_number) || `manual-bosta-${order.id}`;
+  const trackingNumber = text(order.shipping_tracking_number || order.tracking_number) || null;
+  const trackingUrl = text(order.tracking_url) || null;
+  const rawResponse = {
+    fallback: true,
+    reason,
+    message: "Bosta is not configured. Shipment was marked as created manually.",
+  };
+  const timelineEvent = {
+    at: nowIso(),
+    action: "bosta_create_fallback",
+    provider: "bosta",
+    status,
+    shipment_id: shipmentId,
+    tracking_number: trackingNumber,
+    reason,
+  };
+  const params = [order.id, shipmentId, trackingNumber, trackingUrl, status, JSON.stringify(rawResponse), JSON.stringify([timelineEvent])];
+  console.info("[shipment-status-update]", {
+    order_id: order.id,
+    old_status: text(order.shipment_status || order.shipping_status) || "pending",
+    new_status: status,
+    params,
+  });
+
+  const updateResult = await client.query(
+    `
+    UPDATE orders SET
+      shipping_provider = 'bosta',
+      shipping_provider_id = 'bosta',
+      shipping_provider_delivery_id = $2::varchar,
+      shipment_id = $2::varchar,
+      shipping_tracking_number = $3::varchar,
+      tracking_number = $3::varchar,
+      tracking_url = $4::text,
+      shipping_status = $5::varchar,
+      shipment_status = $5::varchar,
+      shipping_last_synced_at = CURRENT_TIMESTAMP,
+      last_shipping_sync_at = CURRENT_TIMESTAMP,
+      shipping_raw_payload = $6::jsonb,
+      shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || $7::jsonb,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+    RETURNING *
+    `,
+    params
+  );
+  const updatedOrder = updateResult.rows[0];
+  return {
+    success: true,
+    provider: "bosta",
+    provider_id: "bosta",
+    status,
+    shipping_status: status,
+    shipment_id: shipmentId,
+    tracking_number: trackingNumber,
+    tracking_url: trackingUrl,
+    fallback: true,
+    reason,
+    message: rawResponse.message,
+    raw_response: rawResponse,
+    order: updatedOrder,
+  };
+};
+
 export const createBostaShipmentForOrder = async (orderId) => {
   await ensureShippingSchema();
   const client = await db.connect();
@@ -590,6 +663,16 @@ export const createBostaShipmentForOrder = async (orderId) => {
     await client.query("BEGIN");
     const context = await loadOrderShipmentContext(client, orderId);
     const { order, items, city, zone, district } = context;
+    const config = await bostaConfig();
+    if (!text(config.apiKey)) {
+      const response = await markBostaShipmentCreatedFallback(client, order, "bosta_credentials_missing");
+      await client.query("COMMIT");
+      sendShipmentCreated(response.order).catch((error) => {
+        console.warn("[whatsapp:shipment-notification-skipped]", { orderId: response.order?.id, status: response.status, message: error?.message || String(error) });
+      });
+      return response;
+    }
+
     const missing = [];
     if (!text(order.customer_name)) missing.push("customer name");
     if (!text(order.customer_phone)) missing.push("customer phone");
@@ -610,7 +693,6 @@ export const createBostaShipmentForOrder = async (orderId) => {
       throw error;
     }
 
-    const config = await bostaConfig();
     const bosta = createBostaClient(config);
     const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: orderCodAmount(order) });
     console.log("[bosta-create-payload]", JSON.stringify(deliveryPayload));
@@ -620,6 +702,14 @@ export const createBostaShipmentForOrder = async (orderId) => {
       rawBostaResponse = await bosta.createDelivery(deliveryPayload);
       console.log("[bosta-create-response]", JSON.stringify(rawBostaResponse));
     } catch (apiError) {
+      if (isBostaCredentialsMissingError(apiError)) {
+        const response = await markBostaShipmentCreatedFallback(client, order, "bosta_credentials_missing");
+        await client.query("COMMIT");
+        sendShipmentCreated(response.order).catch((error) => {
+          console.warn("[whatsapp:shipment-notification-skipped]", { orderId: response.order?.id, status: response.status, message: error?.message || String(error) });
+        });
+        return response;
+      }
       const rawErrorPayload = apiError?.payload || { message: apiError?.message, status: apiError?.status };
       console.error("[bosta-create-response]", JSON.stringify(rawErrorPayload));
       throw bostaDeliveryError(

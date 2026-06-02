@@ -5133,9 +5133,10 @@ export const editOrder = async (req, res) => {
 
 const shipmentActionStatus = (action = "") => {
   const normalized = String(action || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-  if (["create", "create_shipment", "manual_create"].includes(normalized)) return "created";
+  if (["create", "create_shipment", "manual_create", "shipment_created", "mark_shipment_created"].includes(normalized)) return "shipment_created";
   if (["retry", "retry_shipment"].includes(normalized)) return "created";
   if (["mark_shipped", "shipped", "ship"].includes(normalized)) return "in_transit";
+  if (["out_for_delivery", "mark_out_for_delivery"].includes(normalized)) return "out_for_delivery";
   if (["mark_delivered", "delivered", "deliver"].includes(normalized)) return "delivered";
   if (["cancel", "cancel_shipment", "cancelled", "canceled"].includes(normalized)) return "cancelled";
   if (["ready", "ready_to_ship"].includes(normalized)) return "ready_to_ship";
@@ -5179,31 +5180,54 @@ export const updateOrderShipment = async (req, res) => {
       return res.status(400).json({ success: false, message: "Unsupported shipment action" });
     }
 
-    const shipmentId = String(req.body?.shipment_id || providerResult?.shipment_id || loaded.order.shipment_id || (providerKey === "in_store_delivery" ? `in-store-${loaded.order.id}` : "") || "").trim() || null;
-    const trackingNumber = String(req.body?.tracking_number || providerResult?.tracking_number || loaded.order.tracking_number || "").trim() || null;
-    const trackingUrl = String(req.body?.tracking_url || providerResult?.tracking_url || loaded.order.tracking_url || "").trim() || null;
-    const providerId = String(providerResult?.provider_id || req.body?.provider_id || providerKey).trim() || providerKey;
-    const providerName = String(providerResult?.provider || providerKey).trim() || providerKey;
+    const nullableText = (value) => {
+      const next = String(value ?? "").trim();
+      return next || null;
+    };
+    const shipmentId = nullableText(req.body?.shipment_id || providerResult?.shipment_id || loaded.order.shipment_id || (providerKey === "in_store_delivery" ? `in-store-${loaded.order.id}` : ""));
+    const trackingNumber = nullableText(req.body?.tracking_number || providerResult?.tracking_number || loaded.order.tracking_number);
+    const trackingUrl = nullableText(req.body?.tracking_url || providerResult?.tracking_url || loaded.order.tracking_url);
+    const providerId = nullableText(providerResult?.provider_id || req.body?.provider_id || providerKey) || providerKey;
+    const providerName = nullableText(providerResult?.provider || providerKey) || providerKey;
     const rawResponse = providerResult?.raw_response ? JSON.stringify(providerResult.raw_response) : null;
+    const updateParams = [
+      providerName,
+      providerId,
+      nextStatus,
+      shipmentId,
+      trackingNumber,
+      trackingUrl,
+      action,
+      rawResponse,
+      req.user?.id || null,
+      loaded.order.id,
+      tenantId,
+    ];
+    console.info("[shipment-status-update]", {
+      order_id: loaded.order.id,
+      old_status: normalizeShipmentStatus(loaded.order.shipment_status || loaded.order.shipping_status),
+      new_status: nextStatus,
+      params: updateParams,
+    });
 
     const updateResult = await client.query(
       `
       UPDATE orders
       SET shipping_provider = $1,
           shipping_provider_id = $2,
-          shipping_status = $3,
-          shipment_status = $3,
-          shipment_id = $4,
-          tracking_number = $5,
-          tracking_url = $6,
+          shipping_status = $3::varchar,
+          shipment_status = $3::varchar,
+          shipment_id = $4::varchar,
+          tracking_number = $5::varchar,
+          tracking_url = $6::text,
           last_shipping_sync_at = NOW(),
           shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || jsonb_build_array(
             jsonb_build_object(
-              'status', $3,
-              'action', $7,
-              'provider', $1,
-              'shipment_id', $4,
-              'tracking_number', $5,
+              'status', $3::varchar,
+              'action', $7::varchar,
+              'provider', $1::varchar,
+              'shipment_id', $4::varchar,
+              'tracking_number', $5::varchar,
               'raw_response', $8::jsonb,
               'at', NOW(),
               'user_id', $9::bigint
@@ -5214,19 +5238,7 @@ export const updateOrderShipment = async (req, res) => {
         AND ($11::bigint IS NULL OR tenant_id = $11::bigint OR tenant_id IS NULL)
       RETURNING *
       `,
-      [
-        providerName,
-        providerId,
-        nextStatus,
-        shipmentId,
-        trackingNumber,
-        trackingUrl,
-        action,
-        rawResponse,
-        req.user?.id || null,
-        loaded.order.id,
-        tenantId,
-      ]
+      updateParams
     );
 
     await client.query("COMMIT");
