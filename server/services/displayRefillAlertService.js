@@ -20,7 +20,7 @@ const stockNumber = (value) => {
 // WHERE status = 'pending'
 // ORDER BY created_at DESC, id DESC;
 const normalizeComparable = (value = "") =>
-  clean(value).toLowerCase().replace(/[إأآ]/g, "ا").replace(/ة/g, "ه").replace(/\s+/g, " ");
+  clean(value).toLowerCase().replace(/[ط¥ط£ط¢]/g, "ط§").replace(/ط©/g, "ظ‡").replace(/\s+/g, " ");
 
 let schemaReadyPromise = null;
 
@@ -75,7 +75,7 @@ export const ensureDisplayRefillAlertSchema = async (clientOrPool = db) => {
 };
 
 const parseSizeNumber = (value = "") => {
-  const normalized = clean(value).replace(/[٠-٩۰-۹]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹".indexOf(digit) % 10));
+  const normalized = clean(value).replace(/[ظ -ظ©غ°-غ¹]/g, (digit) => String("ظ ظ،ظ¢ظ£ظ¤ظ¥ظ¦ظ§ظ¨ظ©غ°غ±غ²غ³غ´غµغ¶غ·غ¸غ¹".indexOf(digit) % 10));
   const parsed = Number(normalized.match(/\d+(?:\.\d+)?/)?.[0] || NaN);
   return Number.isFinite(parsed) ? parsed : null;
 };
@@ -313,6 +313,15 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
     }
     const replacement = resolveReplacementVariant(variants, soldSize);
     const replacementSize = replacement ? clean(replacement.size) : null;
+    if (!replacementSize) {
+      console.info("[display-refill-alert:skipped]", {
+        reason: "no_replacement_size_available",
+        sold_size: soldSize,
+        product_id: productId,
+        color_name: colorName,
+      });
+      continue;
+    }
     const duplicate = await duplicateExists({
       employeeId: safeEmployeeId,
       productId,
@@ -342,16 +351,14 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       remaining_stock: replacement?.stock || 0,
       image_url: imageUrl,
     });
-    const body = replacementSize
-      ? `اعرض مقاس ${replacementSize} بدل ${soldSize} من ${clean(item.product_name)} - ${colorName}`
-      : `لا يوجد مقاس بديل متاح بعد بيع ${soldSize} من ${clean(item.product_name)} - ${colorName}`;
+    const body = `اعرض مقاس ${replacementSize} بدل ${soldSize} من ${clean(item.product_name)} - ${colorName}`;
     await createEmployeePortalNotification({
       tenantId: item.tenant_id,
       employeeId: safeEmployeeId,
       type: "display_refill_alert",
       orderId: safeOrderId,
       invoiceNumber,
-      title: "نواقص العرض",
+      title: "ظ†ظˆط§ظ‚طµ ط§ظ„ط¹ط±ط¶",
       body,
       actionUrl: "",
       metadata: {
