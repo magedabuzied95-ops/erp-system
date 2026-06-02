@@ -1,4 +1,8 @@
 import db from "../database/db.js";
+import {
+  aiProductSqlExclusionClause,
+  filterAiEligibleProducts,
+} from "./aiProductEligibilityService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -253,6 +257,7 @@ export const findSimilarProductsForAi = async ({
   const productIsActiveSql = productColumns.has("is_active") ? "AND p.is_active IS DISTINCT FROM FALSE" : "";
   const variantActiveSql = variantColumns.has("is_active") ? "AND pv.is_active IS DISTINCT FROM FALSE" : "";
   const variantDeletedSql = variantColumns.has("deleted_at") ? "AND pv.deleted_at IS NULL" : "";
+  const productEligibilitySql = aiProductSqlExclusionClause("p", productColumns);
 
   const rows = await db.query(
     `
@@ -303,6 +308,7 @@ export const findSimilarProductsForAi = async ({
     WHERE p.tenant_id = $1
       ${productActiveSql}
       ${productIsActiveSql}
+      AND ${productEligibilitySql}
     GROUP BY p.id, b.name
     ORDER BY CASE WHEN p.id = $2 THEN 0 ELSE 1 END, p.updated_at DESC NULLS LAST, p.id DESC
     LIMIT 220
@@ -310,13 +316,13 @@ export const findSimilarProductsForAi = async ({
     [scopedTenantId, activeId]
   );
 
-  const products = rows.rows.map((row) => ({
+  const products = filterAiEligibleProducts(rows.rows.map((row) => ({
     ...row,
     product_price: numeric(row.product_price, 0),
     total_stock: numeric(row.total_stock, 0),
     variants: Array.isArray(row.variants) ? row.variants : [],
     tags: Array.isArray(row.tags) ? row.tags : [],
-  }));
+  })), { requireProductUrl: false });
   const activeProduct = products.find((product) => Number(product.id) === activeId) || null;
   console.log("[ai-alternatives] active product loaded", {
     tenant_id: scopedTenantId,
@@ -358,7 +364,7 @@ export const findSimilarProductsForAi = async ({
   });
 
   const minScore = scoredCandidates.some((candidate) => numeric(candidate.similarity_score, 0) >= 180) ? 120 : 70;
-  const selected = scoredCandidates
+  const selected = filterAiEligibleProducts(scoredCandidates, { requireProductUrl: false })
     .filter((candidate) => numeric(candidate.similarity_score, 0) >= minScore && numeric(candidate.total_stock, 0) > 0)
     .slice(0, Math.max(1, Number(limit) || 4));
 

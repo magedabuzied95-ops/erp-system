@@ -2,6 +2,10 @@ import crypto from "node:crypto";
 
 import db from "../database/db.js";
 import { resolvePublicProductImageUrl } from "./aiProductCards.js";
+import {
+  aiProductSqlExclusionClause,
+  filterAiEligibleProducts,
+} from "./aiProductEligibilityService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -317,6 +321,7 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
     : "ARRAY[]::text[]";
   const tenantFilter = tenantId ? "AND p.tenant_id = $1::bigint" : "";
   const productFilter = productId ? `AND p.id = $${tenantId ? 2 : 1}::bigint` : "";
+  const productEligibility = aiProductSqlExclusionClause("p", productColumns);
   const params = [tenantId, productId].filter((value) => value !== null && value !== undefined);
   const rows = [];
 
@@ -344,6 +349,7 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
     ${brandJoin}
     ${categoryJoin}
     WHERE 1=1 ${tenantFilter} ${productFilter}
+      AND ${productEligibility}
     `,
     params
   );
@@ -381,6 +387,7 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
       ${categoryJoin}
       JOIN product_variants pv ON pv.product_id = p.id ${variantTenantClause}
       WHERE 1=1 ${tenantFilter} ${productFilter}
+        AND ${productEligibility}
         AND NULLIF(${variantImageExpr}, '') IS NOT NULL
       `,
       params
@@ -425,6 +432,7 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
     ${categoryJoin}
     JOIN product_variant_images pvi ON pvi.product_id = p.id
     WHERE 1=1 ${tenantFilter} ${productFilter}
+      AND ${productEligibility}
       AND NULLIF(pvi.image_url, '') IS NOT NULL
     `,
     params
@@ -432,7 +440,7 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
   rows.push(...pviResult.rows.map((row) => ({ ...row, source: "product_variant_images" })));
 
   const seen = new Set();
-  return rows.filter((row) => {
+  return filterAiEligibleProducts(rows, { requireProductUrl: false }).filter((row) => {
     const imageUrl = resolvePublicProductImageUrl(row.image_url);
     const key = `${row.tenant_id}:${row.product_id}:${row.variant_id || 0}:${imageIdentity(imageUrl)}`;
     if (!imageUrl || seen.has(key)) return false;

@@ -11,6 +11,10 @@ import {
 import { assignSequentialInvoiceNumber, buildTemporaryInvoiceNumber } from "../utils/invoiceNumber.js";
 import { attachPublicOrderNumber, displayPublicOrderNumber } from "../utils/publicOrderNumber.js";
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
+import {
+  aiProductSqlExclusionClause,
+  filterAiEligibleProducts,
+} from "./aiProductEligibilityService.js";
 
 let schemaReadyPromise = null;
 let schemaEnsured = false;
@@ -368,6 +372,7 @@ export const searchAiOrderProducts = async ({ tenantId, message, metadata = {} }
   const compactAliasVector = `REGEXP_REPLACE(LOWER(${aliasVector}), '[^a-z0-9\u0600-\u06FF]+', '', 'g')`;
   const variantActive = variantColumns.has("is_active") && variantColumns.has("deleted_at") ? "AND pv.is_active IS DISTINCT FROM FALSE AND pv.deleted_at IS NULL" : "";
   const productActive = productColumns.has("status") ? "AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive','disabled','archived','deleted')" : "";
+  const productEligibility = aiProductSqlExclusionClause("p", productColumns);
   const termParams = terms.map((term) => `%${term}%`);
   const aliasParams = aliasTerms.map((term) => `%${term}%`);
   const compactAliasParams = aliasTerms.map((term) => `%${compactAliasText(term)}%`);
@@ -432,6 +437,7 @@ export const searchAiOrderProducts = async ({ tenantId, message, metadata = {} }
       ${variantActive}
     WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)
       ${productActive}
+      AND ${productEligibility}
       AND (
         ($${directProductParam}::bigint > 0 AND p.id = $${directProductParam}::bigint)
         OR (${aliasTerms.length ? aliasTerms.map((_, index) => {
@@ -490,7 +496,7 @@ export const searchAiOrderProducts = async ({ tenantId, message, metadata = {} }
       aliases: (row.generated_aliases || []).slice(0, 8),
     })),
   });
-  return scoredRows;
+  return filterAiEligibleProducts(scoredRows, { requireProductUrl: false });
 };
 
 const selectVariant = (product, { size = "", color = "" } = {}) => {

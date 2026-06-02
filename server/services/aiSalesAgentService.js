@@ -17,6 +17,10 @@ import { guardAIReply } from "./aiSafetyGuard.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
 import { buildHumanizedReply } from "./aiHumanizedReplies.js";
+import {
+  aiProductSqlExclusionClause,
+  filterAiEligibleProducts,
+} from "./aiProductEligibilityService.js";
 
 let schemaReadyPromise = null;
 let aiInboxSchemaReadyPromise = null;
@@ -1744,7 +1748,10 @@ const latestAiAnswer = (messages = []) =>
   [...asArray(messages)].reverse().find((message) => text(message.ai_answer))?.ai_answer || "";
 
 const latestProducts = (messages = []) =>
-  [...asArray(messages)].reverse().flatMap((message) => asArray(message.suggested_products)).filter((product) => product?.id || product?.product_id).slice(0, 6);
+  filterAiEligibleProducts(
+    [...asArray(messages)].reverse().flatMap((message) => asArray(message.suggested_products)).filter((product) => product?.id || product?.product_id),
+    { requireProductUrl: true }
+  ).slice(0, 6);
 
 const realProductPrice = (product = {}) =>
   numeric(product.final_price || product.sale_price || product.price || product.product_price, 0);
@@ -1755,7 +1762,7 @@ const stockCount = (product = {}) =>
 const storefrontProductUrl = (product = {}) => {
   const slug = text(product.canonical_slug || product.slug);
   if (slug) return `/shop/product/${slug}`;
-  return product.id || product.product_id ? `/shop/product/${product.id || product.product_id}` : "";
+  return "";
 };
 
 const normalizeRecommendationProduct = (row = {}) => {
@@ -1770,6 +1777,8 @@ const normalizeRecommendationProduct = (row = {}) => {
     gender: row.gender || "",
     category: row.category_name || row.product_type || "",
     brand: row.brand_name || "",
+    slug: row.slug || row.canonical_slug || "",
+    canonical_slug: row.canonical_slug || "",
     product_type: row.product_type || "",
     style: row.style || "",
     color: row.colors || "",
@@ -1966,6 +1975,7 @@ export const searchAiSalesProducts = async ({ tenantId, query = "", limit = 8 } 
     if (productColumns.has("is_active")) whereParts.push("COALESCE(p.is_active, TRUE) = TRUE");
     if (productColumns.has("status")) whereParts.push("COALESCE(p.status, 'active') <> 'archived'");
     if (productColumns.has("deleted_at")) whereParts.push("p.deleted_at IS NULL");
+    whereParts.push(aiProductSqlExclusionClause("p", productColumns));
     whereParts.push(`(${searchParts.join("\n        OR ")})`);
 
     const variantJoin = variantColumns.has("product_id") ? "LEFT JOIN product_variants v ON v.product_id = p.id AND v.tenant_id = p.tenant_id" : "LEFT JOIN (SELECT NULL::bigint AS product_id, NULL::bigint AS tenant_id) v ON FALSE";
@@ -2027,8 +2037,9 @@ export const searchAiSalesProducts = async ({ tenantId, query = "", limit = 8 } 
       `,
       [safeTenantId, likeQuery, likeTerms.length ? likeTerms : [likeQuery], safeLimit]
     );
-    console.log("ai_inbox_recommendations_success", { tenant_id: safeTenantId, count: result.rows.length });
-    return result.rows.map(normalizeRecommendationProduct);
+    const products = filterAiEligibleProducts(result.rows.map(normalizeRecommendationProduct), { requireProductUrl: true });
+    console.log("ai_inbox_recommendations_success", { tenant_id: safeTenantId, count: products.length });
+    return products;
   } catch (error) {
     console.error("ai_inbox_recommendations_failed", {
       tenant_id: safeTenantId,
@@ -2058,7 +2069,7 @@ export const loadAiInboxRecommendations = async ({ tenantId, conversationId, lim
   const lastMessage = latestCustomerMessage(conversation.messages) || conversation.latest_message_preview || conversation.last_message || "";
   const discussed = latestProducts(conversation.messages);
   const searched = await searchAiSalesProducts({ tenantId, query: lastMessage, limit });
-  const products = [...discussed, ...searched]
+  const products = filterAiEligibleProducts([...discussed, ...searched], { requireProductUrl: true })
     .filter((product) => product?.id || product?.product_id)
     .reduce((items, product) => {
       const key = String(product.id || product.product_id);

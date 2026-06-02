@@ -5,6 +5,7 @@ import {
   ensureAiProductImageVisualIndexSchema,
   reindexAllProductImages,
 } from "./aiVisualProductImageIndexService.js";
+import { aiProductSqlExclusionClause, filterAiEligibleProducts } from "./aiProductEligibilityService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -20,6 +21,25 @@ const positiveNumber = (value, fallback = 0) => {
 
 const EMBEDDING_TIMEOUT_MS = positiveNumber(process.env.AI_VISUAL_EMBEDDING_TIMEOUT_MS, 15000);
 const DEFAULT_OPENAI_IMAGE_EMBEDDING_MODEL = process.env.OPENAI_IMAGE_EMBEDDING_MODEL || process.env.AI_VISUAL_IMAGE_EMBEDDING_MODEL || "";
+const tableColumnCache = new Map();
+
+const tableColumns = async (tableName = "") => {
+  const table = text(tableName);
+  if (!table) return new Set();
+  if (tableColumnCache.has(table)) return tableColumnCache.get(table);
+  const result = await db.query(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = $1
+    `,
+    [table]
+  );
+  const columns = new Set(result.rows.map((row) => row.column_name));
+  tableColumnCache.set(table, columns);
+  return columns;
+};
 
 const embeddingProviderConfigured = () =>
   Boolean(text(process.env.AI_VISUAL_IMAGE_EMBEDDING_ENDPOINT)) ||
@@ -814,12 +834,25 @@ export const searchAiVisualProductsPro = async ({
   const queryEmbeddingResult = queryEmbeddingResults.find((result) => parseEmbeddingVector(result.embedding || []).length) ||
     queryEmbeddingResults[0] ||
     { embedding: [], model: "", generated: false, skipped: true, reason: "missing_query_image" };
+  const productColumns = await tableColumns("products");
+  const productNameExpr = productColumns.has("name") ? "COALESCE(NULLIF(p.name, ''), idx.product_name)" : "idx.product_name";
+  const productSlugExpr = productColumns.has("slug") ? "COALESCE(p.slug, '')" : productColumns.has("product_slug") ? "COALESCE(p.product_slug, '')" : "''";
+  const canonicalSlugExpr = productColumns.has("canonical_slug") ? "COALESCE(p.canonical_slug, '')" : "''";
+  const productEligibility = aiProductSqlExclusionClause("p", productColumns);
   const result = await db.query(
     `
-    SELECT *
-    FROM ai_product_image_visual_index
-    WHERE tenant_id = $1
-    ORDER BY COALESCE(last_indexed_at, updated_at) DESC, id DESC
+    SELECT
+      idx.*,
+      ${productNameExpr} AS product_name,
+      ${productSlugExpr} AS slug,
+      ${canonicalSlugExpr} AS canonical_slug,
+      ${productSlugExpr} AS product_slug
+    FROM ai_product_image_visual_index idx
+    JOIN products p ON p.id = idx.product_id
+      AND p.tenant_id = idx.tenant_id
+    WHERE idx.tenant_id = $1
+      AND ${productEligibility}
+    ORDER BY COALESCE(idx.last_indexed_at, idx.updated_at) DESC, idx.id DESC
     LIMIT 2500
     `,
     [tenant]
@@ -827,7 +860,7 @@ export const searchAiVisualProductsPro = async ({
   const uploadedImageHashes = queryImages.map((image) => hashBuffer(image.imageBuffer || null)).filter(Boolean);
   const uploadedImageHash = uploadedImageHashes[0] || hashBuffer(uploadedImageBuffer);
   const uploadedImageUrls = uniqueList([queryImages.map((image) => image.imageUrl || image.url), uploadedImageUrl], 12);
-  const scored = result.rows
+  const scored = filterAiEligibleProducts(result.rows, { requireProductUrl: false })
     .map((row) => candidateFromRow(row, scoreVisualRow({
       row,
       attributes,

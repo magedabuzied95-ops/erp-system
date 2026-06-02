@@ -2,6 +2,7 @@ import {
   buildStorefrontProductUrl,
   storefrontBaseUrl,
 } from "./storefrontProductUrlService.js";
+import { filterAiEligibleProducts } from "./aiProductEligibilityService.js";
 
 export { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 
@@ -404,8 +405,9 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
 };
 
 export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
-  asArray(products)
+  filterAiEligibleProducts(asArray(products), { requireProductUrl: false })
     .flatMap((product) => colorVariantCardsForProduct(product, { limit }))
+    .filter((product) => filterAiEligibleProducts([product], { requireProductUrl: true }).length)
     .filter((product) => product.name || product.product_id)
     .slice(0, Math.max(1, Number(limit) || 6))
     .map((card) => {

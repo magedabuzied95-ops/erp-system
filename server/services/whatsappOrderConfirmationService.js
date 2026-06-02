@@ -608,6 +608,9 @@ export const processConfirmationReply = async (message = {}) => {
     const cancelled = await markOrderCancelled(order.id);
     return { action: "cancelled", order: cancelled };
   }
+  if (message.inbox?.saved || message.inbox_saved) {
+    return { action: "already_saved_to_ai_inbox", order, forwarded: true, conversation_id: message.inbox?.session_id || message.conversation_id || message.external_conversation_id || "" };
+  }
   const forwarded = await forwardToAiInbox({ message: { ...message, phone, text: body }, order });
   return { action: "forwarded_to_ai", order, ...forwarded };
 };

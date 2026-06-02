@@ -8,6 +8,7 @@ import {
   normalizeEgyptPhone,
   sendOrderConfirmationMessage,
   sendTextMessage,
+  triggerWhatsappAiAutoReply,
   verifyWebhookSecret,
 } from "../services/whatsappGatewayService.js";
 import { processConfirmationReply } from "../services/whatsappOrderConfirmationService.js";
@@ -87,7 +88,10 @@ router.post("/webhook", async (req, res) => {
     const confirmation = normalized.text
       ? await processConfirmationReply(normalized)
       : { action: "ignored", reason: "no_text" };
-    return res.status(200).json({ success: true, received: true, message: normalized.text ? "ok" : "no_text", confirmation });
+    const aiReply = normalized.text && !["confirmed", "cancelled"].includes(confirmation?.action)
+      ? await triggerWhatsappAiAutoReply(normalized).catch((error) => ({ triggered: false, sent: false, error: error?.message || "AI auto reply failed" }))
+      : { triggered: false, sent: false, reason: confirmation?.action || "no_text" };
+    return res.status(200).json({ success: true, received: true, message: normalized.text ? "ok" : "no_text", confirmation, aiReply });
   } catch (error) {
     console.error("[whatsapp:error]", { route: "webhook", message: error?.message || error });
     return res.status(200).json({ success: false, received: true });

@@ -110,6 +110,7 @@ const shortText = (value = "", limit = 140) => {
 };
 const isMetaChannel = (value = "") => ["facebook_messenger", "instagram"].includes(clean(value).toLowerCase());
 const isFacebookMessengerChannel = (value = "") => ["facebook_messenger", "facebook", "messenger"].includes(clean(value).toLowerCase());
+const isWhatsappChannel = (value = "") => clean(value).toLowerCase() === "whatsapp";
 const canViewAiDebugPanel = (user = {}) => {
   const role = clean(user.role || user.role_name || user.user_role || user.type).toLowerCase();
   return Boolean(
@@ -451,6 +452,7 @@ function ConversationActions({ conversation, loading, assignName, onAssignNameCh
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const assigned = conversation.assigned_user?.name || conversation.assigned_user_name || "Unassigned";
+  const whatsappAiActive = isWhatsappChannel(conversation.channel || conversation.source) && status === "ai_active";
   return (
     <div className="mb-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -459,6 +461,7 @@ function ConversationActions({ conversation, loading, assignName, onAssignNameCh
             {status === "human_takeover" ? <PauseCircle className="h-3.5 w-3.5" /> : status === "closed" ? <LockKeyhole className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
             {status === "human_takeover" ? "AI paused" : status === "closed" ? "Closed" : "AI active"}
           </Pill>
+          {whatsappAiActive ? <Pill tone="emerald"><Bot className="h-3.5 w-3.5" />WhatsApp AI Active</Pill> : null}
           <Pill tone="zinc"><UserCheck className="h-3.5 w-3.5" />Assigned: {assigned}</Pill>
           {conversation.takeover_started_at ? <Pill tone="amber">Taken over {relativeTime(conversation.takeover_started_at)}</Pill> : null}
           {conversation.closed_at ? <Pill tone="rose">Closed {relativeTime(conversation.closed_at)}</Pill> : null}

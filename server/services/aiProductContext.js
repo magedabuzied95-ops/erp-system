@@ -1,3 +1,5 @@
+import { aiProductExclusionReason, logAiProductExclusion } from "./aiProductEligibilityService.js";
+
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const text = (value = "") => String(value ?? "").trim();
 const numberValue = (value) => {
@@ -70,6 +72,11 @@ const productUrl = (product = {}) => {
 
 export function buildProductContext(product) {
   if (!product) return null;
+  const rawReason = aiProductExclusionReason(product, { requireProductUrl: false });
+  if (rawReason) {
+    logAiProductExclusion(product, rawReason);
+    return null;
+  }
 
   const stockQuantity = numberValue(product.stock_quantity ?? product.total_stock ?? product.stock ?? product.available_stock);
   const sizes = [
@@ -78,7 +85,7 @@ export function buildProductContext(product) {
     ...asArray(product.variants).flatMap((variant) => splitSizes(variant?.size)),
   ].filter((item, index, items) => item && items.indexOf(item) === index);
 
-  return {
+  const context = {
     id: product.id || product.product_id,
     slug: text(product.slug || product.canonical_slug),
     name: product.name || product.title || product.product_name,
@@ -94,6 +101,16 @@ export function buildProductContext(product) {
       (stockQuantity > 0 || String(product.availability || product.stock_state || "").toLowerCase() === "available"),
     sizes,
   };
+  const contextReason = aiProductExclusionReason({
+    ...product,
+    slug: context.slug,
+    product_url: context.productUrl,
+  }, { requireProductUrl: true });
+  if (contextReason) {
+    logAiProductExclusion(product, contextReason);
+    return null;
+  }
+  return context;
 }
 
 export function ensureProductLinkInReply(reply = "", productContext = null) {

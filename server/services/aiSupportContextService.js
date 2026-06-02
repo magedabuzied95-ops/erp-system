@@ -31,6 +31,10 @@ import {
   resolveProductImageFromRecord,
   resolvePublicProductUrl,
 } from "./aiProductCards.js";
+import {
+  aiProductSqlExclusionClause,
+  filterAiEligibleProducts,
+} from "./aiProductEligibilityService.js";
 
 const PRODUCT_LIMIT = 18;
 const IMAGE_SEARCH_PRODUCT_LIMIT = Number(process.env.AI_IMAGE_SEARCH_PRODUCT_LIMIT || 300);
@@ -861,6 +865,10 @@ const buildProductConditions = ({ productColumns, variantColumns, terms, codes, 
   if (includeActiveFilters && productColumns.has("is_active")) {
     clauses.push(`COALESCE(p.is_active, TRUE) = TRUE`);
     filters.push("active: products.is_active true/null");
+  }
+  if (includeActiveFilters || includeVisibilityFilters) {
+    clauses.push(aiProductSqlExclusionClause("p", productColumns));
+    filters.push("ai_product_filter: real active storefront products only");
   }
 
   const visibilityColumn = pickColumn(productColumns, [
@@ -1841,6 +1849,8 @@ const normalizeProductRow = (row, intent, pricingSettings = {}) => {
 
   return {
     id: row.id,
+    slug: row.slug || "",
+    canonical_slug: row.canonical_slug || "",
     name: row.name,
     sku: row.sku || "",
     barcode: row.barcode || "",
@@ -2061,6 +2071,8 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
   });
 
   const productSelect = {
+    slug: columnExpr("p", productColumns, ["slug"], "''"),
+    canonical_slug: columnExpr("p", productColumns, ["canonical_slug", "product_slug"], "''"),
     sku: columnExpr("p", productColumns, ["sku"], "''"),
     barcode: columnExpr("p", productColumns, ["barcode"], "''"),
     brand: columnExpr("p", productColumns, ["brand", "brand_name", "vendor", "manufacturer"], "''"),
@@ -2110,6 +2122,8 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
     SELECT
       p.id,
       ${productNameExpr} AS name,
+      ${productSelect.slug} AS slug,
+      ${productSelect.canonical_slug} AS canonical_slug,
       ${productSelect.sku} AS sku,
       ${productSelect.barcode} AS barcode,
       ${productSelect.brand} AS brand,
@@ -2252,6 +2266,7 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
     });
     products = strongProducts;
   }
+  products = filterAiEligibleProducts(products, { requireProductUrl: false });
 
   debugProductSearch("result", {
     query_text: message,
@@ -2356,6 +2371,8 @@ const loadVisualSearchProducts = async ({ tenantId, intent, req = null } = {}) =
   params.push(Math.max(25, Math.min(1_000, IMAGE_SEARCH_PRODUCT_LIMIT || 300)));
 
   const productSelect = {
+    slug: columnExpr("p", productColumns, ["slug"], "''"),
+    canonical_slug: columnExpr("p", productColumns, ["canonical_slug", "product_slug"], "''"),
     sku: columnExpr("p", productColumns, ["sku"], "''"),
     barcode: columnExpr("p", productColumns, ["barcode"], "''"),
     brand: columnExpr("p", productColumns, ["brand", "brand_name", "vendor", "manufacturer"], "''"),
@@ -2399,6 +2416,8 @@ const loadVisualSearchProducts = async ({ tenantId, intent, req = null } = {}) =
     SELECT
       p.id,
       ${productNameExpr} AS name,
+      ${productSelect.slug} AS slug,
+      ${productSelect.canonical_slug} AS canonical_slug,
       ${productSelect.sku} AS sku,
       ${productSelect.barcode} AS barcode,
       ${productSelect.brand} AS brand,
@@ -2452,10 +2471,11 @@ const loadVisualSearchProducts = async ({ tenantId, intent, req = null } = {}) =
   );
 
   const pricingSettings = await getWebsiteSettings({ tenantId }).then(normalizeStorefrontPricingSettings).catch(() => normalizeStorefrontPricingSettings());
-  return hydrateProductsWithStorefrontImages(
+  const products = await hydrateProductsWithStorefrontImages(
     result.rows.map((row) => normalizeProductRow(row, intent || detectAiSupportIntent(""), pricingSettings)),
     req
   );
+  return filterAiEligibleProducts(products, { requireProductUrl: false });
 };
 
 const settingKeyGroups = {
@@ -2704,12 +2724,14 @@ const productColorCount = (product = {}) =>
     .filter(Boolean)).size;
 
 const suggestedProducts = (products = [], req = null, { limit = 3 } = {}) =>
-  products.slice(0, Math.max(1, Number(limit) || 3)).map((product) => {
+  filterAiEligibleProducts(products, { requireProductUrl: false }).slice(0, Math.max(1, Number(limit) || 3)).map((product) => {
     const inventoryProfile = product.inventory_profile || buildInventoryProfile(product);
     const colorVariantCount = productColorCount(product);
-    return ({
+    const item = ({
     id: product.id,
     name: product.name,
+    slug: product.slug || product.canonical_slug || "",
+    canonical_slug: product.canonical_slug || "",
     sku: product.sku || "",
     brand: product.brand || "",
     category: product.category || "",
@@ -2778,7 +2800,8 @@ const suggestedProducts = (products = [], req = null, { limit = 3 } = {}) =>
         }
       : {}),
   });
-  });
+    return filterAiEligibleProducts([item], { requireProductUrl: true })[0] || null;
+  }).filter(Boolean);
 
 const formatProductPriceAr = (product = {}) => {
   const finalPrice = productBestPrice(product);
