@@ -13,6 +13,11 @@ import {
   updateEmployeeWalletTaskStatus,
 } from "../services/employeePayrollPortalService.js";
 import { getEmployeeChat, sendEmployeeChatMessage } from "../services/employeeChatService.js";
+import {
+  listDisplayRefillAlertsForEmployee,
+  markDisplayRefillAlertRead,
+  resolveDisplayRefillAlert,
+} from "../services/displayRefillAlertService.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { isPerfDebugEnabled, logPerfTiming } from "../utils/perfDebug.js";
@@ -346,6 +351,52 @@ router.post("/:token/attendance/actions", async (req, res) => {
       gps: error.gps,
       ...debug,
     });
+  }
+});
+
+router.get("/:token/display-refill-alerts", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const alerts = await listDisplayRefillAlertsForEmployee({
+      employeeId: employee.id,
+      status: req.query.status || "pending",
+      limit: req.query.limit || 50,
+    });
+    return res.json({
+      success: true,
+      alerts,
+      pending_unread_count: alerts.filter((item) => item.status === "pending" && !item.is_read).length,
+    });
+  } catch (error) {
+    console.error("[employee-payroll-portal] display refill alerts load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load display refill alerts" });
+  }
+});
+
+router.patch("/:token/display-refill-alerts/:alertId/read", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const alert = await markDisplayRefillAlertRead({ employeeId: employee.id, alertId: req.params.alertId });
+    if (!alert) return res.status(404).json({ success: false, message: "Display refill alert not found" });
+    return res.json({ success: true, alert });
+  } catch (error) {
+    console.error("[employee-payroll-portal] display refill read error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to mark display refill alert read" });
+  }
+});
+
+router.patch("/:token/display-refill-alerts/:alertId/resolve", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const alert = await resolveDisplayRefillAlert({ employeeId: employee.id, alertId: req.params.alertId });
+    if (!alert) return res.status(404).json({ success: false, message: "Display refill alert not found" });
+    return res.json({ success: true, alert });
+  } catch (error) {
+    console.error("[employee-payroll-portal] display refill resolve error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to resolve display refill alert" });
   }
 });
 

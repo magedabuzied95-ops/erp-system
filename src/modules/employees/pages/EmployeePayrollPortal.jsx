@@ -318,6 +318,7 @@ Object.assign(labels.ar, {
   salaryTab: "الراتب",
   walletOnlyTab: "المحفظة",
   notificationsTab: "التنبيهات",
+  displayRefillTab: "نواقص العرض",
   talkToManagement: "كلم الإدارة",
   chatTitle: "محادثة الإدارة",
   chatSubtitle: "اكتب رسالتك وسيتم الرد عليك من الإدارة.",
@@ -350,6 +351,7 @@ Object.assign(labels.ar, {
   totalAdvancesSubtitle: "إجمالي السلف",
   currentMonthSubtitle: "الشهر الحالي",
   notificationsShort: "تنبيهات",
+  displayRefillShort: "عرض",
   tasksShort: "مهام",
   requestsShort: "طلبات",
   pendingTasks: "مهام معلقة",
@@ -374,6 +376,7 @@ Object.assign(labels.ar, {
   advanceReceived: "سلفة مستلمة",
   reason: "السبب",
   currentNetSalary: "صافي الراتب الحالي",
+  displayRefillEmpty: "لا توجد نواقص عرض حالياً",
 });
 
 Object.assign(labels.en, {
@@ -381,6 +384,7 @@ Object.assign(labels.en, {
   salaryTab: "Salary",
   walletOnlyTab: "Wallet",
   notificationsTab: "Notifications",
+  displayRefillTab: "Display refill",
   talkToManagement: "Talk to management",
   chatTitle: "Management chat",
   chatSubtitle: "Send a message and management will reply here.",
@@ -413,6 +417,7 @@ Object.assign(labels.en, {
   totalAdvancesSubtitle: "Total advances",
   currentMonthSubtitle: "Current month",
   notificationsShort: "Alerts",
+  displayRefillShort: "Display",
   tasksShort: "Tasks",
   requestsShort: "Requests",
   pendingTasks: "Pending Tasks",
@@ -437,6 +442,7 @@ Object.assign(labels.en, {
   advanceReceived: "Advance Received",
   reason: "Reason",
   currentNetSalary: "Current Net Salary",
+  displayRefillEmpty: "No display refill alerts right now.",
 });
 
 const money = (value) => {
@@ -1022,7 +1028,10 @@ export default function EmployeePayrollPortal() {
   const [recordingState, setRecordingState] = useState({ active: false, seconds: 0, supported: false });
   const [chatSocketConnected, setChatSocketConnected] = useState(false);
   const [activeToast, setActiveToast] = useState(null);
-  const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0, unreadNotifications: 0 });
+  const [displayRefillAlerts, setDisplayRefillAlerts] = useState([]);
+  const [displayRefillLoading, setDisplayRefillLoading] = useState(false);
+  const [displayRefillSavingId, setDisplayRefillSavingId] = useState("");
+  const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0, unreadNotifications: 0, displayRefillAlerts: 0 });
   const [notificationSeenVersion, setNotificationSeenVersion] = useState(0);
   const chatSocketRef = useRef(null);
   const requestSocketRef = useRef(null);
@@ -1126,8 +1135,23 @@ export default function EmployeePayrollPortal() {
       setChatOpen(true);
       return;
     }
-    if (["home", "attendance", "tasks", "requests", "salary", "wallet", "notifications"].includes(tab)) setActiveTab(tab);
+    if (["home", "attendance", "tasks", "requests", "salary", "wallet", "notifications", "display-refill"].includes(tab)) setActiveTab(tab);
   }, []);
+
+  const loadDisplayRefillAlerts = useCallback(async ({ silent = false } = {}) => {
+    if (!token) return;
+    try {
+      if (!silent) setDisplayRefillLoading(true);
+      const response = await api.get(`/employee-portal/${encodeURIComponent(token)}/display-refill-alerts`, {
+        params: { status: "pending" },
+      });
+      setDisplayRefillAlerts(safeArray(response.alerts));
+    } catch (err) {
+      console.warn("[employee-payroll-portal] display refill alerts load failed", err);
+    } finally {
+      if (!silent) setDisplayRefillLoading(false);
+    }
+  }, [token]);
 
   const loadPortalByToken = useCallback(
     async ({ silent = false, clearNotice = true, activeRef = null } = {}) => {
@@ -1146,6 +1170,7 @@ export default function EmployeePayrollPortal() {
         });
         if (activeRef && !activeRef.current) return;
         setPortal(response.portal || null);
+        loadDisplayRefillAlerts({ silent: true });
         if (response.portal && isBrowser()) {
           window.localStorage?.setItem("employee_portal_last_url", `/employee-app/${encodeURIComponent(token)}${window.location.search}`);
         }
@@ -1168,7 +1193,7 @@ export default function EmployeePayrollPortal() {
         if (!silent && (!activeRef || activeRef.current)) setLoading(false);
       }
     },
-    [token, text]
+    [token, text, loadDisplayRefillAlerts]
   );
 
   useEffect(() => {
@@ -1194,6 +1219,7 @@ export default function EmployeePayrollPortal() {
   const attendanceRows = safeArray(portal?.attendance?.timeline);
   const employeeRequests = safeArray(portal?.employee_requests);
   const employeeNotifications = safeArray(portal?.notifications);
+  const pendingDisplayRefillAlerts = safeArray(displayRefillAlerts).filter((item) => String(item.status || "pending") === "pending");
   const currentShift = portal?.currentShift || profile.currentShift || {};
   const ui = (key) => text[key] || labels.en[key] || key;
   const showInstallCard = !standalone && (Boolean(installPrompt) || isIosDevice());
@@ -1232,6 +1258,7 @@ export default function EmployeePayrollPortal() {
     ["home", ui("homeTab"), Home],
     ["tasks", text.tasksTab, ClipboardList],
     ["requests", text.requestsTab, MessageCircle],
+    ["display-refill", ui("displayRefillTab"), AlertTriangle],
     ["attendance", text.attendanceTab, CalendarDays],
     ["wallet", ui("walletOnlyTab"), CreditCard],
     ["salary", ui("salaryTab"), WalletCards],
@@ -1266,7 +1293,12 @@ export default function EmployeePayrollPortal() {
   const requestBadgeSignature = requestBadgeIds.join("|");
   const taskBadgeSignature = taskBadgeIds.join("|");
   const notificationBadgeSignature = notificationBadgeIds.join("|");
-  const totalBadgeCount = badgeCounts.unreadChats + badgeCounts.pendingNotifications + badgeCounts.newTasks + badgeCounts.unreadNotifications;
+  const displayRefillBadgeIds = useMemo(
+    () => pendingDisplayRefillAlerts.map((item) => String(item.id)).filter(Boolean),
+    [pendingDisplayRefillAlerts]
+  );
+  const displayRefillBadgeSignature = displayRefillBadgeIds.join("|");
+  const totalBadgeCount = badgeCounts.unreadChats + badgeCounts.pendingNotifications + badgeCounts.newTasks + badgeCounts.unreadNotifications + badgeCounts.displayRefillAlerts;
   const chatPanelStyle = useMemo(
     () => ({
       height: "100dvh",
@@ -1332,13 +1364,21 @@ export default function EmployeePayrollPortal() {
   }, [activeTab, employeeNotifications, notificationBadgeSignature, notificationSeenVersion, portal, token]);
 
   useEffect(() => {
+    if (!portal || !token) return undefined;
+    const viewed = readBadgeSet(token, "display-refill");
+    const nextCount = pendingDisplayRefillAlerts.filter((item) => !item.is_read && !viewed.has(String(item.id))).length;
+    setBadgeCounts((current) => ({ ...current, displayRefillAlerts: activeTab === "display-refill" ? 0 : nextCount }));
+    return undefined;
+  }, [activeTab, displayRefillBadgeSignature, pendingDisplayRefillAlerts, portal, token]);
+
+  useEffect(() => {
     if (!token || activeTab !== "requests") return undefined;
     writeBadgeSet(token, "requests", requestBadgeIds);
     console.info("[employee-badge:clear-portion]", { portion: "requests" });
     postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "requests" });
     setBadgeCounts((current) => {
       const next = { ...current, pendingNotifications: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications);
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
       return next;
     });
     return undefined;
@@ -1351,7 +1391,7 @@ export default function EmployeePayrollPortal() {
     postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "tasks" });
     setBadgeCounts((current) => {
       const next = { ...current, newTasks: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications);
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
       return next;
     });
     return undefined;
@@ -1369,7 +1409,7 @@ export default function EmployeePayrollPortal() {
     } : current);
     setBadgeCounts((current) => {
       const next = { ...current, unreadNotifications: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications);
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
       return next;
     });
     setNotificationSeenVersion((current) => current + 1);
@@ -1377,12 +1417,29 @@ export default function EmployeePayrollPortal() {
   }, [activeTab, notificationBadgeSignature, token]);
 
   useEffect(() => {
+    if (!token || activeTab !== "display-refill") return undefined;
+    writeBadgeSet(token, "display-refill", displayRefillBadgeIds);
+    console.info("[employee-badge:clear-portion]", { portion: "display-refill" });
+    postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "display-refill" });
+    setBadgeCounts((current) => {
+      const next = { ...current, displayRefillAlerts: 0 };
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
+      return next;
+    });
+    pendingDisplayRefillAlerts.filter((item) => !item.is_read).forEach((item) => {
+      api.patch(`/employee-portal/${encodeURIComponent(token)}/display-refill-alerts/${encodeURIComponent(item.id)}/read`).catch(() => {});
+    });
+    setDisplayRefillAlerts((current) => safeArray(current).map((item) => ({ ...item, is_read: true })));
+    return undefined;
+  }, [activeTab, displayRefillBadgeSignature, token]);
+
+  useEffect(() => {
     if (!chatOpen) return undefined;
     console.info("[employee-badge:clear-portion]", { portion: "chat" });
     postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "chat" });
     setBadgeCounts((current) => {
       const next = { ...current, unreadChats: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications);
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
       return next;
     });
     return undefined;
@@ -1397,6 +1454,8 @@ export default function EmployeePayrollPortal() {
         ? "unreadChats"
         : ["task-assigned", "staff-task-update", "staff-task-overdue"].some((value) => tag.includes(value))
           ? "newTasks"
+          : tag === "display_refill_alert"
+            ? "displayRefillAlerts"
           : ["advance-approved", "advance-rejected", "leave-approved", "leave-rejected"].includes(tag)
             ? "pendingNotifications"
             : ["commission-earned", "commission_earned", "payroll-generated", "bonus-added", "penalty-added"].includes(tag)
@@ -1411,6 +1470,8 @@ export default function EmployeePayrollPortal() {
             ? 0
             : badgeType === "pendingNotifications" && activeTab === "requests"
               ? 0
+              : badgeType === "displayRefillAlerts" && activeTab === "display-refill"
+                ? 0
               : badgeType === "unreadNotifications" && activeTab === "notifications"
                 ? 0
                 : Number(current[badgeType] || 0) + 1,
@@ -1456,18 +1517,44 @@ export default function EmployeePayrollPortal() {
       }));
       loadPortalByToken({ silent: true, clearNotice: false });
     };
+    const onDisplayRefillAlert = (event = {}) => {
+      const alert = event.alert || event;
+      if (String(alert.employee_id || "") !== String(profile.id || "")) return;
+      showPortalToast(alert.replacement_size ? `اعرض مقاس ${alert.replacement_size} بدل ${alert.sold_size}` : "لا يوجد مقاس بديل متاح", "success");
+      setDisplayRefillAlerts((current) => [alert, ...safeArray(current).filter((item) => String(item.id) !== String(alert.id))]);
+      setBadgeCounts((current) => ({
+        ...current,
+        displayRefillAlerts: activeTab === "display-refill" ? 0 : Number(current.displayRefillAlerts || 0) + 1,
+      }));
+    };
 
     requestSocket.on("employee_portal:request_updated", onRequestUpdated);
     requestSocket.on("employee_portal:notification", onPortalNotification);
+    requestSocket.on("employee_portal:display_refill_alert", onDisplayRefillAlert);
     requestSocket.connect();
 
     return () => {
       requestSocket.off("employee_portal:request_updated", onRequestUpdated);
       requestSocket.off("employee_portal:notification", onPortalNotification);
+      requestSocket.off("employee_portal:display_refill_alert", onDisplayRefillAlert);
       requestSocket.disconnect();
       if (requestSocketRef.current === requestSocket) requestSocketRef.current = null;
     };
   }, [activeTab, portal, token, profile.id, loadPortalByToken, showPortalToast]);
+
+  const resolveDisplayRefill = useCallback(async (alertId) => {
+    if (!token || !alertId) return;
+    try {
+      setDisplayRefillSavingId(String(alertId));
+      const response = await api.patch(`/employee-portal/${encodeURIComponent(token)}/display-refill-alerts/${encodeURIComponent(alertId)}/resolve`);
+      setDisplayRefillAlerts((current) => safeArray(current).map((item) => String(item.id) === String(alertId) ? { ...item, ...(response.alert || {}), status: "resolved", is_read: true } : item));
+      showPortalToast("تم تحديث نواقص العرض");
+    } catch (err) {
+      showPortalToast(err?.message || "تعذر تحديث نواقص العرض", "error");
+    } finally {
+      setDisplayRefillSavingId("");
+    }
+  }, [showPortalToast, token]);
 
   const overviewCards = useMemo(() => {
     if (!portal) return [];
@@ -1528,7 +1615,7 @@ export default function EmployeePayrollPortal() {
         postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "chat" });
         setBadgeCounts((current) => {
           const next = { ...current, unreadChats: 0 };
-          setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications);
+          setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
           return next;
         });
       }
@@ -2125,6 +2212,13 @@ export default function EmployeePayrollPortal() {
                     Icon: Bell,
                     className: "bg-emerald-50 text-emerald-700",
                   },
+                  {
+                    key: "display-refill",
+                    count: badgeCounts.displayRefillAlerts || 0,
+                    label: ui("displayRefillShort"),
+                    Icon: AlertTriangle,
+                    className: "bg-amber-50 text-amber-700",
+                  },
                   { key: "tasks", count: badgeCounts.newTasks || 0, label: ui("tasksShort"), Icon: ClipboardList, className: "bg-blue-50 text-blue-700" },
                   { key: "requests", count: badgeCounts.pendingNotifications || 0, label: ui("requestsShort"), Icon: MessageCircle, className: "bg-orange-50 text-orange-700" },
                 ].filter((item) => Number(item.count || 0) > 0).map(({ key, count, label, Icon, className }) => (
@@ -2211,27 +2305,85 @@ export default function EmployeePayrollPortal() {
                   </button>
                 </div>
                 <div className="mt-3 grid gap-2">
-                  {employeeNotifications.length ? employeeNotifications.map((item) => (
+                  {employeeNotifications.length ? employeeNotifications.map((item) => {
+                    const isDisplayRefill = item.type === "display_refill_alert";
+                    return (
                     <button
                       key={item.id || `${item.type}-${item.order_id}`}
                       type="button"
                       onClick={() => {
                         setPortal((current) => current ? { ...current, notifications: safeArray(current.notifications).map((row) => String(row.id) === String(item.id) ? { ...row, read_at: row.read_at || new Date().toISOString() } : row) } : current);
                         if (item.type === "commission_earned") setActiveTab("salary");
+                        if (isDisplayRefill) setActiveTab("display-refill");
                       }}
-                      className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-start"
+                      className={`rounded-2xl border px-3 py-2 text-start ${isDisplayRefill ? "border-amber-200 bg-amber-50" : "border-slate-100 bg-slate-50"}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-black text-slate-900" dir="auto">{item.title}</div>
+                          <div className={`truncate text-sm font-black ${isDisplayRefill ? "text-amber-950" : "text-slate-900"}`} dir="auto">{isDisplayRefill ? "نواقص العرض" : item.title}</div>
                           <div className="mt-1 text-xs font-bold leading-5 text-slate-600" dir="auto">{item.body}</div>
                         </div>
-                        {!item.read_at ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" /> : null}
+                        {!item.read_at ? <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${isDisplayRefill ? "bg-amber-500" : "bg-emerald-500"}`} /> : null}
                       </div>
                       <div className="mt-1 text-[11px] font-bold text-slate-400" dir="ltr">{formatDateLocal(item.created_at, language)} {formatTimeLocal(item.created_at, language)}</div>
                     </button>
-                  )) : (
+                  );}) : (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-sm font-bold text-slate-500">{text.noTransactions}</div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {activeTab === "display-refill" ? (
+              <div className="rounded-3xl border border-amber-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-black text-slate-950">نواقص العرض</h3>
+                    <p className="mt-1 text-xs font-bold text-slate-500">المقاسات اللي محتاجة تتعرض مكان المقاس المباع.</p>
+                  </div>
+                  <button type="button" onClick={() => loadDisplayRefillAlerts()} className="inline-flex min-h-10 items-center justify-center rounded-xl bg-slate-100 px-3 text-[11px] font-black text-slate-700">
+                    {displayRefillLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  </button>
+                </div>
+                <div className="mt-3 grid gap-3">
+                  {pendingDisplayRefillAlerts.length ? pendingDisplayRefillAlerts.map((alert) => {
+                    const imageSrc = alert.image_url
+                      ? (/^https?:\/\//i.test(alert.image_url) ? alert.image_url : `${API_ORIGIN}${String(alert.image_url).startsWith("/") ? "" : "/"}${alert.image_url}`)
+                      : "";
+                    return (
+                      <article key={alert.id} className="rounded-2xl border border-amber-100 bg-amber-50/70 p-3">
+                        <div className="flex items-start gap-3">
+                          <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-amber-100 bg-white">
+                            {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-amber-700"><AlertTriangle className="h-7 w-7" /></div>}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="inline-flex rounded-full bg-amber-200 px-2 py-1 text-[10px] font-black text-amber-950">ناقص عرض</div>
+                            <h4 className="mt-2 text-sm font-black leading-5 text-slate-950" dir="auto">{alert.product_name}</h4>
+                            {alert.color_name ? <div className="mt-1 text-xs font-black text-slate-600">اللون: {alert.color_name}</div> : null}
+                            <div className="mt-2 grid gap-1 text-xs font-bold leading-5 text-slate-700">
+                              <div>اتبيع المقاس المعروض: <span className="font-black">{alert.sold_size}</span></div>
+                              <div className={alert.replacement_size ? "text-emerald-700" : "text-red-700"}>
+                                {alert.replacement_size ? <>اعرض المقاس التالي: <span className="font-black">{alert.replacement_size}</span></> : "لا يوجد مقاس بديل متاح"}
+                              </div>
+                              {Number(alert.remaining_stock || 0) > 0 ? <div>المتاح: {alert.remaining_stock} قطع</div> : null}
+                              {alert.invoice_number ? <div className="text-slate-500">الفاتورة: {alert.invoice_number}</div> : null}
+                              <div className="text-[11px] text-slate-400" dir="ltr">{formatDateLocal(alert.created_at, language)} {formatTimeLocal(alert.created_at, language)}</div>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => resolveDisplayRefill(alert.id)}
+                          disabled={displayRefillSavingId === String(alert.id)}
+                          className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"
+                        >
+                          {displayRefillSavingId === String(alert.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
+                          تم العرض
+                        </button>
+                      </article>
+                    );
+                  }) : (
+                    <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 px-3 py-8 text-center text-sm font-bold text-amber-800">{ui("displayRefillEmpty")}</div>
                   )}
                 </div>
               </div>
@@ -2353,7 +2505,7 @@ export default function EmployeePayrollPortal() {
               </>
             ) : null}
 
-            <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md grid-cols-6 gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur">
+            <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md grid-cols-7 gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur">
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}

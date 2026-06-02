@@ -24,6 +24,7 @@ import {
   logOrdersSalesEmployeeFkTarget,
   recordSalesCommissionForOrder,
 } from "../services/salesCommissionService.js";
+import { createDisplayRefillAlertsForOrder } from "../services/displayRefillAlertService.js";
 import {
   assignSequentialInvoiceNumber,
   buildDerivedInvoiceNumber,
@@ -2115,6 +2116,12 @@ const runPostOrderSideEffects = async ({
         branchId: resolvedBranchId,
         paymentStatus,
         userId: req.user?.id || null,
+      });
+    },
+    async () => {
+      await createDisplayRefillAlertsForOrder({
+        orderId,
+        sellerEmployeeId: resolvedSalesEmployeeId,
       });
     },
     async () => {
