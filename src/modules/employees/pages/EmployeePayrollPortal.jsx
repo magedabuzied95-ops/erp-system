@@ -1021,11 +1021,12 @@ export default function EmployeePayrollPortal() {
   const [showChatJump, setShowChatJump] = useState(false);
   const [recordingState, setRecordingState] = useState({ active: false, seconds: 0, supported: false });
   const [chatSocketConnected, setChatSocketConnected] = useState(false);
-  const [requestRealtimeNotice, setRequestRealtimeNotice] = useState("");
-  const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0 });
+  const [activeToast, setActiveToast] = useState(null);
+  const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0, unreadNotifications: 0 });
+  const [notificationSeenVersion, setNotificationSeenVersion] = useState(0);
   const chatSocketRef = useRef(null);
   const requestSocketRef = useRef(null);
-  const requestNoticeTimerRef = useRef(null);
+  const toastTimerRef = useRef(null);
   const chatFileInputRef = useRef(null);
   const chatInputRef = useRef(null);
   const chatHeaderRef = useRef(null);
@@ -1196,6 +1197,23 @@ export default function EmployeePayrollPortal() {
   const currentShift = portal?.currentShift || profile.currentShift || {};
   const ui = (key) => text[key] || labels.en[key] || key;
   const showInstallCard = !standalone && (Boolean(installPrompt) || isIosDevice());
+  const clearPortalToast = useCallback(() => {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setActiveToast(null);
+  }, []);
+  const showPortalToast = useCallback((message, type = "success") => {
+    const safeMessage = String(message || "").trim();
+    if (!safeMessage) return;
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    setActiveToast({ message: safeMessage, type });
+    toastTimerRef.current = window.setTimeout(() => {
+      setActiveToast(null);
+      toastTimerRef.current = null;
+    }, 3500);
+  }, []);
   const tasks = safeArray(portal?.tasks);
   const todayKey = todayIsoLocal(language);
   const todayAttendance = attendanceRows.find((row) => attendanceLocalDate(row, language) === todayKey) || attendanceRows[0] || {};
@@ -1239,9 +1257,16 @@ export default function EmployeePayrollPortal() {
       .map((task) => String(task.id)),
     [tasks]
   );
+  const notificationBadgeIds = useMemo(
+    () => employeeNotifications
+      .map((item) => String(item.id || `${item.type || "notification"}-${item.order_id || item.created_at || item.title || item.body || ""}`))
+      .filter(Boolean),
+    [employeeNotifications]
+  );
   const requestBadgeSignature = requestBadgeIds.join("|");
   const taskBadgeSignature = taskBadgeIds.join("|");
-  const totalBadgeCount = badgeCounts.unreadChats + badgeCounts.pendingNotifications + badgeCounts.newTasks;
+  const notificationBadgeSignature = notificationBadgeIds.join("|");
+  const totalBadgeCount = badgeCounts.unreadChats + badgeCounts.pendingNotifications + badgeCounts.newTasks + badgeCounts.unreadNotifications;
   const chatPanelStyle = useMemo(
     () => ({
       height: "100dvh",
@@ -1257,6 +1282,21 @@ export default function EmployeePayrollPortal() {
     }),
     []
   );
+
+  useEffect(() => () => {
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    clearPortalToast();
+  }, [activeTab, clearPortalToast]);
+
+  useEffect(() => {
+    if (!activeToast || !isBrowser()) return undefined;
+    const dismissOnScroll = () => clearPortalToast();
+    window.addEventListener("scroll", dismissOnScroll, { passive: true });
+    return () => window.removeEventListener("scroll", dismissOnScroll);
+  }, [activeToast, clearPortalToast]);
 
   useEffect(() => {
     setEmployeeAppBadge(totalBadgeCount);
@@ -1281,13 +1321,24 @@ export default function EmployeePayrollPortal() {
   }, [activeTab, portal, taskBadgeSignature, token]);
 
   useEffect(() => {
+    if (!portal || !token) return undefined;
+    const viewed = readBadgeSet(token, "notifications");
+    const nextCount = employeeNotifications.filter((item) => {
+      const id = String(item.id || `${item.type || "notification"}-${item.order_id || item.created_at || item.title || item.body || ""}`);
+      return !item.read_at && !viewed.has(id);
+    }).length;
+    setBadgeCounts((current) => ({ ...current, unreadNotifications: activeTab === "notifications" ? 0 : nextCount }));
+    return undefined;
+  }, [activeTab, employeeNotifications, notificationBadgeSignature, notificationSeenVersion, portal, token]);
+
+  useEffect(() => {
     if (!token || activeTab !== "requests") return undefined;
     writeBadgeSet(token, "requests", requestBadgeIds);
     console.info("[employee-badge:clear-portion]", { portion: "requests" });
     postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "requests" });
     setBadgeCounts((current) => {
       const next = { ...current, pendingNotifications: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks);
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications);
       return next;
     });
     return undefined;
@@ -1300,11 +1351,30 @@ export default function EmployeePayrollPortal() {
     postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "tasks" });
     setBadgeCounts((current) => {
       const next = { ...current, newTasks: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks);
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications);
       return next;
     });
     return undefined;
   }, [activeTab, taskBadgeSignature, token]);
+
+  useEffect(() => {
+    if (!token || activeTab !== "notifications") return undefined;
+    writeBadgeSet(token, "notifications", notificationBadgeIds);
+    console.info("[employee-badge:clear-portion]", { portion: "notifications" });
+    postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "notifications" });
+    setPortal((current) => current ? {
+      ...current,
+      notifications: safeArray(current.notifications).map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })),
+      unread_notifications_count: 0,
+    } : current);
+    setBadgeCounts((current) => {
+      const next = { ...current, unreadNotifications: 0 };
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications);
+      return next;
+    });
+    setNotificationSeenVersion((current) => current + 1);
+    return undefined;
+  }, [activeTab, notificationBadgeSignature, token]);
 
   useEffect(() => {
     if (!chatOpen) return undefined;
@@ -1312,7 +1382,7 @@ export default function EmployeePayrollPortal() {
     postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "chat" });
     setBadgeCounts((current) => {
       const next = { ...current, unreadChats: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks);
+      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications);
       return next;
     });
     return undefined;
@@ -1327,13 +1397,23 @@ export default function EmployeePayrollPortal() {
         ? "unreadChats"
         : ["task-assigned", "staff-task-update", "staff-task-overdue"].some((value) => tag.includes(value))
           ? "newTasks"
-          : ["advance-approved", "advance-rejected", "leave-approved", "leave-rejected", "commission-earned", "commission_earned"].includes(tag)
+          : ["advance-approved", "advance-rejected", "leave-approved", "leave-rejected"].includes(tag)
             ? "pendingNotifications"
+            : ["commission-earned", "commission_earned", "payroll-generated", "bonus-added", "penalty-added"].includes(tag)
+              ? "unreadNotifications"
             : "";
       if (!badgeType) return;
       setBadgeCounts((current) => ({
         ...current,
-        [badgeType]: badgeType === "unreadChats" && chatOpen ? 0 : badgeType === "newTasks" && activeTab === "tasks" ? 0 : badgeType === "pendingNotifications" && activeTab === "requests" ? 0 : Number(current[badgeType] || 0) + 1,
+        [badgeType]: badgeType === "unreadChats" && chatOpen
+          ? 0
+          : badgeType === "newTasks" && activeTab === "tasks"
+            ? 0
+            : badgeType === "pendingNotifications" && activeTab === "requests"
+              ? 0
+              : badgeType === "unreadNotifications" && activeTab === "notifications"
+                ? 0
+                : Number(current[badgeType] || 0) + 1,
       }));
     };
     navigator.serviceWorker.addEventListener("message", onServiceWorkerMessage);
@@ -1360,25 +1440,21 @@ export default function EmployeePayrollPortal() {
         : event.status === "rejected"
           ? "تم رفض طلبك"
           : "تم تحديث طلبك";
-      setRequestRealtimeNotice(notice);
+      showPortalToast(notice);
       setPortalNotice(notice);
       loadPortalByToken({ silent: true, clearNotice: false });
-      if (requestNoticeTimerRef.current) window.clearTimeout(requestNoticeTimerRef.current);
-      requestNoticeTimerRef.current = window.setTimeout(() => setRequestRealtimeNotice(""), 4500);
     };
     const onPortalNotification = (event = {}) => {
       const notification = event.notification || event;
       if (String(notification.employee_id || "") !== String(profile.id || "")) return;
       const notice = notification.title || notification.body || "تنبيه جديد";
-      setRequestRealtimeNotice(notice);
+      showPortalToast(notification.body || notice);
       setPortalNotice(notification.body || notice);
       setBadgeCounts((current) => ({
         ...current,
-        pendingNotifications: activeTab === "salary" ? 0 : Number(current.pendingNotifications || 0) + 1,
+        unreadNotifications: activeTab === "notifications" ? 0 : Number(current.unreadNotifications || 0) + 1,
       }));
       loadPortalByToken({ silent: true, clearNotice: false });
-      if (requestNoticeTimerRef.current) window.clearTimeout(requestNoticeTimerRef.current);
-      requestNoticeTimerRef.current = window.setTimeout(() => setRequestRealtimeNotice(""), 4500);
     };
 
     requestSocket.on("employee_portal:request_updated", onRequestUpdated);
@@ -1390,9 +1466,8 @@ export default function EmployeePayrollPortal() {
       requestSocket.off("employee_portal:notification", onPortalNotification);
       requestSocket.disconnect();
       if (requestSocketRef.current === requestSocket) requestSocketRef.current = null;
-      if (requestNoticeTimerRef.current) window.clearTimeout(requestNoticeTimerRef.current);
     };
-  }, [activeTab, portal, token, profile.id, loadPortalByToken]);
+  }, [activeTab, portal, token, profile.id, loadPortalByToken, showPortalToast]);
 
   const overviewCards = useMemo(() => {
     if (!portal) return [];
@@ -1453,7 +1528,7 @@ export default function EmployeePayrollPortal() {
         postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "chat" });
         setBadgeCounts((current) => {
           const next = { ...current, unreadChats: 0 };
-          setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks);
+          setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications);
           return next;
         });
       }
@@ -2045,14 +2120,14 @@ export default function EmployeePayrollPortal() {
                 {[
                   {
                     key: "notifications",
-                    count: portal.unread_notifications_count || badgeCounts.pendingNotifications || 0,
+                    count: badgeCounts.unreadNotifications || 0,
                     label: ui("notificationsShort"),
                     Icon: Bell,
-                    className: (portal.unread_notifications_count || badgeCounts.pendingNotifications || 0) > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600",
+                    className: "bg-emerald-50 text-emerald-700",
                   },
-                  { key: "tasks", count: pendingTasks.length, label: ui("tasksShort"), Icon: ClipboardList, className: "bg-blue-50 text-blue-700" },
-                  { key: "requests", count: requestBadgeIds.length, label: ui("requestsShort"), Icon: MessageCircle, className: "bg-orange-50 text-orange-700" },
-                ].map(({ key, count, label, Icon, className }) => (
+                  { key: "tasks", count: badgeCounts.newTasks || 0, label: ui("tasksShort"), Icon: ClipboardList, className: "bg-blue-50 text-blue-700" },
+                  { key: "requests", count: badgeCounts.pendingNotifications || 0, label: ui("requestsShort"), Icon: MessageCircle, className: "bg-orange-50 text-orange-700" },
+                ].filter((item) => Number(item.count || 0) > 0).map(({ key, count, label, Icon, className }) => (
                   <button
                     key={key}
                     type="button"
@@ -2608,10 +2683,21 @@ export default function EmployeePayrollPortal() {
           </section>
         )}
       </div>
-      {requestRealtimeNotice ? (
-        <div className="fixed inset-x-4 top-[calc(1rem+env(safe-area-inset-top))] z-50 mx-auto max-w-sm rounded-2xl border border-emerald-300/40 bg-emerald-600 px-4 py-3 text-center text-sm font-black text-white shadow-2xl">
-          {requestRealtimeNotice}
-        </div>
+      {activeToast ? (
+        <button
+          type="button"
+          onClick={clearPortalToast}
+          className={`fixed inset-x-4 top-[calc(5rem+env(safe-area-inset-top))] z-50 mx-auto max-w-sm rounded-2xl border px-4 py-3 text-center text-sm font-black text-white shadow-2xl transition ${
+            activeToast.type === "error"
+              ? "border-red-300/50 bg-red-600"
+              : activeToast.type === "warning"
+                ? "border-amber-300/50 bg-amber-500 text-amber-950"
+                : "border-emerald-300/40 bg-emerald-600"
+          }`}
+          dir="auto"
+        >
+          {activeToast.message}
+        </button>
       ) : null}
       {chatOpen ? (
         <div className="fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950/70 p-0">
