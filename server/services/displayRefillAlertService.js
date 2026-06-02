@@ -12,6 +12,13 @@ const stockNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 };
+// Historical alerts created with the previous rule are intentionally not auto-deleted here.
+// They cannot be safely reconstructed from current stock alone.
+// Admin review SQL example:
+// SELECT id, employee_id, order_id, product_id, color_name, sold_size, replacement_size, created_at
+// FROM employee_display_refill_alerts
+// WHERE status = 'pending'
+// ORDER BY created_at DESC, id DESC;
 const normalizeComparable = (value = "") =>
   clean(value).toLowerCase().replace(/[إأآ]/g, "ا").replace(/ة/g, "ه").replace(/\s+/g, " ");
 
@@ -112,6 +119,7 @@ const loadOrderItems = async ({ orderId, sellerEmployeeId } = {}) => {
       oi.id AS order_item_id,
       oi.product_id,
       oi.variant_id,
+      COALESCE(oi.quantity, 0) AS sold_quantity,
       oi.product_name,
       COALESCE(NULLIF(oi.color, ''), NULLIF(pv.color, '')) AS color_name,
       COALESCE(NULLIF(oi.size, ''), NULLIF(pv.size, '')) AS sold_size,
@@ -146,6 +154,7 @@ const loadSameColorVariants = async ({ tenantId, productId, colorName } = {}) =>
       pv.product_id,
       pv.color,
       pv.size,
+      COALESCE(pv.color_id, NULL) AS color_id,
       COALESCE(pv.stock, 0) AS stock,
       COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, ''), NULLIF(pvi.image_url, '')) AS variant_image_url
     FROM product_variants pv
@@ -162,7 +171,6 @@ const loadSameColorVariants = async ({ tenantId, productId, colorName } = {}) =>
     WHERE pv.product_id = $1
       AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
       AND LOWER(COALESCE(pv.color, '')) = LOWER($3)
-      AND COALESCE(pv.stock, 0) > 0
       AND COALESCE(pv.is_active, TRUE) = TRUE
       AND pv.deleted_at IS NULL
     `,
@@ -171,9 +179,8 @@ const loadSameColorVariants = async ({ tenantId, productId, colorName } = {}) =>
   return result.rows;
 };
 
-const resolveReplacementVariant = (variants = [], soldSize = "") => {
-  const soldNumber = parseSizeNumber(soldSize);
-  const sorted = variants
+const sortVariantsBySize = (variants = []) =>
+  [...variants]
     .map((row) => ({ ...row, size_number: parseSizeNumber(row.size) }))
     .filter((row) => clean(row.size))
     .sort((a, b) => {
@@ -182,6 +189,26 @@ const resolveReplacementVariant = (variants = [], soldSize = "") => {
       if (b.size_number !== null) return 1;
       return clean(a.size).localeCompare(clean(b.size), "en");
     });
+
+const resolvePreSaleSmallestVariant = ({ variants = [], soldVariantId = null, soldSize = "", soldQuantity = 0 } = {}) => {
+  const soldVariantKey = numberOrNull(soldVariantId);
+  const soldComparableSize = normalizeComparable(soldSize);
+  const safeSoldQuantity = Math.max(0, Number(soldQuantity) || 0);
+  return sortVariantsBySize(variants)
+    .map((row) => {
+      const sameVariant = soldVariantKey && numberOrNull(row.id) === soldVariantKey;
+      const sameSizeFallback = !soldVariantKey && soldComparableSize && normalizeComparable(row.size) === soldComparableSize;
+      return {
+        ...row,
+        pre_sale_stock: stockNumber(row.stock) + (sameVariant || sameSizeFallback ? safeSoldQuantity : 0),
+      };
+    })
+    .find((row) => row.pre_sale_stock > 0) || null;
+};
+
+const resolveReplacementVariant = (variants = [], soldSize = "") => {
+  const soldNumber = parseSizeNumber(soldSize);
+  const sorted = sortVariantsBySize(variants).filter((row) => stockNumber(row.stock) > 0);
   if (soldNumber !== null) return sorted.find((row) => row.size_number !== null && row.size_number > soldNumber) || null;
   const soldIndex = sorted.findIndex((row) => normalizeComparable(row.size) === normalizeComparable(soldSize));
   return soldIndex >= 0 ? sorted[soldIndex + 1] || null : null;
@@ -249,11 +276,41 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
     const colorName = clean(item.color_name);
     const soldSize = clean(item.sold_size);
     const productId = numberOrNull(item.product_id);
+    const soldQuantity = Math.max(0, Number(item.sold_quantity) || 0);
+    const soldVariantId = numberOrNull(item.variant_id);
     if (!productId || !colorName || !soldSize) {
       console.info("[display-refill-alert:skipped]", { reason: "missing_product_color_or_size", orderId: safeOrderId, orderItemId: item.order_item_id });
       continue;
     }
     const variants = await loadSameColorVariants({ tenantId: item.tenant_id, productId, colorName });
+    const preSaleSmallest = resolvePreSaleSmallestVariant({
+      variants,
+      soldVariantId,
+      soldSize,
+      soldQuantity,
+    });
+    const preSaleSmallestSize = clean(preSaleSmallest?.size);
+    if (!preSaleSmallestSize) {
+      console.info("[display-refill-alert:skipped]", {
+        reason: "missing_pre_sale_smallest_size",
+        sold_size: soldSize,
+        product_id: productId,
+        color_name: colorName,
+        orderId: safeOrderId,
+        orderItemId: item.order_item_id,
+      });
+      continue;
+    }
+    if (normalizeComparable(soldSize) !== normalizeComparable(preSaleSmallestSize)) {
+      console.info("[display-refill-alert:skipped]", {
+        reason: "sold_size_not_displayed_smallest",
+        sold_size: soldSize,
+        pre_sale_smallest_size: preSaleSmallestSize,
+        product_id: productId,
+        color_name: colorName,
+      });
+      continue;
+    }
     const replacement = resolveReplacementVariant(variants, soldSize);
     const replacementSize = replacement ? clean(replacement.size) : null;
     const duplicate = await duplicateExists({
