@@ -2119,10 +2119,29 @@ const runPostOrderSideEffects = async ({
       });
     },
     async () => {
+      const itemsCount = Array.isArray(orderItemsForCommission) ? orderItemsForCommission.length : 0;
+      console.info("[display-refill-alert:invoke]", {
+        order_id: orderId,
+        invoice_number: order?.invoice_number || null,
+        seller_employee_id: resolvedSalesEmployeeId || null,
+        seller_id: resolvedCashierId || null,
+        items_count: itemsCount,
+      });
       await createDisplayRefillAlertsForOrder({
         orderId,
         sellerEmployeeId: resolvedSalesEmployeeId,
-      });
+      })
+        .then(() => {
+          console.info("[display-refill-alert:invoke:done]", {
+            order_id: orderId,
+          });
+        })
+        .catch((error) => {
+          console.error("[display-refill-alert:invoke:error]", {
+            order_id: orderId,
+            error: error?.message || String(error),
+          });
+        });
     },
     async () => {
       if (skipLoyaltyEarning) return;
