@@ -22,6 +22,11 @@ import { searchAiVisualProductsPro } from "../services/aiVisualSearchProService.
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
 import { buildCacheKey, getOrSetCache, invalidateCachePattern } from "../services/cacheService.js";
 import { getWebsiteSettings } from "../services/liveActivityService.js";
+import {
+  ensureWhatsappOrderConfirmationSchema,
+  sendOrderConfirmation,
+  sendPaymentReviewNotification,
+} from "../services/whatsappOrderConfirmationService.js";
 import { getSetting } from "../services/settingsService.js";
 import { normalizeSaleModeSettings } from "../services/saleModeService.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
@@ -770,6 +775,10 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS expected_delivery_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmation_sent_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmed_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS product_image TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS variant_image TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS image_url TEXT`);
@@ -3143,6 +3152,7 @@ export const createWebsiteOrder = async (req, res) => {
     }
 
     await client.query("BEGIN");
+    await ensureWhatsappOrderConfirmationSchema(client);
     const checkoutColumns = {
       customers: await tableColumns(client, "customers"),
       orders: await tableColumns(client, "orders"),
@@ -3346,7 +3356,11 @@ export const createWebsiteOrder = async (req, res) => {
       return checkoutValidationResponse(400, "Upload a valid transfer proof image", "shipping_payment_screenshot", { mimetype: shippingPaymentFile.mimetype, size: shippingPaymentFile.size });
     }
     const paymentStatus = paymentMethod === "cod" ? "cod" : "partially_paid";
-    const orderStatus = orderSettings.autoConfirmWebsiteOrders ? "confirmed" : orderSettings.defaultWebsiteStatus;
+    const orderStatus = paymentMethod === "cod"
+      ? "pending_confirmation"
+      : orderSettings.autoConfirmWebsiteOrders
+        ? "confirmed"
+        : orderSettings.defaultWebsiteStatus;
     const transferProofStatus = paymentMethod === "cod" ? null : "pending";
     const codAmount = paymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
     const paidAmount = paymentMethod === "cod" ? 0 : deliveryFee;
@@ -3368,7 +3382,7 @@ export const createWebsiteOrder = async (req, res) => {
       customer_id: customer?.id || null,
       customer_name: checkout.full_name,
       customer_phone: customer?.phone || normalizePhone(checkout.primary_phone),
-      channel: "website",
+      channel: "storefront",
       source: "website",
       customer_type: "online",
       status: orderStatus,
@@ -3502,6 +3516,22 @@ export const createWebsiteOrder = async (req, res) => {
     }
     await client.query("COMMIT");
     invalidateStorefrontTenantCache(tenantId);
+    sendOrderConfirmation({ ...order, items: normalizedItems }).catch((error) => {
+      console.warn("[whatsapp:order-confirmation-send-skipped]", {
+        orderId: order?.id,
+        status: order?.status,
+        source: order?.source || order?.channel,
+        message: error?.message || String(error),
+      });
+    });
+    sendPaymentReviewNotification({ ...order, items: normalizedItems }).catch((error) => {
+      console.warn("[whatsapp:payment-review-notification-skipped]", {
+        orderId: order?.id,
+        status: order?.status,
+        source: order?.source || order?.channel,
+        message: error?.message || String(error),
+      });
+    });
     createSystemNotification("website_order_created", {
       tenant_id: tenantId,
       message: `طلب جديد ${order.public_order_number || order.invoice_number || order.id} من ${checkout.full_name}`,

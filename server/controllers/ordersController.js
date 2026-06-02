@@ -648,6 +648,10 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS barcode VARCHAR(120)`);
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS color VARCHAR(100)`);
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS size VARCHAR(100)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmation_sent_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmed_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
   await client.query(`
     CREATE TABLE IF NOT EXISTS product_variant_images (
       id BIGSERIAL PRIMARY KEY,

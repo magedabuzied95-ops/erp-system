@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 
 const statusClasses = {
   Pending: "border-amber-400/25 bg-amber-400/10 text-amber-200",
+  "Pending Confirmation": "border-amber-400/25 bg-amber-400/10 text-amber-200",
   Confirmed: "border-blue-400/25 bg-blue-400/10 text-blue-200",
   Completed: "border-blue-400/25 bg-blue-400/10 text-blue-200",
   Paid: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
@@ -31,6 +32,7 @@ const fallbackLabel = (value) => {
   const normalized = String(value || "Pending").trim().toLowerCase();
   if (["partially_paid", "partially paid", "partial"].includes(normalized)) return "Partially Paid";
   if (normalized === "awaiting_verification") return "Awaiting Verification";
+  if (normalized === "pending_confirmation") return "Pending Confirmation";
   return String(value || "Pending")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());

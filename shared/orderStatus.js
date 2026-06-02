@@ -1,5 +1,6 @@
 export const ORDER_LIFECYCLE_STATUSES = [
   "pending",
+  "pending_confirmation",
   "confirmed",
   "ready_to_ship",
   "shipment_created",
@@ -26,6 +27,7 @@ export const SHIPPING_LIFECYCLE_STATUSES = [
 
 export const ORDER_STATUS_LABELS = {
   pending: "Pending",
+  pending_confirmation: "Pending Confirmation",
   confirmed: "Confirmed",
   ready_to_ship: "Ready to Ship",
   shipment_created: "Shipment Created",

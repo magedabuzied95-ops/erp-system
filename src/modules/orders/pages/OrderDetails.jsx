@@ -66,6 +66,34 @@ const getAttributionLabel = (order = {}) => {
   return "";
 };
 
+const whatsappConfirmationBadge = (order = {}) => {
+  if (order.whatsapp_cancelled_at) {
+    return {
+      label: "Cancelled via WhatsApp",
+      className: "border-rose-400/25 bg-rose-400/10 text-rose-200",
+    };
+  }
+  if (order.whatsapp_confirmed_at) {
+    return {
+      label: "Confirmed via WhatsApp",
+      className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
+    };
+  }
+  if (order.whatsapp_confirmation_sent_at && String(order.status || "").toLowerCase() === "pending_confirmation") {
+    return {
+      label: "Awaiting WhatsApp Confirmation",
+      className: "border-amber-400/25 bg-amber-400/10 text-amber-200",
+    };
+  }
+  if (order.whatsapp_payment_review_sent_at) {
+    return {
+      label: "Payment review WhatsApp sent",
+      className: "border-cyan-400/25 bg-cyan-400/10 text-cyan-200",
+    };
+  }
+  return null;
+};
+
 const PACKING_CHECKLIST_ITEMS = [
   { key: "productChecked", labelKey: "orders.details.checkProduct" },
   { key: "sizeChecked", labelKey: "orders.details.checkSize" },
@@ -433,6 +461,7 @@ function OrderDetails() {
         ? t("orders.details.transferProofRejected")
         : "";
   const paymentBadge = getPaymentBadge(order || {}, paymentReviewBadgeText || order?.paymentStatus);
+  const whatsappBadge = whatsappConfirmationBadge(order || {});
   const smartInsights = useMemo(() => (order ? buildSmartInsights(order, previewItems, shipping) : []), [order, previewItems, shipping]);
   const bostaCityName = shipping.shipping_city_name_ar || shipping.shipping_city_name_en || order?.shipping_city_name_ar || order?.shipping_city_name_en || order?.city_area || order?.governorate || shipping.shipping_city_id || order?.city_id || "";
   const bostaZoneName = shipping.shipping_zone_name_ar || shipping.shipping_zone_name_en || order?.shipping_zone_name_ar || order?.shipping_zone_name_en || shipping.shipping_zone_id || "";
@@ -824,6 +853,11 @@ function OrderDetails() {
               <div className="flex flex-wrap gap-2">
                 <StatusBadge value={order.status} />
                 <StatusBadge value={paymentReviewBadgeText || order.paymentStatus} />
+                {whatsappBadge ? (
+                  <span className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${whatsappBadge.className}`}>
+                    {whatsappBadge.label}
+                  </span>
+                ) : null}
                 <span className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentBadge.className}`}>
                   {paymentBadge.label}
                 </span>
