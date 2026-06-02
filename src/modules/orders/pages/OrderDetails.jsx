@@ -102,6 +102,21 @@ const invoiceWhatsappBadge = (order = {}) => {
   };
 };
 
+const shipmentWhatsappBadges = (order = {}) => [
+  order.whatsapp_shipment_created_sent_at
+    ? { label: "Shipment WhatsApp sent", className: "border-sky-400/25 bg-sky-400/10 text-sky-200" }
+    : null,
+  order.whatsapp_shipped_sent_at
+    ? { label: "Shipped WhatsApp sent", className: "border-indigo-400/25 bg-indigo-400/10 text-indigo-200" }
+    : null,
+  order.whatsapp_out_for_delivery_sent_at
+    ? { label: "Out For Delivery WhatsApp sent", className: "border-amber-400/25 bg-amber-400/10 text-amber-200" }
+    : null,
+  order.whatsapp_delivered_sent_at
+    ? { label: "Delivered WhatsApp sent", className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200" }
+    : null,
+].filter(Boolean);
+
 const PACKING_CHECKLIST_ITEMS = [
   { key: "productChecked", labelKey: "orders.details.checkProduct" },
   { key: "sizeChecked", labelKey: "orders.details.checkSize" },
@@ -471,6 +486,7 @@ function OrderDetails() {
   const paymentBadge = getPaymentBadge(order || {}, paymentReviewBadgeText || order?.paymentStatus);
   const whatsappBadge = whatsappConfirmationBadge(order || {});
   const invoiceWhatsappBadgeData = invoiceWhatsappBadge(order || {});
+  const shipmentWhatsappBadgeData = shipmentWhatsappBadges(order || {});
   const smartInsights = useMemo(() => (order ? buildSmartInsights(order, previewItems, shipping) : []), [order, previewItems, shipping]);
   const bostaCityName = shipping.shipping_city_name_ar || shipping.shipping_city_name_en || order?.shipping_city_name_ar || order?.shipping_city_name_en || order?.city_area || order?.governorate || shipping.shipping_city_id || order?.city_id || "";
   const bostaZoneName = shipping.shipping_zone_name_ar || shipping.shipping_zone_name_en || order?.shipping_zone_name_ar || order?.shipping_zone_name_en || shipping.shipping_zone_id || "";
@@ -872,6 +888,11 @@ function OrderDetails() {
                     {invoiceWhatsappBadgeData.label}
                   </span>
                 ) : null}
+                {shipmentWhatsappBadgeData.map((badge) => (
+                  <span key={badge.label} className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${badge.className}`}>
+                    {badge.label}
+                  </span>
+                ))}
                 <span className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentBadge.className}`}>
                   {paymentBadge.label}
                 </span>

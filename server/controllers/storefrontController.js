@@ -28,6 +28,7 @@ import {
   sendInvoiceWhatsapp,
   sendPaymentReviewNotification,
 } from "../services/whatsappOrderConfirmationService.js";
+import { ensureWhatsappShippingSchema, sendShipmentCreated } from "../services/whatsappShippingService.js";
 import { getSetting } from "../services/settingsService.js";
 import { normalizeSaleModeSettings } from "../services/saleModeService.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
@@ -781,6 +782,7 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMP NULL`);
+  await ensureWhatsappShippingSchema(clientOrPool);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS product_image TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS variant_image TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS image_url TEXT`);
@@ -3983,7 +3985,7 @@ export const createShipment = async (req, res) => {
     const result = await provider.createShipment(order);
     if (result.success) {
       const nextShippingStatus = normalizeShippingLifecycleStatus(result.status || result.shipping_status || "created", "created");
-      await db.query(
+      const updated = await db.query(
         `
         UPDATE orders
         SET shipping_provider = $1,
@@ -3996,11 +3998,16 @@ export const createShipment = async (req, res) => {
             last_shipping_sync_at = NOW(),
             shipment_timeline = COALESCE(shipment_timeline, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('status', $3, 'action', 'create', 'provider', $1, 'at', NOW()))
         WHERE id = $7
+        RETURNING *
         `,
         [result.provider, result.provider_id || result.provider, nextShippingStatus, result.shipment_id, result.tracking_number, result.tracking_url, order.id]
       );
       result.status = nextShippingStatus;
       result.shipping_status = nextShippingStatus;
+      const updatedOrder = updated.rows[0];
+      sendShipmentCreated(updatedOrder).catch((error) => {
+        console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status: nextShippingStatus, message: error?.message || String(error) });
+      });
     }
     res.json(result);
   } catch {

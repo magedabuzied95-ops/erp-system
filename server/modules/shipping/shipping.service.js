@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import db from "../../database/db.js";
 import { getSetting, setSetting } from "../../services/settingsService.js";
+import { ensureWhatsappShippingSchema, sendShipmentCreated, sendShipmentNotificationForStatus } from "../../services/whatsappShippingService.js";
 import { getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
 import { buildBostaAddressLine, mapOrderToBostaDeliveryPayload, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations } from "./providers/bosta.mapper.js";
@@ -271,6 +272,7 @@ export const ensureShippingSchema = async (client = db) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await ensureWhatsappShippingSchema(client);
   await client.query(`
     CREATE TABLE IF NOT EXISTS shipping_events (
       id BIGSERIAL PRIMARY KEY,
@@ -657,7 +659,11 @@ export const createBostaShipmentForOrder = async (orderId) => {
       [order.id, response.shipment_id, response.tracking_number, response.tracking_url, response.label_url, status, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent])]
     );
     await client.query("COMMIT");
-    return { ...response, order: updateResult.rows[0] };
+    const updatedOrder = updateResult.rows[0];
+    sendShipmentCreated(updatedOrder).catch((error) => {
+      console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status, message: error?.message || String(error) });
+    });
+    return { ...response, order: updatedOrder };
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("[bosta] create shipment failed", { orderId, message: error.message });
@@ -702,7 +708,11 @@ export const refreshBostaShipmentForOrder = async (orderId) => {
     `,
     [orderId, status, response.tracking_number, response.tracking_url, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent])]
   );
-  return { ...response, order: updated.rows[0] };
+  const updatedOrder = updated.rows[0];
+  sendShipmentNotificationForStatus(updatedOrder, status).catch((error) => {
+    console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status, message: error?.message || String(error) });
+  });
+  return { ...response, order: updatedOrder };
 };
 
 export const cancelBostaShipmentForOrder = async (orderId) => {
@@ -853,7 +863,11 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
       [order.id, parsed.status, safeJson(payload), JSON.stringify([timelineEvent])]
     );
     await client.query("COMMIT");
-    return { success: true, matched: true, duplicate: false, order_id: order.id, auth, parsed, order: updated.rows[0] };
+    const updatedOrder = updated.rows[0];
+    sendShipmentNotificationForStatus(updatedOrder, parsed.status).catch((error) => {
+      console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status: parsed.status, message: error?.message || String(error) });
+    });
+    return { success: true, matched: true, duplicate: false, order_id: order.id, auth, parsed, order: updatedOrder };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

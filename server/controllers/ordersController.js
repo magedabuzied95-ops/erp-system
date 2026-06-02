@@ -16,6 +16,7 @@ import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { getSetting } from "../services/settingsService.js";
 import { sendInvoiceWhatsapp } from "../services/whatsappOrderConfirmationService.js";
+import { ensureWhatsappShippingSchema, sendShipmentNotificationForStatus } from "../services/whatsappShippingService.js";
 import {
   ensureSalesCommissionSchema,
   getSalesSettings,
@@ -654,6 +655,10 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_shipment_created_sent_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_shipped_sent_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_out_for_delivery_sent_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_delivered_sent_at TIMESTAMP NULL`);
   await client.query(`
     CREATE TABLE IF NOT EXISTS product_variant_images (
       id BIGSERIAL PRIMARY KEY,
@@ -2306,6 +2311,7 @@ export const createOrder = async (req, res) => {
       await ensureSalesCommissionSchema(client);
       await ensureLoyaltySchema(db);
       await ensureWalletSchema(client);
+      await ensureWhatsappShippingSchema(client);
     });
 
     await client.query("BEGIN");
@@ -4804,6 +4810,12 @@ export const editOrder = async (req, res) => {
       );
       await client.query("COMMIT");
       const updated = await loadOrderWithItems(db, { tenantId, orderId: loaded.order.id });
+      const updatedOrder = orderResult.rows[0];
+      if (normalizeShipmentStatus(updatedOrder.shipment_status || updatedOrder.shipping_status) !== normalizeShipmentStatus(loaded.order.shipment_status || loaded.order.shipping_status)) {
+        sendShipmentNotificationForStatus(updatedOrder, updatedOrder.shipment_status || updatedOrder.shipping_status).catch((error) => {
+          console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder.id, message: error?.message || String(error) });
+        });
+      }
       return res.status(200).json({ success: true, message: "Order updated", order: orderResult.rows[0], items: updated?.items || [] });
     }
 
@@ -5218,9 +5230,13 @@ export const updateOrderShipment = async (req, res) => {
     );
 
     await client.query("COMMIT");
+    const updatedOrder = updateResult.rows[0];
+    sendShipmentNotificationForStatus(updatedOrder, nextStatus).catch((error) => {
+      console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status: nextStatus, message: error?.message || String(error) });
+    });
     return res.json({
       success: true,
-      order: updateResult.rows[0],
+      order: updatedOrder,
       provider: providerName,
       provider_id: providerId,
       shipment_id: shipmentId,
