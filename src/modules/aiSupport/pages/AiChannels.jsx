@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -271,18 +271,22 @@ export default function AiChannels() {
   const [actionMessage, setActionMessage] = useState("");
   const [busyAction, setBusyAction] = useState("");
   const [settingsSaving, setSettingsSaving] = useState("");
+  const [whatsappGateway, setWhatsappGateway] = useState(null);
+  const [whatsappTest, setWhatsappTest] = useState({ phone: "", message: "اختبار من بوابة واتساب ERP." });
+  const whatsappGatewayRef = useRef(null);
 
   const tr = useCallback((key, fallback, options) => t(`common.aiChannels.${key}`, { defaultValue: fallback, ...(options || {}) }), [t]);
 
   const loadPage = useCallback(async () => {
     setLoading(true);
     setAnalyticsLoading(true);
-    const [statusResult, metaResult, inboxResult, analyticsResult, rulesResult] = await Promise.allSettled([
+    const [statusResult, metaResult, inboxResult, analyticsResult, rulesResult, whatsappGatewayResult] = await Promise.allSettled([
       api.get("/ai-agent/channels/status", { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
       api.get("/integrations/meta/status", { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
       api.get("/ai-agent/inbox", { params: { limit: 12 }, headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
       api.get("/ai-agent/analytics", { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
       api.get("/marketing/comment-dm/rules", { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
+      api.get("/whatsapp/status", { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
     ]);
 
     if (statusResult.status === "fulfilled") {
@@ -318,6 +322,13 @@ export default function AiChannels() {
     } else {
       setAutomationRules([]);
       devWarn("automation rules unavailable", rulesResult.reason);
+    }
+
+    if (whatsappGatewayResult.status === "fulfilled") {
+      setWhatsappGateway(whatsappGatewayResult.value?.status || null);
+    } else {
+      setWhatsappGateway(null);
+      devWarn("whatsapp gateway unavailable", whatsappGatewayResult.reason);
     }
 
     setAnalyticsLoading(false);
@@ -386,6 +397,24 @@ export default function AiChannels() {
     }
   }, [headers, loadPage, tenantId, tr]);
 
+  const sendWhatsappGatewayTest = useCallback(async () => {
+    setBusyAction("whatsapp-gateway:test");
+    setActionMessage("");
+    try {
+      await api.post("/whatsapp/send-test", whatsappTest, { headers });
+      setActionMessage("WhatsApp Gateway test message sent.");
+      await loadPage();
+    } catch (error) {
+      setActionMessage(error?.message || "Unable to send WhatsApp Gateway test message.");
+    } finally {
+      setBusyAction("");
+    }
+  }, [headers, loadPage, whatsappTest]);
+
+  const openWhatsappGatewaySettings = useCallback(() => {
+    whatsappGatewayRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   const customerConversations = useMemo(() => conversations.filter((conversation) => !conversation.internal), [conversations]);
   const internalConversations = useMemo(() => conversations.filter((conversation) => conversation.internal), [conversations]);
 
@@ -421,7 +450,7 @@ export default function AiChannels() {
     const aiRepliesSent = outboundSentEvents.length || channelConversations.filter((item) => item.ai_status === "replied").length;
     const lastInbound = inboundEvents[0]?.created_at || channelConversations.find((item) => item.last_message)?.time || null;
     const localAvailable = channel.key === "web_chat";
-    const hasConfig = localAvailable ? true : channelHasRequiredConfig(channel.key, status);
+    const hasConfig = channel.key === "whatsapp" ? whatsappGateway?.configured === true : localAvailable ? true : channelHasRequiredConfig(channel.key, status);
     const metaConfigHealthy = META_CHANNEL_KEYS.has(channel.key) && metaSetupHealthy(metaStatus);
     const tokenValid = META_CHANNEL_KEYS.has(channel.key) ? metaTokenValid(metaConfig) || metaChannel?.token_valid === true : false;
     const liveReceiptHealthy = META_CHANNEL_KEYS.has(channel.key) && Boolean(lastInbound || channelConversations.length);
@@ -432,7 +461,7 @@ export default function AiChannels() {
     );
     const connected = META_CHANNEL_KEYS.has(channel.key)
       ? Boolean(operationalConnected || liveReceiptHealthy || metaConnected(metaChannel, channel.key === "facebook" ? ["messenger_connected", "publishing_connected", "connected"] : ["dm_connected", "publishing_connected", "connected"]))
-      : localAvailable ? false : status.effective_enabled === true && hasConfig;
+      : channel.key === "whatsapp" ? whatsappGateway?.connected === true : localAvailable ? false : status.effective_enabled === true && hasConfig;
     const setupRequired = META_CHANNEL_KEYS.has(channel.key)
       ? !connected && (metaConfig.page_access_token_configured === true || Boolean(metaConfig.facebook_page_id || metaConfig.instagram_business_account_id))
       : !connected && (hasConfig || status.env_enabled === true || status.ai_replies_enabled === true);
@@ -470,7 +499,7 @@ export default function AiChannels() {
       effectiveAiMode: status.effective_ai_mode || "suggest_only",
       effectiveTone: status.effective_tone || "casual",
     };
-  }), [activeAutomationRulesCount, channelStatus, customerConversations, metaStatus]);
+  }), [activeAutomationRulesCount, channelStatus, customerConversations, metaStatus, whatsappGateway]);
 
   const activeConversations = customerConversations.filter((conversation) => conversation.conversation_status !== "closed").length || number(analytics?.totalConversations);
   const waitingHuman = customerConversations.filter((conversation) => conversation.ai_status === "needs_human").length || number(analytics?.humanTakeovers);
@@ -544,6 +573,116 @@ export default function AiChannels() {
             <KpiCard icon={CheckCircle2} label={tr("health.resolvedToday", "Resolved by AI today")} value={resolvedToday || number(analytics?.closedConversations)} tone="emerald" />
           </div>
           {actionMessage ? <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-sm font-bold text-cyan-100">{actionMessage}</div> : null}
+        </section>
+
+        <section id="whatsapp-gateway-settings" ref={whatsappGatewayRef} className="scroll-mt-6 rounded-3xl border border-emerald-300/20 bg-emerald-400/[0.055] p-5 shadow-xl shadow-emerald-950/20">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-emerald-100">
+                <MessageCircle className="h-3.5 w-3.5" />
+                WhatsApp Gateway
+              </div>
+              <h2 className="mt-3 text-xl font-black text-white">WhatsApp Gateway / Evolution API</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
+                Manual WhatsApp gateway foundation for order confirmations and tests. This is separate from the existing Meta WhatsApp AI Inbox integration.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={loadPage}
+              disabled={loading}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Refresh status
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1.15fr]">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+              <div className="mb-3 text-sm font-black text-white">Gateway connection settings</div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Provider</span>
+                  <input
+                    value="Evolution API"
+                    readOnly
+                    className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Connection status</span>
+                  <input
+                    value={whatsappGateway?.connected ? `Connected / ${whatsappGateway?.state || "open"}` : whatsappGateway?.configured === false ? "Not configured" : whatsappGateway?.state || "Unknown"}
+                    readOnly
+                    className={whatsappGateway?.connected ? "mt-1 h-11 w-full rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-sm font-black text-emerald-100 outline-none" : "mt-1 h-11 w-full rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-sm font-black text-amber-100 outline-none"}
+                  />
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">API URL</span>
+                  <input
+                    value={whatsappGateway?.apiUrl || ""}
+                    readOnly
+                    placeholder="EVOLUTION_API_URL is not configured"
+                    className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">API Key</span>
+                  <input
+                    value={whatsappGateway?.apiKeyConfigured ? "Configured" : ""}
+                    readOnly
+                    placeholder="EVOLUTION_API_KEY is missing"
+                    className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Instance Name</span>
+                  <input
+                    value={whatsappGateway?.instanceName || ""}
+                    readOnly
+                    placeholder="EVOLUTION_INSTANCE_NAME is not configured"
+                    className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+              <div className="mb-3 text-sm font-black text-white">Send manual test message</div>
+              <div className="grid gap-3">
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Egyptian phone</span>
+                  <input
+                    value={whatsappTest.phone}
+                    onChange={(event) => setWhatsappTest((current) => ({ ...current, phone: event.target.value }))}
+                    inputMode="tel"
+                    placeholder="01000000000"
+                    className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-emerald-300/40"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Message</span>
+                  <textarea
+                    value={whatsappTest.message}
+                    onChange={(event) => setWhatsappTest((current) => ({ ...current, message: event.target.value }))}
+                    rows={3}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm font-bold leading-6 text-white outline-none placeholder:text-slate-600 focus:border-emerald-300/40"
+                    dir="auto"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={sendWhatsappGatewayTest}
+                  disabled={busyAction === "whatsapp-gateway:test" || !text(whatsappTest.phone) || !text(whatsappTest.message)}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:opacity-50"
+                >
+                  {busyAction === "whatsapp-gateway:test" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Send test
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -695,6 +834,15 @@ export default function AiChannels() {
                       <Settings className="h-4 w-4" />
                       {tr("actions.manageMeta", "Manage Meta connection")}
                     </Link>
+                  ) : channel.key === "whatsapp" ? (
+                    <button
+                      type="button"
+                      onClick={openWhatsappGatewaySettings}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-cyan-100"
+                    >
+                      <Settings className="h-4 w-4" />
+                      {tr("actions.configure", "Configure")}
+                    </button>
                   ) : (
                     <Link
                       to={channel.connected || channel.localAvailable ? "/admin/ai-inbox" : "/admin/ai-agent-settings"}
@@ -713,6 +861,11 @@ export default function AiChannels() {
                     <button type="button" onClick={() => sendTestMessage(channel.key)} disabled={busyAction === `test:${channel.key}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:opacity-50">
                       {busyAction === `test:${channel.key}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                       {tr("actions.sendTest", "Send test")}
+                    </button>
+                    ) : channel.key === "whatsapp" ? (
+                    <button type="button" onClick={openWhatsappGatewaySettings} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
+                      <TestTube2 className="h-3.5 w-3.5" />
+                      {tr("actions.test", "Test channel")}
                     </button>
                     ) : (
                     <Link to="/admin/ai-agent-settings" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
