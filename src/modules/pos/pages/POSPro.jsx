@@ -4418,7 +4418,9 @@ function POSPro() {
       "عرض الفاتورة:",
       invoiceUrl,
       "",
-      "نتمنى لكم تجربة ممتعة",
+      "إذا احتجت أي مساعدة أو استفسار نحن في خدمتك دائمًا",
+      "",
+      "نتمنى لك تجربة ممتعة",
     ].join("\n");
 
       const url = buildLoyaltyReceiptWhatsappUrl({

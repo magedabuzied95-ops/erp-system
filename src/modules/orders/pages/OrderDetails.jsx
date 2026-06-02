@@ -94,6 +94,14 @@ const whatsappConfirmationBadge = (order = {}) => {
   return null;
 };
 
+const invoiceWhatsappBadge = (order = {}) => {
+  if (!order.whatsapp_invoice_sent_at) return null;
+  return {
+    label: "Invoice WhatsApp sent",
+    className: "border-violet-400/25 bg-violet-400/10 text-violet-200",
+  };
+};
+
 const PACKING_CHECKLIST_ITEMS = [
   { key: "productChecked", labelKey: "orders.details.checkProduct" },
   { key: "sizeChecked", labelKey: "orders.details.checkSize" },
@@ -462,6 +470,7 @@ function OrderDetails() {
         : "";
   const paymentBadge = getPaymentBadge(order || {}, paymentReviewBadgeText || order?.paymentStatus);
   const whatsappBadge = whatsappConfirmationBadge(order || {});
+  const invoiceWhatsappBadgeData = invoiceWhatsappBadge(order || {});
   const smartInsights = useMemo(() => (order ? buildSmartInsights(order, previewItems, shipping) : []), [order, previewItems, shipping]);
   const bostaCityName = shipping.shipping_city_name_ar || shipping.shipping_city_name_en || order?.shipping_city_name_ar || order?.shipping_city_name_en || order?.city_area || order?.governorate || shipping.shipping_city_id || order?.city_id || "";
   const bostaZoneName = shipping.shipping_zone_name_ar || shipping.shipping_zone_name_en || order?.shipping_zone_name_ar || order?.shipping_zone_name_en || shipping.shipping_zone_id || "";
@@ -856,6 +865,11 @@ function OrderDetails() {
                 {whatsappBadge ? (
                   <span className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${whatsappBadge.className}`}>
                     {whatsappBadge.label}
+                  </span>
+                ) : null}
+                {invoiceWhatsappBadgeData ? (
+                  <span className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${invoiceWhatsappBadgeData.className}`}>
+                    {invoiceWhatsappBadgeData.label}
                   </span>
                 ) : null}
                 <span className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${paymentBadge.className}`}>

@@ -2,6 +2,7 @@ import { buildOrderInvoiceWhatsappText, normalizeOrderInvoiceData } from "./orde
 import { displayPublicOrderNumber } from "./publicOrderNumber.js";
 
 const DEFAULT_PROVIDER = "web";
+const DEFAULT_PUBLIC_APP_URL = "https://erp-system-ten-green.vercel.app";
 
 export const normalizePhoneNumber = (value, defaultCountryCode = "20") => {
   const raw = String(value || "").trim();
@@ -42,6 +43,40 @@ export const buildInvoiceMessageTemplate = ({ invoiceNumber, customerName, total
   }, items, { storeName: companyName });
   return buildOrderInvoiceWhatsappText(normalized);
 };
+
+export const resolvePublicAppUrl = () =>
+  String(
+    process.env.FRONTEND_URL ||
+      process.env.PUBLIC_APP_URL ||
+      process.env.STORE_FRONT_URL ||
+      process.env.CLIENT_URL ||
+      process.env.APP_URL ||
+      process.env.VITE_PUBLIC_APP_URL ||
+      DEFAULT_PUBLIC_APP_URL
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+export const buildPublicInvoiceUrl = (invoiceNumber, baseUrl = resolvePublicAppUrl()) => {
+  const code = String(invoiceNumber || "").trim();
+  if (!code || !baseUrl) return "";
+  return `${String(baseUrl).replace(/\/+$/, "")}/invoice/${encodeURIComponent(code)}`;
+};
+
+export const buildArabicReceiptMessage = ({ invoiceUrl = "" } = {}) =>
+  [
+    "شكراً لثقتكم بنا",
+    "",
+    "عرض الفاتورة:",
+    invoiceUrl || "",
+    "",
+    "إذا احتجت أي مساعدة أو استفسار نحن في خدمتك دائمًا",
+    "",
+    "نتمنى لك تجربة ممتعة",
+  ].join("\n");
+
+export const buildInvoiceReceiptWhatsappMessage = ({ invoiceNumber, invoiceUrl } = {}) =>
+  buildArabicReceiptMessage({ invoiceUrl: invoiceUrl || buildPublicInvoiceUrl(invoiceNumber) });
 
 export const buildOrderStatusMessageTemplate = ({ invoiceNumber, customerName, status, paymentStatus, trackingNumber, deliveryStatus, total, companyName = "ERP Store" }) =>
   [

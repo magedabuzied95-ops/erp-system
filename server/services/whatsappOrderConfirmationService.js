@@ -6,6 +6,8 @@ import {
 } from "./aiChannelAdapterService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { normalizeEgyptPhone, sendTextMessage } from "./whatsappGatewayService.js";
+import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl } from "../utils/whatsapp.js";
+import { getSetting } from "./settingsService.js";
 
 const CONFIRM_WORDS = new Set(["1", "تأكيد", "تاكيد", "confirm", "yes", "تمام"]);
 const CANCEL_WORDS = new Set(["2", "إلغاء", "الغاء", "cancel", "no"]);
@@ -30,6 +32,7 @@ export const ensureWhatsappOrderConfirmationSchema = async (clientOrPool = db) =
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmed_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMP NULL`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_whatsapp_confirmation_phone ON orders (customer_phone, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_whatsapp_confirmation_pending ON orders (tenant_id, status, created_at DESC)`);
     };
@@ -331,6 +334,115 @@ export const sendPaymentReviewNotification = async (order = {}) => {
   }
 };
 
+export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
+  await ensureWhatsappOrderConfirmationSchema();
+  const current = order?.id ? await loadOrderById(order.id) : order;
+  const phone = normalizeEgyptPhone(current?.customer_phone || current?.phone || current?.whatsapp || current?.mobile);
+  const invoiceNumber = text(current?.invoice_number);
+  const invoiceUrl = invoiceNumber ? buildPublicInvoiceUrl(invoiceNumber) : "";
+  const mode = text(options.mode || options.context).toLowerCase();
+  const source = sourceOf(current);
+  const isPosInvoice = mode === "pos" || source === "pos";
+  const logTags = isPosInvoice
+    ? {
+        check: "[whatsapp:pos-invoice-check]",
+        sent: "[whatsapp:pos-invoice-sent]",
+        skipped: "[whatsapp:pos-invoice-skipped]",
+        error: "[whatsapp:pos-invoice-error]",
+      }
+    : {
+        check: "[whatsapp:invoice-check]",
+        sent: "[whatsapp:invoice-sent]",
+        skipped: "[whatsapp:invoice-skipped]",
+        error: "[whatsapp:invoice-error]",
+      };
+  const posAutoSendEnabled = isPosInvoice
+    ? options.autoSendEnabled !== undefined
+      ? options.autoSendEnabled !== false
+      : await getSetting("pos.auto_send_pos_invoice_whatsapp", true).catch(() => true)
+    : true;
+  const status = text(current?.status).toLowerCase();
+  const reason = !current?.id
+    ? "order_missing"
+    : isPosInvoice && !posAutoSendEnabled
+      ? "setting_disabled"
+      : isPosInvoice && ["cancelled", "canceled"].includes(status)
+        ? "cancelled_order"
+        : isPosInvoice
+          ? source !== "pos"
+            ? "not_pos_order"
+            : current.whatsapp_invoice_sent_at
+              ? "already_sent"
+              : !phone
+                ? "missing_phone"
+                : !invoiceNumber
+                  ? "missing_invoice_number"
+                  : !invoiceUrl
+                    ? "missing_invoice_url"
+                    : ""
+          : !STOREFRONT_SOURCES.has(source)
+            ? "not_storefront_order"
+            : current.whatsapp_invoice_sent_at
+              ? "already_sent"
+              : !phone
+                ? "missing_phone"
+                : !invoiceNumber
+                  ? "missing_invoice_number"
+                  : !invoiceUrl
+                    ? "missing_invoice_url"
+                    : "";
+  const shouldSend = !reason;
+  const checkPayload = {
+    order_id: current?.id || null,
+    order_number: current ? orderNumber(current) : "",
+    invoice_number: invoiceNumber,
+    channel: current?.channel || "",
+    source: current?.source || "",
+    status: current?.status || "",
+    auto_send_pos_invoice_whatsapp: isPosInvoice ? Boolean(posAutoSendEnabled) : undefined,
+    customer_phone: current?.customer_phone || current?.phone || "",
+    should_send: shouldSend,
+    ...(shouldSend ? {} : { reason }),
+  };
+  console.info(logTags.check, checkPayload);
+  if (!shouldSend) {
+    console.info(logTags.skipped, checkPayload);
+    return { sent: false, reason };
+  }
+
+  try {
+    const message = buildInvoiceReceiptWhatsappMessage({ invoiceNumber, invoiceUrl });
+    const result = await sendTextMessage({ phone, message });
+    await db.query(
+      `
+      UPDATE orders
+      SET whatsapp_invoice_sent_at = COALESCE(whatsapp_invoice_sent_at, NOW()),
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [current.id]
+    );
+    console.info(logTags.sent, {
+      orderId: current.id,
+      orderNumber: orderNumber(current),
+      invoiceNumber,
+      invoiceUrl,
+      phoneSuffix: phone.slice(-4),
+    });
+    return { sent: true, order: current, result, invoiceUrl };
+  } catch (error) {
+    console.error(logTags.error, {
+      order_id: current?.id || null,
+      order_number: current ? orderNumber(current) : "",
+      invoice_number: invoiceNumber,
+      message: error?.message || String(error),
+      code: error?.code || "",
+      status: error?.status || "",
+    });
+    throw error;
+  }
+};
+
 export const findPendingOrderByPhone = async (phone) => {
   await ensureWhatsappOrderConfirmationSchema();
   const normalizedPhone = normalizeEgyptPhone(phone);
@@ -491,6 +603,7 @@ export const processConfirmationReply = async (message = {}) => {
 export default {
   sendOrderConfirmation,
   sendPaymentReviewNotification,
+  sendInvoiceWhatsapp,
   processConfirmationReply,
   findPendingOrderByPhone,
   markOrderConfirmed,

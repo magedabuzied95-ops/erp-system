@@ -135,6 +135,7 @@ const definitions = [
   ["pos.allow_customer_credit", "pos", "boolean", false, "Allow customer credit", "السماح بمديونية العميل", "Allow sale on customer credit.", "السماح بالبيع على حساب العميل."],
   ["pos.allow_returns", "pos", "boolean", true, "Allow returns", "السماح بالمرتجعات", "Allow POS returns.", "السماح بمرتجعات نقطة البيع."],
   ["pos.print_receipt_automatically", "pos", "boolean", false, "Print receipt automatically", "طباعة الإيصال تلقائيا", "Open print after checkout.", "فتح الطباعة بعد البيع."],
+  ["pos.auto_send_pos_invoice_whatsapp", "pos", "boolean", true, "Auto send WhatsApp invoice after checkout", "إرسال فاتورة واتساب تلقائيا بعد البيع", "Automatically send the public invoice link by WhatsApp after POS checkout.", "إرسال رابط الفاتورة العام عبر واتساب تلقائيا بعد إتمام بيع نقطة البيع."],
   ["pos.receipt_template", "pos", "select", "compact", "Receipt template", "قالب الإيصال", "Receipt layout.", "شكل الإيصال.", { options: [option("compact", "Compact", "مختصر"), option("detailed", "Detailed", "تفصيلي")] }],
   ["pos.barcode_scanner_behavior", "pos", "select", "add_to_cart", "Barcode scanner behavior", "سلوك قارئ الباركود", "What happens after scanning a barcode.", "ما يحدث بعد قراءة الباركود.", { options: [option("add_to_cart", "Add to cart", "إضافة للسلة"), option("open_product", "Open product", "فتح المنتج")] }],
   ["pos.hold_cart_timeout_minutes", "pos", "number", 120, "Hold cart timeout", "مدة تعليق السلة", "Minutes before held carts expire.", "الدقائق قبل انتهاء السلة المعلقة.", { validation: { min: 0 } }],

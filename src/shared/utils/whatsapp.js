@@ -135,7 +135,9 @@ export const buildArabicReceiptMessage = ({ invoiceUrl = "" }) =>
     "عرض الفاتورة:",
     invoiceUrl || "",
     "",
-    "نتمنى لكم تجربة ممتعة",
+    "إذا احتجت أي مساعدة أو استفسار نحن في خدمتك دائمًا",
+    "",
+    "نتمنى لك تجربة ممتعة",
   ].join("\n");
 
 export const buildOrderStatusMessageTemplate = ({

@@ -25,6 +25,7 @@ import { getWebsiteSettings } from "../services/liveActivityService.js";
 import {
   ensureWhatsappOrderConfirmationSchema,
   sendOrderConfirmation,
+  sendInvoiceWhatsapp,
   sendPaymentReviewNotification,
 } from "../services/whatsappOrderConfirmationService.js";
 import { getSetting } from "../services/settingsService.js";
@@ -779,6 +780,7 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmed_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS product_image TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS variant_image TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS image_url TEXT`);
@@ -3526,6 +3528,14 @@ export const createWebsiteOrder = async (req, res) => {
     });
     sendPaymentReviewNotification({ ...order, items: normalizedItems }).catch((error) => {
       console.warn("[whatsapp:payment-review-notification-skipped]", {
+        orderId: order?.id,
+        status: order?.status,
+        source: order?.source || order?.channel,
+        message: error?.message || String(error),
+      });
+    });
+    sendInvoiceWhatsapp({ ...order, items: normalizedItems }).catch((error) => {
+      console.warn("[whatsapp:invoice-send-skipped]", {
         orderId: order?.id,
         status: order?.status,
         source: order?.source || order?.channel,

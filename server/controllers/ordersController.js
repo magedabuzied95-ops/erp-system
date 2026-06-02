@@ -15,6 +15,7 @@ import { detectMarketingAttribution, logAttributionEvent } from "../services/mar
 import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { getSetting } from "../services/settingsService.js";
+import { sendInvoiceWhatsapp } from "../services/whatsappOrderConfirmationService.js";
 import {
   ensureSalesCommissionSchema,
   getSalesSettings,
@@ -652,6 +653,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmed_at TIMESTAMP NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMP NULL`);
   await client.query(`
     CREATE TABLE IF NOT EXISTS product_variant_images (
       id BIGSERIAL PRIMARY KEY,
@@ -3224,6 +3226,14 @@ export const createOrder = async (req, res) => {
         order_id: order.id,
         message: sideEffectError?.message,
         stack: sideEffectError?.stack,
+      });
+    });
+    sendInvoiceWhatsapp({ ...order, items: orderItemsForCommission }, { mode: "pos" }).catch((error) => {
+      console.warn("[whatsapp:pos-invoice-send-skipped]", {
+        orderId: order?.id,
+        status: order?.status,
+        source: order?.source || order?.channel,
+        message: error?.message || String(error),
       });
     });
 

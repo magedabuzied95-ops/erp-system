@@ -210,6 +210,13 @@ const sectionMap = {
     ["Checkout", ["orders.default_website_order_status", "orders.default_pos_order_status", "orders.auto_confirm_website_orders", "orders.allow_cod", "orders.allow_store_pickup"]],
     ["Stock reservation", ["orders.reserve_stock_on_website_order", "orders.reserve_stock_expiry_minutes", "orders.cancel_unpaid_after_minutes"]],
   ],
+  pos: [
+    ["Checkout", ["pos.default_branch_id", "pos.default_warehouse_id", "pos.auto_send_pos_invoice_whatsapp"]],
+    ["Payments", ["pos.default_cashier_treasury_id", "pos.allow_split_payments", "pos.allow_customer_credit"]],
+    ["Discounts", ["pos.allow_discount", "pos.max_discount_percent", "pos.manager_approval_discount_percent"]],
+    ["Receipt", ["pos.print_receipt_automatically", "pos.receipt_template"]],
+    ["Cart", ["pos.allow_returns", "pos.barcode_scanner_behavior", "pos.hold_cart_timeout_minutes"]],
+  ],
   ai_channels: [
     ["AI Assistant", ["ai_channels.ai_support_enabled", "ai_channels.ai_reply_mode", "ai_channels.product_recommendation_strictness"]],
     ["AI Inbox", ["ai_channels.human_takeover_behavior", "ai_channels.auto_return_to_ai_minutes", "ai_channels.handoff_message", "ai_channels.ai_fallback_message"]],
