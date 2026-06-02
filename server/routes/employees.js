@@ -20,6 +20,7 @@ import {
   getTopPerformers,
   grantEmployeeRewardRecord,
   markEmployeeChatThreadReadRecord,
+  repairMissingEmployeePayrollPortalTokens,
   regenerateEmployeePayrollPortalToken,
   reviewEmployeePortalRequestRecord,
   sendEmployeeChatThreadMessageRecord,
@@ -70,6 +71,7 @@ router.get("/gamification/settings", protect, permit("employees", "view"), getEm
 router.patch("/gamification/settings", protect, permit("employees", "edit"), updateEmployeeGamificationSettingsRecord);
 router.post("/gamification/rewards", protect, permit("employees", "edit"), grantEmployeeRewardRecord);
 router.patch("/:employeeId/payroll-settings", protect, permit("employees", "edit"), updateEmployeePayrollSettings);
+router.post("/portal-token/repair-missing", protect, permit("employees", "edit"), repairMissingEmployeePayrollPortalTokens);
 router.post("/:employeeId/portal-token/regenerate", logPortalTokenRegenerateRouteHit, protect, permit("employees", "edit"), regenerateEmployeePayrollPortalToken);
 router.get("/:employeeId/penalties", protect, permit("employees", "view"), getEmployeePenalties);
 router.post("/:employeeId/penalties", protect, permit("employees", "edit"), createEmployeePenaltyRecord);

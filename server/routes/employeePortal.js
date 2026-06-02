@@ -5,6 +5,7 @@ import {
   createEmployeePortalRequest,
   getEmployeePortalPushSubscriptionDebug,
   getEmployeePortalPushPublicKey,
+  inspectEmployeePortalTokenMatch,
   loadEmployeePortalByToken,
   recordEmployeePortalAudit,
   recordEmployeePortalAttendance,
@@ -23,7 +24,7 @@ import permit from "../middleware/permissionMiddleware.js";
 import { isPerfDebugEnabled, logPerfTiming } from "../utils/perfDebug.js";
 
 const router = express.Router();
-const invalidPortalLinkMessage = "Invalid employee portal link. Please request a new link from management.";
+const invalidPortalLinkMessage = "رابط بوابة الموظف غير صحيح أو تم تغييره. اطلب رابط جديد من الإدارة.";
 
 const walletDebugEnabled = () =>
   ["1", "true", "yes", "on"].includes(String(process.env.DEBUG_EMPLOYEE_PORTAL || "").toLowerCase()) ||
@@ -55,7 +56,8 @@ const logPortalTokenDebug = ({ req, token, employee = null, reason = "" }) => {
   if (!walletDebugEnabled()) return;
   console.info("[employee-payroll-portal] token-auth", {
     requestId: req.id,
-    tokenSuffix: String(token || "").slice(-8),
+    tokenLength: String(token || "").length,
+    tokenPrefix: String(token || "").slice(0, 6),
     employeeId: employee?.id || null,
     tokenEmployeeId: employee?.id || null,
     tokenEmployeeCode: employee?.employee_code || null,
@@ -65,12 +67,30 @@ const logPortalTokenDebug = ({ req, token, employee = null, reason = "" }) => {
   });
 };
 
-const invalidTokenResponse = (req, res, token) => {
+const portalRoutePath = (req) => `${req.baseUrl || ""}${req.route?.path || req.path || ""}`;
+
+const logInvalidTokenFailure = async ({ req, token, reason = "" }) => {
+  const matched = token ? await inspectEmployeePortalTokenMatch(token).catch(() => null) : null;
+  console.warn("[employee-portal:token-invalid]", {
+    requestId: req.id,
+    tokenLength: String(token || "").length,
+    tokenPrefix: String(token || "").slice(0, 6),
+    routePath: portalRoutePath(req),
+    anyEmployeeMatchedToken: Boolean(matched),
+    matchedEmployeeActive: matched ? Boolean(matched.is_active) : null,
+    matchedEmployeeDeleted: matched ? Boolean(matched.is_deleted) : null,
+    matchedEmployeeStatus: matched?.status || null,
+    reason,
+  });
+};
+
+const invalidTokenResponse = async (req, res, token) => {
   logPortalTokenDebug({
     req,
     token,
     reason: "invalid_token",
   });
+  await logInvalidTokenFailure({ req, token, reason: "invalid_token" });
   return res.status(404).json({
     success: false,
     code: "invalid_token",
@@ -112,12 +132,13 @@ const employeePortalManifest = (token) => ({
   ],
 });
 
-const employeeNotFoundResponse = (req, res, token) => {
+const employeeNotFoundResponse = async (req, res, token) => {
   logPortalTokenDebug({
     req,
     token,
     reason: "employee_not_found",
   });
+  await logInvalidTokenFailure({ req, token, reason: "employee_not_found" });
   return res.status(404).json({
     success: false,
     code: "employee_not_found",
@@ -136,14 +157,14 @@ router.get("/debug/subscriptions/:employeeId", protect, permit("employees", "vie
 });
 
 const loadVerifiedEmployee = async (req, res) => {
-  const token = String(req.params.token || "").trim();
-  if (token.length < 32) {
-    invalidTokenResponse(req, res, token);
+  const token = String(req.params.token || "");
+  if (!token) {
+    await invalidTokenResponse(req, res, token);
     return null;
   }
   const employee = await loadEmployeePortalByToken(token);
   if (!employee) {
-    employeeNotFoundResponse(req, res, token);
+    await employeeNotFoundResponse(req, res, token);
     return null;
   }
   logPortalTokenDebug({
@@ -208,8 +229,8 @@ router.get("/:token", async (req, res) => {
   const totalStartedAt = nowMs();
   const timings = {};
   try {
-    const token = String(req.params.token || "").trim();
-    if (token.length < 32) return invalidTokenResponse(req, res, token);
+    const token = String(req.params.token || "");
+    if (!token) return await invalidTokenResponse(req, res, token);
 
     let sectionStartedAt = nowMs();
     const employee = await loadEmployeePortalByToken(token);
@@ -217,7 +238,7 @@ router.get("/:token", async (req, res) => {
     if (!employee) {
       timings.total_ms = nowMs() - totalStartedAt;
       logPortalPerf("GET /api/employee-portal/:token", timings, { requestId: req.id, failed: true, reason: "employee_not_found" });
-      return employeeNotFoundResponse(req, res, token);
+      return await employeeNotFoundResponse(req, res, token);
     }
 
     await recordEmployeePortalAudit({
@@ -439,7 +460,7 @@ router.get("/:token/manifest.webmanifest", async (req, res) => {
     if (!employee) return;
     res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
     res.setHeader("Cache-Control", "no-store");
-    return res.json(employeePortalManifest(String(req.params.token || "").trim()));
+    return res.json(employeePortalManifest(String(req.params.token || "")));
   } catch (error) {
     console.error("[employee-payroll-portal] manifest error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load employee portal manifest" });

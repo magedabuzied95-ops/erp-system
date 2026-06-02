@@ -195,7 +195,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await ensureAttendanceSchema(clientOrPool);
   await ensureShiftResolutionSchema(clientOrPool);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS employee_portal_token TEXT`);
-  await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_employee_portal_token ON employees (employee_portal_token) WHERE employee_portal_token IS NOT NULL`);
+  await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_employee_portal_token ON employees (employee_portal_token) WHERE employee_portal_token IS NOT NULL AND employee_portal_token <> ''`);
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_portal_requests (
       id BIGSERIAL PRIMARY KEY,
@@ -451,20 +451,6 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
     END $$;
   `);
   await getEmployeeColumns(clientOrPool);
-
-  const missing = await clientOrPool.query(
-    `
-    SELECT id
-    FROM employees
-    WHERE COALESCE(is_deleted, FALSE) = FALSE
-      AND (employee_portal_token IS NULL OR LENGTH(TRIM(employee_portal_token)) < 32)
-    LIMIT 500
-    `
-  );
-
-  for (const row of missing.rows) {
-    await regenerateEmployeePortalToken({ employeeId: row.id, tenantId: null, clientOrPool });
-  }
   };
 
   if (clientOrPool !== db) {
@@ -521,6 +507,57 @@ export const regenerateEmployeePortalToken = async ({ employeeId, tenantId = nul
   const error = new Error("Unable to generate employee portal token");
   error.status = 500;
   throw error;
+};
+
+export const repairMissingEmployeePortalTokens = async ({ tenantId = null, clientOrPool = db, limit = 500 } = {}) => {
+  await ensureEmployeePayrollPortalSchema(clientOrPool);
+  const result = await clientOrPool.query(
+    `
+    SELECT id
+    FROM employees
+    WHERE COALESCE(is_deleted, FALSE) = FALSE
+      AND LOWER(COALESCE(status, 'active')) = 'active'
+      AND ($1::bigint IS NULL OR tenant_id = $1::bigint)
+      AND (employee_portal_token IS NULL OR employee_portal_token = '')
+    ORDER BY id ASC
+    LIMIT $2
+    `,
+    [tenantId, Math.max(1, Math.min(Number(limit) || 500, 5000))]
+  );
+
+  const repaired = [];
+  for (const row of result.rows) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const token = generateEmployeePortalToken();
+      try {
+        const update = await clientOrPool.query(
+          `
+          UPDATE employees
+          SET employee_portal_token = $3,
+              updated_at = NOW()
+          WHERE id::text = $1::text
+            AND COALESCE(is_deleted, FALSE) = FALSE
+            AND LOWER(COALESCE(status, 'active')) = 'active'
+            AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+            AND (employee_portal_token IS NULL OR employee_portal_token = '')
+          RETURNING id, employee_portal_token
+          `,
+          [row.id, tenantId, token]
+        );
+        if (update.rows[0]) repaired.push(update.rows[0]);
+        break;
+      } catch (error) {
+        if (String(error?.code) === "23505" && attempt < 4) continue;
+        throw error;
+      }
+    }
+  }
+
+  return {
+    scanned: result.rows.length,
+    repaired_count: repaired.length,
+    repaired,
+  };
 };
 
 export const buildEmployeePortalLink = (token, req = null) => {
@@ -788,6 +825,24 @@ export const loadEmployeePortalByToken = async (token) => {
     WHERE e.employee_portal_token = $1
       AND COALESCE(e.is_deleted, FALSE) = FALSE
       AND LOWER(COALESCE(e.status, 'active')) = 'active'
+    LIMIT 1
+    `,
+    [token]
+  );
+  return result.rows[0] || null;
+};
+
+export const inspectEmployeePortalTokenMatch = async (token) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      status,
+      COALESCE(is_deleted, FALSE) AS is_deleted,
+      LOWER(COALESCE(status, 'active')) = 'active' AS is_active
+    FROM employees
+    WHERE employee_portal_token = $1
     LIMIT 1
     `,
     [token]

@@ -79,8 +79,8 @@ const labels = {
     addHome: "إضافة للشاشة الرئيسية",
     installHint: "افتح من المتصفح ثم اختر إضافة إلى الشاشة الرئيسية.",
     retry: "إعادة المحاولة",
-    invalid: "رابط بوابة الموظف غير صالح. يرجى طلب رابط جديد من الإدارة.",
-    invalidLink: "رابط بوابة الموظف غير صالح. يرجى طلب رابط جديد من الإدارة.",
+    invalid: "رابط بوابة الموظف غير صحيح أو تم تغييره. اطلب رابط جديد من الإدارة.",
+    invalidLink: "رابط بوابة الموظف غير صحيح أو تم تغييره. اطلب رابط جديد من الإدارة.",
     loading: "جار التحميل...",
     language: "English",
     employeeCode: "كود الموظف",
@@ -132,8 +132,8 @@ const labels = {
     addHome: "Add to Home Screen",
     installHint: "Open from your browser menu and choose Add to Home Screen.",
     retry: "Try again",
-    invalid: "Invalid employee portal link. Please request a new link from management.",
-    invalidLink: "Invalid employee portal link. Please request a new link from management.",
+    invalid: "رابط بوابة الموظف غير صحيح أو تم تغييره. اطلب رابط جديد من الإدارة.",
+    invalidLink: "رابط بوابة الموظف غير صحيح أو تم تغييره. اطلب رابط جديد من الإدارة.",
     loading: "Loading...",
     language: "العربية",
     employeeCode: "Employee code",
@@ -659,6 +659,63 @@ const formatDateLocal = (value, language = "en", fallback = "-") => {
   }
 };
 
+const employeePortalDateTimeParts = (value, language = "ar", fallback = "-") => {
+  const date = parseSafeDate(value);
+  if (!date) return null;
+  const locale = language === "ar" ? "ar-EG" : localeForLanguage(language);
+  const formatParts = (timeZone) => {
+    const dateParts = new Intl.DateTimeFormat(locale, {
+      timeZone,
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).formatToParts(date);
+    const timeParts = new Intl.DateTimeFormat(locale, {
+      timeZone,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).formatToParts(date);
+    const part = (parts, type) => parts.find((item) => item.type === type)?.value || "";
+    const dateText = language === "ar"
+      ? `${part(dateParts, "day")} ${part(dateParts, "month")} ${part(dateParts, "year")}`
+      : dateParts.map((item) => item.value).join("").trim();
+    const dayPeriod = part(timeParts, "dayPeriod");
+    const timeText = [
+      `${part(timeParts, "hour")}:${part(timeParts, "minute")}`,
+      dayPeriod,
+    ].filter(Boolean).join(" ");
+    return { dateText, timeText };
+  };
+  try {
+    return formatParts(browserTimeZone());
+  } catch {
+    try {
+      return formatParts("Africa/Cairo");
+    } catch {
+      return { dateText: fallback, timeText: "" };
+    }
+  }
+};
+
+const formatEmployeePortalDateTime = (value, language = "ar", fallback = "-") => {
+  const parts = employeePortalDateTimeParts(value, language, fallback);
+  if (!parts) return fallback;
+  return [parts.dateText, parts.timeText].filter(Boolean).join(" - ");
+};
+
+const formatEmployeePortalDate = (value, language = "ar", fallback = "-") => (
+  employeePortalDateTimeParts(value, language, fallback)?.dateText || fallback
+);
+
+function DateSafe({ children, className = "" }) {
+  return (
+    <span dir="auto" className={`date-safe${className ? ` ${className}` : ""}`}>
+      {children}
+    </span>
+  );
+}
+
 const formatTimeLocal = (value, language = "en", fallback = "-") => {
   const date = parseSafeDate(value);
   if (!date) return fallback;
@@ -932,7 +989,7 @@ function TimelineItem({ item, text, language }) {
       <div className="min-w-0">
         <div className="text-sm font-black text-slate-950">{label}</div>
         <div className="mt-1 text-xs font-bold text-slate-500" dir="auto">{text.reason}: {item.description || item.status || "-"}</div>
-        <div className="mt-1 text-xs font-bold text-slate-400" dir="ltr">{formatWalletDateLocal(item.date, language)}</div>
+        <div className="mt-1 text-xs font-bold text-slate-400"><DateSafe>{formatEmployeePortalDate(item.date, language)}</DateSafe></div>
       </div>
       <div className={`whitespace-nowrap text-sm font-black tabular-nums ${isAdvance ? "text-amber-700" : credit ? "text-emerald-700" : "text-red-700"}`} dir="ltr">
         {credit ? "+" : "-"} {money(item.amount)}
@@ -2325,7 +2382,7 @@ export default function EmployeePayrollPortal() {
                         </div>
                         {!item.read_at ? <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${isDisplayRefill ? "bg-amber-500" : "bg-emerald-500"}`} /> : null}
                       </div>
-                      <div className="mt-1 text-[11px] font-bold text-slate-400" dir="ltr">{formatDateLocal(item.created_at, language)} {formatTimeLocal(item.created_at, language)}</div>
+                      <div className="mt-1 text-[11px] font-bold text-slate-400"><DateSafe>{formatEmployeePortalDateTime(item.created_at, language)}</DateSafe></div>
                     </button>
                   );}) : (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-sm font-bold text-slate-500">{text.noTransactions}</div>
@@ -2367,7 +2424,7 @@ export default function EmployeePayrollPortal() {
                               </div>
                               {Number(alert.remaining_stock || 0) > 0 ? <div>المتاح: {alert.remaining_stock} قطع</div> : null}
                               {alert.invoice_number ? <div className="text-slate-500">الفاتورة: {alert.invoice_number}</div> : null}
-                              <div className="text-[11px] text-slate-400" dir="ltr">{formatDateLocal(alert.created_at, language)} {formatTimeLocal(alert.created_at, language)}</div>
+                              <div className="text-[11px] text-slate-400"><DateSafe>{formatEmployeePortalDateTime(alert.created_at, language)}</DateSafe></div>
                             </div>
                           </div>
                         </div>
@@ -2462,12 +2519,12 @@ export default function EmployeePayrollPortal() {
                     <span className={`rounded-full px-3 py-1 text-xs font-black ${isCheckedIn ? "bg-emerald-400 text-emerald-950" : "bg-white/10 text-white"}`}>{employeeStatus}</span>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold">
-                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{text.checkIn}</div><div className="mt-1 text-sm font-black" dir="ltr">{formatTimeLocal(todayCheckIn, language)}</div></div>
+                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{text.checkIn}</div><div className="mt-1 text-sm font-black"><DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div></div>
                     <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{ui("workedToday")}</div><div className="mt-1 text-sm font-black" dir="ltr">{formatMinutesShort(workedMinutes)}</div></div>
-                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{ui("startTime")}</div><div className="mt-1 text-sm font-black" dir="ltr">{formatShiftTimeLocal(currentShift.start_time || currentShift.startTime, language)}</div></div>
-                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{ui("endTime")}</div><div className="mt-1 text-sm font-black" dir="ltr">{formatShiftTimeLocal(currentShift.end_time || currentShift.endTime, language)}</div></div>
+                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{ui("startTime")}</div><div className="mt-1 text-sm font-black"><DateSafe>{formatShiftTimeLocal(currentShift.start_time || currentShift.startTime, language)}</DateSafe></div></div>
+                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{ui("endTime")}</div><div className="mt-1 text-sm font-black"><DateSafe>{formatShiftTimeLocal(currentShift.end_time || currentShift.endTime, language)}</DateSafe></div></div>
                   </div>
-                  {todayCheckIn ? <div className="mt-3 text-xs font-bold text-slate-300">{ui("checkedInAt")} <span dir="ltr">{formatTimeLocal(todayCheckIn, language)}</span></div> : null}
+                  {todayCheckIn ? <div className="mt-3 text-xs font-bold text-slate-300">{ui("checkedInAt")} <DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div> : null}
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
                       {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
@@ -2666,13 +2723,13 @@ export default function EmployeePayrollPortal() {
                 {attendanceRows.length ? attendanceRows.map((row) => (
                   <div key={`${row.date}-${row.check_in || ""}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="font-black tabular-nums" dir="ltr">{attendanceLocalDate(row, language)}</div>
+                      <div className="font-black tabular-nums"><DateSafe>{formatEmployeePortalDate(row.attendance_date || row.date || row.check_in || row.check_out, language)}</DateSafe></div>
                       <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-700">{row.status || "-"}</span>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
                       <div className="col-span-2"><span className="font-black text-slate-950">{text.shift}: </span><span dir="auto">{formatShiftLabelLocal(row, language)}</span></div>
-                      <div><span className="font-black text-slate-950">{text.checkIn}: </span><span dir="ltr">{formatTimeLocal(row.check_in, language)}</span></div>
-                      <div><span className="font-black text-slate-950">{text.checkOut}: </span><span dir="ltr">{formatTimeLocal(row.check_out, language)}</span></div>
+                      <div><span className="font-black text-slate-950">{text.checkIn}: </span><DateSafe>{formatTimeLocal(row.check_in, language)}</DateSafe></div>
+                      <div><span className="font-black text-slate-950">{text.checkOut}: </span><DateSafe>{formatTimeLocal(row.check_out, language)}</DateSafe></div>
                       <div><span className="font-black text-slate-950">{text.lateMinutes}: </span><span dir="ltr">{row.late_minutes || 0}</span></div>
                       <div><span className="font-black text-slate-950">{text.overtimeHours}: </span><span dir="ltr">{row.overtime_hours || 0}</span></div>
                     </div>
@@ -2718,7 +2775,7 @@ export default function EmployeePayrollPortal() {
                               <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-700">{task.status}</span>
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-slate-500">
-                              <div>{ui("dueDate")}: <span dir="ltr">{formatDateLocal(task.due_at || task.due_date || task.deadline, language)}</span></div>
+                              <div>{ui("dueDate")}: <DateSafe>{formatEmployeePortalDate(task.due_at || task.due_date || task.deadline, language)}</DateSafe></div>
                               <div>{ui("priority")}: <span>{task.priority || "-"}</span></div>
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -2793,7 +2850,7 @@ export default function EmployeePayrollPortal() {
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold text-slate-500">
                       <div>{text.requestType}: <span>{requestTypeLabel(item, text)}</span></div>
-                      <div>{text.requestDate}: <span dir="ltr">{formatDateLocal(item.request_date || item.created_at, language)}</span></div>
+                      <div>{text.requestDate}: <DateSafe>{formatEmployeePortalDate(item.request_date || item.created_at, language)}</DateSafe></div>
                     </div>
                     {item.amount ? <div className="mt-1 text-xs font-black text-slate-600" dir="ltr">{money(item.amount)}</div> : null}
                     {item.admin_note ? <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-slate-700" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
@@ -2905,7 +2962,7 @@ export default function EmployeePayrollPortal() {
                         <ChatAttachment message={message} text={text} compact onImageClick={setChatImagePreview} />
                         {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
                         <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
-                          <span>{formatTimeLocal(message.created_at, language)}</span>
+                          <DateSafe>{formatTimeLocal(message.created_at, language)}</DateSafe>
                           {employeeMessage ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
                         </div>
                       </div>
