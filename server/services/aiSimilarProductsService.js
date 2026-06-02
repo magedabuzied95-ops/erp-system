@@ -3,6 +3,10 @@ import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
 } from "./aiProductEligibilityService.js";
+import {
+  detectSalesProductUnderstanding,
+  gateRelevantProducts,
+} from "./aiSalesOrchestratorService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -364,9 +368,25 @@ export const findSimilarProductsForAi = async ({
   });
 
   const minScore = scoredCandidates.some((candidate) => numeric(candidate.similarity_score, 0) >= 180) ? 120 : 70;
-  const selected = filterAiEligibleProducts(scoredCandidates, { requireProductUrl: false })
+  const preGateSelected = filterAiEligibleProducts(scoredCandidates, { requireProductUrl: false })
     .filter((candidate) => numeric(candidate.similarity_score, 0) >= minScore && numeric(candidate.total_stock, 0) > 0)
-    .slice(0, Math.max(1, Number(limit) || 4));
+  const understanding = detectSalesProductUnderstanding({
+    message: [activeProduct.name, activeProduct.brand, activeProduct.model, activeProduct.category, activeProduct.product_type].filter(Boolean).join(" "),
+    memory: { lastProductCard: activeProduct },
+    source: "similar_products_engine",
+  });
+  const selected = gateRelevantProducts({
+    products: preGateSelected,
+    understanding,
+    limit: Math.max(1, Number(limit) || 4),
+    fallback: true,
+  });
+  console.log("[ai-orchestrator:candidates]", {
+    exact_count: 0,
+    family_count: scoredCandidates.filter((candidate) => numeric(candidate.similarity_score, 0) >= minScore).length,
+    similar_count: selected.length,
+    fallback_count: 0,
+  });
 
   if (!selected.length) {
     console.log("[ai-alternatives] no close matches", {

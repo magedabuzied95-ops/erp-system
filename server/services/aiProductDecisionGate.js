@@ -86,6 +86,9 @@ const productMatchesModel = (product = {}, modelIntent = null) => {
   return modelIntent.patterns.some((pattern) => pattern.test(blob));
 };
 
+const NO_RANDOM_BLOCK_MESSAGE =
+  "الموديل ده مش متوفر حاليًا للأسف، ومش هبعتلك بديل بعيد عن اللي طلبته. تحب أدورلك على نفس الستايل بس بلون تاني أو سعر قريب؟";
+
 const detectContextFlags = (blob = "") => ({
   lowCasualSkate: /\b(low|lowtop|low top|low profile|flat sole|slim sole|casual|skate|dunk|court|lifestyle)\b|كاجوال|دانك/.test(blob),
   trailRunning: /\b(trail|running|runner|terrex|goretex|gore tex|hiking|outdoor|chunky)\b/.test(blob),
@@ -116,6 +119,14 @@ const scoreProduct = ({ product = {}, ctxBlob = "", flags = {}, modelIntent = nu
   const brandScore = clamp01(number(breakdown.brand_score, 0) + (modelIntent && modelMatch ? 0.55 : 0));
   const visualMatchScore = clamp01(number(product.visual_confidence_score ?? product.confidence, 0));
   const intentMatchScore = clamp01(overlap + (modelIntent && modelMatch ? 0.45 : 0));
+  const strongReasons = [
+    brandScore >= 0.55 ? "same_brand" : "",
+    categoryScore >= 0.45 ? "same_category" : "",
+    silhouetteScore >= 0.45 ? "close_silhouette" : "",
+    colorScore >= 0.45 ? "close_color" : "",
+    visualMatchScore >= 0.55 ? "visual_match" : "",
+    intentMatchScore >= 0.45 ? "intent_match" : "",
+  ].filter(Boolean);
   let confidence = clamp01((intentMatchScore * 0.24) + (visualMatchScore * 0.28) + (silhouetteScore * 0.16) + (colorScore * 0.12) + (categoryScore * 0.1) + (brandScore * 0.1));
   if (modelIntent && modelMatch) confidence = Math.max(confidence, 0.72);
   return {
@@ -128,6 +139,8 @@ const scoreProduct = ({ product = {}, ctxBlob = "", flags = {}, modelIntent = nu
     confidence,
     flags: productFlags,
     model_match: modelMatch,
+    strong_reasons: strongReasons,
+    strong_reason_count: strongReasons.length,
   };
 };
 
@@ -160,15 +173,27 @@ export const evaluateProductDecisionGate = ({
   const exactMode = Boolean(metadata?.exact_inventory_match || detectedIntent.includes("exact"));
   const alternativesAllowed = Boolean(allowAlternatives || detectedIntent.includes("alternative") || detectedIntent.includes("visual_search") || metadata?.allow_alternatives);
   const hasExactJordan = flags.jordan4 && productCards.some((product) => productMatchesModel(product, { key: "jordan4", patterns: [] }));
+  const hasJordanLikeCandidate = flags.jordan4 && productCards.some((product) => {
+    const scores = scoreProduct({ product, ctxBlob, flags, modelIntent: { key: "jordan4", patterns: [] } });
+    return scores.flags.jordan || scores.flags.jordan4 || scores.silhouette_score >= 0.45 || scores.visual_match_score >= 0.55;
+  });
   const evaluated = productCards.map((product) => {
     const scores = scoreProduct({ product, ctxBlob, flags, modelIntent });
     let rejectReason = "";
+    const exactModelMatch = Boolean(modelIntent && scores.model_match);
+    const veryHighVisual = scores.visual_match_score >= 0.85 && scores.silhouette_score >= 0.65;
+    const minimumConfidence = exactMode && exactModelMatch ? 0.45 : alternativesAllowed ? 0.65 : 0.58;
     if (productRejected(product, memory)) rejectReason = "customer_rejected_product_or_model";
     else if (modelIntent && !alternativesAllowed && !scores.model_match) rejectReason = "specific_model_mismatch";
+    else if (flags.jordan4 && /\badidas\b/.test(productBlob(product)) && scores.flags.trailRunning) rejectReason = "jordan4_never_allow_adidas_running";
+    else if (flags.jordan4 && scores.flags.trailRunning && !veryHighVisual) rejectReason = "jordan4_reject_trail_running";
+    else if (flags.jordan4 && scores.flags.lowCasualSkate && !scores.model_match && !veryHighVisual) rejectReason = "jordan4_reject_low_casual_skate";
+    else if (flags.jordan4 && hasJordanLikeCandidate && !scores.flags.jordan && !scores.flags.jordan4 && !veryHighVisual) rejectReason = "jordan4_jordan_like_available_reject_non_jordan";
+    else if (modelIntent && alternativesAllowed && !scores.model_match && scores.strong_reason_count < 2) rejectReason = "specific_model_alternative_needs_two_strong_reasons";
     else if (flags.lowCasualSkate && scores.flags.trailRunning && scores.confidence < 0.92) rejectReason = "low_skate_visual_rejects_trail_running";
     else if (flags.jordan4 && hasExactJordan && !scores.flags.jordan) rejectReason = "jordan4_exact_exists_reject_non_jordan";
     else if (scores.color_score > 0 && scores.silhouette_score < 0.18 && scores.category_score < 0.18) rejectReason = "color_only_match";
-    else if (scores.confidence < (exactMode ? 0.18 : alternativesAllowed ? 0.22 : 0.42)) rejectReason = "below_minimum_confidence";
+    else if (scores.confidence < minimumConfidence) rejectReason = "below_minimum_confidence";
     return {
       product,
       selected: !rejectReason,
@@ -210,6 +235,7 @@ export const evaluateProductDecisionGate = ({
     category_score: item.scores.category_score,
     brand_score: item.scores.brand_score,
     confidence: item.scores.confidence,
+    strong_reason_count: item.scores.strong_reason_count,
     reject_reason: "",
     decision_gate: item.score_breakdown,
   }));
@@ -217,13 +243,17 @@ export const evaluateProductDecisionGate = ({
     decision,
     shouldSend: products.length > 0,
     introText,
-    blockMessage: "محتاج صورة أو اسم أوضح شوية عشان ما أبعتلكش موديل غلط.",
+    blockMessage: NO_RANDOM_BLOCK_MESSAGE,
     products,
     evaluated: evaluated.map((item) => ({
       product_id: item.product.product_id || item.product.id || null,
       name: item.product.name || item.product.title || "",
       selected: accepted.includes(item),
       reject_reason: item.reject_reason,
+      confidence: item.scores.confidence,
+      strong_reason_count: item.scores.strong_reason_count,
+      model_match: item.scores.model_match,
+      flags: item.scores.flags,
       score_breakdown: item.score_breakdown,
     })),
     modelIntent: modelIntent?.label || "",

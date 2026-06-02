@@ -121,6 +121,8 @@ const addSpacingVariants = (phrase = "") => {
   if (/airforce/.test(compact)) variants.push("air force");
   if (/jordan\s+4/.test(normalized)) variants.push("jordan4", "jordan four");
   if (/jordan4/.test(compact)) variants.push("jordan 4", "jordan four");
+  if (/\b(?:aj|j)\s*4\b/.test(normalized) || /\b(?:aj4|j4)\b/.test(compact)) variants.push("jordan 4", "air jordan 4", "retro 4");
+  if (/retro\s+4/.test(normalized) || /retro4/.test(compact)) variants.push("jordan 4", "air jordan 4", "aj4", "j4");
   return variants;
 };
 

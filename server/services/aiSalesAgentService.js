@@ -21,6 +21,10 @@ import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
 } from "./aiProductEligibilityService.js";
+import {
+  detectSalesProductUnderstanding,
+  gateRelevantProducts,
+} from "./aiSalesOrchestratorService.js";
 
 let schemaReadyPromise = null;
 let aiInboxSchemaReadyPromise = null;
@@ -2037,7 +2041,17 @@ export const searchAiSalesProducts = async ({ tenantId, query = "", limit = 8 } 
       `,
       [safeTenantId, likeQuery, likeTerms.length ? likeTerms : [likeQuery], safeLimit]
     );
-    const products = filterAiEligibleProducts(result.rows.map(normalizeRecommendationProduct), { requireProductUrl: true });
+    const eligibleProducts = filterAiEligibleProducts(result.rows.map(normalizeRecommendationProduct), { requireProductUrl: true });
+    const understanding = detectSalesProductUnderstanding({ message: query, source: "ai_sales_recommendations" });
+    const products = understanding.requires_relevance_gate
+      ? gateRelevantProducts({ products: eligibleProducts, understanding, limit: safeLimit, fallback: false })
+      : eligibleProducts;
+    console.log("[ai-orchestrator:candidates]", {
+      exact_count: products.filter((product) => product.relevance_reasons?.includes("model_family_match")).length,
+      family_count: products.filter((product) => product.relevance_reasons?.includes("same_jordan_family")).length,
+      similar_count: products.length,
+      fallback_count: 0,
+    });
     console.log("ai_inbox_recommendations_success", { tenant_id: safeTenantId, count: products.length });
     return products;
   } catch (error) {

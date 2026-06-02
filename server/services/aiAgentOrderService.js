@@ -15,6 +15,10 @@ import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
 } from "./aiProductEligibilityService.js";
+import {
+  detectSalesProductUnderstanding,
+  gateRelevantProducts,
+} from "./aiSalesOrchestratorService.js";
 
 let schemaReadyPromise = null;
 let schemaEnsured = false;
@@ -496,7 +500,22 @@ export const searchAiOrderProducts = async ({ tenantId, message, metadata = {} }
       aliases: (row.generated_aliases || []).slice(0, 8),
     })),
   });
-  return filterAiEligibleProducts(scoredRows, { requireProductUrl: false });
+  const eligibleRows = filterAiEligibleProducts(scoredRows, { requireProductUrl: false });
+  const understanding = detectSalesProductUnderstanding({
+    message,
+    memory: metadata?.memory || metadata?.conversation_memory || {},
+    source: "ai_order_product_search",
+  });
+  const gatedRows = understanding.requires_relevance_gate
+    ? gateRelevantProducts({ products: eligibleRows, understanding, limit: 8, fallback: false })
+    : eligibleRows;
+  console.log("[ai-orchestrator:candidates]", {
+    exact_count: gatedRows.filter((product) => product.relevance_reasons?.includes("model_family_match")).length,
+    family_count: gatedRows.filter((product) => product.relevance_reasons?.includes("same_jordan_family")).length,
+    similar_count: gatedRows.length,
+    fallback_count: 0,
+  });
+  return gatedRows;
 };
 
 const selectVariant = (product, { size = "", color = "" } = {}) => {

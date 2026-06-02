@@ -6,6 +6,10 @@ import {
   reindexAllProductImages,
 } from "./aiVisualProductImageIndexService.js";
 import { aiProductSqlExclusionClause, filterAiEligibleProducts } from "./aiProductEligibilityService.js";
+import {
+  detectSalesProductUnderstanding,
+  gateRelevantProducts,
+} from "./aiSalesOrchestratorService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -879,7 +883,29 @@ export const searchAiVisualProductsPro = async ({
       if (scoreDiff) return scoreDiff;
       return Number(right.stock || 0) - Number(left.stock || 0);
     });
-  const topMatches = scored.slice(0, limit).map((row, index) => ({
+  const understanding = detectSalesProductUnderstanding({
+    message: [
+      visualQuery,
+      correctionText,
+      attributes.brand,
+      attributes.model,
+      attributes.productType,
+      ...(attributes.mainColors || []),
+      ...(attributes.visibleFeatures || []),
+    ].filter(Boolean).join(" "),
+    memory: { lastVisualQueryText: visualQuery, lastImageUrl: uploadedImageUrl || (queryImages[0]?.imageUrl || "") },
+    source: "visual_search_pro",
+  });
+  const gatedScored = understanding.requires_relevance_gate
+    ? gateRelevantProducts({ products: scored, understanding, limit, fallback: false })
+    : scored;
+  console.log("[ai-orchestrator:candidates]", {
+    exact_count: gatedScored.filter((product) => product.exact_image_match).length,
+    family_count: gatedScored.filter((product) => product.relevance_reasons?.includes("model_family_match")).length,
+    similar_count: gatedScored.length,
+    fallback_count: 0,
+  });
+  const topMatches = gatedScored.slice(0, limit).map((row, index) => ({
     product_id: row.product_id,
     productId: row.product_id,
     variant_id: row.variant_id,
@@ -907,7 +933,7 @@ export const searchAiVisualProductsPro = async ({
     score_breakdown: row.score_breakdown,
     rank: index + 1,
   }));
-  const exactMatch = scored.find((row) => row.exact_image_match || row.finalScore >= 0.82) || null;
+  const exactMatch = gatedScored.find((row) => row.exact_image_match || row.finalScore >= 0.82) || null;
   const topReason = topMatches[0]?.score_breakdown?.reasonWhyRankedFirst || "";
   return {
     attributes,
@@ -917,9 +943,9 @@ export const searchAiVisualProductsPro = async ({
     queryEmbeddingCount: queryEmbeddings.length,
     embeddingModel: queryEmbeddingResult.model || "",
     embeddingError: queryEmbeddingResult.error || "",
-    candidates: scored.slice(0, limit),
+    candidates: gatedScored.slice(0, limit),
     exactMatch,
-    closeMatches: scored.filter((row) => row !== exactMatch).slice(0, limit),
+    closeMatches: gatedScored.filter((row) => row !== exactMatch).slice(0, limit),
     searchedCount: result.rows.length,
     topMatches,
     correctionUsed: attributes.correctionUsed,

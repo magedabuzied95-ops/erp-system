@@ -35,6 +35,13 @@ import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
 } from "./aiProductEligibilityService.js";
+import {
+  NO_RANDOM_PRODUCT_FALLBACK,
+  detectSalesProductUnderstanding,
+  gateRelevantProducts,
+  relevanceExplanationAr,
+} from "./aiSalesOrchestratorService.js";
+import { findSimilarProductsForAi } from "./aiSimilarProductsService.js";
 
 const PRODUCT_LIMIT = 18;
 const IMAGE_SEARCH_PRODUCT_LIMIT = Number(process.env.AI_IMAGE_SEARCH_PRODUCT_LIMIT || 300);
@@ -47,7 +54,7 @@ const VISUAL_DEBUG =
 const PRODUCT_IMAGE_PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='18' fill='%23f5f5f4'/%3E%3Cpath d='M25 63l13-15 10 10 8-9 15 14H25z' fill='%23d6d3d1'/%3E%3Ccircle cx='37' cy='35' r='7' fill='%23d6d3d1'/%3E%3C/svg%3E";
 const MODEL_INTENT_CONFIDENCE_THRESHOLD = Number(process.env.AI_PRODUCT_MODEL_MATCH_THRESHOLD || 0.72);
-const MODEL_NOT_AVAILABLE_REPLY = "\u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u062f\u0647 \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u062d\u0627\u0644\u064a\u064b\u0627\u060c \u062a\u062d\u0628 \u0623\u0637\u0644\u0639\u0644\u0643 \u0623\u0642\u0631\u0628 \u0628\u062f\u0627\u0626\u0644\u061f";
+const MODEL_NOT_AVAILABLE_REPLY = NO_RANDOM_PRODUCT_FALLBACK;
 const modelUnavailableReply = () => MODEL_NOT_AVAILABLE_REPLY;
 
 const PRODUCT_INTENT_TERMS = [
@@ -2010,6 +2017,7 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
 
   const terms = normalizeSearchTerms(message, intent);
   const strictModelIntent = detectStrictModelIntent(message);
+  const orchestratorUnderstanding = detectSalesProductUnderstanding({ message, memory, source: "product_search" });
   const styleIntent = intent.product?.intelligence?.style;
   const hasConcreteProductFilter = Boolean(
     intent.product.codes.length ||
@@ -2267,6 +2275,24 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
     products = strongProducts;
   }
   products = filterAiEligibleProducts(products, { requireProductUrl: false });
+  const exactCount = strictModelIntent
+    ? products.filter((product) => Number(product.model_match_confidence || 0) >= MODEL_INTENT_CONFIDENCE_THRESHOLD).length
+    : products.length;
+  const familyCount = products.filter((product) => product.model_family || product.strong_model_match).length;
+  if (orchestratorUnderstanding.requires_relevance_gate) {
+    products = gateRelevantProducts({
+      products,
+      understanding: orchestratorUnderstanding,
+      limit: strictModelIntent ? 3 : PRODUCT_LIMIT,
+      fallback: false,
+    });
+  }
+  console.log("[ai-orchestrator:candidates]", {
+    exact_count: exactCount,
+    family_count: familyCount,
+    similar_count: products.length,
+    fallback_count: 0,
+  });
 
   debugProductSearch("result", {
     query_text: message,
@@ -2475,7 +2501,10 @@ const loadVisualSearchProducts = async ({ tenantId, intent, req = null } = {}) =
     result.rows.map((row) => normalizeProductRow(row, intent || detectAiSupportIntent(""), pricingSettings)),
     req
   );
-  return filterAiEligibleProducts(products, { requireProductUrl: false });
+  const eligible = filterAiEligibleProducts(products, { requireProductUrl: false });
+  const understanding = detectSalesProductUnderstanding({ message: intent?.product?.image_search_query || intent?.raw || "", memory: {}, source: "visual_search" });
+  if (!understanding.requires_relevance_gate) return eligible;
+  return gateRelevantProducts({ products: eligible, understanding, limit: IMAGE_SEARCH_PRODUCT_LIMIT, fallback: false });
 };
 
 const settingKeyGroups = {
@@ -3012,9 +3041,34 @@ const scoreAlternativeProduct = ({ product = {}, state = {}, modelIntent = null 
 
 const buildAlternativeProducts = async ({ tenantId, state = {}, req = null, memory = null } = {}) => {
   const modelIntent = detectStrictModelIntent(state.pendingAlternativeForModel || state.pendingAlternativeSourceMessage);
+  const understanding = detectSalesProductUnderstanding({
+    message: state.pendingAlternativeForModel || state.pendingAlternativeSourceMessage || "",
+    memory,
+    source: "alternative_products",
+  });
   const message = alternativeSearchMessage({ state, modelIntent });
   const intent = detectAiSupportIntent(message);
-  const rawProducts = await searchProducts({ tenantId, message, intent, req, memory });
+  const activeProductId = Number(
+    memory?.activeProductId ||
+      memory?.selectedProductId ||
+      memory?.lastProductCard?.product_id ||
+      memory?.lastProductCard?.id ||
+      0
+  );
+  const similarResult = activeProductId
+    ? await findSimilarProductsForAi({
+        tenantId,
+        activeProductId,
+        activeVariantId: memory?.activeVariantId || memory?.selectedVariantId || memory?.lastProductCard?.variant_id || null,
+        activeColor: memory?.activeColor || memory?.selectedColor || memory?.lastProductCard?.color || "",
+        customerSize: memory?.preferences?.size || "",
+        limit: 8,
+      }).catch((error) => {
+        console.warn("[ai-orchestrator:similar-engine-skipped]", { tenant_id: tenantId, activeProductId, message: error?.message || String(error) });
+        return { products: [] };
+      })
+    : { products: [] };
+  const rawProducts = similarResult.products?.length ? similarResult.products : await searchProducts({ tenantId, message, intent, req, memory });
   const fallbackProducts = rawProducts.length
     ? []
     : rankProductsForIntent({
@@ -3025,7 +3079,7 @@ const buildAlternativeProducts = async ({ tenantId, state = {}, req = null, memo
       });
   const candidateProducts = rawProducts.length ? rawProducts : fallbackProducts;
   const rejectedIds = new Set([...(state.rejectedProductIds || []), ...(state.rejectedVisualMatches || [])].map(String));
-  const alternatives = candidateProducts
+  const preGateAlternatives = candidateProducts
     .filter((product) => Number(product.total_stock || 0) > 0)
     .filter((product) => !rejectedIds.has(String(product.id)))
     .filter((product) => !productMatchesRejectedModel(product, state.rejectedModelNames || []))
@@ -3034,11 +3088,23 @@ const buildAlternativeProducts = async ({ tenantId, state = {}, req = null, memo
       const assessment = productModelMatchAssessment({ product, modelIntent, queryText: modelIntent.displayName, intent: detectAiSupportIntent(modelIntent.displayName) });
       return assessment.confidence < MODEL_INTENT_CONFIDENCE_THRESHOLD;
     })
-    .sort((left, right) => scoreAlternativeProduct({ product: right, state, modelIntent }) - scoreAlternativeProduct({ product: left, state, modelIntent }))
-    .slice(0, 3);
+    .sort((left, right) => scoreAlternativeProduct({ product: right, state, modelIntent }) - scoreAlternativeProduct({ product: left, state, modelIntent }));
+  const alternatives = gateRelevantProducts({
+    products: preGateAlternatives,
+    understanding,
+    limit: 3,
+    fallback: true,
+  });
+  console.log("[ai-orchestrator:candidates]", {
+    exact_count: 0,
+    family_count: rawProducts.length,
+    similar_count: similarResult.products?.length || alternatives.length,
+    fallback_count: fallbackProducts.length,
+  });
   return {
     modelIntent,
     searchMessage: message,
+    understanding,
     alternatives,
     noAlternativeReason: alternatives.length
       ? ""
@@ -4112,7 +4178,39 @@ export const buildAiSupportImageProductSearch = async ({ tenantId, analysis = {}
   const mediumConfidence = !highConfidence && (bestScore >= 300 || visionConfidence >= 0.45);
   const confidenceLevel = highConfidence ? "high" : mediumConfidence ? "medium" : "low";
   const matchConfidence = highConfidence ? Math.max(0.82, visionConfidence) : mediumConfidence ? Math.max(0.52, Math.min(0.74, visionConfidence || bestScore / 1800)) : Math.max(0, Math.min(0.34, visionConfidence || bestScore / 1800));
-  const returnedProducts = highConfidence ? filteredProducts.slice(0, 3) : filteredProducts.slice(0, 6);
+  const visualUnderstanding = detectSalesProductUnderstanding({
+    message: [
+      inferredSearchQuery,
+      matchedQuery,
+      detected.brand,
+      detected.brand_guess,
+      detected.likely_model,
+      detected.model_guess,
+      detected.model_keywords,
+      detected.product_type,
+      detected.silhouette,
+      detected.silhouette_style,
+      detected.colors,
+      detected.main_colors,
+    ].flat().filter(Boolean).join(" "),
+    memory: { lastImageUrl: req?.body?.image_url || req?.body?.imageUrl || "uploaded_image" },
+    source: "visual_product_family",
+  });
+  let returnedProducts = highConfidence ? filteredProducts.slice(0, 3) : filteredProducts.slice(0, 6);
+  if (visualUnderstanding.requires_relevance_gate) {
+    returnedProducts = gateRelevantProducts({
+      products: returnedProducts,
+      understanding: visualUnderstanding,
+      limit: highConfidence ? 3 : 6,
+      fallback: !highConfidence,
+    });
+  }
+  console.log("[ai-orchestrator:candidates]", {
+    exact_count: Number(hasExactModelMatch),
+    family_count: returnedProducts.filter((product) => product.relevance_reasons?.includes("model_family_match")).length,
+    similar_count: returnedProducts.length,
+    fallback_count: highConfidence ? 0 : returnedProducts.length,
+  });
   const returnedExactVariantProduct = returnedProducts.find((product) =>
     isExactVariantMatchedProduct({ product, fallbackUsedVisualCandidates, candidateFirstMinimumScore })
   ) || null;
@@ -4396,6 +4494,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
       })),
       no_alternatives_reason: alternativeResult.noAlternativeReason || "",
     });
+    const explanation = products[0] ? relevanceExplanationAr(products[0], alternativeResult.understanding) : "";
     return {
       intent: {
         ...intent,
@@ -4419,9 +4518,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
       fallbackReason: products.length ? "" : alternativeResult.noAlternativeReason || "no_alternatives_found",
       conversation_memory: conversationMemory,
       directResponse: {
-        answer: products.length
-          ? "دي أقرب بدائل متاحة حاليًا:"
-          : "مش لاقي بدائل مناسبة حاليًا، تحب تبعتلي صورة للموديل اللي بتدور عليه؟",
+        answer: products.length ? explanation : NO_RANDOM_PRODUCT_FALLBACK,
         confidence: products.length ? 0.9 : 0.82,
         needs_human_support: false,
         sources_used: items.map((product) => `product_${product.id}`),
