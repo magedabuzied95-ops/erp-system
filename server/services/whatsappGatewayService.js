@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { buildWhatsappTextDebug } from "../utils/whatsapp.js";
 
 const provider = () => String(process.env.WHATSAPP_GATEWAY_PROVIDER || "evolution").trim().toLowerCase();
 const apiUrl = () => String(process.env.EVOLUTION_API_URL || "").trim().replace(/\/+$/g, "");
@@ -81,13 +82,31 @@ export const getStatus = async () => {
 
 export const sendTextMessage = async ({ phone, message } = {}) => {
   const normalizedPhone = normalizeEgyptPhone(phone);
-  const body = text(message);
+  const body = String(message ?? "");
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
-  if (!body) throw gatewayError("Message body is required", "WHATSAPP_MESSAGE_REQUIRED", 400);
+  if (!body.trim()) throw gatewayError("Message body is required", "WHATSAPP_MESSAGE_REQUIRED", 400);
   const current = requireEvolutionConfig();
+  const requestBody = JSON.stringify({ number: normalizedPhone, text: body });
+  const messageDebug = buildWhatsappTextDebug(body, 300);
+  const jsonDebug = buildWhatsappTextDebug(requestBody, 500);
+  console.info("[whatsapp:evolution-payload-preview]", {
+    instanceName: current.instanceName,
+    phoneSuffix: normalizedPhone.slice(-4),
+    hasEmojis: messageDebug.hasEmojis,
+    codePoints: messageDebug.codePoints,
+    textFirst300Chars: messageDebug.firstChars,
+    jsonHasEmojis: jsonDebug.hasEmojis,
+    jsonBodyFirst500Chars: jsonDebug.firstChars,
+  });
+  if (messageDebug.hasEmojis && !jsonDebug.hasEmojis) {
+    console.warn("[whatsapp:evolution-payload-emoji-serialization-warning]", {
+      instanceName: current.instanceName,
+      phoneSuffix: normalizedPhone.slice(-4),
+    });
+  }
   const data = await evolutionFetch(`/message/sendText/${encodeURIComponent(current.instanceName)}`, {
     method: "POST",
-    body: JSON.stringify({ number: normalizedPhone, text: body }),
+    body: requestBody,
   });
   return { success: true, provider: current.provider, instanceName: current.instanceName, phone: normalizedPhone, result: data };
 };

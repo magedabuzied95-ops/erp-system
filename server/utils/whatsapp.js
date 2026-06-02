@@ -3,6 +3,19 @@ import { displayPublicOrderNumber } from "./publicOrderNumber.js";
 
 const DEFAULT_PROVIDER = "web";
 const DEFAULT_PUBLIC_APP_URL = "https://erp-system-ten-green.vercel.app";
+const EMOJI_PATTERN = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]/u;
+
+export const buildWhatsappTextDebug = (message = "", previewChars = 300) => {
+  const chars = Array.from(String(message ?? ""));
+  const nonSpaceChars = chars.filter((char) => !/\s/u.test(char)).slice(0, 20);
+  const emojiChars = chars.filter((char) => EMOJI_PATTERN.test(char));
+  const codePointChars = [...nonSpaceChars, ...emojiChars.filter((char) => !nonSpaceChars.includes(char))];
+  return {
+    hasEmojis: EMOJI_PATTERN.test(chars.join("")),
+    codePoints: codePointChars.map((char) => `U+${char.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`),
+    firstChars: chars.slice(0, previewChars).join(""),
+  };
+};
 
 export const normalizePhoneNumber = (value, defaultCountryCode = "20") => {
   const raw = String(value || "").trim();
@@ -65,14 +78,14 @@ export const buildPublicInvoiceUrl = (invoiceNumber, baseUrl = resolvePublicAppU
 
 export const buildArabicReceiptMessage = ({ invoiceUrl = "" } = {}) =>
   [
-    "شكراً لثقتكم بنا",
+    "🙏 شكراً لثقتكم بنا",
     "",
-    "عرض الفاتورة:",
+    "🧾 عرض الفاتورة:",
     invoiceUrl || "",
     "",
-    "إذا احتجت أي مساعدة أو استفسار نحن في خدمتك دائمًا",
+    "إذا احتجت أي مساعدة أو استفسار نحن في خدمتك دائمًا 💙",
     "",
-    "نتمنى لك تجربة ممتعة",
+    "نتمنى لك تجربة ممتعة 🌹",
   ].join("\n");
 
 export const buildInvoiceReceiptWhatsappMessage = ({ invoiceNumber, invoiceUrl } = {}) =>

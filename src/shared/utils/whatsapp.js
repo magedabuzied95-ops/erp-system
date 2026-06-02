@@ -130,14 +130,14 @@ export const buildInvoiceMessageTemplate = ({
 
 export const buildArabicReceiptMessage = ({ invoiceUrl = "" }) =>
   [
-    "شكراً لثقتكم بنا",
+    "🙏 شكراً لثقتكم بنا",
     "",
-    "عرض الفاتورة:",
+    "🧾 عرض الفاتورة:",
     invoiceUrl || "",
     "",
-    "إذا احتجت أي مساعدة أو استفسار نحن في خدمتك دائمًا",
+    "إذا احتجت أي مساعدة أو استفسار نحن في خدمتك دائمًا 💙",
     "",
-    "نتمنى لك تجربة ممتعة",
+    "نتمنى لك تجربة ممتعة 🌹",
   ].join("\n");
 
 export const buildOrderStatusMessageTemplate = ({

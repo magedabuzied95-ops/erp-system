@@ -6,7 +6,7 @@ import {
 } from "./aiChannelAdapterService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { normalizeEgyptPhone, sendTextMessage } from "./whatsappGatewayService.js";
-import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl } from "../utils/whatsapp.js";
+import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl, buildWhatsappTextDebug } from "../utils/whatsapp.js";
 import { getSetting } from "./settingsService.js";
 
 const CONFIRM_WORDS = new Set(["1", "تأكيد", "تاكيد", "confirm", "yes", "تمام"]);
@@ -412,6 +412,18 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
 
   try {
     const message = buildInvoiceReceiptWhatsappMessage({ invoiceNumber, invoiceUrl });
+    const messageDebug = buildWhatsappTextDebug(message, 300);
+    console.info("[whatsapp:invoice-message-preview]", {
+      order_id: current.id,
+      invoice_number: invoiceNumber,
+      mode: isPosInvoice ? "pos" : "storefront",
+      source: current?.source || "",
+      channel: current?.channel || "",
+      message_length: Array.from(message).length,
+      hasEmojis: messageDebug.hasEmojis,
+      codePoints: messageDebug.codePoints,
+      exactFirst300Chars: messageDebug.firstChars,
+    });
     const result = await sendTextMessage({ phone, message });
     await db.query(
       `

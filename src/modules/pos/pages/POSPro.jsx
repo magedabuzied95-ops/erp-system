@@ -65,7 +65,7 @@ import { normalizePhone } from "../lib/phoneSearch";
 import { normalizePosSellableProducts, resolvePosImageUrl } from "../services/posProductsApi";
 import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
-import { buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
+import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
 import ProductGrid from "../components/ProductGrid";
 import CartSidebar, { ReceiptPreview } from "../components/CartSidebar";
 import ProductAvailabilityModal from "../components/ProductAvailabilityModal";
@@ -4412,16 +4412,7 @@ function POSPro() {
       return;
     }
 
-    const message = [
-      "شكراً لثقتكم بنا",
-      "",
-      "عرض الفاتورة:",
-      invoiceUrl,
-      "",
-      "إذا احتجت أي مساعدة أو استفسار نحن في خدمتك دائمًا",
-      "",
-      "نتمنى لك تجربة ممتعة",
-    ].join("\n");
+    const message = buildLoyaltyReceiptMessage({ invoiceUrl });
 
       const url = buildLoyaltyReceiptWhatsappUrl({
       phone: normalizedPhone || "",
