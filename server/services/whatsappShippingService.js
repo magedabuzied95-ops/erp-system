@@ -5,9 +5,9 @@ const text = (value, fallback = "") => String(value ?? fallback).trim();
 
 const providerName = (order = {}) => {
   const value = text(order.shipping_provider || order.shipping_provider_id || order.provider || "شركة الشحن");
-  const normalized = value.toLowerCase();
+  const normalized = value.toLowerCase().replace(/[\s-]+/g, "_");
   if (normalized === "bosta") return "Bosta";
-  if (normalized === "in_store_delivery") return "In Store Delivery";
+  if (["in_store_delivery", "in_store", "manual"].includes(normalized)) return "التوصيل بواسطة فريق M1 Store";
   return value || "شركة الشحن";
 };
 
@@ -73,6 +73,28 @@ const buildShipmentDeliveredMessage = () => `✅ تم تسليم طلبك بنج
 
 نتمنى أن تكون راضياً عن تجربتك`;
 
+const buildShipmentShippedMessagePolished = (order = {}) => {
+  const trackingUrl = text(order.tracking_url || order.trackingUrl);
+  return `تم شحن طلبك
+
+رقم الطلب:
+${invoiceNumber(order)}
+
+شركة الشحن:
+${providerName(order)}${trackingUrl ? `
+
+رابط التتبع:
+${trackingUrl}` : ""}`;
+};
+
+const buildShipmentDeliveredMessagePolished = () => `✅ تم تسليم طلبك بنجاح
+
+شكراً لاختيارك M1 Store 
+
+نتمنى أن تكون راضياً عن المنتج 
+
+إذا احتجت أي مساعدة نحن في خدمتك دائماً.`;
+
 const NOTIFICATIONS = {
   shipment_created: {
     column: "whatsapp_shipment_created_sent_at",
@@ -84,7 +106,7 @@ const NOTIFICATIONS = {
   shipped: {
     column: "whatsapp_shipped_sent_at",
     log: "[whatsapp:shipment-shipped]",
-    buildMessage: buildShipmentShippedMessage,
+    buildMessage: buildShipmentShippedMessagePolished,
   },
   out_for_delivery: {
     column: "whatsapp_out_for_delivery_sent_at",
@@ -94,7 +116,7 @@ const NOTIFICATIONS = {
   delivered: {
     column: "whatsapp_delivered_sent_at",
     log: "[whatsapp:shipment-delivered]",
-    buildMessage: buildShipmentDeliveredMessage,
+    buildMessage: buildShipmentDeliveredMessagePolished,
   },
 };
 
