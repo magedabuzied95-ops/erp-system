@@ -17,6 +17,7 @@ import {
   grantEmployeeAdminReward,
   listEmployeePortalRequests,
   reviewEmployeePortalRequest,
+  repairMissingEmployeePortalTokens,
   regenerateEmployeePortalToken,
   updateEmployeeGamificationSettings,
 } from "../services/employeePayrollPortalService.js";
@@ -208,6 +209,31 @@ export const regenerateEmployeePayrollPortalToken = async (req, res) => {
   } catch (error) {
     console.error("[employees] regenerate payroll portal token error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to regenerate employee portal token" });
+  }
+};
+
+export const repairMissingEmployeePayrollPortalTokens = async (req, res) => {
+  try {
+    const { tenantId } = getTenantContext(req);
+    const result = await repairMissingEmployeePortalTokens({
+      tenantId,
+      limit: req.body?.limit || req.query?.limit || 500,
+    });
+    console.info("[employees] missing payroll portal tokens repaired", {
+      requestId: req.id,
+      tenantId,
+      scanned: result.scanned,
+      repaired_count: result.repaired_count,
+    });
+    return res.json({
+      success: true,
+      scanned: result.scanned,
+      repaired_count: result.repaired_count,
+      repaired_employee_ids: result.repaired.map((employee) => employee.id),
+    });
+  } catch (error) {
+    console.error("[employees] repair missing payroll portal tokens error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to repair employee portal tokens" });
   }
 };
 
