@@ -71,6 +71,7 @@ import {
   markAiSupportConversationEscalated,
   updateAiSupportConversationState,
 } from "../services/aiSupportLogService.js";
+import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 
 const router = express.Router();
 const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").toLowerCase());
@@ -1392,12 +1393,18 @@ router.get("/channels/status", protect, permit("settings", "view"), async (req, 
         ? globalSettings.autoReplyMode
         : aiSettings.aiMode || "suggest_only";
       const effectiveTone = aiSettings.tone || globalSettings.tone || "casual";
-      const tokenValid = data.token_valid === true || (
-        data.page_access_token_configured === true &&
-        !["token_expired", "expired", "invalid", "revoked", "error"].includes(envText(data.token_status || data.token_health_status).toLowerCase())
-      ) || data.access_token_configured === true;
+      const whatsappProvider = envText(data.whatsapp_provider || data.provider).toLowerCase();
+      const isEvolutionWhatsapp = channel === AI_AGENT_CHANNELS.WHATSAPP && whatsappProvider === "evolution";
+      const isCloudWhatsapp = channel === AI_AGENT_CHANNELS.WHATSAPP && (whatsappProvider === "cloud" || whatsappProvider === "whatsapp_cloud");
+      const tokenValid = isEvolutionWhatsapp
+        ? data.token_valid === true
+        : data.token_valid === true || (
+          data.page_access_token_configured === true &&
+          !["token_expired", "expired", "invalid", "revoked", "error"].includes(envText(data.token_status || data.token_health_status).toLowerCase())
+        ) || (isCloudWhatsapp && data.access_token_configured === true);
       const webhookHealthy = data.webhook_healthy === true || data.live_operational === true || Boolean(data.last_webhook_received_at);
       const connected = data.connected === true || data.live_operational === true || (data.effective_enabled === true && tokenValid && webhookHealthy);
+      const messagingActive = data.messaging_active === true || (connected && tokenValid);
       return {
         ...data,
         aiChannelSettings: aiSettings,
@@ -1408,6 +1415,7 @@ router.get("/channels/status", protect, permit("settings", "view"), async (req, 
         token_health_status: tokenValid ? "active" : data.token_health_status,
         webhook_healthy: webhookHealthy,
         connected,
+        messaging_active: messagingActive,
         aiStatus: resolveAIStatus({
           connected,
           aiEnabled: effectiveMode === "fully_automatic",
@@ -1668,6 +1676,23 @@ router.get("/conversations/:conversationId/ai-debug", protect, permit("settings"
     return res.json({ success: true, ...payload });
   } catch (error) {
     return sendError(res, error, "Failed to load AI debug metadata");
+  }
+});
+
+router.get("/conversations/:conversationId/ai-trace", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(req.params.conversationId);
+    const payload = await loadAiReplyTraces({
+      tenantId,
+      conversationId,
+      sessionId: conversationId,
+      channel: req.query?.channel || "whatsapp",
+      limit: req.query?.limit || 10,
+    });
+    return res.json({ success: true, conversation_id: conversationId, ...payload });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI reply trace");
   }
 });
 

@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+﻿import OpenAI from "openai";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_VISION_FALLBACK_MODEL = "gpt-4o";
@@ -313,10 +313,29 @@ const normalizeSuggestedProducts = (items = []) =>
       })).filter((item) => item.name)
     : [];
 
-const formatSuggestedProductPriceAr = (product = {}) =>
-  Number(product.price) > 0
-    ? `${Number(product.price).toLocaleString("ar-EG-u-nu-latn")} جنيه`
+const formatSuggestedProductPriceAr = (product = {}) => {
+  const resolved = resolveCustomerDisplayPrice(product);
+  const rawPrice = Number(product.price || product.sale_price || product.product_price || 0);
+  console.log("[ai-text-price-source]", {
+    product_id: resolved.product_id || product.id || null,
+    variant_id: resolved.variant_id || product.variant_id || null,
+    raw_price_used_in_text: rawPrice || "",
+    text_template: "${top.name} سعره ${formatSuggestedProductPriceAr(top)}",
+    function_name: "formatSuggestedProductPriceAr",
+    file_name: "server/services/openaiSupportService.js",
+  });
+  if (rawPrice > 0 && resolved.display_price > 0 && rawPrice !== resolved.display_price) {
+    console.error("[ai-price-mismatch]", {
+      product_id: resolved.product_id || product.id || null,
+      variant_id: resolved.variant_id || product.variant_id || null,
+      text_price: rawPrice,
+      selected_display_price: resolved.display_price,
+    });
+  }
+  return resolved.display_price > 0
+    ? `${Number(resolved.display_price).toLocaleString("ar-EG-u-nu-latn")} جنيه`
     : "السعر غير متاح حاليا";
+};
 
 const suggestedProductAvailabilityAr = (product = {}) =>
   Number(product.total_stock || 0) > 0 ? "وغالبا متاح عندنا" : "ومش ظاهر متاح حاليا";

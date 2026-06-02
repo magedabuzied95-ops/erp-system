@@ -203,7 +203,7 @@ const TEMPLATES = Object.freeze({
   ],
   OBJECTION_PRICE: [
     { id: "objection_price_1", weight: 3, text: "فاهمك، هو سعره أعلى شوية عشان خامته وتقفيله كويسين.\nلو تحب أشوفلك حاجة أقرب لميزانيتك." },
-    { id: "objection_price_2", weight: 3, text: "معاك حق تسأل، ده من الموديلات اللي خامتها حلوة مقابل السعر.\nتحب أطلعلك بديل أقل؟" },
+    { id: "objection_price_2", weight: 3, text: "معاك حق تسأل، السعر واضح على الموديل والمتاح منه.\nلو الميزانية أقل أقدر أشوفلك اختيار أرخص." },
     { id: "objection_price_3", weight: 3, text: "لو السعر عالي عليك، أقدر أرشحلك حاجة شبهه بس بسعر أقل." },
   ],
   CHECKOUT_COLLECTING: [

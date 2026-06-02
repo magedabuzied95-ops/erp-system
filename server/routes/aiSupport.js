@@ -20,11 +20,19 @@ import {
 } from "../services/aiSupportLogService.js";
 import {
   buildMemoryQuickSuggestions,
+  loadAiConversationMemory,
   personalizeAiSupportResponse,
   resolveAiConversationIdentity,
   updateAiConversationMemory,
 } from "../services/aiConversationMemoryService.js";
 import { buildAiOrderChatResponse } from "../services/aiAgentOrderService.js";
+import {
+  applyAiSalesCloser,
+  applyAiSalesUpsell,
+  buildAiSalesCheckoutResponse,
+  buildAiSalesDiscoveryResponse,
+  resolveAiSalesConversationState,
+} from "../services/aiSalesConversationEngineService.js";
 import {
   AI_AGENT_CHANNELS,
   buildAiFlowPayloadFromNormalizedMessage,
@@ -36,10 +44,13 @@ import {
   scheduleAiFollowupIfNeeded,
   upsertAiCustomerProfile,
 } from "../services/aiSalesAgentService.js";
+import { composeAiSalesReply } from "../services/aiSalesReplyComposerService.js";
+import { normalizeProductCards } from "../services/aiProductCards.js";
 import { getWebsiteSettings, updateWebsiteSettings } from "../services/liveActivityService.js";
 import { generateSupportAnswer, understandProductImageForSearch } from "../services/openaiSupportService.js";
 import { reindexAllProductImages } from "../services/aiVisualProductImageIndexService.js";
 import { buildStorefrontProductUrl } from "../services/storefrontProductUrlService.js";
+import { expandSearchAliasTerms, normalizeAliasText } from "../services/productAliasEngine.js";
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -75,6 +86,7 @@ const isDevelopment = process.env.NODE_ENV !== "production";
 const isAiSupportDebug = () => process.env.AI_SUPPORT_DEBUG === "1";
 const isVisualDebug = () => ["1", "true", "yes", "on"].includes(String(process.env.VISUAL_DEBUG || "").trim().toLowerCase());
 const isArabicText = (value = "") => /[\u0600-\u06ff]/.test(toText(value));
+const VISUAL_PRODUCT_INTENTS = new Set(["image_request", "more_images", "color_question", "size_check", "size_question"]);
 
 const normalizePublicSuggestedProducts = (items = []) =>
   Array.isArray(items)
@@ -140,6 +152,564 @@ const detectVisualRequest = (message = "") => {
   if (has(["شبهه", "بدائل", "similar", "شبيه"])) return "similar_products";
   if (has(["ابعت صور", "عايز اشوفها", "عايز أشوفها", "وريني", "شكلها عامل ايه", "شكلها عامل إيه", "show me", "photos", "pictures"])) return "product_images";
   return "";
+};
+
+const isColorFollowupQuestion = (message = "") => {
+  if (/(\u0627\u0644\u0648\u0627\u0646\u0647|\u0627\u0644\u0648\u0627\u0646\u0647\u0627|\u0627\u0644\u0648\u0627\u0646|\u0644\u0648\u0646\u0647|\u0644\u0648\u0646\u0647\u0627)/i.test(toText(message))) return true;
+  const normalized = normalizeVisualText(message)
+    .replace(/[إأآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/[؟?]/g, "")
+    .trim();
+  return [
+    "الوانه ايه",
+    "الوانها ايه",
+    "فيه الوان",
+    "في الوان",
+    "ايه الالوان",
+    "ايه الوانه",
+    "ايه الوانها",
+    "colors",
+    "available colors",
+  ].some((term) => normalized.includes(normalizeVisualText(term))) ||
+    /\bavailable\s+colors\b|\bcolors?\b/i.test(message);
+};
+
+const colorTextList = (value) =>
+  (Array.isArray(value) ? value : String(value || "").split(/[,،/|]+/))
+    .map(toText)
+    .filter(Boolean);
+
+const productContextFromMemory = (memory = null) => {
+  const preferences = memory?.preferences || {};
+  return [
+    preferences.selected_product_context,
+    preferences.last_product,
+    preferences.lastProductCard,
+    ...(Array.isArray(preferences.last_product_cards) ? preferences.last_product_cards : []),
+    memory?.last_product,
+    ...(Array.isArray(memory?.last_products) ? memory.last_products : []),
+  ].find((product) => product && (product.id || product.product_id || product.name || product.title)) || null;
+};
+
+const normalizeSelectionText = (value = "") =>
+  toText(value)
+    .toLowerCase()
+    .replace(/[\u0625\u0623\u0622]/g, "\u0627")
+    .replace(/\u0649/g, "\u064a")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/[\u064b-\u0652\u0640]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const arabicDigitsToLatin = (value = "") =>
+  toText(value).replace(/[\u0660-\u0669\u06f0-\u06f9]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹".indexOf(digit) % 10));
+
+const splitSelectionTokens = (value) =>
+  (Array.isArray(value) ? value : String(value || "").split(/[,،/|]+/))
+    .map(normalizeSelectionText)
+    .filter(Boolean);
+
+const indexedProductCardsFromMemory = (memory = null) => {
+  const preferences = memory?.preferences || {};
+  const cards = Array.isArray(preferences.last_product_cards) && preferences.last_product_cards.length
+    ? preferences.last_product_cards
+    : Array.isArray(memory?.last_products)
+      ? memory.last_products
+      : [];
+  return cards
+    .filter((card) => card && (card.id || card.product_id || card.name || card.title || card.product_name))
+    .map((card, index) => ({
+      ...card,
+      card_index: Number(card.card_index || card.index || 0) > 0 ? Number(card.card_index || card.index) : index + 1,
+      product_id: card.product_id || card.id || null,
+      product_name: card.product_name || card.name || card.title || "",
+      size_options: Array.isArray(card.size_options) && card.size_options.length
+        ? card.size_options
+        : [
+            ...(Array.isArray(card.available_sizes) ? card.available_sizes : []),
+            ...(Array.isArray(card.sizes) ? card.sizes : []),
+            ...(Array.isArray(card.variants) ? card.variants.map((variant) => variant?.size) : []),
+          ].map(toText).filter(Boolean),
+    }));
+};
+
+const indexProductCards = (cards = []) =>
+  (Array.isArray(cards) ? cards : []).map((card, index) => ({
+    ...card,
+    card_index: Number(card?.card_index || 0) > 0 ? Number(card.card_index) : index + 1,
+    product_id: card?.product_id || card?.id || null,
+    product_name: card?.product_name || card?.name || card?.title || "",
+    size_options: Array.isArray(card?.size_options) && card.size_options.length
+      ? card.size_options
+      : [
+          ...(Array.isArray(card?.available_sizes) ? card.available_sizes : []),
+          ...(Array.isArray(card?.sizes) ? card.sizes : []),
+        ].map(toText).filter(Boolean),
+  }));
+
+const selectionReferenceFromMessage = (message = "") => {
+  const raw = arabicDigitsToLatin(message);
+  const normalized = normalizeSelectionText(raw);
+  const sizeMatch = normalized.match(/(?:\u0645\u0642\u0627\u0633|size)\s*(\d{2})\b/i) || normalized.match(/\b(3[5-9]|4[0-9]|5[0-2])\b/);
+  const indexPatterns = [
+    { index: 1, pattern: /(^|\s)(1|\u0627\u0644\u0627\u0648\u0644|\u0627\u0648\u0644(?:\s+\u0648\u0627\u062d\u062f)?|first)(\s|$)/i },
+    { index: 2, pattern: /(^|\s)(2|\u0627\u0644\u062a\u0627\u0646\u064a|\u0627\u0644\u062b\u0627\u0646\u064a|\u062a\u0627\u0646\u064a|\u062b\u0627\u0646\u064a|second)(\s|$)/i },
+    { index: 3, pattern: /(^|\s)(3|\u0627\u0644\u062a\u0627\u0644\u062a|\u0627\u0644\u062b\u0627\u0644\u062b|\u062a\u0627\u0644\u062a|\u062b\u0627\u0644\u062b|third)(\s|$)/i },
+  ];
+  const indexMatch = indexPatterns.find((item) => item.pattern.test(normalized));
+  const colorTerms = [
+    ["black", "\u0627\u0633\u0648\u062f", "\u0627\u0644\u0627\u0633\u0648\u062f", "black"],
+    ["white", "\u0627\u0628\u064a\u0636", "\u0627\u0644\u0627\u0628\u064a\u0636", "white"],
+    ["gray", "\u0631\u0645\u0627\u062f\u064a", "\u0627\u0644\u0631\u0645\u0627\u062f\u064a", "grey", "gray"],
+    ["red", "\u0627\u062d\u0645\u0631", "\u0627\u0644\u0627\u062d\u0645\u0631", "red"],
+    ["blue", "\u0627\u0632\u0631\u0642", "\u0627\u0644\u0627\u0632\u0631\u0642", "blue"],
+    ["green", "\u0627\u062e\u0636\u0631", "\u0627\u0644\u0627\u062e\u0636\u0631", "green"],
+    ["beige", "\u0628\u064a\u062c", "\u0628\u064a\u0698", "beige"],
+    ["brown", "\u0628\u0646\u064a", "\u0627\u0644\u0628\u0646\u064a", "brown"],
+    ["pink", "\u0628\u064a\u0646\u0643", "\u0648\u0631\u062f\u064a", "pink"],
+    ["yellow", "\u0627\u0635\u0641\u0631", "\u0627\u0644\u0627\u0635\u0641\u0631", "yellow"],
+    ["orange", "\u0628\u0631\u062a\u0642\u0627\u0644\u064a", "orange"],
+    ["purple", "\u0645\u0648\u0641", "\u0628\u0646\u0641\u0633\u062c\u064a", "purple"],
+  ];
+  const colorMatch = colorTerms.find(([, ...terms]) => terms.some((term) => normalized.includes(normalizeSelectionText(term))));
+  const deictic = /(^|\s)(\u062f\u0647|\u062f\u0627|\u062f\u064a|this one)(\s|$)/i.test(normalized);
+  return {
+    detected: Boolean(indexMatch || colorMatch || deictic || sizeMatch),
+    index: indexMatch?.index || null,
+    color: colorMatch?.[0] || "",
+    deictic,
+    size: sizeMatch?.[1] || "",
+    type: indexMatch ? "index" : colorMatch ? "color" : deictic ? "deictic" : sizeMatch ? "size" : "",
+  };
+};
+
+const cardMatchesColor = (card = {}, color = "") => {
+  if (!color) return false;
+  const colorAliases = {
+    black: ["black", "\u0627\u0633\u0648\u062f", "\u0627\u0644\u0627\u0633\u0648\u062f"],
+    white: ["white", "\u0627\u0628\u064a\u0636", "\u0627\u0644\u0627\u0628\u064a\u0636"],
+    gray: ["gray", "grey", "\u0631\u0645\u0627\u062f\u064a", "\u0627\u0644\u0631\u0645\u0627\u062f\u064a"],
+    red: ["red", "\u0627\u062d\u0645\u0631", "\u0627\u0644\u0627\u062d\u0645\u0631"],
+    blue: ["blue", "\u0627\u0632\u0631\u0642", "\u0627\u0644\u0627\u0632\u0631\u0642"],
+    green: ["green", "\u0627\u062e\u0636\u0631", "\u0627\u0644\u0627\u062e\u0636\u0631"],
+    beige: ["beige", "\u0628\u064a\u062c", "\u0628\u064a\u0698"],
+    brown: ["brown", "\u0628\u0646\u064a", "\u0627\u0644\u0628\u0646\u064a"],
+    pink: ["pink", "\u0628\u064a\u0646\u0643", "\u0648\u0631\u062f\u064a"],
+    yellow: ["yellow", "\u0627\u0635\u0641\u0631", "\u0627\u0644\u0627\u0635\u0641\u0631"],
+    orange: ["orange", "\u0628\u0631\u062a\u0642\u0627\u0644\u064a"],
+    purple: ["purple", "\u0645\u0648\u0641", "\u0628\u0646\u0641\u0633\u062c\u064a"],
+  };
+  const aliases = (colorAliases[color] || [color]).map(normalizeSelectionText);
+  const values = [
+    card.color,
+    card.matched_variant_color,
+    card.requested_color,
+    card.product_name,
+    card.name,
+    card.title,
+    ...(Array.isArray(card.colors) ? card.colors : []),
+    ...(Array.isArray(card.variants) ? card.variants.map((variant) => variant?.color || variant?.color_name || variant?.name) : []),
+  ].flatMap(splitSelectionTokens);
+  return values.some((value) => aliases.some((alias) => value === alias || value.includes(alias)));
+};
+
+const resolveProductSelection = ({ message = "", memory = null } = {}) => {
+  const reference = selectionReferenceFromMessage(message);
+  const cards = indexedProductCardsFromMemory(memory);
+  if (!reference.detected) return null;
+  let matches = [];
+  if (reference.index) matches = cards.filter((card) => Number(card.card_index) === Number(reference.index));
+  else if (reference.color) matches = cards.filter((card) => cardMatchesColor(card, reference.color));
+  else if (reference.deictic) matches = [];
+  else if (reference.size) {
+    matches = cards.filter((card) => splitSelectionTokens(card.size_options || card.sizes || card.available_sizes).includes(reference.size));
+  }
+  const selected = matches.length === 1 ? matches[0] : null;
+  const needsClarification = reference.deictic || matches.length !== 1;
+  const result = {
+    detected: true,
+    detected_reference_type: reference.type,
+    requested_size: reference.size,
+    matched_card_index: selected?.card_index || null,
+    matched_product_id: selected?.product_id || selected?.id || null,
+    matched_color: selected?.color || reference.color || "",
+    confidence: selected ? 0.96 : matches.length > 1 ? 0.55 : 0.2,
+    needs_clarification: needsClarification,
+    selected_card: selected,
+    match_count: matches.length,
+  };
+  console.log("[ai-selection-brain]", {
+    message,
+    detected_reference_type: result.detected_reference_type,
+    matched_card_index: result.matched_card_index,
+    matched_product_id: result.matched_product_id,
+    matched_color: result.matched_color,
+    confidence: result.confidence,
+    needs_clarification: result.needs_clarification,
+  });
+  return result;
+};
+
+const memoryWithSelectedProduct = (memory = null, selected = null) => {
+  if (!selected) return memory;
+  return {
+    ...(memory || {}),
+    preferences: {
+      ...(memory?.preferences || {}),
+      selected_product_context: selected,
+      last_product: selected,
+      lastProductCard: selected,
+      last_product_id: selected.product_id || selected.id || "",
+      last_product_name: selected.product_name || selected.name || selected.title || "",
+    },
+  };
+};
+
+const selectionPatch = (selected = null) => selected ? {
+  selected_product_context: selected,
+  last_product: selected,
+  lastProductCard: selected,
+  last_product_id: selected.product_id || selected.id || "",
+  last_product_name: selected.product_name || selected.name || selected.title || "",
+} : {};
+
+const messageHasSizeReference = (message = "") => Boolean(selectionReferenceFromMessage(message).size);
+
+const sizeSelectionResponse = ({ selection, message = "" } = {}) => {
+  const card = selection?.selected_card;
+  const size = selection?.requested_size || selectionReferenceFromMessage(message).size;
+  if (!card || !size) return null;
+  const sizes = splitSelectionTokens(card.size_options || card.sizes || card.available_sizes);
+  const available = sizes.includes(size);
+  const colorPart = card.color ? ` ${card.color}` : "";
+  const answer = available
+    ? `\u0623\u064a\u0648\u0647 \u064a\u0627 \u0641\u0646\u062f\u0645\u060c \u0645\u0642\u0627\u0633 ${size} \u0645\u062a\u0627\u062d${colorPart}. \u062a\u062d\u0628 \u0623\u062d\u062c\u0632\u0647\u0648\u0644\u0643\u061f`
+    : `\u0647\u062a\u0623\u0643\u062f\u0644\u0643 \u0645\u0646 \u0645\u0642\u0627\u0633 ${size}${colorPart}.`;
+  return {
+    answer,
+    confidence: selection.confidence,
+    needs_human_support: false,
+    suggested_products: [card],
+    product_cards: [card],
+    suggested_actions: available ? ["ask_order"] : ["check_size"],
+    detected_intent: "size_question",
+    response_type: "product_card",
+    composer_applied: true,
+    ai_memory_patch: {
+      preferences: {
+        ...selectionPatch(card),
+        requested_size: size,
+        last_ai_action: available ? "ask_order" : "check_size",
+        last_bot_message: answer,
+      },
+    },
+  };
+};
+
+const buildSelectionOnlyResponse = ({ selection } = {}) => {
+  if (!selection?.detected) return null;
+  if (selection.needs_clarification) {
+    const answer = selection.match_count > 1
+      ? "\u0641\u064a \u0623\u0643\u062a\u0631 \u0645\u0646 \u0645\u0648\u062f\u064a\u0644 \u0628\u0646\u0641\u0633 \u0627\u0644\u0648\u0635\u0641\u060c \u062a\u0642\u0635\u062f \u0623\u0646\u0647\u064a \u0648\u0627\u062d\u062f\u061f"
+      : "\u062a\u0642\u0635\u062f \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644 \u064a\u0627 \u0641\u0646\u062f\u0645\u061f";
+    return {
+      answer,
+      confidence: selection.confidence,
+      needs_human_support: false,
+      suggested_products: [],
+      product_cards: [],
+      suggested_actions: ["ask_product_model"],
+      detected_intent: "product_selection",
+      composer_applied: true,
+      product_cards_blocked: true,
+      ai_memory_patch: { preferences: { last_ai_action: "ask_product_model", last_bot_message: answer } },
+    };
+  }
+  const card = selection.selected_card;
+  const answer = `\u062a\u0645\u0627\u0645\u060c \u062a\u0642\u0635\u062f ${card.product_name || card.name || card.title || "\u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u062f\u0647"}. \u062a\u062d\u0628 \u0635\u0648\u0631\u062a\u0647 \u0648\u0644\u0627 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a\u061f`;
+  return {
+    answer,
+    confidence: selection.confidence,
+    needs_human_support: false,
+    suggested_products: [card],
+    product_cards: [],
+    suggested_actions: ["show_product_images", "ask_size"],
+    detected_intent: "product_selection",
+    composer_applied: true,
+    product_cards_blocked: true,
+    ai_memory_patch: {
+      preferences: {
+        ...selectionPatch(card),
+        last_ai_action: "product_selected",
+        last_bot_message: answer,
+      },
+    },
+  };
+};
+
+const detectImageFollowupRequest = (message = "") => {
+  const raw = toText(message);
+  const normalized = normalizeVisualText(raw);
+  if (/(\u0627\u0628\u0639\u062a\u0644\u064a?\s*\u0635\u0648\u0631\u062a\u0647|\u0635\u0648\u0631\u062a\u0647|\u0627\u0628\u0639\u062a\s*\u0635\u0648\u0631|\u0627\u0628\u0639\u062a\u0644\u064a?\s*\u0635\u0648\u0631|\u0635\u0648\u0631\u0629|\u0635\u0648\u0631(?:\s|$)|\u0635\u0648\u0631\s*[\u0627\u0623]?\u0643\u062a\u0631|show image|send photo|more photos?)/i.test(raw)) {
+    return /([\u0627\u0623]\u0643\u062a\u0631|more photos?)/i.test(raw) ? "more_images" : "image_request";
+  }
+  if (["ابعتلي صورته", "صورته", "ابعت صور", "ابعتلي صور", "صورة", "صور اكتر", "صور أكتر", "show image", "send photo", "more photos"]
+    .some((term) => normalized.includes(normalizeVisualText(term)))) {
+    return normalized.includes(normalizeVisualText("اكتر")) || normalized.includes(normalizeVisualText("أكتر")) || /more photos?/i.test(raw)
+      ? "more_images"
+      : "image_request";
+  }
+  return "";
+};
+
+const detectVisualProductIntent = (message = "") => {
+  const imageIntent = detectImageFollowupRequest(message);
+  if (imageIntent) return imageIntent;
+  if (isColorFollowupQuestion(message)) return "color_question";
+  const raw = toText(message);
+  const normalized = normalizeSelectionText(raw);
+  if (/(\u0645\u0642\u0627\u0633\u0627\u062a|\u0645\u0642\u0627\u0633|sizes?|available|availability)/i.test(raw) || /(\u0645\u0642\u0627\u0633\u0627\u062a|\u0645\u0642\u0627\u0633|\u0645\u062a\u0627\u062d)/i.test(normalized)) return "size_check";
+  return "";
+};
+
+const cleanVisualProductQuery = ({ message = "", detectedIntent = "" } = {}) => {
+  const original = toText(message).replace(/\s+/g, " ").trim();
+  const intent = toText(detectedIntent);
+  if (!original || !VISUAL_PRODUCT_INTENTS.has(intent)) {
+    return { original_message: original, detected_intent: intent, brand: "", model: "", clean_query: "", source: "", used_for_search: false };
+  }
+  const normalized = normalizeSelectionText(original);
+  const brand = /(\u062c\u0648\u0631\u062f\u0646|jordan|aj4|j4)/i.test(original)
+    ? "Jordan"
+    : /(\u0646\u0627\u064a\u0643|nike|\u0634\u0648\u0643\u0633|shox)/i.test(original)
+      ? "Nike"
+      : /(\u0627\u062f\u064a\u062f\u0627\u0633|adidas)/i.test(original)
+        ? "Adidas"
+        : "";
+  const model = /(\u062c\u0648\u0631\u062f\u0646\s*(?:4|\u0664|\u06f4|\u0641\u0648\u0631)|jordan\s*4|jordan4|aj4|j4)/i.test(normalized)
+    ? "jordan4"
+    : /(\u0634\u0648\u0643\u0633|shox)/i.test(normalized)
+      ? "shox"
+      : /(\u0645\u064a\u0631\u0648\u0631|mirror)/i.test(normalized)
+        ? "mirror"
+        : "";
+  const helperPattern = /^(?:\u0645\u0645\u0643\u0646|\u0628\u0644\u064a\u0632|please|pls|send|show|me|عايز|عايزة)$/i;
+  const commandPattern = /^(?:\u0635\u0648\u0631|\u0635\u0648\u0631\u0647|\u0635\u0648\u0631\u0629|\u0627\u0628\u0639\u062a|\u0627\u0628\u0639\u062a\u0644\u064a|\u0648\u0631\u064a\u0646\u064a|\u0627\u0644\u0648\u0627\u0646|\u0623\u0644\u0648\u0627\u0646|\u0645\u0642\u0627\u0633\u0627\u062a|\u0645\u0642\u0627\u0633|\u0645\u062a\u0627\u062d|\u0639\u0646\u062f\u0643|\u0641\u064a|\u0641\u064a\u0647|\u0628\u062a\u0627\u0639|\u0628\u062a\u0627\u0639\u0629|\u0627\u0644\u0645\u0648\u062f\u064a\u0644|\u0627\u0644\u0634\u0648\u0632|\u0627\u064a\u0647|\u0625\u064a\u0647|\u0627\u064a|\u0625\u064a|photos?|images?|pictures?|colors?|colours?|sizes?|available)$/i;
+  const tokens = original
+    .replace(/[؟?،,.;:!]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .filter((token) => token !== "\u0627\u0644" && token !== "\u0627\u0644\u0640")
+    .filter((token) => !helperPattern.test(token))
+    .filter((token) => !commandPattern.test(token))
+    .map((token) => token.replace(/^\u0627\u0644(?=[\u0600-\u06ff]{2,})/, ""));
+  const cleanQuery = tokens.join(" ").replace(/\s+/g, " ").trim();
+  const aliasBase = normalizeAliasText(cleanQuery || original);
+  const aliasBaseParts = aliasBase.split(/\s+/).filter(Boolean);
+  const hasAliasExpansion = expandSearchAliasTerms(cleanQuery || original, { limit: 20 })
+    .some((term) => term && term !== aliasBase && !aliasBaseParts.includes(term));
+  const hasProductEntity = Boolean(brand || model || hasAliasExpansion);
+  return {
+    original_message: original,
+    detected_intent: intent,
+    brand,
+    model,
+    clean_query: hasProductEntity ? cleanQuery : "",
+    source: hasProductEntity && (brand || model) ? "entities" : hasProductEntity ? "stripped_message" : "",
+    used_for_search: Boolean(hasProductEntity && cleanQuery),
+  };
+};
+
+const buildImageFollowupResponse = ({ message = "", memory = null } = {}) => {
+  const detected = detectImageFollowupRequest(message);
+  if (!detected) return null;
+  const product = productContextFromMemory(memory);
+  const selectedProduct = memory?.preferences?.selected_product_context || null;
+  const cardSource = selectedProduct
+    ? [selectedProduct]
+    : [
+        product,
+        ...(Array.isArray(memory?.preferences?.last_product_cards) ? memory.preferences.last_product_cards : []),
+        ...(Array.isArray(memory?.last_products) ? memory.last_products : []),
+      ];
+  const cards = product ? indexProductCards(normalizeProductCards(cardSource, { limit: selectedProduct ? 1 : detected === "more_images" ? 6 : 3 }).filter((card) => card.image_url)) : [];
+  const productId = product?.product_id || product?.id || null;
+  console.log("[ai-followup:image-request]", {
+    detected: Boolean(detected),
+    product_context_found: Boolean(product),
+    product_id: productId,
+    images_count: cards.filter((card) => card.image_url).length,
+    cards_count: cards.length,
+  });
+  if (!product) {
+    return {
+      answer: "تقصد صورة أنهي موديل يا فندم؟",
+      confidence: 0.9,
+      needs_human_support: false,
+      sources_used: [],
+      suggested_products: [],
+      suggested_actions: ["ask_product_model"],
+      detected_intent: detected,
+      composer_applied: true,
+      product_cards_blocked: true,
+      ai_memory_patch: {
+        preferences: {
+          last_ai_action: "ask_product_model_for_image",
+          last_bot_message: "تقصد صورة أنهي موديل يا فندم؟",
+        },
+      },
+    };
+  }
+  if (!cards.length) {
+    const answer = "\u0645\u0634 \u0644\u0627\u0642\u064a \u0635\u0648\u0631 \u0645\u062a\u0627\u062d\u0629 \u0644\u0644\u0645\u0648\u062f\u064a\u0644 \u062f\u0647 \u062d\u0627\u0644\u064a\u0627.";
+    return {
+      answer,
+      confidence: 0.9,
+      needs_human_support: false,
+      sources_used: productId ? [`product_${productId}`] : [],
+      suggested_products: [],
+      product_cards: [],
+      suggested_actions: ["ask_product_model"],
+      detected_intent: detected,
+      response_type: "image_request_no_images",
+      composer_applied: true,
+      product_context: product,
+      ai_memory_patch: {
+        preferences: {
+          last_ai_action: "image_request_no_images",
+          last_bot_message: answer,
+          last_product: product,
+          last_product_id: productId || "",
+          last_product_name: product.name || product.title || "",
+          lastProductCard: product,
+        },
+      },
+    };
+  }
+  const answer = "أكيد يا فندم، هبعتلك الصور المتاحة.";
+  return {
+    answer,
+    confidence: 0.96,
+    needs_human_support: false,
+    sources_used: productId ? [`product_${productId}`] : [],
+    suggested_products: cards,
+    product_cards: cards,
+    suggested_actions: ["show_product_images", "choose_color", "choose_size"],
+    detected_intent: detected,
+    response_type: "product_card",
+    composer_applied: true,
+    product_context: product,
+    visual_attachments: cards.length ? [{
+      type: detected,
+      title: "صور المنتج",
+      items: cards,
+    }] : [],
+    ai_memory_patch: {
+      preferences: {
+        last_ai_action: "show_product_images",
+        last_bot_message: answer,
+        last_product: product,
+        last_product_id: productId || "",
+        last_product_name: product.name || product.title || "",
+        last_model_family: product.model_family || "",
+        lastProductCard: product,
+        last_product_cards: indexProductCards(cards),
+      },
+    },
+  };
+};
+
+const colorsFromProductContext = (product = {}) =>
+  [...new Set([
+    ...colorTextList(product.colors),
+    ...colorTextList(product.available_colors),
+    product.color,
+    product.requested_color,
+    product.matched_variant_color,
+    ...(Array.isArray(product.variants) ? product.variants.map((variant) => variant?.color || variant?.color_name || variant?.name) : []),
+  ].map(toText).filter(Boolean))].slice(0, 12);
+
+const colorCardsFromProductContext = (product = {}) => {
+  const base = visualProductItem(product);
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  return variants
+    .map((variant, index) => ({
+      ...base,
+      id: variant.id || variant.variant_id || `${base.id || product.id || "product"}-color-${index}`,
+      product_id: product.product_id || product.id || null,
+      variant_id: variant.id || variant.variant_id || null,
+      title: variant.color || variant.color_name || variant.name || product.name || base.title,
+      subtitle: [variant.size, product.name || product.title].filter(Boolean).join(" - "),
+      image_url: variant.image_url || variant.variant_image_url || variant.color_image_url || variant.primary_image_url || base.image_url,
+      availability: Number(variant.stock || 0) > 0 ? "in_stock" : base.availability,
+    }))
+    .filter((item) => item.image_url)
+    .slice(0, 8);
+};
+
+const buildColorFollowupResponse = ({ message = "", memory = null } = {}) => {
+  if (!isColorFollowupQuestion(message)) return null;
+  const product = productContextFromMemory(memory);
+  const colors = product ? colorsFromProductContext(product) : [];
+  const cards = product ? colorCardsFromProductContext(product) : [];
+  const productId = product?.product_id || product?.id || null;
+  console.log("[ai-followup:color-question]", {
+    detected: true,
+    product_context_found: Boolean(product),
+    product_id: productId,
+    colors,
+    cards_count: cards.length,
+  });
+  if (!product) {
+    const answer = "تقصد ألوان أنهي موديل يا فندم؟";
+    return {
+      answer,
+      confidence: 0.9,
+      needs_human_support: false,
+      sources_used: [],
+      suggested_products: [],
+      suggested_actions: ["ask_product_model"],
+      detected_intent: "color_question",
+      composer_applied: true,
+      product_cards_blocked: true,
+      ai_memory_patch: {
+        preferences: {
+          last_ai_action: "ask_product_model_for_color",
+          last_bot_message: answer,
+        },
+      },
+    };
+  }
+  const colorText = colors.length ? colors.join("، ") : "محتاجة تتأكد من المخزون";
+  const answer = `الألوان المتاحة منه: ${colorText}. تحب أبعتلك صور كل لون؟`;
+  return {
+    answer,
+    confidence: 0.95,
+    needs_human_support: false,
+    sources_used: productId ? [`product_${productId}`] : [],
+    suggested_products: [],
+    suggested_actions: ["show_color_images", "choose_color", "choose_size"],
+    detected_intent: "color_question",
+    composer_applied: true,
+    product_context: product,
+    visual_attachments: cards.length ? [{
+      type: "variant_color_cards",
+      title: "الألوان المتاحة",
+      items: cards,
+    }] : [],
+    ai_memory_patch: {
+      preferences: {
+        last_ai_action: "show_colors",
+        last_bot_message: answer,
+        last_product: product,
+        last_product_id: productId || "",
+        last_model_family: product.model_family || "",
+        lastProductCard: product,
+      },
+    },
+  };
 };
 
 const firstImageFromProduct = (product = {}) => {
@@ -665,11 +1235,20 @@ const channelReplyPayload = (req, response = {}) =>
   });
 
 const sendAiSupportChannelResponse = (req, res, response = {}, status = 200) =>
-  res.status(status).json({
-    success: status < 400,
-    ...response,
-    channel_reply: channelReplyPayload(req, response),
-  });
+  {
+    const message = toText(req.aiChannelMessage?.message_text || req.body?.message);
+    const composed = composeAiSalesReply({
+      message,
+      response,
+      intent: response?.detected_intent ? { type: response.detected_intent } : {},
+      source: req.aiChannelMessage?.channel || "ai_support",
+    });
+    return res.status(status).json({
+      success: status < 400,
+      ...composed,
+      channel_reply: channelReplyPayload(req, composed),
+    });
+  };
 
 const statelessGreetingOnlyAnswer = (message = "") => {
   const text = toText(message).toLowerCase();
@@ -755,6 +1334,18 @@ const updateMemoryAndPersonalize = async ({ req, tenantId, metadata = {}, messag
   }
 };
 
+const applySalesConversationEngine = ({ message = "", response = {}, intent = {}, memory = null } = {}) => {
+  if (response?.personalization_blocked || response?.greeting_only_mode || response?.detected_intent === "greeting_only") return response;
+  const state = resolveAiSalesConversationState({
+    message,
+    intent,
+    memory,
+    response,
+  });
+  const closed = applyAiSalesCloser({ message, response, state, memory });
+  return applyAiSalesUpsell({ response: closed, state, memory });
+};
+
 const aiSupportRateLimit = (req, res, next) => {
   const now = Date.now();
   const key = rateLimitKey(req);
@@ -803,7 +1394,7 @@ const AI_KB_DEFAULTS = Object.freeze({
   forbidden_phrases: "أنا مساعد ذكي، يسعدني مساعدتك، برجاء المحاولة لاحقا، لا أملك معلومات كافية",
   sales_scripts: "افهم احتياج العميل الأول، رشح من المنتجات المتاحة، اذكر السعر والتوفر، وضح القيمة، ثم اسأل سؤال واحد مناسب.",
   objection_replies: [
-    "السعر غالي: فاهمك، الموديل ده قيمته في الخامة والراحة، وأقدر أطلعلك بديل أرخص لو تحب.",
+    "السعر غالي: فاهمك، السعر واضح على الموديل والمتاح منه. لو الميزانية أقل أقدر أشوفلك اختيار أرخص.",
     "فيه خصم؟ الخصومات المتاحة هأكدها من السيستم، ولو محتاج خصم خاص بحولك للإدارة.",
     "أصلي ولا كوبي؟ هقولك التصنيف المتسجل عندنا بوضوح من غير مبالغة.",
     "الدفع عند الاستلام: لو متاح في سياسة الدفع هنأكدلك، ولو مش واضح بحولك للدعم."
@@ -1334,8 +1925,247 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       }
       return sendAiSupportChannelResponse(req, res, responsePayload);
     }
+    const identity = resolveAiConversationIdentity({ req, tenantId, metadata });
+    const previousMemory = tenantId && identity.sessionId
+      ? await loadAiConversationMemory({
+          tenantId,
+          sessionId: identity.sessionId,
+          customerPhone: identity.customerPhone,
+        }).catch((error) => {
+          console.warn("[ai-sales-engine] memory load skipped", {
+            requestId: req.id,
+            tenantId,
+            message: error?.message,
+          });
+          return null;
+        })
+      : null;
+    const selectionBrain = resolveProductSelection({ message, memory: previousMemory });
+    const effectiveMemory = selectionBrain?.selected_card
+      ? memoryWithSelectedProduct(previousMemory, selectionBrain.selected_card)
+      : previousMemory;
+    const visualProductIntent = detectVisualProductIntent(message);
+    const cleanProductTrace = cleanVisualProductQuery({ message, detectedIntent: visualProductIntent });
+    if (visualProductIntent) {
+      const memoryProduct = productContextFromMemory(effectiveMemory);
+      console.log("[ai-clean-product-query]", {
+        ...cleanProductTrace,
+        source: cleanProductTrace.source || (memoryProduct ? "memory" : ""),
+        used_for_search: cleanProductTrace.used_for_search,
+      });
+    }
+    const selectionNeedsDirectReply = Boolean(
+      selectionBrain?.detected &&
+      (selectionBrain.needs_clarification || (!detectImageFollowupRequest(message) && !isColorFollowupQuestion(message) && !messageHasSizeReference(message)))
+    );
+    if (selectionNeedsDirectReply) {
+      let responsePayload = sanitizePublicAiSupportResponse({
+        message,
+        response: {
+          ...buildSelectionOnlyResponse({ selection: selectionBrain }),
+          context_source_count: selectionBrain.selected_card ? 1 : 0,
+          source_previews: [],
+          quick_funnel: null,
+          fallback_reason: selectionBrain.needs_clarification ? "selection_needs_clarification" : "",
+          unknown_product_terms: [],
+        },
+      });
+      responsePayload = await updateMemoryAndPersonalize({ req, tenantId, metadata, message, response: responsePayload });
+      await logSupportExchange({
+        req,
+        tenantId,
+        metadata,
+        message,
+        context: {
+          intent: { type: "product_selection" },
+          trustedContext: { tenant_id: tenantId, sources: [] },
+          fallbackReason: responsePayload.fallback_reason || "",
+          unknown_product_terms: [],
+        },
+        response: responsePayload,
+      });
+      return sendAiSupportChannelResponse(req, res, responsePayload);
+    }
+    if (selectionBrain?.selected_card && messageHasSizeReference(message)) {
+      let responsePayload = sanitizePublicAiSupportResponse({
+        message,
+        response: {
+          ...sizeSelectionResponse({ selection: selectionBrain, message }),
+          context_source_count: 1,
+          source_previews: [],
+          quick_funnel: null,
+          fallback_reason: "",
+          unknown_product_terms: [],
+        },
+      });
+      responsePayload = await updateMemoryAndPersonalize({ req, tenantId, metadata, message, response: responsePayload });
+      await logSupportExchange({
+        req,
+        tenantId,
+        metadata,
+        message,
+        context: {
+          intent: { type: "size_question" },
+          trustedContext: { tenant_id: tenantId, sources: [] },
+          fallbackReason: "",
+          unknown_product_terms: [],
+        },
+        response: responsePayload,
+      });
+      return sendAiSupportChannelResponse(req, res, responsePayload);
+    }
+    const imageFollowupResponse = cleanProductTrace.used_for_search ? null : buildImageFollowupResponse({ message, memory: effectiveMemory });
+    if (imageFollowupResponse) {
+      if (selectionBrain?.selected_card) {
+        imageFollowupResponse.ai_memory_patch = {
+          ...(imageFollowupResponse.ai_memory_patch || {}),
+          preferences: {
+            ...(imageFollowupResponse.ai_memory_patch?.preferences || {}),
+            ...selectionPatch(selectionBrain.selected_card),
+          },
+        };
+      }
+      let responsePayload = sanitizePublicAiSupportResponse({
+        message,
+        response: {
+          ...imageFollowupResponse,
+          context_source_count: imageFollowupResponse.product_context ? 1 : 0,
+          source_previews: [],
+          quick_funnel: null,
+          fallback_reason: imageFollowupResponse.product_context ? "" : "missing_product_context_for_image_request",
+          unknown_product_terms: [],
+        },
+      });
+      responsePayload = await updateMemoryAndPersonalize({ req, tenantId, metadata, message, response: responsePayload });
+      await logSupportExchange({
+        req,
+        tenantId,
+        metadata,
+        message,
+        context: {
+          intent: { type: imageFollowupResponse.detected_intent || "image_request" },
+          trustedContext: { tenant_id: tenantId, sources: [] },
+          fallbackReason: responsePayload.fallback_reason || "",
+          unknown_product_terms: [],
+        },
+        response: responsePayload,
+      });
+      return sendAiSupportChannelResponse(req, res, responsePayload);
+    }
+    const colorFollowupResponse = cleanProductTrace.used_for_search ? null : buildColorFollowupResponse({ message, memory: effectiveMemory });
+    if (colorFollowupResponse) {
+      if (selectionBrain?.selected_card) {
+        colorFollowupResponse.ai_memory_patch = {
+          ...(colorFollowupResponse.ai_memory_patch || {}),
+          preferences: {
+            ...(colorFollowupResponse.ai_memory_patch?.preferences || {}),
+            ...selectionPatch(selectionBrain.selected_card),
+          },
+        };
+      }
+      let responsePayload = sanitizePublicAiSupportResponse({
+        message,
+        response: {
+          ...colorFollowupResponse,
+          context_source_count: colorFollowupResponse.product_context ? 1 : 0,
+          source_previews: [],
+          quick_funnel: null,
+          fallback_reason: colorFollowupResponse.product_context ? "" : "missing_product_context_for_color_question",
+          unknown_product_terms: [],
+        },
+      });
+      responsePayload = await updateMemoryAndPersonalize({ req, tenantId, metadata, message, response: responsePayload });
+      await logSupportExchange({
+        req,
+        tenantId,
+        metadata,
+        message,
+        context: {
+          intent: { type: "color_question" },
+          trustedContext: { tenant_id: tenantId, sources: [] },
+          fallbackReason: responsePayload.fallback_reason || "",
+          unknown_product_terms: [],
+        },
+        response: responsePayload,
+      });
+      return sendAiSupportChannelResponse(req, res, responsePayload);
+    }
+    const normalizedYesMessage = String(message || "").trim().toLowerCase();
+    const previousLastAction = String(previousMemory?.preferences?.last_ai_action || previousMemory?.preferences?.pending_action || "").trim().toLowerCase();
+    if (
+      /^(?:\u0627\u064a\u0648\u0647|\u0627\u064a\u0648\u0629|\u0627\u0647|\u0646\u0639\u0645|\u062a\u0645\u0627\u0645|\u0645\u0627\u0634\u064a|ok|okay|yes|yep)$/i.test(normalizedYesMessage) &&
+      previousLastAction === "ask_size"
+    ) {
+      let responsePayload = sanitizePublicAiSupportResponse({
+        message,
+        response: composeAiSalesReply({
+          message,
+          response: {
+            answer: "تمام يا فندم، مقاسك كام؟",
+            confidence: 1,
+            detected_intent: "size_question",
+            suggested_products: [],
+            product_cards: [],
+            visual_attachments: [],
+            suggested_actions: ["ask_size"],
+          },
+          memory: previousMemory,
+          source: "ai_support_yes_short_circuit",
+        }),
+      });
+      responsePayload = await updateMemoryAndPersonalize({ req, tenantId, metadata, message, response: responsePayload });
+      await logSupportExchange({
+        req,
+        tenantId,
+        metadata,
+        message,
+        context: {
+          intent: { type: "size_question" },
+          trustedContext: { tenant_id: tenantId, sources: [] },
+          fallbackReason: "yes_after_ask_size_short_circuit",
+          unknown_product_terms: [],
+        },
+        response: responsePayload,
+      });
+      return sendAiSupportChannelResponse(req, res, responsePayload);
+    }
+    const earlySalesState = resolveAiSalesConversationState({
+      message,
+      intent: earlyIntent,
+      memory: previousMemory,
+    });
+    const earlySalesResponse =
+      buildAiSalesCheckoutResponse({ state: earlySalesState, memory: previousMemory }) ||
+      buildAiSalesDiscoveryResponse({ message, state: earlySalesState, memory: previousMemory });
+    if (earlySalesResponse) {
+      let responsePayload = sanitizePublicAiSupportResponse({
+        message,
+        response: {
+          ...earlySalesResponse,
+          context_source_count: 0,
+          source_previews: [],
+          quick_funnel: null,
+          fallback_reason: earlySalesResponse.decision_gate_reason || "",
+          unknown_product_terms: [],
+        },
+      });
+      responsePayload = await updateMemoryAndPersonalize({ req, tenantId, metadata, message, response: responsePayload });
+      await logSupportExchange({
+        req,
+        tenantId,
+        metadata,
+        message,
+        context: {
+          intent: { type: earlySalesResponse.detected_intent || "sales_discovery" },
+          trustedContext: { tenant_id: tenantId, sources: [] },
+          fallbackReason: earlySalesResponse.decision_gate_reason || "",
+          unknown_product_terms: [],
+        },
+        response: responsePayload,
+      });
+      return sendAiSupportChannelResponse(req, res, responsePayload);
+    }
     if (earlyIntent.type !== "greeting_only") {
-      const identity = resolveAiConversationIdentity({ req, tenantId, metadata });
       await updateAiConversationMemory({
         tenantId,
         sessionId: identity.sessionId,
@@ -1353,9 +2183,10 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       });
     }
 
+    const supportSearchMessage = cleanProductTrace.used_for_search ? cleanProductTrace.clean_query : message;
     const context = await buildAiSupportTrustedContext({
       tenantId,
-      message,
+      message: supportSearchMessage,
       req,
     });
 
@@ -1377,6 +2208,12 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       });
       responsePayload.ai_order = orderResponse.ai_order || null;
       responsePayload.needs_human_support = orderResponse.needs_human_support !== false;
+      responsePayload = applySalesConversationEngine({
+        message,
+        response: responsePayload,
+        intent: { type: orderResponse.detected_intent || "order" },
+        memory: previousMemory,
+      });
       responsePayload = await humanizeSalesResponse({ tenantId, message, response: responsePayload, metadata });
       responsePayload = await updateMemoryAndPersonalize({ req, tenantId, metadata, message, response: responsePayload });
       responsePayload = attachVisualSellingPayload({ message, response: responsePayload });
@@ -1405,7 +2242,9 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
         message,
         response: {
         ...context.directResponse,
-        detected_intent: context.intent?.type || "",
+        detected_intent: cleanProductTrace.used_for_search ? visualProductIntent : context.intent?.type || "",
+        query: cleanProductTrace.used_for_search ? cleanProductTrace.clean_query : context.directResponse?.query || "",
+        search_query: cleanProductTrace.used_for_search ? cleanProductTrace.clean_query : context.directResponse?.search_query || "",
         context_source_count: context.trustedContext?.sources?.length || 0,
         source_previews: context.source_previews || [],
         quick_funnel: context.quick_funnel || context.directResponse?.quick_funnel || null,
@@ -1413,7 +2252,17 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
         unknown_product_terms: context.unknown_product_terms || [],
         personalization_blocked: Boolean(context.personalization_blocked || context.directResponse?.personalization_blocked),
         greeting_only_mode: Boolean(context.greeting_only_mode || context.directResponse?.greeting_only_mode),
+        debug: {
+          ...(context.directResponse?.debug || {}),
+          ...(cleanProductTrace.used_for_search ? { clean_product_query: cleanProductTrace.clean_query } : {}),
         },
+        },
+      });
+      responsePayload = applySalesConversationEngine({
+        message,
+        response: responsePayload,
+        intent: context.intent || { type: responsePayload.detected_intent || "" },
+        memory: context.conversation_memory || previousMemory,
       });
       responsePayload = await updateMemoryAndPersonalize({ req, tenantId, metadata, message, response: responsePayload });
       responsePayload = await humanizeSalesResponse({ tenantId, message, response: responsePayload, metadata });
@@ -1430,22 +2279,33 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
     }
 
     if (!context.trustedContext?.sources?.length) {
+      const visualClarification = cleanProductTrace.used_for_search
+        ? (visualProductIntent === "color_question" ? "\u062a\u0642\u0635\u062f \u0623\u0644\u0648\u0627\u0646 \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644 \u064a\u0627 \u0641\u0646\u062f\u0645\u061f" : "\u062a\u0642\u0635\u062f \u0635\u0648\u0631\u0629 \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644 \u064a\u0627 \u0641\u0646\u062f\u0645\u061f")
+        : "";
       let responsePayload = sanitizePublicAiSupportResponse({
         message,
         response: {
-        answer: "I do not have enough verified information to answer that. Please contact support so a team member can help you.",
-        confidence: 0,
-        needs_human_support: true,
+        answer: visualClarification || "I do not have enough verified information to answer that. Please contact support so a team member can help you.",
+        confidence: visualClarification ? 0.88 : 0,
+        needs_human_support: visualClarification ? false : true,
         sources_used: [],
         suggested_products: context.suggested_products || [],
-        suggested_actions: context.suggested_actions || ["contact_support"],
-        detected_intent: context.intent?.type || "",
+        suggested_actions: visualClarification ? ["ask_product_model"] : context.suggested_actions || ["contact_support"],
+        detected_intent: cleanProductTrace.used_for_search ? visualProductIntent : context.intent?.type || "",
+        query: cleanProductTrace.used_for_search ? cleanProductTrace.clean_query : "",
+        search_query: cleanProductTrace.used_for_search ? cleanProductTrace.clean_query : "",
         context_source_count: 0,
         source_previews: context.source_previews || [],
         quick_funnel: context.quick_funnel || null,
-        fallback_reason: context.fallbackReason || "no_trusted_context",
+        fallback_reason: visualClarification ? "clean_product_query_no_results" : context.fallbackReason || "no_trusted_context",
         unknown_product_terms: context.unknown_product_terms || [],
         },
+      });
+      responsePayload = applySalesConversationEngine({
+        message,
+        response: responsePayload,
+        intent: context.intent || { type: responsePayload.detected_intent || "" },
+        memory: context.conversation_memory || previousMemory,
       });
       responsePayload = await updateMemoryAndPersonalize({ req, tenantId, metadata, message, response: responsePayload });
       responsePayload = await humanizeSalesResponse({ tenantId, message, response: responsePayload, metadata });
@@ -1473,13 +2333,25 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       message,
       response: {
       ...result,
-      detected_intent: context.intent?.type || "",
+      detected_intent: cleanProductTrace.used_for_search ? visualProductIntent : context.intent?.type || "",
+      query: cleanProductTrace.used_for_search ? cleanProductTrace.clean_query : result?.query || "",
+      search_query: cleanProductTrace.used_for_search ? cleanProductTrace.clean_query : result?.search_query || "",
       context_source_count: context.trustedContext?.sources?.length || 0,
       source_previews: context.source_previews || [],
       quick_funnel: context.quick_funnel || null,
       fallback_reason: context.fallbackReason || "",
       unknown_product_terms: context.unknown_product_terms || [],
+      debug: {
+        ...(result?.debug || {}),
+        ...(cleanProductTrace.used_for_search ? { clean_product_query: cleanProductTrace.clean_query } : {}),
       },
+      },
+    });
+    responsePayload = applySalesConversationEngine({
+      message,
+      response: responsePayload,
+      intent: context.intent || { type: responsePayload.detected_intent || "" },
+      memory: context.conversation_memory || previousMemory,
     });
     responsePayload = await updateMemoryAndPersonalize({ req, tenantId, metadata, message, response: responsePayload });
     responsePayload = await humanizeSalesResponse({ tenantId, message, response: responsePayload, metadata });

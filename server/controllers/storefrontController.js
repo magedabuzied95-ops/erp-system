@@ -259,7 +259,7 @@ const smartGroupedStorefrontShuffle = (cards = [], seed = "") => {
 };
 
 const cardSortPrice = (product = {}) =>
-  toNumber(product.final_price || product.selling_price || product.price || product.sale_price || product.regular_price);
+  toNumber(resolveCustomerFacingDisplayPrice(product, product.variant || {}).selected_display_price || product.final_price || product.selling_price || product.price || product.sale_price || product.regular_price);
 
 const cardDiscount = (product = {}) => {
   const price = cardSortPrice(product);
@@ -342,6 +342,26 @@ const resolveStorefrontActivePrice = ({ originalPrice, sellingPrice, salePrice, 
     saleActive: activeSale && sale < selling,
     saleModeOn: enabled,
   };
+};
+
+const resolveCustomerFacingDisplayPrice = (product = {}, variant = {}) => {
+  const sale = roundMoney(variant.sale_price ?? product.sale_price ?? 0);
+  const selling = roundMoney(variant.selling_price ?? variant.price ?? product.selling_price ?? product.price ?? product.regular_price ?? 0);
+  const selected_display_price = sale > 0 ? sale : selling;
+  const selected_price_source = sale > 0 ? "sale_price" : "selling_price";
+  const wholesale_price = roundMoney(variant.wholesale_price ?? product.wholesale_price ?? variant.purchase_price ?? product.purchase_price ?? variant.average_cost ?? product.average_cost ?? variant.last_purchase_price ?? product.last_purchase_price ?? 0);
+  const cost_price = roundMoney(variant.cost_price ?? product.cost_price ?? 0);
+  console.log("[ai-price-source]", {
+    product_id: product.id || product.product_id || null,
+    variant_id: variant.id || variant.variant_id || null,
+    selling_price: selling,
+    sale_price: sale,
+    wholesale_price,
+    cost_price,
+    selected_display_price,
+    selected_price_source,
+  });
+  return { selected_display_price, selected_price_source, selling_price: selling, sale_price: sale, wholesale_price, cost_price };
 };
 
 const storefrontComparePriceFor = (regularPrice, product = {}, pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
@@ -989,10 +1009,12 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     ? roundMoney(productCompareFields.custom_compare_price)
     : 0;
   const rowOriginalPrice = roundMoney(row.original_price || row.base_price || row.list_price || row.compare_at_price || customOriginalPrice || row.regular_price);
-  const rowSellingPrice = roundMoney(row.selling_price || row.price || row.regular_price);
-  const rowSalePrice = roundMoney(row.sale_price ?? row.offer_price);
+  const rowPublicPrice = resolveCustomerFacingDisplayPrice(row, {});
+  const rowSellingPrice = roundMoney(rowPublicPrice.selling_price || row.selling_price || row.price || row.regular_price);
+  const rowSalePrice = roundMoney(rowPublicPrice.sale_price || row.sale_price || row.offer_price);
   const variants = parseJsonArray(row.variants).map((variant) => {
-    const variantSellingPrice = roundMoney(variant.selling_price || variant.price || rowSellingPrice);
+    const variantPublicPrice = resolveCustomerFacingDisplayPrice(row, variant);
+    const variantSellingPrice = roundMoney(variantPublicPrice.selling_price || variant.selling_price || variant.price || rowSellingPrice);
     const variantOriginalCandidates = [
       variant.original_price,
       variant.base_price,
@@ -1002,7 +1024,7 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
       variant.compare_at_price,
     ].map(roundMoney).filter((value) => value > 0);
     const variantOriginalPrice = variantOriginalCandidates.find((value) => value > variantSellingPrice) || rowOriginalPrice || variantOriginalCandidates[0] || 0;
-    const variantSalePrice = roundMoney(variant.sale_price ?? rowSalePrice);
+    const variantSalePrice = roundMoney(variantPublicPrice.sale_price || variant.sale_price || rowSalePrice);
     const resolvedPrice = resolveStorefrontActivePrice({
       originalPrice: variantOriginalPrice,
       sellingPrice: variantSellingPrice,
@@ -1024,13 +1046,13 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
       custom_compare_price: variantOriginalPrice,
       selling_price: variantSellingPrice,
       regular_price: variantOriginalPrice,
-      price: variantSellingPrice,
+      price: variantPublicPrice.selected_display_price || variantSellingPrice,
       sale_price: variantSalePrice,
       purchase_sale_price: roundMoney(variant.purchase_sale_price),
       purchase_invoice_sale_price: roundMoney(variant.purchase_invoice_sale_price ?? variant.purchase_sale_price),
       purchase_invoice_selling_price: roundMoney(variant.purchase_invoice_selling_price),
       last_piece_sale_price: roundMoney(variant.last_piece_sale_price ?? variant.purchase_sale_price),
-      final_price: currentPrice,
+      final_price: variantPublicPrice.selected_display_price || currentPrice,
       sale_price_enabled: resolvedPrice.saleActive,
       sale_prices_enabled: resolvedPrice.saleModeOn,
       global_sale_enabled: resolvedPrice.saleModeOn,
@@ -1054,6 +1076,9 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
   const sellingPrice = rowSellingPrice || bestVariantPrice?.selling_price || bestVariantPrice?.price || 0;
   const productResolvedPrice = resolveStorefrontActivePrice({ originalPrice, sellingPrice, salePrice: rowSalePrice, pricingSettings });
   const currentPrice = bestVariantPrice?.final_price || productResolvedPrice.activePrice || sellingPrice;
+  const selectedDisplayPrice = bestVariantPrice?.price > 0 || bestVariantPrice?.final_price > 0
+    ? bestVariantPrice?.price || bestVariantPrice?.final_price || currentPrice
+    : currentPrice;
   const saleModeActive = productResolvedPrice.saleActive || Boolean(bestVariantPrice?.sale_mode_applied);
   const compareAtPrice = bestVariantPrice?.compare_at_price || productResolvedPrice.compareAtPrice;
   const discount = compareAtPrice > currentPrice && currentPrice > 0;
@@ -1092,10 +1117,10 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     compare_base_price: originalPrice,
     custom_compare_price: originalPrice,
     selling_price: sellingPrice,
-    price: sellingPrice,
+    price: selectedDisplayPrice,
     sale_price: rowSalePrice,
     offer_price: rowSalePrice,
-    final_price: currentPrice,
+    final_price: selectedDisplayPrice,
     sale_price_enabled: saleModeActive,
     sale_prices_enabled: productResolvedPrice.saleModeOn,
     global_sale_enabled: productResolvedPrice.saleModeOn,

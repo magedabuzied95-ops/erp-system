@@ -24,6 +24,29 @@ const slugValue = (product = {}) =>
 const productUrlValue = (product = {}) =>
   text(product.product_url || product.productUrl || product.url || product.finalUrl || product.final_url);
 
+export const resolveAiProductUrl = (product = {}) => {
+  const id = productId(product);
+  const slug = slugValue(product);
+  const existing = productUrlValue(product);
+  let url = "";
+  let used_fallback_id = false;
+  if (existing) {
+    url = existing;
+  } else if (slug) {
+    url = `/shop/product/${encodeURIComponent(slug)}`;
+  } else if (id) {
+    url = `/shop/product/${encodeURIComponent(String(id))}`;
+    used_fallback_id = true;
+  }
+  console.log("[ai-product-url-resolved]", {
+    product_id: id,
+    slug,
+    url,
+    used_fallback_id,
+  });
+  return url;
+};
+
 const searchableBlob = (product = {}) =>
   [
     product.name,
@@ -59,13 +82,13 @@ export const aiProductExclusionReason = (product = {}, {
   if (product.is_active === false || product.active === false) return "inactive";
   if (INACTIVE_STATUSES.has(lower(product.status || product.product_status || "active"))) return "inactive";
   if (BLOCKED_NAME_PATTERN.test(searchableBlob(product))) return "test_demo_performance_product";
-  if (!slugValue(product)) return "missing_slug";
+  if (!productId(product)) return "missing_product_id";
 
   const visibility = explicitVisibilityState(product);
   if (!visibility.visible) return "missing_storefront_visibility";
   if (requireStorefrontVisibility && !visibility.known) return "missing_storefront_visibility";
 
-  if (requireProductUrl && !productUrlValue(product)) return "missing_product_url";
+  if (requireProductUrl && !resolveAiProductUrl(product)) return "missing_product_url";
   return "";
 };
 
@@ -115,14 +138,6 @@ export const aiProductSqlExclusionClause = (alias = "p", columns = new Set()) =>
   if (columns.has("status")) {
     clauses.push(`COALESCE(NULLIF(LOWER(TRIM(${field("status")}::text)), ''), 'active') NOT IN ('inactive','disabled','archived','deleted','draft')`);
   }
-  if (columns.has("slug")) {
-    clauses.push(`NULLIF(TRIM(COALESCE(${field("slug")}::text, '')), '') IS NOT NULL`);
-  } else if (columns.has("canonical_slug")) {
-    clauses.push(`NULLIF(TRIM(COALESCE(${field("canonical_slug")}::text, '')), '') IS NOT NULL`);
-  } else if (columns.has("product_slug")) {
-    clauses.push(`NULLIF(TRIM(COALESCE(${field("product_slug")}::text, '')), '') IS NOT NULL`);
-  }
-
   for (const column of VISIBILITY_FIELDS.filter((name) => columns.has(name))) {
     clauses.push(`LOWER(TRIM(COALESCE(${field(column)}::text, 'true'))) NOT IN ('false','0','no','hidden','inactive','disabled','private','draft')`);
   }

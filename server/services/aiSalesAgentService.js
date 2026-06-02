@@ -1,5 +1,7 @@
 import db from "../database/db.js";
+import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { emitToRooms } from "../utils/socket.js";
+import { resolveAiProductUrl } from "./aiProductEligibilityService.js";
 import {
   appendAiGeneratedSupportReply,
   appendManualAiSupportReply,
@@ -25,6 +27,7 @@ import {
   detectSalesProductUnderstanding,
   gateRelevantProducts,
 } from "./aiSalesOrchestratorService.js";
+import { composeAiSalesReply } from "./aiSalesReplyComposerService.js";
 
 let schemaReadyPromise = null;
 let aiInboxSchemaReadyPromise = null;
@@ -79,8 +82,8 @@ const DEFAULT_SETTINGS = {
   emoji_level: 0.2,
   reply_length: "balanced",
   sales_pressure: "medium",
-  allowed_phrases: ["بص يا باشا", "تمام", "اختيار حلو", "أرشحلك"],
-  preferred_phrases: ["بص يا باشا", "تمام", "اختيار حلو", "أرشحلك"],
+  allowed_phrases: ["أيوه يا فندم", "تمام", "اختيار حلو", "أرشحلك"],
+  preferred_phrases: ["أيوه يا فندم", "تمام", "اختيار حلو", "أرشحلك"],
   forbidden_phrases: ["أنا مساعد ذكي", "كنموذج لغوي", "لا أستطيع"],
   allow_auto_draft_creation: true,
   require_human_approval_before_confirm: false,
@@ -133,8 +136,8 @@ const OBJECTION_RULES = [
 const RESPONSE_VARIANTS = {
   opener: ["تمام", "بص", "حاضر", "جميل"],
   softAvailability: ["المتاح منه كويس دلوقتي", "فيه منه مقاسات شغالة", "خليني أظبطلك المتاح منه"],
-  value: ["خامته عملية وشكله شيك في اللبس", "قيمته حلوة مقابل السعر", "اختيار مضمون لو عايز حاجة تعيش معاك"],
-  close: ["تحب أشوفلك مقاسك؟", "مقاسك كام؟", "تحب أطلعلك أقرب بديل؟"],
+  value: ["خامته عملية وشكله شيك في اللبس", "متوفر بسعر واضح ومناسب", "اختيار مضمون لو عايز حاجة تعيش معاك"],
+  close: ["تحب أشوفلك مقاسك؟", "مقاسك كام؟", "تحب أشوفك الألوان والمقاسات؟"],
 };
 
 const pick = (items = [], seed = "") => {
@@ -532,7 +535,7 @@ const summarizeProducts = (products = []) =>
   asArray(products).slice(0, 8).map((product) => ({
     id: product.id || product.product_id,
     name: product.name || product.title || "",
-    price: numeric(product.price ?? product.sale_price ?? product.product_price, 0),
+    price: resolveCustomerDisplayPrice(product).display_price || numeric(product.price ?? product.sale_price ?? product.product_price, 0),
   })).filter((product) => product.id || product.name);
 
 export const upsertAiCustomerProfile = async ({ tenantId, sessionId = "", metadata = {}, message = "", response = {} } = {}) => {
@@ -582,7 +585,7 @@ export const upsertAiCustomerProfile = async ({ tenantId, sessionId = "", metada
       tenant_id, profile_id, session_id, source_channel, message, ai_response,
       intent_type, detected_intent, sentiment, confidence, intent_confidence, metadata
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)
     `,
     [
       tenantId,
@@ -676,7 +679,7 @@ export const humanizeSalesResponse = async ({ tenantId, message = "", response =
   }
   if (products.length && answer) {
     const name = firstProduct?.name || firstProduct?.title || "";
-    const price = numeric(firstProduct?.price ?? firstProduct?.sale_price ?? firstProduct?.product_price, 0);
+    const price = resolveCustomerDisplayPrice(firstProduct || {}).display_price || numeric(firstProduct?.price ?? firstProduct?.sale_price ?? firstProduct?.product_price, 0);
     const opener = pick(settings.allowed_phrases?.length ? settings.allowed_phrases : RESPONSE_VARIANTS.opener, message);
     const valueLine = pick(RESPONSE_VARIANTS.value, `${message}:${name}`);
     if (!/أنا مساعد ذكي|كنموذج لغوي/i.test(answer)) {
@@ -1757,16 +1760,33 @@ const latestProducts = (messages = []) =>
     { requireProductUrl: true }
   ).slice(0, 6);
 
-const realProductPrice = (product = {}) =>
-  numeric(product.final_price || product.sale_price || product.price || product.product_price, 0);
+const realProductPrice = (product = {}) => {
+  const resolved = resolveCustomerDisplayPrice(product);
+  const raw = numeric(product.final_price || product.sale_price || product.price || product.product_price, 0);
+  console.log("[ai-text-price-source]", {
+    product_id: resolved.product_id || product.id || null,
+    variant_id: resolved.variant_id || product.variant_id || null,
+    raw_price_used_in_text: raw || "",
+    text_template: "سعره ${price} جنيه.",
+    function_name: "realProductPrice",
+    file_name: "server/services/aiSalesAgentService.js",
+  });
+  if (raw > 0 && resolved.display_price > 0 && raw !== resolved.display_price) {
+    console.error("[ai-price-mismatch]", {
+      product_id: resolved.product_id || product.id || null,
+      variant_id: resolved.variant_id || product.variant_id || null,
+      text_price: raw,
+      selected_display_price: resolved.display_price,
+    });
+  }
+  return resolved.display_price || raw;
+};
 
 const stockCount = (product = {}) =>
   numeric(product.total_stock ?? product.stock ?? product.available_stock, 0);
 
 const storefrontProductUrl = (product = {}) => {
-  const slug = text(product.canonical_slug || product.slug);
-  if (slug) return `/shop/product/${slug}`;
-  return "";
+  return resolveAiProductUrl(product);
 };
 
 const normalizeRecommendationProduct = (row = {}) => {
@@ -2578,7 +2598,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     ...productVisualAttachment(replyProductContext),
     ...recommendationVisualAttachments,
   ];
-  const reply = {
+  const baseReply = {
     answer,
     confidence: recommendations.products.length ? 0.82 : 0.58,
     detected_intent: intent,
@@ -2593,16 +2613,23 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     visual_attachments: visualAttachments,
     suggested_actions: escalation.shouldEscalate || salesIntent === "human_support" ? ["takeover"] : ["ask_size", "send_product", "create_draft_order"],
   };
+  const reply = composeAiSalesReply({
+    message: lastMessage,
+    response: baseReply,
+    intent: { type: intent },
+    memory: conversationMemory,
+    source: "ai_inbox",
+  });
   let message = null;
   if (persist) {
     message = await appendAiGeneratedSupportReply({
       tenantId,
       sessionId: conversationId,
-      answer,
+      answer: reply.answer,
       confidence: reply.confidence,
       detectedIntent: intent,
-      suggestedProducts: recommendations.products,
-      visualAttachments,
+      suggestedProducts: reply.suggested_products || [],
+      visualAttachments: reply.visual_attachments || [],
       suggestedActions: reply.suggested_actions,
     });
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: new Date().toISOString() });

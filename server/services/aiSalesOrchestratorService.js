@@ -114,6 +114,14 @@ export const detectSalesProductUnderstanding = ({ message = "", memory = {}, sou
 
   let requestedBrand = "";
   let requestedModelFamily = "";
+  if (/\u062c\u0648\u0631\u062f\u0646\s*(4|\u0664|\u0641\u0648\u0631)|\u0627\u064a\u0631\s*\u062c\u0648\u0631\u062f\u0646\s*(4|\u0664|\u0641\u0648\u0631)/i.test(combinedNormalized)) {
+    requestedBrand = "jordan";
+    requestedModelFamily = "air_jordan_4";
+  }
+  if (/جوردن\s*(4|٤|فور)|اير\s*جوردن\s*(4|٤|فور)/i.test(combinedNormalized)) {
+    requestedBrand = "jordan";
+    requestedModelFamily = "air_jordan_4";
+  }
   if (/(^|\s)(air\s*)?jordan\s*(4|four|iv)(\s|$)|(^|\s)(aj\s*4|aj4|j\s*4|j4|retro\s*4)(\s|$)|جوردن\s*(4|فور)/i.test(combinedNormalized)) {
     requestedBrand = "jordan";
     requestedModelFamily = "air_jordan_4";
@@ -184,7 +192,13 @@ const modelFamilyOf = (product = {}) => {
 
 export const scoreProductRelevance = ({ product = {}, understanding = {}, fallback = false } = {}) => {
   if (!understanding?.requires_relevance_gate) {
-    return { score: 100, reasons: ["general_request"], rejected_reason: "" };
+    return {
+      score: 100,
+      confidence: 1,
+      reasons: ["general_request"],
+      strong_reason_count: 1,
+      rejected_reason: "",
+    };
   }
   const blob = productBlob(product);
   const reasons = [];
@@ -291,7 +305,26 @@ export const scoreProductRelevance = ({ product = {}, understanding = {}, fallba
     rejectedReason = "fallback_without_relevance_explanation";
   }
 
-  return { score: Math.max(0, Math.min(100, score)), reasons, rejected_reason: rejectedReason };
+  const finalScore = Math.max(0, Math.min(100, score));
+  const strongReasons = reasons.filter((reason) => [
+    "model_family_match",
+    "same_jordan_family",
+    "brand_match",
+    "parent_brand_match",
+    "category_match",
+    "jordan_like_silhouette",
+    "visual_similarity_context",
+    "style_match",
+    "color_match",
+    "in_stock",
+  ].includes(reason));
+  return {
+    score: finalScore,
+    confidence: finalScore / 100,
+    reasons,
+    strong_reason_count: strongReasons.length,
+    rejected_reason: rejectedReason,
+  };
 };
 
 export const gateRelevantProducts = ({ products = [], understanding = {}, limit = 3, fallback = false } = {}) => {
@@ -304,7 +337,25 @@ export const gateRelevantProducts = ({ products = [], understanding = {}, limit 
       reasons: result.reasons,
       rejected_reason: result.rejected_reason,
     });
-    return { ...product, relevance_score: result.score, relevance_reasons: result.reasons, rejected_reason: result.rejected_reason };
+    return {
+      ...product,
+      relevance_score: result.score,
+      relevance_confidence: result.confidence,
+      relevance_reasons: result.reasons,
+      reasons: result.reasons,
+      confidence: result.confidence,
+      strong_reason_count: result.strong_reason_count,
+      rejected_reason: result.rejected_reason,
+      reject_reason: result.rejected_reason,
+      score_breakdown: {
+        ...(product.score_breakdown || {}),
+        score: result.score,
+        confidence: result.confidence,
+        reasons: result.reasons,
+        strong_reason_count: result.strong_reason_count,
+        reject_reason: result.rejected_reason,
+      },
+    };
   });
   const selected = scored
     .filter((product) => !product.rejected_reason)

@@ -762,8 +762,31 @@ function CustomerContextCard({ conversation = {} }) {
   const profile = conversation?.customer_profile || {};
   const identityName = customerDisplayName(conversation) || "Unknown customer";
   const avatarUrl = customerAvatarUrl(conversation);
-  const lastProduct = conversation?.current_product || conversation?.product || conversation?.channel_metadata?.current_product || conversation?.channel_metadata?.last_viewed_product || null;
-  const lastSize = profile.preferred_size || conversation?.channel_metadata?.last_size || "";
+  const channelMetadata = conversation?.channel_metadata || {};
+  const latestMemory = latest.memory_changes || latest.memory || {};
+  const channelMemory = channelMetadata.ai_memory || channelMetadata.aiMemory || conversation?.ai_memory || conversation?.aiMemory || latestMemory || {};
+  const memorySources = [channelMemory, channelMetadata.ai_memory, channelMetadata.aiMemory, conversation?.ai_memory, conversation?.aiMemory, latestMemory].filter(Boolean);
+  const productFromMemory = (source = {}) => {
+    const prefs = source.preferences || {};
+    return source.last_product ||
+    source.lastProduct ||
+    source.lastProductCard ||
+    prefs.last_product ||
+    prefs.lastProduct ||
+    prefs.lastProductCard ||
+    asArray(source.last_product_cards)[0] ||
+    asArray(source.lastProductCards)[0] ||
+    asArray(prefs.last_product_cards)[0] ||
+    asArray(prefs.lastProductCards)[0] ||
+    (source.last_product_id || source.lastProductId || prefs.last_product_id || prefs.lastProductId ? {
+      id: source.last_product_id || source.lastProductId || prefs.last_product_id || prefs.lastProductId,
+      name: source.last_product_name || source.lastProductName || prefs.last_product_name || prefs.lastProductName || "",
+      product_name: source.last_product_name || source.lastProductName || prefs.last_product_name || prefs.lastProductName || "",
+    } : null);
+  };
+  const lastProduct = memorySources.map(productFromMemory).find(Boolean) || conversation?.current_product || conversation?.product || channelMetadata.current_product || channelMetadata.last_viewed_product || null;
+  const lastSize = profile.preferred_size || channelMemory.last_selected_size || channelMemory.selectedSize || channelMemory.activeSize || conversation?.channel_metadata?.last_size || "";
+  const lastProductLabel = lastProduct?.name || lastProduct?.title || lastProduct?.product_name || lastProduct?.id || lastProduct?.product_id || "No product context";
   const escalation = clean(conversation?.escalation_reason || conversation?.ai_escalation_reason);
 
   return (
@@ -777,7 +800,7 @@ function CustomerContextCard({ conversation = {} }) {
         <Info label="Phone / external ID" value={profile.phone || conversation?.phone || conversation?.external_customer_id || "No phone yet"} />
         <Info label="Channel" value={channelLabel(conversation?.channel || conversation?.source)} />
         <Info label="Last intent" value={latest.detected_intent || conversation?.detected_intent || "Unknown"} />
-        <Info label="Last product" value={lastProduct?.name || lastProduct?.title || lastProduct?.product_name || "No product context"} />
+        <Info label="Last product" value={lastProductLabel} />
         <Info label="Last size" value={lastSize || "Unknown"} />
       </div>
       {needsHumanAttention(conversation) ? (
@@ -986,6 +1009,92 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
   );
 }
 
+function TraceJsonBlock({ value }) {
+  return (
+    <pre className="mt-2 max-h-72 overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-3 text-[11px] leading-relaxed text-slate-200">
+      {JSON.stringify(value || {}, null, 2)}
+    </pre>
+  );
+}
+
+function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
+  if (!open) return null;
+  const latestTrace = data?.latestTrace || asArray(data?.traces)[0] || null;
+  const steps = asArray(latestTrace?.trace?.steps);
+  const summary = latestTrace?.trace?.summary || {};
+  const statusTone = latestTrace?.status === "failed" ? "rose" : latestTrace?.status === "finished" ? "emerald" : "amber";
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/75 p-3 backdrop-blur-sm md:p-6">
+      <div className="mx-auto flex h-full w-full max-w-5xl flex-col rounded-3xl bg-slate-950 p-4 shadow-2xl ring-1 ring-white/10">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-cyan-100">
+              <Brain className="h-4 w-4" />
+              AI Trace
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              {latestTrace ? `${latestTrace.channel} / ${latestTrace.session_id} / ${absoluteTime(latestTrace.created_at)}` : "Latest WhatsApp reply decision timeline"}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {latestTrace ? <Pill tone={statusTone}>{latestTrace.status || "running"}</Pill> : null}
+            <button type="button" onClick={onRefresh} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100 disabled:opacity-50">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Refresh
+            </button>
+            <button type="button" onClick={onClose} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">Close</button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          {error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
+          {loading && !latestTrace ? <LoadingBlock text="Loading AI trace..." /> : null}
+          {!loading && !latestTrace ? <EmptyBlock text="No AI trace has been recorded for this WhatsApp conversation yet." /> : null}
+          {latestTrace ? (
+            <div className="space-y-4">
+              <div className="grid gap-2 sm:grid-cols-3">
+                <DebugField label="Trace ID" value={latestTrace.id} />
+                <DebugField label="External message" value={latestTrace.external_message_id} />
+                <DebugField label="Summary" value={shortText(JSON.stringify(summary), 180)} />
+              </div>
+              {latestTrace.error ? (
+                <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3">
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-rose-100">Trace error</div>
+                  <TraceJsonBlock value={latestTrace.error} />
+                </div>
+              ) : null}
+              <div className="space-y-3">
+                {steps.map((step, index) => {
+                  const selectedIds = asArray(step?.data?.selected_product_ids);
+                  const rejectedIds = asArray(step?.data?.rejected_product_ids);
+                  return (
+                    <div key={`${step.step || "step"}-${step.at || index}`} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="grid h-8 w-8 place-items-center rounded-xl bg-cyan-300/10 text-xs font-black text-cyan-100 ring-1 ring-cyan-300/20">{index + 1}</span>
+                          <div>
+                            <div className="text-sm font-black text-white">{step.step || "trace_step"}</div>
+                            <div className="text-[11px] font-bold text-slate-500">{absoluteTime(step.at)}</div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedIds.length ? <Pill tone="emerald">Selected {selectedIds.join(", ")}</Pill> : null}
+                          {rejectedIds.length ? <Pill tone="amber">Rejected {rejectedIds.length}</Pill> : null}
+                        </div>
+                      </div>
+                      <TraceJsonBlock value={step.data} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing = false, onSyncMessengerProfile }) {
   const profile = conversation?.customer_profile || {};
   const identityName = customerDisplayName(conversation);
@@ -1150,6 +1259,7 @@ export default function AiInbox() {
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
   const [suggestedReplies, setSuggestedReplies] = useState({ sessionId: "", items: [], intent: "", confidence: 0, error: "" });
   const [aiDebug, setAiDebug] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
+  const [aiTrace, setAiTrace] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
   const [suggesting, setSuggesting] = useState(false);
   const [profileSyncing, setProfileSyncing] = useState(false);
   const [profileDebugging, setProfileDebugging] = useState(false);
@@ -1351,6 +1461,27 @@ export default function AiInbox() {
     if (!aiDebug.open || !canViewAiDebug || !selectedConversation?.session_id) return;
     void loadAiDebug();
   }, [aiDebug.open, canViewAiDebug, loadAiDebug, selectedConversation?.session_id]);
+
+  const loadAiTrace = useCallback(async () => {
+    if (!selectedConversation?.session_id || !isWhatsappChannel(selectedConversation.channel || selectedConversation.source)) return;
+    const sessionId = selectedConversation.session_id;
+    setAiTrace((current) => ({ ...current, sessionId, loading: true, error: "" }));
+    try {
+      const payload = await api.get(aiInboxConversationEndpoint(sessionId, "/ai-trace"), {
+        params: { tenant_id: tenantId, channel: "whatsapp", limit: 10 },
+        headers,
+        perfComponent: "AiInbox.aiTrace",
+      });
+      setAiTrace((current) => ({ ...current, sessionId, loading: false, data: payload, error: "" }));
+    } catch (err) {
+      setAiTrace((current) => ({ ...current, sessionId, loading: false, error: err?.message || "Failed to load AI trace" }));
+    }
+  }, [headers, selectedConversation?.channel, selectedConversation?.session_id, selectedConversation?.source, tenantId]);
+
+  const openAiTrace = useCallback(() => {
+    setAiTrace((current) => ({ ...current, open: true, error: "" }));
+    void loadAiTrace();
+  }, [loadAiTrace]);
 
   const patchConversation = useCallback((sessionId, updater) => {
     setInbox((current) => ({
@@ -1857,6 +1988,14 @@ export default function AiInbox() {
           </div>
         </div>
       ) : null}
+      <AiTraceModal
+        open={aiTrace.open}
+        loading={aiTrace.loading}
+        error={aiTrace.error}
+        data={aiTrace.sessionId === selectedConversation?.session_id ? aiTrace.data : null}
+        onRefresh={loadAiTrace}
+        onClose={() => setAiTrace((current) => ({ ...current, open: false }))}
+      />
       <div className="mx-auto flex max-w-[96rem] flex-col gap-5">
         <section className="rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -1931,6 +2070,17 @@ export default function AiInbox() {
                 title="Conversation detail"
                 action={selectedConversation ? (
                   <div className="flex flex-wrap items-center justify-end gap-2">
+                    {isWhatsappChannel(safeConversation.channel || safeConversation.source) ? (
+                      <button
+                        type="button"
+                        onClick={openAiTrace}
+                        disabled={aiTrace.loading && aiTrace.sessionId === safeConversation.session_id}
+                        className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-violet-300/20 bg-violet-300/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50"
+                      >
+                        {aiTrace.loading && aiTrace.sessionId === safeConversation.session_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+                        AI Trace
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={syncMessengerProfile}

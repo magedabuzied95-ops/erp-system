@@ -11,6 +11,7 @@ import {
 import { assignSequentialInvoiceNumber, buildTemporaryInvoiceNumber } from "../utils/invoiceNumber.js";
 import { attachPublicOrderNumber, displayPublicOrderNumber } from "../utils/publicOrderNumber.js";
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
+import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
@@ -19,6 +20,7 @@ import {
   detectSalesProductUnderstanding,
   gateRelevantProducts,
 } from "./aiSalesOrchestratorService.js";
+import { resolveAiSalesConversationState } from "./aiSalesConversationEngineService.js";
 
 let schemaReadyPromise = null;
 let schemaEnsured = false;
@@ -564,7 +566,27 @@ const askForMissing = (missing = []) => {
   return "ممكن تبعت اسم المنتج أو صورته عشان أجهز الأوردر؟";
 };
 
-const productPrice = (product = {}, variant = null) => numeric(variant?.price || product?.final_price || product?.sale_price || product?.product_price || product?.price, 0);
+const productPrice = (product = {}, variant = null) => {
+  const resolved = resolveCustomerDisplayPrice({ ...product, ...variant, product, variant });
+  const raw = numeric(variant?.price || product?.final_price || product?.sale_price || product?.product_price || product?.price, 0);
+  console.log("[ai-text-price-source]", {
+    product_id: resolved.product_id || product?.id || null,
+    variant_id: resolved.variant_id || variant?.id || null,
+    raw_price_used_in_text: raw || "",
+    text_template: "${product?.name || 'الموديل ده'} سعره ${formatMoneyAr(productPrice(product, variant))}",
+    function_name: "productPrice",
+    file_name: "server/services/aiAgentOrderService.js",
+  });
+  if (raw > 0 && resolved.display_price > 0 && raw !== resolved.display_price) {
+    console.error("[ai-price-mismatch]", {
+      product_id: resolved.product_id || product?.id || null,
+      variant_id: resolved.variant_id || variant?.id || null,
+      text_price: raw,
+      selected_display_price: resolved.display_price,
+    });
+  }
+  return resolved.display_price || raw;
+};
 
 const formatMoneyAr = (value) => {
   const amount = numeric(value, 0);
@@ -1000,6 +1022,34 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   const objection = detectSalesObjection(message);
   const conversationId = text(metadata.session_id || req?.body?.session_id || req?.body?.conversation_id || req?.id);
   const conversation = await recentConversationContext({ tenantId, conversationId });
+  const baseSalesEngineState = resolveAiSalesConversationState({
+    message,
+    intent: { type: intent.isOrderIntent ? "order" : objection ? "objection" : "general" },
+    memory: metadata.memory || metadata.conversation_memory || {},
+    response: {
+      detected_intent: intent.isOrderIntent ? "order" : objection ? "sales_objection" : "",
+    },
+  });
+  const withOrderSalesStage = (payload = {}, stage = SALES_STAGES.browsing) =>
+    withSalesStage({
+      sales_engine: {
+        ...baseSalesEngineState,
+        next_state: stage === SALES_STAGES.draftCreated
+          ? "order_created"
+          : stage === SALES_STAGES.confirmed
+            ? "order_created"
+            : stage === SALES_STAGES.handoff
+              ? "handoff"
+              : stage === SALES_STAGES.objectionHandling
+                ? "objection"
+                : stage === SALES_STAGES.readyToOrder
+                  ? "buying"
+                  : stage.startsWith("collecting_")
+                    ? "checkout"
+                    : baseSalesEngineState.next_state,
+      },
+      ...payload,
+    }, stage);
   const isCollectingReply = hasAnyTerm(conversation.lastAiAnswer, [
     "ممكن أعرف اسم حضرتك",
     "رقم الموبايل",
@@ -1019,7 +1069,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   };
   if (intent.handoffReason) {
     logSalesFlow("handoff", { tenantId, conversationId, reason: intent.handoffReason });
-    return withSalesStage({
+    return withOrderSalesStage({
       answer: "تمام، هحوّل طلبك لحد من الفريق يراجع التفاصيل معاك عشان محتاج تدخل بشري.",
       confidence: 0.35,
       needs_human_support: true,
@@ -1035,7 +1085,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
     if (existingDraft) {
       if (settings.require_human_approval_before_confirm === true) {
         logSalesFlow("confirm_requires_human", { tenantId, conversationId, order_id: existingDraft.id });
-        return withSalesStage({
+        return withOrderSalesStage({
           answer: "تمام، هحوّل تأكيد الأوردر لحد من الفريق يراجعه ويأكد معاك التفاصيل قبل الشحن.",
           confidence: 0.82,
           needs_human_support: true,
@@ -1048,7 +1098,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
       }
       const confirmed = await confirmAiOrder({ tenant_id: tenantId, conversation_id: conversationId });
       logSalesFlow("confirmed", { tenantId, conversationId, order_id: confirmed.order?.id });
-      return withSalesStage({
+      return withOrderSalesStage({
         answer: `تم تأكيد الأوردر رقم ${displayPublicOrderNumber(confirmed.order) || confirmed.order.id}. الفريق هيتابع معاك قريب لتأكيد تفاصيل الشحن.`,
         confidence: 0.92,
         needs_human_support: false,
@@ -1083,7 +1133,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   const confidence = numeric(product?.confidence, 0);
   if (objection && product && confidence >= CONFIDENCE_THRESHOLD) {
     logSalesFlow("objection_handling", { tenantId, conversationId, objection, product_id: product.id });
-    return withSalesStage({
+    return withOrderSalesStage({
       answer: buildObjectionAnswer({ objection, product, variant, settings }),
       confidence,
       needs_human_support: false,
@@ -1096,7 +1146,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   }
   if (objection && (!product || confidence < CONFIDENCE_THRESHOLD)) {
     logSalesFlow("objection_needs_product", { tenantId, conversationId, objection });
-    return withSalesStage({
+    return withOrderSalesStage({
       answer: "أكيد، بس ابعتلي اسم المنتج أو افتحلي الموديل المقصود عشان أرد عليك بسعره وتفاصيله بدقة.",
       confidence: 0.45,
       needs_human_support: false,
@@ -1109,7 +1159,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   }
   if (!product || confidence < CONFIDENCE_THRESHOLD) {
     logSalesFlow("ready_to_order_low_confidence", { tenantId, conversationId, confidence });
-    return withSalesStage({
+    return withOrderSalesStage({
       answer: "ممكن تبعت اسم المنتج أو صورة/لينك أوضح؟ عايز أتأكد من الموديل قبل ما أجهز الأوردر.",
       confidence,
       needs_human_support: true,
@@ -1123,7 +1173,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   const missing = missingFields(state);
   if (missing.includes("customer_name")) {
     logSalesFlow("collecting_missing_field", { tenantId, conversationId, stage: SALES_STAGES.collectingName, missing, product_id: product.id });
-    return withSalesStage({
+    return withOrderSalesStage({
       answer: askForMissing(missing),
       confidence,
       needs_human_support: false,
@@ -1136,7 +1186,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   }
   if (!variant || numeric(variant.stock, 0) < state.quantity) {
     logSalesFlow("ready_to_order_needs_variant", { tenantId, conversationId, product_id: product.id });
-    return withSalesStage({
+    return withOrderSalesStage({
       answer: "المقاس/اللون ده مش واضح أو غير متاح حاليا. أقدر أرشحلك المقاسات أو الألوان المتاحة من نفس الموديل.",
       confidence,
       needs_human_support: false,
@@ -1150,7 +1200,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   if (missing.length) {
     const stage = nextCollectionStage(missing);
     logSalesFlow("collecting_missing_field", { tenantId, conversationId, stage, missing, product_id: product.id });
-    return withSalesStage({
+    return withOrderSalesStage({
       answer: askForMissing(missing),
       confidence,
       needs_human_support: false,
@@ -1163,7 +1213,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   }
   if (settings.allow_auto_draft_creation === false) {
     logSalesFlow("draft_requires_human", { tenantId, conversationId, product_id: product.id, variant_id: variant.id });
-    return withSalesStage({
+    return withOrderSalesStage({
       answer: "تمام، البيانات كده شبه كاملة. هحوّلها للفريق يراجع المخزون والسعر ويأكد الأوردر معاك.",
       confidence,
       needs_human_support: true,
@@ -1195,7 +1245,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
     metadata: enrichedMetadata,
   });
   logSalesFlow("draft_created", { tenantId, conversationId, order_id: draft.order?.id, product_id: product.id, variant_id: variant.id });
-  return withSalesStage({
+  return withOrderSalesStage({
     answer: buildOrderSummary({ order: draft.order, product, variant, quantity: state.quantity }),
     confidence,
     needs_human_support: false,

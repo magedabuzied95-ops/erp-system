@@ -2323,3 +2323,9 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   direction: ltr;
   unicode-bidi: isolate;
 }
+
+.date-safe {
+  direction: ltr;
+  unicode-bidi: plaintext;
+  display: inline-block;
+}

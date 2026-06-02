@@ -360,12 +360,12 @@ export const ensureStaffTasksSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_staff_task_comments_task ON staff_task_comments (task_id, created_at DESC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_staff_task_queue_status ON staff_task_notification_queue (status, next_attempt_at)`);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_task_queue_dedupe ON staff_task_notification_queue (dedupe_key) WHERE dedupe_key IS NOT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS source_ref_date DATE NULL`);
   await clientOrPool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_tasks_template_due_dedupe
     ON staff_task_assignments (template_id, source_ref_date)
     WHERE template_id IS NOT NULL AND source_ref_date IS NOT NULL AND status <> 'cancelled'
   `);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS source_ref_date DATE NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS attendance_device_settings ADD COLUMN IF NOT EXISTS require_checkin_to_view_tasks BOOLEAN NOT NULL DEFAULT TRUE`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS attendance_device_settings ADD COLUMN IF NOT EXISTS auto_redirect_after_checkin BOOLEAN NOT NULL DEFAULT TRUE`);
   await clientOrPool.query(`

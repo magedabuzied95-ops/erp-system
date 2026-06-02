@@ -1,4 +1,4 @@
-import db from "../database/db.js";
+﻿import db from "../database/db.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
 import {
   attachVariantImages,
@@ -31,6 +31,7 @@ import {
   resolveProductImageFromRecord,
   resolvePublicProductUrl,
 } from "./aiProductCards.js";
+import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
@@ -2833,9 +2834,27 @@ const suggestedProducts = (products = [], req = null, { limit = 3 } = {}) =>
   }).filter(Boolean);
 
 const formatProductPriceAr = (product = {}) => {
-  const finalPrice = productBestPrice(product);
-  return finalPrice > 0
-    ? `${Number(finalPrice).toLocaleString("ar-EG-u-nu-latn")} ج.م`
+  const resolved = resolveCustomerDisplayPrice(product);
+  const rawPrice = productBestPrice(product);
+  const displayPrice = resolved.display_price || rawPrice;
+  console.log("[ai-text-price-source]", {
+    product_id: resolved.product_id || product.id || null,
+    variant_id: resolved.variant_id || product.variant_id || null,
+    raw_price_used_in_text: rawPrice || "",
+    text_template: "سعره ${formatProductPriceAr(product)}",
+    function_name: "formatProductPriceAr",
+    file_name: "server/services/aiSupportContextService.js",
+  });
+  if (rawPrice > 0 && displayPrice > 0 && rawPrice !== displayPrice) {
+    console.error("[ai-price-mismatch]", {
+      product_id: resolved.product_id || product.id || null,
+      variant_id: resolved.variant_id || product.variant_id || null,
+      text_price: rawPrice,
+      selected_display_price: displayPrice,
+    });
+  }
+  return displayPrice > 0
+    ? `${Number(displayPrice).toLocaleString("ar-EG-u-nu-latn")} ج.م`
     : "\u0627\u0644\u0633\u0639\u0631 \u063a\u064a\u0631 \u0645\u062d\u062f\u062f \u062d\u0627\u0644\u064a\u0627\u064b";
 };
 

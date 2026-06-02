@@ -403,14 +403,77 @@ const mergePreferences = (current = {}, next = {}) => {
   return merged;
 };
 
+const productColorList = (product = {}) =>
+  unique([
+    product?.color,
+    product?.requested_color,
+    product?.matched_variant_color,
+    product?.colors,
+    product?.available_colors,
+    ...(Array.isArray(product?.variants) ? product.variants.map((variant) => variant?.color || variant?.color_name || variant?.name) : []),
+  ].flatMap((item) => Array.isArray(item) ? item : String(item || "").split(/[,،/|]+/)), 12);
+
+const productSizeList = (product = {}) =>
+  unique([
+    product?.size,
+    product?.requested_size,
+    product?.matched_variant_size,
+    product?.sizes,
+    product?.available_sizes,
+    product?.size_options,
+    product?.inventory_profile?.available_sizes,
+    ...(Array.isArray(product?.variants) ? product.variants.map((variant) => variant?.size) : []),
+  ].flatMap((item) => Array.isArray(item) ? item : String(item || "").split(/[,،/|]+/)), 16);
+
+const productModelFamily = (product = {}) => {
+  const blob = normalizeComparable([
+    product?.name,
+    product?.title,
+    product?.product_name,
+    product?.brand,
+    product?.model,
+    product?.model_family,
+    product?.slug,
+    product?.canonical_slug,
+  ].filter(Boolean).join(" "));
+  if (/jordan\s*4|air\s*jordan\s*4|aj4|j4|جوردن\s*(4|فور)/i.test(blob)) return "air_jordan_4";
+  if (/jordan|جوردن/i.test(blob)) return "jordan";
+  if (/adidas|اديداس/i.test(blob)) return "adidas";
+  if (/nike|نايك/i.test(blob)) return "nike";
+  return toText(product?.model_family || product?.model || product?.brand || "").slice(0, 80);
+};
+
+const summarizeProductVariants = (product = {}) =>
+  (Array.isArray(product?.variants) ? product.variants : [])
+    .map((variant) => ({
+      id: variant?.id ?? variant?.variant_id ?? null,
+      color: toText(variant?.color || variant?.color_name || variant?.name).slice(0, 80),
+      size: toText(variant?.size).slice(0, 30),
+      stock: numeric(variant?.stock || variant?.quantity, 0),
+      image_url: toText(variant?.image_url || variant?.variant_image_url || variant?.color_image_url || variant?.primary_image_url).slice(0, 500),
+    }))
+    .filter((variant) => variant.color || variant.size || variant.image_url)
+    .slice(0, 16);
+
 const summarizeProducts = (products = []) =>
   (Array.isArray(products) ? products : [])
-    .map((product) => ({
+    .map((product, index) => ({
+      card_index: Number(product?.card_index || product?.index || 0) > 0 ? Number(product.card_index || product.index) : index + 1,
       id: product?.id ?? product?.product_id ?? "",
-      name: toText(product?.name).slice(0, 160),
+      product_id: product?.product_id ?? product?.id ?? "",
+      name: toText(product?.name || product?.title || product?.product_name).slice(0, 160),
+      product_name: toText(product?.product_name || product?.name || product?.title).slice(0, 160),
+      brand: toText(product?.brand || product?.brand_name).slice(0, 120),
+      model_family: productModelFamily(product),
       price: numeric(product?.final_price || product?.price || product?.sale_price, 0) || null,
       stock: numeric(product?.total_stock || product?.stock, 0),
       availability: toText(product?.stock_status || product?.availability),
+      color: toText(product?.color || product?.matched_variant_color || product?.requested_color).slice(0, 80),
+      size_options: productSizeList(product).slice(0, 16),
+      image_url: toText(product?.image_url || product?.image || product?.main_image || product?.thumbnail || product?.matched_variant_image || product?.matched_image_url).slice(0, 500),
+      product_url: toText(product?.product_url || product?.url).slice(0, 500),
+      colors: productColorList(product),
+      variants: summarizeProductVariants(product),
     }))
     .filter((product) => product.id || product.name)
     .slice(0, MEMORY_PRODUCT_LIMIT);
@@ -555,17 +618,36 @@ export const updateAiConversationMemory = async ({
     : toText(current?.preferences?.currentRequestedModel || "");
   const lastRecommendedProductIds = suggestedProducts.length
     ? unique(summarizeProducts(suggestedProducts).map((product) => String(product.id || "")).filter(Boolean))
-    : [];
+    : unique(Array.isArray(current?.preferences?.lastRecommendedProductIds) ? current.preferences.lastRecommendedProductIds.map(String) : []);
+  const summarizedSuggestedProducts = summarizeProducts(suggestedProducts);
+  const lastSuggestedProduct = summarizedSuggestedProducts[0] || null;
   const safePreferencesPatch = preferencesPatch && typeof preferencesPatch === "object" ? preferencesPatch : {};
+  const metadataSalesEngine = metadata?.sales_engine && typeof metadata.sales_engine === "object" ? metadata.sales_engine : null;
   preferences.rejectedProductIds = rejectedProductIds;
   preferences.rejectedModelNames = rejectedModelNames;
   preferences.currentRequestedModel = currentRequestedModel;
   preferences.currentRequestedModelName = detectedModel && currentRequestedModel ? detectedModel.canonical : toText(current?.preferences?.currentRequestedModelName || "");
   preferences.lastRecommendedProductIds = lastRecommendedProductIds;
+  preferences.last_recommended_product_ids = lastRecommendedProductIds;
+  if (lastSuggestedProduct) {
+    preferences.last_product = lastSuggestedProduct;
+    preferences.last_product_id = lastSuggestedProduct.product_id || lastSuggestedProduct.id || "";
+    preferences.last_product_name = lastSuggestedProduct.name || "";
+    preferences.last_model_family = lastSuggestedProduct.model_family || "";
+    preferences.lastProductCard = lastSuggestedProduct;
+    preferences.last_product_cards = summarizedSuggestedProducts;
+  }
   preferences.lastVisualQuery = toText(current?.preferences?.lastVisualQuery || "");
   preferences.lastVisualFeatures = current?.preferences?.lastVisualFeatures || {};
   preferences.lastVisualMatches = previousVisualMatchIds;
   preferences.rejectedVisualMatches = rejectedVisualMatches;
+  if (metadataSalesEngine) {
+    preferences.sales_engine_state = toText(metadataSalesEngine.next_state || metadataSalesEngine.current_state || preferences.sales_engine_state || "");
+    preferences.sales_engine_previous_state = toText(metadataSalesEngine.previous_state || preferences.sales_engine_previous_state || "");
+    preferences.sales_engine_reason = toText(metadataSalesEngine.reason || preferences.sales_engine_reason || "");
+    preferences.sales_engine_next_action = toText(metadataSalesEngine.recommended_next_action || preferences.sales_engine_next_action || "");
+    preferences.sales_engine_missing_info = Array.isArray(metadataSalesEngine.missing_info) ? metadataSalesEngine.missing_info : preferences.sales_engine_missing_info || [];
+  }
   Object.assign(preferences, safePreferencesPatch);
   if (Array.isArray(safePreferencesPatch.lastVisualMatches)) {
     preferences.lastVisualMatches = unique(safePreferencesPatch.lastVisualMatches.map(String));
@@ -582,7 +664,13 @@ export const updateAiConversationMemory = async ({
       ...safePreferencesPatch.rejectedVisualMatches.map(String),
     ]);
   }
-  const lastProducts = unique([...summarizeProducts(suggestedProducts), ...((current?.last_products || []).filter(Boolean))].map((item) => JSON.stringify(item)), MEMORY_PRODUCT_LIMIT)
+  if (Array.isArray(preferences.last_product_cards)) {
+    preferences.last_product_cards = summarizeProducts(preferences.last_product_cards);
+  }
+  if (preferences.selected_product_context && typeof preferences.selected_product_context === "object") {
+    preferences.selected_product_context = summarizeProducts([preferences.selected_product_context])[0] || preferences.selected_product_context;
+  }
+  const lastProducts = unique([...summarizedSuggestedProducts, ...((current?.last_products || []).filter(Boolean))].map((item) => JSON.stringify(item)), MEMORY_PRODUCT_LIMIT)
     .map((item) => {
       try {
         return JSON.parse(item);

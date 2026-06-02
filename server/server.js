@@ -248,7 +248,7 @@ io.on("connection", async (socket) => {
     if (!token && !employeePortalToken) throw new Error("missing socket token");
 
     if (employeePortalToken && !token) {
-      const employee = await loadEmployeePortalByToken(String(employeePortalToken || "").trim());
+      const employee = await loadEmployeePortalByToken(String(employeePortalToken || ""));
       if (!employee) throw new Error("invalid employee portal token");
       socket.data.employeePortal = {
         employee_id: employee.id,
@@ -453,6 +453,7 @@ const { getMetaWebhookUrl, getPublicAppUrl } = await import("./utils/publicUrl.j
 const { default: smartWarehouseRoutes } = await import("./routes/smartWarehouse.js");
 const { ensureEmployeePenaltiesSchema, ensureSalesCommissionSchema, repairOrdersSalesEmployeeForeignKey } = await import("./services/salesCommissionService.js");
 const { ensureEmployeePayrollPortalSchema } = await import("./services/employeePayrollPortalService.js");
+const { ensureDisplayRefillAlertSchema } = await import("./services/displayRefillAlertService.js");
 const { ensureAiAgentOrderSchema } = await import("./services/aiAgentOrderService.js");
 const { ensureAiSalesAgentSchema } = await import("./services/aiSalesAgentService.js");
 const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
@@ -993,119 +994,137 @@ const gracefulShutdown = (signal) => {
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
-server.listen(PORT, HOST, () => {
+const logStartupFatal = (err) => {
+  console.error("[server:start:fatal]", {
+    message: err?.message,
+    stack: err?.stack,
+    code: err?.code,
+    detail: err?.detail,
+    table: err?.table,
+    constraint: err?.constraint,
+  });
+};
 
+const bootstrapServer = async () => {
+  server.listen(PORT, HOST, () => {
   console.log("[server] listening on host/port", { host: HOST, port: PORT });
   console.log("[server] socket.io ready");
   console.log("[server] AI system active (v1 + v2)");
   runStartupDiagnostics();
+  });
+};
 
-  void (async () => {
-    globalThis.__SCHEMA_STARTUP_RUNNING = true;
-    try {
-      await db.query("SELECT 1");
-      await ensureNotificationsSchema(db);
-      await ensureWebsiteSettingsSchema(db);
-      await ensureSystemSettingsSchema(db);
-      console.log("[server] database connected");
-      await ensureDefaultTenantAndBackfillUsers();
-      console.log("[server] default tenant bootstrap ensured");
-      await ensureBranchSchema();
-      await ensureSingleBranchModeOnce();
-      console.log("[server] single branch mode ensured");
-      await ensureProductSchema();
-      console.log("[server] product schema ensured");
-      await ensureProductVariantSchema();
-      console.log("[server] product variant schema ensured");
-      await ensureProductVariantImagesSchema(db);
-      console.log("[server] product variant images schema ensured");
-      await warmProductsMetadataCache(db);
-      console.log("[server] products metadata cache warmed");
-      await ensureVariantsInventorySchema(db);
-      console.log("[server] variants inventory schema ensured");
-      await ensureOrdersSchema(db, null);
-      console.log("[server] orders schema ensured");
-      await repairOrdersSalesEmployeeForeignKey(db, { source: "startup:after_orders_schema" });
-      await ensureProductClassificationSchema();
-      console.log("[server] product classification schema ensured");
-      await ensureStorefrontSchema();
-      console.log("[server] storefront schema ensured");
-      await ensureShippingSchema(db);
-      console.log("[server] shipping schema ensured");
-      await ensureStorefrontCustomerSessionSchema(db);
-      console.log("[server] storefront customer session schema ensured");
-      await ensureMarketingSchema();
-      console.log("[server] marketing schema ensured");
-      await ensureCouponsSchema();
-      await ensureLoyaltySchema(db);
-      await ensureAttendanceSchema(db);
-      console.log("[server] attendance schema ensured");
-      await ensureSalesCommissionSchema(db);
-      console.log("[server] sales commission schema ensured");
-      await ensureEmployeePenaltiesSchema(db);
-      console.log("[server] employee penalties schema ensured");
-      await ensureEmployeePayrollPortalSchema(db);
-      console.log("[server] employee payroll portal schema ensured");
-      await ensureStaffTasksSchema(db);
-      await ensureAiSupportLogSchema(db);
-      await ensureAiSalesAgentSchema(db);
-      console.log("[server] AI sales agent schema ensured");
-      await ensureAiAgentOrderSchema(db);
-      console.log("[server] AI agent order schema ensured");
-      await ensureMetaIntegrationSchema(db);
-      await warmDashboardMetadataCache();
-      console.log("[server] dashboard metadata cache warmed");
-      await ensureSingleBranchModeOnce();
-      console.log("[server] staff tasks schema ensured");
-      console.log("[server] AI support log schema ensured");
-      console.log("[server] coupons schema ensured");
-      registerBackgroundJobHandlers();
-      registerMarketingJobHandlers();
-      startMetaTokenRefreshScheduler();
-      startMarketingAnalyticsSyncScheduler();
-      startMarketingAttributionSyncScheduler();
-      startAiMarketingAutomationRunner();
-      const safeRunDueStoryPublishes = () => {
-        void runDueStoryPublishes().catch((error) => {
-          console.error("[server] story publish error", error);
-        });
-      };
-      const storyInterval = setInterval(() => {
-        safeRunDueStoryPublishes();
-      }, 60 * 1000);
-      backgroundIntervals.add(storyInterval);
+const bootstrapStartup = async () => {
+  globalThis.__SCHEMA_STARTUP_RUNNING = true;
+  try {
+    await db.query("SELECT 1");
+    await ensureNotificationsSchema(db);
+    await ensureWebsiteSettingsSchema(db);
+    await ensureSystemSettingsSchema(db);
+    console.log("[server] database connected");
+    await ensureDefaultTenantAndBackfillUsers();
+    console.log("[server] default tenant bootstrap ensured");
+    await ensureBranchSchema();
+    await ensureSingleBranchModeOnce();
+    console.log("[server] single branch mode ensured");
+    await ensureProductSchema();
+    console.log("[server] product schema ensured");
+    await ensureProductVariantSchema();
+    console.log("[server] product variant schema ensured");
+    await ensureProductVariantImagesSchema(db);
+    console.log("[server] product variant images schema ensured");
+    await warmProductsMetadataCache(db);
+    console.log("[server] products metadata cache warmed");
+    await ensureVariantsInventorySchema(db);
+    console.log("[server] variants inventory schema ensured");
+    await ensureOrdersSchema(db, null);
+    console.log("[server] orders schema ensured");
+    await repairOrdersSalesEmployeeForeignKey(db, { source: "startup:after_orders_schema" });
+    await ensureProductClassificationSchema();
+    console.log("[server] product classification schema ensured");
+    await ensureStorefrontSchema();
+    console.log("[server] storefront schema ensured");
+    await ensureShippingSchema(db);
+    console.log("[server] shipping schema ensured");
+    await ensureStorefrontCustomerSessionSchema(db);
+    console.log("[server] storefront customer session schema ensured");
+    await ensureMarketingSchema();
+    console.log("[server] marketing schema ensured");
+    await ensureCouponsSchema();
+    console.log("[server] coupons schema ensured");
+    await ensureLoyaltySchema(db);
+    await ensureAttendanceSchema(db);
+    console.log("[server] attendance schema ensured");
+    await ensureSalesCommissionSchema(db);
+    console.log("[server] sales commission schema ensured");
+    await ensureEmployeePenaltiesSchema(db);
+    console.log("[server] employee penalties schema ensured");
+    await ensureEmployeePayrollPortalSchema(db);
+    console.log("[server] employee payroll portal schema ensured");
+    await ensureDisplayRefillAlertSchema(db);
+    console.log("[server] display refill alerts schema ensured");
+    await ensureStaffTasksSchema(db);
+    console.log("[server] staff tasks schema ensured");
+    await ensureAiSupportLogSchema(db);
+    console.log("[server] AI support log schema ensured");
+    await ensureAiSalesAgentSchema(db);
+    console.log("[server] AI sales agent schema ensured");
+    await ensureAiAgentOrderSchema(db);
+    console.log("[server] AI agent order schema ensured");
+    await ensureMetaIntegrationSchema(db);
+    console.log("[server] meta integration schema ensured");
+    await warmDashboardMetadataCache();
+    console.log("[server] dashboard metadata cache warmed");
+    registerBackgroundJobHandlers();
+    registerMarketingJobHandlers();
+    startMetaTokenRefreshScheduler();
+    startMarketingAnalyticsSyncScheduler();
+    startMarketingAttributionSyncScheduler();
+    startAiMarketingAutomationRunner();
+    const safeRunDueStoryPublishes = () => {
+      void runDueStoryPublishes().catch((error) => {
+        console.error("[server] story publish error", error);
+      });
+    };
+    const storyInterval = setInterval(() => {
       safeRunDueStoryPublishes();
-      const taskInterval = setInterval(() => {
-        void processStaffTaskEmailQueue().catch((error) => {
-          console.error("[server] staff task email queue error", error);
-        });
-        void reassignOverdueTasks({ tenantId: null }).catch((error) => {
-          console.error("[server] staff task overdue reassignment error", error);
-        });
-        void sendUpcomingTaskDueReminders({ tenantId: null }).catch((error) => {
-          console.error("[server] staff task due reminder error", error);
-        });
-      }, 5 * 60 * 1000);
-      backgroundIntervals.add(taskInterval);
-      void assignDailyInventoryCountTasks({ tenantId: null, limit: 20 }).catch((error) => {
-        console.warn("[server] daily inventory task assignment skipped", error.message);
-      });
+    }, 60 * 1000);
+    backgroundIntervals.add(storyInterval);
+    safeRunDueStoryPublishes();
+    const taskInterval = setInterval(() => {
       void processStaffTaskEmailQueue().catch((error) => {
-        console.warn("[server] initial staff task email queue skipped", error.message);
+        console.error("[server] staff task email queue error", error);
       });
-      console.log("[server] staff task schedulers started");
-      console.log("[server] story scheduler started");
-      console.log("[schema] startup migration complete");
-      console.log("[server] boot success");
-    } catch (error) {
-      console.error("[server] startup non-fatal schema error", error);
-      if (error?.sellerFkRepair) {
-        console.error("[server] startup fatal seller FK repair error", error);
-        process.exit(1);
-      }
-    } finally {
-      globalThis.__SCHEMA_STARTUP_RUNNING = false;
-    }
-  })();
+      void reassignOverdueTasks({ tenantId: null }).catch((error) => {
+        console.error("[server] staff task overdue reassignment error", error);
+      });
+      void sendUpcomingTaskDueReminders({ tenantId: null }).catch((error) => {
+        console.error("[server] staff task due reminder error", error);
+      });
+    }, 5 * 60 * 1000);
+    backgroundIntervals.add(taskInterval);
+    void assignDailyInventoryCountTasks({ tenantId: null, limit: 20 }).catch((error) => {
+      console.warn("[server] daily inventory task assignment skipped", error.message);
+    });
+    void processStaffTaskEmailQueue().catch((error) => {
+      console.warn("[server] initial staff task email queue skipped", error.message);
+    });
+    console.log("[server] staff task schedulers started");
+    console.log("[server] story scheduler started");
+    console.log("[schema] startup migration complete");
+    console.log("[server] boot success");
+  } catch (error) {
+    logStartupFatal(error);
+    process.exit(1);
+  } finally {
+    globalThis.__SCHEMA_STARTUP_RUNNING = false;
+  }
+};
 
-});
+try {
+  bootstrapServer();
+  await bootstrapStartup();
+} catch (error) {
+  logStartupFatal(error);
+  process.exit(1);
+}

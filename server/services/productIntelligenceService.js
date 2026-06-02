@@ -23,7 +23,7 @@ const FALLBACK_INTELLIGENCE = Object.freeze({
 
 export const RESPONSE_VARIATIONS = Object.freeze({
   greetings: [
-    "بص يا باشا",
+    "أيوه يا فندم",
     "خلينا نطلعلك حاجة تقيلة",
     "تمام، عندي كذا اختيار حلو",
     "لو عايز رأيي",

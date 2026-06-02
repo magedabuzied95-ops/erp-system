@@ -632,12 +632,27 @@ export const verifyMetaWebhookSignature = ({ rawBody, signature, appSecret } = {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 };
 
-const whatsappConfig = () => ({
-  enabled: String(process.env.WHATSAPP_ENABLED || "false").toLowerCase() === "true",
-  accessToken: toText(process.env.WHATSAPP_ACCESS_TOKEN),
-  phoneNumberId: toText(process.env.WHATSAPP_PHONE_NUMBER_ID),
-  graphVersion: toText(process.env.META_GRAPH_VERSION || "v20.0"),
-});
+const whatsappConfig = () => {
+  const evolutionApiUrl = toText(process.env.EVOLUTION_API_URL).replace(/\/+$/g, "");
+  const evolutionApiKey = toText(process.env.EVOLUTION_API_KEY);
+  const evolutionInstanceName = toText(
+    process.env.WHATSAPP_INSTANCE_NAME ||
+      process.env.EVOLUTION_INSTANCE_NAME ||
+      process.env.instanceName
+  );
+  const explicitProvider = toText(process.env.WHATSAPP_GATEWAY_PROVIDER || process.env.WHATSAPP_PROVIDER).toLowerCase();
+  const provider = explicitProvider || (evolutionApiUrl || evolutionApiKey || evolutionInstanceName ? "evolution" : "cloud");
+  return {
+    enabled: String(process.env.WHATSAPP_ENABLED || "false").toLowerCase() === "true",
+    provider,
+    accessToken: toText(process.env.WHATSAPP_ACCESS_TOKEN),
+    phoneNumberId: toText(process.env.WHATSAPP_PHONE_NUMBER_ID),
+    graphVersion: toText(process.env.META_GRAPH_VERSION || "v20.0"),
+    evolutionApiUrl,
+    evolutionApiKey,
+    evolutionInstanceName,
+  };
+};
 
 const metaPageConfig = (channel = AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) => ({
   channel: normalizeChannel(channel),
@@ -666,6 +681,7 @@ export const getWhatsAppChannelStatus = async ({ tenantId } = {}) => {
   const lastOutbound = events.find((event) => event.direction === "outbound") || null;
   const verifyToken = toText(process.env.META_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN);
   const appSecret = toText(process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET);
+  const health = await resolveWhatsappHealth({ config, settings, events, lastInbound, lastOutbound });
   return {
     whatsapp: {
       env_enabled: config.enabled,
@@ -673,12 +689,25 @@ export const getWhatsAppChannelStatus = async ({ tenantId } = {}) => {
       auto_reply_mode: settings.auto_reply_mode || (settings.ai_replies_enabled === true ? "fully_automatic" : "off"),
       settings_found: settings.settings_found === true,
       auto_created_settings: settings.auto_created === true,
-      effective_enabled: (config.enabled || Boolean(lastInbound) || ["sent", "test_sent"].includes(lastOutbound?.status)) && settings.ai_replies_enabled === true,
-      live_operational: config.enabled || Boolean(lastInbound) || ["sent", "test_sent"].includes(lastOutbound?.status),
+      effective_enabled: health.connected && settings.ai_replies_enabled === true,
+      live_operational: health.connected,
+      whatsapp_provider: health.provider,
+      provider: health.provider,
+      token_source: health.tokenSource,
+      token_valid: health.tokenValid,
+      connected: health.connected,
+      webhook_healthy: health.webhookHealthy,
+      messaging_active: health.messagingActive,
+      health_reason: health.reason,
       phone_number_id_configured: Boolean(config.phoneNumberId),
       phone_number_id: config.phoneNumberId ? maskSecret(config.phoneNumberId) : "",
       access_token_configured: Boolean(config.accessToken),
       access_token_masked: maskSecret(config.accessToken),
+      evolution_api_url_configured: Boolean(config.evolutionApiUrl),
+      evolution_api_key_configured: Boolean(config.evolutionApiKey),
+      evolution_instance_name_configured: Boolean(health.instanceName),
+      evolution_instance_name: health.instanceName ? maskSecret(health.instanceName) : "",
+      evolution_state: health.gatewayStatus?.state || "",
       verify_token_configured: Boolean(verifyToken),
       app_secret_configured: Boolean(appSecret),
       graph_version: config.graphVersion,
@@ -690,16 +719,113 @@ export const getWhatsAppChannelStatus = async ({ tenantId } = {}) => {
   };
 };
 
-const channelEnvStatus = ({ channel, settings, events }) => {
+const getEvolutionGatewayStatus = async () => {
+  try {
+    const gateway = await import("./whatsappGatewayService.js");
+    return await gateway.getStatus();
+  } catch (error) {
+    console.warn("[ai-channel-status:whatsapp]", {
+      provider: "evolution",
+      reason: "evolution_status_unavailable",
+      message: error?.message || "unknown",
+    });
+    return null;
+  }
+};
+
+const resolveWhatsappHealth = async ({ config, settings, events, lastInbound, lastOutbound }) => {
+  const provider = config.provider === "cloud" || config.provider === "whatsapp_cloud" ? "cloud" : "evolution";
+  const tokenSource = provider === "evolution" ? "evolution_api_key" : "whatsapp_cloud_access_token";
+  const verifyToken = toText(process.env.META_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN);
+  const appSecret = toText(process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET);
+
+  if (provider === "evolution") {
+    const gatewayStatus = await getEvolutionGatewayStatus();
+    const instanceName = config.evolutionInstanceName || toText(gatewayStatus?.instanceName);
+    const tokenValid = Boolean(config.evolutionApiUrl && config.evolutionApiKey && instanceName);
+    const connected = gatewayStatus?.connected === true || Boolean(lastInbound) || ["sent", "test_sent"].includes(lastOutbound?.status);
+    const webhookHealthy = Boolean(lastInbound) || connected;
+    const messagingActive = connected === true && tokenValid === true;
+    const reason = !tokenValid
+      ? "missing_evolution_config"
+      : !connected
+        ? "evolution_instance_disconnected"
+        : !webhookHealthy
+          ? "webhook_not_healthy"
+          : "healthy";
+    console.info("[ai-channel-status:whatsapp]", {
+      provider,
+      token_source: tokenSource,
+      token_valid: tokenValid,
+      connected,
+      webhook_healthy: webhookHealthy,
+      messaging_active: messagingActive,
+      reason,
+    });
+    return {
+      provider,
+      tokenSource,
+      tokenValid,
+      connected,
+      webhookHealthy,
+      messagingActive,
+      reason,
+      gatewayStatus,
+      verifyToken,
+      appSecret,
+      instanceName,
+    };
+  }
+
+  const tokenValid = Boolean(config.accessToken);
+  const connected = config.enabled || Boolean(lastInbound) || ["sent", "test_sent"].includes(lastOutbound?.status);
+  const webhookHealthy = Boolean(lastInbound) || Boolean(verifyToken && appSecret);
+  const messagingActive = connected === true && tokenValid === true;
+  const reason = !tokenValid
+    ? "missing_whatsapp_cloud_access_token"
+    : !connected
+      ? "cloud_channel_disconnected"
+      : !webhookHealthy
+        ? "webhook_not_healthy"
+        : "healthy";
+  console.info("[ai-channel-status:whatsapp]", {
+    provider,
+    token_source: tokenSource,
+    token_valid: tokenValid,
+    connected,
+    webhook_healthy: webhookHealthy,
+    messaging_active: messagingActive,
+    reason,
+  });
+  return {
+    provider,
+    tokenSource,
+    tokenValid,
+    connected,
+    webhookHealthy,
+    messagingActive,
+    reason,
+    gatewayStatus: null,
+    verifyToken,
+    appSecret,
+    instanceName: "",
+  };
+};
+
+const channelEnvStatus = async ({ channel, settings, events }) => {
   const normalized = normalizeChannel(channel);
   const config = normalized === AI_AGENT_CHANNELS.WHATSAPP ? whatsappConfig() : metaPageConfig(normalized);
   const lastInbound = events.find((event) => event.direction === "inbound") || null;
   const lastOutbound = events.find((event) => event.direction === "outbound") || null;
   const verifyToken = toText(process.env.META_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN);
   const appSecret = toText(process.env.META_APP_SECRET);
-  const connected = config.enabled || Boolean(lastInbound) || ["sent", "test_sent"].includes(lastOutbound?.status);
-  const tokenValid = normalized === AI_AGENT_CHANNELS.WHATSAPP ? Boolean(config.accessToken) : Boolean(config.pageAccessToken);
-  const webhookHealthy = Boolean(lastInbound) || Boolean(verifyToken && appSecret);
+  const whatsappHealth = normalized === AI_AGENT_CHANNELS.WHATSAPP
+    ? await resolveWhatsappHealth({ config, settings, events, lastInbound, lastOutbound })
+    : null;
+  const connected = whatsappHealth?.connected ?? (config.enabled || Boolean(lastInbound) || ["sent", "test_sent"].includes(lastOutbound?.status));
+  const tokenValid = whatsappHealth?.tokenValid ?? Boolean(config.pageAccessToken);
+  const webhookHealthy = whatsappHealth?.webhookHealthy ?? (Boolean(lastInbound) || Boolean(verifyToken && appSecret));
+  const messagingActive = whatsappHealth?.messagingActive ?? connected;
   const base = {
     env_enabled: config.enabled,
     ai_replies_enabled: settings.ai_replies_enabled === true,
@@ -711,6 +837,7 @@ const channelEnvStatus = ({ channel, settings, events }) => {
     connected,
     webhook_healthy: webhookHealthy,
     token_valid: tokenValid,
+    messaging_active: messagingActive,
     aiStatus: resolveAIStatus({
       connected,
       aiEnabled: settings.ai_replies_enabled === true,
@@ -718,8 +845,8 @@ const channelEnvStatus = ({ channel, settings, events }) => {
       webhookHealthy,
       tokenValid,
     }),
-    verify_token_configured: Boolean(verifyToken),
-    app_secret_configured: Boolean(appSecret),
+    verify_token_configured: Boolean(whatsappHealth?.verifyToken ?? verifyToken),
+    app_secret_configured: Boolean(whatsappHealth?.appSecret ?? appSecret),
     graph_version: config.graphVersion,
     last_webhook_received_at: lastInbound?.created_at || null,
     last_send_status: lastOutbound?.status || "",
@@ -729,10 +856,19 @@ const channelEnvStatus = ({ channel, settings, events }) => {
   if (normalized === AI_AGENT_CHANNELS.WHATSAPP) {
     return {
       ...base,
+      whatsapp_provider: whatsappHealth.provider,
+      provider: whatsappHealth.provider,
+      token_source: whatsappHealth.tokenSource,
+      health_reason: whatsappHealth.reason,
       phone_number_id_configured: Boolean(config.phoneNumberId),
       phone_number_id: config.phoneNumberId ? maskSecret(config.phoneNumberId) : "",
       access_token_configured: Boolean(config.accessToken),
       access_token_masked: maskSecret(config.accessToken),
+      evolution_api_url_configured: Boolean(config.evolutionApiUrl),
+      evolution_api_key_configured: Boolean(config.evolutionApiKey),
+      evolution_instance_name_configured: Boolean(whatsappHealth.instanceName),
+      evolution_instance_name: whatsappHealth.instanceName ? maskSecret(whatsappHealth.instanceName) : "",
+      evolution_state: whatsappHealth.gatewayStatus?.state || "",
     };
   }
   return {
@@ -762,7 +898,7 @@ export const getAiChannelsStatus = async ({ tenantId } = {}) => {
   const entries = await Promise.all(channels.map(async (channel) => {
     const settings = await getChannelSettings({ tenantId, channel });
     const events = await listChannelEvents({ tenantId, channel, limit: 20 });
-    const status = channelEnvStatus({ channel, settings, events });
+    const status = await channelEnvStatus({ channel, settings, events });
     if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(channel) || !metaStatus) {
       return [channel, status];
     }

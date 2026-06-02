@@ -1,8 +1,6 @@
-import {
-  buildStorefrontProductUrl,
-  storefrontBaseUrl,
-} from "./storefrontProductUrlService.js";
-import { filterAiEligibleProducts } from "./aiProductEligibilityService.js";
+import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
+import { filterAiEligibleProducts, resolveAiProductUrl } from "./aiProductEligibilityService.js";
+import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 
 export { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 
@@ -26,7 +24,13 @@ const firstImageValue = (...values) => {
     if (value && typeof value === "object") {
       const nested = firstImageValue(
         value.secure_url,
+        value.cloudinary_url,
         value.image_url,
+        value.main_image,
+        value.variant_image,
+        value.variant_image_url,
+        value.color_image,
+        value.color_image_url,
         value.url,
         value.path,
         value.src,
@@ -91,7 +95,11 @@ export const resolvePublicProductUrl = (product = {}, { baseUrl = storefrontBase
   if (/^https?:\/\//i.test(existing)) return existing;
   if (existing && baseUrl) return `${baseUrl}/${trimSlashes(existing)}`;
   if (existing) return existing.startsWith("/") ? existing : `/${trimSlashes(existing)}`;
-  return buildStorefrontProductUrl(product, { baseUrl });
+  const resolved = resolveAiProductUrl(product);
+  if (!resolved) return "";
+  if (/^https?:\/\//i.test(resolved)) return resolved;
+  if (baseUrl) return `${baseUrl}/${trimSlashes(resolved)}`;
+  return resolved.startsWith("/") ? resolved : `/${trimSlashes(resolved)}`;
 };
 
 const unique = (items = []) => [...new Set(items.map(text).filter(Boolean))];
@@ -159,26 +167,52 @@ const variantImageCandidates = (variant = {}) => [
   variant.secure_url,
   variant.primary_image_url,
   variant.main_image,
+  variant.cloudinary_url,
+  variant.secure_url,
+  variant.color_image,
   variant.color_image_url,
+  variant.variant_image,
   variant.variant_image_url,
   variant.image_url,
   variant.image,
   variant.thumbnail,
+  ...parseJsonArray(variant.media),
   ...parseJsonArray(variant.product_images || variant.images || variant.gallery_images),
 ];
 
 const productMainImageCandidates = (product = {}) => [
+  product.cloudinary_url,
   product.secure_url,
+  product.cloudinary_url,
   product.matched_variant_image,
   product.matched_visual_candidate?.secure_url,
   product.matched_visual_candidate?.image_url,
+  product.matched_visual_candidate?.cloudinary_url,
   product.matched_image_url,
   product.image_url,
-  product.main_image,
   product.image,
+  product.main_image,
+  product.variant_image,
+  product.color_image,
+  product.color_image_url,
   product.thumbnail,
   product.product_image_url,
   product.variant_image_url,
+  product.product?.image_url,
+  product.product?.main_image,
+  product.product?.cloudinary_url,
+  product.product?.secure_url,
+  product.variant?.image_url,
+  product.variant?.variant_image,
+  product.variant?.color_image_url,
+  product.variant?.cloudinary_url,
+  product.color?.image_url,
+  product.color?.color_image,
+  product.color?.cloudinary_url,
+  parseJsonArray(product.media)[0],
+  parseJsonArray(product.product?.images)[0],
+  parseJsonArray(product.variant?.images)[0],
+  parseJsonArray(product.color?.images)[0],
   parseJsonArray(product.product_images || product.images || product.gallery_images)[0],
 ];
 
@@ -318,25 +352,82 @@ const buildBaseCard = (product = {}, overrides = {}) => {
   const color = text(overrides.color || product.color || product.requested_color || product.matched_variant_color);
   const displayName = color && !name.toLowerCase().includes(color.toLowerCase()) ? `${name} - ${color}` : name;
   const productUrl = resolvePublicProductUrl(product);
+  const selectedVariant =
+    overrides.variant ||
+    product?.selected_variant ||
+    product?.display_variant ||
+    product?.matched_variant ||
+    asArray(product.variants).find((variant) => String(variant.id || variant.variant_id || "") === String(overrides.variant_id || product?.variant_id || product?.matched_variant_id || "")) ||
+    asArray(product.variants)[0] ||
+    product?.variant ||
+    {};
+  const selectedVariantId = overrides.variant_id || selectedVariant?.id || selectedVariant?.variant_id || product?.variant_id || product?.matched_variant_id || null;
+  const dbCloudinaryFieldsFound = [
+    product.cloudinary_url ? "product.cloudinary_url" : "",
+    product.secure_url ? "product.secure_url" : "",
+    product.variant?.cloudinary_url ? "product.variant.cloudinary_url" : "",
+    product.variant?.secure_url ? "product.variant.secure_url" : "",
+    product.color?.cloudinary_url ? "product.color.cloudinary_url" : "",
+    product.color?.secure_url ? "product.color.secure_url" : "",
+    asArray(product.images).some((image) => image?.cloudinary_url || image?.secure_url) ? "product.images[].secure_url" : "",
+    asArray(product.product_images).some((image) => image?.cloudinary_url || image?.secure_url) ? "product.product_images[].secure_url" : "",
+  ].filter(Boolean);
+  const selectedCloudinaryUrl =
+    product?.cloudinary_url ||
+    product?.secure_url ||
+    product?.variant?.cloudinary_url ||
+    product?.variant?.secure_url ||
+    product?.color?.cloudinary_url ||
+    product?.color?.secure_url ||
+    asArray(product.images).find((image) => image?.cloudinary_url || image?.secure_url)?.cloudinary_url ||
+    asArray(product.images).find((image) => image?.cloudinary_url || image?.secure_url)?.secure_url ||
+    asArray(product.product_images).find((image) => image?.cloudinary_url || image?.secure_url)?.cloudinary_url ||
+    asArray(product.product_images).find((image) => image?.cloudinary_url || image?.secure_url)?.secure_url ||
+    "";
   const slug = slugBelongsToProduct(product?.slug, product)
     ? text(product?.slug)
     : slugBelongsToProduct(product?.canonical_slug || product?.product_slug, product)
       ? text(product?.canonical_slug || product?.product_slug)
       : "";
   const cardImageUrl = overrides.image_url || resolveProductImageFromRecord(product);
+  console.info("[ai-card-cloudinary-source]", {
+    product_id: id,
+    variant_id: selectedVariantId,
+    color,
+    db_cloudinary_fields_found: dbCloudinaryFieldsFound,
+    selected_cloudinary_url: selectedCloudinaryUrl,
+    local_url: cardImageUrl,
+    final_image_url: product?.cloudinary_url || product?.secure_url || cardImageUrl,
+  });
+  const selectedDisplayPrice = resolveCustomerDisplayPrice({ ...product, ...overrides, product, variant: selectedVariant, selected_variant: selectedVariant }).display_price || numericPrice(overrides.price) || numericPrice(product?.final_price) || numericPrice(product?.price) || numericPrice(product?.sale_price);
+  console.info("[ai-variant-price-source]", {
+    product_id: id,
+    variant_id: selectedVariantId,
+    color,
+    selected_for_text: selectedVariantId,
+    selected_for_card: selectedVariantId,
+    display_price: selectedDisplayPrice,
+  });
   return {
     id,
     product_id: id,
-    variant_id: overrides.variant_id || product?.variant_id || product?.matched_variant_id || null,
+    variant_id: selectedVariantId,
+    selected_variant_id: selectedVariantId,
     color,
     slug,
     name: displayName,
     title: displayName,
     base_name: name,
-    price: numericPrice(overrides.price) || numericPrice(product?.final_price) || numericPrice(product?.price) || numericPrice(product?.sale_price),
+    price: selectedDisplayPrice,
     available_sizes: overrides.available_sizes || availableProductSizes(product),
     sizes: overrides.sizes || overrides.available_sizes || availableProductSizes(product),
-    image_url: cardImageUrl,
+    image_url: product?.cloudinary_url || product?.secure_url || cardImageUrl,
+    image: product?.cloudinary_url || product?.secure_url || cardImageUrl,
+    main_image: resolveProductMainImage(product) || cardImageUrl,
+    variant: selectedVariant,
+    variant_image: selectedVariant?.cloudinary_url || selectedVariant?.secure_url || overrides.image_url || product?.matched_variant_image || product?.variant_image || product?.variant_image_url || cardImageUrl,
+    color_image: product?.color?.cloudinary_url || product?.color?.secure_url || overrides.image_url || product?.color_image || product?.color_image_url || product?.matched_variant_image || cardImageUrl,
+    cloudinary_url: product?.cloudinary_url || product?.secure_url || product?.variant?.cloudinary_url || product?.variant?.secure_url || product?.color?.cloudinary_url || product?.color?.secure_url || product?.matched_visual_candidate?.secure_url || "",
     product_url: productUrl,
     url: productUrl,
     availability: text(product?.stock_status || product?.availability),
@@ -347,7 +438,7 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     matched_visual_candidate: product?.matched_visual_candidate || null,
     matched_image_url: product?.matched_image_url || "",
     matched_image_source: product?.matched_image_source || "",
-    matched_variant_id: product?.matched_variant_id || null,
+    matched_variant_id: product?.matched_variant_id || selectedVariantId || null,
     matched_variant_color: product?.matched_variant_color || "",
     matched_variant_image: product?.matched_variant_image || "",
     inventory_search_query: product?.inventory_search_query || "",
@@ -379,8 +470,9 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
     return buildBaseCard(product, {
       color: group.color_name,
       variant_id: firstVariant.id || firstVariant.variant_id || null,
+      variant: firstVariant,
       image_url: group.selected_image_url,
-      price: numericPrice(firstVariant.final_price) || numericPrice(firstVariant.price) || numericPrice(firstVariant.sale_price),
+      price: resolveCustomerDisplayPrice({ ...product, ...firstVariant, product, variant: firstVariant }).display_price || numericPrice(firstVariant.final_price) || numericPrice(firstVariant.price) || numericPrice(firstVariant.sale_price),
       available_sizes: group.available_sizes,
       sizes: group.available_sizes,
     });
