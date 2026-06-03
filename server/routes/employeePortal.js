@@ -16,6 +16,7 @@ import {
 import { getEmployeeChat, sendEmployeeChatMessage } from "../services/employeeChatService.js";
 import {
   listDisplayRefillAlertsForEmployee,
+  listRecentDisplayRefillAlerts,
   markDisplayRefillAlertRead,
   resolveDisplayRefillAlert,
 } from "../services/displayRefillAlertService.js";
@@ -225,6 +226,26 @@ router.post("/:token/chat/messages", verifyEmployeePortalToken, uploadEmployeeCh
   }
 });
 
+router.get("/debug/display-refill-alerts", protect, permit("employees", "view"), async (req, res) => {
+  try {
+    const employeeId = req.query.employee_id || req.query.employeeId || null;
+    const branchId = req.query.branch_id || req.query.branchId || null;
+    const latestAlerts = await listRecentDisplayRefillAlerts({ limit: 20 });
+    const pendingAlerts = latestAlerts.filter((alert) => alert.status === "pending");
+    return res.json({
+      success: true,
+      employee_id: employeeId ? Number(employeeId) : null,
+      branch_id: branchId ? Number(branchId) : null,
+      latest_alerts: latestAlerts,
+      pending_count: pendingAlerts.length,
+      note: "Decision logs are not persisted; inspect server console for runtime [display-refill-alert:*] logs.",
+    });
+  } catch (error) {
+    console.error("[employee-payroll-portal] display refill debug load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load display refill debug data" });
+  }
+});
+
 router.get("/:token", async (req, res) => {
   const totalStartedAt = nowMs();
   const timings = {};
@@ -379,11 +400,20 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
   try {
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
+    const branchId = employee.branch_id || employee.branchId || null;
     const alerts = await listDisplayRefillAlertsForEmployee({
       employeeId: employee.id,
-      branchId: employee.branch_id || employee.branchId || null,
+      branchId,
       status: req.query.status || "pending",
       limit: req.query.limit || 50,
+    });
+    console.info("[display-refill-alert:employee-load]", {
+      employee_id: employee.id,
+      branch_id: branchId,
+      alerts_count: alerts.length,
+      pending_count: alerts.filter((item) => item.status === "pending").length,
+      fallback_used: !branchId,
+      fallback_reason: branchId ? "" : "employee_branch_id_missing",
     });
     return res.json({
       success: true,

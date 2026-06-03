@@ -275,31 +275,45 @@ const duplicateExists = async ({ employeeId, productId, branchId, colorName, siz
 };
 
 const insertAlert = async (alert = {}) => {
-  const result = await db.query(
-    `
-    INSERT INTO employee_display_refill_alerts (
-      employee_id, order_id, invoice_number, product_id, variant_id, product_name, color_name,
-      sold_size, replacement_size, remaining_stock, image_url, branch_id
-    )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-    RETURNING *
-    `,
-    [
-      numberOrNull(alert.employee_id),
-      numberOrNull(alert.order_id),
-      clean(alert.invoice_number),
-      numberOrNull(alert.product_id),
-      numberOrNull(alert.variant_id),
-      clean(alert.product_name),
-      clean(alert.color_name),
-      clean(alert.sold_size),
-      alert.replacement_size ? clean(alert.replacement_size) : null,
-      stockNumber(alert.remaining_stock),
-      clean(alert.image_url) || null,
-      numberOrNull(alert.branch_id),
-    ]
-  );
-  return normalizeAlert(result.rows[0]);
+  try {
+    const result = await db.query(
+      `
+      INSERT INTO employee_display_refill_alerts (
+        employee_id, order_id, invoice_number, product_id, variant_id, product_name, color_name,
+        sold_size, replacement_size, remaining_stock, image_url, branch_id
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      RETURNING *
+      `,
+      [
+        numberOrNull(alert.employee_id),
+        numberOrNull(alert.order_id),
+        clean(alert.invoice_number),
+        numberOrNull(alert.product_id),
+        numberOrNull(alert.variant_id),
+        clean(alert.product_name),
+        clean(alert.color_name),
+        clean(alert.sold_size),
+        alert.replacement_size ? clean(alert.replacement_size) : null,
+        stockNumber(alert.remaining_stock),
+        clean(alert.image_url) || null,
+        numberOrNull(alert.branch_id),
+      ]
+    );
+    return normalizeAlert(result.rows[0]);
+  } catch (error) {
+    console.error("[display-refill-alert:insert:error]", {
+      product_id: numberOrNull(alert.product_id),
+      variant_id: numberOrNull(alert.variant_id),
+      branch_id: numberOrNull(alert.branch_id),
+      color: clean(alert.color_name),
+      size: clean(alert.replacement_size || alert.sold_size),
+      message: error?.message || String(error),
+      code: error?.code || "",
+      detail: error?.detail || "",
+    });
+    throw error;
+  }
 };
 
 export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmployeeId } = {}) => {
@@ -321,13 +335,6 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
     const soldVariantId = numberOrNull(item.variant_id);
     const soldColorId = numberOrNull(item.color_id);
     const branchId = numberOrNull(item.branch_id);
-    const stockAfterSold = soldVariantId
-      ? await db.query(
-          `SELECT COALESCE(stock, quantity, stock_quantity, available_quantity, current_stock, 0) AS stock FROM product_variants WHERE id = $1 LIMIT 1`,
-          [soldVariantId]
-        ).then((result) => stockNumber(result.rows[0]?.stock))
-      : 0;
-
     const baseDecision = {
       order_id: safeOrderId,
       product_id: productId,
@@ -336,7 +343,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       color: colorName || null,
       sold_size: soldSize || null,
       stock_before: null,
-      stock_after: stockAfterSold,
+      stock_after: null,
     };
 
     if (!productId || (!colorName && !soldColorId) || !soldSize) {
@@ -357,7 +364,8 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
     const variants = await loadSameColorVariants({ tenantId: item.tenant_id, productId, colorName, soldColorId });
     const sortedVariants = sortVariantsBySize(variants);
     const soldVariant = sortedVariants.find((row) => rowMatchesSoldVariant(row, soldVariantId, soldSize, colorName, soldColorId)) || null;
-    const soldVariantStockAfter = stockAfterSold;
+    const soldVariantStockAfter = stockNumber(soldVariant?.stock);
+    const stockBefore = soldVariant ? soldVariantStockAfter + soldQuantity : null;
     const availableAfterSale = availableSizesForVariants(sortedVariants);
     const smallestAvailable = availableAfterSale[0] || null;
     const soldSizeComparable = normalizeSizeComparable(soldSize);
@@ -373,7 +381,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       branch_id: branchId,
       sold_size: soldSize,
       color: colorName || null,
-      stock_before: soldVariant ? soldVariantStockAfter + soldQuantity : null,
+      stock_before: stockBefore,
       stock_after: soldVariantStockAfter,
     });
 
@@ -498,6 +506,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
 export const listDisplayRefillAlertsForEmployee = async ({ employeeId, branchId = null, status = "pending", limit = 50 } = {}) => {
   await ensureDisplayRefillAlertSchema();
   const params = [numberOrNull(employeeId), numberOrNull(branchId)];
+  const branchClause = numberOrNull(branchId) ? `AND ($2::bigint IS NULL OR branch_id = $2::bigint OR branch_id IS NULL)` : "";
   const statusClause = clean(status) && clean(status) !== "all"
     ? (params.push(clean(status)), `AND status = $${params.length}`)
     : "";
@@ -507,12 +516,27 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, branchId 
     SELECT *
     FROM employee_display_refill_alerts
     WHERE employee_id = $1
-      AND ($2::bigint IS NULL OR branch_id = $2::bigint OR branch_id IS NULL)
+      ${branchClause}
       ${statusClause}
     ORDER BY status ASC, created_at DESC, id DESC
     LIMIT $${params.length}
     `,
     params
+  );
+  return result.rows.map(normalizeAlert);
+};
+
+export const listRecentDisplayRefillAlerts = async ({ limit = 20 } = {}) => {
+  await ensureDisplayRefillAlertSchema();
+  const safeLimit = Math.max(1, Math.min(100, Number(limit || 20)));
+  const result = await db.query(
+    `
+    SELECT *
+    FROM employee_display_refill_alerts
+    ORDER BY created_at DESC, id DESC
+    LIMIT $1
+    `,
+    [safeLimit]
   );
   return result.rows.map(normalizeAlert);
 };

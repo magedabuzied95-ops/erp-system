@@ -2126,6 +2126,16 @@ const runPostOrderSideEffects = async ({
         seller_employee_id: resolvedSalesEmployeeId || null,
         seller_id: resolvedCashierId || null,
         items_count: itemsCount,
+        order_items: orderItemsForCommission.slice(0, 5).map((item) => ({
+          product_id: item.product_id || item.id || null,
+          variant_id: item.variant_id || null,
+          size: item.size || item.variant_size || null,
+          color: item.color || item.variant_color || null,
+          branch_id: resolvedBranchId || null,
+          quantity: item.quantity || item.qty || item.sold_quantity || 1,
+          stock_before: item.stock_before ?? item.stockBefore ?? null,
+          stock_after: item.stock_after ?? item.stockAfter ?? null,
+        })),
       });
       await createDisplayRefillAlertsForOrder({
         orderId,
