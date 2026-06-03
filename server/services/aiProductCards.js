@@ -144,6 +144,23 @@ const normalizeColorName = (value = "") =>
     .replace(/\s{2,}/g, " ")
     .trim();
 
+const normalizeColorKey = (value = "") =>
+  normalizeColorName(value).toLowerCase().replace(/\s+/g, " ").trim();
+
+const sizeSortValue = (value = "") => {
+  const match = String(value || "").match(/\d+(\.\d+)?/);
+  return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
+};
+
+const sortSizes = (sizes = []) =>
+  [...new Set(asArray(sizes).map(text).filter(Boolean))]
+    .sort((a, b) => {
+      const left = sizeSortValue(a);
+      const right = sizeSortValue(b);
+      if (left !== right) return left - right;
+      return a.localeCompare(b);
+    });
+
 const imageIdentity = (value = "") =>
   text(value)
     .toLowerCase()
@@ -267,6 +284,29 @@ const variantDebugRow = (variant = {}, product = {}) => ({
   image_url: resolvePublicProductImageUrl(firstImageValue(...variantImageCandidates(variant), resolveProductMainImage(product))),
 });
 
+const colorGroupKey = (product = {}, color = "", imageUrl = "") => {
+  const productId = text(product?.id || product?.product_id || "");
+  const normalizedColor = normalizeColorKey(color);
+  if (productId && normalizedColor) return `${productId}|${normalizedColor}`;
+  const fallbackImage = imageIdentity(resolvePublicProductImageUrl(imageUrl || resolveProductMainImage(product)));
+  return `${productId || "product"}|${fallbackImage || normalizedColor || "unknown"}`;
+};
+
+const canonicalVariantForGroup = (product = {}, variants = []) => {
+  const inStock = asArray(variants).filter(variantIsInStock);
+  const candidatePool = inStock.length ? inStock : asArray(variants);
+  const sorted = [...candidatePool].sort((left, right) => {
+    const leftPrice = numericPrice(left.final_price) || numericPrice(left.sale_price) || numericPrice(left.price) || numericPrice(left.product_price) || 0;
+    const rightPrice = numericPrice(right.final_price) || numericPrice(right.sale_price) || numericPrice(right.price) || numericPrice(right.product_price) || 0;
+    if (leftPrice !== rightPrice) return leftPrice - rightPrice;
+    const leftStock = numeric(left.stock ?? left.quantity, 0);
+    const rightStock = numeric(right.stock ?? right.quantity, 0);
+    if (leftStock !== rightStock) return rightStock - leftStock;
+    return String(left.id || left.variant_id || "").localeCompare(String(right.id || right.variant_id || ""));
+  });
+  return sorted[0] || product?.selected_variant || product?.matched_variant || asArray(product.variants)[0] || {};
+};
+
 export const debugProductColorExpansion = (product = {}, { limit = 6 } = {}) => {
   const variants = asArray(product?.variants).filter((variant) => variant && typeof variant === "object");
   const colorGroups = new Map();
@@ -284,26 +324,74 @@ export const debugProductColorExpansion = (product = {}, { limit = 6 } = {}) => 
       ""
   ).toLowerCase();
   const maxCards = Math.max(1, Number(limit) || 6);
-  const seenImages = new Set();
+  console.log("[whatsapp-model-expansion-source]", {
+    model_family: text(product?.model_family || product?.model || product?.matched_model || product?.product_family || ""),
+    matched_product_id: product?.id || product?.product_id || null,
+    raw_products_count: asArray(product?.product_images).length || 0,
+    raw_variants_count: variants.length,
+    raw_images_count: [
+      ...asArray(product.images),
+      ...asArray(product.media),
+      ...asArray(product.product_images),
+      ...asArray(product.variant_images),
+    ].length,
+  });
+  const seenGroupKeys = new Set();
   const groups = [...colorGroups.values()].map((group) => {
     const inStockVariants = group.variants.filter(variantIsInStock);
-    const sizes = variantAvailableSizes(inStockVariants);
-    const selectedImage = resolveVariantColorImage(product, inStockVariants.length ? inStockVariants : group.variants);
-    const imageKey = imageIdentity(selectedImage);
-    const duplicateImage = Boolean(imageKey && seenImages.has(imageKey));
-    if (imageKey && !duplicateImage) seenImages.add(imageKey);
+    const sizes = sortSizes(variantAvailableSizes(inStockVariants));
+    const canonicalVariant = canonicalVariantForGroup(product, inStockVariants.length ? inStockVariants : group.variants);
+    const selectedImage = resolvePublicProductImageUrl(
+      firstImageValue(
+        canonicalVariant?.secure_url,
+        canonicalVariant?.cloudinary_url,
+        canonicalVariant?.primary_image_url,
+        canonicalVariant?.main_image,
+        canonicalVariant?.color_image,
+        canonicalVariant?.color_image_url,
+        canonicalVariant?.variant_image,
+        canonicalVariant?.variant_image_url,
+        ...variantImageCandidates(canonicalVariant),
+        resolveVariantColorImage(product, inStockVariants.length ? inStockVariants : group.variants)
+      )
+    );
+    const key = colorGroupKey(product, group.color, selectedImage);
+    const duplicateGroup = Boolean(key && seenGroupKeys.has(key));
+    if (key && !duplicateGroup) seenGroupKeys.add(key);
     let skipReason = "";
     if (!inStockVariants.length || !sizes.length) skipReason = "out_of_stock_or_no_available_sizes";
-    else if (duplicateImage) skipReason = "duplicate_image";
+    else if (duplicateGroup) skipReason = "duplicate_color_group";
+    else if (!selectedImage) skipReason = "missing_image";
+    if (skipReason === "missing_image") {
+      console.warn("[whatsapp-card-missing-image-skip]", {
+        product_id: product?.id || product?.product_id || null,
+        color: group.color,
+        reason: skipReason,
+      });
+    }
+    if (!skipReason) {
+      console.info("[whatsapp-color-group-built]", {
+        group_key: key,
+        product_id: product?.id || product?.product_id || null,
+        color: group.color,
+        selected_variant_id: canonicalVariant?.id || canonicalVariant?.variant_id || null,
+        sizes,
+        price: numericPrice(canonicalVariant?.final_price) || numericPrice(canonicalVariant?.sale_price) || numericPrice(canonicalVariant?.price) || numericPrice(canonicalVariant?.product_price) || null,
+        image_url: selectedImage,
+        product_url: resolvePublicProductUrl(product),
+      });
+    }
     return {
+      group_key: key,
       color_name: group.color,
       exact_color_match: Boolean(requestedColor && group.color.toLowerCase() === requestedColor),
       selected_image_url: selectedImage,
-      image_key: imageKey,
+      image_key: imageIdentity(selectedImage),
       available_sizes: sizes,
       available_size_count: sizes.length,
       variants: group.variants.map((variant) => variantDebugRow(variant, product)),
       in_stock_variant_ids: inStockVariants.map((variant) => variant.id || variant.variant_id || null).filter(Boolean),
+      canonical_variant: canonicalVariant,
       sent: false,
       skipped: Boolean(skipReason),
       skip_reason: skipReason,
@@ -332,8 +420,17 @@ export const debugProductColorExpansion = (product = {}, { limit = 6 } = {}) => 
   return {
     product_id: product?.id || product?.product_id || null,
     product_name: text(product?.name || product?.title || product?.product_name),
+    model_family: text(product?.model_family || product?.model || product?.matched_model || product?.product_family || ""),
     strong_model_detected: Boolean(product?.strong_model_match || product?.exact_match_found || product?.model_match_confidence >= 0.72),
     total_variants: variants.length,
+    raw_products_count: asArray(product?.product_images).length || 0,
+    raw_variants_count: variants.length,
+    raw_images_count: [
+      ...asArray(product.images),
+      ...asArray(product.media),
+      ...asArray(product.product_images),
+      ...asArray(product.variant_images),
+    ].length,
     grouped_colors_count: colorGroups.size,
     expanded_color_count: sendable.length,
     sent_count: sentGroups.length,
@@ -419,8 +516,8 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     title: displayName,
     base_name: name,
     price: selectedDisplayPrice,
-    available_sizes: overrides.available_sizes || availableProductSizes(product),
-    sizes: overrides.sizes || overrides.available_sizes || availableProductSizes(product),
+    available_sizes: sortSizes(overrides.available_sizes || availableProductSizes(product)),
+    sizes: sortSizes(overrides.sizes || overrides.available_sizes || availableProductSizes(product)),
     image_url: product?.cloudinary_url || product?.secure_url || cardImageUrl,
     image: product?.cloudinary_url || product?.secure_url || cardImageUrl,
     main_image: resolveProductMainImage(product) || cardImageUrl,
@@ -465,14 +562,13 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
 
   const totalAvailableColors = expansionDebug.expanded_color_count;
   const cards = (expansionDebug.color_groups || []).filter((group) => group.sent).map((group) => {
-    const firstVariantId = group.in_stock_variant_ids[0] || null;
-    const firstVariant = asArray(product.variants).find((variant) => String(variant.id || variant.variant_id || "") === String(firstVariantId)) || {};
+    const firstVariant = group.canonical_variant || {};
     return buildBaseCard(product, {
       color: group.color_name,
       variant_id: firstVariant.id || firstVariant.variant_id || null,
       variant: firstVariant,
       image_url: group.selected_image_url,
-      price: resolveCustomerDisplayPrice({ ...product, ...firstVariant, product, variant: firstVariant }).display_price || numericPrice(firstVariant.final_price) || numericPrice(firstVariant.price) || numericPrice(firstVariant.sale_price),
+      price: resolveCustomerDisplayPrice({ ...product, ...firstVariant, product, variant: firstVariant, selected_variant: firstVariant }).display_price || numericPrice(firstVariant.final_price) || numericPrice(firstVariant.price) || numericPrice(firstVariant.sale_price) || numericPrice(firstVariant.product_price),
       available_sizes: group.available_sizes,
       sizes: group.available_sizes,
     });
@@ -485,6 +581,7 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
 
   console.log("[ai-product-cards] grouped color cards", {
     product_id: product?.id || product?.product_id || null,
+    model_family: expansionDebug.model_family || "",
     strong_model_detected: Boolean(product?.strong_model_match || product?.exact_match_found || product?.model_match_confidence >= 0.72),
     grouped_colors_count: expansionDebug.grouped_colors_count,
     expanded_color_count: expansionDebug.expanded_color_count,
@@ -497,24 +594,54 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
 };
 
 export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
-  filterAiEligibleProducts(asArray(products), { requireProductUrl: false })
-    .flatMap((product) => colorVariantCardsForProduct(product, { limit }))
-    .filter((product) => filterAiEligibleProducts([product], { requireProductUrl: true }).length)
-    .filter((product) => product.name || product.product_id)
-    .slice(0, Math.max(1, Number(limit) || 6))
-    .map((card) => {
-      console.log("[ai-product-cards] card data integrity", {
-        product_id: card.product_id || card.id || null,
-        name: card.name || "",
-        slug: card.slug || "",
-        product_url: card.product_url || card.url || "",
-        image_url: card.image_url || "",
-      });
-      return card;
+  (() => {
+    const eligible = filterAiEligibleProducts(asArray(products), { requireProductUrl: false });
+    const expanded = eligible.flatMap((product) => colorVariantCardsForProduct(product, { limit }));
+    const beforeCount = expanded.length;
+    const seen = new Map();
+    const deduped = [];
+    const removedKeys = [];
+    for (const card of expanded) {
+      const productId = text(card.product_id || card.id || "");
+      const color = normalizeColorKey(card.color || card.matched_variant_color || "");
+      const imageUrl = imageIdentity(resolvePublicProductImageUrl(card.image_url || card.image || card.main_image || card.variant_image || card.color_image || ""));
+      const key = productId && color ? `${productId}|${color}` : `${productId || "product"}|${imageUrl || color || "unknown"}`;
+      if (seen.has(key)) {
+        removedKeys.push(key);
+        continue;
+      }
+      seen.set(key, true);
+      deduped.push(card);
+    }
+    console.log("[whatsapp-card-dedupe]", {
+      before_count: beforeCount,
+      after_count: deduped.length,
+      removed_count: beforeCount - deduped.length,
+      removed_keys: removedKeys,
     });
+    return deduped
+      .filter((product) => filterAiEligibleProducts([product], { requireProductUrl: true }).length)
+      .filter((product) => product.name || product.product_id)
+      .slice(0, Math.max(1, Number(limit) || 6))
+      .map((card) => {
+        console.log("[ai-product-cards] card data integrity", {
+          product_id: card.product_id || card.id || null,
+          name: card.name || "",
+          slug: card.slug || "",
+          product_url: card.product_url || card.url || "",
+          image_url: card.image_url || "",
+        });
+        return card;
+      });
+  })();
 
 const formatCloserPrice = (price) =>
   validPrice(price) ? `${Math.round(Number(price))} \u062c\u0646\u064a\u0647` : "";
+
+const formatAvailableSizesLine = (sizes = []) => {
+  const normalizedSizes = sortSizes(sizes);
+  return normalizedSizes.length ? `\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0627\u0644\u0645\u062a\u0627\u062d\u0629: ${normalizedSizes.join("\u060c ")}` : "";
+};
 
 export const productCardReplyText = (product = {}) => {
   const replyMode = text(product.card_reply_mode || product.replyMode || product.reply_mode);
@@ -522,16 +649,25 @@ export const productCardReplyText = (product = {}) => {
   if (replyMode === "color_only") {
     return [
       product.color ? `\u0627\u0644\u0644\u0648\u0646: ${product.color}` : "",
-      product.product_url || product.url ? product.product_url || product.url : "",
+    product.product_url || product.url ? product.product_url || product.url : "",
     ].filter(Boolean).join("\n");
   }
-  const sizes = asArray(product.available_sizes || product.sizes).map(text).filter(Boolean);
-  const priceText = formatCloserPrice(product.price);
+  const sizes = sortSizes(product.available_sizes || product.sizes);
   return [
     "\u0623\u064a\u0648\u0647 \u0645\u0648\u062c\u0648\u062f \u2705",
-    priceText ? `\u0627\u0644\u0633\u0639\u0631: ${priceText}` : "",
     sizes.length ? `\u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c")}` : "",
     "",
     "\u062a\u062d\u0628 \u0623\u062d\u062c\u0632\u0647\u0648\u0644\u0643\u061f",
   ].filter(Boolean).join("\n");
+};
+
+export const productImageCaption = (product = {}) => {
+  const priceText = formatCloserPrice(product.price);
+  const sizesLine = formatAvailableSizesLine(product.available_sizes || product.sizes);
+  return [
+    productCardName(product),
+    sizesLine,
+    priceText ? `\u0627\u0644\u0633\u0639\u0631: ${priceText}` : "",
+    productCardUrl(product),
+  ].filter(Boolean).join("\n").slice(0, 1024);
 };
