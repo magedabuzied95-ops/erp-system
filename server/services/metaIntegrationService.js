@@ -7534,6 +7534,16 @@ const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, bas
   const galleryRows = await loadVariantImageRows({ tenantId, productId: product.id || baseCard.product_id || baseCard.id });
   const variants = stockedVariants(product);
   const productGalleryUrls = uniqueImageUrls([product.product_images, product.gallery_images, product.images]);
+  const resolveVariantForImage = (row = {}, colorFallback = "") => {
+    const rowVariantId = row.variant_id || null;
+    const rowColor = text(row.color_name || row.color_value || colorFallback).toLowerCase();
+    return (
+      variants.find((variant) => String(variant.id || variant.variant_id || "") === String(rowVariantId || "")) ||
+      (rowColor ? variants.find((variant) => text(variant.color || variant.color_name || variant.color_value).toLowerCase() === rowColor) : null) ||
+      variants[0] ||
+      null
+    );
+  };
   const sameColorRows = galleryRows.filter((row) => {
     const rowColor = text(row.color_name || row.color_value).toLowerCase();
     return selectedColor && rowColor && rowColor === selectedColor;
@@ -7566,7 +7576,7 @@ const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, bas
       product_id: product.id || baseCard.product_id || baseCard.id || null,
       variant_id: candidate.variant_id || baseCard.variant_id || null,
       name: product.name || baseCard.name || "المنتج",
-      price: product.product_price || baseCard.price || "",
+      price: baseCard.price || product.product_price || "",
       available_sizes: availableSizesForProduct(product, baseCard),
       color: candidate.color || baseCard.color || "",
       image_url: url,
@@ -7575,7 +7585,23 @@ const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, bas
     });
     if (selected.length >= 4) break;
   }
-  return selected;
+  const beforeCount = selected.length;
+  const deduped = [];
+  const seenKeys = new Set();
+  for (const card of selected) {
+    const key = `${text(card.product_id || card.id || "")}|${text(card.variant_id || "")}|${text(card.color || "").toLowerCase()}|${imageIdentity(card.image_url || "")}`;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    deduped.push(card);
+  }
+  if (beforeCount !== deduped.length) {
+    console.log("[image-card-dedupe]", {
+      before_count: beforeCount,
+      after_count: deduped.length,
+      removed_count: beforeCount - deduped.length,
+    });
+  }
+  return deduped;
 };
 
 const detectAllColorsRequest = (message = "") =>

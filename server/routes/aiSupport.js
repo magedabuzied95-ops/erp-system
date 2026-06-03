@@ -1,6 +1,7 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import multer from "multer";
+import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import {
   buildAiSupportImageProductSearch,
   buildAiSupportImageRankingDebug,
@@ -247,6 +248,60 @@ const indexProductCards = (cards = []) =>
           ...(Array.isArray(card?.sizes) ? card.sizes : []),
         ].map(toText).filter(Boolean),
   }));
+
+const imageIdentity = (value = "") =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\/[^/]+/i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/\/+/g, "/");
+
+const dedupeImageCards = (cards = [], { logLabel = "[image-card-dedupe]" } = {}) => {
+  const beforeCount = Array.isArray(cards) ? cards.length : 0;
+  const seen = new Set();
+  const deduped = [];
+  for (const card of Array.isArray(cards) ? cards : []) {
+    const imageUrl = imageIdentity(card?.image_url || card?.image || card?.main_image || card?.variant_image || card?.color_image || "");
+    const color = normalizeSelectionText(card?.color || card?.matched_variant_color || "");
+    const key = [String(card?.product_id || card?.id || ""), String(card?.variant_id || card?.selected_variant_id || ""), color || "", imageUrl || ""].join("|");
+    if ((imageUrl && seen.has(imageUrl)) || seen.has(key)) continue;
+    if (imageUrl) seen.add(imageUrl);
+    seen.add(key);
+    deduped.push(card);
+  }
+  if (beforeCount !== deduped.length) {
+    console.log(logLabel, {
+      before_count: beforeCount,
+      after_count: deduped.length,
+      removed_count: beforeCount - deduped.length,
+    });
+  }
+  return deduped;
+};
+
+const resolveVisualCardPrice = (product = {}, variant = null) => {
+  const selected = variant || product?.selected_variant || product?.variant || product?.matched_variant || {};
+  const resolved = resolveCustomerDisplayPrice({
+    ...product,
+    variant: selected,
+    selected_variant: selected,
+  });
+  return {
+    display_price: Number(resolved.display_price || 0) > 0 ? Number(resolved.display_price) : null,
+    price_source:
+      Number(selected?.display_price || 0) > 0 ? "selected_variant.display_price" :
+      Number(selected?.sale_price || 0) > 0 ? "selected_variant.sale_price" :
+      Number(selected?.selling_price || 0) > 0 ? "selected_variant.selling_price" :
+      Number(product?.matched_variant?.display_price || 0) > 0 ? "matched_variant.display_price" :
+      Number(product?.matched_variant?.sale_price || 0) > 0 ? "matched_variant.sale_price" :
+      Number(product?.matched_variant?.selling_price || 0) > 0 ? "matched_variant.selling_price" :
+      Number(product?.final_price || 0) > 0 ? "product.final_price" :
+      Number(product?.price || 0) > 0 ? "product.price" :
+      Number(product?.sale_price || 0) > 0 ? "product.sale_price" :
+      "missing",
+  };
+};
 
 const selectionReferenceFromMessage = (message = "") => {
   const raw = arabicDigitsToLatin(message);
@@ -534,12 +589,14 @@ const buildImageFollowupResponse = ({ message = "", memory = null } = {}) => {
         ...(Array.isArray(memory?.preferences?.last_product_cards) ? memory.preferences.last_product_cards : []),
         ...(Array.isArray(memory?.last_products) ? memory.last_products : []),
       ];
-  const cards = product ? indexProductCards(normalizeProductCards(cardSource, { limit: selectedProduct ? 1 : detected === "more_images" ? 6 : 3 }).filter((card) => card.image_url)) : [];
+  const normalizedCards = product ? normalizeProductCards(cardSource, { limit: selectedProduct ? 1 : detected === "more_images" ? 6 : 3 }).filter((card) => card.image_url) : [];
+  const cards = dedupeImageCards(indexProductCards(normalizedCards));
   const productId = product?.product_id || product?.id || null;
   console.log("[ai-followup:image-request]", {
     detected: Boolean(detected),
     product_context_found: Boolean(product),
     product_id: productId,
+    before_count: normalizedCards.length,
     images_count: cards.filter((card) => card.image_url).length,
     cards_count: cards.length,
   });
@@ -720,13 +777,24 @@ const firstImageFromProduct = (product = {}) => {
 };
 
 const visualProductItem = (product = {}, index = 0) => ({
+  ...(() => {
+    const priceInfo = resolveVisualCardPrice(product, product?.matched_variant || product?.selected_variant || product?.variant || null);
+    console.log("[image-card-price-source]", {
+      product_id: product.id || product.product_id || null,
+      variant_id: product.matched_variant_id || product.variant_id || product.selected_variant_id || null,
+      color: toText(product.matched_variant_color || product.requested_color || product.color || ""),
+      display_price: priceInfo.display_price,
+      price_source: priceInfo.price_source,
+    });
+    return {};
+  })(),
   id: product.id || product.product_id || product.sku || `visual-${index}`,
   product_id: product.id || product.product_id || null,
   variant_id: product.matched_variant_id || null,
   title: product.name || product.title || "منتج مقترح",
   subtitle: [product.matched_variant_color || product.requested_color, product.matched_variant_size || product.requested_size].filter(Boolean).join(" / "),
   image_url: firstImageFromProduct(product),
-  price: Number(product.final_price || product.price || product.sale_price || 0) > 0 ? Number(product.final_price || product.price || product.sale_price) : null,
+  price: resolveVisualCardPrice(product, product?.matched_variant || product?.selected_variant || product?.variant || null).display_price,
   availability: product.stock_status || product.availability || (Number(product.total_stock || product.stock || 0) > 0 ? "in_stock" : "out_of_stock"),
   product_url: product.product_url || buildStorefrontProductUrl(product),
 });

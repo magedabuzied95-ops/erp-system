@@ -157,6 +157,36 @@ const selectionIndexFromMessage = (message = "") => {
   return -1;
 };
 
+const imageIdentity = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(/^https?:\/\/[^/]+/i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/\/+/g, "/");
+
+const dedupeImageCards = (cards = [], { logLabel = "[image-card-dedupe]" } = {}) => {
+  const beforeCount = Array.isArray(cards) ? cards.length : 0;
+  const seen = new Set();
+  const deduped = [];
+  for (const card of Array.isArray(cards) ? cards : []) {
+    const imageUrl = imageIdentity(card?.image_url || card?.image || card?.main_image || card?.variant_image || card?.color_image || "");
+    const color = text(card?.color || card?.matched_variant_color || "").toLowerCase();
+    const key = [text(card?.product_id || card?.id || ""), text(card?.variant_id || card?.selected_variant_id || ""), color, imageUrl].join("|");
+    if ((imageUrl && seen.has(imageUrl)) || seen.has(key)) continue;
+    if (imageUrl) seen.add(imageUrl);
+    seen.add(key);
+    deduped.push(card);
+  }
+  if (beforeCount !== deduped.length) {
+    console.log(logLabel, {
+      before_count: beforeCount,
+      after_count: deduped.length,
+      removed_count: beforeCount - deduped.length,
+    });
+  }
+  return deduped;
+};
+
 const buildFollowupCards = ({ memory = null, message = "", limit = 6 } = {}) => {
   const { product, cards } = memoryProductContext(memory);
   const selectedIndex = selectionIndexFromMessage(message);
@@ -174,8 +204,9 @@ const buildFollowupCards = ({ memory = null, message = "", limit = 6 } = {}) => 
     selected_product_id: selectedCard?.product_id || selectedCard?.id || null,
     reason: selectedIndex >= 0 ? "ordinal_followup" : "last_product_context",
   });
-  return normalizeProductCards(ordered, { limit })
-    .filter((card) => text(card.image_url || card.image || card.main_image || card.thumbnail))
+  const normalizedCards = normalizeProductCards(ordered, { limit })
+    .filter((card) => text(card.image_url || card.image || card.main_image || card.thumbnail));
+  return dedupeImageCards(normalizedCards)
     .map((card) => ({
       ...card,
       response_type: "product_card",
