@@ -4036,6 +4036,13 @@ export const buildAiSupportImageProductSearch = async ({ tenantId, analysis = {}
   const productsById = new Map();
   let matchedQuery = "";
   const matchedStages = [];
+  console.log("[model-family-expansion-query]", {
+    query: exactQuery || aliasQuery || familyQuery || broadQuery || "",
+    model_family: String(detected.model_family || detected.model_guess || detected.likely_model || ""),
+    search_strategy: searchStages.map((item) => item.stage),
+    raw_products_count: 0,
+    raw_variants_count: 0,
+  });
 
   for (const { stage, query } of searchStages) {
     const intent = detectAiSupportIntent(query);
@@ -4138,6 +4145,24 @@ export const buildAiSupportImageProductSearch = async ({ tenantId, analysis = {}
       image_match_breakdown: scoreBreakdown,
     });
   }
+  const familyExpansionColors = new Map();
+  for (const product of groupedByProduct.values()) {
+    const colorKey = `${String(product.product_id || product.id || "")}|${String(product.matched_variant_color || product.color || "").toLowerCase()}`;
+    if (!familyExpansionColors.has(colorKey)) {
+      familyExpansionColors.set(colorKey, {
+        product_id: product.product_id || product.id || null,
+        color: product.matched_variant_color || product.color || "",
+      });
+    }
+  }
+  console.log("[model-family-colors-found]", {
+    model_family: String(detected.model_family || detected.model_guess || detected.likely_model || ""),
+    query: exactQuery || aliasQuery || familyQuery || "",
+    total_colors_found: familyExpansionColors.size,
+    product_ids: [...new Set([...groupedByProduct.values()].map((item) => item.product_id).filter(Boolean))],
+    colors: [...new Set([...familyExpansionColors.values()].map((item) => item.color).filter(Boolean))],
+    skipped_colors: [],
+  });
 
   const scoredProducts = Array.from(groupedByProduct.values())
     .sort((left, right) => {

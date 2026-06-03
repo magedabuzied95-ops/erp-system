@@ -20,6 +20,10 @@ import { emitToRooms, normalizeSocketRoomKey, setIo } from "./utils/socket.js";
 import { isPerfDebugEnabled, runWithPerfContext, slowestPhaseFromTimings } from "./utils/perfDebug.js";
 import { logEmployeePushVapidCheck } from "./services/employeePortalPushService.js";
 import { loadEmployeePortalByToken } from "./services/employeePayrollPortalService.js";
+import { getEvolutionInstanceEventsDebug, syncEvolutionWebhookOnStartup } from "./services/evolutionWebhookSyncService.js";
+import { protect } from "./middleware/authMiddleware.js";
+import permit from "./middleware/permissionMiddleware.js";
+import { listRecentDisplayRefillAlerts } from "./services/displayRefillAlertService.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -556,6 +560,21 @@ app.use((req, res, next) => {
 
 app.get("/api/meta/webhook", handleMetaWebhookVerification);
 app.get("/api/meta/webhook-self-test", handleMetaWebhookSelfTest);
+app.get("/debug/evolution-instance-events", async (req, res) => {
+  try {
+    const data = await getEvolutionInstanceEventsDebug();
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error("[evolution-instance-events:error]", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(500).json({
+      success: false,
+      message: error?.message || "Failed to load Evolution instance events debug",
+    });
+  }
+});
 
 app.use(express.json({
   limit: "20mb",
@@ -802,6 +821,30 @@ console.log("[server] Employee portal routes mounted", {
 app.use("/api/admin/staff-tasks", adminStaffTasksRoutes);
 console.log("[routes] /api/roles mounted");
 console.log("[server] marketing automation routes mounted");
+
+app.get("/api/debug/display-refill-alerts", protect, permit("employees", "view"), async (req, res) => {
+  try {
+    const alerts = await listRecentDisplayRefillAlerts({ limit: 30 });
+    const pendingCountByBranch = alerts.reduce((acc, alert) => {
+      const key = String(alert.branch_id ?? "null");
+      if (!acc[key]) acc[key] = { branch_id: alert.branch_id ?? null, total: 0, pending: 0 };
+      acc[key].total += 1;
+      if (String(alert.status || "pending") === "pending") acc[key].pending += 1;
+      return acc;
+    }, {});
+    return res.json({
+      success: true,
+      alerts,
+      pending_count_by_branch: Object.values(pendingCountByBranch),
+    });
+  } catch (error) {
+    console.error("[display-refill-alert:debug:error]", {
+      message: error?.message || String(error),
+      code: error?.code || "",
+    });
+    return res.status(error.status || 500).json({ success: false, message: "Failed to load display refill alert debug data" });
+  }
+});
 
 /* =========================
    AI LAYERS 🧠
@@ -1075,6 +1118,11 @@ const bootstrapStartup = async () => {
     console.log("[server] meta integration schema ensured");
     await warmDashboardMetadataCache();
     console.log("[server] dashboard metadata cache warmed");
+    await syncEvolutionWebhookOnStartup().catch((error) => {
+      console.warn("[server] evolution webhook sync skipped", {
+        message: error?.message || String(error),
+      });
+    });
     registerBackgroundJobHandlers();
     registerMarketingJobHandlers();
     startMetaTokenRefreshScheduler();

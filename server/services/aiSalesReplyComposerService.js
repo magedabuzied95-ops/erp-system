@@ -1,4 +1,5 @@
 ﻿import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { buildDynamicClarificationQuestion } from "./aiClassificationResolverService.js";
 
 const text = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -256,7 +257,7 @@ const memoryState = (context = {}, memory = {}) => {
   };
 };
 
-export const composeAiSalesReply = ({
+export const composeAiSalesReply = async ({
   message = "",
   response = {},
   intent = {},
@@ -432,7 +433,11 @@ export const composeAiSalesReply = ({
       : "الموديل ده مش متوفر حاليًا للأسف، ومش هبعتلك بديل بعيد عن اللي طلبته. تحب أدورلك على نفس الستايل أو سعر قريب؟");
   } else if (/adidas|اديداس/i.test(message) && !/(running|رننج|جري|casual|كاجوال)/i.test(message) && products.length > 1) {
     decision = "ambiguous_adidas";
-    output = withAnswer(stripProductPayload(response), "تقصد Adidas running ولا casual يا فندم؟ والمقاس كام؟");
+    const question = await buildDynamicClarificationQuestion(["gender", "product_type"]);
+    output = withAnswer(
+      stripProductPayload(response),
+      question || "تحب أحددلك التصنيف المناسب من الخيارات المتاحة؟"
+    );
   }
 
   console.info("[ai-reply-composer:decision]", {

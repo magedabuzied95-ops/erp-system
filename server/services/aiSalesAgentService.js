@@ -2613,7 +2613,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     visual_attachments: visualAttachments,
     suggested_actions: escalation.shouldEscalate || salesIntent === "human_support" ? ["takeover"] : ["ask_size", "send_product", "create_draft_order"],
   };
-  const reply = composeAiSalesReply({
+  const reply = await composeAiSalesReply({
     message: lastMessage,
     response: baseReply,
     intent: { type: intent },

@@ -39,6 +39,44 @@ const normalizeSoldQuantity = (row = {}) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 1;
 };
 
+const resolveDefaultTenantBranch = async (tenantId) => {
+  const result = await db.query(
+    `
+    SELECT id
+    FROM branches
+    WHERE tenant_id = $1
+      AND COALESCE(is_active, TRUE) = TRUE
+      AND COALESCE(is_default, FALSE) = TRUE
+    ORDER BY id ASC
+    LIMIT 1
+    `,
+    [numberOrNull(tenantId)]
+  );
+  return numberOrNull(result.rows[0]?.id);
+};
+
+const resolveItemBranchId = async ({ item = {}, order = {}, tenantId = null, reqUser = null } = {}) => {
+  const candidates = [
+    ["item.branch_id", item.branch_id],
+    ["order.branch_id", order.branch_id],
+    ["req.user.branch_id", reqUser?.branch_id || reqUser?.branchId],
+  ];
+  for (const [source, value] of candidates) {
+    const branchId = numberOrNull(value);
+    if (branchId) {
+      console.info("[display-refill-alert:branch-resolved]", { source, branch_id: branchId, tenant_id: numberOrNull(tenantId) });
+      return branchId;
+    }
+  }
+  const fallback = await resolveDefaultTenantBranch(tenantId);
+  console.info("[display-refill-alert:branch-resolved]", {
+    source: fallback ? "tenant.default_branch" : "unresolved",
+    branch_id: fallback,
+    tenant_id: numberOrNull(tenantId),
+  });
+  return fallback;
+};
+
 // Historical alerts created with the previous rule are intentionally not auto-deleted here.
 // They cannot be safely reconstructed from current stock alone.
 // Admin review SQL example:
@@ -166,7 +204,7 @@ const loadOrderItems = async ({ orderId, sellerEmployeeId } = {}) => {
       oi.id AS order_item_id,
       oi.product_id,
       oi.variant_id,
-      COALESCE(oi.quantity, oi.qty, oi.sold_quantity, oi.item_quantity, 1) AS sold_quantity,
+      COALESCE(oi.quantity, 1) AS sold_quantity,
       oi.product_name,
       COALESCE(NULLIF(oi.color, ''), NULLIF(oi.variant_color, ''), NULLIF(pv.color, ''), NULLIF(p.color, '')) AS color_name,
       COALESCE(NULLIF(oi.color_id::text, ''), NULLIF(pv.color_id::text, ''), NULLIF(p.color_id::text, '')) AS color_id,
@@ -191,10 +229,14 @@ const loadOrderItems = async ({ orderId, sellerEmployeeId } = {}) => {
     `,
     [numberOrNull(orderId), numberOrNull(sellerEmployeeId)]
   );
+  console.info("[display-refill-alert:loaded-items]", {
+    order_id: numberOrNull(orderId),
+    items_count: result.rows.length,
+  });
   return result.rows;
 };
 
-const loadSameColorVariants = async ({ tenantId, productId, colorName, soldColorId } = {}) => {
+const loadSameColorVariants = async ({ tenantId, productId, colorName, soldColorId, branchId } = {}) => {
   const params = [numberOrNull(productId), numberOrNull(tenantId), clean(colorName), textOrNull(soldColorId)];
   const result = await db.query(
     `
@@ -221,6 +263,7 @@ const loadSameColorVariants = async ({ tenantId, productId, colorName, soldColor
     ) pvi ON TRUE
     WHERE pv.product_id = $1
       AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
+      AND ($5::bigint IS NULL OR pv.branch_id = $5::bigint OR pv.branch_id IS NULL)
       AND (
         LOWER(TRIM(COALESCE(pv.color, ''))) = LOWER(TRIM($3))
         OR LOWER(TRIM(COALESCE(p.color, ''))) = LOWER(TRIM($3))
@@ -229,7 +272,7 @@ const loadSameColorVariants = async ({ tenantId, productId, colorName, soldColor
       AND COALESCE(pv.is_active, TRUE) = TRUE
       AND pv.deleted_at IS NULL
     `,
-    params
+    [...params, numberOrNull(branchId)]
   );
   return result.rows;
 };
@@ -316,16 +359,23 @@ const insertAlert = async (alert = {}) => {
   }
 };
 
-export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmployeeId } = {}) => {
+export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmployeeId, tenantId = null, order = null, items: providedItems = [], req = null } = {}) => {
   await ensureDisplayRefillAlertSchema();
   const safeOrderId = numberOrNull(orderId);
   const safeEmployeeId = numberOrNull(sellerEmployeeId);
+  const safeTenantId = numberOrNull(tenantId || order?.tenant_id);
+  console.info("[display-refill-alert:service-entered]", {
+    order_id: safeOrderId,
+    seller_employee_id: safeEmployeeId,
+    tenant_id: safeTenantId,
+    items_count: providedItems.length || null,
+  });
   if (!safeOrderId || !safeEmployeeId) {
     console.info("[display-refill-alert:skipped]", { reason: "missing_order_or_seller", orderId, sellerEmployeeId });
     return [];
   }
 
-  const items = await loadOrderItems({ orderId: safeOrderId, sellerEmployeeId: safeEmployeeId });
+  const items = providedItems.length ? providedItems : await loadOrderItems({ orderId: safeOrderId, sellerEmployeeId: safeEmployeeId });
   const created = [];
   for (const item of items) {
     const colorName = clean(firstDefined(item.color_name, item.color, item.variant_color));
@@ -334,7 +384,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
     const soldQuantity = normalizeSoldQuantity(item);
     const soldVariantId = numberOrNull(item.variant_id);
     const soldColorId = numberOrNull(item.color_id);
-    const branchId = numberOrNull(item.branch_id);
+    const branchId = await resolveItemBranchId({ item, order: order || item, tenantId: safeTenantId || item.tenant_id, reqUser: req?.user || null });
     const baseDecision = {
       order_id: safeOrderId,
       product_id: productId,
@@ -361,7 +411,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       continue;
     }
 
-    const variants = await loadSameColorVariants({ tenantId: item.tenant_id, productId, colorName, soldColorId });
+    const variants = await loadSameColorVariants({ tenantId: safeTenantId || item.tenant_id, productId, colorName, soldColorId, branchId });
     const sortedVariants = sortVariantsBySize(variants);
     const soldVariant = sortedVariants.find((row) => rowMatchesSoldVariant(row, soldVariantId, soldSize, colorName, soldColorId)) || null;
     const soldVariantStockAfter = stockNumber(soldVariant?.stock);
@@ -383,6 +433,13 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       color: colorName || null,
       stock_before: stockBefore,
       stock_after: soldVariantStockAfter,
+    });
+    console.info("[display-refill-alert:stock-state]", {
+      product_id: productId,
+      branch_id: branchId,
+      color: colorName || null,
+      sold_size: soldSize,
+      available_sizes: availableAfterSale,
     });
 
     if (!smallestAvailable) {
@@ -418,6 +475,12 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       } else {
         reason = "smaller_size_still_available";
       }
+    }
+
+    if (!shouldCreateAlert && soldVariantStockAfter > 0 && smallestComparable && soldSizeComparable && (sizeNumber(soldSize) || 0) <= (sizeNumber(smallestAvailable) || Infinity)) {
+      shouldCreateAlert = true;
+      nextDisplaySize = soldSize;
+      reason = "sold_size_has_stock";
     }
 
     console.info("[display-refill-alert:decision-result]", {

@@ -6,6 +6,7 @@ export { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const productUrlCache = new Map();
 const trimSlashes = (value = "") => text(value).replace(/^\/+|\/+$/g, "");
 const slugify = (value = "") =>
   text(value)
@@ -102,6 +103,29 @@ export const resolvePublicProductUrl = (product = {}, { baseUrl = storefrontBase
   return resolved.startsWith("/") ? resolved : `/${trimSlashes(resolved)}`;
 };
 
+const resolvePublicProductUrlCached = (product = {}, { baseUrl = storefrontBaseUrl() } = {}) => {
+  const cacheKey = `${text(product?.id || product?.product_id || "")}|${text(product?.slug || product?.canonical_slug || product?.product_slug || product?.name || product?.title || product?.product_name)}`;
+  const cached = productUrlCache.get(cacheKey);
+  if (cached) {
+    console.info("[ai-card-url-cache]", {
+      product_id: product?.id || product?.product_id || null,
+      slug: text(product?.slug || product?.canonical_slug || product?.product_slug || ""),
+      cache_hit: true,
+      url: cached,
+    });
+    return cached;
+  }
+  const url = resolvePublicProductUrl(product, { baseUrl });
+  productUrlCache.set(cacheKey, url);
+  console.info("[ai-card-url-cache]", {
+    product_id: product?.id || product?.product_id || null,
+    slug: text(product?.slug || product?.canonical_slug || product?.product_slug || ""),
+    cache_hit: false,
+    url,
+  });
+  return url;
+};
+
 const unique = (items = []) => [...new Set(items.map(text).filter(Boolean))];
 
 const splitSizes = (value) => {
@@ -136,6 +160,38 @@ const numericPrice = (value) => {
 const validPrice = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const resolveCardPrice = (product = {}, variant = {}, selectedVariant = null) => {
+  const selected = selectedVariant || variant || product?.selected_variant || product?.variant || product?.matched_variant || {};
+  const candidateSources = [
+    { source: "selected_variant.display_price", value: selected?.display_price, saleActive: false },
+    { source: "selected_variant.sale_price", value: selected?.sale_price, saleActive: true },
+    { source: "selected_variant.selling_price", value: selected?.selling_price, saleActive: false },
+    { source: "variant.display_price", value: variant?.display_price, saleActive: false },
+    { source: "variant.sale_price", value: variant?.sale_price, saleActive: true },
+    { source: "variant.selling_price", value: variant?.selling_price, saleActive: false },
+    { source: "matched_variant.display_price", value: product?.matched_variant?.display_price, saleActive: false },
+    { source: "matched_variant.sale_price", value: product?.matched_variant?.sale_price, saleActive: true },
+    { source: "matched_variant.selling_price", value: product?.matched_variant?.selling_price, saleActive: false },
+  ];
+  for (const candidate of candidateSources) {
+    const price = numericPrice(candidate.value);
+    if (price) {
+      console.info("[ai-color-card-price]", {
+        product_id: product?.id || product?.product_id || null,
+        variant_id: selected?.id || selected?.variant_id || variant?.id || variant?.variant_id || null,
+        color: text(variant?.color || selected?.color || product?.color || ""),
+        selling_price: numericPrice(selected?.selling_price || variant?.selling_price || product?.selling_price) || null,
+        sale_price: numericPrice(selected?.sale_price || variant?.sale_price || product?.sale_price) || null,
+        sale_active: candidate.saleActive,
+        display_price: price,
+        price_source: candidate.source,
+      });
+      return price;
+    }
+  }
+  return numericPrice(product?.final_price) || numericPrice(product?.price) || numericPrice(product?.sale_price) || null;
 };
 
 const normalizeColorName = (value = "") =>
@@ -448,7 +504,7 @@ const buildBaseCard = (product = {}, overrides = {}) => {
   const name = text(product?.name || product?.title || product?.product_name);
   const color = text(overrides.color || product.color || product.requested_color || product.matched_variant_color);
   const displayName = color && !name.toLowerCase().includes(color.toLowerCase()) ? `${name} - ${color}` : name;
-  const productUrl = resolvePublicProductUrl(product);
+  const productUrl = resolvePublicProductUrlCached(product);
   const selectedVariant =
     overrides.variant ||
     product?.selected_variant ||
@@ -496,7 +552,15 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     local_url: cardImageUrl,
     final_image_url: product?.cloudinary_url || product?.secure_url || cardImageUrl,
   });
-  const selectedDisplayPrice = resolveCustomerDisplayPrice({ ...product, ...overrides, product, variant: selectedVariant, selected_variant: selectedVariant }).display_price || numericPrice(overrides.price) || numericPrice(product?.final_price) || numericPrice(product?.price) || numericPrice(product?.sale_price);
+  const selectedDisplayPrice =
+    numericPrice(overrides.price) ||
+    resolveCardPrice(product, overrides.variant || selectedVariant, selectedVariant) ||
+    (!selectedVariant || Object.keys(selectedVariant || {}).length === 0
+      ? resolveCustomerDisplayPrice({ ...product, ...overrides, product, variant: selectedVariant, selected_variant: selectedVariant }).display_price ||
+        numericPrice(product?.final_price) ||
+        numericPrice(product?.price) ||
+        numericPrice(product?.sale_price)
+      : null);
   console.info("[ai-variant-price-source]", {
     product_id: id,
     variant_id: selectedVariantId,
@@ -568,7 +632,7 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
       variant_id: firstVariant.id || firstVariant.variant_id || null,
       variant: firstVariant,
       image_url: group.selected_image_url,
-      price: resolveCustomerDisplayPrice({ ...product, ...firstVariant, product, variant: firstVariant, selected_variant: firstVariant }).display_price || numericPrice(firstVariant.final_price) || numericPrice(firstVariant.price) || numericPrice(firstVariant.sale_price) || numericPrice(firstVariant.product_price),
+      price: resolveCardPrice(product, firstVariant, firstVariant) || resolveCustomerDisplayPrice({ ...product, ...firstVariant, product, variant: firstVariant, selected_variant: firstVariant }).display_price || numericPrice(firstVariant.final_price) || numericPrice(firstVariant.price) || numericPrice(firstVariant.sale_price) || numericPrice(firstVariant.product_price),
       available_sizes: group.available_sizes,
       sizes: group.available_sizes,
     });
@@ -595,6 +659,7 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
 
 export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
   (() => {
+    productUrlCache.clear();
     const eligible = filterAiEligibleProducts(asArray(products), { requireProductUrl: false });
     const expanded = eligible.flatMap((product) => colorVariantCardsForProduct(product, { limit }));
     const beforeCount = expanded.length;
@@ -603,9 +668,14 @@ export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
     const removedKeys = [];
     for (const card of expanded) {
       const productId = text(card.product_id || card.id || "");
+      const variantId = text(card.variant_id || card.selected_variant_id || card.matched_variant_id || "");
       const color = normalizeColorKey(card.color || card.matched_variant_color || "");
       const imageUrl = imageIdentity(resolvePublicProductImageUrl(card.image_url || card.image || card.main_image || card.variant_image || card.color_image || ""));
-      const key = productId && color ? `${productId}|${color}` : `${productId || "product"}|${imageUrl || color || "unknown"}`;
+      const key =
+        variantId ||
+        (productId && color ? `${productId}|${color}` : "") ||
+        (productId && imageUrl ? `${productId}|${imageUrl}` : "") ||
+        `${productId || "product"}|${imageUrl || color || "unknown"}`;
       if (seen.has(key)) {
         removedKeys.push(key);
         continue;
@@ -637,6 +707,11 @@ export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
 
 const formatCloserPrice = (price) =>
   validPrice(price) ? `${Math.round(Number(price))} \u062c\u0646\u064a\u0647` : "";
+
+const productCardName = (product = {}) =>
+  text(product?.name || product?.title || product?.product_name || product?.base_name || product?.display_name || "");
+
+const productCardUrl = (product = {}) => text(product.product_url || product.url || product.productUrl);
 
 const formatAvailableSizesLine = (sizes = []) => {
   const normalizedSizes = sortSizes(sizes);

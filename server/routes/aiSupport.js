@@ -1234,10 +1234,10 @@ const channelReplyPayload = (req, response = {}) =>
     response,
   });
 
-const sendAiSupportChannelResponse = (req, res, response = {}, status = 200) =>
+const sendAiSupportChannelResponse = async (req, res, response = {}, status = 200) =>
   {
     const message = toText(req.aiChannelMessage?.message_text || req.body?.message);
-    const composed = composeAiSalesReply({
+    const composed = await composeAiSalesReply({
       message,
       response,
       intent: response?.detected_intent ? { type: response.detected_intent } : {},
@@ -2098,7 +2098,7 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
     ) {
       let responsePayload = sanitizePublicAiSupportResponse({
         message,
-        response: composeAiSalesReply({
+        response: await composeAiSalesReply({
           message,
           response: {
             answer: "تمام يا فندم، مقاسك كام؟",

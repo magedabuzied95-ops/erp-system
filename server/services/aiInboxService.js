@@ -15,6 +15,10 @@ import {
   loadAiConversationMemory,
   updateAiConversationMemory,
 } from "./aiConversationMemoryService.js";
+import {
+  buildDynamicClarificationQuestion,
+  resolveClassificationOptionsForMessage,
+} from "./aiClassificationResolverService.js";
 import { normalizeProductCards } from "./aiProductCards.js";
 import {
   appendAiGeneratedSupportReply,
@@ -347,6 +351,80 @@ const buildWhatsappFollowupPayload = ({ body = "", memory = null } = {}) => {
     product_search_skipped: true,
     followup_memory_used: true,
     debug: { skip_product_search_trace: true, product_id: productId, colors },
+  };
+};
+
+const buildClassificationFollowupPayload = async ({ body = "", memory = null } = {}) => {
+  const preferences = memory?.preferences || {};
+  const pending = preferences.pending_product_search_context || {};
+  const hasPending = Boolean(pending.model_query || pending.matched_model_family || pending.filters || pending.missing_classification_groups);
+  const resolved = await resolveClassificationOptionsForMessage(body, ["gender", "product_type", "grade"]);
+  if (!hasPending && !resolved.length) return null;
+
+  const mergedFilters = {
+    ...(pending.filters || {}),
+  };
+  const previousFilters = { ...mergedFilters };
+  for (const item of resolved) {
+    if (item.group_key && item.option_value) mergedFilters[item.group_key] = item.option_value;
+  }
+  const missingGroups = ["gender", "product_type", "grade"].filter((groupKey) => !mergedFilters[groupKey]);
+  const context = {
+    model_query: text(pending.model_query || preferences.last_product_name || preferences.last_model_family || ""),
+    matched_model_family: text(pending.matched_model_family || preferences.last_model_family || ""),
+    filters: mergedFilters,
+    missing_classification_groups: missingGroups,
+  };
+  console.log("[classification-memory-merged]", {
+    conversation_id: text(memory?.session_id || preferences.session_id || ""),
+    previous_filters: previousFilters,
+    new_filter: resolved[0] || null,
+    merged_filters: mergedFilters,
+  });
+  if (missingGroups.length) {
+    const question = await buildDynamicClarificationQuestion(missingGroups);
+    console.log("[classification-clarification-built]", {
+      missing_groups: missingGroups,
+      question,
+    });
+    return {
+      answer: question || "تمام يا فندم، تحبها رجالي ولا حريمي؟ Running ولا Casual؟",
+      confidence: 0.94,
+      detected_intent: "classification_clarification",
+      product_search_skipped: true,
+      followup_memory_used: true,
+      suggested_products: [],
+      product_cards: [],
+      channel_reply: { text: question, product_cards: [], response_type: "classification_clarification" },
+      ai_memory_patch: {
+        preferences: {
+          pending_product_search_context: context,
+        },
+      },
+      debug: { classification_context: context },
+    };
+  }
+
+  console.log("[classification-product-search]", {
+    model_query: context.model_query,
+    filters: context.filters,
+    results_count: 0,
+  });
+  return {
+    answer: "مش لاقي نفس الاختيارات دي حاليًا، تحب أوريك أقرب بدائل؟",
+    confidence: 0.9,
+    detected_intent: "classification_product_search",
+    product_search_skipped: true,
+    followup_memory_used: true,
+    suggested_products: [],
+    product_cards: [],
+    channel_reply: { text: "مش لاقي نفس الاختيارات دي حاليًا، تحب أوريك أقرب بدائل؟", product_cards: [], response_type: "classification_product_search" },
+    ai_memory_patch: {
+      preferences: {
+        pending_product_search_context: context,
+      },
+    },
+    debug: { classification_context: context },
   };
 };
 
@@ -960,6 +1038,38 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
   if (cleanProductIntent) {
     console.log("[ai-clean-product-query]", cleanProductTrace);
     await addTraceStep(traceId, "ai-clean-product-query", cleanProductTrace);
+  }
+  const classificationFollowupPayload = await buildClassificationFollowupPayload({ body, memory: loadedMemory });
+  if (classificationFollowupPayload) {
+    const classificationReply = classificationFollowupPayload.channel_reply || normalizeOutgoingChannelReply({ channel: AI_AGENT_CHANNELS.WHATSAPP, response: classificationFollowupPayload });
+    const classificationReplyText = classificationReply.text || classificationFollowupPayload.answer || "";
+    await updateAiConversationMemory({
+      tenantId: safeTenantId,
+      sessionId: safeSessionId,
+      customerPhone: safePhone,
+      customerName,
+      message: body,
+      metadata: {
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        session_id: safeSessionId,
+        customer_phone: safePhone,
+        customer_name: customerName,
+      },
+      suggestedProducts: classificationFollowupPayload.suggested_products || classificationFollowupPayload.product_cards || [],
+      preferencesPatch: classificationFollowupPayload.ai_memory_patch?.preferences || {},
+    }).then((memory) => syncWhatsappLiveMemoryToChannel({ tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, memory })).catch(() => {});
+    await addAiPayloadTraceSteps({ traceId, aiPayload: classificationFollowupPayload, messageText: body, replyText: classificationReplyText, replyDecision: { ok: true } });
+    logAiWhatsappCardsOutput({ aiPayload: classificationFollowupPayload, reply: classificationReply, productCards: collectProducts(classificationFollowupPayload) });
+    return {
+      triggered: true,
+      sent: false,
+      replyText: classificationReplyText,
+      reply: classificationReply,
+      aiPayload: classificationFollowupPayload,
+      tenantId: safeTenantId,
+      sessionId: safeSessionId,
+      phone: safePhone,
+    };
   }
   const confirmationPayload = buildBareConfirmationPayload({ body, memory: loadedMemory });
   if (confirmationPayload) {

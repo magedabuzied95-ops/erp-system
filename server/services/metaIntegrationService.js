@@ -7960,6 +7960,17 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
 };
 
 const sendAndLogProductCards = async ({ config, message, productCards = [], detectedIntent = "", introText = "", metadata = {} } = {}) => {
+  console.log("[ai-card-send-source]", {
+    source: text(metadata.source || metadata.handler || detectedIntent || "unknown"),
+    conversation_id: message.external_conversation_id,
+    message_id: message.external_message_id || message.dedupe_key || "",
+    product_count: Array.isArray(productCards) ? productCards.length : 0,
+    card_count: Array.isArray(productCards) ? productCards.length : 0,
+    allowed_by_ai_gate: metadata.allowed_by_ai_gate !== false,
+  });
+  if (metadata.allowed_by_ai_gate === false) {
+    return { blocked: true, reason: "ai_gate_closed" };
+  }
   const modelNameSearch = detectModelNameSearch(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
   const cardLimit = Number(metadata.product_card_limit || 0) || (modelNameSearch ? (detectOtherColorsRequest(message.message_text || "") ? 3 : 1) : 6);
   const visualCards = detectedIntent.includes("visual_search") || metadata.image_search || metadata.visual_query;

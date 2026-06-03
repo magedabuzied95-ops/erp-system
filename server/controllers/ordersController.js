@@ -2119,6 +2119,12 @@ const runPostOrderSideEffects = async ({
       });
     },
     async () => {
+      console.info("[pos-checkout:stock-decremented]", {
+        order_id: orderId,
+        tenant_id: tenantId,
+        branch_id: resolvedBranchId || null,
+        items_count: Array.isArray(orderItemsForCommission) ? orderItemsForCommission.length : 0,
+      });
       const itemsCount = Array.isArray(orderItemsForCommission) ? orderItemsForCommission.length : 0;
       console.info("[display-refill-alert:invoke]", {
         order_id: orderId,
@@ -2140,6 +2146,10 @@ const runPostOrderSideEffects = async ({
       await createDisplayRefillAlertsForOrder({
         orderId,
         sellerEmployeeId: resolvedSalesEmployeeId,
+        tenantId,
+        order,
+        items: orderItemsForCommission,
+        req,
       })
         .then(() => {
           console.info("[display-refill-alert:invoke:done]", {
@@ -2294,6 +2304,24 @@ export const createOrder = async (req, res) => {
     } = normalizedPayload;
     branchIdForLog = branch_id || branchIdForLog;
     const itemsCount = Array.isArray(items) ? items.length : 0;
+    console.info("[pos-checkout:entered]", {
+      tenant_id: tenantId || null,
+      branch_id: branchIdForLog || null,
+      user_id: req.user?.id || null,
+      items_count: itemsCount,
+      payment_method: payment_method || null,
+      payment_status: payment_status || null,
+    });
+    console.info("[pos-checkout:items]", {
+      order_items: (items || []).slice(0, 10).map((item) => ({
+        product_id: item.product_id || null,
+        variant_id: item.variant_id || null,
+        color: item.color || item.variant_color || null,
+        size: item.size || item.variant_size || null,
+        quantity: item.quantity || item.qty || item.sold_quantity || 1,
+        branch_id: item.branch_id || branchIdForLog || null,
+      })),
+    });
 
     if (POS_CHECKOUT_DEBUG) console.log("[POS_CREATE_ORDER_PAYLOAD]", safeOrderLogPayload(normalizedPayload));
 

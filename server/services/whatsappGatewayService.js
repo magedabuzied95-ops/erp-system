@@ -966,35 +966,41 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
   const receivedAt = message.timestamp || new Date().toISOString();
   const externalMessageId = text(message.messageId);
   const instance = text(message.instance || "");
+  const channel = AI_AGENT_CHANNELS.WHATSAPP;
+  const remoteJid = text(message.remoteJid);
   const dedupeKey = externalMessageId
-    ? dedupeHash([AI_AGENT_CHANNELS.WHATSAPP, instance, message.remoteJid, externalMessageId].join("|"))
+    ? dedupeHash([channel, instance, remoteJid, externalMessageId].join("|"))
     : "";
+  console.log("[whatsapp-dedupe-key]", {
+    channel,
+    instance,
+    remoteJid,
+    provider_message_id: externalMessageId,
+    dedupe_key: dedupeKey,
+  });
 
   const existing = externalMessageId
     ? await db.query(
         `
-        SELECT id, external_message_id, dedupe_key
+        SELECT id, external_message_id, dedupe_key, channel, session_id, created_at
         FROM ai_support_messages
         WHERE tenant_id = $1
-          AND channel = 'whatsapp'
+          AND channel = $2
           AND external_message_id = $2
+          AND session_id = $3
         ORDER BY id DESC
         LIMIT 1
         `,
-        [tenantId, externalMessageId]
+        [tenantId, channel, sessionId, externalMessageId]
       )
     : { rows: [] };
   const existingMessage = existing.rows[0] || null;
   const isDuplicate = Boolean(existingMessage);
-  console.log("[inbound-dedupe-check]", {
-    channel: AI_AGENT_CHANNELS.WHATSAPP,
-    instance,
-    remoteJid: message.remoteJid,
-    provider_message_id: externalMessageId,
-    message_text_preview: body.slice(0, 120),
+  console.log("[whatsapp-dedupe-existing]", {
     dedupe_key: dedupeKey,
     existing_message_id: existingMessage?.id || null,
-    is_duplicate: isDuplicate,
+    existing_provider_message_id: existingMessage?.external_message_id || null,
+    matched: isDuplicate,
   });
   if (isDuplicate) {
     console.info("[whatsapp:inbox-skipped]", {
@@ -1004,7 +1010,14 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       message_id: externalMessageId,
       dedupe_key: dedupeKey,
     });
-    return { saved: false, duplicate: true, session_id: sessionId, dedupe_key: dedupeKey };
+    console.info("[whatsapp-inbox-save-result]", {
+      saved: false,
+      duplicate: true,
+      reason: "duplicate_provider_message_id",
+      ai_support_message_id: existingMessage?.id || null,
+      provider_message_id: externalMessageId,
+    });
+    return { saved: false, duplicate: true, reason: "duplicate_provider_message_id", session_id: sessionId, dedupe_key: dedupeKey, message: existingMessage || null };
   }
 
   await ensureAiSupportLogSchema();
@@ -1016,7 +1029,7 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
     customerName,
     metadata: {
       phone: message.phone,
-      remote_jid: message.remoteJid,
+      remote_jid: remoteJid,
       instance: message.instance,
       source: "evolution_api",
       last_message: body,
@@ -1049,7 +1062,7 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       visual_attachments, suggested_actions, detected_intent, fallback_reason, sender_type, external_message_id, dedupe_key
     )
     VALUES ($1, $2, $3::text, 'whatsapp', $4::text, $5::text, $5::text, $5::text, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '', 'ai_status:pending', 'customer', $6::text, $7::text)
-    ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO NOTHING
+    ON CONFLICT (tenant_id, channel, session_id, dedupe_key) WHERE dedupe_key <> '' DO NOTHING
     RETURNING *
     `,
     [session.rows[0]?.id || null, tenantId, sessionId, customerName, body, externalMessageId, dedupeKey]
@@ -1058,6 +1071,9 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
   if (!inserted.rows[0]) {
     console.warn("[inbound-dedupe-false-positive]", {
       provider_message_id: externalMessageId,
+      remoteJid,
+      instance,
+      dedupe_key: dedupeKey,
       message_text_preview: body.slice(0, 120),
       reason: "insert_conflict_without_existing_message",
     });
@@ -1068,7 +1084,14 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       message_id: externalMessageId,
       dedupe_key: dedupeKey,
     });
-    return { saved: false, duplicate: true, session_id: sessionId, dedupe_key: dedupeKey };
+    console.info("[whatsapp-inbox-save-result]", {
+      saved: false,
+      duplicate: true,
+      reason: "insert_conflict_without_existing_message",
+      ai_support_message_id: null,
+      provider_message_id: externalMessageId,
+    });
+    return { saved: false, duplicate: true, reason: "insert_conflict_without_existing_message", session_id: sessionId, dedupe_key: dedupeKey };
   }
 
   await logChannelEvent({
@@ -1112,7 +1135,14 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
     ai_support_message_id: inserted.rows[0]?.id || null,
     conversation_id: sessionId,
   });
-  return { saved: true, session_id: sessionId, message: inserted.rows[0] || null, dedupe_key: dedupeKey };
+  console.info("[whatsapp-inbox-save-result]", {
+    saved: true,
+    duplicate: false,
+    reason: "saved",
+    ai_support_message_id: inserted.rows[0]?.id || null,
+    provider_message_id: externalMessageId,
+  });
+  return { saved: true, duplicate: false, reason: "saved", session_id: sessionId, message: inserted.rows[0] || null, dedupe_key: dedupeKey };
 };
 
 export const handleIncomingWebhook = async (payload = {}) => {
@@ -1239,17 +1269,26 @@ export const handleIncomingWebhook = async (payload = {}) => {
 };
 
 export const triggerWhatsappAiAutoReply = async (message = {}) => {
-  if (!message?.text || message?.fromMe || message?.inbox?.saved === false) {
+  const blockedByInboxGate = !message?.text || message?.fromMe || message?.inbox?.saved === false || message?.inbox?.duplicate === true || message?.inbox?.saved !== true;
+  console.info("[ai-duplicate-gate]", {
+    message_id: message?.message_id || message?.messageId || message?.inbox?.message?.external_message_id || "",
+    conversation_id: message?.inbox?.session_id || message?.conversation_id || `whatsapp:${message?.phone || ""}`,
+    saved: message?.inbox?.saved === true,
+    duplicate: message?.inbox?.duplicate === true,
+    shouldAutoSend: !blockedByInboxGate,
+    blocked_ai_send: blockedByInboxGate,
+  });
+  if (blockedByInboxGate) {
     console.info("[whatsapp:ai-skipped]", {
-      reason: !message?.text ? "missing_text" : message?.fromMe ? "from_me" : "inbox_not_saved",
+      reason: !message?.text ? "missing_text" : message?.fromMe ? "from_me" : message?.inbox?.duplicate === true ? "duplicate_inbox" : "inbox_not_saved",
       message_id: message?.message_id || message?.messageId || "",
     });
     await addTraceStep(message?.trace_id, "ai_mode_check", {
       shouldAutoSend: false,
-      skip_reason: !message?.text ? "missing_text" : message?.fromMe ? "from_me" : "inbox_not_saved",
+      skip_reason: !message?.text ? "missing_text" : message?.fromMe ? "from_me" : message?.inbox?.duplicate === true ? "duplicate_inbox" : "inbox_not_saved",
     });
-    await finishTrace(message?.trace_id, { status: "skipped", reason: !message?.text ? "missing_text" : message?.fromMe ? "from_me" : "inbox_not_saved" });
-    return { triggered: false, sent: false, reason: !message?.text ? "missing_text" : message?.fromMe ? "from_me" : "inbox_not_saved" };
+    await finishTrace(message?.trace_id, { status: "skipped", reason: !message?.text ? "missing_text" : message?.fromMe ? "from_me" : message?.inbox?.duplicate === true ? "duplicate_inbox" : "inbox_not_saved" });
+    return { triggered: false, sent: false, reason: !message?.text ? "missing_text" : message?.fromMe ? "from_me" : message?.inbox?.duplicate === true ? "duplicate_inbox" : "inbox_not_saved" };
   }
   const generated = await generateWhatsappAiAutoReply({
     tenantId: message.raw?.tenant_id || message.raw?.tenantId || process.env.WHATSAPP_TENANT_ID || 1,

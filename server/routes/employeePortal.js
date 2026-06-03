@@ -410,7 +410,7 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
     console.info("[display-refill-alert:employee-load]", {
       employee_id: employee.id,
       branch_id: branchId,
-      alerts_count: alerts.length,
+      count: alerts.length,
       pending_count: alerts.filter((item) => item.status === "pending").length,
       fallback_used: !branchId,
       fallback_reason: branchId ? "" : "employee_branch_id_missing",
