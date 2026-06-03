@@ -1,4 +1,4 @@
-import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+﻿import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 
 const text = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -119,6 +119,20 @@ const isGreetingOnly = (message = "", response = {}, intent = {}) => {
   return /^(السلام عليكم|سلام عليكم|وعليكم السلام|اهلا|اهلا بيك|هلا|هاي|hello|hi)( ورحمه الله)?( وبركاته)?$/.test(normalized);
 };
 
+const greetingReplyText = "������ ������ ����� ���� ����� ��� �� ���� ";
+
+const isGreetingIntent = (message = "", response = {}, intent = {}) => {
+  const normalized = normalizeArabic(message);
+  if (response.greeting_only_mode || response.detected_intent === "greeting_only" || intent.type === "greeting_only") return true;
+  if (!normalized) return false;
+  return /^(������ �����|���� �����|������ ������|����|���� ���|�����|�����|����� ���|���� �����|���� �����|���|���|hello|hi)( �����? ����)?( �������)?$/.test(normalized);
+};
+
+const isExplicitProductFollowup = (message = "", response = {}, intent = {}) => {
+  if (isGreetingIntent(message, response, intent)) return false;
+  const normalized = normalizeArabic(message);
+  return /(����|�����|����|price|cost|����|�����|������|�����|���|����|��� ����|����|�����|����|��������|���� ��|��� ���|��� ��|���� ������|�����)/i.test(normalized);
+};
 const isYesOnly = (message = "") => {
   const normalized = normalizeArabic(message);
   return /^(ايوه|ايوة|اه|نعم|yes|yep|تمام|ماشي|ok|okay)$/i.test(normalized) ||
@@ -282,7 +296,7 @@ export const composeAiSalesReply = ({
 
   if (isGreetingOnly(message, response, intent)) {
     decision = "greeting_only";
-    output = withAnswer(stripProductPayload(response), "وعليكم السلام يا فندم  تحب أساعدك في موديل معين أو مقاس معين؟", {
+    output = withAnswer(stripProductPayload(response), greetingReplyText, {
       detected_intent: "greeting_only",
       greeting_only_mode: true,
       needs_human_support: false,
@@ -351,14 +365,14 @@ export const composeAiSalesReply = ({
       decision = "yes_without_context";
       output = withAnswer(stripProductPayload(response), "تمام يا فندم، تقصد موديل معين ولا مقاس معين؟");
     }
-  } else if (!explicitProductRequest({ message, response, intent }) && ["general", "conversational", ""].includes(detectedIntent)) {
+  } else if (!isExplicitProductFollowup(message, response, intent) && ["general", "conversational", ""].includes(detectedIntent)) {
     decision = "block_general_product_cards";
-    output = withAnswer(stripProductPayload(response), "تحب أساعدك في موديل معين أو مقاس معين يا فندم؟", {
+    output = withAnswer(stripProductPayload(response), "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم ", {
       needs_human_support: false,
     });
   } else if (
     products.length &&
-    explicitProductRequest({ message, response, intent }) &&
+    isExplicitProductFollowup(message, response, intent) &&
     !asksColor(message) &&
     !asksSize(message, response) &&
     !asksPrice(message, response, intent) &&

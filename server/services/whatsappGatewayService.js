@@ -1,4 +1,4 @@
-import crypto from "crypto";
+﻿import crypto from "crypto";
 
 import db from "../database/db.js";
 import { buildWhatsappTextDebug } from "../utils/whatsapp.js";
@@ -273,17 +273,17 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "" } = {}) =
 };
 
 export const buildOrderConfirmationMessage = (order = {}) => {
-  const customerName = text(order.customer_name || order.customerName || order.name, "عميلنا");
+  const customerName = text(order.customer_name || order.customerName || order.name, "ط¹ظ…ظٹظ„ظ†ط§");
   const orderNumber = text(order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || order.id, "-");
   const totalAmount = money(order.total_amount ?? order.grand_total ?? order.total ?? order.net_total);
-  return `أهلاً يا ${customerName} 
-طلبك من M1 Store جاهز للتأكيد.
+  return `ط£ظ‡ظ„ط§ظ‹ ظٹط§ ${customerName} 
+ط·ظ„ط¨ظƒ ظ…ظ† M1 Store ط¬ط§ظ‡ط² ظ„ظ„طھط£ظƒظٹط¯.
 
-رقم الطلب: ${orderNumber}
-الإجمالي: ${totalAmount} جنيه
+ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨: ${orderNumber}
+ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ: ${totalAmount} ط¬ظ†ظٹظ‡
 
-للتاكيد رد بـ 1
-للإلغاء رد بـ 2`;
+ظ„ظ„طھط§ظƒظٹط¯ ط±ط¯ ط¨ظ€ 1
+ظ„ظ„ط¥ظ„ط؛ط§ط، ط±ط¯ ط¨ظ€ 2`;
 };
 
 export const sendOrderConfirmationMessage = async ({ order } = {}) => {
@@ -603,17 +603,133 @@ const productCardSizes = (product = {}) =>
 
 const productCardUrl = (product = {}) => text(product.product_url || product.url || product.productUrl);
 
-const productImageCaption = (product = {}) =>
-  [
+const formatWhatsAppCaptionSizes = (sizes = []) =>
+  [...new Set(asArray(sizes).map((value) => text(value)).filter(Boolean))];
+
+const productImageCaption = (product = {}) => {
+  const sizes = formatWhatsAppCaptionSizes(product.available_sizes || product.sizes);
+  const sizesLine = sizes.length ? `المقاسات المتاحة: ${sizes.join("، ")}` : "";
+  return [
     productCardName(product),
+    sizesLine,
     productCardPrice(product) ? `السعر: ${productCardPrice(product)} جنيه` : "",
-    productCardSizes(product).length ? `المقاسات: ${productCardSizes(product).join("، ")}` : "",
     productCardUrl(product),
   ].filter(Boolean).join("\n").slice(0, 1024);
+};
+const buildWhatsappOutboundPlan = ({ message = {}, aiPayload = {}, replyText = "", cards = [] } = {}) => {
+  const conversationId = text(message.inbox?.session_id || message.sessionId || `whatsapp:${message.phone || ""}`);
+  const inboundMessageId = text(message.messageId || message.message_id || message.external_message_id || "");
+  const selectedProductIds = [...new Set(cards.map((card) => text(card?.product_id || card?.id || card?.product?.id || "")).filter(Boolean))];
+  const selectedVariantIds = [...new Set(cards.map((card) => text(card?.variant_id || card?.selected_variant_id || card?.variant?.id || card?.variant?.variant_id || "")).filter(Boolean))];
+  const hasCards = cards.length > 0;
+  const intent = text(aiPayload?.detected_intent || aiPayload?.intent?.type || aiPayload?.intent || "");
+  const route = hasCards ? "product_cards_only" : "text_only";
+  const outboundPlan = {
+    conversation_id: conversationId,
+    inbound_message_id: inboundMessageId,
+    channel: "whatsapp",
+    instance: instanceName(),
+    remoteJid: text(message.remoteJid || message.phone || ""),
+    intent,
+    route,
+    text: hasCards ? "" : text(replyText),
+    cards,
+    has_cards: hasCards,
+    will_send_text: !hasCards && Boolean(text(replyText)),
+    will_send_cards: hasCards,
+    selected_product_ids: selectedProductIds,
+    selected_variant_ids: selectedVariantIds,
+  };
+  console.log("[whatsapp-outbound-plan]", {
+    conversation_id: outboundPlan.conversation_id,
+    inbound_message_id: outboundPlan.inbound_message_id,
+    intent: outboundPlan.intent,
+    route: outboundPlan.route,
+    text_length: outboundPlan.text.length,
+    cards_count: outboundPlan.cards.length,
+    will_send_text: outboundPlan.will_send_text,
+    will_send_cards: outboundPlan.will_send_cards,
+    selected_product_ids: outboundPlan.selected_product_ids,
+    selected_variant_ids: outboundPlan.selected_variant_ids,
+  });
+  if (outboundPlan.cards.length > 1) {
+    console.info("[whatsapp-model-colors-expanded]", {
+      model_family: text(aiPayload?.model_family || aiPayload?.model || aiPayload?.matched_model || aiPayload?.product_family || ""),
+      matched_product_id: outboundPlan.selected_product_ids[0] || "",
+      colors_count: outboundPlan.cards.length,
+      product_ids: outboundPlan.selected_product_ids,
+      colors: outboundPlan.cards.map((card) => text(card.color || card.matched_variant_color || "")).filter(Boolean),
+    });
+  }
+  return outboundPlan;
+};
+
+const ensureWhatsappOutboundDedupSchema = async () => {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ai_outbound_dedup (
+      id uuid PRIMARY KEY DEFAULT (md5(random()::text || clock_timestamp()::text)::uuid),
+      channel text NOT NULL,
+      instance text,
+      conversation_id text NOT NULL,
+      inbound_message_id text NOT NULL,
+      outbound_type text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT NOW(),
+      UNIQUE(channel, instance, conversation_id, inbound_message_id)
+    )
+  `).catch(() => {});
+};
+
+const blockDuplicateWhatsappReply = async ({ plan = {}, outboundType = "unknown" } = {}) => {
+  const channel = text(plan.channel || "whatsapp");
+  const instance = text(plan.instance || "");
+  const conversationId = text(plan.conversation_id || "");
+  const inboundMessageId = text(plan.inbound_message_id || "");
+  if (!conversationId || !inboundMessageId) return { blocked: false };
+  await ensureWhatsappOutboundDedupSchema();
+  try {
+    await db.query(
+      `
+      INSERT INTO ai_outbound_dedup (channel, instance, conversation_id, inbound_message_id, outbound_type)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (channel, instance, conversation_id, inbound_message_id) DO NOTHING
+      `,
+      [channel, instance || null, conversationId, inboundMessageId, outboundType]
+    );
+    const result = await db.query(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM ai_outbound_dedup
+      WHERE channel = $1 AND instance IS NOT DISTINCT FROM $2 AND conversation_id = $3 AND inbound_message_id = $4
+      `,
+      [channel, instance || null, conversationId, inboundMessageId]
+    );
+    if (Number(result.rows[0]?.count || 0) > 1) {
+      console.warn("[whatsapp-duplicate-reply-blocked]", {
+        conversation_id: conversationId,
+        inbound_message_id: inboundMessageId,
+        channel,
+        instance,
+      });
+      return { blocked: true, reason: "duplicate_reply" };
+    }
+    return { blocked: false };
+  } catch (error) {
+    if (String(error?.code || "") === "23505") {
+      console.warn("[whatsapp-duplicate-reply-blocked]", {
+        conversation_id: conversationId,
+        inbound_message_id: inboundMessageId,
+        channel,
+        instance,
+      });
+      return { blocked: true, reason: "duplicate_reply" };
+    }
+    throw error;
+  }
+};
 
 const productImageUrlFallbackMessage = ({ imageUrl = "", productUrl = "" } = {}) =>
   [
-    "دي صورة المنتج يا فندم:",
+    "ط¯ظٹ طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬ ظٹط§ ظپظ†ط¯ظ…:",
     text(imageUrl),
     text(productUrl),
   ].filter(Boolean).join("\n");
@@ -768,6 +884,23 @@ const extractMessageText = (data = {}) => {
 const extractIncomingWhatsapp = (payload = {}) => {
   const data = payload?.data || payload?.body?.data || payload;
   const key = data?.key || payload?.key || {};
+  const eventCandidates = [
+    payload?.event,
+    payload?.type,
+    payload?.name,
+    payload?.body?.event,
+    payload?.body?.type,
+    data?.event,
+    data?.type,
+    data?.name,
+    data?.event_name,
+    data?.eventName,
+    data?.webhookEvent,
+    data?.webhook_event,
+    data?.action,
+  ].filter((value) => value !== undefined && value !== null && String(value).trim() !== "");
+  const rawEvent = text(eventCandidates[0] || "");
+  const normalizedEvent = rawEvent.toLowerCase().replace(/[_\s]+/g, ".");
   const remoteJid = text(
     key?.remoteJid ||
     data?.remoteJid ||
@@ -808,7 +941,9 @@ const extractIncomingWhatsapp = (payload = {}) => {
     findFirstString(data, ["pushName", "pushname", "profileName", "profile_name", "senderName", "sender_name"])
   );
   return {
-    event: text(payload?.event || payload?.type || data?.event || ""),
+    event: normalizedEvent || rawEvent,
+    rawEvent,
+    eventCandidates,
     phone,
     remoteJid,
     text: extractMessageText(data),
@@ -931,6 +1066,40 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
 };
 
 export const handleIncomingWebhook = async (payload = {}) => {
+  const eventCandidates = [
+    payload?.event,
+    payload?.type,
+    payload?.name,
+    payload?.body?.event,
+    payload?.body?.type,
+    payload?.data?.event,
+    payload?.data?.type,
+    payload?.data?.name,
+    payload?.data?.event_name,
+    payload?.data?.eventName,
+    payload?.data?.webhookEvent,
+    payload?.data?.webhook_event,
+    payload?.data?.action,
+  ].filter((value) => value !== undefined && value !== null && String(value).trim() !== "");
+  const payloadKeys = payload && typeof payload === "object" ? Object.keys(payload) : [];
+  console.info("[whatsapp:webhook-raw]", {
+    event: String(eventCandidates[0] || ""),
+    instance: String(payload?.instance || payload?.instanceName || payload?.data?.instance || payload?.data?.instanceName || ""),
+    payload_keys: payloadKeys,
+    payload_preview: {
+      event: payload?.event ?? null,
+      type: payload?.type ?? null,
+      name: payload?.name ?? null,
+      body_keys: payload?.body && typeof payload.body === "object" ? Object.keys(payload.body) : [],
+      data_keys: payload?.data && typeof payload.data === "object" ? Object.keys(payload.data) : [],
+      data_event: payload?.data?.event ?? null,
+      data_type: payload?.data?.type ?? null,
+      data_name: payload?.data?.name ?? null,
+    },
+  });
+  console.info("[whatsapp:event-detected]", {
+    received_events: eventCandidates.map((value) => String(value)),
+  });
   const normalized = extractIncomingWhatsapp(payload);
   const traceTenantId = tenantIdForWhatsapp(normalized.raw || {});
   let trace = null;
@@ -944,6 +1113,16 @@ export const handleIncomingWebhook = async (payload = {}) => {
     timestamp: normalized.timestamp,
     fromMe: normalized.fromMe,
     textLength: normalized.text.length,
+    rawEvent: normalized.rawEvent || "",
+  });
+  console.info("[whatsapp:message-extracted]", {
+    event: normalized.event,
+    rawEvent: normalized.rawEvent || "",
+    messageId: normalized.messageId,
+    phone: normalized.phone,
+    remoteJid: normalized.remoteJid,
+    textPreview: normalized.text.slice(0, 120),
+    senderName: normalized.senderName,
   });
   trace = await startTrace({
     tenantId: traceTenantId,
@@ -1049,13 +1228,64 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
   try {
     const isImageFollowup = ["image_request", "more_images"].includes(text(generated.aiPayload?.detected_intent));
     const allImageCards = shouldSendProductImages(generated) ? collectProductImageCards({ generated }) : [];
-    console.info("[whatsapp-image-cards-input]", {
-      cards_count: allImageCards.length,
-      first_5_cards: allImageCards.slice(0, 5).map(productImageDebugCard),
+    const outboundCards = allImageCards.map((card) => ({
+      ...card,
+      product: {
+        ...card.product,
+        selected_variant_id: card.product?.selected_variant_id || card.product?.variant_id || card.product?.selected_variant?.id || card.product?.selected_variant?.variant_id || card.product?.variant?.id || card.product?.variant?.variant_id || null,
+      },
+    }));
+    const outboundPlan = buildWhatsappOutboundPlan({
+      message,
+      aiPayload: generated.aiPayload || {},
+      replyText: generated.replyText || "",
+      cards: outboundCards,
     });
-    const validImageCards = allImageCards.filter((card) => card.valid && !card.skip_reason);
+    await addTraceStep(message.trace_id, "outbound_plan", {
+      conversation_id: outboundPlan.conversation_id,
+      inbound_message_id: outboundPlan.inbound_message_id,
+      intent: outboundPlan.intent,
+      route: outboundPlan.route,
+      text_length: outboundPlan.text.length,
+      cards_count: outboundPlan.cards.length,
+      will_send_text: outboundPlan.will_send_text,
+      will_send_cards: outboundPlan.will_send_cards,
+      selected_product_ids: outboundPlan.selected_product_ids,
+      selected_variant_ids: outboundPlan.selected_variant_ids,
+    });
+    const dedupeResult = await blockDuplicateWhatsappReply({
+      plan: outboundPlan,
+      outboundType: outboundPlan.will_send_cards ? "cards" : "text",
+    });
+    if (dedupeResult.blocked) {
+      await addTraceStep(message.trace_id, "duplicate_reply_blocked", {
+        conversation_id: outboundPlan.conversation_id,
+        inbound_message_id: outboundPlan.inbound_message_id,
+        channel: outboundPlan.channel,
+        instance: outboundPlan.instance,
+      });
+      await finishTrace(message.trace_id, { status: "skipped", reason: "duplicate_reply" });
+      return { triggered: true, sent: false, reason: "duplicate_reply", aiPayload: generated.aiPayload, replyText: "", outboundPlan };
+    }
+    console.info("[whatsapp-image-cards-input]", {
+      cards_count: outboundCards.length,
+      first_5_cards: outboundCards.slice(0, 5).map(productImageDebugCard),
+    });
+    for (const card of outboundCards.slice(0, 6)) {
+      console.info("[whatsapp-card-built]", {
+        product_id: text(card.product_id || card.id || ""),
+        variant_id: text(card.variant_id || card.selected_variant_id || ""),
+        product_name: text(card.name || card.title || ""),
+        color: text(card.color || ""),
+        price: text(card.price || ""),
+        sizes: asArray(card.available_sizes || card.sizes),
+        image_url_present: Boolean(text(card.image_url || card.image || card.main_image || card.variant_image || card.color_image || "")),
+        product_url: text(card.product_url || card.url || ""),
+      });
+    }
+    const validImageCards = outboundCards.filter((card) => card.valid && !card.skip_reason);
     const imageCards = [];
-    const skippedImageCards = allImageCards.filter((card) => !card.valid || card.skip_reason);
+    const skippedImageCards = outboundCards.filter((card) => !card.valid || card.skip_reason);
     for (const card of validImageCards) {
       const cacheState = getSentImageDuplicateEntry({
         phone: generated.phone || message.phone,
@@ -1088,13 +1318,39 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       }
       imageCards.push(card);
     }
-    const sendableImageCards = imageCards.slice(0, 1);
+    const sendableImageCards = imageCards;
     const imageMessages = [];
     const imageSendErrors = [];
     let result = null;
-    const deferImageFollowupText = isImageFollowup && allImageCards.length > 0;
-    if (!deferImageFollowupText) {
-      result = await sendTextMessage({ phone: generated.phone || message.phone, message: generated.replyText });
+    const currentIntent = text(generated.aiPayload?.detected_intent || generated.aiPayload?.intent?.type || generated.aiPayload?.intent || "");
+    const explicitProductFollowup = /(بكام|السعر|سعره|price|cost|متاح|موجود|الوانه|الوان|صور|صوره|صور اكتر|لينك|لينكه|مقاس|المقاسات|عايز ده|فيه منه|فيه من|ابعت اللينك|ابعته)/i.test(text(message.text || message.message_text || ""));
+    const willSendCards = outboundPlan.will_send_cards;
+    const shouldSendTextOnly = outboundPlan.will_send_text && !willSendCards;
+if (willSendCards) {
+      console.info("[whatsapp-standalone-text-skipped]", {
+        reason: "cards_present",
+        conversation_id: outboundPlan.conversation_id,
+        inbound_message_id: outboundPlan.inbound_message_id,
+      });
+      await addTraceStep(message.trace_id, "standalone_text_skipped", {
+        reason: "cards_present",
+        conversation_id: outboundPlan.conversation_id,
+        inbound_message_id: outboundPlan.inbound_message_id,
+      });
+    }
+if (shouldSendTextOnly) {
+      const safeText = /(^|\s)(سعره|السعر|جنيه|egp|\d+\s*جنيه)/i.test(outboundPlan.text) && !explicitProductFollowup && !isImageFollowup
+        ? "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم "
+        : outboundPlan.text;
+      if (safeText !== outboundPlan.text) {
+        console.warn("[ai-standalone-price-text-blocked]", {
+          conversation_id: outboundPlan.conversation_id,
+          inbound_message_id: outboundPlan.inbound_message_id,
+          detected_intent: currentIntent,
+          text_preview: outboundPlan.text.slice(0, 120),
+        });
+      }
+      result = await sendTextMessage({ phone: generated.phone || message.phone, message: safeText });
     }
     for (const skipped of skippedImageCards) {
       if (skipped.skip_reason === "duplicate_image_url") {
@@ -1127,6 +1383,13 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     for (const { product, imageUrl, resolved_image_url, raw_image_url, card_index, mime_type, normalized_image_url } of sendableImageCards) {
       const imageSourceUrl = resolved_image_url || imageUrl;
       const productUrl = productCardUrl(product);
+      const sizes = [...new Set(asArray(product?.available_sizes || product?.sizes).map((value) => text(value)).filter(Boolean))];
+      console.info("[whatsapp-card-sizes-line]", {
+        product_id: product?.id || product?.product_id || null,
+        variant_id: product?.variant_id || product?.selected_variant_id || product?.matched_variant_id || null,
+        color: text(product?.color || product?.matched_variant_color || ""),
+        sizes,
+      });
       const duplicateCacheKey = duplicateCacheKeyForImage({
         phone: generated.phone || message.phone,
         imageUrl: imageSourceUrl,
@@ -1173,7 +1436,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
           product_id: product?.id || product?.product_id || null,
           error: summary,
         });
-        if (Number(summary.status) === 500) {
+        if (Number(summary.status) === 500 && !willSendCards) {
           const fallbackMessage = productImageUrlFallbackMessage({
             imageUrl: imageSourceUrl,
             productUrl,
@@ -1210,11 +1473,11 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       }
     }
     const firstFailureReason = imageSendErrors[0]?.error?.message || imageSendErrors[0]?.error?.code || "";
-    if (allImageCards.length > 0 && sendableImageCards.length === 0) {
+    if (outboundCards.length > 0 && sendableImageCards.length === 0) {
       console.info("[whatsapp-image-cards-skipped]", {
         reason: "product_cards_present_but_no_sendable_public_image_url",
-        cards_count: allImageCards.length,
-        first_5_cards: allImageCards.slice(0, 5).map(productImageDebugCard),
+        cards_count: outboundCards.length,
+        first_5_cards: outboundCards.slice(0, 5).map(productImageDebugCard),
         skipped_cards: skippedImageCards.map(productImageDebugCard),
       });
     }
@@ -1236,35 +1499,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       successful_urls_count: new Set(imageMessages.map((item) => text(item.image_url)).filter(Boolean)).size,
       invalid_urls_count: skippedImageCards.length,
     });
-    let finalReplyText = generated.replyText;
-    if (deferImageFollowupText && imageMessages.length > 0) {
-      result = await sendTextMessage({ phone: generated.phone || message.phone, message: generated.replyText });
-    } else if (deferImageFollowupText && imageMessages.length === 0) {
-      const link = firstProductLink(allImageCards);
-      finalReplyText = ["\u0627\u0644\u0635\u0648\u0631 \u0645\u0634 \u0638\u0627\u0647\u0631\u0629 \u0639\u0646\u062f\u064a \u062f\u0644\u0648\u0642\u062a\u064a \u064a\u0627 \u0641\u0646\u062f\u0645\u060c \u062a\u062d\u0628 \u0623\u0628\u0639\u062a\u0644\u0643 \u0644\u064a\u0646\u0643 \u0627\u0644\u0645\u0646\u062a\u062c\u061f", link].filter(Boolean).join("\n");
-      console.info("[whatsapp-image-send-fallback-link]", {
-        conversation_id: generated.sessionId || "",
-        session_id: generated.sessionId || "",
-        attempted_count: sendableImageCards.length,
-        failed_count: imageSendErrors.length,
-        product_link: link,
-        first_failure_reason: firstFailureReason,
-      });
-      result = await sendTextMessage({ phone: generated.phone || message.phone, message: finalReplyText });
-    } else if (!deferImageFollowupText && sendableImageCards.length > 0 && imageMessages.length === 0) {
-      const link = firstProductLink(allImageCards);
-      if (link) {
-        console.info("[whatsapp-image-send-fallback-link]", {
-          conversation_id: generated.sessionId || "",
-          session_id: generated.sessionId || "",
-          attempted_count: sendableImageCards.length,
-          failed_count: imageSendErrors.length,
-          product_link: link,
-          first_failure_reason: firstFailureReason,
-        });
-        await sendTextMessage({ phone: generated.phone || message.phone, message: link });
-      }
-    }
+    let finalReplyText = outboundPlan.text || "";
     if (["image_request", "more_images"].includes(text(generated.aiPayload?.detected_intent))) {
       console.info("[ai-followup:image-request]", {
         used_memory: generated.aiPayload?.followup_memory_used === true,
@@ -1283,6 +1518,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         image_card_count: sendableImageCards.length,
         image_messages: imageMessages,
         image_send_errors: imageSendErrors,
+        outbound_plan: outboundPlan,
       },
     });
     console.info("[whatsapp:ai-sent]", {
@@ -1293,6 +1529,20 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       image_card_count: sendableImageCards.length,
       image_sent_count: imageMessages.length,
       image_failed_count: imageSendErrors.length,
+    });
+    console.info("[whatsapp-outbound-send]", {
+      conversation_id: outboundPlan.conversation_id,
+      inbound_message_id: outboundPlan.inbound_message_id,
+      outbound_type: outboundPlan.will_send_cards ? "cards" : "text",
+      cards_count: sendableImageCards.length,
+      text_length: finalReplyText.length,
+    });
+    await addTraceStep(message.trace_id, "outbound_send", {
+      conversation_id: outboundPlan.conversation_id,
+      inbound_message_id: outboundPlan.inbound_message_id,
+      outbound_type: outboundPlan.will_send_cards ? "cards" : "text",
+      cards_count: sendableImageCards.length,
+      text_length: finalReplyText.length,
     });
     await addTraceStep(message.trace_id, "send_to_whatsapp", {
       target_phone_suffix: (generated.phone || message.phone || "").slice(-4),
@@ -1316,6 +1566,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       image_card_count: sendableImageCards.length,
       image_messages: imageMessages,
       image_send_errors: imageSendErrors,
+      outbound_plan: outboundPlan,
     };
   } catch (error) {
     const summary = errorSummary(error);
@@ -1380,3 +1631,4 @@ export default {
   handleIncomingWebhook,
   triggerWhatsappAiAutoReply,
 };
+
