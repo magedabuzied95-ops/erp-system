@@ -8009,7 +8009,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     ? await repairVisualProductCardsIntegrity({ tenantId: config.tenant_id, cards: gate.products, reason: "post_gate_visual_cards" })
     : gate.products;
   const gatedCards = await resolveProductCardLinks(
-    normalizeProductCards(integrityGateCards, { limit: detectedIntent.includes("exact") || metadata.exact_inventory_match ? 1 : Math.min(3, cardLimit) }),
+    normalizeProductCards(integrityGateCards, { limit: detectedIntent.includes("exact") || metadata.exact_inventory_match ? 1 : cardLimit }),
     { tenantId: config.tenant_id }
   );
   const topConfirmationGuard = evaluateProductConfirmationGuard({
@@ -14922,9 +14922,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
     }
     const reply = aiPayload.channel_reply || normalizeOutgoingChannelReply({ channel: message.channel, response: aiPayload });
     const modelNameSearch = detectModelNameSearch(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
-    const productCardLimit = modelNameSearch ? (detectOtherColorsRequest(message.message_text || "") ? 3 : 1) : 6;
+    const productCardLimit = Number(metadata.product_card_limit || 0) || (modelNameSearch ? 12 : 6);
     let productCards = normalizeProductCards(reply.product_cards || aiPayload.suggested_products || [], { limit: productCardLimit });
-    if (modelNameSearch && productCards.length > productCardLimit) productCards = productCards.slice(0, productCardLimit);
     if (modelNameSearch) {
       console.log("ai_model_color_limit_applied", {
         tenant_id: config.tenant_id,
@@ -14938,7 +14937,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         console.log("model_initial_color_hard_cap_applied", {
           tenant_id: config.tenant_id,
           conversation_id: message.external_conversation_id,
-          requested_limit: 1,
+          requested_limit: productCardLimit,
           resulting_card_count: productCards.length,
         });
       }
