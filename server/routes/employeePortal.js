@@ -381,6 +381,7 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
     if (!employee) return;
     const alerts = await listDisplayRefillAlertsForEmployee({
       employeeId: employee.id,
+      branchId: employee.branch_id || employee.branchId || null,
       status: req.query.status || "pending",
       limit: req.query.limit || 50,
     });
