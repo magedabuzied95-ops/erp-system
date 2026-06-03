@@ -570,12 +570,17 @@ const forwardToAiInbox = async ({ message = {}, order = null } = {}) => {
     INSERT INTO ai_support_messages (
       tenant_id, session_id, message_text, customer_message, ai_answer, confidence, needs_human_support,
       sources_used, suggested_products, visual_attachments, suggested_actions, detected_intent, fallback_reason,
-      sender_type, channel, customer_name, last_message
+      sender_type, channel, customer_name, last_message, insert_source
     )
-    VALUES ($1, $2, $3, $3, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'whatsapp_customer_reply', 'whatsapp_order_confirmation_other_reply', 'customer', 'whatsapp', $4, $3)
+    VALUES ($1, $2, $3, $3, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'whatsapp_customer_reply', 'whatsapp_order_confirmation_other_reply', 'customer', 'whatsapp', $4, $3, $5)
     `,
-    [tenantId, conversationId, body, text(order?.customer_name)]
+    [tenantId, conversationId, body, text(order?.customer_name), "whatsapp_order_confirmation"]
   );
+  console.info("[ai-support-insert]", {
+    source: "whatsapp_order_confirmation",
+    session_id: conversationId,
+    channel: "whatsapp",
+  });
   await logChannelEvent({
     tenantId,
     channel: AI_AGENT_CHANNELS.WHATSAPP,

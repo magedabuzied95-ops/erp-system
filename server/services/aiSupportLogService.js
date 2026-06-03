@@ -124,6 +124,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           staff_user_name TEXT NOT NULL DEFAULT '',
           external_message_id TEXT NOT NULL DEFAULT '',
           dedupe_key TEXT NOT NULL DEFAULT '',
+          source_path TEXT NOT NULL DEFAULT '',
           delivery_status TEXT NOT NULL DEFAULT '',
           delivery_error TEXT NOT NULL DEFAULT '',
           requested_product_terms JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -176,9 +177,11 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS staff_user_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS external_message_id TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS dedupe_key TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS source_path TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS provider_message_id TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS whatsapp_instance TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS remote_jid TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS insert_source TEXT NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS delivery_status TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS delivery_error TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS clicked_product_id BIGINT NULL`);
@@ -215,6 +218,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_tenant_human ON ai_support_messages (tenant_id, needs_human_support, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_tenant_confidence ON ai_support_messages (tenant_id, confidence, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_tenant_clicked ON ai_support_messages (tenant_id, clicked_product_id, created_at DESC)`);
+      await clientOrPool.query(`UPDATE ai_support_messages SET insert_source = COALESCE(insert_source, CASE WHEN channel = 'whatsapp' AND NULLIF(provider_message_id, '') IS NOT NULL THEN 'whatsapp_unknown_legacy' WHEN channel = 'facebook_messenger' THEN 'meta_messenger_legacy' WHEN channel = 'instagram' THEN 'instagram_dm_legacy' ELSE 'legacy_unknown' END) WHERE insert_source IS NULL`);
       await clientOrPool.query(`
         DELETE FROM ai_support_messages newer
         USING ai_support_messages older
@@ -508,11 +512,12 @@ export const appendManualAiSupportReply = async ({
       staff_user_id,
       staff_user_name,
       channel,
+      source_path,
       delivery_status,
       delivery_error,
       external_message_id
     )
-    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'manual_staff_reply', '', $5, 'staff', TRUE, $3, $6, COALESCE(NULLIF($7, ''), 'web_chat'), $8, $9, $10)
+    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'manual_staff_reply', '', $5, 'staff', TRUE, $3, $6, COALESCE(NULLIF($7, ''), 'web_chat'), $11, $8, $9, $10)
     RETURNING *
     `,
     [
@@ -526,8 +531,15 @@ export const appendManualAiSupportReply = async ({
       toText(deliveryStatus),
       toText(deliveryError),
       toText(externalMessageId),
+      toText(source, "manual_admin"),
     ]
   );
+  console.info("[ai-support-insert]", {
+    source: "ai_support_route",
+    session_id: safeSessionId,
+    channel: toText(channel, "web_chat"),
+    message_id: result.rows[0]?.id || null,
+  });
   await db.query(
     `
     UPDATE ai_support_sessions
@@ -555,6 +567,8 @@ export const appendAiGeneratedSupportReply = async ({
   deliveryStatus = "",
   deliveryError = "",
   externalMessageId = "",
+  sourcePath = "retry_worker",
+  insertSource = "ai_support_route",
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
@@ -599,9 +613,11 @@ export const appendAiGeneratedSupportReply = async ({
       channel,
       delivery_status,
       delivery_error,
-      external_message_id
+      external_message_id,
+      source_path,
+      insert_source
     )
-    VALUES ($1, $2, $3, $4, '', $4, $5, FALSE, '[]'::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, '', 'ai', FALSE, COALESCE(NULLIF($10, ''), 'web_chat'), $11, $12, $13)
+    VALUES ($1, $2, $3, $4, '', $4, $5, FALSE, '[]'::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, '', 'ai', FALSE, COALESCE(NULLIF($10, ''), 'web_chat'), $11, $12, $13, $14, $15, $16)
     RETURNING *
     `,
     [
@@ -618,6 +634,9 @@ export const appendAiGeneratedSupportReply = async ({
       toText(deliveryStatus),
       toText(deliveryError),
       toText(externalMessageId),
+      toText("retry_worker"),
+      toText(sourcePath, "retry_worker"),
+      toText(insertSource),
     ]
   );
   await db.query(
@@ -641,6 +660,8 @@ export const logAiSupportMessage = async ({
   detectedIntent = "",
   fallbackReason = "",
   source = "admin_console",
+  sourcePath = "manual_admin",
+  insertSource = "manual_message_insert",
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
@@ -666,6 +687,11 @@ export const logAiSupportMessage = async ({
   );
 
   const sessionRefId = sessionResult.rows[0]?.id || null;
+  console.info("[ai-support-insert]", {
+    source: "manual_message_insert",
+    session_id: safeSessionId,
+    channel: toText(source, "admin_console"),
+  });
   const result = await db.query(
     `
     INSERT INTO ai_support_messages (
@@ -686,9 +712,11 @@ export const logAiSupportMessage = async ({
       fallback_reason,
       requested_product_terms,
       requested_sizes,
-      requested_colors
+      requested_colors,
+      source_path,
+      insert_source
     )
-    VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, $15::jsonb, $16::jsonb, $17::jsonb)
+    VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, $15::jsonb, $16::jsonb, $17::jsonb, $18, $19)
     RETURNING *
     `,
     [
@@ -709,8 +737,17 @@ export const logAiSupportMessage = async ({
       jsonValue(requestedProductTerms),
       jsonValue(requestedSizes),
       jsonValue(requestedColors),
+      toText(source, "manual_admin"),
+      toText(sourcePath, "manual_admin"),
+      toText(insertSource),
     ]
   );
+  console.info("[ai-support-insert]", {
+    source: "manual_message_insert",
+    session_id: safeSessionId,
+    channel: toText(source, "admin_console"),
+    message_id: result.rows[0]?.id || null,
+  });
 
   if (["no_matching_products", "product_discovery_needs_clarification"].includes(toText(fallbackReason))) {
     await incrementAliasUsage({ tenantId: safeTenantId, aliases: response.unknown_product_terms || requestedProductTerms, confidence: 0 });

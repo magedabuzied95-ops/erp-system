@@ -606,13 +606,45 @@ const productCardUrl = (product = {}) => text(product.product_url || product.url
 const formatWhatsAppCaptionSizes = (sizes = []) =>
   [...new Set(asArray(sizes).map((value) => text(value)).filter(Boolean))];
 
+const resolveImageCardPrice = (product = {}) => {
+  const variant = product.selected_variant || product.variant || product.matched_variant || {};
+  const candidateSources = [
+    { source: "selected_variant.display_price", value: variant?.display_price },
+    { source: "selected_variant.sale_price", value: variant?.sale_price, saleActive: true },
+    { source: "selected_variant.selling_price", value: variant?.selling_price },
+    { source: "variant.display_price", value: product?.variant?.display_price },
+    { source: "variant.sale_price", value: product?.variant?.sale_price, saleActive: true },
+    { source: "variant.selling_price", value: product?.variant?.selling_price },
+    { source: "matched_variant.display_price", value: product?.matched_variant?.display_price },
+    { source: "matched_variant.sale_price", value: product?.matched_variant?.sale_price, saleActive: true },
+    { source: "matched_variant.selling_price", value: product?.matched_variant?.selling_price },
+  ];
+  for (const candidate of candidateSources) {
+    const parsed = Number(candidate.value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      console.info("[image-card-price-source]", {
+        product_id: text(product?.product_id || product?.id || ""),
+        variant_id: text(variant?.id || variant?.variant_id || product?.variant_id || product?.selected_variant_id || product?.matched_variant_id || ""),
+        color: text(product?.color || product?.matched_variant_color || variant?.color || ""),
+        selling_price: Number.isFinite(Number(variant?.selling_price)) && Number(variant?.selling_price) > 0 ? Number(variant?.selling_price) : null,
+        sale_price: Number.isFinite(Number(variant?.sale_price)) && Number(variant?.sale_price) > 0 ? Number(variant?.sale_price) : null,
+        display_price: parsed,
+        price_source: candidate.source,
+      });
+      return Math.round(parsed).toLocaleString("en-US");
+    }
+  }
+  return "";
+};
+
 const productImageCaption = (product = {}) => {
   const sizes = formatWhatsAppCaptionSizes(product.available_sizes || product.sizes);
   const sizesLine = sizes.length ? `المقاسات المتاحة: ${sizes.join("، ")}` : "";
+  const price = resolveImageCardPrice(product) || productCardPrice(product);
   return [
     productCardName(product),
     sizesLine,
-    productCardPrice(product) ? `السعر: ${productCardPrice(product)} جنيه` : "",
+    price ? `السعر: ${price} جنيه` : "",
     productCardUrl(product),
   ].filter(Boolean).join("\n").slice(0, 1024);
 };
@@ -756,6 +788,17 @@ const productImageDebugCard = (item = {}) => {
   };
 };
 
+const imageCardDedupeKey = (card = {}) => {
+  const productId = text(card?.product_id || card?.id || card?.product?.id || "");
+  const variantId = text(card?.variant_id || card?.selected_variant_id || card?.variant?.id || card?.variant?.variant_id || card?.matched_variant_id || "");
+  const color = text(card?.color || card?.matched_variant_color || card?.variant?.color || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const imageUrl = text(card?.resolved_image_url || card?.imageUrl || card?.image_url || card?.product?.image_url || card?.product?.main_image || "");
+  if (variantId) return `variant:${variantId}`;
+  if (productId && color) return `product-color:${productId}:${color}`;
+  if (productId && imageUrl) return `product-image:${productId}:${normalizeDuplicateImageUrl(imageUrl)}`;
+  return "";
+};
+
 const collectProductImageCards = ({ generated = {} } = {}) => {
   const cards = [
     ...asArray(generated.reply?.product_cards),
@@ -763,22 +806,53 @@ const collectProductImageCards = ({ generated = {} } = {}) => {
     ...asArray(generated.aiPayload?.suggested_products),
     ...asArray(generated.aiPayload?.product_cards),
   ];
-  return cards.map((product, cardIndex) => {
-      const rawImageUrl = text(productImageCandidates(product).find((candidate) => text(candidate)) || "");
-      const resolvedImageUrl = resolvePublicImageUrl(rawImageUrl);
-      const valid = isPublicImageUrl(resolvedImageUrl);
-      return {
-        product,
-        card_index: cardIndex,
-        imageUrl: resolvedImageUrl,
-        raw_image_url: rawImageUrl,
-        resolved_image_url: resolvedImageUrl,
-        mime_type: imageMimeType(resolvedImageUrl),
-        valid,
-        normalized_image_url: normalizeDuplicateImageUrl(resolvedImageUrl),
-        skip_reason: valid ? "" : (resolvedImageUrl ? "invalid_private_url" : "missing_image_url"),
-      };
-    });
+  const builtCards = cards.map((product, cardIndex) => {
+    const rawImageUrl = text(productImageCandidates(product).find((candidate) => text(candidate)) || "");
+    const resolvedImageUrl = resolvePublicImageUrl(rawImageUrl);
+    const valid = isPublicImageUrl(resolvedImageUrl);
+    const variantId = text(product?.variant_id || product?.selected_variant_id || product?.variant?.id || product?.variant?.variant_id || product?.matched_variant_id || "");
+    const color = text(product?.color || product?.matched_variant_color || product?.variant?.color || "");
+    const selectedVariant = product?.selected_variant || product?.variant || product?.matched_variant || null;
+    return {
+      product,
+      card_index: cardIndex,
+      imageUrl: resolvedImageUrl,
+      raw_image_url: rawImageUrl,
+      resolved_image_url: resolvedImageUrl,
+      mime_type: imageMimeType(resolvedImageUrl),
+      valid,
+      normalized_image_url: normalizeDuplicateImageUrl(resolvedImageUrl),
+      dedupe_key: imageCardDedupeKey({ ...product, resolved_image_url: resolvedImageUrl, imageUrl: resolvedImageUrl }),
+      skip_reason: valid ? "" : (resolvedImageUrl ? "invalid_private_url" : "missing_image_url"),
+      variant_id: variantId,
+      color,
+      selected_variant: selectedVariant,
+    };
+  });
+  const before_count = builtCards.length;
+  const removedKeys = [];
+  const seen = new Set();
+  const deduped = [];
+  for (const card of builtCards) {
+    const key = card.dedupe_key || normalizeDuplicateImageUrl(card.resolved_image_url || card.imageUrl || "");
+    if (!key) {
+      deduped.push(card);
+      continue;
+    }
+    if (seen.has(key)) {
+      removedKeys.push(key);
+      continue;
+    }
+    seen.add(key);
+    deduped.push(card);
+  }
+  console.info("[image-card-dedupe]", {
+    before_count,
+    after_count: deduped.length,
+    removed_count: before_count - deduped.length,
+    removed_keys: [...new Set(removedKeys)],
+  });
+  return deduped;
 };
 
 const shouldSendProductImages = (generated = {}) => {
@@ -1059,16 +1133,58 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       session_ref_id, tenant_id, session_id, channel, customer_name, last_message, message_text,
       customer_message, ai_answer, confidence, needs_human_support, sources_used, suggested_products,
       visual_attachments, suggested_actions, detected_intent, fallback_reason, sender_type, external_message_id, dedupe_key,
-      provider_message_id, whatsapp_instance, remote_jid
+      provider_message_id, whatsapp_instance, remote_jid, source_path, insert_source
     )
-    VALUES ($1, $2, $3::text, 'whatsapp', $4::text, $5::text, $5::text, $5::text, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '', 'ai_status:pending', 'customer', $6::text, $7::text, $8::text, $9::text, $10::text)
+    VALUES ($1, $2, $3::text, 'whatsapp', $4::text, $5::text, $5::text, $5::text, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '', 'ai_status:pending', 'customer', $6::text, $7::text, $8::text, $9::text, $10::text, $11::text, $12::text)
     ON CONFLICT (tenant_id, channel, whatsapp_instance, remote_jid, provider_message_id) WHERE provider_message_id <> '' DO NOTHING
     RETURNING *
     `,
-    [session.rows[0]?.id || null, tenantId, sessionId, customerName, body, externalMessageId, dedupeKey, externalMessageId, instance, remoteJid]
+    [session.rows[0]?.id || null, tenantId, sessionId, customerName, body, externalMessageId, dedupeKey, externalMessageId, instance, remoteJid, "whatsapp_webhook", "whatsapp_webhook"]
   );
 
   if (!inserted.rows[0]) {
+    const existingRow = await db.query(
+      `
+      SELECT
+        id,
+        created_at,
+        provider_message_id,
+        channel,
+        whatsapp_instance,
+        remote_jid,
+        session_id,
+        session_id AS conversation_id,
+        message_text,
+        source_path,
+        CASE WHEN sender_type = 'staff' THEN TRUE ELSE FALSE END AS from_me,
+        tenant_id,
+        insert_source
+      FROM ai_support_messages
+      WHERE tenant_id = $1
+        AND channel = $2
+        AND whatsapp_instance = $3
+        AND remote_jid = $4
+        AND provider_message_id = $5
+      ORDER BY id ASC
+      LIMIT 1
+      `,
+      [tenantId, channel, instance, remoteJid, externalMessageId]
+    ).then((result) => result.rows[0] || null).catch(() => null);
+    console.info("[existing-provider-message-row]", {
+      id: existingRow?.id || null,
+      created_at: existingRow?.created_at || null,
+      provider_message_id: existingRow?.provider_message_id || externalMessageId,
+      channel: existingRow?.channel || channel,
+      whatsapp_instance: existingRow?.whatsapp_instance || instance,
+      remote_jid: existingRow?.remote_jid || remoteJid,
+      session_id: existingRow?.session_id || sessionId,
+      conversation_id: existingRow?.conversation_id || sessionId,
+      message_text: existingRow?.message_text || "",
+      from_me: existingRow?.from_me ?? false,
+      source_path: existingRow?.source_path || "whatsapp_webhook",
+      tenant_id: existingRow?.tenant_id || tenantId,
+      insert_source: existingRow?.insert_source || null,
+    });
     console.warn("[whatsapp-insert-conflict]", {
       error_code: "duplicate_provider_message_id",
       constraint: "idx_ai_support_messages_provider_message_id",
@@ -1136,6 +1252,12 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
     provider_message_id: externalMessageId,
     ai_support_message_id: inserted.rows[0]?.id || null,
     conversation_id: sessionId,
+  });
+  console.info("[provider-message-first-seen]", {
+    provider_message_id: externalMessageId,
+    created_at: inserted.rows[0]?.created_at || receivedAt,
+    source_path: "whatsapp_webhook",
+    trace_id: message.trace_id || null,
   });
   console.info("[whatsapp-inbox-save-result]", {
     saved: true,

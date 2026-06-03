@@ -1301,13 +1301,21 @@ const appendForcedClosedFollowupNote = async ({ tenantId, sessionId, sessionRefI
       sender_type,
       manual_message,
       staff_user_id,
-      staff_user_name
+      staff_user_name,
+      source_path,
+      insert_source
     )
-    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'manual_followup_note', 'forced_closed_conversation', $5, 'staff', TRUE, $3, $6)
+    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'manual_followup_note', 'forced_closed_conversation', $5, 'staff', TRUE, $3, $6, $7, $8)
     RETURNING *
     `,
-    [sessionRefId || null, tenantId, staffUserId || null, sessionId, text(message), text(staffUserName)]
+    [sessionRefId || null, tenantId, staffUserId || null, sessionId, text(message), text(staffUserName), "manual_admin", "ai_sales_agent"]
   );
+  console.info("[ai-support-insert]", {
+    source: "manual_message_insert",
+    session_id: sessionId,
+    channel: "manual_followup_note",
+    message_id: result.rows[0]?.id || null,
+  });
   return result.rows[0] || null;
 };
 

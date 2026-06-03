@@ -5251,18 +5251,24 @@ const logIncomingToInbox = async ({ message, config }) => {
     session_id: sessionId,
     session_ref_id: session.rows[0]?.id || null,
   });
+  console.log("[ai-support-insert]", {
+    source: "sync_job",
+    session_id: sessionId,
+    channel,
+    external_message_id: externalMessageId || null,
+  });
   const inserted = await db.query(
     `
     INSERT INTO ai_support_messages (
       session_ref_id, tenant_id, session_id, channel, customer_name, customer_avatar_url, last_message, message_text,
       customer_message, ai_answer, confidence, needs_human_support, sources_used, suggested_products,
-      visual_attachments, suggested_actions, detected_intent, fallback_reason, sender_type, external_message_id, dedupe_key
+      visual_attachments, suggested_actions, detected_intent, fallback_reason, sender_type, external_message_id, dedupe_key, source_path, insert_source
     )
-    VALUES ($1,$2,$3::text,$4::text,$5::text,$6::text,$7::text,$7::text,$7::text,'',0,FALSE,'[]'::jsonb,'[]'::jsonb,$8::jsonb,'[]'::jsonb,'','ai_status:pending','customer',$9,$10)
+    VALUES ($1,$2,$3::text,$4::text,$5::text,$6::text,$7::text,$7::text,$7::text,'',0,FALSE,'[]'::jsonb,'[]'::jsonb,$8::jsonb,'[]'::jsonb,'','ai_status:pending','customer',$9,$10,$11,$12)
     ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO NOTHING
     RETURNING *
     `,
-    [session.rows[0]?.id || null, config.tenant_id, sessionId, channel, customerName, customerAvatarUrl, lastMessage, json(message.attachments || []), externalMessageId, dedupeKey]
+    [session.rows[0]?.id || null, config.tenant_id, sessionId, channel, customerName, customerAvatarUrl, lastMessage, json(message.attachments || []), externalMessageId, dedupeKey, "sync_job", channel === "instagram" ? "instagram_dm" : "meta_messenger"]
   );
   if (!inserted.rows[0]) {
     console.log("[meta-inbox] meta_message_duplicate_skipped", {
@@ -5277,6 +5283,12 @@ const logIncomingToInbox = async ({ message, config }) => {
     tenant_id: config.tenant_id,
     session_id: sessionId,
     message_id: inserted.rows[0]?.id || null,
+  });
+  console.info("[provider-message-first-seen]", {
+    provider_message_id: externalMessageId || null,
+    created_at: inserted.rows[0]?.created_at || nowIso(),
+    source_path: "sync_job",
+    trace_id: message.trace_id || null,
   });
   emitToRooms([`tenant:${config.tenant_id}`], "ai_inbox:message", {
     tenant_id: config.tenant_id,

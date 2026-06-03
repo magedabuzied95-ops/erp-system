@@ -3608,6 +3608,12 @@ function POSPro() {
 
   const handleCheckout = async (options = {}) => {
     const paymobTerminalCheckout = options?.paymobTerminal === true;
+    console.log("[pos-checkout:clicked]", {
+      checkoutLoading,
+      cart_count: cart.length,
+      editing_order_id: editingOrder?.id || null,
+      paymob_terminal: paymobTerminalCheckout,
+    });
     if (checkoutLoading) {
       return null;
     }
@@ -3716,6 +3722,12 @@ function POSPro() {
     }
 
     try {
+      console.log("[pos-checkout:frontend-submit]", {
+        checkout_branch_id: checkoutBranchId,
+        cart_count: cart.length,
+        payment_method: paymentMode,
+        paymob_terminal: paymobTerminalCheckout,
+      });
       const checkoutStartedAt = performance.now();
       let apiStartedAt = checkoutStartedAt;
       setCheckoutLoading(true);
@@ -4202,6 +4214,11 @@ function POSPro() {
       });
       return normalizedOrder;
     } catch (err) {
+      console.error("[pos-checkout:frontend-error]", {
+        message: err?.message || String(err),
+        status: err?.status || err?.response?.status || null,
+        response: err?.response?.data || err?.responseBody || null,
+      });
       console.error("[pos] checkout failed:", {
         message: err?.message,
         status: err?.status || err?.response?.status,

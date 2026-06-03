@@ -561,13 +561,32 @@ const buildBaseCard = (product = {}, overrides = {}) => {
         numericPrice(product?.price) ||
         numericPrice(product?.sale_price)
       : null);
-  console.info("[ai-variant-price-source]", {
+  const priceSource =
+    overrides.price ? "override.price" :
+    numericPrice(selectedVariant?.display_price) ? "selected_variant.display_price" :
+    numericPrice(selectedVariant?.sale_price) ? "selected_variant.sale_price" :
+    numericPrice(selectedVariant?.selling_price) ? "selected_variant.selling_price" :
+    numericPrice(product?.matched_variant?.display_price) ? "matched_variant.display_price" :
+    numericPrice(product?.matched_variant?.sale_price) ? "matched_variant.sale_price" :
+    numericPrice(product?.matched_variant?.selling_price) ? "matched_variant.selling_price" :
+    numericPrice(product?.final_price) ? "product.final_price" :
+    numericPrice(product?.price) ? "product.price" :
+    numericPrice(product?.sale_price) ? "product.sale_price" :
+    "missing";
+  console.info("[image-card-price-source]", {
     product_id: id,
     variant_id: selectedVariantId,
     color,
+    display_price: selectedDisplayPrice,
+    price_source: priceSource,
     selected_for_text: selectedVariantId,
     selected_for_card: selectedVariantId,
-    display_price: selectedDisplayPrice,
+  });
+  console.info("[image-card-image-url]", {
+    product_id: id,
+    variant_id: selectedVariantId,
+    color,
+    image_url: product?.cloudinary_url || product?.secure_url || cardImageUrl || "",
   });
   return {
     id,
@@ -643,18 +662,35 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
     more_color_variants_count: expansionDebug.more_color_variants_count,
   }));
 
+  const beforeImageDedupe = cards.length;
+  const seenImageUrls = new Set();
+  const uniqueCards = [];
+  for (const card of cards) {
+    const imageUrl = imageIdentity(resolvePublicProductImageUrl(card.image_url || card.image || card.main_image || card.variant_image || card.color_image || ""));
+    if (imageUrl && seenImageUrls.has(imageUrl)) continue;
+    if (imageUrl) seenImageUrls.add(imageUrl);
+    uniqueCards.push(card);
+  }
+  if (beforeImageDedupe !== uniqueCards.length) {
+    console.log("[image-card-dedupe]", {
+      before_count: beforeImageDedupe,
+      after_count: uniqueCards.length,
+      removed_count: beforeImageDedupe - uniqueCards.length,
+    });
+  }
+
   console.log("[ai-product-cards] grouped color cards", {
     product_id: product?.id || product?.product_id || null,
     model_family: expansionDebug.model_family || "",
     strong_model_detected: Boolean(product?.strong_model_match || product?.exact_match_found || product?.model_match_confidence >= 0.72),
     grouped_colors_count: expansionDebug.grouped_colors_count,
     expanded_color_count: expansionDebug.expanded_color_count,
-    selected_cards: cards.map((card) => ({ color: card.color || "", selected_image: card.image_url || "", sizes: card.sizes || [] })),
+    selected_cards: uniqueCards.map((card) => ({ color: card.color || "", selected_image: card.image_url || "", sizes: card.sizes || [] })),
     colors_sent: expansionDebug.colors_sent,
     colors_skipped: expansionDebug.colors_skipped,
     color_groups: expansionDebug.color_groups,
   });
-  return cards;
+  return uniqueCards;
 };
 
 export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
@@ -683,7 +719,7 @@ export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
       seen.set(key, true);
       deduped.push(card);
     }
-    console.log("[whatsapp-card-dedupe]", {
+    console.log("[image-card-dedupe]", {
       before_count: beforeCount,
       after_count: deduped.length,
       removed_count: beforeCount - deduped.length,
