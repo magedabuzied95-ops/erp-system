@@ -41,6 +41,7 @@ import { API_ORIGIN, SOCKET_URL } from "../../../shared/constants/app";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import ChatImageAttachment from "../components/ChatImageAttachment";
+import WhatsAppRecordingBar from "../components/WhatsAppRecordingBar";
 import WhatsAppVoiceMessage from "../components/WhatsAppVoiceMessage";
 import { messageAttachmentDuration, resolveEmployeeChatAttachmentUrl } from "../lib/chatAttachments";
 
@@ -1071,7 +1072,8 @@ export default function EmployeePayrollPortal() {
   const [chatImagePreview, setChatImagePreview] = useState("");
   const [chatTyping, setChatTyping] = useState(false);
   const [showChatJump, setShowChatJump] = useState(false);
-  const [recordingState, setRecordingState] = useState({ active: false, seconds: 0, supported: false });
+  const [recordingState, setRecordingState] = useState({ active: false, paused: false, seconds: 0, supported: false });
+  const [recordingStream, setRecordingStream] = useState(null);
   const [chatSocketConnected, setChatSocketConnected] = useState(false);
   const [activeToast, setActiveToast] = useState(null);
   const [displayRefillAlerts, setDisplayRefillAlerts] = useState([]);
@@ -1090,7 +1092,7 @@ export default function EmployeePayrollPortal() {
   const mediaRecorderRef = useRef(null);
   const recordingChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
-  const recordingStartedAtRef = useRef(0);
+  const recordingSecondsRef = useRef(0);
   const chatSwipeRef = useRef({ id: null, startX: 0, startY: 0, active: false });
   const text = labels[language];
   const isRtl = language === "ar";
@@ -1098,6 +1100,11 @@ export default function EmployeePayrollPortal() {
 
   useEffect(() => {
     setRecordingState((current) => ({ ...current, supported: isBrowser() && Boolean(window.MediaRecorder && navigator.mediaDevices?.getUserMedia) }));
+  }, []);
+
+  useEffect(() => () => {
+    if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+    mediaRecorderRef.current?.stream?.getTracks?.().forEach((track) => track.stop());
   }, []);
 
   useEffect(() => {
@@ -1186,12 +1193,13 @@ export default function EmployeePayrollPortal() {
     try {
       if (!silent) setDisplayRefillLoading(true);
       const response = await api.get(`/employee-portal/${encodeURIComponent(token)}/display-refill-alerts`, {
-        params: { status: "pending" },
+        params: { status: "all" },
       });
       const alerts = safeArray(response.alerts);
       console.info("[employee-payroll-portal] display refill alerts loaded", {
         count: alerts.length,
         pending_unread_count: response.pending_unread_count ?? null,
+        completed_count: response.completed_count ?? null,
       });
       setDisplayRefillAlerts(alerts);
     } catch (err) {
@@ -1267,7 +1275,22 @@ export default function EmployeePayrollPortal() {
   const attendanceRows = safeArray(portal?.attendance?.timeline);
   const employeeRequests = safeArray(portal?.employee_requests);
   const employeeNotifications = safeArray(portal?.notifications);
-  const pendingDisplayRefillAlerts = safeArray(displayRefillAlerts).filter((item) => String(item.status || "pending") === "pending");
+  const displayRefillAlertRows = useMemo(() => {
+    return safeArray(displayRefillAlerts)
+      .slice()
+      .sort((a, b) => {
+        const statusA = String(a.status || "pending").toLowerCase() === "pending" ? 0 : 1;
+        const statusB = String(b.status || "pending").toLowerCase() === "pending" ? 0 : 1;
+        if (statusA !== statusB) return statusA - statusB;
+        const timeA = Date.parse(a.updated_at || a.resolved_at || a.created_at || 0) || 0;
+        const timeB = Date.parse(b.updated_at || b.resolved_at || b.created_at || 0) || 0;
+        if (timeA !== timeB) return timeB - timeA;
+        return Number(b.id || 0) - Number(a.id || 0);
+      });
+  }, [displayRefillAlerts]);
+  const pendingDisplayRefillAlerts = displayRefillAlertRows.filter((item) => String(item.status || "pending").toLowerCase() === "pending");
+  const completedDisplayRefillAlerts = displayRefillAlertRows.filter((item) => String(item.status || "").toLowerCase() === "resolved");
+  const hasDisplayRefillAlerts = displayRefillAlertRows.length > 0;
   const currentShift = portal?.currentShift || profile.currentShift || {};
   const ui = (key) => text[key] || labels.en[key] || key;
   const showInstallCard = !standalone && (Boolean(installPrompt) || isIosDevice());
@@ -1578,11 +1601,11 @@ export default function EmployeePayrollPortal() {
       const assignedToBranch = tenantMatches && !alertEmployeeId && alertBranchId && profileBranchId && alertBranchId === profileBranchId;
       if (!assignedToEmployee && !assignedToBranch) return;
       showPortalToast(alert.replacement_size ? `اعرض مقاس ${alert.replacement_size} بدل ${alert.sold_size}` : "لا يوجد مقاس بديل متاح", "success");
-      setDisplayRefillAlerts((current) => [alert, ...safeArray(current).filter((item) => String(item.id) !== String(alert.id))]);
-      setBadgeCounts((current) => ({
-        ...current,
-        displayRefillAlerts: activeTab === "display-refill" ? 0 : Number(current.displayRefillAlerts || 0) + 1,
-      }));
+      setDisplayRefillAlerts((current) => {
+        const rows = safeArray(current).map((item) => String(item.id) === String(alert.id) ? { ...item, ...alert } : item);
+        if (!rows.some((item) => String(item.id) === String(alert.id))) rows.unshift(alert);
+        return rows;
+      });
     };
 
     requestSocket.on("employee_portal:request_updated", onRequestUpdated);
@@ -1922,43 +1945,102 @@ export default function EmployeePayrollPortal() {
     const mimeType = MediaRecorder.isTypeSupported?.("audio/webm") ? "audio/webm" : "";
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     recordingChunksRef.current = [];
+    recordingSecondsRef.current = 0;
     recorder.ondataavailable = (event) => {
       if (event.data?.size) recordingChunksRef.current.push(event.data);
     };
-    recorder.onstop = () => stream.getTracks().forEach((track) => track.stop());
     mediaRecorderRef.current = recorder;
+    setChatAttachment(null);
+    setChatAttachmentDuration(0);
+    setRecordingStream(stream);
+    if (chatFileInputRef.current) chatFileInputRef.current.value = "";
     recorder.start();
-    recordingStartedAtRef.current = Date.now();
-    setRecordingState((current) => ({ ...current, active: true, seconds: 0 }));
+    setRecordingState((current) => ({ ...current, active: true, paused: false, seconds: 0 }));
     recordingTimerRef.current = window.setInterval(() => {
-      setRecordingState((current) => ({ ...current, seconds: current.seconds + 1 }));
+      setRecordingState((current) => {
+        if (!current.active || current.paused) return current;
+        const seconds = current.seconds + 1;
+        recordingSecondsRef.current = seconds;
+        return { ...current, seconds };
+      });
     }, 1000);
   };
 
+  const stopVoiceRecording = ({ capture = false } = {}) => new Promise((resolve) => {
+    const recorder = mediaRecorderRef.current;
+    const durationSeconds = Math.max(1, recordingSecondsRef.current || recordingState.seconds || 0);
+    const mimeType = recorder?.mimeType || "audio/webm";
+    const finish = () => {
+      const blob = capture ? new Blob(recordingChunksRef.current, { type: mimeType }) : null;
+      recorder?.stream?.getTracks?.().forEach((track) => track.stop());
+      mediaRecorderRef.current = null;
+      recordingChunksRef.current = [];
+      recordingSecondsRef.current = 0;
+      setRecordingStream(null);
+      setRecordingState((current) => ({ ...current, active: false, paused: false, seconds: 0 }));
+      if (recordingTimerRef.current) {
+        window.clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      resolve(blob?.size ? { blob, durationSeconds, mimeType } : null);
+    };
+
+    if (!recorder) {
+      finish();
+      return;
+    }
+
+    recorder.onstop = finish;
+    if (recorder.state === "inactive") {
+      finish();
+      return;
+    }
+    recorder.stop();
+  });
+
   const cancelVoiceRecording = () => {
-    mediaRecorderRef.current?.stop();
-    recordingChunksRef.current = [];
-    recordingStartedAtRef.current = 0;
-    if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
-    setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
+    void stopVoiceRecording({ capture: false });
   };
 
-  const sendVoiceRecording = () => {
+  const toggleVoiceRecordingPause = () => {
     const recorder = mediaRecorderRef.current;
-    if (!recorder) return;
-    recorder.onstop = async () => {
-      recorder.stream?.getTracks?.().forEach((track) => track.stop());
-      if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
-      const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" });
-      const durationSeconds = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
-      recordingChunksRef.current = [];
-      recordingStartedAtRef.current = 0;
-      setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
-      if (!blob.size) return;
-      setChatAttachmentDuration(durationSeconds);
-      setChatAttachment(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type || "audio/webm" }));
-    };
-    recorder.stop();
+    if (!recorder || !recordingState.active) return;
+    if (recorder.state === "recording" && typeof recorder.pause === "function") {
+      recorder.pause();
+      setRecordingState((current) => ({ ...current, paused: true }));
+      return;
+    }
+    if (recorder.state === "paused" && typeof recorder.resume === "function") {
+      recorder.resume();
+      setRecordingState((current) => ({ ...current, paused: false }));
+    }
+  };
+
+  const sendVoiceRecording = async () => {
+    if (chatSaving) return;
+    setChatSaving(true);
+    setChatError("");
+    try {
+      const recording = await stopVoiceRecording({ capture: true });
+      if (!recording?.blob?.size) return;
+      const formData = new FormData();
+      formData.append("attachment", new File([recording.blob], `voice-${Date.now()}.webm`, { type: recording.mimeType || recording.blob.type || "audio/webm" }));
+      formData.append("attachment_duration_seconds", String(recording.durationSeconds));
+      if (replyToChat?.id) formData.append("reply_to_message_id", replyToChat.id);
+      await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/messages`, formData, {
+        suppressErrorStatuses: [400, 404, 429],
+      });
+      setChatBody("");
+      setChatAttachment(null);
+      setChatAttachmentDuration(0);
+      setReplyToChat(null);
+      if (chatFileInputRef.current) chatFileInputRef.current.value = "";
+      await loadEmployeeChat({ silent: true });
+    } catch (err) {
+      setChatError(err?.responseBody?.message || err?.message || ui("chatSendError"));
+    } finally {
+      setChatSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -2387,54 +2469,126 @@ export default function EmployeePayrollPortal() {
             {activeTab === "display-refill" ? (
               <div className="rounded-3xl border border-amber-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <h3 className="text-base font-black text-slate-950">نواقص العرض</h3>
-                    <p className="mt-1 text-xs font-bold text-slate-500">المقاسات اللي محتاجة تتعرض مكان المقاس المباع.</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.</p>
                   </div>
                   <button type="button" onClick={() => loadDisplayRefillAlerts()} className="inline-flex min-h-10 items-center justify-center rounded-xl bg-slate-100 px-3 text-[11px] font-black text-slate-700">
                     {displayRefillLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   </button>
                 </div>
-                <div className="mt-3 grid gap-3">
-                  {pendingDisplayRefillAlerts.length ? pendingDisplayRefillAlerts.map((alert) => {
-                    const imageSrc = alert.image_url
-                      ? (/^https?:\/\//i.test(alert.image_url) ? alert.image_url : `${API_ORIGIN}${String(alert.image_url).startsWith("/") ? "" : "/"}${alert.image_url}`)
-                      : "";
-                    return (
-                      <article key={alert.id} className="rounded-2xl border border-amber-100 bg-amber-50/70 p-3">
-                        <div className="flex items-start gap-3">
-                          <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-amber-100 bg-white">
-                            {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-amber-700"><AlertTriangle className="h-7 w-7" /></div>}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="inline-flex rounded-full bg-amber-200 px-2 py-1 text-[10px] font-black text-amber-950">ناقص عرض</div>
-                            <h4 className="mt-2 text-sm font-black leading-5 text-slate-950" dir="auto">{alert.product_name}</h4>
-                            {alert.color_name ? <div className="mt-1 text-xs font-black text-slate-600">اللون: {alert.color_name}</div> : null}
-                            <div className="mt-2 grid gap-1 text-xs font-bold leading-5 text-slate-700">
-                              <div>اتبيع المقاس المعروض: <span className="font-black">{alert.sold_size}</span></div>
-                              <div className={alert.replacement_size ? "text-emerald-700" : "text-red-700"}>
-                                {alert.replacement_size ? <>اعرض المقاس التالي: <span className="font-black">{alert.replacement_size}</span></> : "لا يوجد مقاس بديل متاح"}
+                <div className="mt-3 grid gap-4">
+                  <section className="grid gap-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-sm font-black text-slate-950">قيد التنفيذ</h4>
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-black text-amber-900">{pendingDisplayRefillAlerts.length}</span>
+                    </div>
+                    {pendingDisplayRefillAlerts.length ? pendingDisplayRefillAlerts.map((alert) => {
+                      const imageSrc = alert.image_url
+                        ? (/^https?:\/\//i.test(alert.image_url) ? alert.image_url : `${API_ORIGIN}${String(alert.image_url).startsWith("/") ? "" : "/"}${alert.image_url}`)
+                        : "";
+                      const isSaving = displayRefillSavingId === String(alert.id);
+                      return (
+                        <article key={alert.id} className="rounded-2xl border border-amber-100 bg-amber-50/80 p-2.5 shadow-sm">
+                          <div className="flex items-start gap-2.5">
+                            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-amber-100 bg-white">
+                              {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-amber-700"><AlertTriangle className="h-5 w-5" /></div>}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="inline-flex rounded-full bg-amber-200 px-2 py-1 text-[10px] font-black text-amber-950">قيد العرض</div>
+                                {alert.invoice_number ? <div className="truncate text-[11px] font-bold text-slate-400">{alert.invoice_number}</div> : null}
                               </div>
-                              {Number(alert.remaining_stock || 0) > 0 ? <div>المتاح: {alert.remaining_stock} قطع</div> : null}
-                              {alert.invoice_number ? <div className="text-slate-500">الفاتورة: {alert.invoice_number}</div> : null}
-                              <div className="text-[11px] text-slate-400"><DateSafe>{formatEmployeePortalDateTime(alert.created_at, language)}</DateSafe></div>
+                              <h4
+                                className="mt-1 text-[13px] font-black leading-4 text-slate-950"
+                                dir="auto"
+                                style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflow: "hidden" }}
+                              >
+                                {alert.product_name}
+                              </h4>
+                              <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-black leading-none">
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-amber-950">اتبع: {alert.sold_size || "-"}</span>
+                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-emerald-900">اعرض: {alert.replacement_size || "-"}</span>
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold text-slate-500">
+                                {alert.color_name ? <span>{alert.color_name}</span> : null}
+                                {alert.color_name ? <span className="text-slate-300">•</span> : null}
+                                <span><DateSafe>{formatEmployeePortalDateTime(alert.created_at, language)}</DateSafe></span>
+                                {Number(alert.remaining_stock || 0) > 0 ? <><span className="text-slate-300">•</span><span>المتاح: {alert.remaining_stock}</span></> : null}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => resolveDisplayRefill(alert.id)}
-                          disabled={displayRefillSavingId === String(alert.id)}
-                          className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"
-                        >
-                          {displayRefillSavingId === String(alert.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
-                          تم العرض
-                        </button>
-                      </article>
-                    );
-                  }) : (
-                    <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 px-3 py-8 text-center text-sm font-bold text-amber-800">{ui("displayRefillEmpty")}</div>
-                  )}
+                          <button
+                            type="button"
+                            onClick={() => resolveDisplayRefill(alert.id)}
+                            disabled={isSaving}
+                            className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-60"
+                          >
+                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
+                            تم العرض
+                          </button>
+                        </article>
+                      );
+                    }) : hasDisplayRefillAlerts ? (
+                      <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 px-3 py-4 text-center text-sm font-bold text-amber-800">{ui("displayRefillEmpty")}</div>
+                    ) : null}
+                  </section>
+                  {completedDisplayRefillAlerts.length ? (
+                    <section className="grid gap-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="text-sm font-black text-slate-950">تم التنفيذ</h4>
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-600">{completedDisplayRefillAlerts.length}</span>
+                      </div>
+                      {completedDisplayRefillAlerts.map((alert) => {
+                        const imageSrc = alert.image_url
+                          ? (/^https?:\/\//i.test(alert.image_url) ? alert.image_url : `${API_ORIGIN}${String(alert.image_url).startsWith("/") ? "" : "/"}${alert.image_url}`)
+                          : "";
+                        return (
+                          <article key={alert.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-2.5 opacity-90">
+                            <div className="flex items-start gap-2.5">
+                              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover grayscale" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><CheckCheck className="h-5 w-5" /></div>}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="inline-flex rounded-full bg-slate-200 px-2 py-1 text-[10px] font-black text-slate-700">تم العرض</div>
+                                  {alert.invoice_number ? <div className="truncate text-[11px] font-bold text-slate-400">{alert.invoice_number}</div> : null}
+                                </div>
+                                <h4
+                                  className="mt-1 text-[13px] font-black leading-4 text-slate-700"
+                                  dir="auto"
+                                  style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflow: "hidden" }}
+                                >
+                                  {alert.product_name}
+                                </h4>
+                                <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-black leading-none">
+                                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-slate-700">اتبع: {alert.sold_size || "-"}</span>
+                                  <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-1 text-slate-700">اعرض: {alert.replacement_size || "-"}</span>
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold text-slate-500">
+                                  {alert.color_name ? <span>{alert.color_name}</span> : null}
+                                  {alert.color_name ? <span className="text-slate-300">•</span> : null}
+                                  <span><DateSafe>{formatEmployeePortalDateTime(alert.created_at, language)}</DateSafe></span>
+                                  {Number(alert.remaining_stock || 0) > 0 ? <><span className="text-slate-300">•</span><span>المتاح: {alert.remaining_stock}</span></> : null}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              disabled
+                              className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-200 px-3 text-sm font-black text-slate-600"
+                            >
+                              <CheckCheck className="h-4 w-4" />
+                              تم التنفيذ
+                            </button>
+                          </article>
+                        );
+                      })}
+                    </section>
+                  ) : null}
+                  {!hasDisplayRefillAlerts ? (
+                    <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 px-3 py-4 text-center text-sm font-bold text-amber-800">{ui("displayRefillEmpty")}</div>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -2989,6 +3143,18 @@ export default function EmployeePayrollPortal() {
               ) : null}
             </div>
             <form onSubmit={submitChatMessage} className="relative z-30 flex-none border-t border-white/10 bg-[#1f2c33] px-2 pb-1 pt-1">
+              {recordingState.active ? (
+                <WhatsAppRecordingBar
+                  stream={recordingStream}
+                  seconds={recordingState.seconds}
+                  paused={recordingState.paused}
+                  sending={chatSaving}
+                  onDelete={cancelVoiceRecording}
+                  onPauseResume={toggleVoiceRecordingPause}
+                  onSend={sendVoiceRecording}
+                />
+              ) : (
+                <>
               {replyToChat ? (
                 <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-white/10 px-2.5 py-1.5 text-[11px] font-bold leading-4 text-white">
                   <button type="button" onClick={() => scrollToChatMessage(replyToChat.id)} className="min-w-0 flex-1 border-r-2 border-emerald-300 pr-2 text-start">
@@ -2996,15 +3162,6 @@ export default function EmployeePayrollPortal() {
                     <div className="truncate opacity-80">{chatMessagePreview(replyToChat, text)}</div>
                   </button>
                   <button type="button" onClick={() => setReplyToChat(null)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-red-200"><X className="h-3.5 w-3.5" /></button>
-                </div>
-              ) : null}
-              {recordingState.active ? (
-                <div className="mb-1.5 flex items-center justify-between rounded-xl bg-red-500/10 px-2.5 py-1.5 text-[11px] font-black text-red-100">
-                  <span dir="ltr">{Math.floor(recordingState.seconds / 60)}:{String(recordingState.seconds % 60).padStart(2, "0")}</span>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={cancelVoiceRecording}>إلغاء</button>
-                    <button type="button" onClick={sendVoiceRecording} className="text-emerald-200">إرسال</button>
-                  </div>
                 </div>
               ) : null}
               {chatAttachment ? (
@@ -3050,6 +3207,8 @@ export default function EmployeePayrollPortal() {
                   {chatSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </button>
               </div>
+                </>
+              )}
             </form>
           </section>
         </div>

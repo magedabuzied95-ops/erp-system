@@ -82,7 +82,7 @@ const variantScopeSql = ({ variantColumns, productColumns, tenantParam = "$2", p
 const resolveDefaultTenantBranch = async (tenantId) => {
   const result = await db.query(
     `
-    SELECT id
+    SELECT *
     FROM branches
     WHERE tenant_id = $1
       AND COALESCE(is_active, TRUE) = TRUE
@@ -149,6 +149,7 @@ export const ensureDisplayRefillAlertSchema = async (clientOrPool = db) => {
           status VARCHAR(40) NOT NULL DEFAULT 'pending',
           is_read BOOLEAN NOT NULL DEFAULT FALSE,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NULL,
           resolved_at TIMESTAMP NULL,
           resolved_by_employee_id BIGINT NULL REFERENCES employees(id) ON DELETE SET NULL,
           CONSTRAINT employee_display_refill_alerts_status_check CHECK (status IN ('pending', 'resolved'))
@@ -171,6 +172,7 @@ export const ensureDisplayRefillAlertSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS status VARCHAR(40) NOT NULL DEFAULT 'pending'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS resolved_by_employee_id BIGINT NULL`);
       await clientOrPool.query(`
@@ -241,6 +243,7 @@ const normalizeAlert = (row = {}) => ({
   status: row.status || "pending",
   is_read: Boolean(row.is_read),
   created_at: row.created_at,
+  updated_at: row.updated_at || null,
   resolved_at: row.resolved_at || null,
   resolved_by_employee_id: row.resolved_by_employee_id || null,
 });
@@ -509,6 +512,127 @@ const insertAlert = async (alert = {}) => {
   }
 };
 
+const updatePendingAlertReplacement = async ({ alertId, alert = {} } = {}) => {
+  const result = await db.query(
+    `
+    UPDATE employee_display_refill_alerts
+    SET order_id = COALESCE($2::bigint, order_id),
+        invoice_number = COALESCE(NULLIF($3::text, ''), invoice_number),
+        variant_id = COALESCE($4::bigint, variant_id),
+        product_name = COALESCE(NULLIF($5::text, ''), product_name),
+        replacement_size = NULLIF($6::text, ''),
+        remaining_stock = $7::integer,
+        image_url = COALESCE(NULLIF($8::text, ''), image_url),
+        is_read = FALSE,
+        created_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+      AND status = 'pending'
+    RETURNING *
+    `,
+    [
+      numberOrNull(alertId),
+      numberOrNull(alert.order_id),
+      clean(alert.invoice_number),
+      numberOrNull(alert.variant_id),
+      clean(alert.product_name),
+      clean(alert.replacement_size),
+      stockNumber(alert.remaining_stock),
+      clean(alert.image_url),
+    ]
+  );
+  return result.rows[0] ? normalizeAlert(result.rows[0]) : null;
+};
+
+const refreshPendingAlertMetadata = async ({ alertId, alert = {} } = {}) => {
+  const result = await db.query(
+    `
+    UPDATE employee_display_refill_alerts
+    SET order_id = COALESCE($2::bigint, order_id),
+        invoice_number = COALESCE(NULLIF($3::text, ''), invoice_number),
+        variant_id = COALESCE($4::bigint, variant_id),
+        product_name = COALESCE(NULLIF($5::text, ''), product_name),
+        remaining_stock = $6::integer,
+        image_url = COALESCE(NULLIF($7::text, ''), image_url),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+      AND status = 'pending'
+    RETURNING *
+    `,
+    [
+      numberOrNull(alertId),
+      numberOrNull(alert.order_id),
+      clean(alert.invoice_number),
+      numberOrNull(alert.variant_id),
+      clean(alert.product_name),
+      stockNumber(alert.remaining_stock),
+      clean(alert.image_url),
+    ]
+  );
+  return result.rows[0] ? normalizeAlert(result.rows[0]) : null;
+};
+
+const notifyDisplayRefillAlert = async ({
+  alert,
+  tenantId,
+  branchId,
+  sellerEmployeeId,
+  orderId,
+  invoiceNumber,
+  productId,
+  colorName,
+  soldSize,
+  replacementSize,
+  imageUrl,
+} = {}) => {
+  const body = `ط§ط¹ط±ط¶ ${replacementSize} ط¨ط¯ظ„ ${soldSize} ظ…ظ† ${clean(alert?.product_name)} - ${colorName}`;
+  const notificationTargetIds = await loadBranchEmployeeNotificationTargets({
+    tenantId,
+    branchId,
+    sellerEmployeeId,
+  });
+  console.info("[display-refill-alert:notification-targets]", {
+    alert_id: alert?.id,
+    tenant_id: numberOrNull(tenantId),
+    branch_id: numberOrNull(branchId),
+    seller_employee_id: numberOrNull(sellerEmployeeId),
+    target_count: notificationTargetIds.length,
+    target_employee_ids: notificationTargetIds.slice(0, 20),
+  });
+  await Promise.all(notificationTargetIds.map((employeeId) =>
+    createEmployeePortalNotification({
+      tenantId,
+      employeeId,
+      type: "display_refill_alert",
+      orderId,
+      invoiceNumber,
+      title: "تنبيه إعادة العرض",
+      body,
+      actionUrl: "",
+      metadata: {
+        tab: "display-refill",
+        display_refill_alert_id: alert?.id,
+        product_id: productId,
+        color_name: colorName,
+        sold_size: soldSize,
+        replacement_size: replacementSize,
+        image_url: imageUrl,
+      },
+    }).catch((error) => console.warn("[display-refill-alert:notification-skipped]", {
+      alertId: alert?.id,
+      employee_id: employeeId,
+      message: error?.message || String(error),
+    }))
+  ));
+
+  emitToRooms([branchId ? `branch:${branchId}` : null, sellerEmployeeId ? `employee:${sellerEmployeeId}` : null], "employee_portal:display_refill_alert", {
+    alert,
+    badge: { tag: "display_refill_alert", tab: "display-refill" },
+    at: new Date().toISOString(),
+  });
+  return notificationTargetIds;
+};
+
 export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmployeeId, tenantId = null, order = null, items: providedItems = [], req = null } = {}) => {
   await ensureDisplayRefillAlertSchema();
   const safeOrderId = numberOrNull(orderId);
@@ -761,15 +885,20 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       continue;
     }
 
-    const duplicate = await duplicateExists({
+    const imageUrl = clean(item.sold_variant_image_url) || variantImageFromRows(sortedVariants, colorName) || clean(item.product_image_url);
+    const invoiceNumber = clean(item.invoice_number || item.display_order_number || item.public_order_number || safeOrderId);
+    const pendingAlert = await duplicateExists({
       tenantId: itemTenantId,
       productId,
       branchId,
       colorName,
       soldSize,
     });
-    if (duplicate) {
-      console.info("[display-refill-alert:skipped]", {
+    if (pendingAlert) {
+      const oldReplacementSize = clean(pendingAlert.replacement_size);
+      const newReplacementSize = clean(nextDisplaySize);
+      console.info("[display-refill-alert:pending-existing]", {
+        alert_id: pendingAlert.id,
         tenant_id: itemTenantId,
         order_id: safeOrderId,
         product_id: productId,
@@ -778,16 +907,89 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
         sold_quantity: soldQuantity,
         color: colorName || null,
         sold_size: soldSize,
+        old_replacement_size: oldReplacementSize || null,
+        new_replacement_size: newReplacementSize || null,
+        replacement_source: replacementSource,
+        reason,
         display_quantity_before: stockBefore,
         display_quantity_after: soldVariantStockAfter,
-        reason: "duplicate_pending_active",
-        duplicate_alert_id: duplicate.id,
       });
+      if (normalizeSizeComparable(oldReplacementSize) === normalizeSizeComparable(newReplacementSize)) {
+        await refreshPendingAlertMetadata({
+          alertId: pendingAlert.id,
+          alert: {
+            order_id: safeOrderId,
+            invoice_number: invoiceNumber,
+            variant_id: soldVariantId || item.variant_id || null,
+            product_name: item.product_name,
+            remaining_stock: soldSizeRemainingQty ?? soldVariantStockAfter ?? 0,
+            image_url: imageUrl,
+          },
+        });
+        console.info("[display-refill-alert:pending-same-replacement-skip]", {
+          alert_id: pendingAlert.id,
+          sold_size: soldSize,
+          old_replacement_size: oldReplacementSize || null,
+          new_replacement_size: newReplacementSize || null,
+          replacement_source: replacementSource,
+          reason,
+        });
+        continue;
+      }
+
+      const updatedAlert = await updatePendingAlertReplacement({
+        alertId: pendingAlert.id,
+        alert: {
+          order_id: safeOrderId,
+          invoice_number: invoiceNumber,
+          variant_id: soldVariantId || item.variant_id || null,
+          product_name: item.product_name,
+          replacement_size: nextDisplaySize,
+          remaining_stock: soldSizeRemainingQty ?? soldVariantStockAfter ?? 0,
+          image_url: imageUrl,
+        },
+      });
+      console.info("[display-refill-alert:pending-updated]", {
+        alert_id: updatedAlert?.id || pendingAlert.id,
+        sold_size: soldSize,
+        old_replacement_size: oldReplacementSize || null,
+        new_replacement_size: newReplacementSize || null,
+        replacement_source: replacementSource,
+        reason,
+      });
+      if (updatedAlert) {
+        const notificationTargetIds = await notifyDisplayRefillAlert({
+          alert: updatedAlert,
+          tenantId: itemTenantId,
+          branchId,
+          sellerEmployeeId: safeEmployeeId,
+          orderId: safeOrderId,
+          invoiceNumber,
+          productId,
+          colorName,
+          soldSize,
+          replacementSize: nextDisplaySize,
+          imageUrl,
+        });
+        console.info("[display-refill-alert:updated]", {
+          alert_id: updatedAlert.id,
+          tenant_id: itemTenantId,
+          employee_id: updatedAlert.employee_id || null,
+          product_id: productId,
+          variant_id: soldVariantId,
+          branch_id: branchId,
+          sold_quantity: soldQuantity,
+          sold_size: soldSize,
+          size: nextDisplaySize,
+          display_quantity_before: stockBefore,
+          display_quantity_after: soldVariantStockAfter,
+          notification_target_count: notificationTargetIds.length,
+        });
+        created.push(updatedAlert);
+      }
       continue;
     }
 
-    const imageUrl = clean(item.sold_variant_image_url) || variantImageFromRows(sortedVariants, colorName) || clean(item.product_image_url);
-    const invoiceNumber = clean(item.invoice_number || item.display_order_number || item.public_order_number || safeOrderId);
     const alertEmployeeId = branchId ? null : safeEmployeeId;
     const alert = await insertAlert({
       tenant_id: itemTenantId,
@@ -805,50 +1007,18 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       image_url: imageUrl,
     });
 
-    const body = `ط§ط¹ط±ط¶ ${nextDisplaySize} ط¨ط¯ظ„ ${soldSize} ظ…ظ† ${clean(item.product_name)} - ${colorName}`;
-    const notificationTargetIds = await loadBranchEmployeeNotificationTargets({
+    const notificationTargetIds = await notifyDisplayRefillAlert({
+      alert,
       tenantId: itemTenantId,
       branchId,
       sellerEmployeeId: safeEmployeeId,
-    });
-    console.info("[display-refill-alert:notification-targets]", {
-      alert_id: alert.id,
-      tenant_id: itemTenantId,
-      branch_id: branchId,
-      seller_employee_id: safeEmployeeId,
-      target_count: notificationTargetIds.length,
-      target_employee_ids: notificationTargetIds.slice(0, 20),
-    });
-    await Promise.all(notificationTargetIds.map((employeeId) =>
-      createEmployeePortalNotification({
-        tenantId: itemTenantId,
-        employeeId,
-        type: "display_refill_alert",
-        orderId: safeOrderId,
-        invoiceNumber,
-        title: "تنبيه إعادة العرض",
-        body,
-        actionUrl: "",
-        metadata: {
-          tab: "display-refill",
-          display_refill_alert_id: alert.id,
-          product_id: productId,
-          color_name: colorName,
-          sold_size: soldSize,
-          replacement_size: nextDisplaySize,
-          image_url: imageUrl,
-        },
-      }).catch((error) => console.warn("[display-refill-alert:notification-skipped]", {
-        alertId: alert.id,
-        employee_id: employeeId,
-        message: error?.message || String(error),
-      }))
-    ));
-
-    emitToRooms([branchId ? `branch:${branchId}` : null, safeEmployeeId ? `employee:${safeEmployeeId}` : null], "employee_portal:display_refill_alert", {
-      alert,
-      badge: { tag: "display_refill_alert", tab: "display-refill" },
-      at: new Date().toISOString(),
+      orderId: safeOrderId,
+      invoiceNumber,
+      productId,
+      colorName,
+      soldSize,
+      replacementSize: nextDisplaySize,
+      imageUrl,
     });
 
     console.info("[display-refill-alert:created]", {
@@ -871,29 +1041,47 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
   return created;
 };
 
-export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId = null, branchId = null, status = "pending", limit = 50 } = {}) => {
+export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId = null, branchId = null, limit = 50 } = {}) => {
   await ensureDisplayRefillAlertSchema();
-  const params = [numberOrNull(employeeId), numberOrNull(branchId), numberOrNull(tenantId)];
-  const statusClause = clean(status) && clean(status) !== "all"
-    ? (params.push(clean(status)), `AND status = $${params.length}`)
-    : "";
-  params.push(Math.max(1, Math.min(100, Number(limit || 50))));
+  const safeLimit = Math.max(1, Math.min(100, Number(limit || 50)));
+  const pendingLimit = safeLimit;
+  const completedLimit = Math.max(1, Math.min(20, Number(limit || 20)));
+  const params = [numberOrNull(employeeId), numberOrNull(branchId), numberOrNull(tenantId), pendingLimit, completedLimit];
   const result = await db.query(
     `
-    SELECT *
-    FROM employee_display_refill_alerts
-    WHERE ($3::bigint IS NULL OR tenant_id = $3::bigint OR tenant_id IS NULL)
-      AND (
-        employee_id = $1
-        OR (
-          employee_id IS NULL
-          AND $2::bigint IS NOT NULL
-          AND branch_id = $2::bigint
+    WITH scoped AS (
+      SELECT *
+      FROM employee_display_refill_alerts
+      WHERE ($3::bigint IS NULL OR tenant_id = $3::bigint OR tenant_id IS NULL)
+        AND (
+          employee_id = $1
+          OR (
+            employee_id IS NULL
+            AND $2::bigint IS NOT NULL
+            AND branch_id = $2::bigint
+          )
         )
-      )
-      ${statusClause}
-    ORDER BY status ASC, created_at DESC, id DESC
-    LIMIT $${params.length}
+    ),
+    pending_rows AS (
+      SELECT *
+      FROM scoped
+      WHERE status = 'pending'
+      ORDER BY created_at DESC, id DESC
+      LIMIT $4
+    ),
+    completed_rows AS (
+      SELECT *
+      FROM scoped
+      WHERE status = 'resolved'
+      ORDER BY COALESCE(updated_at, resolved_at, created_at) DESC, id DESC
+      LIMIT $5
+    )
+    SELECT *
+    FROM pending_rows
+    UNION ALL
+    SELECT *
+    FROM completed_rows
+    ORDER BY CASE WHEN status = 'pending' THEN 0 ELSE 1 END, COALESCE(updated_at, resolved_at, created_at) DESC, id DESC
     `,
     params
   );
@@ -920,7 +1108,8 @@ export const markDisplayRefillAlertRead = async ({ employeeId, tenantId = null, 
   const result = await db.query(
     `
     UPDATE employee_display_refill_alerts
-    SET is_read = TRUE
+    SET is_read = TRUE,
+        updated_at = CURRENT_TIMESTAMP
     WHERE id = $1
       AND ($4::bigint IS NULL OR tenant_id = $4::bigint OR tenant_id IS NULL)
       AND (
@@ -946,6 +1135,7 @@ export const resolveDisplayRefillAlert = async ({ employeeId, tenantId = null, b
     SET status = 'resolved',
         is_read = TRUE,
         resolved_at = COALESCE(resolved_at, CURRENT_TIMESTAMP),
+        updated_at = CURRENT_TIMESTAMP,
         resolved_by_employee_id = $2
     WHERE id = $1
       AND ($4::bigint IS NULL OR tenant_id = $4::bigint OR tenant_id IS NULL)
