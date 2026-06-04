@@ -910,15 +910,15 @@ const requestStatusClass = (status = "") => {
   return "bg-amber-100 text-amber-800";
 };
 
-const transactionIcon = (type) => {
+const renderTransactionIcon = (type, className = "") => {
   const key = String(type || "").trim().toLowerCase();
-  if (key === "advance") return CreditCard;
-  if (key === "penalty") return AlertTriangle;
-  if (key === "bonus") return Gift;
-  if (key === "commission") return Coins;
-  if (key === "salary" || key === "payroll" || key === "salary_approval") return CheckCircle2;
-  if (key === "deduction" || key === "attendance_deduction") return CalendarDays;
-  return ReceiptText;
+  if (key === "advance") return <CreditCard className={className} />;
+  if (key === "penalty") return <AlertTriangle className={className} />;
+  if (key === "bonus") return <Gift className={className} />;
+  if (key === "commission") return <Coins className={className} />;
+  if (key === "salary" || key === "payroll" || key === "salary_approval") return <CheckCircle2 className={className} />;
+  if (key === "deduction" || key === "attendance_deduction") return <CalendarDays className={className} />;
+  return <ReceiptText className={className} />;
 };
 
 function MetricCard({ label, value, icon: Icon, tone = "slate" }) {
@@ -958,7 +958,6 @@ function ProgressRow({ label, value, detail }) {
 
 function TimelineItem({ item, text, language }) {
   const type = String(item.type || item.transaction_type || item.kind || "").trim().toLowerCase();
-  const Icon = transactionIcon(type);
   const credit = item.direction === "credit";
   const isAdvance = type === "advance";
   const label = walletTransactionTypeLabel(item, text, language);
@@ -970,7 +969,7 @@ function TimelineItem({ item, text, language }) {
   return (
     <div className="grid grid-cols-[auto_1fr_auto] gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className={`mt-1 flex h-9 w-9 items-center justify-center rounded-xl ${tone}`}>
-        <Icon className="h-4 w-4" />
+        {renderTransactionIcon(type, "h-4 w-4")}
       </div>
       <div className="min-w-0">
         <div className="text-sm font-black text-slate-950">{label}</div>

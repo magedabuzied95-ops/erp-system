@@ -4,8 +4,8 @@ import { ArrowDownCircle, CheckCheck, FileText, Loader2, MessageCircle, Mic, Pap
 import { api } from "../../../shared/api/api";
 import { API_ORIGIN } from "../../../shared/constants/app";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
-import { useViewportHeight } from "../../../hooks/useViewportHeight";
 import { socket } from "../../../socket";
+import WhatsAppVoiceMessage from "../components/WhatsAppVoiceMessage";
 
 const formatChatTime = (value) => {
   if (!value) return "-";
@@ -81,7 +81,7 @@ const replyPreview = (message = {}) => {
   return "رسالة";
 };
 
-function AttachmentView({ message, onImageClick }) {
+function AttachmentView({ message, outgoing = false, onImageClick }) {
   if (!message?.attachment_url) return null;
   const href = attachmentUrl(message.attachment_url);
   const isImage = message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
@@ -95,11 +95,7 @@ function AttachmentView({ message, onImageClick }) {
     );
   }
   if (isAudio) {
-    return (
-      <div className="mb-2 rounded-2xl border border-black/10 bg-black/5 p-2">
-        <audio controls src={href} className="h-9 w-56 max-w-full" />
-      </div>
-    );
+    return <WhatsAppVoiceMessage src={href} outgoing={outgoing} label="رسالة صوتية" />;
   }
   return (
     <a href={href} target="_blank" rel="noreferrer" download className="mb-2 flex items-center gap-3 rounded-2xl border border-black/10 bg-black/5 p-3 text-inherit no-underline">
@@ -133,18 +129,11 @@ export default function EmployeeChatInbox() {
   const realtime = useRealtimeConnection();
   const fileInputRef = useRef(null);
   const messagesRef = useRef(null);
-  const composerRef = useRef(null);
   const typingTimerRef = useRef(null);
   const typingStopRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordingChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
-  const { viewportHeight } = useViewportHeight();
-  const chatViewportStyle = useMemo(
-    () => ({ "--employee-chat-vh": viewportHeight ? `${viewportHeight}px` : "100dvh" }),
-    [viewportHeight]
-  );
-
   const selectedThread = useMemo(
     () => threads.find((item) => String(item.id) === String(selectedId)) || thread,
     [selectedId, thread, threads]
@@ -266,23 +255,15 @@ export default function EmployeeChatInbox() {
     };
   }, [selectedId, selectedThread?.employee_name]);
 
-  const keepInputVisible = () => {
+  useEffect(() => {
+    if (!selectedThread) return undefined;
     window.setTimeout(() => {
-      const activeElement = document.activeElement;
-      if (activeElement && composerRef.current?.contains(activeElement)) {
-        activeElement.scrollIntoView({ block: "nearest", inline: "nearest" });
-      }
       if (messagesRef.current) {
         messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
       }
     }, 50);
-  };
-
-  useEffect(() => {
-    if (!selectedThread) return undefined;
-    keepInputVisible();
     return undefined;
-  }, [selectedThread, messages.length, viewportHeight]);
+  }, [selectedThread, messages.length]);
 
   const sendMessage = async (event) => {
     event.preventDefault();
@@ -388,7 +369,7 @@ export default function EmployeeChatInbox() {
   };
 
   return (
-    <section className="theme-card flex h-[var(--employee-chat-vh)] min-h-[var(--employee-chat-vh)] flex-col overflow-hidden p-0 md:h-auto md:min-h-0" style={chatViewportStyle} dir="rtl">
+    <section className="theme-card flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden p-0 md:h-auto md:min-h-0" dir="rtl">
       <div className="shrink-0 border-b border-[var(--border)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -500,7 +481,7 @@ export default function EmployeeChatInbox() {
                               <div className="truncate">{replyPreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name })}</div>
                             </button>
                           ) : null}
-                          <AttachmentView message={message} onImageClick={setImagePreview} />
+                          <AttachmentView message={message} outgoing={admin} onImageClick={setImagePreview} />
                           {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
                           <button type="button" onClick={() => setReplyTo(message)} className="mt-1 text-[10px] font-bold text-slate-300/60">رد</button>
                           <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
@@ -524,7 +505,7 @@ export default function EmployeeChatInbox() {
                   </button>
                 ) : null}
               </div>
-              <form ref={composerRef} onSubmit={sendMessage} className="sticky bottom-0 shrink-0 border-t border-white/10 bg-[#1f2c33] px-2.5 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5">
+              <form onSubmit={sendMessage} className="shrink-0 border-t border-white/10 bg-[#1f2c33] px-2.5 pb-2.5 pt-2.5">
                 {replyTo ? (
                   <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
                     <div className="min-w-0">
@@ -571,7 +552,6 @@ export default function EmployeeChatInbox() {
                   <textarea
                     value={body}
                     onChange={(event) => { setBody(event.target.value); emitTyping(); }}
-                    onFocus={keepInputVisible}
                     placeholder="اكتب رد الإدارة..."
                     className="min-h-[42px] flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-white/10 px-4 py-[9px] !text-[16px] font-bold leading-[22px] text-white outline-none [transform:none] [zoom:1] placeholder:text-slate-400 focus:border-emerald-400"
                     dir="auto"
