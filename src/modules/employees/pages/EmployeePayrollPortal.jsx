@@ -1167,7 +1167,7 @@ export default function EmployeePayrollPortal() {
   const [displayRefillAlerts, setDisplayRefillAlerts] = useState([]);
   const [displayRefillLoading, setDisplayRefillLoading] = useState(false);
   const [displayRefillSavingId, setDisplayRefillSavingId] = useState("");
-  const [showAllCompletedDisplayRefillAlerts, setShowAllCompletedDisplayRefillAlerts] = useState(false);
+  const [completedExpanded, setCompletedExpanded] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0, unreadNotifications: 0, displayRefillAlerts: 0 });
   const [notificationSeenVersion, setNotificationSeenVersion] = useState(0);
   const chatSocketRef = useRef(null);
@@ -1388,11 +1388,9 @@ export default function EmployeePayrollPortal() {
       });
   }, [displayRefillAlerts]);
   const pendingDisplayRefillAlerts = displayRefillAlertRows.filter((item) => String(item.status || "pending").toLowerCase() === "pending");
-  const completedDisplayRefillAlerts = displayRefillAlertRows.filter((item) => String(item.status || "").toLowerCase() === "resolved");
-  const hiddenCompletedDisplayRefillCount = Math.max(completedDisplayRefillAlerts.length - 1, 0);
-  const visibleCompletedDisplayRefillAlerts = showAllCompletedDisplayRefillAlerts
-    ? completedDisplayRefillAlerts
-    : completedDisplayRefillAlerts.slice(0, 1);
+  const completedAlerts = displayRefillAlertRows.filter((item) => String(item.status || "").toLowerCase() === "resolved");
+  const visibleCompletedAlerts = completedExpanded ? completedAlerts : completedAlerts.slice(0, 1);
+  const hiddenCompletedDisplayRefillCount = Math.max(completedAlerts.length - 1, 0);
   const hasDisplayRefillAlerts = displayRefillAlertRows.length > 0;
   const currentShift = portal?.currentShift || profile.currentShift || {};
   const ui = (key) => text[key] || labels.en[key] || key;
@@ -2632,13 +2630,13 @@ export default function EmployeePayrollPortal() {
                       <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 px-3 py-4 text-center text-sm font-bold text-amber-800">{ui("displayRefillEmpty")}</div>
                     ) : null}
                   </section>
-                  {completedDisplayRefillAlerts.length ? (
+                  {completedAlerts.length ? (
                     <section className="grid gap-2">
                       <div className="flex items-center justify-between gap-3">
                         <h4 className="text-sm font-black text-slate-950">تم التنفيذ</h4>
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-600">{completedDisplayRefillAlerts.length}</span>
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-600">{completedAlerts.length}</span>
                       </div>
-                      {visibleCompletedDisplayRefillAlerts.map((alert) => {
+                      {visibleCompletedAlerts.map((alert) => {
                         const imageSrc = alert.image_url
                           ? (/^https?:\/\//i.test(alert.image_url) ? alert.image_url : `${API_ORIGIN}${String(alert.image_url).startsWith("/") ? "" : "/"}${alert.image_url}`)
                           : "";
@@ -2679,13 +2677,13 @@ export default function EmployeePayrollPortal() {
                           </article>
                         );
                       })}
-                      {hiddenCompletedDisplayRefillCount > 0 ? (
+                      {completedAlerts.length > 1 ? (
                         <button
                           type="button"
-                          onClick={() => setShowAllCompletedDisplayRefillAlerts((current) => !current)}
+                          onClick={() => setCompletedExpanded((current) => !current)}
                           className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700"
                         >
-                          {showAllCompletedDisplayRefillAlerts
+                          {completedExpanded
                             ? ui("displayRefillCompletedHide")
                             : `${ui("displayRefillCompletedSeeMore")} (${hiddenCompletedDisplayRefillCount})`}
                         </button>
