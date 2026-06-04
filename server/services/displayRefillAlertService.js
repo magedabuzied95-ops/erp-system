@@ -626,6 +626,11 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
     const availableAfterSale = availableSizeOptions.map((entry) => entry.size);
     const soldSizeNormalized = parseSizeNumber(soldSize);
     const soldSizeComparable = normalizeSizeComparable(soldSize);
+    const soldSizeRemainingQty = soldSizeNormalized === null
+      ? null
+      : soldVariantStockAfter ?? sortedVariants
+        .filter((row) => parseSizeNumber(row.size) === soldSizeNormalized)
+        .reduce((sum, row) => sum + normalizeStockValue(row), 0);
     const smallerSizesAvailable = soldSizeNormalized === null
       ? []
       : availableSizeOptions.filter((entry) => entry.normalized < soldSizeNormalized).map((entry) => entry.size);
@@ -635,7 +640,8 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
     const smallestAvailable = availableAfterSale[0] || null;
     let nextDisplaySize = null;
     let shouldCreateAlert = false;
-    let reason = "no_next_larger_size";
+    let replacementSource = "none";
+    let reason = "no_replacement_size";
 
     console.info("[display-refill-alert:decision-input]", {
       tenant_id: itemTenantId,
@@ -648,6 +654,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       color: colorName || null,
       display_quantity_before: stockBefore,
       display_quantity_after: soldVariantStockAfter,
+      sold_size_remaining_qty: soldSizeRemainingQty,
     });
     console.info("[display-refill-alert:stock-state]", {
       tenant_id: itemTenantId,
@@ -660,6 +667,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       sold_size: soldSize,
       display_quantity_before: stockBefore,
       display_quantity_after: soldVariantStockAfter,
+      sold_size_remaining_qty: soldSizeRemainingQty,
       available_sizes: availableAfterSale,
     });
 
@@ -667,15 +675,18 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       reason = "missing_normalized_sold_size";
     } else if (smallerSizesAvailable.length) {
       reason = "sold_size_not_smallest";
-    } else if (!nextLargerSize) {
-      reason = "no_next_larger_size";
-    } else if (normalizeSizeComparable(nextLargerSize) === soldSizeComparable) {
-      nextDisplaySize = nextLargerSize;
-      reason = "replacement_same_as_sold_size";
-    } else {
+    } else if (soldSizeRemainingQty > 0) {
+      shouldCreateAlert = true;
+      nextDisplaySize = soldSize;
+      replacementSource = "same_size_remaining";
+      reason = "refill_same_size_remaining";
+    } else if (nextLargerSize) {
       shouldCreateAlert = true;
       nextDisplaySize = nextLargerSize;
-      reason = "smallest_size_sold_next_available";
+      replacementSource = "next_larger_size";
+      reason = "refill_next_larger_size";
+    } else {
+      reason = "no_replacement_size";
     }
 
     console.info("[display-refill-alert:size-rule]", {
@@ -688,8 +699,10 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       sold_size: soldSize,
       normalized_sold_size: soldSizeNormalized,
       available_sizes: availableAfterSale,
+      sold_size_remaining_qty: soldSizeRemainingQty,
       smaller_sizes_available: smallerSizesAvailable,
       next_larger_size: nextLargerSize,
+      replacement_source: replacementSource,
       should_create_alert: shouldCreateAlert,
       reason,
     });
@@ -709,8 +722,10 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       next_display_size: nextDisplaySize,
       available_sizes_after_sale: availableAfterSale,
       normalized_sold_size: soldSizeNormalized,
+      sold_size_remaining_qty: soldSizeRemainingQty,
       smaller_sizes_available: smallerSizesAvailable,
       next_larger_size: nextLargerSize,
+      replacement_source: replacementSource,
       should_create_alert: shouldCreateAlert,
       reason,
     });
@@ -727,6 +742,8 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
         sold_size: soldSize,
         display_quantity_before: stockBefore,
         display_quantity_after: soldVariantStockAfter,
+        sold_size_remaining_qty: soldSizeRemainingQty,
+        replacement_source: replacementSource,
         reason,
       });
       continue;
@@ -772,7 +789,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       color_name: colorName,
       sold_size: soldSize,
       replacement_size: nextDisplaySize,
-      remaining_stock: soldVariantStockAfter ?? 0,
+      remaining_stock: soldSizeRemainingQty ?? soldVariantStockAfter ?? 0,
       image_url: imageUrl,
     });
 
