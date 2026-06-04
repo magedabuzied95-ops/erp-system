@@ -152,6 +152,7 @@ export const getEmployees = async (req, res) => {
         e.full_name AS name,
         e.employee_code,
         e.employee_code AS code,
+        COALESCE(e.photo_url, '') AS photo_url,
         e.phone,
         e.email,
         e.role,

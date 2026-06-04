@@ -80,6 +80,7 @@ const statements = [
     branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
     employee_code VARCHAR(100) NOT NULL,
     full_name VARCHAR(255) NOT NULL,
+    photo_url TEXT,
     phone VARCHAR(50),
     email VARCHAR(255),
     national_id VARCHAR(120),
@@ -130,6 +131,10 @@ const statements = [
   `
   ALTER TABLE IF EXISTS employee_shifts
     ADD COLUMN IF NOT EXISTS check_in_window_end TIME NULL;
+  `,
+  `
+  ALTER TABLE IF EXISTS employees
+    ADD COLUMN IF NOT EXISTS photo_url TEXT;
   `,
   `
   ALTER TABLE IF EXISTS employees

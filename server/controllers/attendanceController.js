@@ -1000,6 +1000,7 @@ const normalizeEmployee = (row = {}) => ({
   branch_name: row.branch_name || "",
   employee_code: row.employee_code || "",
   full_name: row.full_name || "",
+  photo_url: row.photo_url || "",
   phone: row.phone || "",
   email: row.email || "",
   national_id: row.national_id || "",
@@ -1504,6 +1505,7 @@ export const createEmployee = async (req, res) => {
       branch_id = null,
       employee_code,
       full_name,
+      photo_url,
       phone,
       email,
       national_id,
@@ -1533,6 +1535,7 @@ export const createEmployee = async (req, res) => {
         branch_id,
         employee_code,
         full_name,
+        photo_url,
         phone,
         email,
         national_id,
@@ -1543,7 +1546,7 @@ export const createEmployee = async (req, res) => {
         hire_date,
         status
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *
       `,
       [
@@ -1551,6 +1554,7 @@ export const createEmployee = async (req, res) => {
         branch_id || null,
         code,
         String(full_name).trim(),
+        String(photo_url || "").trim(),
         phone || "",
         email || "",
         national_id || "",
@@ -1587,6 +1591,7 @@ export const updateEmployee = async (req, res) => {
       branch_id = null,
       employee_code,
       full_name,
+      photo_url,
       phone,
       email,
       national_id,
@@ -1608,18 +1613,19 @@ export const updateEmployee = async (req, res) => {
         branch_id = $1,
         employee_code = $2,
         full_name = $3,
-        phone = $4,
-        email = $5,
-        national_id = $6,
-        role = $7,
-        job_title = $8,
-        position = $9,
-        salary = $10,
-        hire_date = $11,
-        status = $12,
+        photo_url = $4,
+        phone = $5,
+        email = $6,
+        national_id = $7,
+        role = $8,
+        job_title = $9,
+        position = $10,
+        salary = $11,
+        hire_date = $12,
+        status = $13,
         updated_at = NOW()
-      WHERE id = $13
-        AND ($14::bigint IS NULL OR tenant_id = $14::bigint)
+      WHERE id = $14
+        AND ($15::bigint IS NULL OR tenant_id = $15::bigint)
         AND COALESCE(is_deleted, FALSE) = FALSE
       RETURNING *
       `,
@@ -1627,6 +1633,7 @@ export const updateEmployee = async (req, res) => {
         branch_id || null,
         employee_code || `EMP-${id}`,
         String(full_name || "").trim(),
+        String(photo_url || "").trim(),
         phone || "",
         email || "",
         national_id || "",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { AlertTriangle, CheckCircle2, Clock3, Download, Edit3, Filter, Loader2, Plus, RefreshCw, RotateCcw, ScanBarcode, ShieldCheck, Smartphone, Trash2, UserCheck, Warehouse, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Download, Edit3, Filter, ImagePlus, Loader2, Plus, RefreshCw, RotateCcw, ScanBarcode, ShieldCheck, Smartphone, Trash2, UserCheck, Warehouse, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 
@@ -33,6 +33,8 @@ import {
   resetAllAttendanceDeviceBindings,
   resetTodayAttendanceDeviceBindings,
 } from "../attendanceApi";
+import { uploadProductImage, resolveUploadedImageUrl } from "../../products/services/productsApi";
+import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 
 const todayValue = () => new Date().toISOString().slice(0, 10);
 const rangeStartValue = () => {
@@ -195,12 +197,14 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
   const [attendanceResetTarget, setAttendanceResetTarget] = useState(null);
   const [attendanceResetOptions, setAttendanceResetOptions] = useState({ clearDeviceLocks: false });
   const [resettingAttendanceId, setResettingAttendanceId] = useState("");
+  const [uploadingEmployeePhoto, setUploadingEmployeePhoto] = useState(false);
   const [employeeForm, setEmployeeForm] = useState({
     id: "",
     branch_id: "",
     branch_name: "",
     employee_code: "",
     full_name: "",
+    photo_url: "",
     phone: "",
     email: "",
     national_id: "",
@@ -235,6 +239,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
   const [error, setError] = useState("");
   const [reportError, setReportError] = useState("");
   const hasShownReportError = useRef(false);
+  const employeePhotoInputRef = useRef(null);
   const activeBranches = branches.filter((branch) => isBranchActive(branch.is_active));
   const singleBranchId = activeBranches.length === 1 ? String(normalizeBranch(activeBranches[0]).id || "") : "";
   console.log("[employees] dropdown render branches", activeBranches);
@@ -269,6 +274,10 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
   const employeeSelectOptions = useMemo(
     () => [{ id: "", label: tr("options.selectEmployee") }, ...employees.map((employee) => ({ id: employee.id, label: employee.full_name || tr("fields.employee") }))],
     [employees, tr]
+  );
+  const employeePhotoPreviewUrl = useMemo(
+    () => resolveEmployeeProfileImageUrl(employeeForm.photo_url || ""),
+    [employeeForm.photo_url]
   );
   const statusLabel = useCallback(
     (value) => {
@@ -486,6 +495,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
         branch_name: "",
         employee_code: "",
         full_name: "",
+        photo_url: "",
         phone: "",
         email: "",
         national_id: "",
@@ -511,6 +521,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
       branch_name: employee.branch_name || "",
       employee_code: employee.employee_code || "",
       full_name: employee.full_name || "",
+      photo_url: employee.photo_url || "",
       phone: employee.phone || "",
       email: employee.email || "",
       national_id: employee.national_id || "",
@@ -523,6 +534,28 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
     });
     setSelectedEmployeeId(String(employee.id));
     setSelectedTab("employees");
+  };
+
+  const handleEmployeePhotoUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingEmployeePhoto(true);
+      const response = await uploadProductImage(file);
+      const nextUrl = String(resolveUploadedImageUrl(response) || "").trim();
+      if (!nextUrl) throw new Error(isArabic ? "فشل رفع صورة الموظف." : "Employee photo upload failed.");
+      setEmployeeForm((prev) => ({ ...prev, photo_url: nextUrl }));
+      toast.success(isArabic ? "تم رفع صورة الموظف." : "Employee photo uploaded.");
+    } catch (err) {
+      console.log(err);
+      toast.error(err?.message || (isArabic ? "فشل رفع صورة الموظف." : "Employee photo upload failed."));
+    } finally {
+      setUploadingEmployeePhoto(false);
+      if (event.target) {
+        event.target.value = "";
+      }
+    }
   };
 
   const handleDeleteEmployee = async () => {
@@ -551,6 +584,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
           branch_name: "",
           employee_code: "",
           full_name: "",
+          photo_url: "",
           phone: "",
           email: "",
           national_id: "",
@@ -1303,6 +1337,58 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
                 <h3 className="mt-2 text-2xl font-black text-white">{tr("employees.employeeProfile")}</h3>
 
                 <div className="mt-4 grid gap-3">
+                  <div className="rounded-[28px] border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-lg shadow-black/10">
+                        {employeePhotoPreviewUrl ? (
+                          <img src={employeePhotoPreviewUrl} alt={employeeForm.full_name || "Employee photo"} className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-lg font-black text-white">
+                            {String(employeeForm.full_name || "EM")
+                              .trim()
+                              .split(/\s+/)
+                              .slice(0, 2)
+                              .map((part) => part[0] || "")
+                              .join("")
+                              .toUpperCase() || "EM"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[10px] font-bold text-zinc-500">{isArabic ? "صورة الموظف" : "Employee photo"}</div>
+                        <div className="mt-1 text-xs text-zinc-500">
+                          {isArabic ? "ارفع صورة أو الصق رابط الصورة الرسمي." : "Upload an image or paste the official employee photo URL."}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <input
+                        ref={employeePhotoInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleEmployeePhotoUpload}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => employeePhotoInputRef.current?.click()}
+                        disabled={uploadingEmployeePhoto}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {uploadingEmployeePhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                        {uploadingEmployeePhoto ? (isArabic ? "جارٍ الرفع..." : "Uploading...") : (isArabic ? "رفع صورة" : "Upload photo")}
+                      </button>
+                      {employeeForm.photo_url ? (
+                        <button
+                          type="button"
+                          onClick={() => setEmployeeForm((prev) => ({ ...prev, photo_url: "" }))}
+                          className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-white/10 bg-transparent px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-white/5 hover:text-white"
+                        >
+                          {isArabic ? "إزالة الصورة" : "Remove photo"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
                   {activeBranches.length > 1 ? (
                     <SelectField
                       label={tr("fields.branch")}
@@ -1319,6 +1405,12 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
                   ) : null}
                   <InputField label={tr("fields.employeeCode")} value={employeeForm.employee_code} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, employee_code: value }))} />
                   <InputField label={tr("fields.fullName")} value={employeeForm.full_name} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, full_name: value }))} />
+                  <InputField
+                    label={isArabic ? "رابط الصورة" : "Photo URL"}
+                    value={employeeForm.photo_url}
+                    onChange={(value) => setEmployeeForm((prev) => ({ ...prev, photo_url: value }))}
+                    helper={isArabic ? "يتم حفظ هذا الرابط في employees.photo_url ويُستخدم في صورة البوابة." : "Saved to employees.photo_url and used by the portal avatar."}
+                  />
                   <div className="grid grid-cols-2 gap-3">
                     <InputField label={tr("fields.phone")} value={employeeForm.phone} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, phone: value }))} />
                     <InputField label={tr("fields.email")} value={employeeForm.email} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, email: value }))} />
