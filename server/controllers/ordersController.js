@@ -2128,6 +2128,8 @@ const runPostOrderSideEffects = async ({
       const itemsCount = Array.isArray(orderItemsForCommission) ? orderItemsForCommission.length : 0;
       console.info("[display-refill-alert:invoke]", {
         order_id: orderId,
+        tenant_id: tenantId,
+        branch_id: resolvedBranchId || null,
         invoice_number: order?.invoice_number || null,
         seller_employee_id: resolvedSalesEmployeeId || null,
         seller_id: resolvedCashierId || null,
@@ -2151,14 +2153,19 @@ const runPostOrderSideEffects = async ({
         items: orderItemsForCommission,
         req,
       })
-        .then(() => {
+        .then((createdAlerts = []) => {
           console.info("[display-refill-alert:invoke:done]", {
             order_id: orderId,
+            tenant_id: tenantId,
+            branch_id: resolvedBranchId || null,
+            created_count: Array.isArray(createdAlerts) ? createdAlerts.length : null,
           });
         })
         .catch((error) => {
           console.error("[display-refill-alert:invoke:error]", {
             order_id: orderId,
+            tenant_id: tenantId,
+            branch_id: resolvedBranchId || null,
             error: error?.message || String(error),
           });
         });

@@ -40,7 +40,7 @@ import { api } from "../../../shared/api/api";
 import { API_ORIGIN, SOCKET_URL } from "../../../shared/constants/app";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
-import { useViewportHeight } from "../../../hooks/useViewportHeight";
+import WhatsAppVoiceMessage from "../components/WhatsAppVoiceMessage";
 
 const labels = {
   ar: {
@@ -518,20 +518,6 @@ const isIosDevice = () => {
 const pushSupported = () => isBrowser() && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 const appBadgeSupported = () => isBrowser() && typeof navigator.setAppBadge === "function" && typeof navigator.clearAppBadge === "function";
 
-const logEmployeeChatViewport = (phase = "") => {
-  if (!isBrowser()) return;
-  console.info("[employee-chat:viewport]", {
-    phase,
-    innerHeight: window.innerHeight,
-    visualViewportHeight: window.visualViewport?.height || null,
-    bodyStyleHeight: document.body?.style?.height || "",
-    documentElementStyleHeight: document.documentElement?.style?.height || "",
-    bodyOverflow: document.body?.style?.overflow || "",
-    documentElementOverflow: document.documentElement?.style?.overflow || "",
-    scrollY: window.scrollY || window.pageYOffset || 0,
-  });
-};
-
 const setEmployeeAppBadge = (count = 0) => {
   if (!appBadgeSupported()) return;
   const safeCount = Math.max(0, Math.round(Number(count || 0)));
@@ -1008,7 +994,7 @@ function chatMessagePreview(message = {}, text = {}) {
   return "رسالة";
 }
 
-function ChatAttachment({ message, text, compact = false, onImageClick }) {
+function ChatAttachment({ message, text, compact = false, outgoing = false, onImageClick }) {
   if (!message?.attachment_url) return null;
   const href = chatAttachmentUrl(message.attachment_url);
   const isImage = message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
@@ -1022,11 +1008,7 @@ function ChatAttachment({ message, text, compact = false, onImageClick }) {
     );
   }
   if (isAudio) {
-    return (
-      <div className="mb-2 rounded-2xl border border-black/10 bg-black/5 p-2">
-        <audio controls src={href} className="h-9 w-56 max-w-full" />
-      </div>
-    );
+    return <WhatsAppVoiceMessage src={href} outgoing={outgoing} label={text.voiceAttachment || "Voice message"} />;
   }
   return (
     <a href={href} target="_blank" rel="noreferrer" download className="mb-2 flex items-center gap-3 rounded-2xl border border-black/10 bg-black/5 p-3 text-inherit no-underline">
@@ -1095,16 +1077,13 @@ export default function EmployeePayrollPortal() {
   const toastTimerRef = useRef(null);
   const chatFileInputRef = useRef(null);
   const chatInputRef = useRef(null);
-  const chatHeaderRef = useRef(null);
   const chatMessagesRef = useRef(null);
-  const chatComposerRef = useRef(null);
   const chatTypingTimerRef = useRef(null);
   const chatTypingStopRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordingChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
   const chatSwipeRef = useRef({ id: null, startX: 0, startY: 0, active: false });
-  const { viewportHeight } = useViewportHeight();
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
@@ -1188,7 +1167,6 @@ export default function EmployeePayrollPortal() {
     if (!isBrowser()) return;
     const tab = new URLSearchParams(window.location.search).get("tab");
     if (tab === "chat") {
-      logEmployeeChatViewport("before-open-query-tab");
       setChatOpen(true);
       return;
     }
@@ -1202,7 +1180,12 @@ export default function EmployeePayrollPortal() {
       const response = await api.get(`/employee-portal/${encodeURIComponent(token)}/display-refill-alerts`, {
         params: { status: "pending" },
       });
-      setDisplayRefillAlerts(safeArray(response.alerts));
+      const alerts = safeArray(response.alerts);
+      console.info("[employee-payroll-portal] display refill alerts loaded", {
+        count: alerts.length,
+        pending_unread_count: response.pending_unread_count ?? null,
+      });
+      setDisplayRefillAlerts(alerts);
     } catch (err) {
       console.warn("[employee-payroll-portal] display refill alerts load failed", err);
     } finally {
@@ -1576,7 +1559,16 @@ export default function EmployeePayrollPortal() {
     };
     const onDisplayRefillAlert = (event = {}) => {
       const alert = event.alert || event;
-      if (String(alert.employee_id || "") !== String(profile.id || "")) return;
+      const alertEmployeeId = String(alert.employee_id || alert.employeeId || "");
+      const profileEmployeeId = String(profile.id || "");
+      const alertBranchId = String(alert.branch_id || alert.branchId || "");
+      const profileBranchId = String(profile.branch_id || profile.branchId || "");
+      const alertTenantId = String(alert.tenant_id || alert.tenantId || "");
+      const profileTenantId = String(profile.tenant_id || profile.tenantId || "");
+      const tenantMatches = !alertTenantId || !profileTenantId || alertTenantId === profileTenantId;
+      const assignedToEmployee = tenantMatches && alertEmployeeId && alertEmployeeId === profileEmployeeId;
+      const assignedToBranch = tenantMatches && !alertEmployeeId && alertBranchId && profileBranchId && alertBranchId === profileBranchId;
+      if (!assignedToEmployee && !assignedToBranch) return;
       showPortalToast(alert.replacement_size ? `اعرض مقاس ${alert.replacement_size} بدل ${alert.sold_size}` : "لا يوجد مقاس بديل متاح", "success");
       setDisplayRefillAlerts((current) => [alert, ...safeArray(current).filter((item) => String(item.id) !== String(alert.id))]);
       setBadgeCounts((current) => ({
@@ -1762,14 +1754,6 @@ export default function EmployeePayrollPortal() {
     return () => window.clearInterval(timer);
   }, [chatOpen, portal, chatSocketConnected, token]);
 
-  const keepChatInputVisible = useCallback(() => {
-    window.setTimeout(() => {
-      if (chatMessagesRef.current) {
-        chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
-      }
-    }, 50);
-  }, []);
-
   useEffect(() => {
     if (!chatOpen) return undefined;
     const bodyOverflow = document.body.style.overflow;
@@ -1795,20 +1779,13 @@ export default function EmployeePayrollPortal() {
 
   useEffect(() => {
     if (!chatOpen) return undefined;
-    const logKeyboardViewport = () => logEmployeeChatViewport("while-keyboard-or-viewport-resize");
-    window.visualViewport?.addEventListener("resize", logKeyboardViewport);
-    window.addEventListener("resize", logKeyboardViewport);
-    return () => {
-      window.visualViewport?.removeEventListener("resize", logKeyboardViewport);
-      window.removeEventListener("resize", logKeyboardViewport);
-    };
-  }, [chatOpen]);
-
-  useEffect(() => {
-    if (!chatOpen) return undefined;
-    keepChatInputVisible();
+    window.setTimeout(() => {
+      if (chatMessagesRef.current) {
+        chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+      }
+    }, 50);
     return undefined;
-  }, [chatOpen, chatMessages.length, viewportHeight, keepChatInputVisible]);
+  }, [chatOpen, chatMessages.length]);
 
   const submitChatMessage = async (event) => {
     event.preventDefault();
@@ -1876,11 +1853,9 @@ export default function EmployeePayrollPortal() {
     document.documentElement.style.height = "";
     window.scrollTo(0, 0);
     window.dispatchEvent(new Event("resize"));
-    logEmployeeChatViewport("after-close-reset");
   }, []);
 
   const closeEmployeeChat = useCallback(() => {
-    logEmployeeChatViewport("before-close-blur");
     document.activeElement?.blur?.();
     chatInputRef.current?.blur?.();
     window.setTimeout(() => {
@@ -2500,7 +2475,6 @@ export default function EmployeePayrollPortal() {
                   <button
                     type="button"
                     onClick={() => {
-                      logEmployeeChatViewport("before-open-button");
                       setChatOpen(true);
                     }}
                     className="inline-flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl bg-slate-950 px-2 text-[11px] font-black text-white shadow-sm"
@@ -2911,7 +2885,7 @@ export default function EmployeePayrollPortal() {
       {chatOpen ? (
         <div className="fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950/70 p-0">
           <section className="mx-auto flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:max-w-md" style={chatPanelStyle} dir={direction}>
-            <div ref={chatHeaderRef} className="sticky top-0 z-30 flex-none bg-[#0b141a] pt-[env(safe-area-inset-top)]">
+            <div className="sticky top-0 z-30 flex-none bg-[#0b141a] pt-[env(safe-area-inset-top)]">
               <header className="flex min-h-14 items-center justify-between gap-2 border-b border-white/10 bg-[#1f2c33] px-3 py-2">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
                   <UserRound className="h-4 w-4" />
@@ -2959,7 +2933,7 @@ export default function EmployeePayrollPortal() {
                             <div className="truncate">{chatMessagePreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name }, text)}</div>
                           </button>
                         ) : null}
-                        <ChatAttachment message={message} text={text} compact onImageClick={setChatImagePreview} />
+                        <ChatAttachment message={message} text={text} compact outgoing={employeeMessage} onImageClick={setChatImagePreview} />
                         {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
                         <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
                           <DateSafe>{formatTimeLocal(message.created_at, language)}</DateSafe>
@@ -2982,7 +2956,7 @@ export default function EmployeePayrollPortal() {
                 </button>
               ) : null}
             </div>
-            <form ref={chatComposerRef} onSubmit={submitChatMessage} className="relative z-30 flex-none border-t border-white/10 bg-[#1f2c33] px-2 pb-[max(4px,env(safe-area-inset-bottom))] pt-1">
+            <form onSubmit={submitChatMessage} className="relative z-30 flex-none border-t border-white/10 bg-[#1f2c33] px-2 pb-1 pt-1">
               {replyToChat ? (
                 <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-white/10 px-2.5 py-1.5 text-[11px] font-bold leading-4 text-white">
                   <button type="button" onClick={() => scrollToChatMessage(replyToChat.id)} className="min-w-0 flex-1 border-r-2 border-emerald-300 pr-2 text-start">
@@ -3030,11 +3004,6 @@ export default function EmployeePayrollPortal() {
                   type="text"
                   value={chatBody}
                   onChange={(event) => { setChatBody(event.target.value); emitChatTyping(); }}
-                  onFocus={() => {
-                    logEmployeeChatViewport("input-focus-keyboard-opening");
-                    keepChatInputVisible();
-                    window.setTimeout(() => logEmployeeChatViewport("while-keyboard-open-delayed"), 300);
-                  }}
                   placeholder={ui("chatPlaceholder")}
                   inputMode="text"
                   enterKeyHint="send"

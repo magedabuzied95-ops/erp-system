@@ -232,12 +232,29 @@ router.get("/debug/display-refill-alerts", protect, permit("employees", "view"),
     const branchId = req.query.branch_id || req.query.branchId || null;
     const latestAlerts = await listRecentDisplayRefillAlerts({ limit: 20 });
     const pendingAlerts = latestAlerts.filter((alert) => alert.status === "pending");
+    const scopeSummary = latestAlerts.reduce((acc, alert) => {
+      const key = `${alert.tenant_id ?? "null"}:${alert.branch_id ?? "null"}:${alert.employee_id ?? "branch"}`;
+      if (!acc[key]) {
+        acc[key] = {
+          tenant_id: alert.tenant_id ?? null,
+          branch_id: alert.branch_id ?? null,
+          employee_id: alert.employee_id ?? null,
+          scope: alert.employee_id ? "employee" : "branch",
+          total: 0,
+          pending: 0,
+        };
+      }
+      acc[key].total += 1;
+      if (String(alert.status || "pending") === "pending") acc[key].pending += 1;
+      return acc;
+    }, {});
     return res.json({
       success: true,
       employee_id: employeeId ? Number(employeeId) : null,
       branch_id: branchId ? Number(branchId) : null,
       latest_alerts: latestAlerts,
       pending_count: pendingAlerts.length,
+      scope_summary: Object.values(scopeSummary),
       note: "Decision logs are not persisted; inspect server console for runtime [display-refill-alert:*] logs.",
     });
   } catch (error) {
@@ -401,17 +418,22 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
     const branchId = employee.branch_id || employee.branchId || null;
+    const tenantId = employee.tenant_id || employee.tenantId || null;
     const alerts = await listDisplayRefillAlertsForEmployee({
       employeeId: employee.id,
+      tenantId,
       branchId,
       status: req.query.status || "pending",
       limit: req.query.limit || 50,
     });
     console.info("[display-refill-alert:employee-load]", {
+      tenant_id: tenantId,
       employee_id: employee.id,
       branch_id: branchId,
       count: alerts.length,
       pending_count: alerts.filter((item) => item.status === "pending").length,
+      branch_level_count: alerts.filter((item) => !item.employee_id && item.branch_id).length,
+      employee_assigned_count: alerts.filter((item) => item.employee_id).length,
       fallback_used: !branchId,
       fallback_reason: branchId ? "" : "employee_branch_id_missing",
     });
@@ -430,7 +452,12 @@ router.patch("/:token/display-refill-alerts/:alertId/read", async (req, res) => 
   try {
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
-    const alert = await markDisplayRefillAlertRead({ employeeId: employee.id, alertId: req.params.alertId });
+    const alert = await markDisplayRefillAlertRead({
+      employeeId: employee.id,
+      tenantId: employee.tenant_id || employee.tenantId || null,
+      branchId: employee.branch_id || employee.branchId || null,
+      alertId: req.params.alertId,
+    });
     if (!alert) return res.status(404).json({ success: false, message: "Display refill alert not found" });
     return res.json({ success: true, alert });
   } catch (error) {
@@ -443,7 +470,12 @@ router.patch("/:token/display-refill-alerts/:alertId/resolve", async (req, res) 
   try {
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
-    const alert = await resolveDisplayRefillAlert({ employeeId: employee.id, alertId: req.params.alertId });
+    const alert = await resolveDisplayRefillAlert({
+      employeeId: employee.id,
+      tenantId: employee.tenant_id || employee.tenantId || null,
+      branchId: employee.branch_id || employee.branchId || null,
+      alertId: req.params.alertId,
+    });
     if (!alert) return res.status(404).json({ success: false, message: "Display refill alert not found" });
     return res.json({ success: true, alert });
   } catch (error) {

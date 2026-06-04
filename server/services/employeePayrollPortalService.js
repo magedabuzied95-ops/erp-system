@@ -1614,9 +1614,13 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
   return {
     employee_profile: {
       id: employee.id,
+      tenant_id: employee.tenant_id || null,
+      tenantId: employee.tenant_id || null,
       name: employee.full_name,
       code: employee.employee_code,
       job_title: employee.job_title || employee.position || "",
+      branch_id: employee.branch_id || null,
+      branchId: employee.branch_id || null,
       branch: employee.branch_name || "",
       photo_url: "",
       avatar_initials: clean(employee.full_name).split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(),
@@ -1628,8 +1632,13 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       workingDays: currentShift?.workingDays || [],
     },
     employee: {
+      id: employee.id,
+      tenant_id: employee.tenant_id || null,
+      tenantId: employee.tenant_id || null,
       name: employee.full_name,
       code: employee.employee_code,
+      branch_id: employee.branch_id || null,
+      branchId: employee.branch_id || null,
       branch: employee.branch_name || "",
       job_title: employee.job_title || employee.position || "",
       currentShift,

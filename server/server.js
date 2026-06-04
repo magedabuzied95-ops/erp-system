@@ -262,6 +262,7 @@ io.on("connection", async (socket) => {
       socket.join(`employee-chat:employee:${employee.id}`);
       socket.join(`employee:${employee.id}`);
       if (employee.tenant_id) socket.join(`tenant:${employee.tenant_id}`);
+      if (employee.branch_id) socket.join(`branch:${employee.branch_id}`);
       socket.on("employee-chat:typing", (payload = {}) => {
         emitToRooms([`employee-chat:tenant:${employee.tenant_id || "global"}`], "employee-chat:typing", {
           thread_id: payload.thread_id || null,
@@ -824,10 +825,19 @@ console.log("[server] marketing automation routes mounted");
 
 app.get("/api/debug/display-refill-alerts", protect, permit("employees", "view"), async (req, res) => {
   try {
-    const alerts = await listRecentDisplayRefillAlerts({ limit: 30 });
-    const pendingCountByBranch = alerts.reduce((acc, alert) => {
-      const key = String(alert.branch_id ?? "null");
-      if (!acc[key]) acc[key] = { branch_id: alert.branch_id ?? null, total: 0, pending: 0 };
+    const alerts = await listRecentDisplayRefillAlerts({ limit: 20 });
+    const pendingCountByScope = alerts.reduce((acc, alert) => {
+      const key = `${alert.tenant_id ?? "null"}:${alert.branch_id ?? "null"}:${alert.employee_id ?? "branch"}`;
+      if (!acc[key]) {
+        acc[key] = {
+          tenant_id: alert.tenant_id ?? null,
+          branch_id: alert.branch_id ?? null,
+          employee_id: alert.employee_id ?? null,
+          scope: alert.employee_id ? "employee" : "branch",
+          total: 0,
+          pending: 0,
+        };
+      }
       acc[key].total += 1;
       if (String(alert.status || "pending") === "pending") acc[key].pending += 1;
       return acc;
@@ -835,7 +845,8 @@ app.get("/api/debug/display-refill-alerts", protect, permit("employees", "view")
     return res.json({
       success: true,
       alerts,
-      pending_count_by_branch: Object.values(pendingCountByBranch),
+      latest_count: alerts.length,
+      pending_count_by_scope: Object.values(pendingCountByScope),
     });
   } catch (error) {
     console.error("[display-refill-alert:debug:error]", {
