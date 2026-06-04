@@ -425,6 +425,7 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
       tenantId,
       branchId,
       limit: req.query.limit || 50,
+      status: req.query.status || "all",
     });
     console.info("[display-refill-alert:employee-load]", {
       tenant_id: tenantId,

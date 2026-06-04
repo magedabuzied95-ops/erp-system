@@ -1041,14 +1041,20 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
   return created;
 };
 
-export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId = null, branchId = null, limit = 50 } = {}) => {
+export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId = null, branchId = null, limit = 50, status = "all" } = {}) => {
   await ensureDisplayRefillAlertSchema();
   const safeLimit = Math.max(1, Math.min(100, Number(limit || 50)));
   const pendingLimit = safeLimit;
   const completedLimit = Math.max(1, Math.min(20, Number(limit || 20)));
+  const normalizedStatus = (() => {
+    const value = clean(status || "");
+    if (value === "pending") return "pending";
+    if (value === "completed" || value === "resolved") return "completed";
+    return "all";
+  })();
+  const queryMode = normalizedStatus === "pending" ? "pending_only" : normalizedStatus === "completed" ? "completed_only" : "all";
   const params = [numberOrNull(employeeId), numberOrNull(branchId), numberOrNull(tenantId), pendingLimit, completedLimit];
-  const result = await db.query(
-    `
+  const scopedCte = `
     WITH scoped AS (
       SELECT *
       FROM employee_display_refill_alerts
@@ -1061,30 +1067,91 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
             AND branch_id = $2::bigint
           )
         )
-    ),
-    pending_rows AS (
-      SELECT *
-      FROM scoped
-      WHERE status = 'pending'
-      ORDER BY created_at DESC, id DESC
-      LIMIT $4
-    ),
-    completed_rows AS (
-      SELECT *
-      FROM scoped
-      WHERE status = 'resolved'
-      ORDER BY COALESCE(updated_at, resolved_at, created_at) DESC, id DESC
-      LIMIT $5
     )
-    SELECT *
-    FROM pending_rows
-    UNION ALL
-    SELECT *
-    FROM completed_rows
-    ORDER BY CASE WHEN status = 'pending' THEN 0 ELSE 1 END, COALESCE(updated_at, resolved_at, created_at) DESC, id DESC
-    `,
-    params
-  );
+  `;
+  const baseColumns = `
+    id,
+    tenant_id,
+    employee_id,
+    order_id,
+    invoice_number,
+    product_id,
+    variant_id,
+    branch_id,
+    product_name,
+    color_name,
+    sold_size,
+    replacement_size,
+    remaining_stock,
+    image_url,
+    status,
+    is_read,
+    created_at,
+    updated_at,
+    resolved_at,
+    resolved_by_employee_id
+  `;
+  const pendingSelect = `
+    SELECT
+      ${baseColumns},
+      NULL::timestamp AS completed_at,
+      created_at AS sort_at
+    FROM scoped
+    WHERE status = 'pending'
+    ORDER BY created_at DESC, id DESC
+    LIMIT $4
+  `;
+  const completedSelect = `
+    SELECT
+      ${baseColumns},
+      COALESCE(updated_at, resolved_at, created_at) AS completed_at,
+      COALESCE(updated_at, resolved_at, created_at) AS sort_at
+    FROM scoped
+    WHERE status = 'resolved'
+    ORDER BY COALESCE(updated_at, resolved_at, created_at) DESC, id DESC
+    LIMIT $5
+  `;
+  const queryText =
+    normalizedStatus === "pending"
+      ? `
+        ${scopedCte}
+        SELECT ${baseColumns}, completed_at
+        FROM (
+          ${pendingSelect}
+        ) AS alerts_union
+        ORDER BY sort_at DESC, id DESC
+      `
+      : normalizedStatus === "completed"
+        ? `
+          ${scopedCte}
+          SELECT ${baseColumns}, completed_at
+          FROM (
+            ${completedSelect}
+          ) AS alerts_union
+          ORDER BY sort_at DESC, id DESC
+        `
+        : `
+          ${scopedCte},
+          pending_rows AS (
+            ${pendingSelect}
+          ),
+          completed_rows AS (
+            ${completedSelect}
+          )
+          SELECT ${baseColumns}, completed_at
+          FROM (
+            SELECT * FROM pending_rows
+            UNION ALL
+            SELECT * FROM completed_rows
+          ) AS alerts_union
+          ORDER BY CASE WHEN alerts_union.status = 'pending' THEN 0 ELSE 1 END, alerts_union.sort_at DESC, alerts_union.id DESC
+        `;
+  console.info("[employee-portal-display-refill-alerts-query]", {
+    token_employee_id: numberOrNull(employeeId),
+    status: normalizedStatus,
+    query_mode: queryMode,
+  });
+  const result = await db.query(queryText, params);
   return result.rows.map(normalizeAlert);
 };
 
