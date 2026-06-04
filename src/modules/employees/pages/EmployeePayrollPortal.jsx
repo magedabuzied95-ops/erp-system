@@ -1045,12 +1045,22 @@ function ChatAttachment({ message, text, compact = false, outgoing = false, time
   );
 }
 
-function EmployeeHeaderAvatar({ src = "", initials = "", alt = "", statusClassName = "bg-slate-400" }) {
+function EmployeeHeaderAvatar({ src = "", originalSrc = "", initials = "", alt = "", statusClassName = "bg-slate-400" }) {
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     setImageFailed(false);
   }, [src]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.info("[employee-portal:avatar-render]", {
+      original_src: originalSrc || "",
+      resolved_src: src || "",
+      showing_image: Boolean(src) && !imageFailed,
+      alt: alt || "",
+    });
+  }, [alt, imageFailed, originalSrc, src]);
 
   const showImage = Boolean(src) && !imageFailed;
 
@@ -1058,7 +1068,22 @@ function EmployeeHeaderAvatar({ src = "", initials = "", alt = "", statusClassNa
     <div className="relative shrink-0">
       <div className="flex h-[52px] w-[52px] items-center justify-center overflow-hidden rounded-[18px] border border-white/70 bg-slate-950 text-sm font-black text-white shadow-[0_8px_24px_rgba(15,23,42,0.12)] md:h-14 md:w-14">
         {showImage ? (
-          <img src={src} alt={alt} className="h-full w-full object-cover" loading="eager" onError={() => setImageFailed(true)} />
+          <img
+            src={src}
+            alt={alt}
+            className="h-full w-full object-cover"
+            loading="eager"
+            onError={() => {
+              if (import.meta.env.DEV) {
+                console.warn("[employee-portal:avatar-error]", {
+                  original_src: originalSrc || "",
+                  resolved_src: src || "",
+                  alt: alt || "",
+                });
+              }
+              setImageFailed(true);
+            }}
+          />
         ) : (
           initials || <UserRound className="h-5 w-5" />
         )}
@@ -1335,17 +1360,16 @@ export default function EmployeePayrollPortal() {
   );
   const payrollStatusValue = payrollExists ? (wallet.payroll_status || portal?.payment_status) : "not_generated";
   const profile = portal?.employee_profile || portal?.employee || {};
-  const profilePhotoUrl = resolveEmployeeProfileImageUrl(
-    [
-      profile.photo_url,
-      profile.image_url,
-      profile.avatar_url,
-      profile.profile_image_url,
-      profile.profile_photo_url,
-      portal?.employee_profile?.photo_url,
-      portal?.employee?.photo_url,
-    ].find((value) => String(value || "").trim()) || ""
-  );
+  const rawProfilePhotoUrl = [
+    profile.photo_url,
+    profile.image_url,
+    profile.avatar_url,
+    profile.profile_image_url,
+    profile.profile_photo_url,
+    portal?.employee_profile?.photo_url,
+    portal?.employee?.photo_url,
+  ].find((value) => String(value || "").trim()) || "";
+  const profilePhotoUrl = resolveEmployeeProfileImageUrl(rawProfilePhotoUrl);
   const attendance = portal?.attendance?.summary || portal?.recent_attendance_summary || {};
   const attendanceRows = safeArray(portal?.attendance?.timeline);
   const employeeRequests = safeArray(portal?.employee_requests);
@@ -1450,6 +1474,19 @@ export default function EmployeePayrollPortal() {
   );
   const displayRefillBadgeSignature = displayRefillBadgeIds.join("|");
   const totalBadgeCount = badgeCounts.unreadChats + badgeCounts.pendingNotifications + badgeCounts.newTasks + badgeCounts.unreadNotifications + badgeCounts.displayRefillAlerts;
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.info("[employee-portal:avatar-url]", {
+      employee_id: profile.id || null,
+      employee_name: profile.name || "",
+      raw_photo_url: rawProfilePhotoUrl,
+      resolved_photo_url: profilePhotoUrl,
+      profile_photo_url: profile.photo_url || "",
+      employee_photo_url: portal?.employee?.photo_url || "",
+      employee_profile_photo_url: portal?.employee_profile?.photo_url || "",
+    });
+  }, [portal, profile.id, profile.name, profile.photo_url, profilePhotoUrl, rawProfilePhotoUrl]);
   const chatPanelStyle = useMemo(
     () => ({
       height: "100dvh",
@@ -2384,7 +2421,7 @@ export default function EmployeePayrollPortal() {
 
   return (
     <main dir={direction} className="min-h-[100dvh] overflow-x-hidden bg-slate-100 px-3 pb-[calc(128px+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] text-slate-950">
-      <div className="mx-auto max-w-md">
+      <div className="mx-auto w-full max-w-md md:max-w-3xl xl:max-w-5xl">
         <header className="flex items-center justify-between gap-3 py-0.5">
           <div className="flex items-center gap-2 text-sm font-black text-slate-700">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
@@ -2404,14 +2441,15 @@ export default function EmployeePayrollPortal() {
           </div>
         ) : (
           <section className="mt-1 space-y-3 pb-4">
-            <div className="sticky top-[calc(env(safe-area-inset-top)+8px)] z-30 flex min-h-[76px] items-center gap-3 rounded-[24px] border border-slate-200 bg-white/95 px-3 py-2.5 shadow-sm backdrop-blur md:min-h-[84px] md:px-4 md:py-3">
+            <div className="sticky top-[calc(env(safe-area-inset-top)+8px)] z-30 grid min-h-[76px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[24px] border border-slate-200 bg-white/95 px-3 py-2.5 shadow-sm backdrop-blur md:min-h-[84px] md:px-4 md:py-3">
               <EmployeeHeaderAvatar
                 src={profilePhotoUrl}
+                originalSrc={rawProfilePhotoUrl}
                 initials={profile.avatar_initials}
                 alt={profile.name || "Employee avatar"}
                 statusClassName={employeeStatusDotClassName}
               />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 self-center">
                 <div className="truncate text-sm font-black leading-5 text-slate-950 md:text-base" dir="auto">{profile.name}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-black text-slate-500">
                   <span className={`h-2 w-2 rounded-full ${employeeStatusDotClassName}`} />
@@ -2421,7 +2459,7 @@ export default function EmployeePayrollPortal() {
                 </div>
                 {profile.code ? <div className="mt-1 truncate text-[11px] font-bold text-slate-400">{profile.code}</div> : null}
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 self-center">
                 {[
                   { key: "notifications", count: badgeCounts.unreadNotifications || 0, label: ui("notificationsShort"), Icon: Bell, tone: "emerald" },
                   { key: "display-refill", count: badgeCounts.displayRefillAlerts || 0, label: ui("displayRefillShort"), Icon: AlertTriangle, tone: "amber" },
