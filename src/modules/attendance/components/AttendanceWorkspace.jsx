@@ -128,6 +128,7 @@ const employeeRoleLabels = {
   staff: { en: "Employee", ar: "موظف" },
 };
 const isArabicLocale = (language = "") => String(language || "").toLowerCase().startsWith("ar");
+const cleanPhotoUrl = (value = "") => String(value || "").trim();
 const titleCaseRole = (value = "") =>
   String(value || "")
     .replace(/[_-]+/g, " ")
@@ -275,9 +276,13 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
     () => [{ id: "", label: tr("options.selectEmployee") }, ...employees.map((employee) => ({ id: employee.id, label: employee.full_name || tr("fields.employee") }))],
     [employees, tr]
   );
+  const editingEmployee = useMemo(
+    () => employees.find((item) => String(item.id) === String(employeeForm.id)) || null,
+    [employeeForm.id, employees]
+  );
   const employeePhotoPreviewUrl = useMemo(
-    () => resolveEmployeeProfileImageUrl(employeeForm.photo_url || ""),
-    [employeeForm.photo_url]
+    () => resolveEmployeeProfileImageUrl(cleanPhotoUrl(employeeForm.photo_url) || cleanPhotoUrl(editingEmployee?.photo_url)),
+    [editingEmployee?.photo_url, employeeForm.photo_url]
   );
   const statusLabel = useCallback(
     (value) => {
@@ -477,6 +482,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
       setSaving(true);
       const payload = {
         ...employeeForm,
+        photo_url: cleanPhotoUrl(employeeForm.photo_url),
         salary: Number(employeeForm.salary || 0),
       };
 
@@ -484,28 +490,57 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
         ? await updateAttendanceEmployee(employeeForm.id, payload)
         : await createAttendanceEmployee(payload);
 
-      const row = response?.data || response?.employee || response;
+      const row = {
+        ...(response?.data || response?.employee || response || {}),
+        photo_url: cleanPhotoUrl(response?.data?.photo_url || response?.employee?.photo_url || response?.photo_url || payload.photo_url),
+      };
       setEmployees((prev) => {
         const next = prev.filter((item) => String(item.id) !== String(row.id));
         return [row, ...next];
       });
-      setEmployeeForm((prev) => ({
-        ...prev,
-        id: "",
-        branch_name: "",
-        employee_code: "",
-        full_name: "",
-        photo_url: "",
-        phone: "",
-        email: "",
-        national_id: "",
-        role: "",
-        job_title: "",
-        position: "",
-        salary: "",
-      }));
+      if (employeeForm.id) {
+        setEmployeeForm((prev) => ({
+          ...prev,
+          ...row,
+          id: row.id,
+          branch_id: row.branch_id || "",
+          branch_name: row.branch_name || "",
+          employee_code: row.employee_code || "",
+          full_name: row.full_name || "",
+          photo_url: row.photo_url || "",
+          phone: row.phone || "",
+          email: row.email || "",
+          national_id: row.national_id || "",
+          role: row.role || "",
+          job_title: row.job_title || row.position || "",
+          position: row.position || row.job_title || "",
+          salary: row.salary || "",
+          hire_date: row.hire_date || todayValue(),
+          status: row.status || "active",
+        }));
+      } else {
+        setEmployeeForm((prev) => ({
+          ...prev,
+          id: "",
+          branch_name: "",
+          employee_code: "",
+          full_name: "",
+          photo_url: "",
+          phone: "",
+          email: "",
+          national_id: "",
+          role: "",
+          job_title: "",
+          position: "",
+          salary: "",
+        }));
+      }
+      setSelectedEmployeeId((current) => String(row.id || current || ""));
       toast.success(employeeForm.id ? tr("toasts.employeeUpdated") : tr("toasts.employeeCreated"));
       await loadBaseData({ silent: true });
+      if (row.id) {
+        await loadEmployeeRelatedData(String(row.id));
+      }
     } catch (err) {
       console.log(err);
       toast.error(err?.message || tr("errors.saveEmployee"));
@@ -521,7 +556,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
       branch_name: employee.branch_name || "",
       employee_code: employee.employee_code || "",
       full_name: employee.full_name || "",
-      photo_url: employee.photo_url || "",
+      photo_url: cleanPhotoUrl(employee.photo_url || employee.avatar_url || employee.image_url || ""),
       phone: employee.phone || "",
       email: employee.email || "",
       national_id: employee.national_id || "",
@@ -545,7 +580,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
       const response = await uploadProductImage(file);
       const nextUrl = String(resolveUploadedImageUrl(response) || "").trim();
       if (!nextUrl) throw new Error(isArabic ? "فشل رفع صورة الموظف." : "Employee photo upload failed.");
-      setEmployeeForm((prev) => ({ ...prev, photo_url: nextUrl }));
+      setEmployeeForm((prev) => ({ ...prev, photo_url: cleanPhotoUrl(nextUrl) }));
       toast.success(isArabic ? "تم رفع صورة الموظف." : "Employee photo uploaded.");
     } catch (err) {
       console.log(err);
