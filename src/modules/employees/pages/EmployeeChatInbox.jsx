@@ -5,6 +5,7 @@ import { api } from "../../../shared/api/api";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 import { socket } from "../../../socket";
 import ChatImageAttachment from "../components/ChatImageAttachment";
+import WhatsAppRecordingBar from "../components/WhatsAppRecordingBar";
 import WhatsAppVoiceMessage from "../components/WhatsAppVoiceMessage";
 import { messageAttachmentDuration, resolveEmployeeChatAttachmentUrl } from "../lib/chatAttachments";
 
@@ -127,7 +128,8 @@ export default function EmployeeChatInbox() {
   const [imagePreview, setImagePreview] = useState("");
   const [typingEmployee, setTypingEmployee] = useState("");
   const [showJump, setShowJump] = useState(false);
-  const [recordingState, setRecordingState] = useState({ active: false, seconds: 0, supported: false });
+  const [recordingState, setRecordingState] = useState({ active: false, paused: false, seconds: 0, supported: false });
+  const [recordingStream, setRecordingStream] = useState(null);
   const [error, setError] = useState("");
   const realtime = useRealtimeConnection();
   const fileInputRef = useRef(null);
@@ -137,7 +139,7 @@ export default function EmployeeChatInbox() {
   const mediaRecorderRef = useRef(null);
   const recordingChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
-  const recordingStartedAtRef = useRef(0);
+  const recordingSecondsRef = useRef(0);
   const selectedThread = useMemo(
     () => threads.find((item) => String(item.id) === String(selectedId)) || thread,
     [selectedId, thread, threads]
@@ -149,6 +151,11 @@ export default function EmployeeChatInbox() {
 
   useEffect(() => {
     setRecordingState((current) => ({ ...current, supported: typeof window !== "undefined" && Boolean(window.MediaRecorder && navigator.mediaDevices?.getUserMedia) }));
+  }, []);
+
+  useEffect(() => () => {
+    if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+    mediaRecorderRef.current?.stream?.getTracks?.().forEach((track) => track.stop());
   }, []);
 
   const loadThreads = async () => {
@@ -344,44 +351,101 @@ export default function EmployeeChatInbox() {
     const mimeType = MediaRecorder.isTypeSupported?.("audio/webm") ? "audio/webm" : "";
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     recordingChunksRef.current = [];
+    recordingSecondsRef.current = 0;
     recorder.ondataavailable = (event) => {
       if (event.data?.size) recordingChunksRef.current.push(event.data);
     };
-    recorder.onstop = () => stream.getTracks().forEach((track) => track.stop());
     mediaRecorderRef.current = recorder;
+    setAttachment(null);
+    setAttachmentDuration(0);
+    setRecordingStream(stream);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     recorder.start();
-    recordingStartedAtRef.current = Date.now();
-    setRecordingState((current) => ({ ...current, active: true, seconds: 0 }));
+    setRecordingState((current) => ({ ...current, active: true, paused: false, seconds: 0 }));
     recordingTimerRef.current = window.setInterval(() => {
-      setRecordingState((current) => ({ ...current, seconds: current.seconds + 1 }));
+      setRecordingState((current) => {
+        if (!current.active || current.paused) return current;
+        const seconds = current.seconds + 1;
+        recordingSecondsRef.current = seconds;
+        return { ...current, seconds };
+      });
     }, 1000);
   };
 
+  const stopVoiceRecording = ({ capture = false } = {}) => new Promise((resolve) => {
+    const recorder = mediaRecorderRef.current;
+    const durationSeconds = Math.max(1, recordingSecondsRef.current || recordingState.seconds || 0);
+    const mimeType = recorder?.mimeType || "audio/webm";
+    const finish = () => {
+      const blob = capture ? new Blob(recordingChunksRef.current, { type: mimeType }) : null;
+      recorder?.stream?.getTracks?.().forEach((track) => track.stop());
+      mediaRecorderRef.current = null;
+      recordingChunksRef.current = [];
+      recordingSecondsRef.current = 0;
+      setRecordingStream(null);
+      setRecordingState((current) => ({ ...current, active: false, paused: false, seconds: 0 }));
+      if (recordingTimerRef.current) {
+        window.clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      resolve(blob?.size ? { blob, durationSeconds, mimeType } : null);
+    };
+
+    if (!recorder) {
+      finish();
+      return;
+    }
+
+    recorder.onstop = finish;
+    if (recorder.state === "inactive") {
+      finish();
+      return;
+    }
+    recorder.stop();
+  });
+
   const cancelVoiceRecording = () => {
-    mediaRecorderRef.current?.stop();
-    recordingChunksRef.current = [];
-    recordingStartedAtRef.current = 0;
-    if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
-    setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
+    void stopVoiceRecording({ capture: false });
   };
 
-  const sendVoiceRecording = () => {
+  const toggleVoiceRecordingPause = () => {
     const recorder = mediaRecorderRef.current;
-    if (!recorder) return;
-    recorder.onstop = () => {
-      recorder.stream?.getTracks?.().forEach((track) => track.stop());
-      if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
-      const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" });
-      const durationSeconds = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
-      recordingChunksRef.current = [];
-      recordingStartedAtRef.current = 0;
-      setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
-      if (blob.size) {
-        setAttachmentDuration(durationSeconds);
-        setAttachment(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type || "audio/webm" }));
-      }
-    };
-    recorder.stop();
+    if (!recorder || !recordingState.active) return;
+    if (recorder.state === "recording" && typeof recorder.pause === "function") {
+      recorder.pause();
+      setRecordingState((current) => ({ ...current, paused: true }));
+      return;
+    }
+    if (recorder.state === "paused" && typeof recorder.resume === "function") {
+      recorder.resume();
+      setRecordingState((current) => ({ ...current, paused: false }));
+    }
+  };
+
+  const sendVoiceRecording = async () => {
+    if (sending || !selectedId) return;
+    setSending(true);
+    setError("");
+    try {
+      const recording = await stopVoiceRecording({ capture: true });
+      if (!recording?.blob?.size) return;
+      const formData = new FormData();
+      formData.append("attachment", new File([recording.blob], `voice-${Date.now()}.webm`, { type: recording.mimeType || recording.blob.type || "audio/webm" }));
+      formData.append("attachment_duration_seconds", String(recording.durationSeconds));
+      if (replyTo?.id) formData.append("reply_to_message_id", replyTo.id);
+      await api.post(`/employees/chat/threads/${encodeURIComponent(selectedId)}/messages`, formData);
+      setBody("");
+      setAttachment(null);
+      setAttachmentDuration(0);
+      setReplyTo(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await loadThread(selectedId);
+      await loadThreads();
+    } catch (err) {
+      setError(err?.responseBody?.message || err?.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط§ظ„ط±ط¯");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -534,6 +598,18 @@ export default function EmployeeChatInbox() {
                 ) : null}
               </div>
               <form onSubmit={sendMessage} className="shrink-0 border-t border-white/10 bg-[#1f2c33] px-2.5 pb-2.5 pt-2.5">
+                {recordingState.active ? (
+                  <WhatsAppRecordingBar
+                    stream={recordingStream}
+                    seconds={recordingState.seconds}
+                    paused={recordingState.paused}
+                    sending={sending}
+                    onDelete={cancelVoiceRecording}
+                    onPauseResume={toggleVoiceRecordingPause}
+                    onSend={sendVoiceRecording}
+                  />
+                ) : (
+                  <>
                 {replyTo ? (
                   <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
                     <div className="min-w-0">
@@ -541,15 +617,6 @@ export default function EmployeeChatInbox() {
                       <div className="truncate opacity-80">{replyPreview(replyTo)}</div>
                     </div>
                     <button type="button" onClick={() => setReplyTo(null)} className="shrink-0 text-red-200"><X className="h-4 w-4" /></button>
-                  </div>
-                ) : null}
-                {recordingState.active ? (
-                  <div className="mb-2 flex items-center justify-between rounded-2xl bg-red-500/10 px-3 py-2 text-xs font-black text-red-100">
-                    <span dir="ltr">{Math.floor(recordingState.seconds / 60)}:{String(recordingState.seconds % 60).padStart(2, "0")}</span>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={cancelVoiceRecording}>إلغاء</button>
-                      <button type="button" onClick={sendVoiceRecording} className="text-emerald-200">إرسال</button>
-                    </div>
                   </div>
                 ) : null}
                 {attachment ? (
@@ -588,6 +655,8 @@ export default function EmployeeChatInbox() {
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </button>
                 </div>
+                  </>
+                )}
               </form>
             </>
           ) : (
