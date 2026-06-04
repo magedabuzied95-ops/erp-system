@@ -150,10 +150,10 @@
       }
     },
     "employeeHub": {
-      "eyebrow": "Employee Hub",
-      "title": "Employees",
+      "eyebrow": "HR Center",
+      "title": "HR Center",
       "subtitle": "Profiles, attendance, payroll, analytics, and reports in one operational workspace.",
-      "currentSection": "Current employee hub section: {{section}}",
+      "currentSection": "Current HR Center section: {{section}}",
       "tabs": {
         "overview": "Overview",
         "employees": "Employees",
@@ -207,7 +207,7 @@
       },
       "reports": {
         "title": "Employee Reports",
-        "subtitle": "All employee reporting is accessed from the relevant Employee Hub sections.",
+        "subtitle": "All employee reporting is accessed from the relevant HR Center sections.",
         "payroll": {
           "label": "Payroll report",
           "description": "Calculate final salary with commissions, bonuses, deductions, and advances."
@@ -654,7 +654,7 @@
     "reports": "Reports",
     "analytics": "Analytics",
     "billing": "Billing",
-    "employees": "Employees",
+    "employees": "HR Center",
     "kiosk": "Kiosk",
     "appearance": "Appearance",
     "company": "Company",

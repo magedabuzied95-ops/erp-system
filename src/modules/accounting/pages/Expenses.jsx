@@ -451,7 +451,7 @@ const statusLabel = (t, language, value) => expenseOptionLabel(t, language, "sta
 const frequencyLabel = (t, language, value) => expenseOptionLabel(t, language, "frequency", value);
 const booleanLabel = (t, language, value) => expenseOptionLabel(t, language, "boolean", String(Boolean(value)));
 
-function Expenses({ defaultTab = "dashboard" }) {
+function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
   const { i18n, t } = useTranslation();
   const language = String(i18n.language || "").startsWith("ar") ? "ar" : "en";
   const copy = labels[language];
@@ -518,6 +518,24 @@ function Expenses({ defaultTab = "dashboard" }) {
     }),
     [employees]
   );
+  const allWorkspaceTabs = useMemo(() => ([
+    ["dashboard", copy.dashboard, BarChart3],
+    ["expenses", copy.expenses, ReceiptText],
+    ["create", copy.create, Plus],
+    ["categories", copy.categories, ClipboardCheck],
+    ["advances", copy.advances, UserRound],
+    ["recurring", copy.recurring, CalendarClock],
+    ["approvals", copy.approvals, ShieldCheck],
+    ["reports", copy.reports, FileText],
+  ]), [copy]);
+  const workspaceTabs = Array.isArray(visibleTabs) && visibleTabs.length
+    ? allWorkspaceTabs.filter(([id]) => visibleTabs.includes(id))
+    : allWorkspaceTabs;
+
+  useEffect(() => {
+    const fallbackTab = workspaceTabs.some(([id]) => id === defaultTab) ? defaultTab : workspaceTabs[0]?.[0] || "dashboard";
+    if (!workspaceTabs.some(([id]) => id === activeTab)) setActiveTab(fallbackTab);
+  }, [activeTab, defaultTab, workspaceTabs]);
 
   const resetExpenseForm = () => {
     setEditingExpenseId(null);
@@ -707,28 +725,21 @@ function Expenses({ defaultTab = "dashboard" }) {
         { to: "/accounting/reports", label: copy.reports },
       ]}
     >
-      <div className="mb-4 flex gap-1.5 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-950/70 p-1">
-        {[
-          ["dashboard", copy.dashboard, BarChart3],
-          ["expenses", copy.expenses, ReceiptText],
-          ["create", copy.create, Plus],
-          ["categories", copy.categories, ClipboardCheck],
-          ["advances", copy.advances, UserRound],
-          ["recurring", copy.recurring, CalendarClock],
-          ["approvals", copy.approvals, ShieldCheck],
-          ["reports", copy.reports, FileText],
-        ].map(([id, label, Icon]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setActiveTab(id)}
-            className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-xs font-black transition ${activeTab === id ? "bg-emerald-400 text-zinc-950" : "text-zinc-400 hover:bg-white/[0.06] hover:text-white"}`}
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </button>
-        ))}
-      </div>
+      {workspaceTabs.length > 1 ? (
+        <div className="mb-4 flex gap-1.5 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-950/70 p-1">
+          {workspaceTabs.map(([id, label, Icon]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id)}
+              className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-xs font-black transition ${activeTab === id ? "bg-emerald-400 text-zinc-950" : "text-zinc-400 hover:bg-white/[0.06] hover:text-white"}`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {activeTab === "dashboard" ? (
         <section className="space-y-4">

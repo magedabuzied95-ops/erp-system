@@ -11,9 +11,11 @@ import {
   MessageCircle,
   UserRound,
   UsersRound,
+  WalletCards,
 } from "lucide-react";
 
 const AttendanceCenter = lazy(() => import("../../attendance/components/AttendanceCenter"));
+const Expenses = lazy(() => import("../../accounting/pages/Expenses"));
 const SalesEmployees = lazy(() => import("../../sales/pages/SalesEmployees"));
 const EmployeeAnalyticsWorkspace = lazy(() => import("../components/EmployeeAnalyticsWorkspace"));
 const EmployeeChatInbox = lazy(() => import("./EmployeeChatInbox"));
@@ -23,6 +25,7 @@ const tabDefinitions = [
   { id: "employees", labelKey: "employees", icon: UsersRound },
   { id: "attendance", labelKey: "attendance", icon: CalendarClock },
   { id: "payroll", labelKey: "payroll", icon: BadgeDollarSign },
+  { id: "advances", labelKey: "advances", icon: WalletCards },
   { id: "chat", labelKey: "chat", icon: MessageCircle },
   { id: "analytics", labelKey: "analytics", icon: BarChart3 },
   { id: "reports", labelKey: "reports", icon: FileText },
@@ -33,7 +36,6 @@ const legacyTabRedirects = {
   commissions: "analytics",
   "top-performers": "analytics",
   "sales-performance": "analytics",
-  advances: "payroll",
   shifts: "attendance",
 };
 
@@ -93,9 +95,10 @@ export default function EmployeeHub() {
 
       {activeTab === "overview" ? <EmployeeOverview onSelectTab={(tab) => navigate(`/employees/${tab}`)} t={t} isRtl={isRtl} /> : null}
       <Suspense fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">{t("common.loading", "Loading...")}</div>}>
-        {activeTab === "employees" ? <SalesEmployees defaultTab="staff" embedded /> : null}
+        {activeTab === "employees" ? <SalesEmployees defaultTab="staff" visibleTabs={["staff"]} embedded /> : null}
         {activeTab === "attendance" ? <AttendanceCenter /> : null}
-        {activeTab === "payroll" ? <SalesEmployees defaultTab="payroll" embedded /> : null}
+        {activeTab === "payroll" ? <SalesEmployees defaultTab="payroll" visibleTabs={["payroll", "penalties"]} embedded /> : null}
+        {activeTab === "advances" ? <Expenses defaultTab="advances" visibleTabs={["advances", "approvals", "reports"]} embedded /> : null}
         {activeTab === "chat" ? <EmployeeChatInbox /> : null}
         {activeTab === "analytics" ? <EmployeeAnalyticsWorkspace embedded /> : null}
       </Suspense>
@@ -127,6 +130,12 @@ function EmployeeOverview({ onSelectTab, t, isRtl }) {
       title: t("common.employeeHub.cards.payroll.title"),
       text: t("common.employeeHub.cards.payroll.text"),
       icon: BadgeDollarSign,
+    },
+    {
+      tab: "advances",
+      title: t("common.employeeHub.cards.advances.title"),
+      text: t("common.employeeHub.cards.advances.text"),
+      icon: WalletCards,
     },
     {
       tab: "chat",

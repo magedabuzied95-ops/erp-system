@@ -188,6 +188,7 @@ const sidebarItemMatchesSearch = (item, groupTitle, query) => {
 const groupForSidebarItem = (sectionTitle, item) => {
   const to = String(item.to || "");
 
+  if (sectionTitle === "Employees" && to === "/reports") return "Employees";
   if (to === "/dashboard" || to === "/workspace" || to === "/notifications") return "Main";
   if (to === "/pos" || to === "/orders" || to === "/orders?channel=website" || to === "/orders/returns" || to === "/customers") return "Sales";
   if (to === "/operations/shipping") return "Operations";
@@ -254,8 +255,8 @@ const buildEnterpriseSidebarGroups = (sections) => {
     Operations: ["/operations/shipping"],
     "Products & Inventory": ["/products", "/products/add", "/inventory", "/warehouses", "/stock-transfers"],
     Purchasing: ["/purchases", "/suppliers"],
-    Employees: ["/employees", "/employees/attendance", "/employees/payroll", "/employees/advances"],
-    Finance: ["/accounting", "/expenses", "/reports"],
+    Employees: ["/employees", "/employees/attendance", "/reports"],
+    Finance: ["/accounting", "/expenses"],
     "AI & Marketing": ["/admin/ai-inbox", "/marketing/ai-center", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"],
     "System Settings": ["/settings", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments", "/branches", "/settings/users", "/admin/tenants", "/settings/permissions"],
   };

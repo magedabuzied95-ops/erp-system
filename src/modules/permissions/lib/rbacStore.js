@@ -427,7 +427,6 @@ const RAW_SIDEBAR_SECTIONS = [
     items: [
       { label: "Accounting", to: "/accounting", permission: "accounting.view", icon: Wallet },
       { label: "Expenses", to: "/expenses", permission: "expenses.view", icon: ReceiptText, keywords: "Expenses expense costs spending المصاريف مصاريف النفقات" },
-      { label: "Reports", to: "/reports", permission: "reports.view", icon: BarChart3 },
     ],
   },
   {
@@ -435,8 +434,7 @@ const RAW_SIDEBAR_SECTIONS = [
     items: [
       { label: "Employees", to: "/employees", permission: "employees.view", icon: UsersRound },
       { label: "Attendance Center", to: "/employees/attendance", permission: "attendance.view", icon: CalendarClock },
-      { label: "Payroll", to: "/employees/payroll", permission: "employees.view", icon: CircleDollarSign },
-      { label: "Advances", to: "/employees/advances", permission: "expenses.advances.view", icon: CircleDollarSign },
+      { label: "Reports", to: "/reports", permission: "reports.view", icon: BarChart3 },
     ],
   },
   {

@@ -290,7 +290,7 @@ const PenaltyRow = memo(function PenaltyRow({ penalty, t, onApprove, onCancel })
   );
 });
 
-function SalesEmployees({ defaultTab = "staff" }) {
+function SalesEmployees({ defaultTab = "staff", visibleTabs = null }) {
   const pageStartedAtRef = useRef(performance.now());
   const firstDataLoggedRef = useRef(false);
   const { t, i18n } = useTranslation();
@@ -1135,12 +1135,20 @@ function SalesEmployees({ defaultTab = "staff" }) {
   const reportIndexes = reportRows.length > 40 ? virtualReport.items : reportRows.map((_, index) => index);
   const penaltyIndexes = penalties.length > 40 ? virtualPenalties.items : penalties.map((_, index) => index);
 
-  const tabs = [
+  const allTabs = [
     { id: "staff", label: t("sales.tabs.staff", "Sales Staff") },
     { id: "reports", label: t("sales.tabs.reports", "Commission Reports") },
     { id: "payroll", label: t("sales.tabs.payroll", "Payroll Calculator"), badge: pendingPortalRequestCount },
     { id: "penalties", label: t("sales.tabs.penalties", "Penalties") },
   ];
+  const tabs = Array.isArray(visibleTabs) && visibleTabs.length
+    ? allTabs.filter((tab) => visibleTabs.includes(tab.id))
+    : allTabs;
+
+  useEffect(() => {
+    const fallbackTab = tabs.some((tab) => tab.id === defaultTab) ? defaultTab : tabs[0]?.id || "staff";
+    if (!tabs.some((tab) => tab.id === activeTab)) setActiveTab(fallbackTab);
+  }, [activeTab, defaultTab, tabs]);
 
   return (
     <div dir={direction} className="min-h-screen bg-[var(--bg)] p-4 text-[var(--text)] md:p-6">
@@ -1175,21 +1183,23 @@ function SalesEmployees({ defaultTab = "staff" }) {
         </div>
       </section>
 
-      <div className="mb-4 flex overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-1" dir={direction}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`min-w-fit flex-1 rounded-xl px-4 py-2.5 text-sm font-black transition ${activeTab === tab.id ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--muted)] hover:bg-white/[0.03] hover:text-[var(--text)]"}`}
-          >
-            <span className="inline-flex items-center justify-center gap-2">
-              <span>{tab.label}</span>
-              {tab.badge ? <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-black text-white">{tab.badge}</span> : null}
-            </span>
-          </button>
-        ))}
-      </div>
+      {tabs.length > 1 ? (
+        <div className="mb-4 flex overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-1" dir={direction}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`min-w-fit flex-1 rounded-xl px-4 py-2.5 text-sm font-black transition ${activeTab === tab.id ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--muted)] hover:bg-white/[0.03] hover:text-[var(--text)]"}`}
+            >
+              <span className="inline-flex items-center justify-center gap-2">
+                <span>{tab.label}</span>
+                {tab.badge ? <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[11px] font-black text-white">{tab.badge}</span> : null}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {activeTab === "staff" ? (
         <main className="space-y-4">
