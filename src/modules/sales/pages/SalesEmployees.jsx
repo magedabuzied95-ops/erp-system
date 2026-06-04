@@ -1298,7 +1298,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
             </div>
           </section>
 
-          {featureFlags.showDevTools ? (
+          {false ? (
             <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm font-black text-amber-100">
               Developer Mode — QA tools visible
             </div>

@@ -285,8 +285,8 @@ function AttendanceWorkspace({
     [employees, selectedEmployeeId]
   );
   const profileEmployee = useMemo(
-    () => employees.find((item) => resolveEmployeeRecordId(item) === String(employeeForm.id || selectedEmployeeId || "")) || null,
-    [employeeForm.id, employees, selectedEmployeeId]
+    () => employees.find((item) => resolveEmployeeRecordId(item) === String(employeeForm.id || "")) || null,
+    [employeeForm.id, employees]
   );
   const fallback = tr("fields.notAvailable");
   const employeeSelectOptions = useMemo(
