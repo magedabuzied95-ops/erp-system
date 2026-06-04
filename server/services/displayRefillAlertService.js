@@ -631,6 +631,13 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       : soldVariantStockAfter ?? sortedVariants
         .filter((row) => parseSizeNumber(row.size) === soldSizeNormalized)
         .reduce((sum, row) => sum + normalizeStockValue(row), 0);
+    console.info("[display-refill-alert:variant-stock-debug]", {
+      variant_id: soldVariantId,
+      size: soldSize || null,
+      color: colorName || null,
+      stock_quantity: soldVariant ? normalizeStockValue(soldVariant) : null,
+      remaining_after_sale: soldSizeRemainingQty,
+    });
     const smallerSizesAvailable = soldSizeNormalized === null
       ? []
       : availableSizeOptions.filter((entry) => entry.normalized < soldSizeNormalized).map((entry) => entry.size);
@@ -695,13 +702,18 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       order_id: safeOrderId,
       product_id: productId,
       variant_id: soldVariantId,
+      resolved_size: soldSize || null,
+      resolved_color: colorName || null,
       color: colorName || null,
       sold_size: soldSize,
       normalized_sold_size: soldSizeNormalized,
       available_sizes: availableAfterSale,
       sold_size_remaining_qty: soldSizeRemainingQty,
+      variant_stock_before: stockBefore,
+      variant_stock_after: soldVariantStockAfter,
       smaller_sizes_available: smallerSizesAvailable,
       next_larger_size: nextLargerSize,
+      replacement_size: nextDisplaySize,
       replacement_source: replacementSource,
       should_create_alert: shouldCreateAlert,
       reason,
