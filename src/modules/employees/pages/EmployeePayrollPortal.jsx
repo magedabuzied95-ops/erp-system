@@ -381,6 +381,10 @@ Object.assign(labels.ar, {
   reason: "السبب",
   currentNetSalary: "صافي الراتب الحالي",
   displayRefillEmpty: "لا توجد نواقص عرض حالياً",
+  displayRefillCompletedSeeMore: "عرض المزيد من المنفذ",
+  displayRefillCompletedHide: "إخفاء المنفذ",
+  startTime: "بداية الشيفت",
+  endTime: "نهاية الشيفت",
 });
 
 Object.assign(labels.en, {
@@ -447,6 +451,8 @@ Object.assign(labels.en, {
   reason: "Reason",
   currentNetSalary: "Current Net Salary",
   displayRefillEmpty: "No display refill alerts right now.",
+  displayRefillCompletedSeeMore: "عرض المزيد من المنفذ",
+  displayRefillCompletedHide: "إخفاء المنفذ",
 });
 
 const money = (value) => {
@@ -1129,6 +1135,7 @@ export default function EmployeePayrollPortal() {
   const [displayRefillAlerts, setDisplayRefillAlerts] = useState([]);
   const [displayRefillLoading, setDisplayRefillLoading] = useState(false);
   const [displayRefillSavingId, setDisplayRefillSavingId] = useState("");
+  const [showAllCompletedDisplayRefillAlerts, setShowAllCompletedDisplayRefillAlerts] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0, unreadNotifications: 0, displayRefillAlerts: 0 });
   const [notificationSeenVersion, setNotificationSeenVersion] = useState(0);
   const chatSocketRef = useRef(null);
@@ -1351,6 +1358,10 @@ export default function EmployeePayrollPortal() {
   }, [displayRefillAlerts]);
   const pendingDisplayRefillAlerts = displayRefillAlertRows.filter((item) => String(item.status || "pending").toLowerCase() === "pending");
   const completedDisplayRefillAlerts = displayRefillAlertRows.filter((item) => String(item.status || "").toLowerCase() === "resolved");
+  const hiddenCompletedDisplayRefillCount = Math.max(completedDisplayRefillAlerts.length - 1, 0);
+  const visibleCompletedDisplayRefillAlerts = showAllCompletedDisplayRefillAlerts
+    ? completedDisplayRefillAlerts
+    : completedDisplayRefillAlerts.slice(0, 1);
   const hasDisplayRefillAlerts = displayRefillAlertRows.length > 0;
   const currentShift = portal?.currentShift || profile.currentShift || {};
   const ui = (key) => text[key] || labels.en[key] || key;
@@ -2365,7 +2376,7 @@ export default function EmployeePayrollPortal() {
   };
 
   return (
-    <main dir={direction} className="min-h-[100dvh] overflow-x-hidden bg-slate-100 px-3 pb-[calc(110px+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] text-slate-950">
+    <main dir={direction} className="min-h-[100dvh] overflow-x-hidden bg-slate-100 px-3 pb-[calc(128px+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] text-slate-950">
       <div className="mx-auto max-w-md">
         <header className="flex items-center justify-between gap-3 py-0.5">
           <div className="flex items-center gap-2 text-sm font-black text-slate-700">
@@ -2582,7 +2593,7 @@ export default function EmployeePayrollPortal() {
                         <h4 className="text-sm font-black text-slate-950">تم التنفيذ</h4>
                         <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-600">{completedDisplayRefillAlerts.length}</span>
                       </div>
-                      {completedDisplayRefillAlerts.map((alert) => {
+                      {visibleCompletedDisplayRefillAlerts.map((alert) => {
                         const imageSrc = alert.image_url
                           ? (/^https?:\/\//i.test(alert.image_url) ? alert.image_url : `${API_ORIGIN}${String(alert.image_url).startsWith("/") ? "" : "/"}${alert.image_url}`)
                           : "";
@@ -2627,6 +2638,17 @@ export default function EmployeePayrollPortal() {
                           </article>
                         );
                       })}
+                      {hiddenCompletedDisplayRefillCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllCompletedDisplayRefillAlerts((current) => !current)}
+                          className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700"
+                        >
+                          {showAllCompletedDisplayRefillAlerts
+                            ? ui("displayRefillCompletedHide")
+                            : `${ui("displayRefillCompletedSeeMore")} (${hiddenCompletedDisplayRefillCount})`}
+                        </button>
+                      ) : null}
                     </section>
                   ) : null}
                   {!hasDisplayRefillAlerts ? (
@@ -2699,22 +2721,22 @@ export default function EmployeePayrollPortal() {
                   </button>
                 </div>
 
-                <section className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
+                <section className="rounded-3xl bg-slate-950 p-3 text-white shadow-xl shadow-slate-300 md:p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-xs font-black text-slate-300">{text.attendanceTab}</div>
-                      <h3 className="mt-1 text-2xl font-black">{isCheckedIn ? ui("checkedIn") : ui("notCheckedIn")}</h3>
+                      <h3 className="mt-1 text-xl font-black leading-7 md:text-2xl">{isCheckedIn ? ui("checkedIn") : ui("notCheckedIn")}</h3>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-black ${isCheckedIn ? "bg-emerald-400 text-emerald-950" : "bg-white/10 text-white"}`}>{employeeStatus}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-black md:px-3 md:text-xs ${isCheckedIn ? "bg-emerald-400 text-emerald-950" : "bg-white/10 text-white"}`}>{employeeStatus}</span>
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold">
-                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{text.checkIn}</div><div className="mt-1 text-sm font-black"><DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div></div>
-                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{ui("workedToday")}</div><div className="mt-1 text-sm font-black" dir="ltr">{formatMinutesShort(workedMinutes)}</div></div>
-                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{ui("startTime")}</div><div className="mt-1 text-sm font-black"><DateSafe>{formatShiftTimeLocal(currentShift.start_time || currentShift.startTime, language)}</DateSafe></div></div>
-                    <div className="rounded-2xl bg-white/10 p-3"><div className="text-slate-300">{ui("endTime")}</div><div className="mt-1 text-sm font-black"><DateSafe>{formatShiftTimeLocal(currentShift.end_time || currentShift.endTime, language)}</DateSafe></div></div>
+                  <div className="mt-3 grid grid-cols-2 gap-1.5 text-xs font-bold md:mt-4 md:gap-2">
+                    <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3"><div className="text-[11px] text-slate-300">{text.checkIn}</div><div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div></div>
+                    <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3"><div className="text-[11px] text-slate-300">{ui("workedToday")}</div><div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm" dir="ltr">{formatMinutesShort(workedMinutes)}</div></div>
+                    <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3"><div className="text-[11px] text-slate-300">{ui("startTime")}</div><div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatShiftTimeLocal(currentShift.start_time || currentShift.startTime, language)}</DateSafe></div></div>
+                    <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3"><div className="text-[11px] text-slate-300">{ui("endTime")}</div><div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatShiftTimeLocal(currentShift.end_time || currentShift.endTime, language)}</DateSafe></div></div>
                   </div>
-                  {todayCheckIn ? <div className="mt-3 text-xs font-bold text-slate-300">{ui("checkedInAt")} <DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div> : null}
-                  <div className="mt-4 grid grid-cols-2 gap-2">
+                  {todayCheckIn ? <div className="mt-2.5 text-[11px] font-bold text-slate-300 md:mt-3 md:text-xs">{ui("checkedInAt")} <DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div> : null}
+                  <div className="mt-3 grid grid-cols-2 gap-2 md:mt-4">
                     <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
                       {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       {text.checkIn}
@@ -2724,7 +2746,7 @@ export default function EmployeePayrollPortal() {
                       {text.checkOut}
                     </button>
                   </div>
-                  {portalNotice ? <div className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white" dir="auto">{portalNotice}</div> : null}
+                  {portalNotice ? <div className="mt-2.5 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white md:mt-3" dir="auto">{portalNotice}</div> : null}
                 </section>
 
                 {employeeNotifications.length ? (
