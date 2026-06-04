@@ -144,6 +144,10 @@ const resolveEmployeePhotoValue = (employee = {}) =>
     employee.avatar_url,
     employee.profile_image_url,
     employee.profile_photo_url,
+    employee.profile_image,
+    employee.image,
+    employee.photo,
+    employee.employee_image,
     employee.cloudinary_url,
     employee.secure_url
   );
@@ -830,6 +834,10 @@ export const loadEmployeePortalByToken = async (token) => {
       ${optionalEmployeeTextColumn(columns, "avatar_url")},
       ${optionalEmployeeTextColumn(columns, "profile_image_url")},
       ${optionalEmployeeTextColumn(columns, "profile_photo_url")},
+      ${optionalEmployeeTextColumn(columns, "profile_image")},
+      ${optionalEmployeeTextColumn(columns, "image")},
+      ${optionalEmployeeTextColumn(columns, "photo")},
+      ${optionalEmployeeTextColumn(columns, "employee_image")},
       ${optionalEmployeeTextColumn(columns, "cloudinary_url")},
       ${optionalEmployeeTextColumn(columns, "secure_url")},
       e.job_title,
@@ -1631,6 +1639,24 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     payroll_reference: payrollRun?.payroll_reference || "",
   };
   const employeePhotoUrl = resolveEmployeePhotoValue(employee);
+  const employeeImageFields = {
+    photo_url: clean(employee.photo_url),
+    avatar_url: clean(employee.avatar_url),
+    image_url: clean(employee.image_url),
+    profile_image: clean(employee.profile_image),
+    image: clean(employee.image),
+    photo: clean(employee.photo),
+    employee_image: clean(employee.employee_image),
+  };
+
+  if (employeePortalDebugEnabled()) {
+    debugEmployeePortal("[employee-portal] employee image candidates", {
+      employeeId: employee.id || null,
+      employeeCode: employee.employee_code || "",
+      ...employeeImageFields,
+      resolved_photo_url: employeePhotoUrl,
+    });
+  }
 
   return {
     employee_profile: {
@@ -1644,6 +1670,12 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       branchId: employee.branch_id || null,
       branch: employee.branch_name || "",
       photo_url: employeePhotoUrl,
+      avatar_url: employeeImageFields.avatar_url,
+      image_url: employeeImageFields.image_url,
+      profile_image: employeeImageFields.profile_image,
+      image: employeeImageFields.image,
+      photo: employeeImageFields.photo,
+      employee_image: employeeImageFields.employee_image,
       avatar_initials: clean(employee.full_name).split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(),
       currentShift,
       shiftName: currentShift?.shiftName || "",
@@ -1663,6 +1695,12 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       branch: employee.branch_name || "",
       job_title: employee.job_title || employee.position || "",
       photo_url: employeePhotoUrl,
+      avatar_url: employeeImageFields.avatar_url,
+      image_url: employeeImageFields.image_url,
+      profile_image: employeeImageFields.profile_image,
+      image: employeeImageFields.image,
+      photo: employeeImageFields.photo,
+      employee_image: employeeImageFields.employee_image,
       currentShift,
       shiftName: currentShift?.shiftName || "",
       startTime: currentShift?.startTime || "",

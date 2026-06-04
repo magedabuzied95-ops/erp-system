@@ -1141,6 +1141,7 @@ export default function EmployeePayrollPortal() {
   const [earlyCheckoutOpen, setEarlyCheckoutOpen] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
   const [standalone, setStandalone] = useState(() => isStandaloneApp());
+  const lastAppliedBadgeTotalRef = useRef(null);
   const [notificationState, setNotificationState] = useState(() => {
     if (!pushSupported()) return "unsupported";
     return window.Notification.permission;
@@ -1366,6 +1367,10 @@ export default function EmployeePayrollPortal() {
     profile.avatar_url,
     profile.profile_image_url,
     profile.profile_photo_url,
+    profile.profile_image,
+    profile.image,
+    profile.photo,
+    profile.employee_image,
     portal?.employee_profile?.photo_url,
     portal?.employee?.photo_url,
   ].find((value) => String(value || "").trim()) || "";
@@ -1472,6 +1477,15 @@ export default function EmployeePayrollPortal() {
   );
   const displayRefillBadgeSignature = displayRefillBadgeIds.join("|");
   const totalBadgeCount = badgeCounts.unreadChats + badgeCounts.pendingNotifications + badgeCounts.newTasks + badgeCounts.unreadNotifications + badgeCounts.displayRefillAlerts;
+  const syncEmployeeBadgeTotal = useCallback((count, meta = {}) => {
+    const safeCount = Math.max(0, Math.round(Number(count || 0)));
+    if (lastAppliedBadgeTotalRef.current === safeCount) return;
+    lastAppliedBadgeTotalRef.current = safeCount;
+    setEmployeeAppBadge(safeCount);
+    if (import.meta.env.DEV) {
+      console.info("[employee-badge:update-total]", { total: safeCount, ...meta });
+    }
+  }, []);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -1481,10 +1495,28 @@ export default function EmployeePayrollPortal() {
       raw_photo_url: rawProfilePhotoUrl,
       resolved_photo_url: profilePhotoUrl,
       profile_photo_url: profile.photo_url || "",
+      profile_avatar_url: profile.avatar_url || "",
+      profile_image_url: profile.image_url || "",
+      profile_profile_image: profile.profile_image || "",
+      profile_image_field: profile.image || "",
+      profile_photo_field: profile.photo || "",
+      profile_employee_image: profile.employee_image || "",
       employee_photo_url: portal?.employee?.photo_url || "",
+      employee_avatar_url: portal?.employee?.avatar_url || "",
+      employee_image_url: portal?.employee?.image_url || "",
+      employee_profile_image: portal?.employee?.profile_image || "",
+      employee_image_field: portal?.employee?.image || "",
+      employee_photo_field: portal?.employee?.photo || "",
+      employee_employee_image: portal?.employee?.employee_image || "",
       employee_profile_photo_url: portal?.employee_profile?.photo_url || "",
+      employee_profile_avatar_url: portal?.employee_profile?.avatar_url || "",
+      employee_profile_image_url: portal?.employee_profile?.image_url || "",
+      employee_profile_profile_image: portal?.employee_profile?.profile_image || "",
+      employee_profile_image_field: portal?.employee_profile?.image || "",
+      employee_profile_photo_field: portal?.employee_profile?.photo || "",
+      employee_profile_employee_image: portal?.employee_profile?.employee_image || "",
     });
-  }, [portal, profile.id, profile.name, profile.photo_url, profilePhotoUrl, rawProfilePhotoUrl]);
+  }, [portal, profile, profilePhotoUrl, rawProfilePhotoUrl]);
   const chatPanelStyle = useMemo(
     () => ({
       height: "100dvh",
@@ -1517,10 +1549,9 @@ export default function EmployeePayrollPortal() {
   }, [activeToast, clearPortalToast]);
 
   useEffect(() => {
-    setEmployeeAppBadge(totalBadgeCount);
-    console.info("[employee-badge:update-total]", { total: totalBadgeCount, ...badgeCounts });
+    syncEmployeeBadgeTotal(totalBadgeCount, badgeCounts);
     postEmployeeBadgeMessage({ type: "employee-portal:badge-sync", counts: badgeCounts });
-  }, [badgeCounts, totalBadgeCount]);
+  }, [badgeCounts, syncEmployeeBadgeTotal, totalBadgeCount]);
 
   useEffect(() => {
     if (!portal || !token) return undefined;
@@ -1564,11 +1595,11 @@ export default function EmployeePayrollPortal() {
     postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "requests" });
     setBadgeCounts((current) => {
       const next = { ...current, pendingNotifications: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
+      syncEmployeeBadgeTotal(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts, next);
       return next;
     });
     return undefined;
-  }, [activeTab, requestBadgeSignature, token]);
+  }, [activeTab, requestBadgeSignature, syncEmployeeBadgeTotal, token]);
 
   useEffect(() => {
     if (!token || activeTab !== "tasks") return undefined;
@@ -1577,11 +1608,11 @@ export default function EmployeePayrollPortal() {
     postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "tasks" });
     setBadgeCounts((current) => {
       const next = { ...current, newTasks: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
+      syncEmployeeBadgeTotal(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts, next);
       return next;
     });
     return undefined;
-  }, [activeTab, taskBadgeSignature, token]);
+  }, [activeTab, syncEmployeeBadgeTotal, taskBadgeSignature, token]);
 
   useEffect(() => {
     if (!token || activeTab !== "notifications") return undefined;
@@ -1595,12 +1626,12 @@ export default function EmployeePayrollPortal() {
     } : current);
     setBadgeCounts((current) => {
       const next = { ...current, unreadNotifications: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
+      syncEmployeeBadgeTotal(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts, next);
       return next;
     });
     setNotificationSeenVersion((current) => current + 1);
     return undefined;
-  }, [activeTab, notificationBadgeSignature, token]);
+  }, [activeTab, notificationBadgeSignature, syncEmployeeBadgeTotal, token]);
 
   useEffect(() => {
     if (!token || activeTab !== "display-refill") return undefined;
@@ -1609,7 +1640,7 @@ export default function EmployeePayrollPortal() {
     postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "display-refill" });
     setBadgeCounts((current) => {
       const next = { ...current, displayRefillAlerts: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
+      syncEmployeeBadgeTotal(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts, next);
       return next;
     });
     pendingDisplayRefillAlerts.filter((item) => !item.is_read).forEach((item) => {
@@ -1617,7 +1648,7 @@ export default function EmployeePayrollPortal() {
     });
     setDisplayRefillAlerts((current) => safeArray(current).map((item) => ({ ...item, is_read: true })));
     return undefined;
-  }, [activeTab, displayRefillBadgeSignature, token]);
+  }, [activeTab, displayRefillBadgeSignature, syncEmployeeBadgeTotal, token]);
 
   useEffect(() => {
     if (!chatOpen) return undefined;
@@ -1625,11 +1656,11 @@ export default function EmployeePayrollPortal() {
     postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "chat" });
     setBadgeCounts((current) => {
       const next = { ...current, unreadChats: 0 };
-      setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
+      syncEmployeeBadgeTotal(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts, next);
       return next;
     });
     return undefined;
-  }, [chatOpen]);
+  }, [chatOpen, syncEmployeeBadgeTotal]);
 
   useEffect(() => {
     if (!isBrowser() || !("serviceWorker" in navigator)) return undefined;
@@ -1810,7 +1841,7 @@ export default function EmployeePayrollPortal() {
         postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "chat" });
         setBadgeCounts((current) => {
           const next = { ...current, unreadChats: 0 };
-          setEmployeeAppBadge(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts);
+          syncEmployeeBadgeTotal(next.unreadChats + next.pendingNotifications + next.newTasks + next.unreadNotifications + next.displayRefillAlerts, next);
           return next;
         });
       }
