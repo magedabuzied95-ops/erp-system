@@ -1055,6 +1055,129 @@ const logAiSupportMessageIndexes = async () => {
   }
 };
 
+const duplicateDiagnosticText = (value = "") => text(value).slice(0, 160);
+
+const duplicateDiagnosticRow = (row = null) => {
+  if (!row) return null;
+  return {
+    id: row.id || null,
+    provider_message_id: row.provider_message_id || "",
+    external_message_id: row.external_message_id || "",
+    created_at: row.created_at || null,
+    session_id: row.session_id || "",
+    channel: row.channel || "",
+    whatsapp_instance: row.whatsapp_instance || "",
+    remote_jid: row.remote_jid || "",
+    sender_type: row.sender_type || "",
+    source_path: row.source_path || "",
+    insert_source: row.insert_source || "",
+    message_text_preview: duplicateDiagnosticText(row.message_text || row.customer_message || row.last_message || ""),
+  };
+};
+
+const loadWhatsappDuplicateDiagnostics = async ({
+  tenantId,
+  channel,
+  instance,
+  remoteJid,
+  sessionId,
+  externalMessageId,
+  body,
+} = {}) => {
+  try {
+    const [exactMatch, sameProviderAnyScope, sessionOnly, sameTextInSession, outboundSameProvider] = await Promise.all([
+      db.query(
+        `
+        SELECT id, provider_message_id, external_message_id, created_at, session_id, channel, whatsapp_instance,
+               remote_jid, sender_type, source_path, insert_source, message_text, customer_message, last_message
+        FROM ai_support_messages
+        WHERE tenant_id = $1
+          AND channel = $2
+          AND whatsapp_instance = $3
+          AND remote_jid = $4
+          AND provider_message_id <> ''
+          AND provider_message_id = $5
+        ORDER BY id ASC
+        LIMIT 1
+        `,
+        [tenantId, channel, instance, remoteJid, externalMessageId]
+      ),
+      db.query(
+        `
+        SELECT id, provider_message_id, external_message_id, created_at, session_id, channel, whatsapp_instance,
+               remote_jid, sender_type, source_path, insert_source, message_text, customer_message, last_message
+        FROM ai_support_messages
+        WHERE tenant_id = $1
+          AND channel = $2
+          AND provider_message_id <> ''
+          AND provider_message_id = $3
+        ORDER BY id DESC
+        LIMIT 5
+        `,
+        [tenantId, channel, externalMessageId]
+      ),
+      db.query(
+        `
+        SELECT id, provider_message_id, external_message_id, created_at, session_id, channel, whatsapp_instance,
+               remote_jid, sender_type, source_path, insert_source, message_text, customer_message, last_message
+        FROM ai_support_messages
+        WHERE tenant_id = $1
+          AND channel = $2
+          AND session_id = $3
+        ORDER BY id DESC
+        LIMIT 5
+        `,
+        [tenantId, channel, sessionId]
+      ),
+      db.query(
+        `
+        SELECT id, provider_message_id, external_message_id, created_at, session_id, channel, whatsapp_instance,
+               remote_jid, sender_type, source_path, insert_source, message_text, customer_message, last_message
+        FROM ai_support_messages
+        WHERE tenant_id = $1
+          AND channel = $2
+          AND session_id = $3
+          AND COALESCE(NULLIF(message_text, ''), NULLIF(customer_message, ''), NULLIF(last_message, '')) = $4
+        ORDER BY id DESC
+        LIMIT 5
+        `,
+        [tenantId, channel, sessionId, body]
+      ),
+      db.query(
+        `
+        SELECT id, provider_message_id, external_message_id, created_at, session_id, channel, whatsapp_instance,
+               remote_jid, sender_type, source_path, insert_source, message_text, customer_message, last_message
+        FROM ai_support_messages
+        WHERE tenant_id = $1
+          AND channel = $2
+          AND provider_message_id <> ''
+          AND provider_message_id = $3
+          AND COALESCE(sender_type, '') <> 'customer'
+        ORDER BY id DESC
+        LIMIT 5
+        `,
+        [tenantId, channel, externalMessageId]
+      ),
+    ]);
+    return {
+      exact_provider_remote_match: duplicateDiagnosticRow(exactMatch.rows[0] || null),
+      same_provider_message_id_count: sameProviderAnyScope.rows.length,
+      same_provider_message_id_rows: sameProviderAnyScope.rows.map(duplicateDiagnosticRow),
+      session_only_sample_count: sessionOnly.rows.length,
+      session_only_rows: sessionOnly.rows.map(duplicateDiagnosticRow),
+      same_text_session_sample_count: sameTextInSession.rows.length,
+      same_text_session_rows: sameTextInSession.rows.map(duplicateDiagnosticRow),
+      outbound_same_provider_message_id_count: outboundSameProvider.rows.length,
+      outbound_same_provider_message_id_rows: outboundSameProvider.rows.map(duplicateDiagnosticRow),
+    };
+  } catch (error) {
+    return {
+      diagnostic_error: error?.message || String(error),
+      diagnostic_error_code: error?.code || "",
+    };
+  }
+};
+
 const saveWhatsappIncomingToAiInbox = async (message = {}) => {
   const tenantId = tenantIdForWhatsapp(message.raw || {});
   const sessionId = `whatsapp:${message.phone}`;
@@ -1127,6 +1250,45 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
     provider_message_id: externalMessageId,
     conflict_target_used: "tenant_id, channel, whatsapp_instance, remote_jid, provider_message_id",
   });
+  const duplicateDiagnostics = await loadWhatsappDuplicateDiagnostics({
+    tenantId,
+    channel,
+    instance,
+    remoteJid,
+    sessionId,
+    externalMessageId,
+    body,
+  });
+  const exactDiagnosticMatch = duplicateDiagnostics.exact_provider_remote_match || null;
+  console.info("[DUPLICATE_CHECK]", {
+    message_id: externalMessageId,
+    remoteJid,
+    session_id: sessionId,
+    existing_record_id: exactDiagnosticMatch?.id || null,
+    existing_message_id: exactDiagnosticMatch?.provider_message_id || exactDiagnosticMatch?.external_message_id || "",
+    existing_created_at: exactDiagnosticMatch?.created_at || null,
+    duplicate_reason: exactDiagnosticMatch
+      ? "same_provider_message_id_same_instance_remote_jid_before_insert"
+      : "no_existing_exact_provider_message_id_before_insert",
+    conflict_target_used: "tenant_id, channel, whatsapp_instance, remote_jid, provider_message_id",
+    duplicate_query_uses_conversation_id_only: false,
+    duplicate_query_uses_session_id_only: false,
+    duplicate_query_uses_message_text: false,
+    duplicate_query_filters_sender_type: false,
+    inbound_outbound_can_conflict_if_same_provider_message_id: true,
+    provider_message_id_present: Boolean(externalMessageId),
+    same_message_id_seen_before: Boolean(exactDiagnosticMatch),
+    same_message_id_any_scope_count: duplicateDiagnostics.same_provider_message_id_count ?? null,
+    session_only_sample_count: duplicateDiagnostics.session_only_sample_count ?? null,
+    same_text_session_sample_count: duplicateDiagnostics.same_text_session_sample_count ?? null,
+    outbound_same_provider_message_id_count: duplicateDiagnostics.outbound_same_provider_message_id_count ?? null,
+    exact_provider_remote_match: exactDiagnosticMatch,
+    same_provider_message_id_rows: duplicateDiagnostics.same_provider_message_id_rows || [],
+    session_only_rows: duplicateDiagnostics.session_only_rows || [],
+    same_text_session_rows: duplicateDiagnostics.same_text_session_rows || [],
+    outbound_same_provider_message_id_rows: duplicateDiagnostics.outbound_same_provider_message_id_rows || [],
+    diagnostic_error: duplicateDiagnostics.diagnostic_error || "",
+  });
   const inserted = await db.query(
     `
     INSERT INTO ai_support_messages (
@@ -1149,9 +1311,11 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
         id,
         created_at,
         provider_message_id,
+        external_message_id,
         channel,
         whatsapp_instance,
         remote_jid,
+        sender_type,
         session_id,
         session_id AS conversation_id,
         message_text,
@@ -1174,9 +1338,11 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       id: existingRow?.id || null,
       created_at: existingRow?.created_at || null,
       provider_message_id: existingRow?.provider_message_id || externalMessageId,
+      external_message_id: existingRow?.external_message_id || "",
       channel: existingRow?.channel || channel,
       whatsapp_instance: existingRow?.whatsapp_instance || instance,
       remote_jid: existingRow?.remote_jid || remoteJid,
+      sender_type: existingRow?.sender_type || "",
       session_id: existingRow?.session_id || sessionId,
       conversation_id: existingRow?.conversation_id || sessionId,
       message_text: existingRow?.message_text || "",
@@ -1184,6 +1350,37 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       source_path: existingRow?.source_path || "whatsapp_webhook",
       tenant_id: existingRow?.tenant_id || tenantId,
       insert_source: existingRow?.insert_source || null,
+    });
+    console.info("[DUPLICATE_CHECK_RESULT]", {
+      message_id: externalMessageId,
+      remoteJid,
+      session_id: sessionId,
+      existing_record_id: existingRow?.id || exactDiagnosticMatch?.id || null,
+      existing_message_id:
+        existingRow?.provider_message_id ||
+        existingRow?.external_message_id ||
+        exactDiagnosticMatch?.provider_message_id ||
+        exactDiagnosticMatch?.external_message_id ||
+        "",
+      existing_created_at: existingRow?.created_at || exactDiagnosticMatch?.created_at || null,
+      duplicate_reason: "insert_returned_no_row_provider_message_id_conflict",
+      saved: false,
+      duplicate: true,
+      inserted_record_id: null,
+      conflict_target_used: "tenant_id, channel, whatsapp_instance, remote_jid, provider_message_id",
+      duplicate_query_uses_conversation_id_only: false,
+      duplicate_query_uses_session_id_only: false,
+      duplicate_query_uses_message_text: false,
+      duplicate_query_filters_sender_type: false,
+      inbound_outbound_can_conflict_if_same_provider_message_id: true,
+      same_message_id_seen_before_insert: Boolean(exactDiagnosticMatch),
+      same_message_id_any_scope_count: duplicateDiagnostics.same_provider_message_id_count ?? null,
+      session_only_sample_count: duplicateDiagnostics.session_only_sample_count ?? null,
+      same_text_session_sample_count: duplicateDiagnostics.same_text_session_sample_count ?? null,
+      outbound_same_provider_message_id_count: duplicateDiagnostics.outbound_same_provider_message_id_count ?? null,
+      existing_sender_type: existingRow?.sender_type || exactDiagnosticMatch?.sender_type || "",
+      existing_source_path: existingRow?.source_path || exactDiagnosticMatch?.source_path || "",
+      existing_insert_source: existingRow?.insert_source || exactDiagnosticMatch?.insert_source || "",
     });
     console.warn("[whatsapp-insert-conflict]", {
       error_code: "duplicate_provider_message_id",
@@ -1272,6 +1469,29 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
     reason: "saved",
     ai_support_message_id: inserted.rows[0]?.id || null,
     provider_message_id: externalMessageId,
+  });
+  console.info("[DUPLICATE_CHECK_RESULT]", {
+    message_id: externalMessageId,
+    remoteJid,
+    session_id: sessionId,
+    existing_record_id: exactDiagnosticMatch?.id || null,
+    existing_message_id: exactDiagnosticMatch?.provider_message_id || exactDiagnosticMatch?.external_message_id || "",
+    existing_created_at: exactDiagnosticMatch?.created_at || null,
+    duplicate_reason: "inserted_new_inbound_message",
+    saved: true,
+    duplicate: false,
+    inserted_record_id: inserted.rows[0]?.id || null,
+    conflict_target_used: "tenant_id, channel, whatsapp_instance, remote_jid, provider_message_id",
+    duplicate_query_uses_conversation_id_only: false,
+    duplicate_query_uses_session_id_only: false,
+    duplicate_query_uses_message_text: false,
+    duplicate_query_filters_sender_type: false,
+    inbound_outbound_can_conflict_if_same_provider_message_id: true,
+    same_message_id_seen_before_insert: Boolean(exactDiagnosticMatch),
+    same_message_id_any_scope_count: duplicateDiagnostics.same_provider_message_id_count ?? null,
+    session_only_sample_count: duplicateDiagnostics.session_only_sample_count ?? null,
+    same_text_session_sample_count: duplicateDiagnostics.same_text_session_sample_count ?? null,
+    outbound_same_provider_message_id_count: duplicateDiagnostics.outbound_same_provider_message_id_count ?? null,
   });
   return {
     saved: true,
