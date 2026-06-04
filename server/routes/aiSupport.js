@@ -1,6 +1,7 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import multer from "multer";
+import db from "../database/db.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import {
   buildAiSupportImageProductSearch,
@@ -60,6 +61,37 @@ const positiveNumber = (value, fallback) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
+
+const resetAiConversationStatePreferenceKeys = [
+  "pending_product_search_context",
+  "last_ai_question",
+  "last_bot_message",
+  "last_clarification_type",
+  "last_clarification_expected_values",
+  "awaiting_customer_action",
+  "sales_engine_state",
+  "sales_engine_previous_state",
+  "sales_engine_reason",
+  "sales_engine_next_action",
+  "sales_engine_missing_info",
+  "currentRequestedModel",
+  "currentRequestedModelName",
+  "last_product",
+  "last_product_id",
+  "last_product_name",
+  "last_model_family",
+  "lastProductCard",
+  "last_product_cards",
+  "lastRecommendedProductIds",
+  "last_recommended_product_ids",
+  "lastVisualQuery",
+  "lastVisualFeatures",
+  "lastVisualMatches",
+  "rejectedProductIds",
+  "rejectedModelNames",
+  "rejectedVisualMatches",
+  "selected_product_context",
+];
 
 const IMAGE_SEARCH_MAX_BYTES = positiveNumber(process.env.AI_SUPPORT_IMAGE_SEARCH_MAX_BYTES, 8 * 1024 * 1024);
 const IMAGE_SEARCH_ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -582,6 +614,7 @@ const buildImageFollowupResponse = ({ message = "", memory = null } = {}) => {
   if (!detected) return null;
   const product = productContextFromMemory(memory);
   const selectedProduct = memory?.preferences?.selected_product_context || null;
+  const messageText = toText(message);
   const cardSource = selectedProduct
     ? [selectedProduct]
     : [
@@ -589,17 +622,34 @@ const buildImageFollowupResponse = ({ message = "", memory = null } = {}) => {
         ...(Array.isArray(memory?.preferences?.last_product_cards) ? memory.preferences.last_product_cards : []),
         ...(Array.isArray(memory?.last_products) ? memory.last_products : []),
       ];
-  const normalizedCards = product ? normalizeProductCards(cardSource, { limit: selectedProduct ? 1 : detected === "more_images" ? 6 : 3 }).filter((card) => card.image_url) : [];
+  const wantsAllImages =
+    detected === "more_images" ||
+    /صور|كلها|الوان|ألوان|صورهم|كل الصور/i.test(messageText || "");
+  const cardLimit =
+    selectedProduct
+      ? 1
+      : wantsAllImages
+        ? 6
+        : 3;
+  const cardSourceWithVariantSource = cardSource.map((card) => {
+    if (!card || typeof card !== "object") return card;
+    return {
+      ...card,
+      _variant_load_source: card._variant_load_source || "ai_memory_cards",
+      _variant_load_raw_variant_count: Array.isArray(card.variants) ? card.variants.length : card._variant_load_raw_variant_count || 0,
+      _variant_load_source_verification: {
+        product_variants_table: false,
+        cache: false,
+        memory: true,
+        ai_memory_cards: true,
+        storefront_projection_table: false,
+        ...(card._variant_load_source_verification || {}),
+      },
+    };
+  });
+  const normalizedCards = product ? normalizeProductCards(cardSourceWithVariantSource, { limit: cardLimit }).filter((card) => card.image_url) : [];
   const cards = dedupeImageCards(indexProductCards(normalizedCards));
   const productId = product?.product_id || product?.id || null;
-  console.log("[ai-followup:image-request]", {
-    detected: Boolean(detected),
-    product_context_found: Boolean(product),
-    product_id: productId,
-    before_count: normalizedCards.length,
-    images_count: cards.filter((card) => card.image_url).length,
-    cards_count: cards.length,
-  });
   if (!product) {
     return {
       answer: "تقصد صورة أنهي موديل يا فندم؟",

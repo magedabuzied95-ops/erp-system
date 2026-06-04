@@ -19,7 +19,7 @@ import {
   buildDynamicClarificationQuestion,
   resolveClassificationOptionsForMessage,
 } from "./aiClassificationResolverService.js";
-import { normalizeProductCards } from "./aiProductCards.js";
+import { buildWhatsappImageCardsForRequest, normalizeProductCards } from "./aiProductCards.js";
 import {
   appendAiGeneratedSupportReply,
   getAiSupportConversationState,
@@ -34,6 +34,14 @@ const number = (value, fallback = 0) => {
 };
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
+
+const clarificationGroupLabel = (groupKey = "") => {
+  const key = text(groupKey);
+  if (key === "gender") return "الفئة";
+  if (key === "product_type") return "النوع";
+  if (key === "grade") return "الدرجة";
+  return key || "clarification";
+};
 
 const IMAGE_CONTEXT_REPLY = "\u062a\u0642\u0635\u062f \u0635\u0648\u0631\u0629 \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644 \u064a\u0627 \u0641\u0646\u062f\u0645\u061f";
 const COLOR_CONTEXT_REPLY = "\u062a\u0642\u0635\u062f \u0623\u0644\u0648\u0627\u0646 \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644 \u064a\u0627 \u0641\u0646\u062f\u0645\u061f";
@@ -187,15 +195,21 @@ const dedupeImageCards = (cards = [], { logLabel = "[image-card-dedupe]" } = {})
   return deduped;
 };
 
-const buildFollowupCards = ({ memory = null, message = "", limit = 6 } = {}) => {
+const buildFollowupCards = ({ memory = null, message = "", limit = 6, wantsAllImages = false } = {}) => {
   const { product, cards } = memoryProductContext(memory);
   const selectedIndex = selectionIndexFromMessage(message);
   const selectedCard = selectedIndex >= 0 ? cards[selectedIndex] : null;
-  const ordered = [
-    ...(selectedCard ? [selectedCard] : []),
-    ...cards,
-    ...(product ? [product] : []),
-  ];
+  const ordered = wantsAllImages
+    ? [
+        ...(product ? [product] : []),
+        ...cards,
+        ...(selectedCard ? [selectedCard] : []),
+      ]
+    : [
+        ...(selectedCard ? [selectedCard] : []),
+        ...cards,
+        ...(product ? [product] : []),
+      ];
   console.log("[ai-selection-brain]", {
     source: "whatsapp_live",
     selected_index: selectedIndex,
@@ -203,10 +217,28 @@ const buildFollowupCards = ({ memory = null, message = "", limit = 6 } = {}) => 
     memory_card_count: cards.length,
     selected_product_id: selectedCard?.product_id || selectedCard?.id || null,
     reason: selectedIndex >= 0 ? "ordinal_followup" : "last_product_context",
+    wants_all_images: wantsAllImages,
   });
-  const normalizedCards = normalizeProductCards(ordered, { limit })
+  const orderedWithVariantSource = ordered.map((card) => {
+    if (!card || typeof card !== "object") return card;
+    return {
+      ...card,
+      _variant_load_source: card._variant_load_source || "ai_memory_cards",
+      _variant_load_raw_variant_count: Array.isArray(card.variants) ? card.variants.length : card._variant_load_raw_variant_count || 0,
+      _variant_load_source_verification: {
+        product_variants_table: false,
+        cache: false,
+        memory: true,
+        ai_memory_cards: true,
+        storefront_projection_table: false,
+        ...(card._variant_load_source_verification || {}),
+      },
+    };
+  });
+  const normalizedCards = normalizeProductCards(orderedWithVariantSource, { limit })
     .filter((card) => text(card.image_url || card.image || card.main_image || card.thumbnail));
-  return dedupeImageCards(normalizedCards)
+  const dedupedCards = dedupeImageCards(normalizedCards);
+  return dedupedCards
     .map((card) => ({
       ...card,
       response_type: "product_card",
@@ -310,11 +342,27 @@ const buildBareConfirmationPayload = ({ body = "", memory = null } = {}) => {
   };
 };
 
-const buildWhatsappFollowupPayload = ({ body = "", memory = null } = {}) => {
+const buildWhatsappFollowupPayload = async ({ body = "", memory = null, tenantId = null, conversationId = "" } = {}) => {
   const detectedIntent = detectFollowupIntent(body);
   if (!detectedIntent) return null;
   const { product, cards: memoryCards } = memoryProductContext(memory);
-  const cards = buildFollowupCards({ memory, message: body, limit: detectedIntent === "more_images" ? 6 : 4 });
+  const messageText = text(body);
+  const selectedProduct = memory?.preferences?.selected_product_context || null;
+  const wantsAllImages =
+    detectedIntent === "more_images" ||
+    /صور|كلها|الوان|ألوان|صورهم|كل الصور/i.test(messageText || "");
+  const cardLimit = selectedProduct ? 1 : wantsAllImages ? 6 : 3;
+  const finalImageCards = await buildWhatsappImageCardsForRequest({
+    tenantId,
+    conversationId,
+    messageText,
+    detectedIntent,
+    memory,
+    selectedProductId: selectedProduct?.product_id || selectedProduct?.id || product?.product_id || product?.id || null,
+  });
+  const cards = wantsAllImages && Array.isArray(finalImageCards.cards) && finalImageCards.cards.length
+    ? finalImageCards.cards
+    : buildFollowupCards({ memory, message: body, limit: cardLimit, wantsAllImages });
   const hasContext = Boolean(product || cards.length);
   const productId = product?.product_id || product?.id || cards[0]?.product_id || cards[0]?.id || null;
   if (["image_request", "more_images"].includes(detectedIntent)) {
@@ -343,7 +391,8 @@ const buildWhatsappFollowupPayload = ({ body = "", memory = null } = {}) => {
       product_context: product || cards[0],
       product_search_skipped: true,
       followup_memory_used: true,
-      debug: { skip_product_search_trace: true, product_id: productId },
+      debug: { skip_product_search_trace: true, product_id: productId, final_image_cards: finalImageCards },
+      whatsapp_image_cards: Array.isArray(finalImageCards.cards) ? finalImageCards.cards : cards,
     };
   }
   const colors = product ? colorsFromMemoryProduct(product, memoryCards) : [];
@@ -395,7 +444,6 @@ const buildClassificationFollowupPayload = async ({ body = "", memory = null } =
   const mergedFilters = {
     ...(pending.filters || {}),
   };
-  const previousFilters = { ...mergedFilters };
   for (const item of resolved) {
     if (item.group_key && item.option_value) mergedFilters[item.group_key] = item.option_value;
   }
@@ -406,18 +454,9 @@ const buildClassificationFollowupPayload = async ({ body = "", memory = null } =
     filters: mergedFilters,
     missing_classification_groups: missingGroups,
   };
-  console.log("[classification-memory-merged]", {
-    conversation_id: text(memory?.session_id || preferences.session_id || ""),
-    previous_filters: previousFilters,
-    new_filter: resolved[0] || null,
-    merged_filters: mergedFilters,
-  });
   if (missingGroups.length) {
+    const clarificationType = missingGroups[0] || "";
     const question = await buildDynamicClarificationQuestion(missingGroups);
-    console.log("[classification-clarification-built]", {
-      missing_groups: missingGroups,
-      question,
-    });
     return {
       answer: question || "تمام يا فندم، تحبها رجالي ولا حريمي؟ Running ولا Casual؟",
       confidence: 0.94,
@@ -430,17 +469,16 @@ const buildClassificationFollowupPayload = async ({ body = "", memory = null } =
       ai_memory_patch: {
         preferences: {
           pending_product_search_context: context,
+          last_ai_question: question || preferences.last_ai_question || "",
+          last_bot_message: question || preferences.last_bot_message || "",
+          last_clarification_type: clarificationType,
+          last_clarification_expected_values: missingGroups,
         },
       },
       debug: { classification_context: context },
     };
   }
 
-  console.log("[classification-product-search]", {
-    model_query: context.model_query,
-    filters: context.filters,
-    results_count: 0,
-  });
   return {
     answer: "مش لاقي نفس الاختيارات دي حاليًا، تحب أوريك أقرب بدائل؟",
     confidence: 0.9,
@@ -452,7 +490,11 @@ const buildClassificationFollowupPayload = async ({ body = "", memory = null } =
     channel_reply: { text: "مش لاقي نفس الاختيارات دي حاليًا، تحب أوريك أقرب بدائل؟", product_cards: [], response_type: "classification_product_search" },
     ai_memory_patch: {
       preferences: {
-        pending_product_search_context: context,
+        pending_product_search_context: null,
+        last_ai_question: preferences.last_ai_question || "",
+        last_bot_message: preferences.last_bot_message || "",
+        last_clarification_type: pending.missing_classification_groups?.[0] || "",
+        last_clarification_expected_values: pending.missing_classification_groups || [],
       },
     },
     debug: { classification_context: context },
@@ -624,6 +666,11 @@ const whatsappCardImageDebug = (card = {}) => {
 };
 
 const logAiWhatsappCardsOutput = ({ aiPayload = {}, reply = null, productCards = [] } = {}) => {
+  const detectedIntent = aiPayload?.detected_intent || aiPayload?.intent?.type || aiPayload?.intent || "";
+  const wantsAllImages =
+    detectedIntent === "image_request" ||
+    detectedIntent === "more_images" ||
+    /صور|كلها|الوان|ألوان|صورهم|كل الصور/i.test(text(aiPayload?.message_text || reply?.text || ""));
   const cards = [
     ...asArray(productCards),
     ...asArray(reply?.product_cards),
@@ -633,7 +680,13 @@ const logAiWhatsappCardsOutput = ({ aiPayload = {}, reply = null, productCards =
   ];
   const seen = new Set();
   const uniqueCards = cards.filter((card) => {
-    const key = text(card?.product_id || card?.id || card?.name || card?.title || JSON.stringify(card || {}));
+    const productId = text(card?.product_id || card?.id || card?.product?.id || "");
+    const variantId = text(card?.variant_id || card?.selected_variant_id || card?.variant?.id || card?.variant?.variant_id || "");
+    const color = text(card?.color || card?.matched_variant_color || card?.variant?.color || card?.color_name || "").toLowerCase();
+    const imageUrl = text(card?.resolved_image_url || card?.image_url || card?.image || card?.main_image || card?.variant_image || card?.color_image || "");
+    const key = wantsAllImages
+      ? [productId, variantId, color, imageUrl].join("|")
+      : text(card?.product_id || card?.id || card?.name || card?.title || JSON.stringify(card || {}));
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -641,7 +694,7 @@ const logAiWhatsappCardsOutput = ({ aiPayload = {}, reply = null, productCards =
   const debugCards = uniqueCards.slice(0, 5).map(whatsappCardImageDebug);
   const allDebugCards = uniqueCards.map(whatsappCardImageDebug);
   console.info("[ai-whatsapp-cards-output]", {
-    detected_intent: aiPayload?.detected_intent || aiPayload?.intent?.type || aiPayload?.intent || "",
+    detected_intent: detectedIntent,
     response_type: aiPayload?.response_type || aiPayload?.channel_reply?.response_type || reply?.response_type || "",
     product_cards_count: uniqueCards.length,
     first_5_cards: debugCards,
@@ -1152,23 +1205,19 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       phone: safePhone,
     };
   }
-  const followupPayload = cleanProductTrace.used_for_search ? null : buildWhatsappFollowupPayload({ body, memory: loadedMemory });
+  const followupPayload = cleanProductTrace.used_for_search ? null : await buildWhatsappFollowupPayload({ body, memory: loadedMemory, tenantId: safeTenantId, conversationId: safeSessionId });
   if (followupPayload) {
+    const productCards = collectProducts(followupPayload);
     await addTraceStep(traceId, "ai-selection-brain", {
       source: "whatsapp_live",
       selected_index: selectionIndexFromMessage(body),
       used_memory: followupPayload.followup_memory_used === true,
       product_id: followupPayload.product_context?.product_id || followupPayload.product_context?.id || null,
-      card_count: collectProducts(followupPayload).length,
+      card_count: productCards.length,
     });
     const followupReply = followupPayload.channel_reply || normalizeOutgoingChannelReply({ channel: AI_AGENT_CHANNELS.WHATSAPP, response: followupPayload });
     const followupReplyText = followupReply.text || followupPayload.answer || "";
-    const cardCount = collectProducts(followupPayload).length;
-    console.log("[ai-followup:image-request]", {
-      used_memory: followupPayload.followup_memory_used === true,
-      card_count: cardCount,
-      sent_count: 0,
-    });
+    const cardCount = productCards.length;
     await addTraceStep(traceId, "followup_response", {
       detected_intent: followupPayload.detected_intent,
       used_memory: followupPayload.followup_memory_used === true,
@@ -1200,7 +1249,7 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       } : {},
     }).catch(() => {});
     await addAiPayloadTraceSteps({ traceId, aiPayload: followupPayload, messageText: body, replyText: followupReplyText, replyDecision: { ok: true } });
-    logAiWhatsappCardsOutput({ aiPayload: followupPayload, reply: followupReply, productCards: collectProducts(followupPayload) });
+    logAiWhatsappCardsOutput({ aiPayload: followupPayload, reply: followupReply, productCards });
     return {
       triggered: true,
       sent: false,

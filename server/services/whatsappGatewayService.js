@@ -9,6 +9,7 @@ import {
   upsertChannelConversationMapping,
 } from "./aiChannelAdapterService.js";
 import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
+import { normalizeProductCards } from "./aiProductCards.js";
 import { appendAiGeneratedSupportReply } from "./aiSupportLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
 import { emitToRooms } from "../utils/socket.js";
@@ -667,9 +668,22 @@ const resolveCaptionVariant = (product = {}) => {
 const buildWhatsappOutboundPlan = ({ message = {}, aiPayload = {}, replyText = "", cards = [] } = {}) => {
   const conversationId = text(message.inbox?.session_id || message.sessionId || `whatsapp:${message.phone || ""}`);
   const inboundMessageId = text(message.messageId || message.message_id || message.external_message_id || "");
-  const selectedProductIds = [...new Set(cards.map((card) => text(card?.product_id || card?.id || card?.product?.id || "")).filter(Boolean))];
-  const selectedVariantIds = [...new Set(cards.map((card) => text(card?.variant_id || card?.selected_variant_id || card?.variant?.id || card?.variant?.variant_id || "")).filter(Boolean))];
-  const hasCards = cards.length > 0;
+  const messageText = text(message.message_text || message.text || aiPayload?.message_text || "");
+  const wantsAllImages =
+    ["more_images", "image_request"].includes(text(aiPayload?.detected_intent || aiPayload?.intent?.type || aiPayload?.intent || "")) &&
+    /صور|كلها|الوان|ألوان|صورهم|كل الصور/i.test(messageText || "");
+  const inputCards = asArray(cards);
+  const productSource = inputCards.find((card) => Array.isArray(card?.variants) && card.variants.length) || inputCards.find((card) => card?.product && Array.isArray(card.product.variants) && card.product.variants.length) || inputCards[0] || null;
+  const expandedCards = wantsAllImages
+    ? inputCards
+    : (productSource ? normalizeProductCards([productSource.product || productSource], { limit: 1 }) : inputCards);
+  const collapseReason = wantsAllImages
+    ? (inputCards.length > expandedCards.length ? "normalize_or_source_limit" : "all_images_preserved")
+    : (inputCards.length > expandedCards.length ? "input_to_product_source_reduction" : "no_collapse");
+  const selectionSourceCards = wantsAllImages ? inputCards : expandedCards;
+  const selectedProductIds = [...new Set(selectionSourceCards.map((card) => text(card?.product_id || card?.id || card?.product?.id || "")).filter(Boolean))];
+  const selectedVariantIds = [...new Set(selectionSourceCards.map((card) => text(card?.variant_id || card?.selected_variant_id || card?.variant?.id || card?.variant?.variant_id || "")).filter(Boolean))];
+  const hasCards = expandedCards.length > 0;
   const intent = text(aiPayload?.detected_intent || aiPayload?.intent?.type || aiPayload?.intent || "");
   const route = hasCards ? "product_cards_only" : "text_only";
   const outboundPlan = {
@@ -681,7 +695,7 @@ const buildWhatsappOutboundPlan = ({ message = {}, aiPayload = {}, replyText = "
     intent,
     route,
     text: hasCards ? "" : text(replyText),
-    cards,
+    cards: expandedCards,
     has_cards: hasCards,
     will_send_text: !hasCards && Boolean(text(replyText)),
     will_send_cards: hasCards,
@@ -700,15 +714,6 @@ const buildWhatsappOutboundPlan = ({ message = {}, aiPayload = {}, replyText = "
     selected_product_ids: outboundPlan.selected_product_ids,
     selected_variant_ids: outboundPlan.selected_variant_ids,
   });
-  if (outboundPlan.cards.length > 1) {
-    console.info("[whatsapp-model-colors-expanded]", {
-      model_family: text(aiPayload?.model_family || aiPayload?.model || aiPayload?.matched_model || aiPayload?.product_family || ""),
-      matched_product_id: outboundPlan.selected_product_ids[0] || "",
-      colors_count: outboundPlan.cards.length,
-      product_ids: outboundPlan.selected_product_ids,
-      colors: outboundPlan.cards.map((card) => text(card.color || card.matched_variant_color || "")).filter(Boolean),
-    });
-  }
   return outboundPlan;
 };
 
@@ -809,26 +814,29 @@ const imageCardDedupeKey = (card = {}) => {
   const variantId = text(card?.variant_id || card?.selected_variant_id || card?.variant?.id || card?.variant?.variant_id || card?.matched_variant_id || "");
   const color = text(card?.color || card?.matched_variant_color || card?.variant?.color || "").toLowerCase().replace(/\s+/g, " ").trim();
   const imageUrl = text(card?.resolved_image_url || card?.imageUrl || card?.image_url || card?.product?.image_url || card?.product?.main_image || "");
-  if (variantId) return `variant:${variantId}`;
   if (productId && color) return `product-color:${productId}:${color}`;
+  if (variantId) return `variant:${productId}:${variantId}`;
   if (productId && imageUrl) return `product-image:${productId}:${normalizeDuplicateImageUrl(imageUrl)}`;
   return "";
 };
 
 const collectProductImageCards = ({ generated = {} } = {}) => {
-  const cards = [
-    ...asArray(generated.reply?.product_cards),
-    ...asArray(generated.aiPayload?.channel_reply?.product_cards),
-    ...asArray(generated.aiPayload?.suggested_products),
-    ...asArray(generated.aiPayload?.product_cards),
-  ];
-  const builtCards = cards.map((product, cardIndex) => {
+  const finalCards = asArray(
+    generated?.aiPayload?.whatsapp_image_cards?.length
+      ? generated.aiPayload.whatsapp_image_cards
+      : generated?.whatsapp_image_cards?.length
+        ? generated.whatsapp_image_cards
+      : generated?.reply?.product_cards?.length
+        ? generated.reply.product_cards
+        : generated?.aiPayload?.channel_reply?.product_cards?.length
+          ? generated.aiPayload.channel_reply.product_cards
+          : generated?.aiPayload?.suggested_products?.length
+            ? generated.aiPayload.suggested_products
+            : generated?.aiPayload?.product_cards || []
+  );
+  return finalCards.map((product, cardIndex) => {
     const rawImageUrl = text(productImageCandidates(product).find((candidate) => text(candidate)) || "");
     const resolvedImageUrl = resolvePublicImageUrl(rawImageUrl);
-    const valid = isPublicImageUrl(resolvedImageUrl);
-    const variantId = text(product?.variant_id || product?.selected_variant_id || product?.variant?.id || product?.variant?.variant_id || product?.matched_variant_id || "");
-    const color = text(product?.color || product?.matched_variant_color || product?.variant?.color || "");
-    const selectedVariant = product?.selected_variant || product?.variant || product?.matched_variant || null;
     return {
       product,
       card_index: cardIndex,
@@ -836,39 +844,15 @@ const collectProductImageCards = ({ generated = {} } = {}) => {
       raw_image_url: rawImageUrl,
       resolved_image_url: resolvedImageUrl,
       mime_type: imageMimeType(resolvedImageUrl),
-      valid,
+      valid: Boolean(resolvedImageUrl),
       normalized_image_url: normalizeDuplicateImageUrl(resolvedImageUrl),
       dedupe_key: imageCardDedupeKey({ ...product, resolved_image_url: resolvedImageUrl, imageUrl: resolvedImageUrl }),
-      skip_reason: valid ? "" : (resolvedImageUrl ? "invalid_private_url" : "missing_image_url"),
-      variant_id: variantId,
-      color,
-      selected_variant: selectedVariant,
+      skip_reason: resolvedImageUrl ? "" : "missing_image_url",
+      variant_id: text(product?.variant_id || product?.selected_variant_id || product?.variant?.id || product?.variant?.variant_id || product?.matched_variant_id || ""),
+      color: text(product?.color || product?.matched_variant_color || product?.variant?.color || ""),
+      selected_variant: product?.selected_variant || product?.variant || product?.matched_variant || null,
     };
   });
-  const before_count = builtCards.length;
-  const removedKeys = [];
-  const seen = new Set();
-  const deduped = [];
-  for (const card of builtCards) {
-    const key = card.dedupe_key || normalizeDuplicateImageUrl(card.resolved_image_url || card.imageUrl || "");
-    if (!key) {
-      deduped.push(card);
-      continue;
-    }
-    if (seen.has(key)) {
-      removedKeys.push(key);
-      continue;
-    }
-    seen.add(key);
-    deduped.push(card);
-  }
-  console.info("[image-card-dedupe]", {
-    before_count,
-    after_count: deduped.length,
-    removed_count: before_count - deduped.length,
-    removed_keys: [...new Set(removedKeys)],
-  });
-  return deduped;
 };
 
 const shouldSendProductImages = (generated = {}) => {
@@ -1225,7 +1209,14 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       ai_support_message_id: null,
       provider_message_id: externalMessageId,
     });
-    return { saved: false, duplicate: true, reason: "duplicate_provider_message_id", session_id: sessionId, dedupe_key: dedupeKey };
+    return {
+      saved: false,
+      duplicate: true,
+      reason: "duplicate_provider_message_id",
+      session_id: sessionId,
+      dedupe_key: dedupeKey,
+      message: existingRow || null,
+    };
   }
 
   await logChannelEvent({
@@ -1282,7 +1273,14 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
     ai_support_message_id: inserted.rows[0]?.id || null,
     provider_message_id: externalMessageId,
   });
-  return { saved: true, duplicate: false, reason: "saved", session_id: sessionId, message: inserted.rows[0] || null, dedupe_key: dedupeKey };
+  return {
+    saved: true,
+    duplicate: false,
+    reason: "saved",
+    session_id: sessionId,
+    message: inserted.rows[0] || null,
+    dedupe_key: dedupeKey,
+  };
 };
 
 export const handleIncomingWebhook = async (payload = {}) => {
@@ -1468,11 +1466,16 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     const outboundSeen = new Set();
     const dedupedOutboundCards = [];
     for (const card of outboundCards) {
-      const imageKey = normalizeDuplicateImageUrl(card.resolved_image_url || card.imageUrl || card.image_url || "");
+      const productId = text(card.product_id || card.product?.id || card.id || "");
+      const variantId = text(card.variant_id || card.selected_variant_id || "");
       const colorKey = text(card.color || card.product?.color || card.matched_variant_color || "").toLowerCase();
-      const dedupeKey = [text(card.product_id || card.product?.id || card.id || ""), text(card.variant_id || card.selected_variant_id || ""), colorKey, imageKey].join("|");
-      if ((imageKey && outboundSeen.has(imageKey)) || outboundSeen.has(dedupeKey)) continue;
-      if (imageKey) outboundSeen.add(imageKey);
+      const imageKey = normalizeDuplicateImageUrl(card.resolved_image_url || card.imageUrl || card.image_url || "");
+      const dedupeKey =
+        (productId && colorKey ? `${productId}|${colorKey}` : "") ||
+        (variantId ? `${productId}|${variantId}` : "") ||
+        (!colorKey && imageKey ? `${productId}|${imageKey}` : "") ||
+        `${productId || "product"}|${colorKey || variantId || imageKey || "unknown"}`;
+      if (outboundSeen.has(dedupeKey)) continue;
       outboundSeen.add(dedupeKey);
       dedupedOutboundCards.push(card);
     }
@@ -1535,38 +1538,20 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     const imageCards = [];
     const skippedImageCards = dedupedOutboundCards.filter((card) => !card.valid || card.skip_reason);
     for (const card of validImageCards) {
-      const cacheState = getSentImageDuplicateEntry({
-        phone: generated.phone || message.phone,
-        imageUrl: card.resolved_image_url || card.imageUrl,
-      });
-      const duplicateDebugPayload = {
-        image_url: card.raw_image_url || card.resolved_image_url || card.imageUrl,
-        normalized_url: card.normalized_image_url || normalizeDuplicateImageUrl(card.resolved_image_url || card.imageUrl),
-        duplicate_cache_key: cacheState.duplicate_cache_key,
-        marked_sent_before: Boolean(cacheState.entry),
-        previous_send_status: cacheState.entry?.status || "",
-        previous_send_timestamp: cacheState.entry?.timestamp || "",
-      };
-      console.info("[duplicate-cache-state]", {
-        ...duplicateDebugPayload,
-        conversation_id: generated.sessionId || "",
-        session_id: generated.sessionId || "",
-        card_index: card.card_index,
-      });
-      if (cacheState.entry?.status === "success") {
-        skippedImageCards.push({
-          ...card,
-          skip_reason: "duplicate_image_url",
-          duplicate_cache_key: cacheState.duplicate_cache_key,
-          previous_send_status: cacheState.entry?.status || "",
-          previous_send_timestamp: cacheState.entry?.timestamp || "",
-          marked_sent_before: true,
-        });
-        continue;
-      }
       imageCards.push(card);
     }
     const sendableImageCards = imageCards;
+    console.info("[WHATSAPP_IMAGE_CARDS_FINAL]", {
+      product_id: outboundPlan.selected_product_ids[0] || null,
+      requested_all_images: Boolean(isImageFollowup),
+      source: Array.isArray(generated?.aiPayload?.whatsapp_image_cards) && generated.aiPayload.whatsapp_image_cards.length
+        ? "aiPayload.whatsapp_image_cards"
+        : "legacy_sender_path",
+      colors_count: [...new Set(sendableImageCards.map((card) => text(card.color || card.color_name || card.matched_variant_color || "")))].filter(Boolean).length,
+      colors: [...new Set(sendableImageCards.map((card) => text(card.color || card.color_name || card.matched_variant_color || "")))].filter(Boolean),
+      cards_count: sendableImageCards.length,
+      sent_count: 0,
+    });
     const imageMessages = [];
     const imageSendErrors = [];
     let result = null;
@@ -1574,7 +1559,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     const explicitProductFollowup = /(بكام|السعر|سعره|price|cost|متاح|موجود|الوانه|الوان|صور|صوره|صور اكتر|لينك|لينكه|مقاس|المقاسات|عايز ده|فيه منه|فيه من|ابعت اللينك|ابعته)/i.test(text(message.text || message.message_text || ""));
     const willSendCards = outboundPlan.will_send_cards;
     const shouldSendTextOnly = outboundPlan.will_send_text && !willSendCards;
-if (willSendCards) {
+    if (willSendCards) {
       console.info("[whatsapp-standalone-text-skipped]", {
         reason: "cards_present",
         conversation_id: outboundPlan.conversation_id,
@@ -1586,7 +1571,7 @@ if (willSendCards) {
         inbound_message_id: outboundPlan.inbound_message_id,
       });
     }
-if (shouldSendTextOnly) {
+    if (shouldSendTextOnly) {
       const safeText = /(^|\s)(سعره|السعر|جنيه|egp|\d+\s*جنيه)/i.test(outboundPlan.text) && !explicitProductFollowup && !isImageFollowup
         ? "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم "
         : outboundPlan.text;
@@ -1600,17 +1585,21 @@ if (shouldSendTextOnly) {
       }
       result = await sendTextMessage({ phone: generated.phone || message.phone, message: safeText });
     }
+    const runtimeProductId = outboundPlan.selected_product_ids[0] || null;
+    const runtimeColorsFound = [...new Set(dedupedOutboundCards.map((card) => text(card.color || card.product?.color || card.matched_variant_color || "")).filter(Boolean))];
+    console.info("[PRODUCT_IMAGES_RUNTIME_OWNER]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: "generateWhatsappAiAutoReply",
+      code_version: "color_first_v2",
+    });
+    console.info("[image-flow-color-source]", {
+      product_id: runtimeProductId,
+      colors_found: runtimeColorsFound.length,
+      distinct_colors: runtimeColorsFound.length,
+      sent_colors: sendableImageCards.length,
+      colors: runtimeColorsFound,
+    });
     for (const skipped of skippedImageCards) {
-      if (skipped.skip_reason === "duplicate_image_url") {
-        console.info("[duplicate-image-debug]", {
-          image_url: skipped.raw_image_url || skipped.resolved_image_url || skipped.imageUrl,
-          normalized_url: skipped.normalized_image_url || normalizeDuplicateImageUrl(skipped.resolved_image_url || skipped.imageUrl),
-          duplicate_cache_key: skipped.duplicate_cache_key || "",
-          marked_sent_before: skipped.marked_sent_before === true,
-          previous_send_status: skipped.previous_send_status || "",
-          previous_send_timestamp: skipped.previous_send_timestamp || "",
-        });
-      }
       const payload = imageFailureLogPayload({
         generated,
         product: skipped.product,
@@ -1762,7 +1751,7 @@ if (shouldSendTextOnly) {
     });
     let finalReplyText = outboundPlan.text || "";
     if (["image_request", "more_images"].includes(text(generated.aiPayload?.detected_intent))) {
-      console.info("[ai-followup:image-request]", {
+      console.info("[SOURCE_A]", {
         used_memory: generated.aiPayload?.followup_memory_used === true,
         card_count: sendableImageCards.length,
         sent_count: imageMessages.length,

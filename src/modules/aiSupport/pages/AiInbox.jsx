@@ -1263,6 +1263,7 @@ export default function AiInbox() {
   const [suggesting, setSuggesting] = useState(false);
   const [profileSyncing, setProfileSyncing] = useState(false);
   const [profileDebugging, setProfileDebugging] = useState(false);
+  const [resettingAiState, setResettingAiState] = useState(false);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1732,6 +1733,32 @@ export default function AiInbox() {
     }
   };
 
+  const resetAiState = async () => {
+    if (!selectedConversation?.session_id) return;
+    const sessionId = selectedConversation.session_id;
+    const encodedSessionId = encodeURIComponent(sessionId);
+    const resetUrl = `/ai-inbox/conversations/${encodedSessionId}/reset-ai-state`;
+    setResettingAiState(true);
+    setError("");
+    try {
+      await api.post(
+        resetUrl,
+        { tenant_id: tenantId },
+        { headers, perfComponent: "AiInbox.resetAiState" }
+      );
+      setToast({ tone: "emerald", text: "AI state reset successfully" });
+      await loadAll({ silent: true });
+      if (aiDebug.open && aiDebug.sessionId === sessionId) {
+        await loadAiDebug();
+      }
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || "Failed to reset AI state" });
+      setError(err?.message || "Failed to reset AI state");
+    } finally {
+      setResettingAiState(false);
+    }
+  };
+
   const persistDraftReply = async (message) => {
     const sessionId = selectedConversation?.session_id;
     if (!sessionId || !clean(message)) return;
@@ -2098,6 +2125,15 @@ export default function AiInbox() {
                     >
                       {profileDebugging ? <Loader2 className="h-4 w-4 animate-spin" /> : <InfoIcon className="h-4 w-4" />}
                       Debug Messenger Profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetAiState}
+                      disabled={resettingAiState}
+                      className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50"
+                    >
+                      {resettingAiState ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      Reset AI State
                     </button>
                     <button type="button" onClick={() => setProfileOpen((value) => !value)} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100">
                       {profileOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}

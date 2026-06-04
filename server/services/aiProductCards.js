@@ -1,6 +1,7 @@
 import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 import { filterAiEligibleProducts, resolveAiProductUrl } from "./aiProductEligibilityService.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+import db from "../database/db.js";
 
 export { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 
@@ -217,7 +218,7 @@ const sortSizes = (sizes = []) =>
       return a.localeCompare(b);
     });
 
-const imageIdentity = (value = "") =>
+const imageIdentityForRequest = (value = "") =>
   text(value)
     .toLowerCase()
     .replace(/^https?:\/\/[^/]+/i, "")
@@ -368,8 +369,8 @@ export const debugProductColorExpansion = (product = {}, { limit = 6 } = {}) => 
   const colorGroups = new Map();
   for (const variant of variants) {
     const color = variantColor(variant);
-    if (!color) continue;
     const key = color.toLowerCase();
+    if (!color) continue;
     if (!colorGroups.has(key)) colorGroups.set(key, { color, variants: [] });
     colorGroups.get(key).variants.push(variant);
   }
@@ -667,7 +668,9 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
   const uniqueCards = [];
   for (const card of cards) {
     const imageUrl = imageIdentity(resolvePublicProductImageUrl(card.image_url || card.image || card.main_image || card.variant_image || card.color_image || ""));
-    if (imageUrl && seenImageUrls.has(imageUrl)) continue;
+    if (imageUrl && seenImageUrls.has(imageUrl)) {
+      continue;
+    }
     if (imageUrl) seenImageUrls.add(imageUrl);
     uniqueCards.push(card);
   }
@@ -699,7 +702,7 @@ export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
     const eligible = filterAiEligibleProducts(asArray(products), { requireProductUrl: false });
     const expanded = eligible.flatMap((product) => colorVariantCardsForProduct(product, { limit }));
     const beforeCount = expanded.length;
-    const seen = new Map();
+    const seen = new Set();
     const deduped = [];
     const removedKeys = [];
     for (const card of expanded) {
@@ -716,7 +719,7 @@ export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
         removedKeys.push(key);
         continue;
       }
-      seen.set(key, true);
+      seen.add(key);
       deduped.push(card);
     }
     console.log("[image-card-dedupe]", {
@@ -725,20 +728,29 @@ export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
       removed_count: beforeCount - deduped.length,
       removed_keys: removedKeys,
     });
-    return deduped
-      .filter((product) => filterAiEligibleProducts([product], { requireProductUrl: true }).length)
-      .filter((product) => product.name || product.product_id)
-      .slice(0, Math.max(1, Number(limit) || 6))
-      .map((card) => {
-        console.log("[ai-product-cards] card data integrity", {
-          product_id: card.product_id || card.id || null,
-          name: card.name || "",
-          slug: card.slug || "",
-          product_url: card.product_url || card.url || "",
-          image_url: card.image_url || "",
-        });
-        return card;
+    const urlEligible = [];
+    for (const card of deduped) {
+      if (filterAiEligibleProducts([card], { requireProductUrl: true }).length) {
+        urlEligible.push(card);
+      }
+    }
+    const namedCards = [];
+    for (const card of urlEligible) {
+      if (card.name || card.product_id) {
+        namedCards.push(card);
+      }
+    }
+    const maxCards = Math.max(1, Number(limit) || 6);
+    return namedCards.slice(0, maxCards).map((card) => {
+      console.log("[ai-product-cards] card data integrity", {
+        product_id: card.product_id || card.id || null,
+        name: card.name || "",
+        slug: card.slug || "",
+        product_url: card.product_url || card.url || "",
+        image_url: card.image_url || "",
       });
+      return card;
+    });
   })();
 
 const formatCloserPrice = (price) =>
@@ -781,4 +793,313 @@ export const productImageCaption = (product = {}) => {
     priceText ? `\u0627\u0644\u0633\u0639\u0631: ${priceText}` : "",
     productCardUrl(product),
   ].filter(Boolean).join("\n").slice(0, 1024);
+};
+
+const numberOrNull = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+};
+
+let tableColumnCache = new Map();
+
+const loadTableColumnSet = async (tableName = "") => {
+  const safeName = text(tableName);
+  if (!safeName) return new Set();
+  if (tableColumnCache.has(safeName)) return tableColumnCache.get(safeName);
+  const result = await db.query(
+    "SELECT column_name FROM information_schema.columns WHERE table_name = $1",
+    [safeName]
+  );
+  const columns = new Set((result.rows || []).map((row) => row.column_name));
+  tableColumnCache.set(safeName, columns);
+  return columns;
+};
+
+const columnExpr = (alias = "", columns = new Set(), candidates = [], fallback = "NULL") => {
+  const column = candidates.find((candidate) => columns.has(candidate));
+  return column ? `${alias}.${column}` : fallback;
+};
+
+const columnTenantClause = (alias = "", columns = new Set()) =>
+  columns.has("tenant_id")
+    ? `AND ($2::bigint IS NULL OR ${alias}.tenant_id = $2::bigint OR ${alias}.tenant_id IS NULL)`
+    : "";
+
+const normalizeColorKeyForRequest = (value = "") => text(value).toLowerCase().replace(/\s+/g, " ").trim();
+
+const imageIdentity = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(/^https?:\/\/[^/]+/i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/\/+/g, "/")
+    .trim();
+
+const firstTruthy = (...values) => values.find((value) => text(value)) || "";
+
+const loadFullProductForWhatsappImageRequest = async ({ tenantId, productId } = {}) => {
+  if (!productId) return null;
+  try {
+    const [variantColumns, variantImageColumns] = await Promise.all([
+      loadTableColumnSet("product_variants"),
+      loadTableColumnSet("product_variant_images"),
+    ]);
+    const variantSelect = {
+      id: columnExpr("pv", variantColumns, ["id"], "NULL"),
+      product_id: columnExpr("pv", variantColumns, ["product_id"], "NULL"),
+      name: columnExpr("pv", variantColumns, ["name", "edition_name"], "''"),
+      size: columnExpr("pv", variantColumns, ["size"], "''"),
+      color: columnExpr("pv", variantColumns, ["color"], "''"),
+      color_name: columnExpr("pv", variantColumns, ["color_name", "color"], "''"),
+      color_value: columnExpr("pv", variantColumns, ["color_value", "color"], "''"),
+      stock: columnExpr("pv", variantColumns, ["stock"], "0"),
+      quantity: columnExpr("pv", variantColumns, ["quantity", "available_quantity", "stock"], "NULL"),
+      image_url: columnExpr("pv", variantColumns, ["image_url", "image", "photo_url", "thumbnail_url"], "''"),
+      variant_image_url: columnExpr("pv", variantColumns, ["variant_image_url", "image_url", "image", "photo_url", "thumbnail_url"], "''"),
+      color_image_url: columnExpr("pv", variantColumns, ["color_image_url", "image_url", "image", "photo_url", "thumbnail_url"], "''"),
+      secure_url: columnExpr("pv", variantColumns, ["secure_url", "cloudinary_url", "image_url", "image", "photo_url", "thumbnail_url"], "''"),
+      sale_price: columnExpr("pv", variantColumns, ["sale_price"], "0"),
+      selling_price: columnExpr("pv", variantColumns, ["selling_price", "price"], "0"),
+      price: columnExpr("pv", variantColumns, ["price", "regular_price"], "0"),
+      sku: columnExpr("pv", variantColumns, ["sku"], "''"),
+      barcode: columnExpr("pv", variantColumns, ["barcode"], "''"),
+      is_active: columnExpr("pv", variantColumns, ["is_active"], "NULL"),
+      branch_id: columnExpr("pv", variantColumns, ["branch_id"], "NULL"),
+      warehouse_id: columnExpr("pv", variantColumns, ["warehouse_id"], "NULL"),
+    };
+    const variantImageSelect = {
+      id: columnExpr("pvi", variantImageColumns, ["id"], "NULL"),
+      product_id: columnExpr("pvi", variantImageColumns, ["product_id"], "NULL"),
+      variant_id: columnExpr("pvi", variantImageColumns, ["variant_id"], "NULL"),
+      color_name: columnExpr("pvi", variantImageColumns, ["color_name"], "''"),
+      color_value: columnExpr("pvi", variantImageColumns, ["color_value", "color_name"], "''"),
+      image_url: columnExpr("pvi", variantImageColumns, ["image_url"], "''"),
+      secure_url: columnExpr("pvi", variantImageColumns, ["secure_url", "cloudinary_url", "image_url"], "''"),
+      is_primary: columnExpr("pvi", variantImageColumns, ["is_primary"], "FALSE"),
+      sort_order: columnExpr("pvi", variantImageColumns, ["sort_order"], "0"),
+    };
+    const sql =
+      `
+      SELECT
+        p.*,
+        COALESCE(
+          jsonb_agg(
+            DISTINCT jsonb_build_object(
+              'id', ${variantSelect.id},
+              'product_id', ${variantSelect.product_id},
+              'name', ${variantSelect.name},
+              'size', ${variantSelect.size},
+              'color', ${variantSelect.color},
+              'color_name', ${variantSelect.color_name},
+              'color_value', ${variantSelect.color_value},
+              'stock', ${variantSelect.stock},
+              'quantity', ${variantSelect.quantity},
+              'image_url', ${variantSelect.image_url},
+              'variant_image_url', ${variantSelect.variant_image_url},
+              'color_image_url', ${variantSelect.color_image_url},
+              'secure_url', ${variantSelect.secure_url},
+              'sale_price', ${variantSelect.sale_price},
+              'selling_price', ${variantSelect.selling_price},
+              'price', ${variantSelect.price},
+              'sku', ${variantSelect.sku},
+              'barcode', ${variantSelect.barcode},
+              'is_active', ${variantSelect.is_active},
+              'branch_id', ${variantSelect.branch_id},
+              'warehouse_id', ${variantSelect.warehouse_id}
+            )
+          ) FILTER (WHERE pv.id IS NOT NULL),
+          '[]'::jsonb
+        ) AS variants,
+        COALESCE(
+          jsonb_agg(
+            DISTINCT jsonb_build_object(
+              'id', ${variantImageSelect.id},
+              'product_id', ${variantImageSelect.product_id},
+              'variant_id', ${variantImageSelect.variant_id},
+              'color_name', ${variantImageSelect.color_name},
+              'color_value', ${variantImageSelect.color_value},
+              'image_url', ${variantImageSelect.image_url},
+              'secure_url', ${variantImageSelect.secure_url},
+              'is_primary', ${variantImageSelect.is_primary},
+              'sort_order', ${variantImageSelect.sort_order}
+            )
+          ) FILTER (WHERE pvi.id IS NOT NULL),
+          '[]'::jsonb
+        ) AS product_variant_images
+      FROM products p
+      LEFT JOIN product_variants pv
+        ON pv.product_id = p.id
+        ${columnTenantClause("pv", variantColumns)}
+      LEFT JOIN product_variant_images pvi
+        ON pvi.product_id = p.id
+        ${columnTenantClause("pvi", variantImageColumns)}
+      WHERE p.id = $1
+        AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)
+      GROUP BY p.id
+      LIMIT 1
+      `;
+    const params = [productId, numberOrNull(tenantId)];
+    const result = await db.query(sql, params);
+    const row = result.rows[0] || null;
+    if (!row) return null;
+    row.variants = Array.isArray(row.variants) ? row.variants : [];
+    row.product_variant_images = Array.isArray(row.product_variant_images) ? row.product_variant_images : [];
+    row._variant_load_source = "product_variants";
+    row._variant_load_raw_variant_count = row.variants.length;
+    row._variant_load_source_verification = {
+      product_variants_table: true,
+      cache: false,
+      memory: false,
+      ai_memory_cards: false,
+      storefront_projection_table: false,
+      product_variant_images_table: true,
+    };
+    return row;
+  } catch (error) {
+    console.warn("[whatsapp-image-builder:load-full-product-failed]", {
+      tenant_id: tenantId || null,
+      product_id: productId || null,
+      message: error?.message || "load failed",
+    });
+    return null;
+  }
+};
+
+export const buildWhatsappImageCardsForRequest = async ({
+  tenantId,
+  conversationId = "",
+  messageText = "",
+  detectedIntent = "",
+  memory = null,
+  selectedProductId = null,
+} = {}) => {
+  const wantsAllImages = Boolean(
+    ["image_request", "more_images"].includes(text(detectedIntent)) ||
+    /صور|كلها|الوان|ألوان|صورهم|كل الصور/i.test(text(messageText))
+  );
+  const productId =
+    selectedProductId ||
+    memory?.preferences?.last_product_id ||
+    memory?.preferences?.last_product?.product_id ||
+    memory?.preferences?.last_product?.id ||
+    memory?.preferences?.lastProductCard?.product_id ||
+    memory?.preferences?.lastProductCard?.id ||
+    memory?.last_product?.product_id ||
+    memory?.last_product?.id ||
+    null;
+  const product = await loadFullProductForWhatsappImageRequest({ tenantId, productId });
+  if (!product) {
+    return {
+      product_id: productId || null,
+      requested_all_images: wantsAllImages,
+      source: "no_product",
+      colors_count: 0,
+      colors: [],
+      cards_count: 0,
+      sent_count: 0,
+      cards: [],
+      conversation_id: conversationId || "",
+    };
+  }
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const productImages = Array.isArray(product.product_variant_images) ? product.product_variant_images : [];
+  const groups = new Map();
+  const addGroup = ({ color = "", variant = null, imageUrl = "" } = {}) => {
+    const safeColor = text(color || variant?.color || variant?.color_name || variant?.color_value);
+    if (!safeColor) return;
+    const key = `${text(product.id || product.product_id || "")}|${normalizeColorKeyForRequest(safeColor)}`;
+    const current = groups.get(key) || {
+      product_id: product.id || product.product_id || null,
+      color: safeColor,
+      variants: [],
+      variant_ids: [],
+      sizes: new Set(),
+      image_url: "",
+    };
+    if (variant) {
+      const variantId = text(variant.id || variant.variant_id || "");
+      if (variantId && !current.variant_ids.includes(variantId)) current.variant_ids.push(variantId);
+      if (!current.variants.some((item) => text(item.id || item.variant_id || "") === variantId)) current.variants.push(variant);
+      for (const size of String(variant.size || "").split(",")) {
+        const safeSize = text(size);
+        if (safeSize) current.sizes.add(safeSize);
+      }
+    }
+    const resolvedImage = text(imageUrl || firstTruthy(
+      ...[
+        variant?.secure_url,
+        variant?.image_url,
+        variant?.variant_image_url,
+        variant?.color_image_url,
+        variant?.main_image,
+        variant?.image,
+        product?.cloudinary_url,
+        product?.secure_url,
+      ]
+    ));
+    if (resolvedImage && !current.image_url) current.image_url = resolvedImage;
+    groups.set(key, current);
+  };
+  for (const variant of variants) addGroup({ color: variant.color || variant.color_name || variant.color_value, variant });
+  for (const row of productImages) {
+    const variant = variants.find((item) => String(item.id || item.variant_id || "") === String(row.variant_id || "")) || null;
+    addGroup({ color: row.color_name || row.color_value || variant?.color || variant?.color_name || "", variant, imageUrl: row.image_url || row.secure_url || "" });
+  }
+  if (!groups.size) addGroup({ color: product.color || product.color_name || product.matched_variant_color || "", variant: variants[0] || null });
+  const cards = [...groups.values()].map((group) => {
+    const selectedVariant = group.variants.find((variant) => Number(variant?.stock || variant?.quantity || 0) > 0) || group.variants[0] || null;
+    const variantId = text(selectedVariant?.id || selectedVariant?.variant_id || group.variant_ids[0] || "");
+    const sizes = [...new Set(Array.from(group.sizes).map(text).filter(Boolean))].sort((a, b) => {
+      const left = Number(String(a).match(/\d+(\.\d+)?/)?.[0] || Number.POSITIVE_INFINITY);
+      const right = Number(String(b).match(/\d+(\.\d+)?/)?.[0] || Number.POSITIVE_INFINITY);
+      if (left !== right) return left - right;
+      return a.localeCompare(b);
+    });
+    return {
+      product_id: product.id || product.product_id || null,
+      variant_id: variantId || null,
+      selected_variant_id: variantId || null,
+      selected_variant: selectedVariant || undefined,
+      name: text(product.name || product.title || product.product_name),
+      price: resolveCardPrice(product, selectedVariant || {}, selectedVariant || {}) || "",
+      available_sizes: sizes,
+      color: group.color,
+      image_url: text(group.image_url || firstTruthy(
+        ...(group.variants || []).flatMap((variant) => [
+          variant.secure_url,
+          variant.image_url,
+          variant.variant_image_url,
+          variant.color_image_url,
+          variant.main_image,
+          variant.image,
+        ]),
+        product.cloudinary_url,
+        product.secure_url
+      )),
+      product_url: resolvePublicProductUrl(product),
+    };
+  });
+  const seen = new Set();
+  const deduped = [];
+  for (const card of cards) {
+    const key = [
+      text(card.product_id || ""),
+      normalizeColorKeyForRequest(card.color || ""),
+      imageIdentityForRequest(card.image_url || ""),
+    ].join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(card);
+  }
+  return {
+    product_id: product.id || product.product_id || null,
+    requested_all_images: wantsAllImages,
+    source: "db_full_reload",
+    colors_count: deduped.length,
+    colors: deduped.map((card) => card.color),
+    cards_count: deduped.length,
+    sent_count: deduped.length,
+    cards: deduped,
+    conversation_id: conversationId || "",
+  };
 };

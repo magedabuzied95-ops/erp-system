@@ -46,7 +46,7 @@ import { findSimilarProductsForAi } from "./aiSimilarProductsService.js";
 
 const PRODUCT_LIMIT = 18;
 const IMAGE_SEARCH_PRODUCT_LIMIT = Number(process.env.AI_IMAGE_SEARCH_PRODUCT_LIMIT || 300);
-const VARIANT_LIMIT = 12;
+const VARIANT_LIMIT = Math.max(1, Number(process.env.AI_PRODUCT_VARIANT_LIMIT || 100));
 const SOURCE_TEXT_LIMIT = 4_000;
 const DEBUG_PRODUCT_CONTEXT =
   process.env.AI_SUPPORT_DEBUG === "1";
@@ -1834,6 +1834,7 @@ const normalizeProductRow = (row, intent, pricingSettings = {}) => {
     })
     .slice(0, VARIANT_LIMIT);
   const visibleVariants = filteredVariants.length ? filteredVariants : variants.slice(0, VARIANT_LIMIT);
+  const omittedVariantCount = Math.max(0, variants.length - visibleVariants.length);
   const totalStock = variants.length
     ? variants.reduce((sum, variant) => sum + Math.max(0, numeric(variant.stock, 0)), 0)
     : Math.max(0, numeric(row.stock, 0));
@@ -1894,6 +1895,18 @@ const normalizeProductRow = (row, intent, pricingSettings = {}) => {
     stocked_variant_count: stockedVariants.length,
     remaining_size_count: remainingSizeCount,
     remaining_color_count: remainingColorCount,
+    _variant_load_source: "product_variants",
+    _variant_load_raw_variant_count: variants.length,
+    _variant_load_visible_variant_count: visibleVariants.length,
+    _variant_load_omitted_variant_count: omittedVariantCount,
+    _variant_load_variant_limit: VARIANT_LIMIT,
+    _variant_load_source_verification: {
+      product_variants_table: true,
+      cache: false,
+      memory: false,
+      ai_memory_cards: false,
+      storefront_projection_table: false,
+    },
     variants: visibleVariants.map((variant) => ({
       id: variant.id,
       color: variant.color || "",
@@ -1994,7 +2007,6 @@ const hydrateProductsWithStorefrontImages = async (products = [], req = null) =>
       product_image_url: finalImageUrl || "",
       product_variant_images_count: imageBundle?.rows?.length || 0,
     };
-
     debugProductSearch("suggested product image", {
       id: product.id,
       name: product.name,
@@ -2126,7 +2138,7 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
     stock: columnExpr("pv", variantColumns, ["stock"], "0"),
   };
 
-  const result = await db.query(
+  const productVariantLoadSql =
     `
     SELECT
       p.id,
@@ -2185,9 +2197,8 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
     GROUP BY p.id
     ORDER BY ${productOrder}
     LIMIT $${params.length}
-    `,
-    params
-  );
+    `;
+  const result = await db.query(productVariantLoadSql, params);
 
   const countMatches = async (conditions) => {
     const countParams = [...conditions.params];
@@ -2201,8 +2212,9 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
     getWebsiteSettings({ tenantId }).then(normalizeStorefrontPricingSettings).catch(() => normalizeStorefrontPricingSettings()),
   ]);
   const requestedKind = detectRequestedProductKind(message);
+  const normalizedRows = result.rows.map((row) => normalizeProductRow(row, intent, pricingSettings));
   const hydratedProducts = await hydrateProductsWithStorefrontImages(
-    result.rows.map((row) => normalizeProductRow(row, intent, pricingSettings)),
+    normalizedRows,
     req
   );
   let products = rankProductsForIntent({
@@ -2438,7 +2450,7 @@ const loadVisualSearchProducts = async ({ tenantId, intent, req = null } = {}) =
     stock: columnExpr("pv", variantColumns, ["stock"], "0"),
   };
 
-  const result = await db.query(
+  const visualVariantLoadSql =
     `
     SELECT
       p.id,
@@ -2493,13 +2505,13 @@ const loadVisualSearchProducts = async ({ tenantId, intent, req = null } = {}) =
     GROUP BY p.id
     ORDER BY ${variantStockOrder} + ${productStockOrder} DESC, p.id DESC
     LIMIT $${params.length}
-    `,
-    params
-  );
+    `;
+  const result = await db.query(visualVariantLoadSql, params);
 
   const pricingSettings = await getWebsiteSettings({ tenantId }).then(normalizeStorefrontPricingSettings).catch(() => normalizeStorefrontPricingSettings());
+  const normalizedRows = result.rows.map((row) => normalizeProductRow(row, intent || detectAiSupportIntent(""), pricingSettings));
   const products = await hydrateProductsWithStorefrontImages(
-    result.rows.map((row) => normalizeProductRow(row, intent || detectAiSupportIntent(""), pricingSettings)),
+    normalizedRows,
     req
   );
   const eligible = filterAiEligibleProducts(products, { requireProductUrl: false });
@@ -2817,6 +2829,12 @@ const suggestedProducts = (products = [], req = null, { limit = 3 } = {}) =>
     has_more_color_variants: colorVariantCount > 6,
     intelligence: buildProductIntelligenceProfile(product),
     visual_style_tags: getVisualStyleTags(product),
+    _variant_load_source: product._variant_load_source || "",
+    _variant_load_raw_variant_count: product._variant_load_raw_variant_count ?? (Array.isArray(product.variants) ? product.variants.length : 0),
+    _variant_load_visible_variant_count: product._variant_load_visible_variant_count ?? (Array.isArray(product.variants) ? product.variants.length : 0),
+    _variant_load_omitted_variant_count: product._variant_load_omitted_variant_count ?? 0,
+    _variant_load_variant_limit: product._variant_load_variant_limit ?? VARIANT_LIMIT,
+    _variant_load_source_verification: product._variant_load_source_verification || null,
     ...(DEBUG_PRODUCT_CONTEXT && product.image_match_breakdown
       ? {
           image_match_score_breakdown: {

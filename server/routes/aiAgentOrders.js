@@ -1,4 +1,5 @@
 import express from "express";
+import db from "../database/db.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -10,6 +11,7 @@ import { resolveIntent } from "../services/aiIntentResolver.js";
 import { buildProductContext, ensureProductLinkInReply } from "../services/aiProductContext.js";
 import {
   getConversationMemory,
+  clearConversationMemory,
   updateConversationMemory,
 } from "../services/aiConversationMemory.js";
 import { extractShoeSize } from "../services/aiMessageExtractors.js";
@@ -1693,6 +1695,71 @@ router.get("/conversations/:conversationId/ai-trace", protect, permit("settings"
     return res.json({ success: true, conversation_id: conversationId, ...payload });
   } catch (error) {
     return sendError(res, error, "Failed to load AI reply trace");
+  }
+});
+
+router.post("/conversations/:conversationId/reset-ai-state", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(req.params.conversationId);
+    if (!tenantId || !conversationId) {
+      return res.status(400).json({ success: false, message: "tenant_id and conversation_id are required" });
+    }
+
+    const preferenceKeys = [
+      "pending_product_search_context",
+      "last_ai_question",
+      "last_bot_message",
+      "last_clarification_type",
+      "last_clarification_expected_values",
+      "awaiting_customer_action",
+      "sales_engine_state",
+      "sales_engine_previous_state",
+      "sales_engine_reason",
+      "sales_engine_next_action",
+      "sales_engine_missing_info",
+      "currentRequestedModel",
+      "currentRequestedModelName",
+      "last_product",
+      "last_product_id",
+      "last_product_name",
+      "last_model_family",
+      "lastProductCard",
+      "last_product_cards",
+      "lastRecommendedProductIds",
+      "last_recommended_product_ids",
+      "lastVisualQuery",
+      "lastVisualFeatures",
+      "lastVisualMatches",
+      "rejectedProductIds",
+      "rejectedModelNames",
+      "rejectedVisualMatches",
+      "selected_product_context",
+    ];
+
+    const memoryBefore = getConversationMemory(conversationId);
+    clearConversationMemory(conversationId);
+
+    const dbResult = await db.query(
+      `
+      UPDATE ai_conversation_memories
+      SET preferences = COALESCE(preferences, '{}'::jsonb) - $3::text[], updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1 AND session_id = $2
+      RETURNING id
+      `,
+      [tenantId, conversationId, preferenceKeys]
+    );
+
+    return res.json({
+      success: true,
+      conversation_id: conversationId,
+      cleared_keys: preferenceKeys,
+      runtime_memory_cleared: true,
+      persisted_rows_updated: dbResult.rowCount || 0,
+      memory_found: Boolean(memoryBefore),
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to reset conversation AI state");
   }
 });
 

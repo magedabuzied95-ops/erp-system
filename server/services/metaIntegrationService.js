@@ -7248,7 +7248,7 @@ const closerLineForProduct = (signals = {}) => {
   return "خامته ممتازة جدًا ومريح في اللبس.";
 };
 
-const searchVisualInventory = async ({ tenantId, query = "", metadata = {}, conversationId = "" } = {}) => {
+const searchVisualInventory = async ({ tenantId, query = "", metadata = {}, conversationId = "", wantsAllImages = false } = {}) => {
   const queryInfo = visualQueryTokens(query);
   const fallbackQueries = [
     query,
@@ -7307,7 +7307,7 @@ const searchVisualInventory = async ({ tenantId, query = "", metadata = {}, conv
         combined.set(key, { ...enrichedProduct, visual_confidence_score: score, visual_score_breakdown: scoreBreakdown, inventory_search_query: searchQuery });
       }
     }
-    if (combined.size >= 3 && (queryInfo.hasJordan4 || rows.some((product) => Number(product.confidence || 0) >= 0.5))) break;
+    if (!wantsAllImages && combined.size >= 3 && (queryInfo.hasJordan4 || rows.some((product) => Number(product.confidence || 0) >= 0.5))) break;
   }
   return {
     products: [...combined.values()].sort((a, b) => Number(b.visual_confidence_score || 0) - Number(a.visual_confidence_score || 0)),
@@ -7527,6 +7527,103 @@ const loadVariantImageRows = async ({ tenantId, productId } = {}) => {
   }
 };
 
+const loadFullProductForImageFlow = async ({ tenantId, productId } = {}) => {
+  if (!productId) return null;
+  try {
+    const result = await db.query(
+      `
+      SELECT
+        p.*,
+        COALESCE(
+          jsonb_agg(
+            DISTINCT jsonb_build_object(
+              'id', pv.id,
+              'product_id', pv.product_id,
+              'name', pv.name,
+              'size', pv.size,
+              'color', pv.color,
+              'color_name', pv.color_name,
+              'color_value', pv.color_value,
+              'stock', pv.stock,
+              'image_url', pv.image_url,
+              'variant_image_url', pv.variant_image_url,
+              'color_image_url', pv.color_image_url,
+              'secure_url', pv.secure_url,
+              'sale_price', pv.sale_price,
+              'selling_price', pv.selling_price,
+              'price', pv.price,
+              'sku', pv.sku,
+              'barcode', pv.barcode,
+              'is_active', pv.is_active,
+              'branch_id', pv.branch_id,
+              'warehouse_id', pv.warehouse_id
+            )
+          ) FILTER (WHERE pv.id IS NOT NULL),
+          '[]'::jsonb
+        ) AS variants,
+        COALESCE(
+          jsonb_agg(
+            DISTINCT jsonb_build_object(
+              'id', pvi.id,
+              'product_id', pvi.product_id,
+              'variant_id', pvi.variant_id,
+              'color_name', pvi.color_name,
+              'color_value', pvi.color_value,
+              'image_url', pvi.image_url,
+              'secure_url', pvi.secure_url,
+              'is_primary', pvi.is_primary,
+              'sort_order', pvi.sort_order
+            )
+          ) FILTER (WHERE pvi.id IS NOT NULL),
+          '[]'::jsonb
+        ) AS product_variant_images
+      FROM products p
+      LEFT JOIN product_variants pv
+        ON pv.product_id = p.id
+        AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
+      LEFT JOIN product_variant_images pvi
+        ON pvi.product_id = p.id
+        AND ($2::bigint IS NULL OR pvi.tenant_id = $2::bigint OR pvi.tenant_id IS NULL)
+      WHERE p.id = $1
+        AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)
+      GROUP BY p.id
+      LIMIT 1
+      `,
+      [productId, numberOrNull(tenantId)]
+    );
+    const row = result.rows[0] || null;
+    if (!row) return null;
+    const variants = Array.isArray(row.variants) ? row.variants : [];
+    const stockedVariants = variants.filter((variant) => Number(variant?.stock || 0) > 0);
+    const colorGroups = new Map();
+    for (const variant of variants) {
+      const color = text(variant.color || variant.color_name || variant.color_value).trim();
+      if (!color) continue;
+      const key = color.toLowerCase();
+      if (!colorGroups.has(key)) {
+        colorGroups.set(key, { color, variants: [], stocked_variants: [] });
+      }
+      const group = colorGroups.get(key);
+      group.variants.push(variant);
+      if (Number(variant?.stock || 0) > 0) group.stocked_variants.push(variant);
+    }
+    return {
+      ...row,
+      variants,
+      stockedVariants,
+      color_groups: [...colorGroups.values()],
+      product_variant_images: Array.isArray(row.product_variant_images) ? row.product_variant_images : [],
+    };
+  } catch (error) {
+    console.warn("ai_inbox_full_product_reload_failed", {
+      tenant_id: tenantId || null,
+      product_id: productId || null,
+      message: error?.message || "full product reload failed",
+    });
+    return null;
+  }
+};
+
 const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, baseCard = {}, includeOtherColors = false } = {}) => {
   const memory = getConversationMemory(conversationId) || {};
   const viewed = new Set(Array.isArray(memory.viewedImageUrls) ? memory.viewedImageUrls.map(imageIdentity).filter(Boolean) : []);
@@ -7534,6 +7631,9 @@ const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, bas
   const galleryRows = await loadVariantImageRows({ tenantId, productId: product.id || baseCard.product_id || baseCard.id });
   const variants = stockedVariants(product);
   const productGalleryUrls = uniqueImageUrls([product.product_images, product.gallery_images, product.images]);
+  const productId = product.id || baseCard.product_id || baseCard.id || null;
+  const modelFamily = text(product.model_family || product.family || baseCard.model_family || baseCard.family || "");
+  const colorGroups = new Map();
   const resolveVariantForImage = (row = {}, colorFallback = "") => {
     const rowVariantId = row.variant_id || null;
     const rowColor = text(row.color_name || row.color_value || colorFallback).toLowerCase();
@@ -7583,7 +7683,7 @@ const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, bas
       product_url: baseCard.product_url || baseCard.url || "",
       slug: product.slug || product.canonical_slug || "",
     });
-    if (selected.length >= 4) break;
+    if (selected.length >= (wantsAllImages ? 6 : 4)) break;
   }
   const beforeCount = selected.length;
   const deduped = [];
@@ -7602,6 +7702,150 @@ const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, bas
     });
   }
   return deduped;
+};
+
+const buildMoreImageCardsExpanded = async ({ tenantId, conversationId, product = {}, baseCard = {}, includeOtherColors = false, wantsAllImages = false } = {}) => {
+  const memory = getConversationMemory(conversationId) || {};
+  const productId = product.id || baseCard.product_id || baseCard.id || null;
+  const modelFamily = text(product.model_family || product.family || baseCard.model_family || baseCard.family || "");
+  const allVariants = asArray(product.variants || product.product_variants || product.variant_rows || product.variantGroups || product.color_groups || []);
+  const variants = (wantsAllImages ? allVariants : stockedVariants(product)).filter((variant) => wantsAllImages || Number(variant?.stock || 0) > 0);
+  const galleryRows = await loadVariantImageRows({ tenantId, productId });
+  const productGalleryUrls = uniqueImageUrls([product.product_images, product.gallery_images, product.images]);
+  const selectedColor = text(memory.selectedColor || baseCard.color).toLowerCase();
+  const colorMap = new Map();
+  const normalizeColor = (value = "") => text(value).toLowerCase().trim();
+  const countVariantsForColor = (color = "") => {
+    const normalized = normalizeColor(color);
+    if (!normalized) return 0;
+    return allVariants.filter((variant) => {
+      const variantColor = normalizeColor(variant.color || variant.color_name || variant.color_value || "");
+      return variantColor === normalized && Number(variant?.stock || 0) > 0;
+    }).length;
+  };
+  const pickImage = (color = "", variant = null) => {
+    const normalizedColor = normalizeColor(color);
+    const row = galleryRows.find((item) => String(item.variant_id || "") === String(variant?.id || variant?.variant_id || ""))
+      || (normalizedColor ? galleryRows.find((item) => normalizeColor(item.color_name || item.color_value) === normalizedColor) : null)
+      || null;
+    return text(
+      row?.secure_url ||
+        row?.image_url ||
+        variant?.variant_image_url ||
+        variant?.color_image_url ||
+        variant?.image_url ||
+        variant?.primary_image_url ||
+        product?.image_url ||
+        product?.main_image ||
+        product?.product_image_url ||
+        productGalleryUrls[0] ||
+        ""
+    );
+  };
+  const addColor = ({ color = "", variant = null, source = "" } = {}) => {
+    const normalizedColor = normalizeColor(color);
+    const variantCount = variant ? 1 : 0;
+    const stockedVariantCount = countVariantsForColor(color);
+    const hasVariantImage = Boolean(variant?.variant_image_url || variant?.color_image_url || variant?.image_url || variant?.primary_image_url);
+    const hasGalleryRow = galleryRows.some((item) => {
+      const rowColor = normalizeColor(item.color_name || item.color_value || "");
+      const rowVariantId = String(item.variant_id || "");
+      return (normalizedColor && rowColor === normalizedColor) || (variant && rowVariantId && rowVariantId === String(variant.id || variant.variant_id || ""));
+    });
+    const hasProductFallbackImage = Boolean(product?.image_url || product?.main_image || product?.product_image_url || productGalleryUrls[0]);
+    let excludedReason = "";
+    let finalIncluded = true;
+    if (!normalizedColor) {
+      excludedReason = "missing_color";
+      finalIncluded = false;
+    } else if (selectedColor && !includeOtherColors && !wantsAllImages && normalizedColor !== selectedColor) {
+      excludedReason = "selected_color_only";
+      finalIncluded = false;
+    } else if (!wantsAllImages && normalizedColor && !stockedVariantCount) {
+      excludedReason = "no_stocked_variant";
+      finalIncluded = false;
+    }
+    if (!finalIncluded) return;
+    const key = `${productId || "product"}|${normalizedColor}`;
+    const current = colorMap.get(key) || {
+      product_id: productId,
+      color,
+      variant_ids: [],
+      variants: [],
+      sizes: new Set(),
+      image_url: "",
+      source,
+    };
+    if (variant) {
+      const variantKey = String(variant.id || variant.variant_id || "");
+      if (variantKey && !current.variant_ids.includes(variantKey)) current.variant_ids.push(variantKey);
+      if (!current.variants.some((item) => String(item.id || item.variant_id || "") === variantKey)) current.variants.push(variant);
+      for (const size of String(variant.size || "").split(",")) {
+        const safe = text(size);
+        if (safe) current.sizes.add(safe);
+      }
+    }
+    if (!current.image_url) current.image_url = pickImage(color, variant);
+    colorMap.set(key, current);
+  };
+  for (const variant of variants) addColor({ color: variant.color || variant.color_name || variant.color_value || "", variant, source: "variant" });
+  for (const row of galleryRows) addColor({ color: row.color_name || row.color_value || "", variant: variants.find((variant) => String(variant.id || variant.variant_id || "") === String(row.variant_id || "")) || null, source: "gallery_row" });
+  if (!colorMap.size) addColor({ color: baseCard.color || "", variant: variants[0] || null, source: "product_fallback" });
+  const cards = [...colorMap.values()].map((group) => {
+    const orderedVariants = group.variants;
+    const selectedVariant = orderedVariants.find((variant) => Number(variant?.display_price) > 0) || orderedVariants.find((variant) => Number(variant?.sale_price) > 0) || orderedVariants.find((variant) => Number(variant?.selling_price) > 0) || orderedVariants[0] || null;
+    const selectedVariantId = selectedVariant?.id || selectedVariant?.variant_id || group.variant_ids[0] || null;
+    const price = Number(selectedVariant?.display_price) > 0
+      ? selectedVariant.display_price
+      : Number(selectedVariant?.sale_price) > 0
+        ? selectedVariant.sale_price
+        : Number(selectedVariant?.selling_price) > 0
+          ? selectedVariant.selling_price
+          : Number(baseCard.price) > 0
+            ? baseCard.price
+            : Number(baseCard.final_price) > 0
+              ? baseCard.final_price
+              : Number(baseCard.sale_price) > 0
+                ? baseCard.sale_price
+                : Number(baseCard.product_price) > 0
+                  ? baseCard.product_price
+                  : "";
+    const sizes = [...new Set([...group.sizes].map(text).filter(Boolean))].sort((a, b) => {
+      const left = Number(String(a).match(/\d+(\.\d+)?/)?.[0] || Number.POSITIVE_INFINITY);
+      const right = Number(String(b).match(/\d+(\.\d+)?/)?.[0] || Number.POSITIVE_INFINITY);
+      if (left !== right) return left - right;
+      return a.localeCompare(b);
+    });
+    const imageUrl = group.image_url || pickImage(group.color, selectedVariant);
+    return {
+      product_id: group.product_id,
+      variant_id: selectedVariantId,
+      selected_variant_id: selectedVariantId,
+      selected_variant: selectedVariant || undefined,
+      name: product.name || baseCard.name || "Product",
+      price: price || "",
+      available_sizes: sizes,
+      color: group.color,
+      image_url: imageUrl,
+      product_url: baseCard.product_url || baseCard.url || "",
+      slug: product.slug || product.canonical_slug || "",
+    };
+  });
+  const expectedColors = [...new Set(variants.map((variant) => text(variant.color || variant.color_name || variant.color_value).trim()).filter(Boolean))];
+  const sentColors = [...new Set(cards.map((card) => text(card.color || "").trim()).filter(Boolean))];
+  const colorsWithImages = cards.filter((card) => Boolean(card.image_url)).map((card) => card.color);
+  const colorsWithoutImages = cards.filter((card) => !card.image_url).map((card) => card.color);
+  console.info("[image-flow-color-source]", {
+    product_id: productId,
+    model_family: modelFamily,
+    total_variants: product.variants?.length || variants.length,
+    in_stock_variants: variants.length,
+    distinct_colors: expectedColors.length,
+    colors_found: sentColors,
+    colors_with_images: colorsWithImages,
+    colors_without_images: colorsWithoutImages,
+  });
+  return cards;
 };
 
 const detectAllColorsRequest = (message = "") =>
@@ -9600,6 +9844,10 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
   const searchResult = await searchVisualInventory({
     tenantId: config.tenant_id,
     query: searchQuery,
+    wantsAllImages: Boolean(
+      detectAllColorsRequest(message.message_text) ||
+        /(?:all\s+images|all\s+colors|show\s+all|more\s+colors|كل\s+الصور|كل\s+الألوان|كل\s+الالوان)/i.test(text(message.message_text))
+    ),
     metadata: {
       visual_search: true,
       visual_query: searchQuery,
@@ -9833,7 +10081,11 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
   if (!keyword || isColorQuestionMessage(message.message_text)) return null;
   const context = resolveContextProductCard({ message });
   const baseCard = context.card;
-  const includeOtherColors = false;
+  const wantsAllImages = Boolean(
+    detectAllColorsRequest(message.message_text) ||
+      /(?:all\s+images|all\s+colors|show\s+all|more\s+colors|كل\s+الصور|كل\s+الألوان|كل\s+الالوان)/i.test(text(message.message_text))
+  );
+  const includeOtherColors = wantsAllImages;
   const memory = getConversationMemory(message.external_conversation_id) || {};
   console.log("ai_action_images_requested", {
     tenant_id: config.tenant_id,
@@ -9850,6 +10102,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     has_product_context: Boolean(baseCard),
     context_source: context.source || "",
     include_other_colors: includeOtherColors,
+    wants_all_images: wantsAllImages,
   });
   console.log("ai_more_images_context", {
     tenant_id: config.tenant_id,
@@ -9859,6 +10112,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     variant_id: baseCard?.variant_id || null,
     color: baseCard?.color || "",
     include_other_colors: includeOtherColors,
+    wants_all_images: wantsAllImages,
   });
   if (context.ambiguous && !(memory.selectedProductId && memory.selectedColor)) {
     await sendAndLogMetaText({
@@ -9880,11 +10134,6 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     console.log("[ai-followup:missing-context]", {
       detected_intent: "image_request",
       reply: "\u062a\u0642\u0635\u062f \u0635\u0648\u0631\u0629 \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644 \u064a\u0627 \u0641\u0646\u062f\u0645\u061f",
-    });
-    console.log("[ai-followup:image-request]", {
-      used_memory: false,
-      card_count: 0,
-      sent_count: 0,
     });
     await sendAndLogMetaText({
       config,
@@ -9919,14 +10168,18 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
       action: "more_images",
     });
   }
-  const product = await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
-  const moreImageCards = normalizeProductCards(await buildMoreImageCards({
+  const product = wantsAllImages
+    ? await loadFullProductForImageFlow({ tenantId: config.tenant_id, productId: baseCard.product_id || baseCard.id || null }) ||
+      await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text })
+    : await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
+  const moreImageCards = normalizeProductCards(await buildMoreImageCardsExpanded({
     tenantId: config.tenant_id,
     conversationId: message.external_conversation_id,
     product,
     baseCard,
-    includeOtherColors: false,
-  }), { limit: 4 });
+    includeOtherColors,
+    wantsAllImages,
+  }), { limit: wantsAllImages ? 6 : 4 });
   if (!moreImageCards.length) {
     await sendAndLogMetaText({
       config,
@@ -9995,11 +10248,6 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     replyPath: ["question_resolver", "more_images_handler", "response_orchestrator", "final_reply"],
     orchestratorUsed: true,
     resolvedQuestionType: (getConversationMemory(message.external_conversation_id) || {}).resolvedQuestionType || "",
-  });
-  console.log("[ai-followup:image-request]", {
-    used_memory: true,
-    card_count: imageOnlyCards.length,
-    sent_count: result?.product_card_messages?.length || 0,
   });
   rememberLastProductCards({
     tenantId: config.tenant_id,

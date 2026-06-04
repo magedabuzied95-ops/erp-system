@@ -1836,7 +1836,7 @@ const archiveProductVariantsByIds = async (client, { productId, tenantId, varian
 const loadActiveProductVariantSnapshot = async (client, { productId, tenantId }) => {
   const result = await client.query(
     `
-    SELECT id, color, size, stock
+    SELECT id, color, size, stock, default_purchase_qty, image_url, is_active, deleted_at
     FROM product_variants
     WHERE product_id = $1
       AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
@@ -2595,7 +2595,7 @@ export const createProduct = async (req, res) => {
       );
     }
 
-    await replaceProductVariantImages(client, {
+    const persistedVariantImageRows = await replaceProductVariantImages(client, {
       tenantId,
       productId,
       variants: Array.isArray(variants) ? variants : [],
@@ -3074,7 +3074,7 @@ export const updateProduct = async (req, res) => {
       return !colorKey || activeColorKeys.has(colorKey);
     });
 
-    await replaceProductVariantImages(client, {
+    const persistedVariantImageRows = await replaceProductVariantImages(client, {
       tenantId,
       productId,
       variants: [...variantsToSave, ...activeVariantImagePayloads],
