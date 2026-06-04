@@ -81,7 +81,7 @@ const replyPreview = (message = {}) => {
   return "رسالة";
 };
 
-function AttachmentView({ message, outgoing = false, onImageClick }) {
+function AttachmentView({ message, outgoing = false, timeText = "", showChecks = false, read = false, onImageClick }) {
   if (!message?.attachment_url) return null;
   const href = attachmentUrl(message.attachment_url);
   const isImage = message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
@@ -95,7 +95,16 @@ function AttachmentView({ message, outgoing = false, onImageClick }) {
     );
   }
   if (isAudio) {
-    return <WhatsAppVoiceMessage src={href} outgoing={outgoing} label="رسالة صوتية" />;
+    return (
+      <WhatsAppVoiceMessage
+        src={href}
+        outgoing={outgoing}
+        label="رسالة صوتية"
+        timeText={timeText}
+        showChecks={showChecks}
+        read={read}
+      />
+    );
   }
   return (
     <a href={href} target="_blank" rel="noreferrer" download className="mb-2 flex items-center gap-3 rounded-2xl border border-black/10 bg-black/5 p-3 text-inherit no-underline">
@@ -470,24 +479,36 @@ export default function EmployeeChatInbox() {
                 ) : messages.length ? (
                   messages.map((message, index) => {
                     const admin = message.sender_type === "admin";
+                    const isAudioMessage = message.attachment_type === "audio" || String(message.attachment_mime || "").startsWith("audio/");
+                    const hasMessageBody = Boolean(String(message.body || "").trim());
+                    const voiceMessage = isAudioMessage && !hasMessageBody;
                     return (
                       <div key={message.id} id={`admin-chat-message-${message.id}`}>
                         {index === firstUnreadIndex ? <div className="mx-auto mb-2 w-fit rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-black text-emerald-100">رسائل غير مقروءة</div> : null}
                       <div className={`flex ${admin ? "justify-start" : "justify-end"}`}>
-                        <div className={`relative w-fit max-w-[72%] break-words rounded-[1.05rem] px-2 py-1 text-[15px] font-medium leading-5 shadow-sm ${admin ? "rounded-bl-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]" : "rounded-br-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(0_0,100%_100%,0_100%)]"}`}>
+                        <div className={`relative w-fit break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${voiceMessage ? "max-w-[86%] px-2 py-1.5" : "max-w-[72%] px-2 py-1"} ${admin ? "rounded-bl-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]" : "rounded-br-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(0_0,100%_100%,0_100%)]"}`}>
                           {message.reply_to_message_id ? (
                             <button type="button" onClick={() => document.getElementById(`admin-chat-message-${message.reply_to_message_id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })} className="mb-1 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
                               <div className="font-black">{message.reply_sender_type === "admin" ? "الإدارة" : selectedThread?.employee_name || "الموظف"}</div>
                               <div className="truncate">{replyPreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name })}</div>
                             </button>
                           ) : null}
-                          <AttachmentView message={message} outgoing={admin} onImageClick={setImagePreview} />
+                          <AttachmentView
+                            message={message}
+                            outgoing={admin}
+                            timeText={formatMessageTime(message.created_at)}
+                            showChecks={admin}
+                            read={Boolean(message.read_at)}
+                            onImageClick={setImagePreview}
+                          />
                           {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
-                          <button type="button" onClick={() => setReplyTo(message)} className="mt-1 text-[10px] font-bold text-slate-300/60">رد</button>
-                          <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
-                            <span>{formatMessageTime(message.created_at)}</span>
-                            {admin ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
-                          </div>
+                          {!voiceMessage ? <button type="button" onClick={() => setReplyTo(message)} className="mt-1 text-[10px] font-bold text-slate-300/60">رد</button> : null}
+                          {!voiceMessage ? (
+                            <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
+                              <span>{formatMessageTime(message.created_at)}</span>
+                              {admin ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                       </div>

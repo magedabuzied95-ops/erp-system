@@ -993,7 +993,7 @@ function chatMessagePreview(message = {}, text = {}) {
   return "رسالة";
 }
 
-function ChatAttachment({ message, text, compact = false, outgoing = false, onImageClick }) {
+function ChatAttachment({ message, text, compact = false, outgoing = false, timeText = "", showChecks = false, read = false, onImageClick }) {
   if (!message?.attachment_url) return null;
   const href = chatAttachmentUrl(message.attachment_url);
   const isImage = message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
@@ -1007,7 +1007,16 @@ function ChatAttachment({ message, text, compact = false, outgoing = false, onIm
     );
   }
   if (isAudio) {
-    return <WhatsAppVoiceMessage src={href} outgoing={outgoing} label={text.voiceAttachment || "Voice message"} />;
+    return (
+      <WhatsAppVoiceMessage
+        src={href}
+        outgoing={outgoing}
+        label={text.voiceAttachment || "Voice message"}
+        timeText={timeText}
+        showChecks={showChecks}
+        read={read}
+      />
+    );
   }
   return (
     <a href={href} target="_blank" rel="noreferrer" download className="mb-2 flex items-center gap-3 rounded-2xl border border-black/10 bg-black/5 p-3 text-inherit no-underline">
@@ -2917,6 +2926,9 @@ export default function EmployeePayrollPortal() {
               ) : chatMessages.length ? (
                 chatMessages.map((message) => {
                   const employeeMessage = message.sender_type === "employee";
+                  const isAudioMessage = message.attachment_type === "audio" || String(message.attachment_mime || "").startsWith("audio/");
+                  const hasMessageBody = Boolean(String(message.body || "").trim());
+                  const voiceMessage = isAudioMessage && !hasMessageBody;
                   return (
                     <div id={`employee-chat-message-${message.id}`} key={message.id} className={`flex rounded-2xl transition-shadow duration-300 ${employeeMessage ? "justify-end" : "justify-start"}`}>
                       <div
@@ -2924,7 +2936,7 @@ export default function EmployeePayrollPortal() {
                         onTouchMove={(event) => moveChatSwipe(event, message)}
                         onTouchEnd={endChatSwipe}
                         onTouchCancel={endChatSwipe}
-                        className={`relative w-fit max-w-[78%] touch-pan-y select-none break-words rounded-[1.05rem] px-3 py-2 text-[15px] font-medium leading-5 shadow-sm ${employeeMessage ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}
+                        className={`relative w-fit touch-pan-y select-none break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${voiceMessage ? "max-w-[86%] px-2 py-1.5" : "max-w-[78%] px-3 py-2"} ${employeeMessage ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}
                       >
                         {message.reply_to_message_id ? (
                           <button type="button" onClick={() => scrollToChatMessage(message.reply_to_message_id)} className="mb-1.5 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
@@ -2932,12 +2944,23 @@ export default function EmployeePayrollPortal() {
                             <div className="truncate">{chatMessagePreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name }, text)}</div>
                           </button>
                         ) : null}
-                        <ChatAttachment message={message} text={text} compact outgoing={employeeMessage} onImageClick={setChatImagePreview} />
+                        <ChatAttachment
+                          message={message}
+                          text={text}
+                          compact
+                          outgoing={employeeMessage}
+                          timeText={formatTimeLocal(message.created_at, language)}
+                          showChecks={employeeMessage}
+                          read={Boolean(message.read_at)}
+                          onImageClick={setChatImagePreview}
+                        />
                         {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
-                        <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
-                          <DateSafe>{formatTimeLocal(message.created_at, language)}</DateSafe>
-                          {employeeMessage ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
-                        </div>
+                        {!voiceMessage ? (
+                          <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
+                            <DateSafe>{formatTimeLocal(message.created_at, language)}</DateSafe>
+                            {employeeMessage ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   );

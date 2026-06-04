@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play } from "lucide-react";
+import { CheckCheck, Pause, Play } from "lucide-react";
 
-const WAVEFORM_BARS = [9, 14, 21, 13, 27, 18, 32, 22, 15, 29, 34, 19, 25, 12, 31, 23, 17, 28, 36, 20, 14, 30, 24, 16, 33, 21, 27, 13, 22, 35, 18, 26, 15, 31, 20, 24];
+const WAVEFORM_BARS = [5, 9, 14, 8, 18, 11, 21, 15, 7, 17, 20, 10, 14, 6, 19, 13, 9, 16, 22, 12, 7, 18, 14, 8, 20, 11, 16, 6, 13, 21, 10, 15, 7, 18, 12, 14, 5, 17, 20, 9, 13, 6];
 
 const formatDuration = (seconds = 0) => {
   const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
@@ -9,7 +9,15 @@ const formatDuration = (seconds = 0) => {
   return `${minutes}:${String(safeSeconds % 60).padStart(2, "0")}`;
 };
 
-export default function WhatsAppVoiceMessage({ src, outgoing = false, label = "Voice message", className = "" }) {
+export default function WhatsAppVoiceMessage({
+  src,
+  outgoing = false,
+  label = "Voice message",
+  timeText = "",
+  showChecks = false,
+  read = false,
+  className = "",
+}) {
   const audioRef = useRef(null);
   const waveformRef = useRef(null);
   const [playing, setPlaying] = useState(false);
@@ -76,28 +84,26 @@ export default function WhatsAppVoiceMessage({ src, outgoing = false, label = "V
     setCurrentTime(audio.currentTime);
   };
 
-  const elapsed = currentTime > 0 ? currentTime : duration;
-
   return (
-    <div className={`mb-1.5 w-[min(64vw,18.5rem)] min-w-[11.5rem] max-w-full ${className}`}>
+    <div className={`w-[min(70vw,18rem)] min-w-[12rem] max-w-full ${className}`}>
       <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
-      <div className="flex min-w-0 items-center gap-2.5">
+      <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
           onClick={togglePlayback}
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${
             outgoing ? "bg-[#d9fdd3] text-[#005c4b]" : "bg-[#e9edef] text-[#202c33]"
           }`}
           aria-label={playing ? "Pause voice message" : "Play voice message"}
         >
-          {playing ? <Pause className="h-[18px] w-[18px] fill-current" /> : <Play className="h-[18px] w-[18px] fill-current ps-0.5" />}
+          {playing ? <Pause className="h-[15px] w-[15px] fill-current" /> : <Play className="h-[15px] w-[15px] fill-current ps-0.5" />}
         </button>
         <div className="min-w-0 flex-1">
           <button
             ref={waveformRef}
             type="button"
             onClick={seekToWaveformPosition}
-            className="flex h-9 min-w-0 items-center gap-[2px] overflow-hidden sm:gap-[3px]"
+            className="flex h-[21px] min-w-0 items-center gap-[2px] overflow-hidden"
             aria-label={label}
           >
             {WAVEFORM_BARS.map((height, index) => {
@@ -107,8 +113,8 @@ export default function WhatsAppVoiceMessage({ src, outgoing = false, label = "V
                   key={`${height}-${index}`}
                   className={`min-w-[2px] flex-1 rounded-full transition-colors ${
                     active
-                      ? outgoing ? "bg-[#075e54]" : "bg-[#53bdeb]"
-                      : outgoing ? "bg-[#6fb7a6]/70" : "bg-[#8696a0]/70"
+                      ? outgoing ? "bg-[#f0f8f3]" : "bg-[#00a884]"
+                      : outgoing ? "bg-[#8fc6b7]/75" : "bg-[#8696a0]/75"
                   }`}
                   style={{ height: `${height}px` }}
                   aria-hidden="true"
@@ -116,8 +122,12 @@ export default function WhatsAppVoiceMessage({ src, outgoing = false, label = "V
               );
             })}
           </button>
-          <div className={`mt-0.5 text-[11px] font-semibold leading-4 ${outgoing ? "text-[#d6f3e7]" : "text-[#aebac1]"}`} dir="ltr">
-            {formatDuration(elapsed)}
+          <div className={`mt-[1px] flex h-3.5 items-center justify-between gap-2 text-[10px] font-medium leading-none ${outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`} dir="ltr">
+            <span>{formatDuration(duration)}</span>
+            <span className="inline-flex shrink-0 items-center gap-0.5">
+              {timeText ? <span>{timeText}</span> : null}
+              {showChecks ? <CheckCheck className={`h-3.5 w-3.5 ${read ? "text-[#53bdeb]" : outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`} /> : null}
+            </span>
           </div>
         </div>
       </div>
