@@ -781,6 +781,12 @@ const normalizeOrderItemPayload = (item = {}) => {
     variant_id: firstValue(item.variant_id, item.variantId, item.product_variant_id, item.productVariantId) || null,
     product_name: firstValue(item.product_name, item.productName, item.name) || "",
     variant_name: firstValue(item.variant_name, item.variantName) || "",
+    size: firstValue(item.size, item.selected_size, item.selectedSize, item.variant_size, item.variantSize) || "",
+    color: firstValue(item.color, item.selected_color, item.selectedColor, item.variant_color, item.variantColor) || "",
+    selected_size: firstValue(item.selected_size, item.selectedSize, item.size, item.variant_size, item.variantSize) || "",
+    selected_color: firstValue(item.selected_color, item.selectedColor, item.color, item.variant_color, item.variantColor) || "",
+    variant_size: firstValue(item.variant_size, item.variantSize, item.size, item.selected_size, item.selectedSize) || "",
+    variant_color: firstValue(item.variant_color, item.variantColor, item.color, item.selected_color, item.selectedColor) || "",
     quantity,
     qty: quantity,
     price,
@@ -1891,6 +1897,19 @@ const bulkInsertOrderItems = async (client, { tenantId, orderId, items = [], sto
       price_source: priceSource,
     };
   });
+  console.info("[display-refill-trace:order-items-persist-input]", {
+    order_id: orderId,
+    items: insertItems.slice(0, 10).map((item) => ({
+      product_id: item.product_id || null,
+      variant_id: item.variant_id || null,
+      size: item.size || null,
+      color: item.color || null,
+      selected_size: item.selected_size || item.selectedSize || null,
+      selected_color: item.selected_color || item.selectedColor || null,
+      variant_size: item.variant_size || item.variantSize || null,
+      variant_color: item.variant_color || item.variantColor || null,
+    })),
+  });
   const query = buildBulkOrderItemInsertQuery(insertItems, {
     availableColumns,
     returning: true,
@@ -1911,6 +1930,19 @@ const bulkInsertOrderItems = async (client, { tenantId, orderId, items = [], sto
       sqlSnippetLabel: "pos_order_items_bulk_insert",
     });
   }
+  console.info("[display-refill-trace:order-items-persisted]", {
+    order_id: orderId,
+    items: result.rows.slice(0, 10).map((item) => ({
+      product_id: item.product_id || null,
+      variant_id: item.variant_id || null,
+      size: item.size || null,
+      color: item.color || null,
+      selected_size: item.selected_size || item.selectedSize || null,
+      selected_color: item.selected_color || item.selectedColor || null,
+      variant_size: item.variant_size || item.variantSize || null,
+      variant_color: item.variant_color || item.variantColor || null,
+    })),
+  });
   return result.rows;
 };
 
@@ -2139,6 +2171,10 @@ const runPostOrderSideEffects = async ({
           variant_id: item.variant_id || null,
           size: item.size || item.variant_size || null,
           color: item.color || item.variant_color || null,
+          selected_size: item.selected_size || item.selectedSize || null,
+          selected_color: item.selected_color || item.selectedColor || null,
+          variant_size: item.variant_size || item.variantSize || null,
+          variant_color: item.variant_color || item.variantColor || null,
           branch_id: resolvedBranchId || null,
           quantity: item.quantity || item.qty || item.sold_quantity || 1,
           stock_before: item.stock_before ?? item.stockBefore ?? null,
@@ -2323,10 +2359,26 @@ export const createOrder = async (req, res) => {
       order_items: (items || []).slice(0, 10).map((item) => ({
         product_id: item.product_id || null,
         variant_id: item.variant_id || null,
-        color: item.color || item.variant_color || null,
-        size: item.size || item.variant_size || null,
+        size: item.size || null,
+        color: item.color || null,
+        selected_size: item.selected_size || item.selectedSize || null,
+        selected_color: item.selected_color || item.selectedColor || null,
+        variant_size: item.variant_size || item.variantSize || null,
+        variant_color: item.variant_color || item.variantColor || null,
         quantity: item.quantity || item.qty || item.sold_quantity || 1,
         branch_id: item.branch_id || branchIdForLog || null,
+      })),
+    });
+    console.info("[display-refill-trace:order-create-input]", {
+      order_items: (items || []).slice(0, 10).map((item) => ({
+        product_id: item.product_id || null,
+        variant_id: item.variant_id || null,
+        size: item.size || null,
+        color: item.color || null,
+        selected_size: item.selected_size || item.selectedSize || null,
+        selected_color: item.selected_color || item.selectedColor || null,
+        variant_size: item.variant_size || item.variantSize || null,
+        variant_color: item.variant_color || item.variantColor || null,
       })),
     });
 
@@ -3019,11 +3071,30 @@ export const createOrder = async (req, res) => {
         order_item_id: orderItemRow.id,
         product_id: item.product_id || stockLine.productId || null,
         category_id: item.category_id || stockLine.categoryId || null,
+        size: orderItemRow.size || item.size || item.selected_size || item.variant_size || null,
+        color: orderItemRow.color || item.color || item.selected_color || item.variant_color || null,
+        selected_size: item.selected_size || item.selectedSize || orderItemRow.size || item.size || item.variant_size || null,
+        selected_color: item.selected_color || item.selectedColor || orderItemRow.color || item.color || item.variant_color || null,
+        variant_size: item.variant_size || item.variantSize || orderItemRow.size || item.size || item.selected_size || null,
+        variant_color: item.variant_color || item.variantColor || orderItemRow.color || item.color || item.selected_color || null,
         total_amount: item.total_amount || Number(item.price) * Number(item.quantity),
       });
 
       cogsTotal += Number(stockLine.costPrice || 0) * Number(item.quantity || 0);
     }
+    console.info("[display-refill-trace:orders-controller-handoff]", {
+      order_id: order.id,
+      items: orderItemsForCommission.slice(0, 10).map((item) => ({
+        product_id: item.product_id || null,
+        variant_id: item.variant_id || null,
+        size: item.size || null,
+        color: item.color || null,
+        selected_size: item.selected_size || item.selectedSize || null,
+        selected_color: item.selected_color || item.selectedColor || null,
+        variant_size: item.variant_size || item.variantSize || null,
+        variant_color: item.variant_color || item.variantColor || null,
+      })),
+    });
     markOrderStep("reduce stock", { order_id: order.id, itemsCount });
     await timedCheckout(checkoutTiming, "inventory_movement_ms", () => bulkApplyInventoryChanges(client, {
       tenantId,

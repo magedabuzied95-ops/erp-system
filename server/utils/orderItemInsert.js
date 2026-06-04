@@ -104,9 +104,9 @@ const orderItemValue = (item = {}, column) => {
     case "variant_image":
       return textValue(item.variant_image, item.variantImage);
     case "size":
-      return textValue(item.size);
+      return textValue(item.size, item.selected_size, item.selectedSize, item.variant_size, item.variantSize);
     case "color":
-      return textValue(item.color);
+      return textValue(item.color, item.selected_color, item.selectedColor, item.variant_color, item.variantColor);
     case "sales_employee_id":
       return nullableNumber(item.sales_employee_id, item.salesEmployeeId);
     default:

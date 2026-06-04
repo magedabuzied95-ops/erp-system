@@ -2717,10 +2717,23 @@ function POSPro() {
     const key = variantId ? String(variantId) : `product:${productId}`;
     const activePrice = Number(variant.price || product.sale_price || product.price || 0);
     const originalPrice = Number(variant.original_price || variant.regular_price || product.original_price || product.regular_price || variant.price || product.price || 0);
+    const resolvedColor = variant.color || variant.variant_color || variant.selected_color || "";
+    const resolvedSize = variant.size || variant.variant_size || variant.selected_size || product.fixed_size_label || "";
     if (!(activePrice > 0)) {
       toast.error(t("pos.toasts.productNoPrice"));
       return;
     }
+
+    console.info("[display-refill-trace:pos-cart-item]", {
+      product_id: productId || null,
+      variant_id: variantId || null,
+      size: resolvedSize || null,
+      color: resolvedColor || null,
+      selected_size: variant.selected_size || resolvedSize || null,
+      selected_color: variant.selected_color || resolvedColor || null,
+      variant_size: variant.variant_size || variant.size || null,
+      variant_color: variant.variant_color || variant.color || null,
+    });
 
     setCart((prev) => {
       const existing = prev.find((item) => item.key === key);
@@ -2752,8 +2765,12 @@ function POSPro() {
           product_name: product.product_name || product.name,
           sku: variant.sku || product.sku,
           barcode: variant.barcode || product.barcode || variant.sku,
-          color: variant.color || "",
-          size: variant.size || product.fixed_size_label || "",
+          color: resolvedColor,
+          size: resolvedSize,
+          selected_color: variant.selected_color || resolvedColor,
+          selected_size: variant.selected_size || resolvedSize,
+          variant_color: variant.variant_color || resolvedColor,
+          variant_size: variant.variant_size || resolvedSize,
           stock: liveStock,
           stock_quantity: liveStock,
           image_url: variant.image_url || product.image_url || "",
@@ -3912,10 +3929,16 @@ function POSPro() {
             product_id: item.product_id || null,
             product_name: item.product_name || item.name || "",
             variant_id: resolveCheckoutVariantId(item),
-            variant_name: [item.color, item.size].filter(Boolean).join(" / "),
+            variant_name: [item.color || item.variant_color || item.selected_color, item.size || item.variant_size || item.selected_size].filter(Boolean).join(" / "),
             variation_mode: item.variation_mode || "full_variations",
             sku: item.sku || "",
             barcode: item.barcode || "",
+            size: item.size || item.selected_size || item.variant_size || "",
+            color: item.color || item.selected_color || item.variant_color || "",
+            selected_size: item.selected_size || item.size || item.variant_size || "",
+            selected_color: item.selected_color || item.color || item.variant_color || "",
+            variant_size: item.variant_size || item.size || item.selected_size || "",
+            variant_color: item.variant_color || item.color || item.selected_color || "",
             quantity,
             price: unitPrice,
             unit_price: unitPrice,
@@ -3946,6 +3969,19 @@ function POSPro() {
         paid_amount: payload.paid_amount,
         payment_method: payload.payment_method,
         payment_breakdown_total: paymentBreakdown.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+      });
+
+      console.info("[display-refill-trace:checkout-payload]", {
+        items: payload.items.slice(0, 10).map((item) => ({
+          product_id: item.product_id || null,
+          variant_id: item.variant_id || null,
+          size: item.size || null,
+          color: item.color || null,
+          selected_size: item.selected_size || null,
+          selected_color: item.selected_color || null,
+          variant_size: item.variant_size || null,
+          variant_color: item.variant_color || null,
+        })),
       });
 
       if (import.meta.env.DEV) {

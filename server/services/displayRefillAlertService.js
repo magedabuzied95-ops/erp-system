@@ -256,7 +256,36 @@ const loadOrderItems = async ({ orderId, sellerEmployeeId } = {}) => {
   return result.rows;
 };
 
-const loadSameColorVariants = async ({ tenantId, productId, colorName, soldColorId, branchId } = {}) => {
+const loadVariantFallbackById = async ({ variantId, tenantId = null, productId = null } = {}) => {
+  const safeVariantId = numberOrNull(variantId);
+  if (!safeVariantId) return null;
+  const result = await db.query(
+    `
+    SELECT
+      pv.id,
+      pv.product_id,
+      pv.color_id,
+      COALESCE(NULLIF(pv.color, ''), NULLIF(p.color, '')) AS color_name,
+      pv.color AS variant_color,
+      COALESCE(NULLIF(pv.size, ''), NULLIF(p.size, '')) AS sold_size,
+      pv.size AS variant_size,
+      COALESCE(pv.stock, pv.quantity, pv.stock_quantity, pv.available_quantity, pv.current_stock, 0) AS stock,
+      COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, '')) AS variant_image_url
+    FROM product_variants pv
+    LEFT JOIN products p ON p.id = pv.product_id
+    WHERE pv.id = $1
+      AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL OR p.tenant_id = $2::bigint)
+      AND ($3::bigint IS NULL OR pv.product_id = $3::bigint)
+      AND COALESCE(pv.is_active, TRUE) = TRUE
+      AND pv.deleted_at IS NULL
+    LIMIT 1
+    `,
+    [safeVariantId, numberOrNull(tenantId), numberOrNull(productId)]
+  );
+  return result.rows[0] || null;
+};
+
+const loadSameColorVariants = async ({ tenantId, productId, colorName, soldColorId } = {}) => {
   const params = [numberOrNull(productId), numberOrNull(tenantId), clean(colorName), textOrNull(soldColorId)];
   const result = await db.query(
     `
@@ -283,7 +312,6 @@ const loadSameColorVariants = async ({ tenantId, productId, colorName, soldColor
     ) pvi ON TRUE
     WHERE pv.product_id = $1
       AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
-      AND ($5::bigint IS NULL OR pv.branch_id = $5::bigint OR pv.branch_id IS NULL)
       AND (
         LOWER(TRIM(COALESCE(pv.color, ''))) = LOWER(TRIM($3))
         OR LOWER(TRIM(COALESCE(p.color, ''))) = LOWER(TRIM($3))
@@ -292,7 +320,7 @@ const loadSameColorVariants = async ({ tenantId, productId, colorName, soldColor
       AND COALESCE(pv.is_active, TRUE) = TRUE
       AND pv.deleted_at IS NULL
     `,
-    [...params, numberOrNull(branchId)]
+    params
   );
   return result.rows;
 };
@@ -425,14 +453,40 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
   const items = providedItems.length ? providedItems : await loadOrderItems({ orderId: safeOrderId, sellerEmployeeId: safeEmployeeId });
   const created = [];
   for (const item of items) {
-    const colorName = clean(firstDefined(item.color_name, item.color, item.variant_color));
-    const soldSize = clean(firstDefined(item.sold_size, item.size, item.variant_size));
-    const productId = numberOrNull(item.product_id);
+    let colorName = clean(firstDefined(item.color_name, item.color, item.selected_color, item.selectedColor, item.variant_color, item.variantColor));
+    let soldSize = clean(firstDefined(item.sold_size, item.size, item.selected_size, item.selectedSize, item.variant_size, item.variantSize));
+    let productId = numberOrNull(item.product_id);
     const soldQuantity = normalizeSoldQuantity(item);
     const soldVariantId = numberOrNull(item.variant_id);
-    const soldColorId = numberOrNull(item.color_id);
+    let soldColorId = numberOrNull(item.color_id);
     const itemTenantId = safeTenantId || numberOrNull(item.tenant_id);
     const branchId = await resolveItemBranchId({ item, order: order || item, tenantId: itemTenantId, reqUser: req?.user || null });
+    console.info("[display-refill-alert:service-item-input]", {
+      tenant_id: itemTenantId,
+      order_id: safeOrderId,
+      product_id: productId,
+      variant_id: soldVariantId,
+      size: item.size || null,
+      color: item.color || null,
+      selected_size: item.selected_size || item.selectedSize || null,
+      selected_color: item.selected_color || item.selectedColor || null,
+      variant_size: item.variant_size || item.variantSize || null,
+      variant_color: item.variant_color || item.variantColor || null,
+    });
+    if (soldVariantId && (!productId || (!colorName && !soldColorId) || !soldSize)) {
+      const fallback = await loadVariantFallbackById({ variantId: soldVariantId, tenantId: itemTenantId, productId });
+      productId = productId || numberOrNull(fallback?.product_id);
+      colorName = colorName || clean(firstDefined(fallback?.color_name, fallback?.variant_color));
+      soldSize = soldSize || clean(firstDefined(fallback?.sold_size, fallback?.variant_size));
+      soldColorId = soldColorId || numberOrNull(fallback?.color_id);
+      console.info("[display-refill-alert:variant-fallback]", {
+        variant_id: soldVariantId,
+        product_id: productId,
+        resolved_size: soldSize || null,
+        resolved_color: colorName || null,
+        found: Boolean(fallback),
+      });
+    }
     const baseDecision = {
       tenant_id: itemTenantId,
       order_id: safeOrderId,
@@ -475,7 +529,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       continue;
     }
 
-    const variants = await loadSameColorVariants({ tenantId: itemTenantId, productId, colorName, soldColorId, branchId });
+    const variants = await loadSameColorVariants({ tenantId: itemTenantId, productId, colorName, soldColorId });
     const sortedVariants = sortVariantsBySize(variants);
     const soldVariant = sortedVariants.find((row) => rowMatchesSoldVariant(row, soldVariantId, soldSize, colorName, soldColorId)) || null;
     const providedDisplayBefore = stockNumberOrNull(firstDefined(item.display_quantity_before, item.displayQuantityBefore, item.stock_before, item.stockBefore));
