@@ -1,7 +1,55 @@
 import { useEffect, useState } from "react";
 import { ImageOff } from "lucide-react";
 
-export default function ChatImageAttachment({ src, alt = "Image", compact = false, onClick }) {
+const fetchImageDiagnostics = async (src) => {
+  const safeSrc = String(src || "").trim();
+  if (!safeSrc || typeof window === "undefined" || typeof fetch !== "function") return;
+
+  const logResult = async (response, method) => {
+    const contentType = response.headers.get("content-type") || "";
+    console.info("[employee-chat:image-fetch-check]", {
+      src: safeSrc,
+      method,
+      status: response.status,
+      contentType,
+      redirected: response.redirected,
+      finalUrl: response.url || safeSrc,
+    });
+  };
+
+  try {
+    const headResponse = await fetch(safeSrc, { method: "HEAD" });
+    await logResult(headResponse, "HEAD");
+    return;
+  } catch (headError) {
+    console.info("[employee-chat:image-fetch-check]", {
+      src: safeSrc,
+      method: "HEAD",
+      status: null,
+      contentType: "",
+      redirected: false,
+      finalUrl: safeSrc,
+      error: headError instanceof Error ? headError.message : String(headError || ""),
+    });
+  }
+
+  try {
+    const getResponse = await fetch(safeSrc, { method: "GET" });
+    await logResult(getResponse, "GET");
+  } catch (getError) {
+    console.info("[employee-chat:image-fetch-check]", {
+      src: safeSrc,
+      method: "GET",
+      status: null,
+      contentType: "",
+      redirected: false,
+      finalUrl: safeSrc,
+      error: getError instanceof Error ? getError.message : String(getError || ""),
+    });
+  }
+};
+
+export default function ChatImageAttachment({ src, alt = "Image", compact = false, onClick, originalUrl = "", messageId = null }) {
   const safeSrc = String(src || "").trim();
   const [failed, setFailed] = useState(false);
 
@@ -19,11 +67,15 @@ export default function ChatImageAttachment({ src, alt = "Image", compact = fals
   }
 
   const handleError = (event) => {
+    const image = event.currentTarget;
     console.warn("[employee-chat:image-broken]", {
       src: safeSrc,
-      currentSrc: event.currentTarget?.currentSrc || "",
-      alt,
+      originalUrl: String(originalUrl || "").trim(),
+      messageId,
+      naturalWidth: image?.naturalWidth || 0,
+      naturalHeight: image?.naturalHeight || 0,
     });
+    void fetchImageDiagnostics(safeSrc);
     setFailed(true);
   };
 

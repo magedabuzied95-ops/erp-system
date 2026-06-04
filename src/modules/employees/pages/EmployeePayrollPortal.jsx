@@ -1009,7 +1009,14 @@ function ChatAttachment({ message, text, compact = false, outgoing = false, time
   if (isImage) {
     logResolvedChatImageUrl("[chat-image-employee-src]", message, message.attachment_url, href);
     return (
-      <ChatImageAttachment src={href} alt={name} compact={compact} onClick={onImageClick} />
+      <ChatImageAttachment
+        src={href}
+        alt={name}
+        compact={compact}
+        onClick={onImageClick}
+        originalUrl={message.attachment_url}
+        messageId={message.id}
+      />
     );
   }
   if (isAudio) {
@@ -2396,7 +2403,7 @@ export default function EmployeePayrollPortal() {
             <div className="mt-3">{error || text.invalidLink || labels.en.invalidLink}</div>
           </div>
         ) : (
-          <section className="mt-1 space-y-4 pb-4">
+          <section className="mt-1 space-y-3 pb-4">
             <div className="sticky top-[calc(env(safe-area-inset-top)+8px)] z-30 flex min-h-[76px] items-center gap-3 rounded-[24px] border border-slate-200 bg-white/95 px-3 py-2.5 shadow-sm backdrop-blur md:min-h-[84px] md:px-4 md:py-3">
               <EmployeeHeaderAvatar
                 src={profilePhotoUrl}
@@ -2521,7 +2528,7 @@ export default function EmployeePayrollPortal() {
             ) : null}
 
             {activeTab === "display-refill" ? (
-              <div className="rounded-3xl border border-amber-200 bg-white p-4 shadow-sm">
+              <div className="rounded-3xl border border-amber-200 bg-white p-3.5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="text-base font-black text-slate-950">نواقص العرض</h3>
@@ -2531,7 +2538,7 @@ export default function EmployeePayrollPortal() {
                     {displayRefillLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   </button>
                 </div>
-                <div className="mt-3 grid gap-4">
+                <div className="mt-3 grid gap-3">
                   <section className="grid gap-2">
                     <div className="flex items-center justify-between gap-3">
                       <h4 className="text-sm font-black text-slate-950">قيد التنفيذ</h4>
@@ -2543,9 +2550,9 @@ export default function EmployeePayrollPortal() {
                         : "";
                       const isSaving = displayRefillSavingId === String(alert.id);
                       return (
-                        <article key={alert.id} className="rounded-2xl border border-amber-100 bg-amber-50/80 p-2.5 shadow-sm">
+                        <article key={alert.id} className="rounded-2xl border border-amber-200 bg-amber-50/70 p-2.5 shadow-sm">
                           <div className="flex items-start gap-2.5">
-                            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-amber-100 bg-white">
+                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-amber-100 bg-white">
                               {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-amber-700"><AlertTriangle className="h-5 w-5" /></div>}
                             </div>
                             <div className="min-w-0 flex-1">
@@ -2560,11 +2567,11 @@ export default function EmployeePayrollPortal() {
                               >
                                 {alert.product_name}
                               </h4>
-                              <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-black leading-none">
+                              <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-black leading-none">
                                 <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-amber-950">اتبع: {alert.sold_size || "-"}</span>
                                 <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-emerald-900">اعرض: {alert.replacement_size || "-"}</span>
                               </div>
-                              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold text-slate-500">
+                              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] font-bold text-slate-500">
                                 {alert.color_name ? <span>{alert.color_name}</span> : null}
                                 {alert.color_name ? <span className="text-slate-300">•</span> : null}
                                 <span><DateSafe>{formatEmployeePortalDateTime(alert.created_at, language)}</DateSafe></span>
@@ -2576,7 +2583,7 @@ export default function EmployeePayrollPortal() {
                             type="button"
                             onClick={() => resolveDisplayRefill(alert.id)}
                             disabled={isSaving}
-                            className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-60"
+                            className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-[13px] font-black text-white disabled:opacity-60"
                           >
                             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
                             تم العرض
@@ -2598,9 +2605,9 @@ export default function EmployeePayrollPortal() {
                           ? (/^https?:\/\//i.test(alert.image_url) ? alert.image_url : `${API_ORIGIN}${String(alert.image_url).startsWith("/") ? "" : "/"}${alert.image_url}`)
                           : "";
                         return (
-                          <article key={alert.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-2.5 opacity-90">
+                          <article key={alert.id} className="rounded-2xl border border-slate-200 bg-slate-50/90 p-2.5 opacity-90">
                             <div className="flex items-start gap-2.5">
-                              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
                                 {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover grayscale" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><CheckCheck className="h-5 w-5" /></div>}
                               </div>
                               <div className="min-w-0 flex-1">
@@ -2615,11 +2622,11 @@ export default function EmployeePayrollPortal() {
                                 >
                                   {alert.product_name}
                                 </h4>
-                                <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-black leading-none">
+                                <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-black leading-none">
                                   <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-slate-700">اتبع: {alert.sold_size || "-"}</span>
                                   <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-1 text-slate-700">اعرض: {alert.replacement_size || "-"}</span>
                                 </div>
-                                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold text-slate-500">
+                                <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] font-bold text-slate-500">
                                   {alert.color_name ? <span>{alert.color_name}</span> : null}
                                   {alert.color_name ? <span className="text-slate-300">•</span> : null}
                                   <span><DateSafe>{formatEmployeePortalDateTime(alert.created_at, language)}</DateSafe></span>
@@ -2627,11 +2634,7 @@ export default function EmployeePayrollPortal() {
                                 </div>
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              disabled
-                              className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-200 px-3 text-sm font-black text-slate-600"
-                            >
+                            <button type="button" disabled className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-200 px-3 text-[13px] font-black text-slate-600">
                               <CheckCheck className="h-4 w-4" />
                               تم التنفيذ
                             </button>
@@ -2667,12 +2670,14 @@ export default function EmployeePayrollPortal() {
                       value: `${presentDays} ${ui("daysUnit")}`,
                       subtitle: `${ui("fromTotalDays")} ${expectedDays} ${ui("daysUnit")}`,
                       Icon: CalendarDays,
+                      accent: "green",
                     },
                     {
                       label: ui("pendingTasks"),
                       value: pendingTasks.length,
                       subtitle: ui("openTasksSubtitle"),
                       Icon: ClipboardList,
+                      accent: "slate",
                     },
                     {
                       label: text.advances,
@@ -2680,6 +2685,7 @@ export default function EmployeePayrollPortal() {
                       subtitle: ui("totalAdvancesSubtitle"),
                       Icon: CreditCard,
                       numeric: true,
+                      accent: "amber",
                     },
                     {
                       label: text.netSalary,
@@ -2687,37 +2693,64 @@ export default function EmployeePayrollPortal() {
                       subtitle: portal.current_payroll_period || ui("currentMonthSubtitle"),
                       Icon: WalletCards,
                       numeric: true,
+                      accent: "blue",
                     },
-                  ].map(({ label, value, subtitle, Icon, numeric }) => (
-                    <div key={label} className="min-h-[104px] rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-[11px] font-black leading-4 text-slate-500">{label}</div>
-                        <Icon className="h-4 w-4 shrink-0 text-slate-500" />
+                  ].map(({ label, value, subtitle, Icon, numeric, accent }) => {
+                    const accentClasses = {
+                      green: {
+                        stripe: "bg-emerald-500",
+                        iconWrap: "bg-emerald-50 text-emerald-700",
+                      },
+                      blue: {
+                        stripe: "bg-sky-500",
+                        iconWrap: "bg-sky-50 text-sky-700",
+                      },
+                      amber: {
+                        stripe: "bg-amber-500",
+                        iconWrap: "bg-amber-50 text-amber-700",
+                      },
+                      slate: {
+                        stripe: "bg-slate-500",
+                        iconWrap: "bg-slate-100 text-slate-700",
+                      },
+                    }[accent] || {
+                      stripe: "bg-slate-500",
+                      iconWrap: "bg-slate-100 text-slate-700",
+                    };
+
+                    return (
+                    <div key={label} className="relative min-h-[84px] overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+                      <span className={`absolute inset-y-3 right-0 w-1 rounded-l-full ${accentClasses.stripe}`} aria-hidden="true" />
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-[10px] font-black leading-4 text-slate-500">{label}</div>
+                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${accentClasses.iconWrap}`}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
                       </div>
-                      <div className={`mt-2 break-words text-[15px] font-black leading-5 tabular-nums text-slate-950 ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
-                      <div className="mt-1 text-[11px] font-bold leading-4 text-slate-400">{subtitle}</div>
+                      <div className={`mt-3 break-words text-[18px] font-black leading-5 tabular-nums text-slate-950 ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
+                      <div className="mt-1 text-[10px] font-bold leading-4 text-slate-400">{subtitle}</div>
                     </div>
-                  ))}
+                  );})}
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
-                  <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl bg-emerald-600 px-2 text-[11px] font-black text-white disabled:opacity-50">
-                    {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                    {text.checkIn}
+                  <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-emerald-600 px-3 text-[11px] font-black text-white shadow-sm disabled:opacity-50">
+                    {attendanceSaving === "check_in" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    <span className="truncate">{text.checkIn}</span>
                   </button>
-                  <button type="button" onClick={() => setActiveTab("requests")} className="inline-flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl bg-white px-2 text-[11px] font-black text-slate-800 shadow-sm">
-                    <MessageCircle className="h-4 w-4" />
-                    {ui("advanceRequest")}
+                  <button type="button" onClick={() => setActiveTab("requests")} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-800 shadow-sm">
+                    <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{ui("advanceRequest")}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => {
                       setChatOpen(true);
                     }}
-                    className="inline-flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl bg-slate-950 px-2 text-[11px] font-black text-white shadow-sm"
+                    className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-slate-950 px-3 text-[11px] font-black text-white shadow-sm"
                   >
-                    <MessageCircle className="h-4 w-4" />
-                    {ui("talkToManagement")}
+                    <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{ui("talkToManagement")}</span>
                   </button>
                 </div>
 
@@ -2750,7 +2783,7 @@ export default function EmployeePayrollPortal() {
                 </section>
 
                 {employeeNotifications.length ? (
-                  <div className="rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm">
+                  <div className="rounded-3xl border border-emerald-100 bg-white p-3.5 shadow-sm">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-sm font-black text-slate-950">آخر التنبيهات</h3>
                       <button type="button" onClick={() => setActiveTab("notifications")} className="text-[11px] font-black text-emerald-700">{ui("notificationsTab")}</button>
@@ -2773,15 +2806,15 @@ export default function EmployeePayrollPortal() {
               </>
             ) : null}
 
-            <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md grid-cols-7 gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur">
+            <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md grid-cols-7 gap-0.5 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur">
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setActiveTab(key)}
-                  className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-black ${activeTab === key ? "bg-slate-950 text-white" : "text-slate-500"}`}
+                  className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-[10px] px-0.5 py-1 text-[9px] font-black leading-tight ${activeTab === key ? "bg-slate-950/95 text-white shadow-sm" : "text-slate-500"}`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-3.5 w-3.5" />
                   <span className="max-w-full truncate">{label}</span>
                 </button>
               ))}

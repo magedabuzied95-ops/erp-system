@@ -51,10 +51,10 @@ export const logResolvedChatImageUrl = (label, message = {}, originalValue = "",
     attachment_url: originalValue || "",
     normalized_src: normalizedSrc,
     message_id: message?.id ?? null,
-    sender_type: message?.sender_type || "",
-    current_origin: currentOrigin(),
+    API_ORIGIN: assetBase(),
+    window_location_origin: currentOrigin(),
     api_base_url: String(API_BASE_URL || "").trim(),
-    api_origin: assetBase(),
+    sender_type: message?.sender_type || "",
     protocol: currentProtocol(),
   });
 };

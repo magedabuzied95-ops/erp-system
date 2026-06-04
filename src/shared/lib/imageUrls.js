@@ -65,6 +65,27 @@ export const resolveProductImageUrl = (value) => {
   return joinAssetUrl(`/uploads/products/${imageUrl}`);
 };
 
+export const resolveEmployeeProfileImageUrl = (value) => {
+  const imageUrl = String(value || "").trim();
+  if (!imageUrl) return "";
+  if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) return imageUrl;
+  if (/^https?:\/\//i.test(imageUrl)) return normalizeReachableUrl(imageUrl);
+  if (/^(res\.cloudinary\.com|cloudinary\.com)\//i.test(imageUrl)) return `https://${imageUrl}`;
+  if (/^\/\//.test(imageUrl) && typeof window !== "undefined") {
+    return normalizeReachableUrl(`${window.location.protocol}${imageUrl}`);
+  }
+
+  const baseUrl = getBackendAssetBaseUrl();
+  const joinAssetUrl = (path) => `${baseUrl}/${trimSlashes(path)}`;
+
+  if (imageUrl.startsWith("/uploads/")) return joinAssetUrl(imageUrl);
+  if (imageUrl.startsWith("uploads/")) return joinAssetUrl(imageUrl);
+  if (imageUrl.startsWith("/")) return joinAssetUrl(imageUrl);
+  if (imageUrl.includes("/")) return joinAssetUrl(`/${imageUrl}`);
+
+  return joinAssetUrl(`/uploads/${imageUrl}`);
+};
+
 export const isInvalidShippingProofUrl = (value) => {
   const proofUrl = String(value || "").trim();
   if (!proofUrl) return false;

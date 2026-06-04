@@ -18,6 +18,7 @@ const toNumber = (value, fallback = 0) => {
 };
 
 const clean = (value = "") => String(value || "").trim();
+const firstNonEmpty = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
 const employeePortalDebugEnabled = () =>
   ["1", "true", "yes", "on"].includes(String(process.env.DEBUG_EMPLOYEE_PORTAL || "").toLowerCase());
 
@@ -135,6 +136,17 @@ const optionalEmployeeColumn = (columns, name) =>
 
 const optionalEmployeeTextColumn = (columns, name, alias = name) =>
   columns.has(name) ? `e.${name}::text AS ${alias}` : `NULL::text AS ${alias}`;
+
+const resolveEmployeePhotoValue = (employee = {}) =>
+  firstNonEmpty(
+    employee.photo_url,
+    employee.image_url,
+    employee.avatar_url,
+    employee.profile_image_url,
+    employee.profile_photo_url,
+    employee.cloudinary_url,
+    employee.secure_url
+  );
 
 const monthBounds = (month = "", timeZone = "Africa/Cairo") => {
   const normalized = /^\d{4}-\d{2}$/.test(String(month || "")) ? String(month).slice(0, 7) : localIsoDate(new Date(), timeZone).slice(0, 7);
@@ -258,6 +270,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_name TEXT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_size BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_mime TEXT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_duration_seconds DOUBLE PRECISION NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS reply_to_message_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_thread_created ON employee_chat_messages (thread_id, created_at ASC, id ASC)`);
@@ -812,6 +825,13 @@ export const loadEmployeePortalByToken = async (token) => {
       ${optionalEmployeeColumn(columns, "phone")} AS phone,
       ${optionalEmployeeColumn(columns, "mobile")} AS mobile,
       ${optionalEmployeeColumn(columns, "phone_number")} AS phone_number,
+      ${optionalEmployeeTextColumn(columns, "image_url")},
+      ${optionalEmployeeTextColumn(columns, "photo_url")},
+      ${optionalEmployeeTextColumn(columns, "avatar_url")},
+      ${optionalEmployeeTextColumn(columns, "profile_image_url")},
+      ${optionalEmployeeTextColumn(columns, "profile_photo_url")},
+      ${optionalEmployeeTextColumn(columns, "cloudinary_url")},
+      ${optionalEmployeeTextColumn(columns, "secure_url")},
       e.job_title,
       e.position,
       e.salary,
@@ -1610,6 +1630,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     finalized_at: payrollRun?.finalized_at || null,
     payroll_reference: payrollRun?.payroll_reference || "",
   };
+  const employeePhotoUrl = resolveEmployeePhotoValue(employee);
 
   return {
     employee_profile: {
@@ -1622,7 +1643,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       branch_id: employee.branch_id || null,
       branchId: employee.branch_id || null,
       branch: employee.branch_name || "",
-      photo_url: "",
+      photo_url: employeePhotoUrl,
       avatar_initials: clean(employee.full_name).split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(),
       currentShift,
       shiftName: currentShift?.shiftName || "",
@@ -1641,6 +1662,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       branchId: employee.branch_id || null,
       branch: employee.branch_name || "",
       job_title: employee.job_title || employee.position || "",
+      photo_url: employeePhotoUrl,
       currentShift,
       shiftName: currentShift?.shiftName || "",
       startTime: currentShift?.startTime || "",

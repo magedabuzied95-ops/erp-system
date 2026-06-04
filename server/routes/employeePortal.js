@@ -218,6 +218,7 @@ router.post("/:token/chat/messages", verifyEmployeePortalToken, uploadEmployeeCh
       body: req.body?.body || req.body?.message || "",
       file: req.file || null,
       replyToMessageId: req.body?.reply_to_message_id || req.body?.replyToMessageId || null,
+      attachmentDurationSeconds: req.body?.attachment_duration_seconds || req.body?.duration || null,
     });
     return res.status(201).json({ success: true, ...result });
   } catch (error) {
@@ -423,7 +424,6 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
       employeeId: employee.id,
       tenantId,
       branchId,
-      status: req.query.status || "pending",
       limit: req.query.limit || 50,
     });
     console.info("[display-refill-alert:employee-load]", {
@@ -432,6 +432,7 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
       branch_id: branchId,
       count: alerts.length,
       pending_count: alerts.filter((item) => item.status === "pending").length,
+      completed_count: alerts.filter((item) => item.status === "resolved").length,
       branch_level_count: alerts.filter((item) => !item.employee_id && item.branch_id).length,
       employee_assigned_count: alerts.filter((item) => item.employee_id).length,
       fallback_used: !branchId,
@@ -441,6 +442,7 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
       success: true,
       alerts,
       pending_unread_count: alerts.filter((item) => item.status === "pending" && !item.is_read).length,
+      completed_count: alerts.filter((item) => item.status === "resolved").length,
     });
   } catch (error) {
     console.error("[employee-payroll-portal] display refill alerts load error", error);

@@ -318,6 +318,7 @@ export const sendEmployeeChatThreadMessageRecord = async (req, res) => {
       body: req.body?.body || req.body?.message || "",
       file: req.file || null,
       replyToMessageId: req.body?.reply_to_message_id || req.body?.replyToMessageId || null,
+      attachmentDurationSeconds: req.body?.attachment_duration_seconds || req.body?.duration || null,
     });
     return res.status(201).json({ success: true, ...result });
   } catch (error) {

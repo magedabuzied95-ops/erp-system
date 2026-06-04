@@ -85,7 +85,13 @@ function AttachmentView({ message, outgoing = false, timeText = "", showChecks =
   if (isImage) {
     logResolvedChatImageUrl("[chat-image-admin-src]", message, message.attachment_url, href);
     return (
-      <ChatImageAttachment src={href} alt={name} onClick={onImageClick} />
+      <ChatImageAttachment
+        src={href}
+        alt={name}
+        onClick={onImageClick}
+        originalUrl={message.attachment_url}
+        messageId={message.id}
+      />
     );
   }
   if (isAudio) {
