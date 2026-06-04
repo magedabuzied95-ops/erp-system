@@ -85,7 +85,7 @@ export default function WhatsAppVoiceMessage({
   };
 
   return (
-    <div className={`w-[min(70vw,18rem)] min-w-[12rem] max-w-full ${className}`}>
+    <div className={`flex w-full min-w-0 flex-col ${className}`} dir="ltr">
       <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
       <div className="flex min-w-0 items-center gap-2">
         <button
@@ -98,39 +98,39 @@ export default function WhatsAppVoiceMessage({
         >
           {playing ? <Pause className="h-[15px] w-[15px] fill-current" /> : <Play className="h-[15px] w-[15px] fill-current ps-0.5" />}
         </button>
-        <div className="min-w-0 flex-1">
-          <button
-            ref={waveformRef}
-            type="button"
-            onClick={seekToWaveformPosition}
-            className="flex h-[21px] min-w-0 items-center gap-[2px] overflow-hidden"
-            aria-label={label}
-          >
-            {WAVEFORM_BARS.map((height, index) => {
-              const active = index <= Math.round(progress * (WAVEFORM_BARS.length - 1));
-              return (
-                <span
-                  key={`${height}-${index}`}
-                  className={`min-w-[2px] flex-1 rounded-full transition-colors ${
-                    active
-                      ? outgoing ? "bg-[#f0f8f3]" : "bg-[#00a884]"
-                      : outgoing ? "bg-[#8fc6b7]/75" : "bg-[#8696a0]/75"
-                  }`}
-                  style={{ height: `${height}px` }}
-                  aria-hidden="true"
-                />
-              );
-            })}
-          </button>
-          <div className={`mt-[1px] flex h-3.5 items-center justify-between gap-2 text-[10px] font-medium leading-none ${outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`} dir="ltr">
-            <span>{formatDuration(duration)}</span>
-            <span className="inline-flex shrink-0 items-center gap-0.5">
-              {timeText ? <span>{timeText}</span> : null}
-              {showChecks ? <CheckCheck className={`h-3.5 w-3.5 ${read ? "text-[#53bdeb]" : outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`} /> : null}
-            </span>
-          </div>
-        </div>
+        <button
+          ref={waveformRef}
+          type="button"
+          onClick={seekToWaveformPosition}
+          className="flex h-[21px] min-w-0 flex-1 items-center gap-[2px] overflow-hidden"
+          aria-label={label}
+        >
+          {WAVEFORM_BARS.map((height, index) => {
+            const active = index <= Math.round(progress * (WAVEFORM_BARS.length - 1));
+            return (
+              <span
+                key={`${height}-${index}`}
+                className={`min-w-[2px] flex-1 rounded-full transition-colors ${
+                  active
+                    ? outgoing ? "bg-[#f0f8f3]" : "bg-[#00a884]"
+                    : outgoing ? "bg-[#8fc6b7]/75" : "bg-[#8696a0]/75"
+                }`}
+                style={{ height: `${height}px` }}
+                aria-hidden="true"
+              />
+            );
+          })}
+        </button>
+        <span className={`shrink-0 text-[10px] font-medium leading-none ${outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`}>
+          {formatDuration(duration)}
+        </span>
       </div>
+      {(timeText || showChecks) ? (
+        <div className={`mt-0.5 flex h-3.5 items-center justify-end gap-0.5 text-[10px] font-medium leading-none ${outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`}>
+          {timeText ? <span>{timeText}</span> : null}
+          {showChecks ? <CheckCheck className={`h-3.5 w-3.5 ${read ? "text-[#53bdeb]" : outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`} /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
