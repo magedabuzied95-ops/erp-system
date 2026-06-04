@@ -290,7 +290,7 @@ const PenaltyRow = memo(function PenaltyRow({ penalty, t, onApprove, onCancel })
   );
 });
 
-function SalesEmployees({ defaultTab = "staff", visibleTabs = null }) {
+function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = false }) {
   const pageStartedAtRef = useRef(performance.now());
   const firstDataLoggedRef = useRef(false);
   const { t, i18n } = useTranslation();
@@ -1152,6 +1152,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null }) {
 
   return (
     <div dir={direction} className="min-h-screen bg-[var(--bg)] p-4 text-[var(--text)] md:p-6">
+      {!embedded ? (
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className={eyebrowClass}>{t("sales.eyebrow", "Employee Sales Profiles")}</div>
@@ -1163,6 +1164,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null }) {
           {t("sales.refresh", "Refresh")}
         </button>
       </div>
+      ) : null}
 
       <section className="theme-card mb-4 p-4">
         <div className="grid gap-3 lg:grid-cols-[minmax(240px,340px)_minmax(0,1fr)] lg:items-center">

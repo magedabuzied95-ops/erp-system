@@ -252,7 +252,7 @@
         },
         "actions": {
           "printExport": "طباعة / تصدير",
-          "newEmployee": "موظف جديد",
+          "newEmployee": "إضافة موظف",
           "createEmployee": "إنشاء موظف",
           "updateEmployee": "تحديث الموظف",
           "edit": "تعديل",
@@ -295,7 +295,7 @@
           "employeeProfile": "ملف الموظف",
           "createEmployee": "إنشاء موظف",
           "editEmployee": "تعديل موظف",
-          "shiftAssignment": "تعيين الوردية"
+          "shiftAssignment": "جدول العمل"
         },
         "devices": {
           "security": "أمان الأجهزة",
@@ -608,6 +608,11 @@
           "noAdvances": "?? ???? ???."
         }
       }
+    },
+    "attendanceCenterPage": {
+      "eyebrow": "مركز الحضور",
+      "title": "مركز الحضور",
+      "subtitle": "متابعة الحضور المباشر وتسجيلات QR وGPS والغياب والتأخير وساعات النقص ومراقبة الفروع من شاشة تشغيل واحدة."
     }
   },
   "sidebar": {

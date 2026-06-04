@@ -168,7 +168,7 @@ const readableTranslationFallback = (key = "") =>
     .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
-function AttendanceWorkspace({ defaultTab = "dashboard" }) {
+function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, embedded = false, hideMetrics = false }) {
   const { t, i18n } = useTranslation();
   const language = i18n?.language || "en";
   const isArabic = isArabicLocale(language);
@@ -946,16 +946,25 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
     }
   };
 
-  const tabs = [
+  const allTabs = [
     { key: "dashboard", label: tr("tabs.dashboard") },
     { key: "employees", label: tr("tabs.employees") },
     { key: "devices", label: tr("tabs.devices") },
     { key: "reports", label: tr("tabs.reports") },
     { key: "kiosk", label: tr("tabs.kiosk") },
   ];
+  const tabs = Array.isArray(visibleTabs) && visibleTabs.length
+    ? allTabs.filter((tab) => visibleTabs.includes(tab.key))
+    : allTabs;
+
+  useEffect(() => {
+    const fallbackTab = tabs.some((tab) => tab.key === defaultTab) ? defaultTab : tabs[0]?.key || "dashboard";
+    if (!tabs.some((tab) => tab.key === selectedTab)) setSelectedTab(fallbackTab);
+  }, [defaultTab, selectedTab, tabs]);
 
   return (
     <div className="space-y-6" dir={direction}>
+      {!embedded ? (
       <div className="flex flex-col gap-4 rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.24em] text-zinc-500"}>{tr("eyebrow")}</div>
@@ -986,7 +995,9 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
           ) : null}
         </div>
       </div>
+      ) : null}
 
+      {!embedded && tabs.length > 1 ? (
       <div className="flex flex-wrap gap-2">
         {tabs.map((tab) => (
           <button
@@ -1003,7 +1014,9 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
           </button>
         ))}
       </div>
+      ) : null}
 
+      {!embedded && !hideMetrics ? (
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <AttendanceMetricCard label={tr("metrics.presentToday")} value={dashboardSummary.present} tone="emerald" isRtl={isArabic} />
         <AttendanceMetricCard label={tr("metrics.absentToday")} value={dashboardSummary.absent} tone="rose" isRtl={isArabic} />
@@ -1011,8 +1024,9 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
         <AttendanceMetricCard label={tr("metrics.overtimeEmployees")} value={dashboardSummary.overtime} tone="blue" isRtl={isArabic} />
         <AttendanceMetricCard label={tr("metrics.totalWorkedHours")} value={dashboardSummary.workedHours} tone="zinc" isRtl={isArabic} />
       </div>
+      ) : null}
 
-      {canManageAttendanceDevices ? (
+      {!embedded && canManageAttendanceDevices ? (
         <section className="rounded-[34px] border border-amber-400/15 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
@@ -1078,7 +1092,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
         </div>
       ) : null}
 
-      {reportError && (selectedTab === "dashboard" || selectedTab === "reports") ? (
+      {!embedded && reportError && (selectedTab === "dashboard" || selectedTab === "reports") ? (
         <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
           <AlertTriangle className="mr-2 inline h-4 w-4" />
           {reportError}
@@ -1211,12 +1225,14 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
               <button
                 type="button"
                 onClick={() => {
+                  setSelectedEmployeeId("");
                   setEmployeeForm({
                     id: "",
                     branch_id: "",
                     branch_name: "",
                     employee_code: "",
                     full_name: "",
+                    photo_url: "",
                     phone: "",
                     email: "",
                     national_id: "",
@@ -1239,10 +1255,9 @@ function AttendanceWorkspace({ defaultTab = "dashboard" }) {
                     working_days: "Sun,Mon,Tue,Wed,Thu",
                   });
                 }}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
               >
-                <Plus className="h-4 w-4" />
-                {tr("actions.newEmployee")}
+                {isArabic ? "+ إضافة موظف" : "+ Add Employee"}
               </button>
             </div>
 

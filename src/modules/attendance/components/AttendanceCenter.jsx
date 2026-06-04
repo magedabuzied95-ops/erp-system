@@ -70,7 +70,7 @@ const csvEscape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
 const labels = {
   en: {
     title: "Attendance Center",
-    subtitle: "QR attendance, absences, missing hours, payroll impact, leave exclusions, and branch performance.",
+    subtitle: "Live attendance, QR and GPS check-ins, absences, late arrivals, missing hours, and branch monitoring.",
     filters: "Filters",
     search: "Search employee",
     branch: "Branch",
@@ -298,9 +298,12 @@ function NativeSelect(props) {
 }
 
 export default function AttendanceCenter() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const text = isArabic ? labels.ar : labels.en;
+  const pageEyebrow = t("common.attendanceCenterPage.eyebrow", { defaultValue: isArabic ? "مركز الحضور" : "Attendance Center" });
+  const pageTitle = t("common.attendanceCenterPage.title", { defaultValue: text.title });
+  const pageSubtitle = t("common.attendanceCenterPage.subtitle", { defaultValue: text.subtitle });
   const [activeTab, setActiveTab] = useState("overview");
   const [dense, setDense] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -422,9 +425,9 @@ export default function AttendanceCenter() {
       <section className="theme-card p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <div className="text-xs font-black text-[var(--muted)]">HR</div>
-            <h2 className="mt-1 text-3xl font-black text-[var(--text)]">{text.title}</h2>
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--muted)]">{text.subtitle}</p>
+            <div className="text-xs font-black text-[var(--muted)]">{pageEyebrow}</div>
+            <h2 className="mt-1 text-3xl font-black text-[var(--text)]">{pageTitle}</h2>
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--muted)]">{pageSubtitle}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => setRefreshIndex((value) => value + 1)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--text)]">

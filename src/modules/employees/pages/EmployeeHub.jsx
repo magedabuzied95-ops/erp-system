@@ -1,9 +1,10 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Navigate, NavLink, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   BadgeDollarSign,
   BarChart3,
+  BriefcaseBusiness,
   CalendarClock,
   ClipboardList,
   FileText,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 
 const AttendanceCenter = lazy(() => import("../../attendance/components/AttendanceCenter"));
+const AttendanceWorkspace = lazy(() => import("../../attendance/components/AttendanceWorkspace"));
 const Expenses = lazy(() => import("../../accounting/pages/Expenses"));
 const SalesEmployees = lazy(() => import("../../sales/pages/SalesEmployees"));
 const EmployeeAnalyticsWorkspace = lazy(() => import("../components/EmployeeAnalyticsWorkspace"));
@@ -95,7 +97,7 @@ export default function EmployeeHub() {
 
       {activeTab === "overview" ? <EmployeeOverview onSelectTab={(tab) => navigate(`/employees/${tab}`)} t={t} isRtl={isRtl} /> : null}
       <Suspense fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">{t("common.loading", "Loading...")}</div>}>
-        {activeTab === "employees" ? <SalesEmployees defaultTab="staff" visibleTabs={["staff"]} embedded /> : null}
+        {activeTab === "employees" ? <HREmployeesWorkspace /> : null}
         {activeTab === "attendance" ? <AttendanceCenter /> : null}
         {activeTab === "payroll" ? <SalesEmployees defaultTab="payroll" visibleTabs={["payroll", "penalties"]} embedded /> : null}
         {activeTab === "advances" ? <Expenses defaultTab="advances" visibleTabs={["advances", "approvals", "reports"]} embedded /> : null}
@@ -107,6 +109,77 @@ export default function EmployeeHub() {
       <div className="sr-only" aria-live="polite">
         {t("common.employeeHub.currentSection", { section: activeMeta.label })}
       </div>
+    </div>
+  );
+}
+
+function HREmployeesWorkspace() {
+  const { t, i18n } = useTranslation();
+  const [section, setSection] = useState("directory");
+  const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
+  const sections = [
+    {
+      id: "directory",
+      label: isRtl ? "دليل الموظفين" : "Employee Directory",
+      description: isRtl ? "إنشاء الموظفين وإدارة بياناتهم والورديات من هنا." : "Create employees and manage employee profiles and work schedules here.",
+      Icon: UsersRound,
+    },
+    {
+      id: "sales",
+      label: isRtl ? "فريق المبيعات والعمولات" : "Sales Staff + Commissions",
+      description: isRtl ? "إعدادات البائعين والعمولات تبقى هنا كمساحة ثانوية." : "Seller setup and commission configuration stays here as a secondary workspace.",
+      Icon: BriefcaseBusiness,
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <section className="theme-card p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--muted)]">
+              {isRtl ? "إدارة الموظفين" : "Employee Management"}
+            </div>
+            <h2 className="mt-2 text-2xl font-black text-[var(--text)]">
+              {isRtl ? "دليل الموظفين أولاً" : "Employee Directory First"}
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+              {isRtl
+                ? "أضف الموظفين وعدل بياناتهم من الدليل الرئيسي، ثم انتقل لإعدادات البائعين والعمولات عند الحاجة."
+                : "Add and manage employees from the main directory first, then open sales staff and commission setup only when needed."}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {sections.map((item) => {
+            const Icon = item.Icon;
+            const active = section === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSection(item.id)}
+                className={[
+                  "inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-black transition",
+                  active
+                    ? "border-[var(--border)] bg-[var(--primary-soft)] text-[var(--text)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--text)]",
+                ].join(" ")}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+          {(sections.find((item) => item.id === section) || sections[0]).description}
+        </p>
+      </section>
+
+      {section === "directory" ? <AttendanceWorkspace defaultTab="employees" visibleTabs={["employees"]} embedded hideMetrics /> : null}
+      {section === "sales" ? <SalesEmployees defaultTab="staff" visibleTabs={["staff"]} embedded /> : null}
     </div>
   );
 }

@@ -252,7 +252,7 @@
         },
         "actions": {
           "printExport": "Print / Export",
-          "newEmployee": "New employee",
+          "newEmployee": "Add employee",
           "createEmployee": "Create employee",
           "updateEmployee": "Update employee",
           "edit": "Edit",
@@ -295,7 +295,7 @@
           "employeeProfile": "Employee profile",
           "createEmployee": "Create employee",
           "editEmployee": "Edit employee",
-          "shiftAssignment": "Shift assignment"
+          "shiftAssignment": "Work schedule"
         },
         "devices": {
           "security": "Device security",
@@ -608,6 +608,11 @@
           "noAdvances": "No advances found."
         }
       }
+    },
+    "attendanceCenterPage": {
+      "eyebrow": "Attendance Center",
+      "title": "Attendance Center",
+      "subtitle": "Live attendance, QR and GPS check-ins, absences, late arrivals, missing hours, and branch monitoring in one operational view."
     }
   },
   "sidebar": {
