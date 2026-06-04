@@ -7,7 +7,7 @@ import { socket } from "../../../socket";
 import ChatImageAttachment from "../components/ChatImageAttachment";
 import WhatsAppRecordingBar from "../components/WhatsAppRecordingBar";
 import WhatsAppVoiceMessage from "../components/WhatsAppVoiceMessage";
-import { messageAttachmentDuration, resolveEmployeeChatAttachmentUrl } from "../lib/chatAttachments";
+import { logResolvedChatImageUrl, messageAttachmentDuration, normalizeChatAttachmentUrl } from "../lib/chatAttachments";
 
 const formatChatTime = (value) => {
   if (!value) return "-";
@@ -78,11 +78,12 @@ const replyPreview = (message = {}) => {
 
 function AttachmentView({ message, outgoing = false, timeText = "", showChecks = false, read = false, onImageClick }) {
   if (!message?.attachment_url) return null;
-  const href = resolveEmployeeChatAttachmentUrl(message.attachment_url);
+  const href = normalizeChatAttachmentUrl(message.attachment_url);
   const isImage = message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
   const isAudio = message.attachment_type === "audio" || String(message.attachment_mime || "").startsWith("audio/");
   const name = message.attachment_name || (isImage ? "صورة" : "ملف");
   if (isImage) {
+    logResolvedChatImageUrl("[chat-image-admin-src]", message, message.attachment_url, href);
     return (
       <ChatImageAttachment src={href} alt={name} onClick={onImageClick} />
     );

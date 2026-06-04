@@ -1,27 +1,62 @@
-import { API_ORIGIN } from "../../../shared/constants/app";
+import { API_BASE_URL, API_ORIGIN } from "../../../shared/constants/app";
 
 const trimSlashes = (value = "") => String(value || "").replace(/^\/+|\/+$/g, "");
 
 const assetBase = () => String(API_ORIGIN || "").trim().replace(/\/+$/g, "");
 
-export const resolveEmployeeChatAttachmentUrl = (value = "") => {
+const currentOrigin = () => {
+  try {
+    return typeof window !== "undefined" ? window.location.origin || "" : "";
+  } catch {
+    return "";
+  }
+};
+
+const currentProtocol = () => {
+  try {
+    return typeof window !== "undefined" ? window.location.protocol || "https:" : "https:";
+  } catch {
+    return "https:";
+  }
+};
+
+const joinAssetUrl = (path = "") => {
+  const base = assetBase();
+  if (!base) return "";
+  return `${base}/${trimSlashes(path)}`;
+};
+
+export const normalizeChatAttachmentUrl = (value = "") => {
   const text = String(value || "").trim();
   if (!text) return "";
   if (/^(data|blob):/i.test(text)) return text;
   if (/^https?:\/\//i.test(text)) return text;
-  if (/^\/\//.test(text)) {
-    const protocol = typeof window !== "undefined" ? window.location.protocol || "https:" : "https:";
-    return `${protocol}${text}`;
-  }
+  if (/^\/\//.test(text)) return `https:${text}`;
   if (/^(res\.cloudinary\.com|cloudinary\.com)\//i.test(text)) return `https://${text}`;
 
-  const base = assetBase();
-  const joinAssetUrl = (path) => `${base}/${trimSlashes(path)}`;
   if (text.startsWith("/uploads/") || text.startsWith("uploads/")) return joinAssetUrl(text);
   if (text.startsWith("/products/")) return joinAssetUrl(`/uploads${text}`);
   if (text.startsWith("products/")) return joinAssetUrl(`/uploads/${text}`);
+  if (text.startsWith("/product-images/") || text.startsWith("product-images/")) return joinAssetUrl(text);
+  if (text.startsWith("/images/products/") || text.startsWith("images/products/")) return joinAssetUrl(text);
   if (text.startsWith("/")) return joinAssetUrl(text);
   return joinAssetUrl(`/uploads/employee-chat/${text}`);
+};
+
+export const resolveEmployeeChatAttachmentUrl = normalizeChatAttachmentUrl;
+
+export const logResolvedChatImageUrl = (label, message = {}, originalValue = "", normalizedSrc = "") => {
+  if (!label || !normalizedSrc) return;
+  console.info(label, {
+    attachment_url: originalValue || "",
+    normalized_src: normalizedSrc,
+    message_id: message?.id ?? null,
+    sender_type: message?.sender_type || "",
+    current_origin: currentOrigin(),
+    api_base_url: String(API_BASE_URL || "").trim(),
+    api_origin: assetBase(),
+    protocol: currentProtocol(),
+  });
 };
 
 export const normalizeAudioDuration = (value, { milliseconds = false } = {}) => {

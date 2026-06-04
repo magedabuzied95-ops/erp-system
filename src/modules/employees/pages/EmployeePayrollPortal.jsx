@@ -39,11 +39,12 @@ import {
 import { api } from "../../../shared/api/api";
 import { API_ORIGIN, SOCKET_URL } from "../../../shared/constants/app";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import ChatImageAttachment from "../components/ChatImageAttachment";
 import WhatsAppRecordingBar from "../components/WhatsAppRecordingBar";
 import WhatsAppVoiceMessage from "../components/WhatsAppVoiceMessage";
-import { messageAttachmentDuration, resolveEmployeeChatAttachmentUrl } from "../lib/chatAttachments";
+import { logResolvedChatImageUrl, messageAttachmentDuration, normalizeChatAttachmentUrl } from "../lib/chatAttachments";
 
 const labels = {
   ar: {
@@ -455,7 +456,7 @@ const money = (value) => {
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 const chatAttachmentUrl = (value = "") => {
-  return resolveEmployeeChatAttachmentUrl(value);
+  return normalizeChatAttachmentUrl(value);
 };
 const formatFileSize = (value = 0) => {
   const bytes = Number(value || 0);
@@ -1000,6 +1001,7 @@ function ChatAttachment({ message, text, compact = false, outgoing = false, time
   const isAudio = message.attachment_type === "audio" || String(message.attachment_mime || "").startsWith("audio/");
   const name = message.attachment_name || (isImage ? text.imageAttachment : text.fileAttachment);
   if (isImage) {
+    logResolvedChatImageUrl("[chat-image-employee-src]", message, message.attachment_url, href);
     return (
       <ChatImageAttachment src={href} alt={name} compact={compact} onClick={onImageClick} />
     );
@@ -1027,6 +1029,54 @@ function ChatAttachment({ message, text, compact = false, outgoing = false, time
         <span className="mt-0.5 block text-[10px] font-bold opacity-70" dir="ltr">{message.attachment_mime || text.fileAttachment} {formatFileSize(message.attachment_size)}</span>
       </span>
     </a>
+  );
+}
+
+function EmployeeHeaderAvatar({ src = "", initials = "", alt = "", statusClassName = "bg-slate-400" }) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
+
+  const showImage = Boolean(src) && !imageFailed;
+
+  return (
+    <div className="relative shrink-0">
+      <div className="flex h-[52px] w-[52px] items-center justify-center overflow-hidden rounded-[18px] border border-white/70 bg-slate-950 text-sm font-black text-white shadow-[0_8px_24px_rgba(15,23,42,0.12)] md:h-14 md:w-14">
+        {showImage ? (
+          <img src={src} alt={alt} className="h-full w-full object-cover" loading="eager" onError={() => setImageFailed(true)} />
+        ) : (
+          initials || <UserRound className="h-5 w-5" />
+        )}
+      </div>
+      <span className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white shadow-sm ${statusClassName}`} />
+    </div>
+  );
+}
+
+function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) {
+  const toneClassName = {
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-700",
+    sky: "border-sky-200 bg-sky-50 text-sky-700",
+    orange: "border-orange-200 bg-orange-50 text-orange-700",
+    slate: "border-slate-200 bg-slate-50 text-slate-700",
+  }[tone] || "border-slate-200 bg-slate-50 text-slate-700";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`${label}: ${count}`}
+      aria-label={`${label}: ${count}`}
+      className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm md:h-10 md:w-10 ${toneClassName}`}
+    >
+      <Icon className="h-4 w-4" />
+      <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-slate-950 px-1 text-[10px] font-black leading-4 text-white">
+        {count > 99 ? "99+" : count}
+      </span>
+    </button>
   );
 }
 
@@ -1271,6 +1321,17 @@ export default function EmployeePayrollPortal() {
   );
   const payrollStatusValue = payrollExists ? (wallet.payroll_status || portal?.payment_status) : "not_generated";
   const profile = portal?.employee_profile || portal?.employee || {};
+  const profilePhotoUrl = resolveEmployeeProfileImageUrl(
+    [
+      profile.photo_url,
+      profile.image_url,
+      profile.avatar_url,
+      profile.profile_image_url,
+      profile.profile_photo_url,
+      portal?.employee_profile?.photo_url,
+      portal?.employee?.photo_url,
+    ].find((value) => String(value || "").trim()) || ""
+  );
   const attendance = portal?.attendance?.summary || portal?.recent_attendance_summary || {};
   const attendanceRows = safeArray(portal?.attendance?.timeline);
   const employeeRequests = safeArray(portal?.employee_requests);
@@ -1319,6 +1380,7 @@ export default function EmployeePayrollPortal() {
   const isCheckedIn = Boolean(todayCheckIn && !todayCheckOut);
   const isCheckedOut = Boolean(todayCheckOut);
   const employeeStatus = isCheckedOut ? ui("checkedOut") : isCheckedIn ? ui("present") : ui("absent");
+  const employeeStatusDotClassName = isCheckedIn ? "bg-emerald-500" : isCheckedOut ? "bg-slate-400" : "bg-red-500";
   const workedMinutes = todayCheckIn ? minutesBetween(todayCheckIn, todayCheckOut || nowTick) : 0;
   const expectedDays = Number(attendance.expected_working_days || attendance.expected_days || 0);
   const presentDays = Number(attendance.attended_days || attendance.present_days || 0);
@@ -2324,50 +2386,31 @@ export default function EmployeePayrollPortal() {
           </div>
         ) : (
           <section className="mt-1 space-y-4 pb-4">
-            <div className="sticky top-[calc(env(safe-area-inset-top)+8px)] z-30 flex min-h-[64px] items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 px-2.5 py-2 shadow-sm backdrop-blur">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-950 text-sm font-black text-white">
-                {profile.photo_url ? <img src={profile.photo_url} alt="" className="h-full w-full object-cover" /> : profile.avatar_initials || <UserRound className="h-5 w-5" />}
-              </div>
+            <div className="sticky top-[calc(env(safe-area-inset-top)+8px)] z-30 flex min-h-[76px] items-center gap-3 rounded-[24px] border border-slate-200 bg-white/95 px-3 py-2.5 shadow-sm backdrop-blur md:min-h-[84px] md:px-4 md:py-3">
+              <EmployeeHeaderAvatar
+                src={profilePhotoUrl}
+                initials={profile.avatar_initials}
+                alt={profile.name || "Employee avatar"}
+                statusClassName={employeeStatusDotClassName}
+              />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-black leading-5" dir="auto">{profile.name}</div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-black text-slate-500">
-                  <span className={`h-2 w-2 rounded-full ${isCheckedIn ? "bg-emerald-500" : isCheckedOut ? "bg-slate-400" : "bg-red-500"}`} />
+                <div className="truncate text-sm font-black leading-5 text-slate-950 md:text-base" dir="auto">{profile.name}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-black text-slate-500">
+                  <span className={`h-2 w-2 rounded-full ${employeeStatusDotClassName}`} />
                   <span className="truncate">{employeeStatus}</span>
+                  {profile.branch ? <span className="text-slate-300">•</span> : null}
+                  {profile.branch ? <span className="truncate">{profile.branch}</span> : null}
                 </div>
+                {profile.code ? <div className="mt-1 truncate text-[11px] font-bold text-slate-400">{profile.code}</div> : null}
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1.5">
                 {[
-                  {
-                    key: "notifications",
-                    count: badgeCounts.unreadNotifications || 0,
-                    label: ui("notificationsShort"),
-                    Icon: Bell,
-                    className: "bg-emerald-50 text-emerald-700",
-                  },
-                  {
-                    key: "display-refill",
-                    count: badgeCounts.displayRefillAlerts || 0,
-                    label: ui("displayRefillShort"),
-                    Icon: AlertTriangle,
-                    className: "bg-amber-50 text-amber-700",
-                  },
-                  { key: "tasks", count: badgeCounts.newTasks || 0, label: ui("tasksShort"), Icon: ClipboardList, className: "bg-blue-50 text-blue-700" },
-                  { key: "requests", count: badgeCounts.pendingNotifications || 0, label: ui("requestsShort"), Icon: MessageCircle, className: "bg-orange-50 text-orange-700" },
-                ].filter((item) => Number(item.count || 0) > 0).map(({ key, count, label, Icon, className }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setActiveTab(key)}
-                    title={`${label}: ${count}`}
-                    aria-label={`${label}: ${count}`}
-                    className={`flex min-w-[42px] flex-col items-center justify-center rounded-xl px-1.5 py-1 text-[9px] font-black leading-none ${className}`}
-                  >
-                    <span className="inline-flex items-center gap-0.5" dir="ltr">
-                      <Icon className="h-3 w-3" />
-                      <span>{count}</span>
-                    </span>
-                    <span className="mt-0.5 max-w-[42px] truncate">{label}</span>
-                  </button>
+                  { key: "notifications", count: badgeCounts.unreadNotifications || 0, label: ui("notificationsShort"), Icon: Bell, tone: "emerald" },
+                  { key: "display-refill", count: badgeCounts.displayRefillAlerts || 0, label: ui("displayRefillShort"), Icon: AlertTriangle, tone: "amber" },
+                  { key: "tasks", count: badgeCounts.newTasks || 0, label: ui("tasksShort"), Icon: ClipboardList, tone: "sky" },
+                  { key: "requests", count: badgeCounts.pendingNotifications || 0, label: ui("requestsShort"), Icon: MessageCircle, tone: "orange" },
+                ].filter((item) => Number(item.count || 0) > 0).map(({ key, count, label, Icon, tone }) => (
+                  <HeaderBadgeButton key={key} count={count} label={label} Icon={Icon} tone={tone} onClick={() => setActiveTab(key)} />
                 ))}
               </div>
             </div>

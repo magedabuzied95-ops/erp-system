@@ -11,7 +11,7 @@ export default function ChatImageAttachment({ src, alt = "Image", compact = fals
 
   if (!safeSrc || failed) {
     return (
-      <div className="mb-1 flex min-h-9 max-w-full items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-2 py-1.5 text-[11px] font-bold leading-4 text-slate-200/80">
+      <div className="mb-1 inline-flex min-h-9 max-w-full items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-2 py-1.5 text-[11px] font-bold leading-4 text-slate-200/80">
         <ImageOff className="h-3.5 w-3.5 shrink-0" />
         <span className="min-w-0 truncate" dir="auto">Image unavailable</span>
       </div>
@@ -28,11 +28,11 @@ export default function ChatImageAttachment({ src, alt = "Image", compact = fals
   };
 
   return (
-    <button type="button" onClick={() => onClick?.(safeSrc)} className="mb-1 block max-w-full overflow-hidden rounded-xl border border-black/5 bg-black/5 text-start">
+    <button type="button" onClick={() => onClick?.(safeSrc)} className="mb-1 inline-block max-w-full overflow-hidden rounded-xl border border-black/5 bg-black/5 text-start align-top">
       <img
         src={safeSrc}
         alt={alt}
-        className={`${compact ? "max-h-44" : "max-h-52"} w-full object-cover`}
+        className={`${compact ? "max-h-44 max-w-[16rem]" : "max-h-52 max-w-[20rem]"} h-auto w-auto object-cover`}
         loading="lazy"
         decoding="async"
         onError={handleError}
