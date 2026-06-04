@@ -30,10 +30,6 @@ const normalizeSizeComparable = (value = "") => {
   if (numeric) return numeric;
   return normalizeTextComparable(raw);
 };
-const sizeNumber = (value = "") => {
-  const parsed = Number(String(value ?? "").match(/\d+(?:\.\d+)?/)?.[0]);
-  return Number.isFinite(parsed) ? parsed : null;
-};
 const normalizeColorComparable = (value = "") => normalizeTextComparable(value);
 const normalizeComparable = (value = "") => normalizeTextComparable(value);
 const normalizeStockValue = (row = {}) =>
@@ -66,7 +62,7 @@ const numericCoalesceSql = (alias, columns, candidates = [], fallback = "0") => 
   const terms = candidates.filter((column) => columns.has(column)).map((column) => `NULLIF(${alias}.${column}::text, '')::numeric`);
   return terms.length ? `COALESCE(${terms.join(", ")}, ${fallback})` : fallback;
 };
-const variantScopeSql = ({ variantColumns, productColumns, tenantParam = "$2", productParam = "$3" } = {}) => {
+const variantScopeSql = ({ variantColumns, productColumns, tenantParam = "$2", productParam = "$3", branchParam = null } = {}) => {
   const tenantConditions = [];
   if (variantColumns.has("tenant_id")) {
     tenantConditions.push(`pv.tenant_id = ${tenantParam}::bigint`, "pv.tenant_id IS NULL");
@@ -74,7 +70,8 @@ const variantScopeSql = ({ variantColumns, productColumns, tenantParam = "$2", p
   if (productColumns.has("tenant_id")) tenantConditions.push(`p.tenant_id = ${tenantParam}::bigint`);
   return [
     tenantConditions.length ? `AND (${tenantParam}::bigint IS NULL OR ${tenantConditions.join(" OR ")})` : "",
-    variantColumns.has("product_id") ? `AND (${productParam}::bigint IS NULL OR pv.product_id = ${productParam}::bigint)` : "",
+    productParam && variantColumns.has("product_id") ? `AND (${productParam}::bigint IS NULL OR pv.product_id = ${productParam}::bigint)` : "",
+    branchParam && variantColumns.has("branch_id") ? `AND (${branchParam}::bigint IS NULL OR pv.branch_id = ${branchParam}::bigint OR pv.branch_id IS NULL)` : "",
     variantColumns.has("is_active") ? "AND COALESCE(pv.is_active, TRUE) = TRUE" : "",
     variantColumns.has("deleted_at") ? "AND pv.deleted_at IS NULL" : "",
   ]
@@ -363,7 +360,7 @@ const loadVariantFallbackById = async ({ variantId, tenantId = null, productId =
   return result.rows[0] || null;
 };
 
-const loadSameColorVariants = async ({ tenantId, productId, colorName } = {}) => {
+const loadSameColorVariants = async ({ tenantId, productId, colorName, branchId = null } = {}) => {
   const [variantColumns, productColumns] = await Promise.all([
     getTableColumns("product_variants"),
     getTableColumns("products"),
@@ -375,9 +372,8 @@ const loadSameColorVariants = async ({ tenantId, productId, colorName } = {}) =>
   const colorCompareSql = [...variantColorTerms, ...productColorTerms].length
     ? `LOWER(TRIM(${textCoalesceSql([...variantColorTerms, ...productColorTerms], "''::text")})) = LOWER(TRIM($3::text))`
     : "FALSE";
-  const scopeSql = variantScopeSql({ variantColumns, productColumns, productParam: "$1" })
-    .replace("AND ($1::bigint IS NULL OR pv.product_id = $1::bigint)", "");
-  const params = [numberOrNull(productId), numberOrNull(tenantId), clean(colorName)];
+  const scopeSql = variantScopeSql({ variantColumns, productColumns, productParam: null, branchParam: "$4" });
+  const params = [numberOrNull(productId), numberOrNull(tenantId), clean(colorName), numberOrNull(branchId)];
   const result = await db.query(
     `
     SELECT
@@ -425,12 +421,6 @@ const sortVariantsBySize = (variants = []) =>
       if (b.size_number !== null) return 1;
       return clean(a.size).localeCompare(clean(b.size), "en");
     });
-
-const availableSizesForVariants = (variants = []) =>
-  sortVariantsBySize(variants)
-    .filter((row) => normalizeStockValue(row) > 0)
-    .map((row) => clean(row.size))
-    .filter(Boolean);
 
 const duplicateExists = async ({ tenantId, productId, branchId, colorName, soldSize } = {}) => {
   const result = await db.query(
@@ -614,20 +604,38 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       continue;
     }
 
-    const variants = await loadSameColorVariants({ tenantId: itemTenantId, productId, colorName });
+    const variants = await loadSameColorVariants({ tenantId: itemTenantId, productId, colorName, branchId });
     const sortedVariants = sortVariantsBySize(variants);
     const soldVariant = sortedVariants.find((row) => rowMatchesSoldVariant(row, soldVariantId, soldSize, colorName, soldColorId)) || null;
     const providedDisplayBefore = stockNumberOrNull(firstDefined(item.display_quantity_before, item.displayQuantityBefore, item.stock_before, item.stockBefore));
     const providedDisplayAfter = stockNumberOrNull(firstDefined(item.display_quantity_after, item.displayQuantityAfter, item.stock_after, item.stockAfter));
     const soldVariantStockAfter = providedDisplayAfter ?? (soldVariant ? stockNumber(soldVariant.stock) : null);
     const stockBefore = providedDisplayBefore ?? (soldVariantStockAfter !== null ? soldVariantStockAfter + soldQuantity : null);
-    const availableAfterSale = availableSizesForVariants(sortedVariants);
-    const smallestAvailable = availableAfterSale[0] || null;
+    const availableSizeOptions = [];
+    const seenAvailableSizes = new Set();
+    for (const row of sortedVariants) {
+      if (normalizeStockValue(row) <= 0) continue;
+      const size = clean(row.size);
+      const normalized = parseSizeNumber(size);
+      if (!size || normalized === null) continue;
+      const key = String(normalized);
+      if (seenAvailableSizes.has(key)) continue;
+      seenAvailableSizes.add(key);
+      availableSizeOptions.push({ size, normalized });
+    }
+    const availableAfterSale = availableSizeOptions.map((entry) => entry.size);
+    const soldSizeNormalized = parseSizeNumber(soldSize);
     const soldSizeComparable = normalizeSizeComparable(soldSize);
-    const smallestComparable = normalizeSizeComparable(smallestAvailable || "");
+    const smallerSizesAvailable = soldSizeNormalized === null
+      ? []
+      : availableSizeOptions.filter((entry) => entry.normalized < soldSizeNormalized).map((entry) => entry.size);
+    const nextLargerSize = soldSizeNormalized === null
+      ? null
+      : availableSizeOptions.find((entry) => entry.normalized > soldSizeNormalized)?.size || null;
+    const smallestAvailable = availableAfterSale[0] || null;
     let nextDisplaySize = null;
     let shouldCreateAlert = false;
-    let reason = "no_available_sizes";
+    let reason = "no_next_larger_size";
 
     console.info("[display-refill-alert:decision-input]", {
       tenant_id: itemTenantId,
@@ -655,65 +663,36 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       available_sizes: availableAfterSale,
     });
 
-    if (!smallestAvailable) {
-      console.info("[display-refill-alert:decision-result]", {
-        tenant_id: itemTenantId,
-        order_id: safeOrderId,
-        product_id: productId,
-        variant_id: soldVariantId,
-        branch_id: branchId,
-        sold_quantity: soldQuantity,
-        color: colorName || null,
-        sold_size: soldSize,
-        display_quantity_before: stockBefore,
-        display_quantity_after: soldVariantStockAfter,
-        smallest_available_size: null,
-        next_display_size: null,
-        should_create_alert: false,
-        reason: "no_available_sizes",
-      });
-      console.info("[display-refill-alert:skipped]", {
-        tenant_id: itemTenantId,
-        order_id: safeOrderId,
-        product_id: productId,
-        variant_id: soldVariantId,
-        branch_id: branchId,
-        sold_quantity: soldQuantity,
-        color: colorName || null,
-        sold_size: soldSize,
-        display_quantity_before: stockBefore,
-        display_quantity_after: soldVariantStockAfter,
-        reason: "no_available_sizes",
-      });
-      continue;
-    }
-
-    if (soldSizeComparable === smallestComparable) {
-      shouldCreateAlert = true;
-      nextDisplaySize = soldVariantStockAfter > 0 ? soldSize : availableAfterSale.find((size) => normalizeSizeComparable(size) !== soldSizeComparable) || null;
-      reason = soldVariantStockAfter > 0 ? "smallest_size_still_in_stock" : "smallest_size_sold_next_available";
+    if (soldSizeNormalized === null) {
+      reason = "missing_normalized_sold_size";
+    } else if (smallerSizesAvailable.length) {
+      reason = "sold_size_not_smallest";
+    } else if (!nextLargerSize) {
+      reason = "no_next_larger_size";
+    } else if (normalizeSizeComparable(nextLargerSize) === soldSizeComparable) {
+      nextDisplaySize = nextLargerSize;
+      reason = "replacement_same_as_sold_size";
     } else {
-      const soldSizeHasNoSmallerAvailable = !availableAfterSale.some((size) => {
-        const comparable = normalizeSizeComparable(size);
-        const numericLeft = sizeNumber(size);
-        const numericSold = sizeNumber(soldSize);
-        if (numericLeft !== null && numericSold !== null) return numericLeft < numericSold;
-        return comparable && soldSizeComparable && comparable < soldSizeComparable;
-      });
-      if (soldSizeHasNoSmallerAvailable) {
-        shouldCreateAlert = true;
-        nextDisplaySize = smallestAvailable;
-        reason = "no_smaller_size_available";
-      } else {
-        reason = "smaller_size_still_available";
-      }
+      shouldCreateAlert = true;
+      nextDisplaySize = nextLargerSize;
+      reason = "smallest_size_sold_next_available";
     }
 
-    if (!shouldCreateAlert && soldVariantStockAfter > 0 && smallestComparable && soldSizeComparable && (sizeNumber(soldSize) || 0) <= (sizeNumber(smallestAvailable) || Infinity)) {
-      shouldCreateAlert = true;
-      nextDisplaySize = soldSize;
-      reason = "sold_size_has_stock";
-    }
+    console.info("[display-refill-alert:size-rule]", {
+      tenant_id: itemTenantId,
+      branch_id: branchId,
+      order_id: safeOrderId,
+      product_id: productId,
+      variant_id: soldVariantId,
+      color: colorName || null,
+      sold_size: soldSize,
+      normalized_sold_size: soldSizeNormalized,
+      available_sizes: availableAfterSale,
+      smaller_sizes_available: smallerSizesAvailable,
+      next_larger_size: nextLargerSize,
+      should_create_alert: shouldCreateAlert,
+      reason,
+    });
 
     console.info("[display-refill-alert:decision-result]", {
       tenant_id: itemTenantId,
@@ -728,6 +707,10 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       display_quantity_after: soldVariantStockAfter,
       smallest_available_size: smallestAvailable,
       next_display_size: nextDisplaySize,
+      available_sizes_after_sale: availableAfterSale,
+      normalized_sold_size: soldSizeNormalized,
+      smaller_sizes_available: smallerSizesAvailable,
+      next_larger_size: nextLargerSize,
       should_create_alert: shouldCreateAlert,
       reason,
     });
