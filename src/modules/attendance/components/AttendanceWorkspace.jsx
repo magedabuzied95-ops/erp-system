@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 
 import { getCurrentUser, hasAnyPermission, hasPermission, isAdminUser } from "../../../shared/auth/authStorage";
+import EmployeePortalAccessCard from "../../employees/components/EmployeePortalAccessCard";
 import AttendanceMetricCard from "./AttendanceMetricCard";
 import {
   checkInEmployee,
@@ -153,6 +154,7 @@ const formatEmployeeJobLabel = (employee = {}, language = "en") => {
   if (departmentValue) return departmentValue;
   return employeeRoleLabels.employee[localeKey];
 };
+const resolveEmployeeRecordId = (employee = {}) => String(employee?.id || employee?.employee_id || employee?.employeeId || "");
 const isAttendanceDeviceAdmin = (user = {}) =>
   Boolean(user) &&
   (
@@ -169,7 +171,44 @@ const readableTranslationFallback = (key = "") =>
     .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
-function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, embedded = false, hideMetrics = false }) {
+const createEmptyEmployeeForm = (branchId = "") => ({
+  id: "",
+  branch_id: branchId,
+  branch_name: "",
+  employee_code: "",
+  full_name: "",
+  photo_url: "",
+  phone: "",
+  email: "",
+  national_id: "",
+  role: "",
+  job_title: "",
+  position: "",
+  salary: "",
+  hire_date: todayValue(),
+  status: "active",
+});
+
+const createEmptyShiftForm = () => ({
+  id: "",
+  shift_name: "",
+  start_time: "09:00",
+  end_time: "17:00",
+  check_in_window_start: "09:00",
+  check_in_window_end: "10:00",
+  allowed_late_minutes: 15,
+  overtime_after_minutes: 0,
+  working_days: "Sun,Mon,Tue,Wed,Thu",
+});
+
+function AttendanceWorkspace({
+  defaultTab = "dashboard",
+  visibleTabs = null,
+  embedded = false,
+  hideMetrics = false,
+  selectedEmployeeId: externalSelectedEmployeeId = null,
+  onSelectedEmployeeChange = null,
+}) {
   const { t, i18n } = useTranslation();
   const language = i18n?.language || "en";
   const isArabic = isArabicLocale(language);
@@ -199,34 +238,8 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
   const [attendanceResetOptions, setAttendanceResetOptions] = useState({ clearDeviceLocks: false });
   const [resettingAttendanceId, setResettingAttendanceId] = useState("");
   const [uploadingEmployeePhoto, setUploadingEmployeePhoto] = useState(false);
-  const [employeeForm, setEmployeeForm] = useState({
-    id: "",
-    branch_id: "",
-    branch_name: "",
-    employee_code: "",
-    full_name: "",
-    photo_url: "",
-    phone: "",
-    email: "",
-    national_id: "",
-    role: "",
-    job_title: "",
-    position: "",
-    salary: "",
-    hire_date: todayValue(),
-    status: "active",
-  });
-  const [shiftForm, setShiftForm] = useState({
-    id: "",
-    shift_name: "",
-    start_time: "09:00",
-    end_time: "17:00",
-    check_in_window_start: "09:00",
-    check_in_window_end: "10:00",
-    allowed_late_minutes: 15,
-    overtime_after_minutes: 0,
-    working_days: "Sun,Mon,Tue,Wed,Thu",
-  });
+  const [employeeForm, setEmployeeForm] = useState(() => createEmptyEmployeeForm());
+  const [shiftForm, setShiftForm] = useState(() => createEmptyShiftForm());
   const [filters, setFilters] = useState({
     date: todayValue(),
     startDate: rangeStartValue(),
@@ -268,8 +281,12 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
   ];
 
   const selectedEmployee = useMemo(
-    () => employees.find((item) => String(item.id) === String(selectedEmployeeId)) || null,
+    () => employees.find((item) => resolveEmployeeRecordId(item) === String(selectedEmployeeId || "")) || null,
     [employees, selectedEmployeeId]
+  );
+  const profileEmployee = useMemo(
+    () => employees.find((item) => resolveEmployeeRecordId(item) === String(employeeForm.id || selectedEmployeeId || "")) || null,
+    [employeeForm.id, employees, selectedEmployeeId]
   );
   const fallback = tr("fields.notAvailable");
   const employeeSelectOptions = useMemo(
@@ -429,6 +446,17 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
   }, [loadBaseData]);
 
   useEffect(() => {
+    const nextSelectedEmployeeId = String(externalSelectedEmployeeId || "");
+    if (!nextSelectedEmployeeId || nextSelectedEmployeeId === String(selectedEmployeeId || "")) return;
+    setSelectedEmployeeId(nextSelectedEmployeeId);
+  }, [externalSelectedEmployeeId, selectedEmployeeId]);
+
+  useEffect(() => {
+    if (typeof onSelectedEmployeeChange !== "function") return;
+    onSelectedEmployeeChange(selectedEmployee || null);
+  }, [onSelectedEmployeeChange, selectedEmployee]);
+
+  useEffect(() => {
     if (selectedEmployeeId) {
       queueMicrotask(() => {
         void loadEmployeeRelatedData(selectedEmployeeId);
@@ -498,43 +526,25 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
         const next = prev.filter((item) => String(item.id) !== String(row.id));
         return [row, ...next];
       });
-      if (employeeForm.id) {
-        setEmployeeForm((prev) => ({
-          ...prev,
-          ...row,
-          id: row.id,
-          branch_id: row.branch_id || "",
-          branch_name: row.branch_name || "",
-          employee_code: row.employee_code || "",
-          full_name: row.full_name || "",
-          photo_url: row.photo_url || "",
-          phone: row.phone || "",
-          email: row.email || "",
-          national_id: row.national_id || "",
-          role: row.role || "",
-          job_title: row.job_title || row.position || "",
-          position: row.position || row.job_title || "",
-          salary: row.salary || "",
-          hire_date: row.hire_date || todayValue(),
-          status: row.status || "active",
-        }));
-      } else {
-        setEmployeeForm((prev) => ({
-          ...prev,
-          id: "",
-          branch_name: "",
-          employee_code: "",
-          full_name: "",
-          photo_url: "",
-          phone: "",
-          email: "",
-          national_id: "",
-          role: "",
-          job_title: "",
-          position: "",
-          salary: "",
-        }));
-      }
+      setEmployeeForm((prev) => ({
+        ...prev,
+        ...row,
+        id: row.id,
+        branch_id: row.branch_id || prev.branch_id || "",
+        branch_name: row.branch_name || "",
+        employee_code: row.employee_code || "",
+        full_name: row.full_name || "",
+        photo_url: row.photo_url || "",
+        phone: row.phone || "",
+        email: row.email || "",
+        national_id: row.national_id || "",
+        role: row.role || "",
+        job_title: row.job_title || row.position || "",
+        position: row.position || row.job_title || "",
+        salary: row.salary || "",
+        hire_date: row.hire_date || todayValue(),
+        status: row.status || "active",
+      }));
       setSelectedEmployeeId((current) => String(row.id || current || ""));
       toast.success(employeeForm.id ? tr("toasts.employeeUpdated") : tr("toasts.employeeCreated"));
       await loadBaseData({ silent: true });
@@ -547,6 +557,21 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleStartNewEmployee = () => {
+    setSelectedEmployeeId("");
+    setEmployeeForm(createEmptyEmployeeForm(singleBranchId));
+    setShiftForm(createEmptyShiftForm());
+  };
+
+  const setEmployeePortalToken = (employeeId, token) => {
+    setEmployees((prev) => prev.map((employee) => (
+      String(employee.id) === String(employeeId) ? { ...employee, employee_portal_token: token } : employee
+    )));
+    setEmployeeForm((prev) => (
+      String(prev.id) === String(employeeId) ? { ...prev, employee_portal_token: token } : prev
+    ));
   };
 
   const handleEditEmployee = (employee) => {
@@ -613,23 +638,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
         setKioskSnapshot(null);
       }
       if (String(employeeForm.id) === employeeId) {
-        setEmployeeForm({
-          id: "",
-          branch_id: "",
-          branch_name: "",
-          employee_code: "",
-          full_name: "",
-          photo_url: "",
-          phone: "",
-          email: "",
-          national_id: "",
-          role: "",
-          job_title: "",
-          position: "",
-          salary: "",
-          hire_date: todayValue(),
-          status: "active",
-        });
+        setEmployeeForm(createEmptyEmployeeForm(singleBranchId));
       }
       toast.success(tr("toasts.employeeDeleted"));
     } catch (err) {
@@ -1259,37 +1268,7 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedEmployeeId("");
-                  setEmployeeForm({
-                    id: "",
-                    branch_id: "",
-                    branch_name: "",
-                    employee_code: "",
-                    full_name: "",
-                    photo_url: "",
-                    phone: "",
-                    email: "",
-                    national_id: "",
-                    role: "",
-                    job_title: "",
-                    position: "",
-                    salary: "",
-                    hire_date: todayValue(),
-                    status: "active",
-                  });
-                  setShiftForm({
-                    id: "",
-                    shift_name: "",
-                    start_time: "09:00",
-                    end_time: "17:00",
-                    check_in_window_start: "09:00",
-                    check_in_window_end: "10:00",
-                    allowed_late_minutes: 15,
-                    overtime_after_minutes: 0,
-                    working_days: "Sun,Mon,Tue,Wed,Thu",
-                  });
-                }}
+                onClick={handleStartNewEmployee}
                 className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400"
               >
                 {isArabic ? "+ إضافة موظف" : "+ Add Employee"}
@@ -1496,6 +1475,10 @@ function AttendanceWorkspace({ defaultTab = "dashboard", visibleTabs = null, emb
                   </button>
                 </div>
               </div>
+            ) : null}
+
+            {profileEmployee?.employee_portal_token ? (
+              <EmployeePortalAccessCard employee={profileEmployee} onEmployeeTokenChange={setEmployeePortalToken} />
             ) : null}
 
             {isEditable ? (

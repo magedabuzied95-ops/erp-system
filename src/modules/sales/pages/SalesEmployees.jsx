@@ -1,6 +1,7 @@
-import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Banknote, BriefcaseBusiness, CalendarDays, Calculator, CheckCircle2, Coins, Copy, CreditCard, Download, Gavel, Gift, Plus, ReceiptText, RefreshCw, Save, Search, Send, ShieldCheck, TrendingUp, WalletCards, X } from "lucide-react";
+import { Banknote, BriefcaseBusiness, CalendarDays, Calculator, CheckCircle2, Coins, CreditCard, ExternalLink, Gavel, Gift, Plus, ReceiptText, RefreshCw, Save, Search, ShieldCheck, TrendingUp, WalletCards, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { featureFlags } from "../../../config/featureFlags";
@@ -13,7 +14,6 @@ import {
   getSalesEmployeePayrollPreview,
   getSalesCommissionReport,
   getSalesEmployeeProfiles,
-  regenerateEmployeePortalToken,
   updateEmployeePenalty,
   updateEmployeePayrollSettings,
   upsertSalesEmployeeProfile,
@@ -26,7 +26,6 @@ import { getProductsWithVariants } from "../../products/services/productsApi";
 import { formatCurrency } from "../../pos/lib/posUtils";
 
 const today = new Date().toISOString().slice(0, 10);
-const QRCodeCanvas = lazy(() => import("qrcode.react").then((module) => ({ default: module.QRCodeCanvas })));
 const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
 const previousMonthStart = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().slice(0, 10);
 const previousMonthEnd = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().slice(0, 10);
@@ -182,23 +181,6 @@ const payrollNumber = (value) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : NaN;
 };
-const employeeWalletQaItems = [
-  "Generate employee portal link",
-  "Open public link without login",
-  "Verify by phone/code",
-  "View payroll wallet",
-  "View attendance timeline",
-  "Submit advance request",
-  "Submit vacation request",
-  "Submit HR note",
-  "Admin receives notification",
-  "Admin approves/rejects request",
-  "Employee sees response",
-  "Approved advance creates one employee advance record",
-  "Regenerate portal token invalidates old link",
-  "Wrong verification is rate-limited",
-  "Public route never exposes another employee",
-];
 
 const SalesEmployeeRow = memo(function SalesEmployeeRow({ employee, t, onConfigure }) {
   const mode = normalizeCommissionMode(employee);
@@ -294,6 +276,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const pageStartedAtRef = useRef(performance.now());
   const firstDataLoggedRef = useRef(false);
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
   const direction = isRtl ? "rtl" : "ltr";
   const eyebrowClass = isRtl
@@ -330,17 +313,9 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const [penaltiesLoading, setPenaltiesLoading] = useState(false);
   const [penaltySaving, setPenaltySaving] = useState(false);
   const [payrollSettingsSaving, setPayrollSettingsSaving] = useState(false);
-  const [portalTokenBusy, setPortalTokenBusy] = useState(false);
-  const [portalQrUrl, setPortalQrUrl] = useState("");
-  const [portalRequests, setPortalRequests] = useState([]);
-  const [portalRequestsLoading, setPortalRequestsLoading] = useState(false);
-  const [portalRequestReviewing, setPortalRequestReviewing] = useState("");
-  const [portalRequestNotes, setPortalRequestNotes] = useState({});
-  const [autoCreateAdvance, setAutoCreateAdvance] = useState(true);
   const [gamificationSettings, setGamificationSettings] = useState({});
   const [gamificationSaving, setGamificationSaving] = useState(false);
   const [rewardForm, setRewardForm] = useState({ employee_id: "", title: "", points_cost: 0, admin_note: "" });
-  const [walletQaChecks, setWalletQaChecks] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [productSearch, setProductSearch] = useState("");
@@ -396,17 +371,8 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     const origin = String(import.meta.env.VITE_PUBLIC_APP_URL || import.meta.env.PUBLIC_APP_URL || window.location.origin || "").replace(/\/+$/, "");
     return `${origin}/employee-portal/${encodeURIComponent(token)}`;
   }, [payrollEmployee?.employee_portal_token]);
-  useEffect(() => {
-    setPortalQrUrl("");
-  }, [payrollEmployee?.id]);
-  const effectivePayrollPortalUrl = payrollPortalUrl || portalQrUrl;
-  const pendingPortalRequestCount = useMemo(
-    () => portalRequests.filter((request) => String(request.status || "").toLowerCase() === "pending").length,
-    [portalRequests]
-  );
-  const showEmployeeWalletQa = featureFlags.showEmployeeWalletQAChecklist;
   const showEmployeeGamificationSettings = featureFlags.showEmployeeGamificationSettings;
-  const completedWalletQaCount = employeeWalletQaItems.filter((item) => walletQaChecks[item]).length;
+  const showEmployeeWalletQa = false;
 
   const categories = useMemo(() => {
     const byId = new Map();
@@ -707,131 +673,6 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     }
   };
 
-  const setEmployeePortalToken = (employeeId, token) => {
-    setEmployees((prev) => prev.map((employee) => (
-      matchEmployeeId(employee.id, employeeId) ? { ...employee, employee_portal_token: token } : employee
-    )));
-  };
-
-  const portalUrlFromToken = (token) => {
-    const origin = String(import.meta.env.VITE_PUBLIC_APP_URL || import.meta.env.PUBLIC_APP_URL || window.location.origin || "").replace(/\/+$/, "");
-    return `${origin}/employee-portal/${encodeURIComponent(token)}`;
-  };
-
-  const ensurePayrollPortalToken = async () => {
-    if (!payrollEmployee?.id) {
-      toast.error(t("sales.payroll.selectError", "Select an employee for payroll preview"));
-      return "";
-    }
-    if (payrollEmployee.employee_portal_token) return portalUrlFromToken(payrollEmployee.employee_portal_token);
-    const result = await regenerateEmployeePortalToken(payrollEmployee.id);
-    if (result.token) setEmployeePortalToken(payrollEmployee.id, result.token);
-    const url = result.portal_url || result.url || result.qr_url || portalUrlFromToken(result.token);
-    setPortalQrUrl(url);
-    return url;
-  };
-
-  const copyPayrollPortalLink = async () => {
-    try {
-      setPortalTokenBusy(true);
-      const url = await ensurePayrollPortalToken();
-      if (!url) return;
-      await navigator.clipboard.writeText(url);
-      toast.success(t("sales.payroll.portalLinkCopied", "Employee portal link copied"));
-    } catch (error) {
-      toast.error(error?.message || t("sales.payroll.portalLinkError", "Unable to copy employee portal link"));
-    } finally {
-      setPortalTokenBusy(false);
-    }
-  };
-
-  const regeneratePayrollPortalLink = async () => {
-    try {
-      if (!payrollEmployee?.id) return;
-      setPortalTokenBusy(true);
-      const result = await regenerateEmployeePortalToken(payrollEmployee.id);
-      if (result.token) setEmployeePortalToken(payrollEmployee.id, result.token);
-      setPortalQrUrl(result.portal_url || result.url || result.qr_url || (result.token ? portalUrlFromToken(result.token) : ""));
-      toast.success(t("sales.payroll.portalLinkRegenerated", "Employee portal link regenerated"));
-    } catch (error) {
-      toast.error(error?.message || t("sales.payroll.portalLinkError", "Unable to update employee portal link"));
-    } finally {
-      setPortalTokenBusy(false);
-    }
-  };
-
-  const downloadPayrollPortalQr = async () => {
-    try {
-      setPortalTokenBusy(true);
-      const url = await ensurePayrollPortalToken();
-      if (!url) return;
-      window.setTimeout(() => {
-        const canvas = document.getElementById("employee-payroll-portal-qr");
-        if (!canvas) return;
-        const link = document.createElement("a");
-        link.download = `employee-portal-${payrollEmployee?.code || payrollEmployee?.id || "qr"}.png`;
-        link.href = canvas.toDataURL("image/png");
-        link.click();
-      }, 0);
-    } catch (error) {
-      toast.error(error?.message || t("sales.payroll.portalQrError", "Unable to download employee portal QR"));
-    } finally {
-      setPortalTokenBusy(false);
-    }
-  };
-
-  const sharePayrollPortalWhatsapp = async () => {
-    try {
-      setPortalTokenBusy(true);
-      const url = await ensurePayrollPortalToken();
-      if (!url) return;
-      const message = encodeURIComponent(`${payrollEmployee?.name || ""}\n${url}`);
-      window.open(`https://wa.me/${payrollEmployee?.phone ? String(payrollEmployee.phone).replace(/\D+/g, "") : ""}?text=${message}`, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      toast.error(error?.message || t("sales.payroll.portalLinkError", "Unable to share employee portal link"));
-    } finally {
-      setPortalTokenBusy(false);
-    }
-  };
-
-  const loadPortalRequests = async () => {
-    const startedAt = performance.now();
-    try {
-      setPortalRequestsLoading(true);
-      const response = await api.get("/employees/portal-requests");
-      setPortalRequests(response.requests || []);
-      logPagePerf("employees.portal-requests", startedAt, { count: Number(response.requests?.length || 0) });
-    } catch (error) {
-      toast.error(error?.message || t("sales.payroll.portalRequestsError", "Unable to load employee wallet requests"));
-      logPagePerf("employees.portal-requests", startedAt, { failed: true });
-    } finally {
-      setPortalRequestsLoading(false);
-    }
-  };
-
-  const reviewPortalRequest = async (requestId, status) => {
-    const startedAt = performance.now();
-    try {
-      setPortalRequestReviewing(`${requestId}:${status}`);
-      const request = portalRequests.find((item) => String(item.id) === String(requestId)) || {};
-      const response = await api.patch(`/employees/portal-requests/${requestId}`, {
-        status,
-        admin_note: portalRequestNotes[requestId] || "",
-        create_advance: status === "approved" && request.request_type === "advance" && autoCreateAdvance,
-      });
-      if (response.request) {
-        setPortalRequests((current) => current.map((item) => (String(item.id) === String(requestId) ? { ...item, ...response.request } : item)));
-      }
-      toast.success(status === "approved" ? t("sales.payroll.portalRequestApproved", "Request approved") : t("sales.payroll.portalRequestRejected", "Request rejected"));
-      logPagePerf("employees.portal-request-review", startedAt, { status });
-    } catch (error) {
-      toast.error(error?.message || t("sales.payroll.portalRequestReviewError", "Unable to update employee request"));
-      logPagePerf("employees.portal-request-review", startedAt, { status, failed: true });
-    } finally {
-      setPortalRequestReviewing("");
-    }
-  };
-
   const loadGamificationSettings = async () => {
     const response = await api.get("/employees/gamification/settings");
     setGamificationSettings(response.settings || {});
@@ -859,6 +700,19 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     } catch (error) {
       toast.error(error?.message || t("sales.payroll.rewardError", "Unable to grant reward"));
     }
+  };
+
+  const openEmployeeProfile = () => {
+    if (!payroll.employee_id) {
+      toast.error(t("sales.payroll.selectError", "Select an employee for payroll preview"));
+      return;
+    }
+    navigate("/employees/employees");
+  };
+
+  const openEmployeePortal = () => {
+    if (!payrollPortalUrl) return;
+    window.open(payrollPortalUrl, "_blank", "noopener,noreferrer");
   };
 
   const previewPayroll = async ({ manual = false } = {}) => {
@@ -1075,14 +929,8 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   }, [activeTab, penaltyForm.employee_id, payroll.employee_id, penaltyEmployeeOptions]);
 
   useEffect(() => {
-    loadPortalRequests();
     if (showEmployeeGamificationSettings) loadGamificationSettings().catch(() => null);
-  }, []);
-
-  useEffect(() => {
-    if (activeTab !== "payroll") return;
-    loadPortalRequests();
-  }, [activeTab]);
+  }, [showEmployeeGamificationSettings]);
 
   const reportFiltersChanged =
     String(appliedReportFilters.start_date || "") !== String(filters.start_date || "") ||
@@ -1138,7 +986,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const allTabs = [
     { id: "staff", label: t("sales.tabs.staff", "Sales Staff") },
     { id: "reports", label: t("sales.tabs.reports", "Commission Reports") },
-    { id: "payroll", label: t("sales.tabs.payroll", "Payroll Calculator"), badge: pendingPortalRequestCount },
+    { id: "payroll", label: t("sales.tabs.payroll", "Payroll Calculator") },
     { id: "penalties", label: t("sales.tabs.penalties", "Penalties") },
   ];
   const tabs = Array.isArray(visibleTabs) && visibleTabs.length
@@ -1426,52 +1274,28 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
           </section>
 
           <section className="theme-card p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-lg font-black leading-7">{t("sales.payroll.employeePortal", "Employee payroll portal")}</h3>
-                  {payrollEmployee ? (
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${payrollEmployee.employee_portal_token ? "bg-emerald-500/15 text-emerald-200" : "bg-amber-500/15 text-amber-100"}`}>
-                      {payrollEmployee.employee_portal_token ? t("sales.payroll.portalActive", "Portal active") : t("sales.payroll.portalNotCreated", "No portal token")}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.employeePortalHint", "Private link and QR for the selected employee to view payroll after phone/code verification.")}</p>
+                <h3 className="text-lg font-black leading-7">{isRtl ? "وصول سريع" : "Quick Access"}</h3>
+                <p className="text-sm leading-6 text-[var(--muted)]">
+                  {isRtl
+                    ? "إدارة رابط البوابة والطلبات أصبحت داخل ملف الموظف في مركز الموارد البشرية."
+                    : "Portal access and request management now live in the employee profile inside HR Center."}
+                </p>
               </div>
-              {effectivePayrollPortalUrl ? (
-                <div className="rounded-xl bg-white p-2">
-                  <Suspense fallback={<div id="employee-payroll-portal-qr" className="h-[76px] w-[76px] rounded-xl bg-white/80" />}>
-                  <Suspense fallback={<div className="h-[76px] w-[76px] rounded-xl bg-white" />}>
-                    <QRCodeCanvas id="employee-payroll-portal-qr" value={effectivePayrollPortalUrl} size={76} level="M" />
-                  </Suspense>
-                  </Suspense>
-                </div>
-              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={openEmployeeProfile} className="theme-button-soft h-11 justify-center px-4 text-sm">
+                  <ExternalLink className="h-4 w-4" />
+                  {isRtl ? "فتح ملف الموظف" : "Open Employee Profile"}
+                </button>
+                {payrollPortalUrl ? (
+                  <button type="button" onClick={openEmployeePortal} className="theme-button-soft h-11 justify-center px-4 text-sm">
+                    <ExternalLink className="h-4 w-4" />
+                    {isRtl ? "فتح البوابة" : "Open Portal"}
+                  </button>
+                ) : null}
+              </div>
             </div>
-            {payrollEmployee ? (
-              <div className="mt-4 grid gap-2 md:grid-cols-4">
-                <button type="button" onClick={copyPayrollPortalLink} disabled={portalTokenBusy} className="theme-button-soft min-h-11 justify-center px-3 text-sm disabled:opacity-60">
-                  <Copy className="h-4 w-4" />
-                  {t("sales.payroll.copyPortalLink", "Copy Portal Link")}
-                </button>
-                <button type="button" onClick={downloadPayrollPortalQr} disabled={portalTokenBusy} className="theme-button-soft min-h-11 justify-center px-3 text-sm disabled:opacity-60">
-                  <Download className="h-4 w-4" />
-                  {t("sales.payroll.downloadPortalQr", "Download QR")}
-                </button>
-                <button type="button" onClick={regeneratePayrollPortalLink} disabled={portalTokenBusy} className="theme-button-soft min-h-11 justify-center px-3 text-sm disabled:opacity-60">
-                  <RefreshCw className={`h-4 w-4 ${portalTokenBusy ? "animate-spin" : ""}`} />
-                  {t("sales.payroll.regeneratePortalLink", "Regenerate Link")}
-                </button>
-                <button type="button" onClick={sharePayrollPortalWhatsapp} disabled={portalTokenBusy} className="theme-button-primary min-h-11 justify-center px-3 text-sm disabled:opacity-60">
-                  <Send className="h-4 w-4" />
-                  {t("sales.payroll.sharePortalWhatsapp", "WhatsApp Link")}
-                </button>
-              </div>
-            ) : (
-              <div className="mt-4 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-5 text-center text-sm font-semibold text-[var(--muted)]">
-                {t("sales.payroll.selectEmployeeForPortal", "Select an employee to manage their payroll portal link.")}
-              </div>
-            )}
           </section>
 
           {featureFlags.showDevTools ? (
@@ -1514,92 +1338,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
             </section>
           ) : null}
 
-          <section className="theme-card p-4">
-            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-lg font-black leading-7">{t("sales.payroll.walletRequests", "Employee wallet requests")}</h3>
-                  {pendingPortalRequestCount ? <span className="rounded-full bg-rose-500 px-2.5 py-1 text-xs font-black text-white">{pendingPortalRequestCount}</span> : null}
-                </div>
-                <p className="text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.walletRequestsHint", "Approve or reject vacation, advance, and HR note requests sent from the employee wallet.")}</p>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-black text-[var(--muted)]">
-                  <input type="checkbox" checked={autoCreateAdvance} onChange={(event) => setAutoCreateAdvance(event.target.checked)} />
-                  {t("sales.payroll.autoCreateAdvance", "Create advance on approval")}
-                </label>
-                <button type="button" onClick={loadPortalRequests} disabled={portalRequestsLoading} className="theme-button-soft h-11 justify-center px-4 text-sm disabled:opacity-60">
-                  <RefreshCw className={`h-4 w-4 ${portalRequestsLoading ? "animate-spin" : ""}`} />
-                  {t("sales.refresh", "Refresh")}
-                </button>
-              </div>
-            </div>
-            {portalRequests.length ? (
-              <div className="grid gap-2">
-                {portalRequests.map((request) => {
-                  const typeLabel = request.request_type === "advance"
-                    ? t("sales.payroll.requestAdvance", "Advance request")
-                    : request.request_type === "hr_note"
-                      ? t("sales.payroll.requestHrNote", "HR note")
-                      : t("sales.payroll.requestVacation", "Vacation request");
-                  const status = String(request.status || "pending").toLowerCase();
-                  const canReview = status === "pending";
-                  return (
-                    <article key={request.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
-                      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(220px,0.7fr)] xl:items-start">
-                        <div className="min-w-0 text-sm">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-[var(--primary-soft)] px-2.5 py-1 text-xs font-black text-[var(--primary)]">{typeLabel}</span>
-                            <span className={`rounded-full px-2.5 py-1 text-xs font-black ${status === "approved" ? "bg-emerald-500/15 text-emerald-200" : status === "rejected" ? "bg-rose-500/15 text-rose-200" : "bg-amber-500/15 text-amber-100"}`}>
-                              {status === "approved" ? t("common.approved", "Approved") : status === "rejected" ? t("common.rejected", "Rejected") : t("common.pending", "Pending")}
-                            </span>
-                          </div>
-                          <h4 className="mt-2 text-base font-black leading-6" dir="auto">{request.employee_name || t("sales.payroll.employee", "Employee")}</h4>
-                          <div className="mt-1 text-xs font-bold text-[var(--muted)]" dir="auto">
-                            {request.employee_code || "-"} {request.branch_name ? `- ${request.branch_name}` : ""}
-                          </div>
-                        </div>
-                        <div className="grid gap-1.5 text-xs font-bold text-[var(--muted)] sm:grid-cols-2 xl:grid-cols-1">
-                          <div>{t("sales.payroll.createdAt", "Created at")}: <span dir="ltr">{dateLabel(request.created_at)}</span></div>
-                          <div>{t("sales.payroll.branch", "Branch")}: <span dir="auto">{request.branch_name || "-"}</span></div>
-                          <div>{t("sales.payroll.status", "Status")}: {status}</div>
-                          {request.amount ? <div>{t("sales.payroll.amount", "Amount")}: <span dir="ltr">{formatPayrollMoney(request.amount)}</span></div> : null}
-                          {request.request_date ? <div>{t("sales.payroll.requestDate", "Request date")}: <span dir="ltr">{dateLabel(request.request_date)}</span></div> : null}
-                          {request.end_date ? <div>{t("sales.payroll.endDate", "End date")}: <span dir="ltr">{dateLabel(request.end_date)}</span></div> : null}
-                          {request.message ? <div className="sm:col-span-2 xl:col-span-1" dir="auto">{t("sales.payroll.message", "Message")}: {request.message}</div> : null}
-                          {request.admin_note ? <div className="sm:col-span-2 xl:col-span-1 text-emerald-200" dir="auto">{t("sales.payroll.adminNote", "Admin note")}: {request.admin_note}</div> : null}
-                        </div>
-                        <div className="grid gap-2">
-                          <textarea
-                            value={portalRequestNotes[request.id] || ""}
-                            onChange={(event) => setPortalRequestNotes((prev) => ({ ...prev, [request.id]: event.target.value }))}
-                            placeholder={t("sales.payroll.responseNote", "Response note")}
-                            disabled={!canReview}
-                            className="min-h-20 rounded-2xl border border-[var(--border)] bg-black/10 px-3 py-2 text-sm font-bold outline-none disabled:opacity-60"
-                            dir="auto"
-                          />
-                          <div className="mt-3 grid gap-2 text-sm font-bold md:grid-cols-3">
-                            <button type="button" onClick={() => reviewPortalRequest(request.id, "approved")} disabled={!canReview || Boolean(portalRequestReviewing)} className="theme-button-primary h-10 justify-center px-3 text-sm disabled:opacity-60">
-                              <CheckCircle2 className="h-4 w-4" />
-                              {t("common.approve", "Approve")}
-                            </button>
-                            <button type="button" onClick={() => reviewPortalRequest(request.id, "rejected")} disabled={!canReview || Boolean(portalRequestReviewing)} className="theme-button-soft h-10 justify-center px-3 text-sm disabled:opacity-60">
-                              <X className="h-4 w-4" />
-                              {t("common.reject", "Reject")}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm font-semibold text-[var(--muted)]">
-                {portalRequestsLoading ? t("sales.payroll.loadingRequests", "Loading requests...") : t("sales.payroll.noWalletRequests", "No pending employee wallet requests.")}
-              </div>
-            )}
-          </section>
+          
 
           {showEmployeeGamificationSettings ? (
           <section className="theme-card p-4">

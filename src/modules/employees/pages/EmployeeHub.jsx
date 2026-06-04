@@ -21,12 +21,14 @@ const Expenses = lazy(() => import("../../accounting/pages/Expenses"));
 const SalesEmployees = lazy(() => import("../../sales/pages/SalesEmployees"));
 const EmployeeAnalyticsWorkspace = lazy(() => import("../components/EmployeeAnalyticsWorkspace"));
 const EmployeeChatInbox = lazy(() => import("./EmployeeChatInbox"));
+const HRRequestsWorkspace = lazy(() => import("../components/HRRequestsWorkspace"));
 
 const tabDefinitions = [
   { id: "overview", labelKey: "overview", icon: LayoutDashboard },
   { id: "employees", labelKey: "employees", icon: UsersRound },
   { id: "attendance", labelKey: "attendance", icon: CalendarClock },
   { id: "payroll", labelKey: "payroll", icon: BadgeDollarSign },
+  { id: "requests", labelKey: "requests", icon: ClipboardList },
   { id: "advances", labelKey: "advances", icon: WalletCards },
   { id: "chat", labelKey: "chat", icon: MessageCircle },
   { id: "analytics", labelKey: "analytics", icon: BarChart3 },
@@ -47,6 +49,7 @@ export default function EmployeeHub() {
   const params = useParams();
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
   const direction = isRtl ? "rtl" : "ltr";
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
   const tabs = useMemo(
     () => tabDefinitions.map((tab) => ({ ...tab, label: t(`common.employeeHub.tabs.${tab.labelKey}`, tab.id === "analytics" ? t("common.analytics", "Analytics") : tab.labelKey) })),
     [t]
@@ -55,6 +58,7 @@ export default function EmployeeHub() {
     return <Navigate to={`/employees/${legacyTabRedirects[params.tab]}`} replace />;
   }
   const activeTab = validTabs.has(params.tab) ? params.tab : "overview";
+  const selectedEmployeeId = String(selectedEmployee?.id || selectedEmployee?.employee_id || "");
 
   const activeMeta = tabs.find((tab) => tab.id === activeTab) || tabs[0];
 
@@ -97,11 +101,12 @@ export default function EmployeeHub() {
 
       {activeTab === "overview" ? <EmployeeOverview onSelectTab={(tab) => navigate(`/employees/${tab}`)} t={t} isRtl={isRtl} /> : null}
       <Suspense fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">{t("common.loading", "Loading...")}</div>}>
-        {activeTab === "employees" ? <HREmployeesWorkspace /> : null}
+        {activeTab === "employees" ? <HREmployeesWorkspace selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={setSelectedEmployee} /> : null}
         {activeTab === "attendance" ? <AttendanceCenter /> : null}
         {activeTab === "payroll" ? <SalesEmployees defaultTab="payroll" visibleTabs={["payroll", "penalties"]} embedded /> : null}
+        {activeTab === "requests" ? <HRRequestsWorkspace /> : null}
         {activeTab === "advances" ? <Expenses defaultTab="advances" visibleTabs={["advances", "approvals", "reports"]} embedded /> : null}
-        {activeTab === "chat" ? <EmployeeChatInbox /> : null}
+        {activeTab === "chat" ? <EmployeeChatInbox selectedEmployee={selectedEmployee} selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={setSelectedEmployee} /> : null}
         {activeTab === "analytics" ? <EmployeeAnalyticsWorkspace embedded /> : null}
       </Suspense>
       {activeTab === "reports" ? <EmployeeReports onSelectTab={(tab) => navigate(`/employees/${tab}`)} t={t} isRtl={isRtl} /> : null}
@@ -113,7 +118,7 @@ export default function EmployeeHub() {
   );
 }
 
-function HREmployeesWorkspace() {
+function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChange = null }) {
   const { t, i18n } = useTranslation();
   const [section, setSection] = useState("directory");
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
@@ -178,7 +183,7 @@ function HREmployeesWorkspace() {
         </p>
       </section>
 
-      {section === "directory" ? <AttendanceWorkspace defaultTab="employees" visibleTabs={["employees"]} embedded hideMetrics /> : null}
+      {section === "directory" ? <AttendanceWorkspace defaultTab="employees" visibleTabs={["employees"]} embedded hideMetrics selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={onSelectedEmployeeChange} /> : null}
       {section === "sales" ? <SalesEmployees defaultTab="staff" visibleTabs={["staff"]} embedded /> : null}
     </div>
   );
@@ -203,6 +208,12 @@ function EmployeeOverview({ onSelectTab, t, isRtl }) {
       title: t("common.employeeHub.cards.payroll.title"),
       text: t("common.employeeHub.cards.payroll.text"),
       icon: BadgeDollarSign,
+    },
+    {
+      tab: "requests",
+      title: t("common.employeeHub.cards.requests.title", isRtl ? "طلبات الموارد البشرية" : "HR Requests"),
+      text: t("common.employeeHub.cards.requests.text", isRtl ? "طلبات الإجازات والسلف وملاحظات الموارد البشرية المرتبطة بكل موظف." : "Vacation requests, advance requests, and HR notes linked to each employee."),
+      icon: ClipboardList,
     },
     {
       tab: "advances",

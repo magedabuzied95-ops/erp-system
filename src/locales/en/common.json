@@ -159,6 +159,7 @@
         "employees": "Employees",
         "attendance": "Attendance",
         "payroll": "Payroll",
+        "requests": "Requests",
         "chat": "Employee Chat",
         "analytics": "Analytics",
         "salesPerformance": "Sales Performance",
@@ -187,6 +188,10 @@
         "payroll": {
           "title": "Payroll",
           "text": "Base salary, commissions, bonuses, deductions, employee advances, and final salary calculation."
+        },
+        "requests": {
+          "title": "HR Requests",
+          "text": "Vacation requests, advance requests, and HR notes linked to each employee."
         },
         "chat": {
           "title": "Employee Chat",

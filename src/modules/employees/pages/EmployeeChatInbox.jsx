@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownCircle, CheckCheck, FileText, Loader2, MessageCircle, Mic, Paperclip, RefreshCw, Send, UserRound, X } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 import { socket } from "../../../socket";
+import { getAttendanceEmployees } from "../../attendance/attendanceApi";
 import ChatImageAttachment from "../components/ChatImageAttachment";
 import WhatsAppRecordingBar from "../components/WhatsAppRecordingBar";
 import WhatsAppVoiceMessage from "../components/WhatsAppVoiceMessage";
@@ -76,6 +77,11 @@ const replyPreview = (message = {}) => {
   return "رسالة";
 };
 
+const safeArray = (value) => (Array.isArray(value) ? value : []);
+const employeeRecordId = (item = {}) => String(item?.id || item?.employee_id || item?.employeeId || "");
+const threadEmployeeId = (item = {}) => employeeRecordId(item);
+const threadSortValue = (item = {}) => new Date(item.last_message_created_at || item.last_message_at || item.updated_at || item.created_at || 0).getTime() || 0;
+
 function AttachmentView({ message, outgoing = false, timeText = "", showChecks = false, read = false, onImageClick }) {
   if (!message?.attachment_url) return null;
   const href = normalizeChatAttachmentUrl(message.attachment_url);
@@ -120,11 +126,13 @@ function AttachmentView({ message, outgoing = false, timeText = "", showChecks =
   );
 }
 
-export default function EmployeeChatInbox() {
+export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmployeeId: initialSelectedEmployeeId = "", onSelectedEmployeeChange = null }) {
+  const [employees, setEmployees] = useState([]);
   const [threads, setThreads] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(String(initialSelectedEmployeeId || employeeRecordId(selectedEmployee) || ""));
   const [thread, setThread] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
   const [sending, setSending] = useState(false);
@@ -147,14 +155,116 @@ export default function EmployeeChatInbox() {
   const recordingChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
   const recordingSecondsRef = useRef(0);
-  const selectedThread = useMemo(
-    () => threads.find((item) => String(item.id) === String(selectedId)) || thread,
-    [selectedId, thread, threads]
-  );
+
+  const threadMap = useMemo(() => {
+    const entries = new Map();
+    threads.forEach((item) => {
+      const id = threadEmployeeId(item);
+      if (id) entries.set(id, item);
+    });
+    return entries;
+  }, [threads]);
+
+  const selectedEmployeeRecord = useMemo(() => {
+    const resolvedId = String(selectedEmployeeId || "");
+    if (resolvedId) {
+      const employeeMatch = employees.find((item) => employeeRecordId(item) === resolvedId);
+      if (employeeMatch) return employeeMatch;
+      if (employeeRecordId(selectedEmployee) === resolvedId) return selectedEmployee;
+      const threadMatch = threadMap.get(resolvedId);
+      if (threadMatch) {
+        return {
+          id: threadMatch.employee_id,
+          employee_id: threadMatch.employee_id,
+          full_name: threadMatch.employee_name,
+          employee_code: threadMatch.employee_code,
+          branch_name: threadMatch.branch_name,
+        };
+      }
+    }
+    return selectedEmployee || null;
+  }, [employees, selectedEmployee, selectedEmployeeId, threadMap]);
+
+  const selectedThread = useMemo(() => {
+    const resolvedId = String(selectedEmployeeId || "");
+    if (!resolvedId) return null;
+    return threadMap.get(resolvedId) || (thread && threadEmployeeId(thread) === resolvedId ? thread : null);
+  }, [selectedEmployeeId, thread, threadMap]);
+
+  const activeThreadId = selectedThread?.id || null;
   const firstUnreadIndex = useMemo(
     () => messages.findIndex((message) => message.sender_type === "employee" && !message.read_at),
     [messages]
   );
+
+  const sidebarRows = useMemo(() => {
+    const employeeIds = new Set();
+    const employeeRows = employees.map((employee) => {
+      const id = employeeRecordId(employee);
+      employeeIds.add(id);
+      return { employee, thread: threadMap.get(id) || null };
+    });
+    const threadOnlyRows = threads
+      .filter((item) => !employeeIds.has(threadEmployeeId(item)))
+      .map((item) => ({
+        employee: {
+          id: item.employee_id,
+          employee_id: item.employee_id,
+          full_name: item.employee_name,
+          employee_code: item.employee_code,
+          branch_name: item.branch_name,
+        },
+        thread: item,
+      }));
+    return [...employeeRows, ...threadOnlyRows].sort((left, right) => {
+      if (left.thread && right.thread) return threadSortValue(right.thread) - threadSortValue(left.thread);
+      if (left.thread) return -1;
+      if (right.thread) return 1;
+      return String(left.employee?.full_name || "").localeCompare(String(right.employee?.full_name || ""), "ar");
+    });
+  }, [employees, threadMap, threads]);
+
+  const loadEmployees = useCallback(async () => {
+    try {
+      setError("");
+      const response = await getAttendanceEmployees({ search: "" });
+      setEmployees(safeArray(response));
+    } catch (err) {
+      setError(err?.responseBody?.message || err?.message || "تعذر تحميل الموظفين");
+    } finally {
+      setLoadingEmployees(false);
+    }
+  }, []);
+
+  const loadThreads = useCallback(async () => {
+    try {
+      setError("");
+      const response = await api.get("/employees/chat/threads");
+      setThreads(safeArray(response.threads));
+    } catch (err) {
+      setError(err?.responseBody?.message || err?.message || "تعذر تحميل محادثات الموظفين");
+    } finally {
+      setLoadingThreads(false);
+    }
+  }, []);
+
+  const loadThread = useCallback(async (threadId) => {
+    if (!threadId) return;
+    try {
+      setLoadingThread(true);
+      setError("");
+      const response = await api.get(`/employees/chat/threads/${encodeURIComponent(threadId)}`);
+      setThread(response.thread || null);
+      setMessages(safeArray(response.messages));
+      setThreads((current) =>
+        current.map((item) => (String(item.id) === String(threadId) ? { ...item, ...(response.thread || {}), unread_count: 0 } : item))
+      );
+    } catch (err) {
+      setError(err?.responseBody?.message || err?.message || "تعذر فتح المحادثة");
+    } finally {
+      setLoadingThread(false);
+    }
+  }, []);
 
   useEffect(() => {
     setRecordingState((current) => ({ ...current, supported: typeof window !== "undefined" && Boolean(window.MediaRecorder && navigator.mediaDevices?.getUserMedia) }));
@@ -165,51 +275,52 @@ export default function EmployeeChatInbox() {
     mediaRecorderRef.current?.stream?.getTracks?.().forEach((track) => track.stop());
   }, []);
 
-  const loadThreads = async () => {
-    try {
-      setError("");
-      const response = await api.get("/employees/chat/threads");
-      setThreads(response.threads || []);
-      if (!selectedId && response.threads?.[0]?.id) setSelectedId(response.threads[0].id);
-    } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر تحميل محادثات الموظفين");
-    } finally {
-      setLoadingThreads(false);
-    }
-  };
+  useEffect(() => {
+    void Promise.all([loadEmployees(), loadThreads()]);
+  }, [loadEmployees, loadThreads]);
 
-  const loadThread = async (threadId = selectedId) => {
-    if (!threadId) return;
-    try {
-      setLoadingThread(true);
-      setError("");
-      const response = await api.get(`/employees/chat/threads/${encodeURIComponent(threadId)}`);
-      setThread(response.thread || null);
-      setMessages(response.messages || []);
-      setThreads((current) =>
-        current.map((item) => (String(item.id) === String(threadId) ? { ...item, unread_count: 0 } : item))
-      );
-    } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر فتح المحادثة");
-    } finally {
+  useEffect(() => {
+    const nextSelectedEmployeeId = String(initialSelectedEmployeeId || employeeRecordId(selectedEmployee) || "");
+    if (!nextSelectedEmployeeId || nextSelectedEmployeeId === String(selectedEmployeeId || "")) return;
+    setSelectedEmployeeId(nextSelectedEmployeeId);
+  }, [initialSelectedEmployeeId, selectedEmployee, selectedEmployeeId]);
+
+  useEffect(() => {
+    if (selectedEmployeeId) return;
+    const nextSelectedEmployeeId =
+      String(initialSelectedEmployeeId || "") ||
+      employeeRecordId(selectedEmployee) ||
+      employeeRecordId(sidebarRows[0]?.employee) ||
+      "";
+    if (nextSelectedEmployeeId) setSelectedEmployeeId(nextSelectedEmployeeId);
+  }, [initialSelectedEmployeeId, selectedEmployee, selectedEmployeeId, sidebarRows]);
+
+  useEffect(() => {
+    if (typeof onSelectedEmployeeChange !== "function") return;
+    onSelectedEmployeeChange(selectedEmployeeRecord || null);
+  }, [onSelectedEmployeeChange, selectedEmployeeRecord]);
+
+  useEffect(() => {
+    if (!selectedEmployeeId) {
+      setThread(null);
+      setMessages([]);
       setLoadingThread(false);
+      return undefined;
     }
-  };
-
-  useEffect(() => {
-    loadThreads();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedId) return undefined;
-    loadThread(selectedId);
+    if (!activeThreadId) {
+      setThread(selectedThread || null);
+      setMessages([]);
+      setLoadingThread(false);
+      return undefined;
+    }
+    void loadThread(activeThreadId);
     if (realtime.connected) return undefined;
     const timer = window.setInterval(() => {
-      loadThread(selectedId);
-      loadThreads();
+      void loadThread(activeThreadId);
+      void loadThreads();
     }, 12000);
     return () => window.clearInterval(timer);
-  }, [selectedId, realtime.connected]);
+  }, [activeThreadId, loadThread, loadThreads, realtime.connected, selectedEmployeeId, selectedThread]);
 
   useEffect(() => {
     const upsertThread = (nextThread) => {
@@ -219,7 +330,7 @@ export default function EmployeeChatInbox() {
         const rows = exists
           ? current.map((item) => (String(item.id) === String(nextThread.id) ? { ...item, ...nextThread } : item))
           : [nextThread, ...current];
-        return rows.sort((a, b) => new Date(b.last_message_created_at || b.last_message_at || b.updated_at || 0) - new Date(a.last_message_created_at || a.last_message_at || a.updated_at || 0));
+        return rows.sort((left, right) => threadSortValue(right) - threadSortValue(left));
       });
     };
 
@@ -227,14 +338,14 @@ export default function EmployeeChatInbox() {
       const nextThread = payload.thread;
       const message = payload.message;
       upsertThread(nextThread);
-      if (String(nextThread?.id || message?.thread_id) === String(selectedId)) {
+      const nextEmployeeId = String(threadEmployeeId(nextThread || message) || "");
+      if (nextEmployeeId && nextEmployeeId === String(selectedEmployeeId || "")) {
+        if (nextThread) setThread(nextThread);
         setMessages((current) => {
           if (!message?.id || current.some((item) => String(item.id) === String(message.id))) return current;
           return [...current, message];
         });
-        if (message?.sender_type === "employee") {
-          loadThread(selectedId);
-        }
+        if (nextThread?.id && message?.sender_type === "employee") void loadThread(nextThread.id);
       }
     };
 
@@ -245,17 +356,28 @@ export default function EmployeeChatInbox() {
       setThreads((current) =>
         current.map((item) => (String(item.id) === String(payload.thread_id) ? { ...item, unread_count: 0 } : item))
       );
+      if (String(payload.thread_id) === String(activeThreadId || "")) {
+        setMessages((current) =>
+          current.map((message) =>
+            message.sender_type === payload.read_sender_type && !message.read_at
+              ? { ...message, read_at: payload.at || new Date().toISOString() }
+              : message
+          )
+        );
+      }
     };
+
     const onTyping = (payload = {}) => {
       if (payload.sender_type !== "employee") return;
-      if (payload.thread_id && String(payload.thread_id) !== String(selectedId)) return;
-      setTypingEmployee(payload.employee_name || selectedThread?.employee_name || "الموظف");
+      if (payload.thread_id && String(payload.thread_id) !== String(activeThreadId || "")) return;
+      setTypingEmployee(payload.employee_name || selectedThread?.employee_name || selectedEmployeeRecord?.full_name || "الموظف");
       if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
       typingTimerRef.current = window.setTimeout(() => setTypingEmployee(""), 3000);
     };
+
     const onStopTyping = (payload = {}) => {
       if (payload.sender_type !== "employee") return;
-      if (payload.thread_id && String(payload.thread_id) !== String(selectedId)) return;
+      if (payload.thread_id && String(payload.thread_id) !== String(activeThreadId || "")) return;
       setTypingEmployee("");
     };
 
@@ -271,22 +393,26 @@ export default function EmployeeChatInbox() {
       offTyping();
       offStopTyping();
     };
-  }, [selectedId, selectedThread?.employee_name]);
+  }, [activeThreadId, loadThread, selectedEmployeeId, selectedEmployeeRecord?.full_name, selectedThread?.employee_name]);
 
   useEffect(() => {
-    if (!selectedThread) return undefined;
+    if (!selectedEmployeeId) return undefined;
     window.setTimeout(() => {
-      if (messagesRef.current) {
-        messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
-      }
+      if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
     }, 50);
     return undefined;
-  }, [selectedThread, messages.length]);
+  }, [messages.length, selectedEmployeeId]);
+
+  const chooseEmployee = (employeeId) => {
+    setSelectedEmployeeId(String(employeeId || ""));
+    setReplyTo(null);
+    setTypingEmployee("");
+  };
 
   const sendMessage = async (event) => {
     event.preventDefault();
     const text = body.trim();
-    if ((!text && !attachment) || !selectedId) return;
+    if ((!text && !attachment) || !activeThreadId) return;
     try {
       setSending(true);
       setError("");
@@ -295,13 +421,13 @@ export default function EmployeeChatInbox() {
       if (attachment) formData.append("attachment", attachment);
       if (attachment && attachmentDuration > 0) formData.append("attachment_duration_seconds", String(attachmentDuration));
       if (replyTo?.id) formData.append("reply_to_message_id", replyTo.id);
-      await api.post(`/employees/chat/threads/${encodeURIComponent(selectedId)}/messages`, formData);
+      await api.post(`/employees/chat/threads/${encodeURIComponent(activeThreadId)}/messages`, formData);
       setBody("");
       setAttachment(null);
       setAttachmentDuration(0);
       setReplyTo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      await loadThread(selectedId);
+      await loadThread(activeThreadId);
       await loadThreads();
     } catch (err) {
       setError(err?.responseBody?.message || err?.message || "تعذر إرسال الرد");
@@ -330,8 +456,9 @@ export default function EmployeeChatInbox() {
   };
 
   const emitTyping = () => {
-    if (!selectedThread?.employee_id || !socket?.connected) return;
-    const payload = { thread_id: selectedId, employee_id: selectedThread.employee_id };
+    const employeeId = employeeRecordId(selectedEmployeeRecord || selectedThread || {});
+    if (!employeeId || !activeThreadId || !socket?.connected) return;
+    const payload = { thread_id: activeThreadId, employee_id: employeeId };
     if (!typingStopRef.current) socket.emit("employee-chat:typing", payload);
     if (typingStopRef.current) window.clearTimeout(typingStopRef.current);
     typingStopRef.current = window.setTimeout(() => {
@@ -353,7 +480,7 @@ export default function EmployeeChatInbox() {
   };
 
   const startVoiceRecording = async () => {
-    if (!recordingState.supported || recordingState.active) return;
+    if (!recordingState.supported || recordingState.active || !activeThreadId) return;
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mimeType = MediaRecorder.isTypeSupported?.("audio/webm") ? "audio/webm" : "";
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
@@ -430,7 +557,7 @@ export default function EmployeeChatInbox() {
   };
 
   const sendVoiceRecording = async () => {
-    if (sending || !selectedId) return;
+    if (sending || !activeThreadId) return;
     setSending(true);
     setError("");
     try {
@@ -440,16 +567,16 @@ export default function EmployeeChatInbox() {
       formData.append("attachment", new File([recording.blob], `voice-${Date.now()}.webm`, { type: recording.mimeType || recording.blob.type || "audio/webm" }));
       formData.append("attachment_duration_seconds", String(recording.durationSeconds));
       if (replyTo?.id) formData.append("reply_to_message_id", replyTo.id);
-      await api.post(`/employees/chat/threads/${encodeURIComponent(selectedId)}/messages`, formData);
+      await api.post(`/employees/chat/threads/${encodeURIComponent(activeThreadId)}/messages`, formData);
       setBody("");
       setAttachment(null);
       setAttachmentDuration(0);
       setReplyTo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      await loadThread(selectedId);
+      await loadThread(activeThreadId);
       await loadThreads();
     } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط§ظ„ط±ط¯");
+      setError(err?.responseBody?.message || err?.message || "تعذر إرسال الرد");
     } finally {
       setSending(false);
     }
@@ -464,8 +591,8 @@ export default function EmployeeChatInbox() {
             <h2 className="mt-1 text-2xl font-black text-[var(--text)]">محادثات الموظفين</h2>
             <p className="mt-1 text-xs font-bold text-[var(--muted)]">{realtime.connected ? "التحديث الفوري يعمل" : "التحديث الاحتياطي يعمل كل 12 ثانية"}</p>
           </div>
-          <button type="button" onClick={loadThreads} className="theme-button-soft min-h-10 px-3 text-sm">
-            <RefreshCw className={`h-4 w-4 ${loadingThreads ? "animate-spin" : ""}`} />
+          <button type="button" onClick={() => { void Promise.all([loadEmployees(), loadThreads()]); }} className="theme-button-soft min-h-10 px-3 text-sm">
+            <RefreshCw className={`h-4 w-4 ${loadingEmployees || loadingThreads ? "animate-spin" : ""}`} />
             تحديث
           </button>
         </div>
@@ -474,54 +601,57 @@ export default function EmployeeChatInbox() {
 
       <div className="grid min-h-0 flex-1 md:min-h-[34rem] md:grid-cols-[22rem_1fr]">
         <aside className="flex min-h-0 flex-col border-b border-[var(--border)] bg-[var(--card)] md:border-b-0 md:border-l">
-          {loadingThreads ? (
+          {loadingEmployees || loadingThreads ? (
             <div className="flex items-center justify-center gap-2 p-6 text-sm font-bold text-[var(--muted)]">
               <Loader2 className="h-4 w-4 animate-spin" />
               جاري التحميل...
             </div>
-          ) : threads.length ? (
+          ) : sidebarRows.length ? (
             <div className="min-h-0 flex-1 overflow-y-auto p-2 md:max-h-[34rem]">
-              {threads.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setSelectedId(item.id)}
-                  className={[
-                    "mb-2 w-full rounded-xl border p-3 text-right transition",
-                    String(selectedId) === String(item.id)
-                      ? "border-[var(--primary)] bg-[var(--primary-soft)]"
-                      : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--primary)]",
-                  ].join(" ")}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]">
-                      <UserRound className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{item.employee_name || "موظف"}</div>
-                        {Number(item.unread_count || 0) > 0 ? (
-                          <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-black text-white" dir="ltr">{item.unread_count}</span>
-                        ) : null}
+              {sidebarRows.map(({ employee, thread: employeeThread }) => {
+                const rowEmployeeId = employeeRecordId(employee);
+                return (
+                  <button
+                    key={`${rowEmployeeId || "employee"}:${employeeThread?.id || "no-thread"}`}
+                    type="button"
+                    onClick={() => chooseEmployee(rowEmployeeId)}
+                    className={[
+                      "mb-2 w-full rounded-xl border p-3 text-right transition",
+                      String(selectedEmployeeId || "") === rowEmployeeId
+                        ? "border-[var(--primary)] bg-[var(--primary-soft)]"
+                        : "border-[var(--border)] bg-[var(--bg)] hover:border-[var(--primary)]",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]">
+                        <UserRound className="h-5 w-5" />
                       </div>
-                      <div className="mt-1 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{item.branch_name || "بدون فرع"}</div>
-                      <div className="mt-2 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{messagePreview(item)}</div>
-                      <div className="mt-2 text-[11px] font-black text-[var(--muted)]" dir="ltr">{formatChatTime(item.last_message_created_at || item.last_message_at || item.updated_at)}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{employee.full_name || employee.employee_name || "موظف"}</div>
+                          {Number(employeeThread?.unread_count || 0) > 0 ? (
+                            <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-black text-white" dir="ltr">{employeeThread.unread_count}</span>
+                          ) : null}
+                        </div>
+                        <div className="mt-1 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{employee.branch_name || employeeThread?.branch_name || "بدون فرع"}</div>
+                        <div className="mt-2 truncate text-xs font-bold text-[var(--muted)]" dir="auto">{employeeThread ? messagePreview(employeeThread) : "لا توجد رسائل بعد"}</div>
+                        <div className="mt-2 text-[11px] font-black text-[var(--muted)]" dir="ltr">{employeeThread ? formatChatTime(employeeThread.last_message_created_at || employeeThread.last_message_at || employeeThread.updated_at) : "-"}</div>
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <div className="p-6 text-center text-sm font-bold text-[var(--muted)]">
               <MessageCircle className="mx-auto h-8 w-8" />
-              <div className="mt-2">لا توجد محادثات حتى الآن.</div>
+              <div className="mt-2">لا يوجد موظفون أو محادثات حتى الآن.</div>
             </div>
           )}
         </aside>
 
         <div className="flex min-h-0 flex-col bg-[#0b141a] md:min-h-[34rem]">
-          {selectedThread ? (
+          {selectedEmployeeRecord ? (
             <>
               <div className="shrink-0 border-b border-white/10 bg-[#1f2c33] px-4 py-2 text-white">
                 <div className="flex min-w-0 items-center gap-3">
@@ -529,11 +659,9 @@ export default function EmployeeChatInbox() {
                     <UserRound className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[15px] font-black leading-5" dir="auto">{selectedThread.employee_name || "موظف"}</div>
-                    <div className="hidden">
-                  {selectedThread.employee_code || "-"} · {selectedThread.branch_name || "بدون فرع"}
-                    </div>
-                    <div className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">متصل الآن</div>
+                    <div className="truncate text-[15px] font-black leading-5" dir="auto">{selectedEmployeeRecord.full_name || selectedThread?.employee_name || "موظف"}</div>
+                    <div className="hidden">{selectedEmployeeRecord.employee_code || selectedThread?.employee_code || "-"} · {selectedEmployeeRecord.branch_name || selectedThread?.branch_name || "بدون فرع"}</div>
+                    <div className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">{activeThreadId ? "المحادثة جاهزة" : "لا توجد رسائل حتى الآن"}</div>
                   </div>
                 </div>
               </div>
@@ -563,32 +691,32 @@ export default function EmployeeChatInbox() {
                     return (
                       <div key={message.id} id={`admin-chat-message-${message.id}`}>
                         {index === firstUnreadIndex ? <div className="mx-auto mb-2 w-fit rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-black text-emerald-100">رسائل غير مقروءة</div> : null}
-                      <div className={`flex ${admin ? "justify-start" : "justify-end"}`}>
-                        <div className={`relative break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${voiceMessage ? "w-[min(78vw,18.5rem)] px-2 py-1" : "w-fit max-w-[72%] px-2 py-1"} ${admin ? "rounded-bl-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]" : "rounded-br-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(0_0,100%_100%,0_100%)]"}`}>
-                          {message.reply_to_message_id ? (
-                            <button type="button" onClick={() => document.getElementById(`admin-chat-message-${message.reply_to_message_id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })} className="mb-1 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
-                              <div className="font-black">{message.reply_sender_type === "admin" ? "الإدارة" : selectedThread?.employee_name || "الموظف"}</div>
-                              <div className="truncate">{replyPreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name })}</div>
-                            </button>
-                          ) : null}
-                          <AttachmentView
-                            message={message}
-                            outgoing={admin}
-                            timeText={formatMessageTime(message.created_at)}
-                            showChecks={admin}
-                            read={Boolean(message.read_at)}
-                            onImageClick={setImagePreview}
-                          />
-                          {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
-                          {!voiceMessage ? <button type="button" onClick={() => setReplyTo(message)} className="mt-1 text-[10px] font-bold text-slate-300/60">رد</button> : null}
-                          {!voiceMessage ? (
-                            <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
-                              <span>{formatMessageTime(message.created_at)}</span>
-                              {admin ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
-                            </div>
-                          ) : null}
+                        <div className={`flex ${admin ? "justify-start" : "justify-end"}`}>
+                          <div className={`relative break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${voiceMessage ? "w-[min(78vw,18.5rem)] px-2 py-1" : "w-fit max-w-[72%] px-2 py-1"} ${admin ? "rounded-bl-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]" : "rounded-br-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(0_0,100%_100%,0_100%)]"}`}>
+                            {message.reply_to_message_id ? (
+                              <button type="button" onClick={() => document.getElementById(`admin-chat-message-${message.reply_to_message_id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })} className="mb-1 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
+                                <div className="font-black">{message.reply_sender_type === "admin" ? "الإدارة" : selectedEmployeeRecord.full_name || "الموظف"}</div>
+                                <div className="truncate">{replyPreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name })}</div>
+                              </button>
+                            ) : null}
+                            <AttachmentView
+                              message={message}
+                              outgoing={admin}
+                              timeText={formatMessageTime(message.created_at)}
+                              showChecks={admin}
+                              read={Boolean(message.read_at)}
+                              onImageClick={setImagePreview}
+                            />
+                            {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
+                            {!voiceMessage ? <button type="button" onClick={() => setReplyTo(message)} className="mt-1 text-[10px] font-bold text-slate-300/60">رد</button> : null}
+                            {!voiceMessage ? (
+                              <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
+                                <span>{formatMessageTime(message.created_at)}</span>
+                                {admin ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
+                              </div>
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
                       </div>
                     );
                   })
@@ -617,58 +745,64 @@ export default function EmployeeChatInbox() {
                   />
                 ) : (
                   <>
-                {replyTo ? (
-                  <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
-                    <div className="min-w-0">
-                      <div className="text-emerald-200">{replyTo.sender_type === "admin" ? "الإدارة" : selectedThread?.employee_name || "الموظف"}</div>
-                      <div className="truncate opacity-80">{replyPreview(replyTo)}</div>
+                    {replyTo ? (
+                      <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold text-white">
+                        <div className="min-w-0">
+                          <div className="text-emerald-200">{replyTo.sender_type === "admin" ? "الإدارة" : selectedEmployeeRecord.full_name || "الموظف"}</div>
+                          <div className="truncate opacity-80">{replyPreview(replyTo)}</div>
+                        </div>
+                        <button type="button" onClick={() => setReplyTo(null)} className="shrink-0 text-red-200"><X className="h-4 w-4" /></button>
+                      </div>
+                    ) : null}
+                    {attachment ? (
+                      <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-[11px] font-bold text-white">
+                        <span className="min-w-0 truncate" dir="auto">{attachment.name}</span>
+                        <button type="button" onClick={() => { setAttachment(null); setAttachmentDuration(0); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="inline-flex items-center gap-1 font-black text-red-200">
+                          <X className="h-3 w-3" />
+                          حذف
+                        </button>
+                      </div>
+                    ) : null}
+                    {!activeThreadId ? (
+                      <div className="mb-2 rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-200">
+                        ستظهر المحادثة هنا بعد أن يرسل الموظف أول رسالة من بوابة الموظف.
+                      </div>
+                    ) : null}
+                    <div className="flex items-end gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.webm,.m4a,.mp4,.mp3,.wav,image/jpeg,image/png,image/webp,audio/webm,audio/mp4,audio/mpeg,audio/wav,audio/x-wav,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        onChange={chooseAttachment}
+                      />
+                      <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100 disabled:opacity-50" aria-label="إرفاق ملف" disabled={!activeThreadId}>
+                        <Paperclip className="h-4 w-4" />
+                      </button>
+                      {recordingState.supported ? (
+                        <button type="button" onClick={startVoiceRecording} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100 disabled:opacity-50" aria-label="تسجيل صوتي" disabled={!activeThreadId}>
+                          <Mic className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                      <textarea
+                        value={body}
+                        onChange={(event) => { setBody(event.target.value); emitTyping(); }}
+                        placeholder="اكتب رد الإدارة..."
+                        className="min-h-[42px] flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-white/10 px-4 py-[9px] !text-[16px] font-bold leading-[22px] text-white outline-none [transform:none] [zoom:1] placeholder:text-slate-400 focus:border-emerald-400 disabled:opacity-60"
+                        dir="auto"
+                        disabled={!activeThreadId}
+                      />
+                      <button type="submit" disabled={!activeThreadId || sending || (!body.trim() && !attachment)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
+                        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      </button>
                     </div>
-                    <button type="button" onClick={() => setReplyTo(null)} className="shrink-0 text-red-200"><X className="h-4 w-4" /></button>
-                  </div>
-                ) : null}
-                {attachment ? (
-                  <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-[11px] font-bold text-white">
-                    <span className="min-w-0 truncate" dir="auto">{attachment.name}</span>
-                    <button type="button" onClick={() => { setAttachment(null); setAttachmentDuration(0); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="inline-flex items-center gap-1 font-black text-red-200">
-                      <X className="h-3 w-3" />
-                      حذف
-                    </button>
-                  </div>
-                ) : null}
-                <div className="flex items-end gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.webm,.m4a,.mp4,.mp3,.wav,image/jpeg,image/png,image/webp,audio/webm,audio/mp4,audio/mpeg,audio/wav,audio/x-wav,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    onChange={chooseAttachment}
-                  />
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="إرفاق ملف">
-                    <Paperclip className="h-4 w-4" />
-                  </button>
-                  {recordingState.supported ? (
-                    <button type="button" onClick={startVoiceRecording} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="تسجيل صوتي">
-                      <Mic className="h-4 w-4" />
-                    </button>
-                  ) : null}
-                  <textarea
-                    value={body}
-                    onChange={(event) => { setBody(event.target.value); emitTyping(); }}
-                    placeholder="اكتب رد الإدارة..."
-                    className="min-h-[42px] flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-white/10 px-4 py-[9px] !text-[16px] font-bold leading-[22px] text-white outline-none [transform:none] [zoom:1] placeholder:text-slate-400 focus:border-emerald-400"
-                    dir="auto"
-                  />
-                  <button type="submit" disabled={sending || (!body.trim() && !attachment)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
-                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </button>
-                </div>
                   </>
                 )}
               </form>
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-sm font-bold text-[var(--muted)]">
-              اختر محادثة من القائمة.
+              اختر موظفًا من القائمة.
             </div>
           )}
         </div>
