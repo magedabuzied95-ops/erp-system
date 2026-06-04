@@ -43,6 +43,44 @@ const normalizeSoldQuantity = (row = {}) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 1;
 };
+const tableColumnCache = new Map();
+const getTableColumns = async (tableName) => {
+  if (tableColumnCache.has(tableName)) return tableColumnCache.get(tableName);
+  const result = await db.query(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = $1
+    `,
+    [tableName]
+  );
+  const columns = new Set(result.rows.map((row) => row.column_name));
+  tableColumnCache.set(tableName, columns);
+  return columns;
+};
+const textColumnTerms = (alias, columns, candidates = []) =>
+  candidates.filter((column) => columns.has(column)).map((column) => `NULLIF(${alias}.${column}::text, '')`);
+const textCoalesceSql = (terms = [], fallback = "NULL::text") => (terms.length ? `COALESCE(${terms.join(", ")})` : fallback);
+const numericCoalesceSql = (alias, columns, candidates = [], fallback = "0") => {
+  const terms = candidates.filter((column) => columns.has(column)).map((column) => `NULLIF(${alias}.${column}::text, '')::numeric`);
+  return terms.length ? `COALESCE(${terms.join(", ")}, ${fallback})` : fallback;
+};
+const variantScopeSql = ({ variantColumns, productColumns, tenantParam = "$2", productParam = "$3" } = {}) => {
+  const tenantConditions = [];
+  if (variantColumns.has("tenant_id")) {
+    tenantConditions.push(`pv.tenant_id = ${tenantParam}::bigint`, "pv.tenant_id IS NULL");
+  }
+  if (productColumns.has("tenant_id")) tenantConditions.push(`p.tenant_id = ${tenantParam}::bigint`);
+  return [
+    tenantConditions.length ? `AND (${tenantParam}::bigint IS NULL OR ${tenantConditions.join(" OR ")})` : "",
+    variantColumns.has("product_id") ? `AND (${productParam}::bigint IS NULL OR pv.product_id = ${productParam}::bigint)` : "",
+    variantColumns.has("is_active") ? "AND COALESCE(pv.is_active, TRUE) = TRUE" : "",
+    variantColumns.has("deleted_at") ? "AND pv.deleted_at IS NULL" : "",
+  ]
+    .filter(Boolean)
+    .join("\n      ");
+};
 
 const resolveDefaultTenantBranch = async (tenantId) => {
   const result = await db.query(
@@ -211,6 +249,34 @@ const normalizeAlert = (row = {}) => ({
 });
 
 const loadOrderItems = async ({ orderId, sellerEmployeeId } = {}) => {
+  const [orderItemColumns, variantColumns, productColumns] = await Promise.all([
+    getTableColumns("order_items"),
+    getTableColumns("product_variants"),
+    getTableColumns("products"),
+  ]);
+  const colorNameSql = textCoalesceSql([
+    ...textColumnTerms("oi", orderItemColumns, ["color", "selected_color", "variant_color", "color_name"]),
+    ...textColumnTerms("pv", variantColumns, ["color", "color_name", "selected_color", "variant_color"]),
+    ...textColumnTerms("p", productColumns, ["color", "color_name", "selected_color", "variant_color"]),
+  ]);
+  const colorIdSql = orderItemColumns.has("color_id") ? "NULLIF(oi.color_id::text, '')" : "NULL::text";
+  const soldSizeSql = textCoalesceSql([
+    ...textColumnTerms("oi", orderItemColumns, ["size", "selected_size", "variant_size", "sold_size"]),
+    ...textColumnTerms("pv", variantColumns, ["size", "size_name", "selected_size", "variant_size"]),
+    ...textColumnTerms("p", productColumns, ["size", "size_name", "selected_size", "fixed_size_label"]),
+  ]);
+  const soldVariantImageSql = textCoalesceSql([
+    ...textColumnTerms("oi", orderItemColumns, ["variant_image", "variant_image_url", "image_url"]),
+    ...textColumnTerms("pv", variantColumns, ["image_url", "image", "variant_image_url"]),
+    "NULLIF(sold_pvi.image_url::text, '')",
+  ]);
+  const productImageSql = textCoalesceSql([
+    ...textColumnTerms("oi", orderItemColumns, ["product_image", "product_image_url"]),
+    ...textColumnTerms("p", productColumns, ["image_url", "image"]),
+  ]);
+  const sellerEmployeeSql = orderItemColumns.has("sales_employee_id")
+    ? "AND ($2::bigint IS NULL OR COALESCE(oi.sales_employee_id, o.sales_employee_id) = $2)"
+    : "AND ($2::bigint IS NULL OR o.sales_employee_id = $2)";
   const result = await db.query(
     `
     SELECT
@@ -226,15 +292,15 @@ const loadOrderItems = async ({ orderId, sellerEmployeeId } = {}) => {
       oi.variant_id,
       COALESCE(oi.quantity, 1) AS sold_quantity,
       oi.product_name,
-      COALESCE(NULLIF(oi.color, ''), NULLIF(oi.variant_color, ''), NULLIF(pv.color, ''), NULLIF(p.color, '')) AS color_name,
-      COALESCE(NULLIF(oi.color_id::text, ''), NULLIF(pv.color_id::text, ''), NULLIF(p.color_id::text, '')) AS color_id,
-      COALESCE(NULLIF(oi.size, ''), NULLIF(oi.variant_size, ''), NULLIF(pv.size, ''), NULLIF(p.size, '')) AS sold_size,
-      COALESCE(NULLIF(oi.variant_image, ''), NULLIF(pv.image_url, ''), NULLIF(sold_pvi.image_url, '')) AS sold_variant_image_url,
-      COALESCE(NULLIF(oi.product_image, ''), NULLIF(p.image_url, '')) AS product_image_url
+      ${colorNameSql} AS color_name,
+      ${colorIdSql} AS color_id,
+      ${soldSizeSql} AS sold_size,
+      ${soldVariantImageSql} AS sold_variant_image_url,
+      ${productImageSql} AS product_image_url
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
     LEFT JOIN product_variants pv ON pv.id = oi.variant_id
-    LEFT JOIN products p ON p.id = oi.product_id
+    LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
     LEFT JOIN LATERAL (
       SELECT image_url
       FROM product_variant_images pvi
@@ -245,7 +311,7 @@ const loadOrderItems = async ({ orderId, sellerEmployeeId } = {}) => {
       LIMIT 1
     ) sold_pvi ON TRUE
     WHERE oi.order_id = $1
-      AND ($2::bigint IS NULL OR COALESCE(oi.sales_employee_id, o.sales_employee_id) = $2)
+      ${sellerEmployeeSql}
     `,
     [numberOrNull(orderId), numberOrNull(sellerEmployeeId)]
   );
@@ -259,25 +325,37 @@ const loadOrderItems = async ({ orderId, sellerEmployeeId } = {}) => {
 const loadVariantFallbackById = async ({ variantId, tenantId = null, productId = null } = {}) => {
   const safeVariantId = numberOrNull(variantId);
   if (!safeVariantId) return null;
+  const [variantColumns, productColumns] = await Promise.all([
+    getTableColumns("product_variants"),
+    getTableColumns("products"),
+  ]);
+  const variantColorTerms = textColumnTerms("pv", variantColumns, ["color", "color_name", "selected_color", "variant_color"]);
+  const variantSizeTerms = textColumnTerms("pv", variantColumns, ["size", "size_name", "selected_size", "variant_size"]);
+  const variantImageTerms = textColumnTerms("pv", variantColumns, ["image_url", "image", "variant_image_url"]);
+  const colorNameSql = textCoalesceSql([
+    ...variantColorTerms,
+    ...textColumnTerms("p", productColumns, ["color", "color_name", "selected_color", "variant_color"]),
+  ]);
+  const soldSizeSql = textCoalesceSql([
+    ...variantSizeTerms,
+    ...textColumnTerms("p", productColumns, ["size", "size_name", "selected_size", "fixed_size_label"]),
+  ]);
+  const scopeSql = variantScopeSql({ variantColumns, productColumns });
   const result = await db.query(
     `
     SELECT
       pv.id,
       pv.product_id,
-      pv.color_id,
-      COALESCE(NULLIF(pv.color, ''), NULLIF(p.color, '')) AS color_name,
-      pv.color AS variant_color,
-      COALESCE(NULLIF(pv.size, ''), NULLIF(p.size, '')) AS sold_size,
-      pv.size AS variant_size,
-      COALESCE(pv.stock, pv.quantity, pv.stock_quantity, pv.available_quantity, pv.current_stock, 0) AS stock,
-      COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, '')) AS variant_image_url
+      ${colorNameSql} AS color_name,
+      ${textCoalesceSql(variantColorTerms)} AS variant_color,
+      ${soldSizeSql} AS sold_size,
+      ${textCoalesceSql(variantSizeTerms)} AS variant_size,
+      ${numericCoalesceSql("pv", variantColumns, ["stock", "quantity", "stock_quantity", "available_quantity", "current_stock"])} AS stock,
+      ${textCoalesceSql(variantImageTerms)} AS variant_image_url
     FROM product_variants pv
     LEFT JOIN products p ON p.id = pv.product_id
     WHERE pv.id = $1
-      AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL OR p.tenant_id = $2::bigint)
-      AND ($3::bigint IS NULL OR pv.product_id = $3::bigint)
-      AND COALESCE(pv.is_active, TRUE) = TRUE
-      AND pv.deleted_at IS NULL
+      ${scopeSql}
     LIMIT 1
     `,
     [safeVariantId, numberOrNull(tenantId), numberOrNull(productId)]
@@ -285,19 +363,32 @@ const loadVariantFallbackById = async ({ variantId, tenantId = null, productId =
   return result.rows[0] || null;
 };
 
-const loadSameColorVariants = async ({ tenantId, productId, colorName, soldColorId } = {}) => {
-  const params = [numberOrNull(productId), numberOrNull(tenantId), clean(colorName), textOrNull(soldColorId)];
+const loadSameColorVariants = async ({ tenantId, productId, colorName } = {}) => {
+  const [variantColumns, productColumns] = await Promise.all([
+    getTableColumns("product_variants"),
+    getTableColumns("products"),
+  ]);
+  const variantColorTerms = textColumnTerms("pv", variantColumns, ["color", "color_name", "selected_color", "variant_color"]);
+  const productColorTerms = textColumnTerms("p", productColumns, ["color", "color_name", "selected_color", "variant_color"]);
+  const variantSizeTerms = textColumnTerms("pv", variantColumns, ["size", "size_name", "selected_size", "variant_size"]);
+  const variantColorSql = textCoalesceSql(variantColorTerms);
+  const colorCompareSql = [...variantColorTerms, ...productColorTerms].length
+    ? `LOWER(TRIM(${textCoalesceSql([...variantColorTerms, ...productColorTerms], "''::text")})) = LOWER(TRIM($3::text))`
+    : "FALSE";
+  const scopeSql = variantScopeSql({ variantColumns, productColumns, productParam: "$1" })
+    .replace("AND ($1::bigint IS NULL OR pv.product_id = $1::bigint)", "");
+  const params = [numberOrNull(productId), numberOrNull(tenantId), clean(colorName)];
   const result = await db.query(
     `
     SELECT
       pv.id,
       pv.product_id,
-      pv.color,
-      pv.color AS variant_color,
-      pv.color_id,
-      pv.size,
-      COALESCE(pv.stock, pv.quantity, pv.stock_quantity, pv.available_quantity, pv.current_stock, 0) AS stock,
-      COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, ''), NULLIF(pvi.image_url, '')) AS variant_image_url
+      ${variantColorSql} AS color,
+      ${variantColorSql} AS variant_color,
+      NULL::bigint AS color_id,
+      ${textCoalesceSql(variantSizeTerms)} AS size,
+      ${numericCoalesceSql("pv", variantColumns, ["stock", "quantity", "stock_quantity", "available_quantity", "current_stock"])} AS stock,
+      ${textCoalesceSql([...textColumnTerms("pv", variantColumns, ["image_url", "image", "variant_image_url"]), "NULLIF(pvi.image_url::text, '')"])} AS variant_image_url
     FROM product_variants pv
     LEFT JOIN products p ON p.id = pv.product_id
     LEFT JOIN LATERAL (
@@ -306,19 +397,13 @@ const loadSameColorVariants = async ({ tenantId, productId, colorName, soldColor
       WHERE pvi.product_id = pv.product_id
         AND NULLIF(pvi.image_url, '') IS NOT NULL
         AND (pvi.variant_id = pv.id OR pvi.variant_id IS NULL)
-        AND (NULLIF(pvi.color_name, '') IS NULL OR LOWER(pvi.color_name) = LOWER(COALESCE(pv.color, '')))
+        AND (NULLIF(pvi.color_name, '') IS NULL OR LOWER(pvi.color_name) = LOWER(COALESCE(${variantColorSql}, '')))
       ORDER BY (pvi.variant_id = pv.id) DESC, pvi.is_primary DESC, pvi.sort_order ASC, pvi.id ASC
       LIMIT 1
     ) pvi ON TRUE
     WHERE pv.product_id = $1
-      AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
-      AND (
-        LOWER(TRIM(COALESCE(pv.color, ''))) = LOWER(TRIM($3))
-        OR LOWER(TRIM(COALESCE(p.color, ''))) = LOWER(TRIM($3))
-        OR ($4::text IS NOT NULL AND NULLIF(pv.color_id, 0)::text = $4::text)
-      )
-      AND COALESCE(pv.is_active, TRUE) = TRUE
-      AND pv.deleted_at IS NULL
+      ${scopeSql}
+      AND (${colorCompareSql})
     `,
     params
   );
@@ -529,7 +614,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       continue;
     }
 
-    const variants = await loadSameColorVariants({ tenantId: itemTenantId, productId, colorName, soldColorId });
+    const variants = await loadSameColorVariants({ tenantId: itemTenantId, productId, colorName });
     const sortedVariants = sortVariantsBySize(variants);
     const soldVariant = sortedVariants.find((row) => rowMatchesSoldVariant(row, soldVariantId, soldSize, colorName, soldColorId)) || null;
     const providedDisplayBefore = stockNumberOrNull(firstDefined(item.display_quantity_before, item.displayQuantityBefore, item.stock_before, item.stockBefore));
