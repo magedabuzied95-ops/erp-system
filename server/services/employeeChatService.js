@@ -26,6 +26,8 @@ const messageSelect = `
     m.attachment_name,
     m.attachment_size,
     m.attachment_mime,
+    m.attachment_duration_seconds,
+    m.attachment_duration_seconds AS duration,
     m.reply_to_message_id,
     rm.sender_type AS reply_sender_type,
     rm.body AS reply_body,
@@ -152,15 +154,23 @@ const emitChatEvent = (rooms = [], eventName, payload = {}) => {
   });
 };
 
-const attachmentFromUpload = (file = null) => {
+const parseAttachmentDuration = (value = null) => {
+  const duration = Number(value || 0);
+  if (!Number.isFinite(duration) || duration <= 0) return null;
+  return Math.min(Math.max(duration, 1), 24 * 60 * 60);
+};
+
+const attachmentFromUpload = (file = null, attachmentDurationSeconds = null) => {
   if (!file) return null;
   const mimetype = String(file.mimetype || "");
+  const attachmentType = mimetype.startsWith("image/") ? "image" : mimetype.startsWith("audio/") ? "audio" : "file";
   return {
     attachment_url: `/uploads/employee-chat/${file.filename}`,
-    attachment_type: mimetype.startsWith("image/") ? "image" : mimetype.startsWith("audio/") ? "audio" : "file",
+    attachment_type: attachmentType,
     attachment_name: file.originalname || file.filename,
     attachment_size: Number(file.size || 0),
     attachment_mime: file.mimetype || "",
+    attachment_duration_seconds: attachmentType === "audio" ? parseAttachmentDuration(attachmentDurationSeconds) : null,
   };
 };
 
@@ -238,8 +248,8 @@ export const getEmployeeChat = async ({ employee } = {}) => {
   return { thread, messages };
 };
 
-export const sendEmployeeChatMessage = async ({ employee, body = "", file = null, replyToMessageId = null } = {}) => {
-  const attachment = attachmentFromUpload(file);
+export const sendEmployeeChatMessage = async ({ employee, body = "", file = null, replyToMessageId = null, attachmentDurationSeconds = null } = {}) => {
+  const attachment = attachmentFromUpload(file, attachmentDurationSeconds);
   const text = validateMessageInput({ body, attachment });
   const thread = await getOrCreateEmployeeChatThread(employee);
   const replyTo = normalizeReplyId(replyToMessageId);
@@ -247,11 +257,11 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
     `
     INSERT INTO employee_chat_messages (
       thread_id, sender_type, sender_employee_id, sender_user_id, body,
-      attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime,
+      attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime, attachment_duration_seconds,
       reply_to_message_id, read_at, created_at
     )
-    VALUES ($1, 'employee', $2, NULL, $3, $4, $5, $6, $7, $8,
-      (SELECT id FROM employee_chat_messages WHERE id = $9 AND thread_id = $1),
+    VALUES ($1, 'employee', $2, NULL, $3, $4, $5, $6, $7, $8, $9,
+      (SELECT id FROM employee_chat_messages WHERE id = $10 AND thread_id = $1),
       NULL, NOW())
     RETURNING *
     `,
@@ -264,6 +274,7 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
       attachment?.attachment_name || null,
       attachment?.attachment_size || null,
       attachment?.attachment_mime || null,
+      attachment?.attachment_duration_seconds || null,
       replyTo,
     ]
   );
@@ -394,8 +405,8 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
   return { thread, messages };
 };
 
-export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, userId = null, body = "", file = null, replyToMessageId = null } = {}) => {
-  const attachment = attachmentFromUpload(file);
+export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, userId = null, body = "", file = null, replyToMessageId = null, attachmentDurationSeconds = null } = {}) => {
+  const attachment = attachmentFromUpload(file, attachmentDurationSeconds);
   const text = validateMessageInput({ body, attachment });
   const { thread } = await getAdminEmployeeChatThread({ tenantId, threadId, markRead: true });
   const replyTo = normalizeReplyId(replyToMessageId);
@@ -403,11 +414,11 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
     `
     INSERT INTO employee_chat_messages (
       thread_id, sender_type, sender_employee_id, sender_user_id, body,
-      attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime,
+      attachment_url, attachment_type, attachment_name, attachment_size, attachment_mime, attachment_duration_seconds,
       reply_to_message_id, read_at, created_at
     )
-    VALUES ($1, 'admin', NULL, $2, $3, $4, $5, $6, $7, $8,
-      (SELECT id FROM employee_chat_messages WHERE id = $9 AND thread_id = $1),
+    VALUES ($1, 'admin', NULL, $2, $3, $4, $5, $6, $7, $8, $9,
+      (SELECT id FROM employee_chat_messages WHERE id = $10 AND thread_id = $1),
       NULL, NOW())
     RETURNING *
     `,
@@ -420,6 +431,7 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
       attachment?.attachment_name || null,
       attachment?.attachment_size || null,
       attachment?.attachment_mime || null,
+      attachment?.attachment_duration_seconds || null,
       replyTo,
     ]
   );

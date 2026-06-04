@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCheck, Pause, Play } from "lucide-react";
 
-const WAVEFORM_BARS = [5, 9, 14, 8, 18, 11, 21, 15, 7, 17, 20, 10, 14, 6, 19, 13, 9, 16, 22, 12, 7, 18, 14, 8, 20, 11, 16, 6, 13, 21, 10, 15, 7, 18, 12, 14, 5, 17, 20, 9, 13, 6];
+import { normalizeAudioDuration } from "../lib/chatAttachments";
+
+const WAVEFORM_BARS = [4, 8, 13, 7, 16, 10, 19, 14, 6, 15, 18, 9, 13, 5, 17, 12, 8, 15, 19, 11, 6, 16, 13, 7, 18, 10, 15, 5, 12, 19, 9, 14, 6, 16, 11, 13, 4, 15, 18, 8, 12, 6, 17, 10, 14, 7, 16, 5];
 
 const formatDuration = (seconds = 0) => {
   const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
@@ -16,12 +18,15 @@ export default function WhatsAppVoiceMessage({
   timeText = "",
   showChecks = false,
   read = false,
+  duration: messageDuration = 0,
   className = "",
 }) {
   const audioRef = useRef(null);
   const waveformRef = useRef(null);
+  const metadataLoadRequestedRef = useRef(false);
+  const fallbackDuration = useMemo(() => normalizeAudioDuration(messageDuration), [messageDuration]);
   const [playing, setPlaying] = useState(false);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(fallbackDuration);
   const [currentTime, setCurrentTime] = useState(0);
 
   const progress = useMemo(() => {
@@ -29,39 +34,59 @@ export default function WhatsAppVoiceMessage({
     return Math.min(1, Math.max(0, currentTime / duration));
   }, [currentTime, duration]);
 
+  const syncDuration = useCallback(() => {
+    const audio = audioRef.current;
+    const nextDuration = normalizeAudioDuration(audio?.duration) || fallbackDuration;
+    setDuration(nextDuration);
+    return nextDuration;
+  }, [fallbackDuration]);
+
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return undefined;
+    setPlaying(false);
+    setCurrentTime(0);
+    setDuration(fallbackDuration);
+    metadataLoadRequestedRef.current = false;
+    if (!audio || !src) return undefined;
 
-    const syncDuration = () => {
-      if (Number.isFinite(audio.duration)) setDuration(audio.duration);
-    };
-    const syncTime = () => setCurrentTime(audio.currentTime || 0);
-    const syncPlaying = () => setPlaying(!audio.paused && !audio.ended);
-    const syncStopped = () => {
-      setPlaying(false);
-      syncTime();
-    };
-
-    audio.addEventListener("loadedmetadata", syncDuration);
-    audio.addEventListener("durationchange", syncDuration);
-    audio.addEventListener("timeupdate", syncTime);
-    audio.addEventListener("play", syncPlaying);
-    audio.addEventListener("pause", syncStopped);
-    audio.addEventListener("ended", syncStopped);
-    syncDuration();
-    syncTime();
+    if (audio.readyState >= 1) {
+      syncDuration();
+    } else {
+      try {
+        metadataLoadRequestedRef.current = true;
+        audio.load();
+      } catch {
+        // Metadata loading is best-effort; fallback duration stays visible.
+      }
+    }
 
     return () => {
-      audio.removeEventListener("loadedmetadata", syncDuration);
-      audio.removeEventListener("durationchange", syncDuration);
-      audio.removeEventListener("timeupdate", syncTime);
-      audio.removeEventListener("play", syncPlaying);
-      audio.removeEventListener("pause", syncStopped);
-      audio.removeEventListener("ended", syncStopped);
       audio.pause();
     };
-  }, [src]);
+  }, [fallbackDuration, src, syncDuration]);
+
+  const handleLoadedMetadata = () => {
+    const loadedDuration = syncDuration();
+    const audio = audioRef.current;
+    if (!loadedDuration && audio && audio.readyState < 1 && !metadataLoadRequestedRef.current) {
+      try {
+        metadataLoadRequestedRef.current = true;
+        audio.load();
+      } catch {
+        // Keep the fallback duration if the browser cannot resolve metadata.
+      }
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    const audio = audioRef.current;
+    setCurrentTime(audio?.currentTime || 0);
+  };
+
+  const handlePlaybackStopped = () => {
+    setPlaying(false);
+    handleTimeUpdate();
+  };
 
   const togglePlayback = () => {
     const audio = audioRef.current;
@@ -86,8 +111,19 @@ export default function WhatsAppVoiceMessage({
 
   return (
     <div className={`flex w-full min-w-0 flex-col ${className}`} dir="ltr">
-      <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
-      <div className="flex min-w-0 items-center gap-2">
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        className="hidden"
+        onLoadedMetadata={handleLoadedMetadata}
+        onDurationChange={handleLoadedMetadata}
+        onTimeUpdate={handleTimeUpdate}
+        onPlay={() => setPlaying(true)}
+        onPause={handlePlaybackStopped}
+        onEnded={handlePlaybackStopped}
+      />
+      <div className="flex h-8 min-w-0 items-center gap-1.5">
         <button
           type="button"
           onClick={togglePlayback}
@@ -102,7 +138,7 @@ export default function WhatsAppVoiceMessage({
           ref={waveformRef}
           type="button"
           onClick={seekToWaveformPosition}
-          className="flex h-[21px] min-w-0 flex-1 items-center gap-[2px] overflow-hidden"
+          className="flex h-5 min-w-0 flex-1 items-center gap-[2px] overflow-hidden"
           aria-label={label}
         >
           {WAVEFORM_BARS.map((height, index) => {
@@ -110,7 +146,7 @@ export default function WhatsAppVoiceMessage({
             return (
               <span
                 key={`${height}-${index}`}
-                className={`min-w-[2px] flex-1 rounded-full transition-colors ${
+                className={`min-w-px flex-1 rounded-full transition-colors ${
                   active
                     ? outgoing ? "bg-[#f0f8f3]" : "bg-[#00a884]"
                     : outgoing ? "bg-[#8fc6b7]/75" : "bg-[#8696a0]/75"
@@ -121,14 +157,14 @@ export default function WhatsAppVoiceMessage({
             );
           })}
         </button>
-        <span className={`shrink-0 text-[10px] font-medium leading-none ${outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`}>
+        <span className={`w-8 shrink-0 text-right text-[10px] font-medium leading-none tabular-nums ${outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`}>
           {formatDuration(duration)}
         </span>
       </div>
       {(timeText || showChecks) ? (
-        <div className={`mt-0.5 flex h-3.5 items-center justify-end gap-0.5 text-[10px] font-medium leading-none ${outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`}>
+        <div className={`mt-0 flex h-3 items-center justify-end gap-px text-[9px] font-medium leading-none ${outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`}>
           {timeText ? <span>{timeText}</span> : null}
-          {showChecks ? <CheckCheck className={`h-3.5 w-3.5 ${read ? "text-[#53bdeb]" : outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`} /> : null}
+          {showChecks ? <CheckCheck className={`h-3 w-3 ${read ? "text-[#53bdeb]" : outgoing ? "text-[#c6ded8]" : "text-[#aebac1]"}`} /> : null}
         </div>
       ) : null}
     </div>

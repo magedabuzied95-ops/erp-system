@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownCircle, CheckCheck, FileText, Loader2, MessageCircle, Mic, Paperclip, RefreshCw, Send, UserRound, X } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
-import { API_ORIGIN } from "../../../shared/constants/app";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 import { socket } from "../../../socket";
+import ChatImageAttachment from "../components/ChatImageAttachment";
 import WhatsAppVoiceMessage from "../components/WhatsAppVoiceMessage";
+import { messageAttachmentDuration, resolveEmployeeChatAttachmentUrl } from "../lib/chatAttachments";
 
 const formatChatTime = (value) => {
   if (!value) return "-";
@@ -27,13 +28,6 @@ const formatMessageTime = (value) => {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
-};
-
-const attachmentUrl = (value = "") => {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (/^https?:\/\//i.test(text)) return text;
-  return `${API_ORIGIN}${text.startsWith("/") ? text : `/${text}`}`;
 };
 
 const formatFileSize = (value = 0) => {
@@ -83,15 +77,13 @@ const replyPreview = (message = {}) => {
 
 function AttachmentView({ message, outgoing = false, timeText = "", showChecks = false, read = false, onImageClick }) {
   if (!message?.attachment_url) return null;
-  const href = attachmentUrl(message.attachment_url);
+  const href = resolveEmployeeChatAttachmentUrl(message.attachment_url);
   const isImage = message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
   const isAudio = message.attachment_type === "audio" || String(message.attachment_mime || "").startsWith("audio/");
   const name = message.attachment_name || (isImage ? "صورة" : "ملف");
   if (isImage) {
     return (
-      <button type="button" onClick={() => onImageClick?.(href)} className="mb-2 block overflow-hidden rounded-2xl border border-black/5 bg-black/5 text-start">
-        <img src={href} alt={name} className="max-h-64 w-full object-cover" />
-      </button>
+      <ChatImageAttachment src={href} alt={name} onClick={onImageClick} />
     );
   }
   if (isAudio) {
@@ -103,6 +95,7 @@ function AttachmentView({ message, outgoing = false, timeText = "", showChecks =
         timeText={timeText}
         showChecks={showChecks}
         read={read}
+        duration={messageAttachmentDuration(message)}
       />
     );
   }
@@ -129,6 +122,7 @@ export default function EmployeeChatInbox() {
   const [sending, setSending] = useState(false);
   const [body, setBody] = useState("");
   const [attachment, setAttachment] = useState(null);
+  const [attachmentDuration, setAttachmentDuration] = useState(0);
   const [replyTo, setReplyTo] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [typingEmployee, setTypingEmployee] = useState("");
@@ -143,6 +137,7 @@ export default function EmployeeChatInbox() {
   const mediaRecorderRef = useRef(null);
   const recordingChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
+  const recordingStartedAtRef = useRef(0);
   const selectedThread = useMemo(
     () => threads.find((item) => String(item.id) === String(selectedId)) || thread,
     [selectedId, thread, threads]
@@ -284,10 +279,12 @@ export default function EmployeeChatInbox() {
       const formData = new FormData();
       if (text) formData.append("body", text);
       if (attachment) formData.append("attachment", attachment);
+      if (attachment && attachmentDuration > 0) formData.append("attachment_duration_seconds", String(attachmentDuration));
       if (replyTo?.id) formData.append("reply_to_message_id", replyTo.id);
       await api.post(`/employees/chat/threads/${encodeURIComponent(selectedId)}/messages`, formData);
       setBody("");
       setAttachment(null);
+      setAttachmentDuration(0);
       setReplyTo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       await loadThread(selectedId);
@@ -303,16 +300,19 @@ export default function EmployeeChatInbox() {
     const file = event.target.files?.[0] || null;
     if (!file) {
       setAttachment(null);
+      setAttachmentDuration(0);
       return;
     }
     if (!allowedAttachment(file) || file.size > 10 * 1024 * 1024) {
       setError("نوع الملف غير مدعوم أو أكبر من 10MB");
       event.target.value = "";
       setAttachment(null);
+      setAttachmentDuration(0);
       return;
     }
     setError("");
     setAttachment(file);
+    setAttachmentDuration(0);
   };
 
   const emitTyping = () => {
@@ -350,6 +350,7 @@ export default function EmployeeChatInbox() {
     recorder.onstop = () => stream.getTracks().forEach((track) => track.stop());
     mediaRecorderRef.current = recorder;
     recorder.start();
+    recordingStartedAtRef.current = Date.now();
     setRecordingState((current) => ({ ...current, active: true, seconds: 0 }));
     recordingTimerRef.current = window.setInterval(() => {
       setRecordingState((current) => ({ ...current, seconds: current.seconds + 1 }));
@@ -359,6 +360,7 @@ export default function EmployeeChatInbox() {
   const cancelVoiceRecording = () => {
     mediaRecorderRef.current?.stop();
     recordingChunksRef.current = [];
+    recordingStartedAtRef.current = 0;
     if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
     setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
   };
@@ -370,9 +372,14 @@ export default function EmployeeChatInbox() {
       recorder.stream?.getTracks?.().forEach((track) => track.stop());
       if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
       const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      const durationSeconds = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
       recordingChunksRef.current = [];
+      recordingStartedAtRef.current = 0;
       setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
-      if (blob.size) setAttachment(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type || "audio/webm" }));
+      if (blob.size) {
+        setAttachmentDuration(durationSeconds);
+        setAttachment(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type || "audio/webm" }));
+      }
     };
     recorder.stop();
   };
@@ -486,7 +493,7 @@ export default function EmployeeChatInbox() {
                       <div key={message.id} id={`admin-chat-message-${message.id}`}>
                         {index === firstUnreadIndex ? <div className="mx-auto mb-2 w-fit rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-black text-emerald-100">رسائل غير مقروءة</div> : null}
                       <div className={`flex ${admin ? "justify-start" : "justify-end"}`}>
-                        <div className={`relative break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${voiceMessage ? "w-[min(72vw,16.75rem)] px-2 py-1.5" : "w-fit max-w-[72%] px-2 py-1"} ${admin ? "rounded-bl-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]" : "rounded-br-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(0_0,100%_100%,0_100%)]"}`}>
+                        <div className={`relative break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${voiceMessage ? "w-[min(78vw,18.5rem)] px-2 py-1" : "w-fit max-w-[72%] px-2 py-1"} ${admin ? "rounded-bl-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]" : "rounded-br-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(0_0,100%_100%,0_100%)]"}`}>
                           {message.reply_to_message_id ? (
                             <button type="button" onClick={() => document.getElementById(`admin-chat-message-${message.reply_to_message_id}`)?.scrollIntoView({ block: "center", behavior: "smooth" })} className="mb-1 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
                               <div className="font-black">{message.reply_sender_type === "admin" ? "الإدارة" : selectedThread?.employee_name || "الموظف"}</div>
@@ -548,7 +555,7 @@ export default function EmployeeChatInbox() {
                 {attachment ? (
                   <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-3 py-2 text-[11px] font-bold text-white">
                     <span className="min-w-0 truncate" dir="auto">{attachment.name}</span>
-                    <button type="button" onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="inline-flex items-center gap-1 font-black text-red-200">
+                    <button type="button" onClick={() => { setAttachment(null); setAttachmentDuration(0); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="inline-flex items-center gap-1 font-black text-red-200">
                       <X className="h-3 w-3" />
                       حذف
                     </button>

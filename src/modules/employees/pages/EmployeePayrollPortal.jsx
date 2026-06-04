@@ -40,7 +40,9 @@ import { api } from "../../../shared/api/api";
 import { API_ORIGIN, SOCKET_URL } from "../../../shared/constants/app";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
+import ChatImageAttachment from "../components/ChatImageAttachment";
 import WhatsAppVoiceMessage from "../components/WhatsAppVoiceMessage";
+import { messageAttachmentDuration, resolveEmployeeChatAttachmentUrl } from "../lib/chatAttachments";
 
 const labels = {
   ar: {
@@ -452,10 +454,7 @@ const money = (value) => {
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 const chatAttachmentUrl = (value = "") => {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (/^https?:\/\//i.test(text)) return text;
-  return `${API_ORIGIN}${text.startsWith("/") ? text : `/${text}`}`;
+  return resolveEmployeeChatAttachmentUrl(value);
 };
 const formatFileSize = (value = 0) => {
   const bytes = Number(value || 0);
@@ -1001,9 +1000,7 @@ function ChatAttachment({ message, text, compact = false, outgoing = false, time
   const name = message.attachment_name || (isImage ? text.imageAttachment : text.fileAttachment);
   if (isImage) {
     return (
-      <button type="button" onClick={() => onImageClick?.(href)} className="mb-2 block overflow-hidden rounded-2xl border border-black/5 bg-black/5 text-start">
-        <img src={href} alt={name} className={`${compact ? "max-h-56" : "max-h-64"} w-full object-cover`} />
-      </button>
+      <ChatImageAttachment src={href} alt={name} compact={compact} onClick={onImageClick} />
     );
   }
   if (isAudio) {
@@ -1015,6 +1012,7 @@ function ChatAttachment({ message, text, compact = false, outgoing = false, time
         timeText={timeText}
         showChecks={showChecks}
         read={read}
+        duration={messageAttachmentDuration(message)}
       />
     );
   }
@@ -1067,6 +1065,7 @@ export default function EmployeePayrollPortal() {
   const [chatError, setChatError] = useState("");
   const [chatBody, setChatBody] = useState("");
   const [chatAttachment, setChatAttachment] = useState(null);
+  const [chatAttachmentDuration, setChatAttachmentDuration] = useState(0);
   const [chatThread, setChatThread] = useState(null);
   const [replyToChat, setReplyToChat] = useState(null);
   const [chatImagePreview, setChatImagePreview] = useState("");
@@ -1091,6 +1090,7 @@ export default function EmployeePayrollPortal() {
   const mediaRecorderRef = useRef(null);
   const recordingChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
+  const recordingStartedAtRef = useRef(0);
   const chatSwipeRef = useRef({ id: null, startX: 0, startY: 0, active: false });
   const text = labels[language];
   const isRtl = language === "ar";
@@ -1805,12 +1805,14 @@ export default function EmployeePayrollPortal() {
       const formData = new FormData();
       if (message) formData.append("body", message);
       if (chatAttachment) formData.append("attachment", chatAttachment);
+      if (chatAttachment && chatAttachmentDuration > 0) formData.append("attachment_duration_seconds", String(chatAttachmentDuration));
       if (replyToChat?.id) formData.append("reply_to_message_id", replyToChat.id);
       await api.post(`/employee-portal/${encodeURIComponent(token)}/chat/messages`, formData, {
         suppressErrorStatuses: [400, 404, 429],
       });
       setChatBody("");
       setChatAttachment(null);
+      setChatAttachmentDuration(0);
       setReplyToChat(null);
       if (chatFileInputRef.current) chatFileInputRef.current.value = "";
       await loadEmployeeChat({ silent: true });
@@ -1825,16 +1827,19 @@ export default function EmployeePayrollPortal() {
     const file = event.target.files?.[0] || null;
     if (!file) {
       setChatAttachment(null);
+      setChatAttachmentDuration(0);
       return;
     }
     if (!allowedChatAttachment(file) || file.size > 10 * 1024 * 1024) {
       setChatError(ui("unsupportedAttachment"));
       event.target.value = "";
       setChatAttachment(null);
+      setChatAttachmentDuration(0);
       return;
     }
     setChatError("");
     setChatAttachment(file);
+    setChatAttachmentDuration(0);
   };
 
   const emitChatTyping = () => {
@@ -1923,6 +1928,7 @@ export default function EmployeePayrollPortal() {
     recorder.onstop = () => stream.getTracks().forEach((track) => track.stop());
     mediaRecorderRef.current = recorder;
     recorder.start();
+    recordingStartedAtRef.current = Date.now();
     setRecordingState((current) => ({ ...current, active: true, seconds: 0 }));
     recordingTimerRef.current = window.setInterval(() => {
       setRecordingState((current) => ({ ...current, seconds: current.seconds + 1 }));
@@ -1932,6 +1938,7 @@ export default function EmployeePayrollPortal() {
   const cancelVoiceRecording = () => {
     mediaRecorderRef.current?.stop();
     recordingChunksRef.current = [];
+    recordingStartedAtRef.current = 0;
     if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
     setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
   };
@@ -1943,9 +1950,12 @@ export default function EmployeePayrollPortal() {
       recorder.stream?.getTracks?.().forEach((track) => track.stop());
       if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
       const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      const durationSeconds = Math.max(1, Math.round((Date.now() - recordingStartedAtRef.current) / 1000));
       recordingChunksRef.current = [];
+      recordingStartedAtRef.current = 0;
       setRecordingState((current) => ({ ...current, active: false, seconds: 0 }));
       if (!blob.size) return;
+      setChatAttachmentDuration(durationSeconds);
       setChatAttachment(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type || "audio/webm" }));
     };
     recorder.stop();
@@ -2936,7 +2946,7 @@ export default function EmployeePayrollPortal() {
                         onTouchMove={(event) => moveChatSwipe(event, message)}
                         onTouchEnd={endChatSwipe}
                         onTouchCancel={endChatSwipe}
-                        className={`relative touch-pan-y select-none break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${voiceMessage ? "w-[min(72vw,16.75rem)] px-2 py-1.5" : "w-fit max-w-[78%] px-3 py-2"} ${employeeMessage ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}
+                        className={`relative touch-pan-y select-none break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${voiceMessage ? "w-[min(78vw,18.5rem)] px-2 py-1" : "w-fit max-w-[78%] px-3 py-2"} ${employeeMessage ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}
                       >
                         {message.reply_to_message_id ? (
                           <button type="button" onClick={() => scrollToChatMessage(message.reply_to_message_id)} className="mb-1.5 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
@@ -3000,7 +3010,7 @@ export default function EmployeePayrollPortal() {
               {chatAttachment ? (
                 <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-white/10 px-2.5 py-1.5 text-[11px] font-bold text-white">
                   <span className="min-w-0 truncate" dir="auto">{chatAttachment.name}</span>
-                  <button type="button" onClick={() => { setChatAttachment(null); if (chatFileInputRef.current) chatFileInputRef.current.value = ""; }} className="font-black text-red-200">
+                  <button type="button" onClick={() => { setChatAttachment(null); setChatAttachmentDuration(0); if (chatFileInputRef.current) chatFileInputRef.current.value = ""; }} className="font-black text-red-200">
                     {ui("removeAttachment")}
                   </button>
                 </div>
