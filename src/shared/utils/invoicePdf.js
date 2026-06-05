@@ -47,8 +47,11 @@ const getInvoiceWebsite = (invoice = {}) =>
   invoice.companyWebsite || invoice.website || invoice.storeWebsite || "www.workspace.com";
 
 const getPublicAppUrl = () => {
-  const env = import.meta.env || {};
-  const selected = [env.VITE_PUBLIC_APP_URL, env.PUBLIC_APP_URL, env.FRONTEND_URL]
+  const selected = [
+    import.meta.env.VITE_PUBLIC_APP_URL,
+    import.meta.env.PUBLIC_APP_URL,
+    import.meta.env.FRONTEND_URL,
+  ]
     .map((value) => String(value || "").trim())
     .find((value) => value && !/localhost|127\.0\.0\.1/i.test(value));
   if (selected) return selected.replace(/\/$/, "");

@@ -132,8 +132,11 @@ const formatArabicTime = (value = new Date()) =>
   }).format(new Date(value));
 
 const getPublicAppUrl = () => {
-  const env = import.meta.env || {};
-  const candidates = [env.VITE_PUBLIC_APP_URL, env.PUBLIC_APP_URL, env.FRONTEND_URL]
+  const candidates = [
+    import.meta.env.VITE_PUBLIC_APP_URL,
+    import.meta.env.PUBLIC_APP_URL,
+    import.meta.env.FRONTEND_URL,
+  ]
     .map((value) => String(value || "").trim())
     .filter(Boolean);
   const selected = candidates.find((value) => !/localhost|127\.0\.0\.1/i.test(value));

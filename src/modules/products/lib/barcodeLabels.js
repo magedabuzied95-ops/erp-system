@@ -60,14 +60,13 @@ function resolveAssetUrl(url) {
 }
 
 const resolveStorefrontOrigin = () => {
-  const env = typeof import.meta !== "undefined" ? import.meta.env || {} : {};
   const configured = String(
-    env.VITE_PUBLIC_STOREFRONT_URL ||
-      env.VITE_STORE_FRONT_URL ||
-      env.VITE_STOREFRONT_URL ||
-      env.VITE_PUBLIC_FRONTEND_URL ||
-      env.VITE_PUBLIC_APP_URL ||
-      env.FRONTEND_URL ||
+    import.meta.env.VITE_PUBLIC_STOREFRONT_URL ||
+      import.meta.env.VITE_STORE_FRONT_URL ||
+      import.meta.env.VITE_STOREFRONT_URL ||
+      import.meta.env.VITE_PUBLIC_FRONTEND_URL ||
+      import.meta.env.VITE_PUBLIC_APP_URL ||
+      import.meta.env.FRONTEND_URL ||
       ""
   ).trim().replace(/\/$/, "");
   if (configured) return configured.replace(/\/shop$/i, "");

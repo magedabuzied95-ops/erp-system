@@ -8,12 +8,26 @@ const browserOrigin = () =>
 
 const LOCAL_API_ORIGIN = "http://localhost:8000";
 const PRODUCTION_API_ORIGIN = "https://erp-system-0qhp.onrender.com";
+const PRODUCTION_API_BASE_URL = `${PRODUCTION_API_ORIGIN}/api`;
+const IS_PRODUCTION = import.meta.env.PROD;
 
 const defaultApiOrigin = () =>
-  import.meta.env.PROD ? PRODUCTION_API_ORIGIN : LOCAL_API_ORIGIN;
+  IS_PRODUCTION ? PRODUCTION_API_ORIGIN : LOCAL_API_ORIGIN;
 
-const envValue = (key) =>
-  trimTrailingSlash(import.meta.env[key]);
+const isLocalApiUrl = (value) => {
+  const raw = trimTrailingSlash(value);
+  if (!raw) return false;
+
+  try {
+    const url = new URL(raw, browserOrigin() || LOCAL_API_ORIGIN);
+    return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(url.hostname);
+  } catch {
+    return /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[?::1\]?)(?::|\/|$)/i.test(raw);
+  }
+};
+
+const devEnvValue = (value) =>
+  IS_PRODUCTION ? "" : trimTrailingSlash(value);
 
 const normalizeApiBaseUrl = (value) => {
   const base = trimTrailingSlash(value);
@@ -23,19 +37,31 @@ const normalizeApiBaseUrl = (value) => {
 };
 
 const API_BASE_URL_ENV =
-  envValue("VITE_API_BASE_URL");
+  devEnvValue(import.meta.env.VITE_API_BASE_URL);
 
 const API_ORIGIN_ENV =
-  envValue("VITE_API_URL");
+  devEnvValue(import.meta.env.VITE_API_URL);
 
-export const API_BASE_URL = normalizeApiBaseUrl(API_BASE_URL_ENV || API_ORIGIN_ENV);
+const resolveApiBaseUrl = () => {
+  if (IS_PRODUCTION) {
+    return PRODUCTION_API_BASE_URL;
+  }
+
+  const envApiBaseUrl = API_BASE_URL_ENV || API_ORIGIN_ENV;
+  return normalizeApiBaseUrl(envApiBaseUrl);
+};
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export const API_ORIGIN = (() => {
   try {
-    return new URL(API_ORIGIN_ENV || API_BASE_URL, browserOrigin()).origin;
+    return new URL(API_BASE_URL, browserOrigin()).origin;
   } catch {
     return defaultApiOrigin();
   }
 })();
 
-export const SOCKET_URL = API_ORIGIN_ENV || defaultApiOrigin();
+export const SOCKET_URL =
+  IS_PRODUCTION || isLocalApiUrl(API_ORIGIN_ENV)
+    ? API_ORIGIN
+    : API_ORIGIN_ENV || API_ORIGIN;
