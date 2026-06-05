@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 
 import { getCurrentUser, hasAnyPermission, hasPermission, isAdminUser } from "../../../shared/auth/authStorage";
 import EmployeePortalAccessCard from "../../employees/components/EmployeePortalAccessCard";
+import ManagerPortalAccessCard from "../../employees/components/ManagerPortalAccessCard";
 import AttendanceMetricCard from "./AttendanceMetricCard";
 import {
   checkInEmployee,
@@ -662,6 +663,9 @@ function AttendanceWorkspace({
     setEditingEmployee(null);
     setEmployeeForm(createEmptyEmployeeForm(singleBranchId));
     setShiftForm(createEmptyShiftForm());
+    if (typeof onSelectedEmployeeChange === "function") {
+      onSelectedEmployeeChange(null);
+    }
   };
 
   const setEmployeePortalToken = (employeeId, token) => {
@@ -673,6 +677,18 @@ function AttendanceWorkspace({
     ));
     setEditingEmployee((prev) => (
       String(prev?.id || "") === String(employeeId) ? { ...prev, employee_portal_token: token } : prev
+    ));
+  };
+
+  const setManagerPortalToken = (employeeId, token) => {
+    setEmployees((prev) => prev.map((employee) => (
+      String(employee.id) === String(employeeId) ? { ...employee, manager_portal_token: token } : employee
+    )));
+    setEmployeeForm((prev) => (
+      String(prev.id) === String(employeeId) ? { ...prev, manager_portal_token: token } : prev
+    ));
+    setEditingEmployee((prev) => (
+      String(prev?.id || "") === String(employeeId) ? { ...prev, manager_portal_token: token } : prev
     ));
   };
 
@@ -696,6 +712,8 @@ function AttendanceWorkspace({
       salary: employee.salary || "",
       hire_date: employee.hire_date || todayValue(),
       status: employee.status || "active",
+      employee_portal_token: employee.employee_portal_token || "",
+      manager_portal_token: employee.manager_portal_token || "",
     };
 
     setEditingEmployee(snapshot);
@@ -1620,6 +1638,10 @@ function AttendanceWorkspace({
 
             {profileEmployee?.employee_portal_token ? (
               <EmployeePortalAccessCard employee={profileEmployee} onEmployeeTokenChange={setEmployeePortalToken} />
+            ) : null}
+
+            {profileEmployee ? (
+              <ManagerPortalAccessCard employee={profileEmployee} onEmployeeTokenChange={setManagerPortalToken} />
             ) : null}
 
             {isEditable ? (
