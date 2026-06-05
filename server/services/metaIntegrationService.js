@@ -344,7 +344,7 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     intent = AI_INTENTS.ALTERNATIVES;
     confidence = 0.93;
     reason = "alternatives_keyword";
-  } else if (checkoutStageAtLeast(stage, "buying_intent") && (detectReservationAffirmation(messageText) || detectCheckoutConfirmation(messageText) || detectExplicitCheckoutIntent(messageText))) {
+  } else if (checkoutStageAtLeast(stage, "buying_intent") && !detectSalesFinalConfirmation(messageText) && (detectReservationAffirmation(messageText) || detectCheckoutConfirmation(messageText) || detectExplicitCheckoutIntent(messageText))) {
     intent = AI_INTENTS.CHECKOUT;
     confidence = 0.93;
     reason = "stage_lock_confirmation_to_checkout";
