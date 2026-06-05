@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { AlertTriangle, Banknote, BriefcaseBusiness, CalendarDays, Calculator, CheckCircle2, Coins, CreditCard, ExternalLink, Gavel, Gift, Plus, ReceiptText, RefreshCw, Save, Search, ShieldCheck, TrendingUp, WalletCards, X } from "lucide-react";
+import { AlertTriangle, Banknote, BriefcaseBusiness, CalendarDays, Calculator, CheckCircle2, Coins, CreditCard, ExternalLink, Gavel, Gift, Loader2, Plus, ReceiptText, RefreshCw, Save, Search, ShieldCheck, TrendingUp, WalletCards, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { featureFlags } from "../../../config/featureFlags";
@@ -335,6 +335,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const [gamificationSettings, setGamificationSettings] = useState({});
   const [gamificationSaving, setGamificationSaving] = useState(false);
   const [rewardForm, setRewardForm] = useState({ employee_id: "", title: "", points_cost: 0, admin_note: "" });
+  const [walletQaChecks, setWalletQaChecks] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [productSearch, setProductSearch] = useState("");
@@ -484,6 +485,10 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     return `${origin}/employee-portal/${encodeURIComponent(token)}`;
   }, [payrollEmployee?.employee_portal_token]);
   const showEmployeeGamificationSettings = featureFlags.showEmployeeGamificationSettings;
+  const employeeWalletQaItems = [];
+  const completedWalletQaCount = 0;
+  const effectivePayrollPortalUrl = payrollPortalUrl;
+  const pendingPortalRequestCount = 0;
   const showEmployeeWalletQa = false;
 
   useEffect(() => {
@@ -1936,6 +1941,9 @@ function PayrollFinancialSummary({
   finalizing,
 }) {
   const safePayrollPreview = payrollPreview ?? null;
+  const tableHeadClass = isRtl
+    ? "bg-[var(--surface)] text-right text-xs font-bold leading-6 text-[var(--muted)]"
+    : "bg-[var(--surface)] text-left text-xs uppercase tracking-[0.14em] text-[var(--muted)]";
   const baseSalary = numberValue(payroll.base_salary);
   const commissions = numberValue(payroll.sales_earnings ?? payroll.commissions ?? 0);
   const bonuses = numberValue(payroll.bonuses);

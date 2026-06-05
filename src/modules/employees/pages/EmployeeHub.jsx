@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, NavLink, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -42,6 +42,28 @@ const legacyTabRedirects = {
   "sales-performance": "analytics",
   shifts: "attendance",
 };
+
+class WorkspaceErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    if (typeof this.props.onError === "function") this.props.onError(error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || <div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">Workspace unavailable.</div>;
+    }
+    return this.props.children;
+  }
+}
 
 export default function EmployeeHub() {
   const { t, i18n } = useTranslation();
@@ -116,7 +138,14 @@ export default function EmployeeHub() {
       <Suspense fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">{t("common.loading", "Loading...")}</div>}>
         {activeTab === "employees" ? <HREmployeesWorkspace selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={handleSelectedEmployeeChange} /> : null}
         {activeTab === "attendance" ? <AttendanceCenter /> : null}
-        {activeTab === "payroll" ? <SalesEmployees defaultTab="payroll" visibleTabs={payrollVisibleTabs} embedded /> : null}
+        {activeTab === "payroll" ? (
+          <WorkspaceErrorBoundary
+            fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">Payroll workspace failed to render. Please refresh.</div>}
+            onError={(error) => console.error("[employee-hub-payroll-boundary]", error)}
+          >
+            <SalesEmployees defaultTab="payroll" visibleTabs={payrollVisibleTabs} embedded />
+          </WorkspaceErrorBoundary>
+        ) : null}
         {activeTab === "requests" ? <HRRequestsWorkspace /> : null}
         {activeTab === "advances" ? <Expenses defaultTab="advances" visibleTabs={advancesVisibleTabs} embedded /> : null}
         {activeTab === "chat" ? <EmployeeChatInbox selectedEmployee={selectedEmployee} selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={handleSelectedEmployeeChange} /> : null}

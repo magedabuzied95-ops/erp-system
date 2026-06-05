@@ -206,6 +206,12 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
   const recordingTimerRef = useRef(null);
   const recordingSecondsRef = useRef(0);
   const lastNotifiedSelectedEmployeeIdRef = useRef("");
+  const employeesRef = useRef(employees);
+  const selectedEmployeeRef = useRef(selectedEmployee);
+  const selectedThreadRef = useRef(null);
+  const threadsRequestRef = useRef({ controller: null, key: "", loading: false });
+  const threadRequestRef = useRef({ controller: null, key: "", loading: false });
+  const lastAutoThreadKeyRef = useRef("");
 
   const externalSelectedEmployeeId = useMemo(
     () => String(initialSelectedEmployeeId || employeeRecordId(selectedEmployee) || ""),
@@ -284,10 +290,26 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
   }, [selectedEmployeeId, selectedThreadId, threadByThreadId, threadMap]);
 
   const activeThreadId = selectedThread?.id || null;
+  const activeThreadRequestKey = useMemo(
+    () => `${String(selectedEmployeeId || "")}:${String(activeThreadId || "")}`,
+    [activeThreadId, selectedEmployeeId]
+  );
   const firstUnreadIndex = useMemo(
     () => messages.findIndex((message) => message.sender_type === "employee" && !message.read_at),
     [messages]
   );
+
+  useEffect(() => {
+    employeesRef.current = employees;
+  }, [employees]);
+
+  useEffect(() => {
+    selectedEmployeeRef.current = selectedEmployee;
+  }, [selectedEmployee]);
+
+  useEffect(() => {
+    selectedThreadRef.current = selectedThread;
+  }, [selectedThread]);
 
   const sidebarRows = useMemo(() => {
     const employeeIds = new Set();
@@ -330,24 +352,47 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
   }, []);
 
   const loadThreads = useCallback(async () => {
+    if (threadsRequestRef.current.loading) return false;
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    threadsRequestRef.current = { controller, key: "threads", loading: true };
+    console.count("[employee-chat] loadThreads");
+    setLoadingThreads(true);
     try {
       setError("");
-      const response = await api.get("/employees/chat/threads");
+      const response = await api.get("/employees/chat/threads", controller ? { signal: controller.signal } : {});
       const nextThreads = safeArray(response.threads);
       setThreads((current) => (shallowRecordArrayEqual(current, nextThreads) ? current : nextThreads));
+      return true;
     } catch (err) {
+      if (err?.cause?.name === "AbortError" || err?.cause?.name === "TimeoutError") return false;
       setError(err?.responseBody?.message || err?.message || "تعذر تحميل محادثات الموظفين");
+      return false;
     } finally {
-      setLoadingThreads(false);
+      if (threadsRequestRef.current.key === "threads") {
+        threadsRequestRef.current = { controller: null, key: "", loading: false };
+        setLoadingThreads(false);
+      }
     }
   }, []);
 
-  const loadThread = useCallback(async (threadId) => {
-    if (!threadId) return;
+  const loadThread = useCallback(async (threadId, { force = false } = {}) => {
+    const resolvedThreadId = String(threadId || "");
+    if (!resolvedThreadId) return false;
+    const requestKey = `${String(selectedEmployeeId || "")}:${resolvedThreadId}`;
+    const currentRequest = threadRequestRef.current;
+    if (currentRequest.loading && currentRequest.key === requestKey) return false;
+    if (currentRequest.loading && currentRequest.key !== requestKey) {
+      currentRequest.controller?.abort();
+    }
+    if (!force && lastAutoThreadKeyRef.current === requestKey) return false;
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    threadRequestRef.current = { controller, key: requestKey, loading: true };
+    lastAutoThreadKeyRef.current = requestKey;
+    console.count("[employee-chat] loadMessages");
+    setLoadingThread(true);
     try {
-      setLoadingThread(true);
       setError("");
-      const response = await api.get(`/employees/chat/threads/${encodeURIComponent(threadId)}`);
+      const response = await api.get(`/employees/chat/threads/${encodeURIComponent(resolvedThreadId)}`, controller ? { signal: controller.signal } : {});
       const nextThread = response.thread || null;
       const nextMessages = safeArray(response.messages);
       setThread((current) => (shallowRecordEqual(current, nextThread) ? current : nextThread));
@@ -355,19 +400,25 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
       setThreads((current) => {
         let changed = false;
         const nextRows = current.map((item) => {
-          if (String(item.id) !== String(threadId)) return item;
+          if (String(item.id) !== resolvedThreadId) return item;
           const nextItem = { ...item, ...(nextThread || {}), unread_count: 0 };
           if (!shallowRecordEqual(item, nextItem)) changed = true;
           return shallowRecordEqual(item, nextItem) ? item : nextItem;
         });
         return changed ? nextRows : current;
       });
+      return true;
     } catch (err) {
+      if (err?.cause?.name === "AbortError" || err?.cause?.name === "TimeoutError") return false;
       setError(err?.responseBody?.message || err?.message || "تعذر فتح المحادثة");
+      return false;
     } finally {
-      setLoadingThread(false);
+      if (threadRequestRef.current.key === requestKey) {
+        threadRequestRef.current = { controller: null, key: "", loading: false };
+        setLoadingThread(false);
+      }
     }
-  }, []);
+  }, [selectedEmployeeId]);
 
   useEffect(() => {
     const supported = typeof window !== "undefined" && Boolean(window.MediaRecorder && navigator.mediaDevices?.getUserMedia);
@@ -376,6 +427,8 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
 
   useEffect(() => () => {
     if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+    threadsRequestRef.current.controller?.abort();
+    threadRequestRef.current.controller?.abort();
     mediaRecorderRef.current?.stream?.getTracks?.().forEach((track) => track.stop());
   }, []);
 
@@ -386,8 +439,13 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
   useEffect(() => {
     const nextSelectedEmployeeId = externalSelectedEmployeeId;
     if (!nextSelectedEmployeeId) return;
-    setSelectedEmployeeId((current) => (String(current || "") === nextSelectedEmployeeId ? current : nextSelectedEmployeeId));
-  }, [externalSelectedEmployeeId, selectedEmployeeId]);
+    setSelectedEmployeeId((current) => {
+      const currentId = String(current || "");
+      if (currentId === nextSelectedEmployeeId) return current;
+      console.count("[employee-chat] selectEmployee");
+      return nextSelectedEmployeeId;
+    });
+  }, [externalSelectedEmployeeId]);
 
   const firstSidebarEmployeeId = useMemo(
     () => employeeRecordId(sidebarRows[0]?.employee),
@@ -398,26 +456,41 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
     if (selectedEmployeeId) return;
     const nextSelectedEmployeeId = externalSelectedEmployeeId || firstSidebarEmployeeId || "";
     if (nextSelectedEmployeeId) {
-      setSelectedEmployeeId((current) => (String(current || "") === nextSelectedEmployeeId ? current : nextSelectedEmployeeId));
+      setSelectedEmployeeId((current) => {
+        const currentId = String(current || "");
+        if (currentId === nextSelectedEmployeeId) return current;
+        console.count("[employee-chat] selectEmployee");
+        return nextSelectedEmployeeId;
+      });
     }
   }, [externalSelectedEmployeeId, firstSidebarEmployeeId, selectedEmployeeId]);
 
   useEffect(() => {
     if (!selectedEmployeeId) {
+      threadRequestRef.current.controller?.abort();
+      threadRequestRef.current = { controller: null, key: "", loading: false };
       setSelectedThreadId((current) => (current ? "" : current));
       setThread((current) => (current === null ? current : null));
       setMessages((current) => (current.length ? [] : current));
       setLoadingThread((current) => (current ? false : current));
+      lastAutoThreadKeyRef.current = "";
       return;
     }
-    const canonicalThreadId = String(threadMap.get(String(selectedEmployeeId || ""))?.id || "");
+    const canonicalThreadId = String(activeThreadId || "");
     if (!canonicalThreadId) {
       if (!selectedThreadId) return;
       setSelectedThreadId((current) => (current ? "" : current));
       return;
     }
     setSelectedThreadId((current) => (String(current || "") === canonicalThreadId ? current : canonicalThreadId));
-  }, [selectedEmployeeId, selectedThreadId, threadMap]);
+  }, [activeThreadId, selectedEmployeeId, selectedThreadId]);
+
+  useEffect(() => {
+    if (!selectedEmployeeId || !activeThreadId) return undefined;
+    if (lastAutoThreadKeyRef.current === activeThreadRequestKey) return undefined;
+    void loadThread(activeThreadId);
+    return undefined;
+  }, [activeThreadId, activeThreadRequestKey, loadThread, selectedEmployeeId]);
 
   useEffect(() => {
     if (typeof onSelectedEmployeeChange !== "function") return;
@@ -425,26 +498,25 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
     if (lastNotifiedSelectedEmployeeIdRef.current === nextSelectedEmployeeId) return;
     lastNotifiedSelectedEmployeeIdRef.current = nextSelectedEmployeeId;
     const nextSelectedEmployee = nextSelectedEmployeeId
-      ? employees.find((item) => employeeRecordId(item) === nextSelectedEmployeeId) ||
-        (selectedThread
+      ? employeesRef.current.find((item) => employeeRecordId(item) === nextSelectedEmployeeId) ||
+        (selectedThreadRef.current
           ? {
-              id: selectedThread.employee_id,
-              employee_id: selectedThread.employee_id,
-              full_name: selectedThread.employee_name,
-              employee_code: selectedThread.employee_code,
-              branch_name: selectedThread.branch_name,
+              id: selectedThreadRef.current.employee_id,
+              employee_id: selectedThreadRef.current.employee_id,
+              full_name: selectedThreadRef.current.employee_name,
+              employee_code: selectedThreadRef.current.employee_code,
+              branch_name: selectedThreadRef.current.branch_name,
             }
-          : selectedEmployee || null)
+          : selectedEmployeeRef.current || null)
       : null;
     onSelectedEmployeeChange(nextSelectedEmployee);
-  }, [employees, onSelectedEmployeeChange, selectedEmployee, selectedEmployeeId, selectedThreadId, threadMap]);
+  }, [onSelectedEmployeeChange, selectedEmployeeId]);
 
   useEffect(() => {
     if (!selectedEmployeeId || !activeThreadId) return undefined;
-    void loadThread(activeThreadId);
     if (realtime.connected) return undefined;
     const timer = window.setInterval(() => {
-      void loadThread(activeThreadId);
+      void loadThread(activeThreadId, { force: true });
       void loadThreads();
     }, 12000);
     return () => window.clearInterval(timer);
@@ -543,6 +615,7 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
   const chooseEmployee = (employeeId, threadId = "") => {
     const nextEmployeeId = String(employeeId || "");
     const nextThreadId = String(threadId || "");
+    console.count("[employee-chat] selectEmployee");
     setSelectedEmployeeId((current) => (String(current || "") === nextEmployeeId ? current : nextEmployeeId));
     setSelectedThreadId((current) => (String(current || "") === nextThreadId ? current : nextThreadId));
     setReplyTo(null);
@@ -567,7 +640,7 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
       setAttachmentDuration(0);
       setReplyTo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      await loadThread(activeThreadId);
+      await loadThread(activeThreadId, { force: true });
       await loadThreads();
     } catch (err) {
       setError(err?.responseBody?.message || err?.message || "تعذر إرسال الرد");
@@ -713,7 +786,7 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
       setAttachmentDuration(0);
       setReplyTo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      await loadThread(activeThreadId);
+      await loadThread(activeThreadId, { force: true });
       await loadThreads();
     } catch (err) {
       setError(err?.responseBody?.message || err?.message || "تعذر إرسال الرد");
