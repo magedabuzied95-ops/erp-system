@@ -708,6 +708,62 @@ parityScenarios.push(
       active_color: "Black",
       active_model_family: "air_jordan_4",
     },
+  },
+  {
+    id: "more_images_jordan4",
+    message: "ممكن صور جوردن فور",
+    test_case_id: "active_context_more_images_followup",
+    seedMemory: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+      selected_product_context: {
+        product_id: "jordan-4-black",
+        variant_id: "jordan-4-black-43",
+        name: "Jordan 4 Retro Black",
+        color: "Black",
+        model_family: "air_jordan_4",
+      },
+      selected_product_id: "jordan-4-black",
+      selected_variant_id: "jordan-4-black-43",
+      selected_color: "Black",
+    },
+    expectations: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+      rich_product_cards: true,
+    },
+  },
+  {
+    id: "more_images_jordan4_all",
+    message: "ابعتلي صور جوردن فور كلها",
+    test_case_id: "active_context_more_images_followup",
+    seedMemory: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+      selected_product_context: {
+        product_id: "jordan-4-black",
+        variant_id: "jordan-4-black-43",
+        name: "Jordan 4 Retro Black",
+        color: "Black",
+        model_family: "air_jordan_4",
+      },
+      selected_product_id: "jordan-4-black",
+      selected_variant_id: "jordan-4-black-43",
+      selected_color: "Black",
+    },
+    expectations: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+      rich_product_cards: true,
+    },
   }
 );
 

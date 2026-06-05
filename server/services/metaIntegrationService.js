@@ -174,7 +174,16 @@ const detectNegativeCommerceIntent = (message = "") => {
       raw.includes("\u0639\u0627\u0648\u0632 \u0635\u0648\u0631 \u0644\u064a\u0647") ||
       raw.includes("\u0639\u0627\u064a\u0632 \u0635\u0648\u0631 \u0644\u064a\u0647") ||
       raw.includes("\u0644\u064a\u0647 \u0635\u0648\u0631") ||
-      raw.includes("\u0645\u0634 \u0645\u062d\u062a\u0627\u062c \u0635\u0648\u0631")
+      raw.includes("\u0645\u0634 \u0645\u062d\u062a\u0627\u062c \u0635\u0648\u0631") ||
+      raw.includes("\u063a\u0627\u0644\u064a") ||
+      raw.includes("\u063a\u0627\u0644\u064a\u0647") ||
+      raw.includes("\u0627\u0644\u0633\u0639\u0631 \u0639\u0627\u0644\u064a") ||
+      raw.includes("\u0627\u0644\u0633\u0639\u0631 \u063a\u0627\u0644\u064a") ||
+      raw.includes("\u063a\u0627\u0644\u064a \u0634\u0648\u064a\u0647") ||
+      raw.includes("\u0643\u062a\u064a\u0631") ||
+      raw.includes("expensive") ||
+      raw.includes("pricey") ||
+      raw.includes("overpriced")
   );
 };
 
@@ -321,6 +330,10 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     intent = AI_INTENTS.HUMAN_AGENT;
     confidence = 0.94;
     reason = "human_agent_keyword";
+  } else if (detectPriceObjection(messageText)) {
+    intent = AI_INTENTS.PRICE_CHECK;
+    confidence = 0.93;
+    reason = "price_objection_keyword";
   } else if (detectNegativeCommerceIntent(messageText)) {
     intent = AI_INTENTS.COMPLAINT;
     confidence = 0.76;
@@ -5415,6 +5428,90 @@ const logReasoningFailureRootCause = ({
   });
 };
 
+const logIntentRoutingAudit = ({
+  message = {},
+  intent = "",
+  reason = "",
+  activeProductId = "",
+  activeVariantId = "",
+  selectedRoute = "",
+  handledReason = "",
+} = {}) => {
+  console.log("[INTENT_ROUTING_AUDIT]", {
+    message: text(message?.message_text || message?.text || ""),
+    intent: text(intent),
+    reason: text(reason),
+    active_product_id: text(activeProductId || message?.product_id || message?.selected_product_id || ""),
+    active_variant_id: text(activeVariantId || message?.variant_id || message?.selected_variant_id || ""),
+    selected_route: text(selectedRoute),
+    handled_reason: text(handledReason),
+  });
+};
+
+const logReplyGoalAudit = ({
+  message = {},
+  replyGoal = "",
+  salesStage = "",
+  intent = "",
+  activeProductId = "",
+  activeVariantId = "",
+  reason = "",
+} = {}) => {
+  console.log("[REPLY_GOAL_AUDIT]", {
+    message: text(message?.message_text || message?.text || ""),
+    intent: text(intent),
+    reply_goal: text(replyGoal),
+    sales_stage: text(salesStage),
+    active_product_id: text(activeProductId || message?.product_id || message?.selected_product_id || ""),
+    active_variant_id: text(activeVariantId || message?.variant_id || message?.selected_variant_id || ""),
+    reason: text(reason),
+  });
+};
+
+const logObjectionRoutingAudit = ({
+  message = {},
+  route = "",
+  intent = "",
+  activeProductId = "",
+  activeVariantId = "",
+  reason = "",
+  handledReason = "",
+} = {}) => {
+  console.log("[OBJECTION_ROUTING_AUDIT]", {
+    message: text(message?.message_text || message?.text || ""),
+    route: text(route),
+    intent: text(intent),
+    active_product_id: text(activeProductId || message?.product_id || message?.selected_product_id || ""),
+    active_variant_id: text(activeVariantId || message?.variant_id || message?.selected_variant_id || ""),
+    reason: text(reason),
+    handled_reason: text(handledReason),
+  });
+};
+
+const logMoreImagesRoutingAudit = ({
+  message = {},
+  route = "",
+  intent = "",
+  activeProductId = "",
+  activeVariantId = "",
+  baseCard = null,
+  cards = [],
+  reason = "",
+  handledReason = "",
+} = {}) => {
+  console.log("[MORE_IMAGES_ROUTING_AUDIT]", {
+    message: text(message?.message_text || message?.text || ""),
+    route: text(route),
+    intent: text(intent),
+    active_product_id: text(activeProductId || message?.product_id || message?.selected_product_id || ""),
+    active_variant_id: text(activeVariantId || message?.variant_id || message?.selected_variant_id || ""),
+    has_base_card: Boolean(baseCard),
+    cards_count: Array.isArray(cards) ? cards.length : 0,
+    reason: text(reason),
+    handled_reason: text(handledReason),
+  });
+};
+
 const logRouteMessageThroughAiError = ({
   tenantId = "",
   conversationId = "",
@@ -6673,6 +6770,42 @@ const loadRememberedProduct = async ({ tenantId, card, messageText = "" } = {}) 
     metadata: { product_id: card.product_id || card.id },
   });
   return products.find((product) => String(product.id || product.product_id || "") === String(card.product_id || card.id || "")) || products[0] || null;
+};
+
+const rebuildContextProductCardFromMemory = async ({ tenantId, memory = {}, activeProductId = "", activeVariantId = "", activeColor = "" } = {}) => {
+  let productId = text(activeProductId || memory.activeProductId || memory.selectedProductId || "");
+  const variantId = text(activeVariantId || memory.activeVariantId || memory.selectedVariantId || "");
+  if (!productId && variantId) {
+    const variantLookup = await db.query(
+      `
+      SELECT product_id
+      FROM product_variants
+      WHERE id::text = $1
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
+      LIMIT 1
+      `,
+      [variantId, numberOrNull(tenantId)]
+    ).catch(() => ({ rows: [] }));
+    productId = text(variantLookup.rows[0]?.product_id || "");
+  }
+  if (!productId) return null;
+  const product = await loadFullProductForImageFlow({ tenantId, productId });
+  if (!product) return null;
+  const cards = await resolveProductCardLinks(normalizeProductCards([product], { limit: 6 }), { tenantId });
+  if (!cards.length) return null;
+  const normalizedColor = text(activeColor || memory.activeColor || memory.selectedColor || "").toLowerCase();
+  const selectedCard =
+    (variantId ? cards.find((card) => text(card.variant_id || card.selected_variant_id || "").toLowerCase() === variantId.toLowerCase()) : null) ||
+    (normalizedColor ? cards.find((card) => text(card.color).toLowerCase() === normalizedColor) : null) ||
+    cards[0] ||
+    null;
+  if (!selectedCard) return null;
+  return {
+    ...selectedCard,
+    id: selectedCard.id || selectedCard.product_id || productId,
+    product_id: selectedCard.product_id || productId,
+    variant_id: selectedCard.variant_id || selectedCard.selected_variant_id || variantId || null,
+  };
 };
 
 const parseImageValues = (value) => {
@@ -10342,14 +10475,26 @@ const handleHumanHandoffIfMatched = async ({ config, message } = {}) => {
 const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
   const keyword = detectMoreImagesRequest(message.message_text);
   if (!keyword || isColorQuestionMessage(message.message_text)) return null;
-  const context = resolveContextProductCard({ message });
-  const baseCard = context.card;
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  let context = resolveContextProductCard({ message });
+  let baseCard = context.card;
+  if (!baseCard) {
+    baseCard = await rebuildContextProductCardFromMemory({
+      tenantId: config.tenant_id,
+      memory,
+      activeProductId: memory.activeProductId || memory.selectedProductId || "",
+      activeVariantId: memory.activeVariantId || memory.selectedVariantId || "",
+      activeColor: memory.activeColor || memory.selectedColor || "",
+    });
+    if (baseCard) {
+      context = { ...context, card: baseCard, source: "active_memory_reconstructed", ambiguous: false };
+    }
+  }
   const wantsAllImages = Boolean(
     detectAllColorsRequest(message.message_text) ||
       /(?:all\s+images|all\s+colors|show\s+all|more\s+colors|ظƒظ„\s+ط§ظ„طµظˆط±|ظƒظ„\s+ط§ظ„ط£ظ„ظˆط§ظ†|ظƒظ„\s+ط§ظ„ط§ظ„ظˆط§ظ†)/i.test(text(message.message_text))
   );
   const includeOtherColors = wantsAllImages;
-  const memory = getConversationMemory(message.external_conversation_id) || {};
   console.log("ai_action_images_requested", {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
@@ -10377,7 +10522,28 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     include_other_colors: includeOtherColors,
     wants_all_images: wantsAllImages,
   });
-  if (context.ambiguous && !(memory.selectedProductId && memory.selectedColor)) {
+  logMoreImagesRoutingAudit({
+    message,
+    route: "more_images",
+    intent: AI_INTENTS.MORE_IMAGES,
+    activeProductId: baseCard?.product_id || baseCard?.id || memory.selectedProductId || memory.activeProductId || "",
+    activeVariantId: baseCard?.variant_id || memory.selectedVariantId || memory.activeVariantId || "",
+    baseCard,
+    cards: context.cards || [],
+    reason: "entry",
+  });
+  if (context.ambiguous && !baseCard && !(memory.selectedProductId && memory.selectedColor)) {
+    logMoreImagesRoutingAudit({
+      message,
+      route: "more_images_color_clarification",
+      intent: AI_INTENTS.MORE_IMAGES,
+      activeProductId: baseCard?.product_id || baseCard?.id || memory.selectedProductId || memory.activeProductId || "",
+      activeVariantId: baseCard?.variant_id || memory.selectedVariantId || memory.activeVariantId || "",
+      baseCard,
+      cards: context.cards || [],
+      reason: "ambiguous_context",
+      handledReason: "more_images_color_clarification",
+    });
     await sendAndLogMetaText({
       config,
       message,
@@ -10388,6 +10554,17 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     return { handled: true, reason: "more_images_color_clarification" };
   }
   if (!baseCard) {
+    logMoreImagesRoutingAudit({
+      message,
+      route: "more_images_missing_context",
+      intent: AI_INTENTS.MORE_IMAGES,
+      activeProductId: memory.selectedProductId || memory.activeProductId || "",
+      activeVariantId: memory.selectedVariantId || memory.activeVariantId || "",
+      baseCard,
+      cards: context.cards || [],
+      reason: "missing_base_card",
+      handledReason: "missing_product_context",
+    });
     console.log("[ai-memory] missing active product", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
@@ -10444,6 +10621,17 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     wantsAllImages,
   }), { limit: wantsAllImages ? 6 : 4 });
   if (!moreImageCards.length) {
+    logMoreImagesRoutingAudit({
+      message,
+      route: "more_images_no_new_images",
+      intent: AI_INTENTS.MORE_IMAGES,
+      activeProductId: baseCard?.product_id || baseCard?.id || memory.selectedProductId || memory.activeProductId || "",
+      activeVariantId: baseCard?.variant_id || memory.selectedVariantId || memory.activeVariantId || "",
+      baseCard,
+      cards: moreImageCards,
+      reason: "no_new_images",
+      handledReason: "no_new_images",
+    });
     await sendAndLogMetaText({
       config,
       message,
@@ -10468,6 +10656,17 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     resolvedQuestionType: message.resolvedQuestion?.intent || QUESTION_TYPES.MORE_IMAGES,
     blockedPresentation: true,
     imageCount: imageOnlyCards.length,
+  });
+  logMoreImagesRoutingAudit({
+    message,
+    route: "more_images_sent",
+    intent: AI_INTENTS.MORE_IMAGES,
+    activeProductId: baseCard?.product_id || baseCard?.id || memory.selectedProductId || memory.activeProductId || "",
+    activeVariantId: baseCard?.variant_id || memory.selectedVariantId || memory.activeVariantId || "",
+    baseCard,
+    cards: imageOnlyCards,
+    reason: "more_images_sent",
+    handledReason: "more_images_sent",
   });
   evaluateResponseDeduplication({
     conversationId: message.external_conversation_id,
@@ -13008,11 +13207,29 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
   const memory = getConversationMemory(conversationId) || {};
   const stage = normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || "browsing");
   const context = resolveContextProductCard({ message, allowAmbiguous: false });
-  const baseCard = context.card || memory.lastProductCard || null;
-  const hasProductContext = Boolean(baseCard?.product_id || baseCard?.id || memory.activeProductId || memory.selectedProductId);
+  let baseCard = context.card || memory.lastProductCard || null;
+  if (!baseCard) {
+    baseCard = await rebuildContextProductCardFromMemory({
+      tenantId: config.tenant_id,
+      memory,
+      activeProductId: memory.activeProductId || memory.selectedProductId || "",
+      activeVariantId: memory.activeVariantId || memory.selectedVariantId || "",
+      activeColor: memory.activeColor || memory.selectedColor || "",
+    });
+  }
+  const hasProductContext = Boolean(baseCard?.product_id || baseCard?.id);
   const buyingSignal = salesBrainBuyingIntentSignal(message.message_text);
 
   if (detectPriceObjection(message.message_text) && hasProductContext) {
+    logObjectionRoutingAudit({
+      message,
+      route: "sales_price_objection",
+      intent: AI_INTENTS.PRICE_CHECK,
+      activeProductId: baseCard?.product_id || baseCard?.id || memory.activeProductId || memory.selectedProductId || "",
+      activeVariantId: baseCard?.variant_id || memory.activeVariantId || memory.selectedVariantId || "",
+      reason: "detectPriceObjection_and_product_context",
+      handledReason: "sales_price_objection",
+    });
     console.log("[sales-brain] buying intent detected", {
       tenant_id: config.tenant_id,
       conversation_id: conversationId,
@@ -13090,6 +13307,15 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
   if (!shouldCollect && !shouldFinalize) {
     const priceQuestion = hasAnyArabicCommerceTerm(message.message_text, ["ظƒط§ظ…", "ط§ظ„ط³ط¹ط±", "ط¨ظƒط§ظ…", "price"]);
     if (!buyingSignal || !priceQuestion) return null;
+    logReplyGoalAudit({
+      message,
+      replyGoal: "reduce_objection",
+      salesStage: stage,
+      intent: AI_INTENTS.PRICE_CHECK,
+      activeProductId: product.id || baseCard.product_id || null,
+      activeVariantId: variant?.id || baseCard.variant_id || null,
+      reason: "price_question_or_objection",
+    });
     updateConversationMemory(conversationId, {
       buyingStage: "interested",
       checkoutStage: "interested",
@@ -14040,6 +14266,12 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
     [AI_INTENTS.UNKNOWN]: [],
   };
   const primary = routeMap[classification.intent] || [];
+  logIntentRoutingAudit({
+    intent: classification.intent,
+    reason: classification.reason || "",
+    selectedRoute: classification.intent,
+    handledReason: primary.length ? handlerNames(primary).join(",") : "none",
+  });
   if ([AI_INTENTS.PRODUCT_SEARCH, AI_INTENTS.GREETING].includes(classification.intent)) return primary;
   return [...new Set([...primary, ...fallbackHandlers])];
 };
