@@ -9268,8 +9268,80 @@ const handleProductSearchIfMatched = async ({ config, message } = {}) => {
   });
   const cards = normalizeProductCards(products, { limit: detectModelNameSearch(message.message_text || "") ? 1 : 6 });
   if (!cards.length) {
-    const activeProductId = runtimeMemory?.activeProductId || runtimeMemory?.selectedProductId || runtimeMemory?.lastProductCard?.product_id || runtimeMemory?.lastProductCard?.id || "";
-    const activeVariantId = runtimeMemory?.activeVariantId || runtimeMemory?.selectedVariantId || runtimeMemory?.lastProductCard?.variant_id || "";
+    const activeProductId = memory?.activeProductId || memory?.selectedProductId || memory?.lastProductCard?.product_id || memory?.lastProductCard?.id || "";
+    const activeVariantId = memory?.activeVariantId || memory?.selectedVariantId || memory?.lastProductCard?.variant_id || "";
+    if (activeProductId) {
+      const recoveredProduct = await loadFullProductForImageFlow({ tenantId: config.tenant_id, productId: activeProductId }).catch(() => null);
+      const recoveredCards = recoveredProduct
+        ? await resolveProductCardLinks(normalizeProductCards([recoveredProduct], { limit: 6 }), { tenantId: config.tenant_id }).catch(() => [])
+        : [];
+      const hasRecoveredAvailability = Boolean(
+        recoveredProduct &&
+          (
+            (Array.isArray(recoveredProduct.stockedVariants) && recoveredProduct.stockedVariants.length) ||
+            (Array.isArray(recoveredProduct.variants) && recoveredProduct.variants.some((variant) => Number(variant?.stock || 0) > 0))
+          )
+      );
+      if (hasRecoveredAvailability && recoveredCards.length) {
+        const firstRecoveredCard = recoveredCards[0] || {};
+        const recoveredSizes = sortSalesDesignerSizes([...(firstRecoveredCard.sizes || []), ...(firstRecoveredCard.available_sizes || [])]);
+        const recoveredPrice = text(resolveCustomerFacingPrice(firstRecoveredCard, firstRecoveredCard.product || {}, firstRecoveredCard.variant || {}).selected_display_price || "");
+        const recoveredOrchestrated = buildOrchestratedReply({
+          message,
+          intent: AI_INTENTS.PRODUCT_SEARCH,
+          categoryContext: {
+            selectedProduct: firstRecoveredCard,
+            availableSizes: recoveredSizes,
+            price: recoveredPrice,
+            productContext: { productName: firstRecoveredCard.name || firstRecoveredCard.title || recoveredProduct.name || query },
+          },
+        });
+        const recoveredIntro = salesDesignerProductIntro({ card: firstRecoveredCard, sizes: recoveredSizes }) || [
+          "\u0623\u064a\u0648\u0647 \u0645\u062a\u0627\u062d \u2705",
+          recoveredPrice ? `\u0627\u0644\u0633\u0639\u0631: ${recoveredPrice}${/\u062c\u0646\u064a\u0647|egp|ط¬ظ†ظٹظ‡/i.test(recoveredPrice) ? "" : " \u062c\u0646\u064a\u0647"}` : "",
+          recoveredSizes.length ? `\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0627\u0644\u0645\u062a\u0627\u062d\u0629: ${formatSalesDesignerSizes(recoveredSizes)}` : "",
+          "",
+          "\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646\u061f",
+        ].filter((line) => line !== "").join("\n");
+        const recoveredContext = {
+          product: firstRecoveredCard.name || firstRecoveredCard.title || recoveredProduct.name || query,
+          price: recoveredPrice,
+          sizes: recoveredSizes,
+          sizeDisplay: formatSalesDesignerSizes(recoveredSizes),
+          colors: distinctTextArray(recoveredCards.map((card) => card.color || card.matched_variant_color || "").filter(Boolean), 8),
+        };
+        updateSalesConversationStage({
+          tenantId: config.tenant_id,
+          conversationId: message.external_conversation_id,
+          stage: SALES_CONVERSATION_STAGES.PRODUCT_PRESENTATION,
+          reason: "product_search_recovered_from_active_memory",
+          nextStage: SALES_CONVERSATION_STAGES.SIZE_SELECTION,
+        });
+        const recoveredResult = await sendAndLogProductCards({
+          config,
+          message,
+          productCards: recoveredCards,
+          detectedIntent: "product_search",
+          introText: recoveredIntro,
+          metadata: {
+            product_search_query: query,
+            keywords,
+            product_card_limit: 6,
+            structuredContext: recoveredContext,
+            product: recoveredContext.product,
+            price: recoveredContext.price,
+            sizes: recoveredContext.sizes,
+            sizeDisplay: recoveredContext.sizeDisplay,
+            colors: recoveredContext.colors,
+            handler: "product_search_handler",
+            reply_source: "product_search_recovered_from_active_memory",
+            recovered_from_active_product_id: activeProductId,
+            ...orchestratedReplyMetadata(recoveredOrchestrated),
+          },
+        });
+        return recoveredResult ? { handled: true, reason: "product_search_recovered_from_active_memory", sent: true } : { handled: true, reason: "product_search_recovered_from_active_memory_no_send" };
+      }
+    }
     return sendReasoningRecoveryReply({
       config,
       message,
@@ -10991,6 +11063,8 @@ const handleProductLinkIfMatched = async ({ config, message } = {}) => {
 };
 
 const handleOtherColorsIfMatched = async ({ config, message } = {}) => {
+  const explicitColorRequest = isColorQuestionMessage(message.message_text) || detectOtherColorsRequest(message.message_text) || detectAllColorsRequest(message.message_text);
+  if (!explicitColorRequest) return null;
   const memory = getConversationMemory(message.external_conversation_id) || {};
   const context = resolveContextProductCard({ message, allowAmbiguous: true });
   const baseCard = context.card;
@@ -15511,6 +15585,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         }
         const preAiHandlers = routeMetaIntentHandlers({ classification });
         latestDebugRoute = handlerNames(preAiHandlers).join(", ");
+        const explicitColorRequest = isColorQuestionMessage(message.message_text);
         console.log("[orchestrator] selected route", {
           tenant_id: config.tenant_id,
           conversation_id: message.external_conversation_id,
@@ -15524,9 +15599,11 @@ export const processMetaWebhook = async ({ req } = {}) => {
           handlers: handlerNames(preAiHandlers),
         });
         let handled = null;
+        let selectedHandlerName = "";
         for (const handler of preAiHandlers) {
           if (isInboundReplyFinalized(message)) {
             handled = { handled: true, reason: "final_reply_already_generated", graph_api_called: true };
+            selectedHandlerName = "final_reply_guard";
             break;
           }
           console.log("[orchestrator] route handler entered", {
@@ -15536,9 +15613,20 @@ export const processMetaWebhook = async ({ req } = {}) => {
             handler: handler?.name || "anonymous_handler",
           });
           handled = await handler({ config, message });
-          if (handled?.handled) break;
+          if (handled?.handled) {
+            selectedHandlerName = handler?.name || "anonymous_handler";
+            break;
+          }
         }
         if (handled?.handled) {
+          console.log("[META_ROUTE_PRIORITY_AUDIT]", {
+            message: message.message_text || "",
+            classified_intent: classification.intent,
+            selected_handler: selectedHandlerName || handled.reason || "",
+            selected_route: handled.reason || classification.intent || "",
+            activeProductId: getConversationMemory(message.external_conversation_id)?.activeProductId || getConversationMemory(message.external_conversation_id)?.selectedProductId || "",
+            explicit_color_request: explicitColorRequest,
+          });
           await storeAiDebugEvent({
             tenantId: config.tenant_id,
             channel: message.channel,
@@ -15548,6 +15636,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
               classified_intent: classification.intent,
               confidence: classification.confidence,
               selected_route: handled.reason || latestDebugRoute || classification.route || "",
+              selected_handler: selectedHandlerName || handled.reason || "",
+              explicit_color_request: explicitColorRequest,
               memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
               activeTopic: contextDecision.newTopic || runtimeMemory.activeTopic || "",
               lastTopicChangeAt: (getConversationMemory(message.external_conversation_id) || {}).lastTopicChangeAt || "",
