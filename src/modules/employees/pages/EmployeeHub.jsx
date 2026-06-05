@@ -51,6 +51,7 @@ export default function EmployeeHub() {
   const direction = isRtl ? "rtl" : "ltr";
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const handleSelectedEmployeeChange = useCallback((employee) => {
+    console.count("[hr-loop] onSelectedEmployeeChange");
     setSelectedEmployee(employee);
   }, []);
   const payrollVisibleTabs = useMemo(() => ["payroll", "penalties"], []);

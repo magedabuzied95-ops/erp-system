@@ -268,6 +268,8 @@ function AttendanceWorkspace({
   const [reportError, setReportError] = useState("");
   const hasShownReportError = useRef(false);
   const lastNotifiedSelectedEmployeeIdRef = useRef("");
+  const lastNotifiedSelectedEmployeeSignatureRef = useRef("");
+  const lastAutoLoadedEmployeeSignatureRef = useRef("");
   const employeePhotoInputRef = useRef(null);
   const activeBranches = branches.filter((branch) => isBranchActive(branch.is_active));
   const singleBranchId = activeBranches.length === 1 ? String(normalizeBranch(activeBranches[0]).id || "") : "";
@@ -490,24 +492,47 @@ function AttendanceWorkspace({
   useEffect(() => {
     if (typeof onSelectedEmployeeChange !== "function") return;
     const nextSelectedEmployeeId = String(selectedEmployee?.id || selectedEmployee?.employee_id || "");
-    if (lastNotifiedSelectedEmployeeIdRef.current === nextSelectedEmployeeId) return;
+    const nextSelectedEmployeeSignature = nextSelectedEmployeeId
+      ? [
+          nextSelectedEmployeeId,
+          String(selectedEmployee?.full_name || ""),
+          String(selectedEmployee?.employee_code || ""),
+          String(selectedEmployee?.branch_id || ""),
+          String(selectedEmployee?.status || ""),
+          cleanPhotoUrl(selectedEmployee?.photo_url || ""),
+        ].join("|")
+      : "";
+    if (!nextSelectedEmployeeSignature || lastNotifiedSelectedEmployeeSignatureRef.current === nextSelectedEmployeeSignature) return;
+    lastNotifiedSelectedEmployeeSignatureRef.current = nextSelectedEmployeeSignature;
     lastNotifiedSelectedEmployeeIdRef.current = nextSelectedEmployeeId;
+    console.count("[hr-loop] onSelectedEmployeeChange");
     console.log("[hr-loop]", "notify_parent_selected_employee", {
       employee_id: nextSelectedEmployeeId,
+      signature: nextSelectedEmployeeSignature,
     });
     onSelectedEmployeeChange(selectedEmployee || null);
   }, [onSelectedEmployeeChange, selectedEmployee, selectedEmployee?.employee_id, selectedEmployee?.id]);
 
   useEffect(() => {
-    if (selectedEmployeeId) {
-      console.log("[hr-loop]", "load_employee_related_data", {
-        employee_id: String(selectedEmployeeId || ""),
-      });
-      queueMicrotask(() => {
-        void loadEmployeeRelatedData(selectedEmployeeId);
-      });
-    }
-  }, [loadEmployeeRelatedData, selectedEmployeeId]);
+    const nextEmployeeId = String(selectedEmployeeId || "");
+    if (!nextEmployeeId) return;
+    const nextAutoLoadSignature = [
+      nextEmployeeId,
+      String(filters.startDate || ""),
+      String(filters.endDate || ""),
+      String(filters.branchId || ""),
+    ].join("|");
+    if (lastAutoLoadedEmployeeSignatureRef.current === nextAutoLoadSignature) return;
+    lastAutoLoadedEmployeeSignatureRef.current = nextAutoLoadSignature;
+    console.count("[hr-loop] loadEmployeeRelatedData");
+    console.log("[hr-loop]", "load_employee_related_data", {
+      employee_id: nextEmployeeId,
+      signature: nextAutoLoadSignature,
+    });
+    queueMicrotask(() => {
+      void loadEmployeeRelatedData(nextEmployeeId);
+    });
+  }, [filters.branchId, filters.endDate, filters.startDate, loadEmployeeRelatedData, selectedEmployeeId]);
 
   const dashboardSummary = useMemo(() => {
     const summary = dailyReport?.summary || dailyReport || {};
