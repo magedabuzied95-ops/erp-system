@@ -25,6 +25,15 @@ const uniqueBy = (items = [], keyFn = (item) => text(item?.id || item?.product_i
 };
 
 const countItems = (value) => (Array.isArray(value) ? value.length : value ? 1 : 0);
+const normalizeLeadText = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const uniqueTextList = (values = []) => [...new Set(asArray(values).map((item) => text(item)).filter(Boolean))];
 
 const collectProducts = (response = {}) =>
   uniqueBy([
@@ -82,6 +91,163 @@ const collectImageCards = (response = {}, productCards = []) => {
   return uniqueBy(cards, (card) => `${card.type}:${card.url}:${card.title}:${card.subtitle}`);
 };
 
+const calculateLeadScoring = ({
+  messageText = "",
+  intent = "",
+  response = {},
+  closer = {},
+  handoff = {},
+  draftOrder = null,
+  products = [],
+  productCards = [],
+  memoryUpdates = {},
+  conversationStageAwareness = null,
+  buyingIntentAwareness = null,
+} = {}) => {
+  const normalizedMessage = normalizeLeadText(messageText);
+  const normalizedIntent = normalizeLeadText(intent || response?.detected_intent || response?.intent?.type || response?.intent || "");
+  const normalizedProducts = asArray(products);
+  const normalizedProductCards = asArray(productCards);
+  const reasons = [];
+
+  const hasHumanRequest =
+    handoff?.needs_human_support === true ||
+    conversationStageAwareness?.is_handoff === true ||
+    /(بني ادم|بني آدم|human|agent|موظف|حد من الفريق|كلم حد|كلم واحد|عايز اكلم|عايز اكلم بني ادم|كلم بني ادم)/i.test(normalizedMessage);
+  const angryComplaint =
+    /(شكوى|مشكلة|غلط|مضايق|زعلان|مستاء|اسوأ|سيء|سيئة|مزعج|complaint|angry|mad|scam|نصب|حرام|مش عاجبني)/i.test(normalizedMessage) ||
+    normalizedIntent.includes("complaint") ||
+    normalizedIntent.includes("angry") ||
+    normalizedIntent.includes("negative");
+  if (hasHumanRequest || angryComplaint) {
+    if (hasHumanRequest) reasons.push("human_request");
+    if (angryComplaint) reasons.push("angry_complaint");
+    return {
+      lead_score: 0,
+      lead_temperature: "cold",
+      lead_reasons: uniqueTextList(reasons),
+      recommended_sales_action: "escalate_to_human",
+    };
+  }
+
+  const isBuyingIntent =
+    buyingIntentAwareness?.detected === true ||
+    conversationStageAwareness?.is_buying_intent === true ||
+    closer?.ready_to_confirm_order === true ||
+    /(عايز اشتري|عايز أشتري|عاوز اشتري|عاوز أشتري|أشتري|اشتري|order|checkout|كمل الطلب|احجزه|احجزها|عايز أخلص)/i.test(normalizedMessage) ||
+    normalizedIntent.includes("buying_intent") ||
+    normalizedIntent.includes("checkout") ||
+    normalizedIntent.includes("order") ||
+    normalizedIntent.includes("close_sale");
+  const priceIntent =
+    /(سعر|price|غالي|غاليه|ارخص|أرخص|خصم|discount|ميزانية|ميزانيه|سعره عالي|سعره غالي|مش مناسب)/i.test(normalizedMessage) ||
+    normalizedIntent.includes("price") ||
+    normalizedIntent.includes("objection");
+  const sizeIntent =
+    /(مقاس|size|نمرة|نمرة\s*\d+|مقاس\s*\d+)/i.test(normalizedMessage) ||
+    normalizedIntent.includes("size") ||
+    normalizedIntent.includes("availability");
+  const moreImagesIntent =
+    /(صور اكتر|صور أكتر|صور تانية|صور تانيه|more images|show more images|ابعت صور|شوف الصور|image)/i.test(normalizedMessage) ||
+    normalizedIntent.includes("more_images") ||
+    normalizedIntent.includes("image");
+  const productInquiry =
+    /(جوردن|jordan|aj4|j4|موديل|product|منتج|عندك|متاح|available)/i.test(normalizedMessage) ||
+    normalizedIntent.includes("product") ||
+    normalizedIntent.includes("faq") ||
+    normalizedProducts.length > 0 ||
+    normalizedProductCards.length > 0;
+
+  let score = 10;
+  if (productInquiry) {
+    score = Math.max(score, 40);
+    reasons.push("product_inquiry");
+  } else {
+    reasons.push("greeting_or_general");
+  }
+  if (priceIntent) {
+    score = Math.max(score, 55);
+    reasons.push(priceIntent && /(غالي|غاليه|سعره عالي|مش مناسب)/i.test(normalizedMessage) ? "price_objection" : "price_interest");
+  }
+  if (sizeIntent) {
+    score = Math.max(score, 70);
+    reasons.push("size_availability");
+  }
+  if (moreImagesIntent) {
+    score = Math.max(score, 60);
+    reasons.push("more_images");
+  }
+  if (isBuyingIntent) {
+    score = Math.max(score, 90);
+    reasons.push("buying_intent");
+  }
+
+  const hasProductContext = Boolean(normalizedProducts.length || normalizedProductCards.length || draftOrder?.product_id || draftOrder?.variant_id);
+  if (hasProductContext) reasons.push("product_context_present");
+
+  const hasSize =
+    Boolean(draftOrder?.size || draftOrder?.selected_size || memoryUpdates?.selected_size) ||
+    /(مقاس\s*\d+|size\s*\d+)/i.test(normalizedMessage);
+  const hasColor =
+    Boolean(draftOrder?.color || draftOrder?.selected_color || memoryUpdates?.selected_color) ||
+    /(لون|black|white|grey|gray|red|blue|green|pink|beige|navy)/i.test(normalizedMessage);
+  const hasName =
+    Boolean(draftOrder?.customer_name || draftOrder?.name || draftOrder?.first_name || memoryUpdates?.customer_name) ||
+    /(اسمي|اسمى|الاسم)/i.test(normalizedMessage);
+  const hasPhone =
+    Boolean(draftOrder?.customer_phone || draftOrder?.phone || memoryUpdates?.customer_phone) ||
+    /(01\d{9})/.test(normalizedMessage);
+  const hasAddress =
+    Boolean(draftOrder?.customer_address || draftOrder?.address || memoryUpdates?.customer_address) ||
+    /(العنوان|عنواني|address)/i.test(normalizedMessage);
+
+  if (hasSize) {
+    score += 5;
+    reasons.push("provided_size");
+  }
+  if (hasColor) {
+    score += 5;
+    reasons.push("provided_color");
+  }
+  if (hasName) {
+    score += 5;
+    reasons.push("provided_name");
+  }
+  if (hasPhone) {
+    score += 10;
+    reasons.push("provided_phone");
+  }
+  if (hasAddress) {
+    score += 5;
+    reasons.push("provided_address");
+  }
+
+  if (isBuyingIntent && hasProductContext && hasSize && hasPhone && hasAddress) {
+    score = Math.max(score, 95);
+    reasons.push("ready_to_confirm_order");
+  }
+
+  score = Math.max(0, Math.min(100, score));
+  const leadTemperature =
+    score <= 25 ? "cold" :
+    score <= 50 ? "warm" :
+    score <= 75 ? "hot" :
+    "ready_to_buy";
+
+  const recommendedSalesAction =
+    score <= 25 ? "continue_conversation" :
+    score <= 50 ? "show_best_options" :
+    score <= 75 ? "ask_next_order_field" :
+    "confirm_order_or_handoff";
+
+  return {
+    lead_score: score,
+    lead_temperature: leadTemperature,
+    lead_reasons: uniqueTextList(reasons),
+    recommended_sales_action: recommendedSalesAction,
+  };
+};
+
 export const buildUnifiedAiReplyPayload = ({
   tenantId = null,
   branchId = null,
@@ -110,13 +276,43 @@ export const buildUnifiedAiReplyPayload = ({
     conversation_status: text(response?.conversation_status || response?.status || conversation?.status || ""),
     reason: text(response?.fallback_reason || response?.reason || response?.handoff?.reason || earlyReturnReason || ""),
   };
+  const replyVariations = asArray(response?.reply_variations || response?.replyVariations);
+  const conversationStageAwareness = response?.conversation_stage_awareness || response?.conversationStageAwareness || null;
+  const buyingIntentAwareness = response?.buying_intent_awareness || response?.buyingIntentAwareness || null;
+  const personalityLayer = response?.personality_layer || response?.personalityLayer || null;
+  const customerMeaning = text(response?.customer_meaning || response?.reasoning?.customer_meaning || response?.reply_reasoning?.customer_meaning || "");
+  const detectedEntities = response?.detected_entities || response?.reasoning?.detected_entities || response?.reply_reasoning?.detected_entities || {};
+  const salesStage = text(response?.sales_stage || response?.reasoning?.sales_stage || response?.reply_reasoning?.sales_stage || "");
+  const replyGoal = text(response?.reply_goal || response?.reasoning?.reply_goal || response?.reply_reasoning?.reply_goal || "");
+  const nextBestAction = text(response?.next_best_action || response?.reasoning?.next_best_action || response?.reply_reasoning?.next_best_action || "");
+  const reasoningConfidence = Number(response?.confidence ?? response?.reasoning?.confidence ?? response?.reply_reasoning?.confidence ?? 0) || 0;
+  const whyThisReply = text(response?.why_this_reply || response?.reasoning?.why_this_reply || response?.reply_reasoning?.why_this_reply || "");
+  const missingOrderFields = asArray(response?.missing_order_fields || response?.missingOrderFields || response?.closer?.missing_order_fields || response?.closer?.missingOrderFields);
+  const nextBestQuestion = text(response?.next_best_question || response?.nextBestQuestion || response?.closer?.next_best_question || response?.closer?.nextBestQuestion || "");
+  const readyToConfirmOrder = Boolean(response?.ready_to_confirm_order ?? response?.readyToConfirmOrder ?? response?.closer?.ready_to_confirm_order ?? response?.closer?.readyToConfirmOrder ?? false);
   const draftOrder = response?.draft_order || response?.ai_order || response?.order_draft || null;
   const salesIntelligence = response?.sales_intelligence || null;
   const salesState = response?.sales_state || response?.sales_conversation_state || salesIntelligence?.state || null;
   const journeyEvents = asArray(response?.journey_events || response?.sales_journey_events || salesIntelligence?.journeyEvents);
   const conversion = response?.conversion || response?.conversion_probability || salesIntelligence?.conversion || {};
   const followUp = response?.follow_up || response?.follow_up_recommendation || salesIntelligence?.followUp || {};
-  const closer = response?.closer || response?.proactive_closer || salesIntelligence?.closer || {};
+  const closer = {
+    ...(response?.closer || response?.proactive_closer || salesIntelligence?.closer || {}),
+    stage: text(
+      response?.closer?.stage ||
+      response?.conversation_stage_awareness?.stage ||
+      response?.conversationStageAwareness?.stage ||
+      response?.personality_layer?.stage ||
+      response?.personalityLayer?.stage ||
+      salesIntelligence?.state?.current_state ||
+      ""
+    ),
+    missing_order_fields: missingOrderFields,
+    next_best_question: nextBestQuestion,
+    ready_to_confirm_order: readyToConfirmOrder,
+    summary: text(response?.closer?.summary || response?.closer?.summary_text || response?.summary || response?.summary_text || ""),
+    next_question_text: text(response?.closer?.next_question_text || response?.next_question_text || ""),
+  };
   const channelAdapterPayload = {
     channel: normalizedChannel,
     text: text(response?.answer || response?.text || channelReply.text),
@@ -153,9 +349,24 @@ export const buildUnifiedAiReplyPayload = ({
     conversion,
     follow_up: followUp,
     closer,
+    missing_order_fields: missingOrderFields,
+    next_best_question: nextBestQuestion,
+    ready_to_confirm_order: readyToConfirmOrder,
     memory_updates: memoryUpdates,
     draft_order: draftOrder,
     handoff,
+    reply_variations: replyVariations,
+    conversation_stage_awareness: conversationStageAwareness,
+    buying_intent_awareness: buyingIntentAwareness,
+    personality_layer: personalityLayer,
+    customer_meaning: customerMeaning,
+    detected_entities: detectedEntities,
+    sales_stage: salesStage,
+    reply_goal: replyGoal,
+    next_best_action: nextBestAction,
+    confidence: reasoningConfidence,
+    why_this_reply: whyThisReply,
+    reasoning: response?.reasoning || response?.reply_reasoning || null,
     channel_adapter_payload: channelAdapterPayload,
     sales_intelligence: salesIntelligence,
     debug: {
@@ -170,6 +381,10 @@ export const buildUnifiedAiReplyPayload = ({
       has_memory: Boolean(memory),
       attachments_count: countItems(attachments),
       raw_channel_reply_text: text(channelReply.text),
+      reply_variations_count: replyVariations.length,
+      personality_stage: text(conversationStageAwareness?.stage || personalityLayer?.stage || ""),
+      missing_order_fields_count: missingOrderFields.length,
+      ready_to_confirm_order: readyToConfirmOrder,
     },
     channel_reply: channelReply,
     raw_response: response,
@@ -329,6 +544,36 @@ const fetchUnifiedAiSupportReply = async ({
     },
     source: "ai_support_route",
   });
+  const leadScoring = calculateLeadScoring({
+    messageText: bodyText,
+    intent: unified.intent,
+    response: {
+      ...raw,
+      closer: unified.closer,
+      handoff: unified.handoff,
+      draft_order: unified.draft_order,
+      memory_updates: unified.memory_updates,
+    },
+    closer: unified.closer,
+    handoff: unified.handoff,
+    draftOrder: unified.draft_order,
+    products: unified.products,
+    productCards: unified.product_cards,
+    memoryUpdates: unified.memory_updates,
+    conversationStageAwareness: unified.conversation_stage_awareness,
+    buyingIntentAwareness: unified.buying_intent_awareness,
+  });
+  unified.lead_score = leadScoring.lead_score;
+  unified.lead_temperature = leadScoring.lead_temperature;
+  unified.lead_reasons = leadScoring.lead_reasons;
+  unified.recommended_sales_action = leadScoring.recommended_sales_action;
+  unified.debug = {
+    ...(unified.debug || {}),
+    lead_score: leadScoring.lead_score,
+    lead_temperature: leadScoring.lead_temperature,
+    lead_reasons: leadScoring.lead_reasons,
+    recommended_sales_action: leadScoring.recommended_sales_action,
+  };
   logOrchestrator("AI_ORCHESTRATOR_DECISION", {
     tenant_id: tenantId,
     branch_id: branchId,

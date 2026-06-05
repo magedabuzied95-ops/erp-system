@@ -1,5 +1,6 @@
 ﻿import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { buildDynamicClarificationQuestion } from "./aiClassificationResolverService.js";
+import { applyHumanSalesPersonalityLayer } from "./aiHumanSalesPersonalityLayer.js";
 
 const text = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -283,13 +284,46 @@ export const composeAiSalesReply = async ({
   });
 
   if (response.sales_engine && ["sales_discovery", "sales_checkout"].includes(detectedIntent)) {
+    const personality = applyHumanSalesPersonalityLayer({
+      response,
+      message,
+      intent: { type: detectedIntent || intent?.type || "" },
+      memory,
+      source,
+      conversationId: text(context?.conversationId || context?.conversation_id || context?.id || context?.session_id || ""),
+      channel: text(context?.channel || context?.source || ""),
+    });
+    const output = withAnswer(response, personality.text, {
+      closer: personality.closer,
+      missing_order_fields: personality.missing_order_fields,
+      next_best_question: personality.next_best_question,
+      ready_to_confirm_order: personality.ready_to_confirm_order,
+      reply_variations: personality.reply_variations,
+      conversation_stage_awareness: personality.conversation_stage_awareness,
+      buying_intent_awareness: personality.buying_intent_awareness,
+      personality_layer: personality.personality_layer,
+      reasoning: personality.reasoning,
+      customer_meaning: personality.customer_meaning,
+      detected_entities: personality.detected_entities,
+      sales_stage: personality.sales_stage,
+      reply_goal: personality.reply_goal,
+      next_best_action: personality.next_best_action,
+      reasoning_confidence: personality.confidence,
+      why_this_reply: personality.why_this_reply,
+    });
     console.info("[ai-reply-composer:decision]", {
       source,
       decision: "keep_sales_engine_reply",
       productCardsBlocked: false,
       outputProductCount: selectedProducts(response).length,
     });
-    return response;
+    console.info("[ai-reply-composer:output]", {
+      source,
+      decision: "keep_sales_engine_reply",
+      answerLength: text(output.answer || output.text).length,
+      stage: personality.conversation_stage_awareness?.stage || "",
+    });
+    return output;
   }
 
   let output = response;
@@ -310,7 +344,7 @@ export const composeAiSalesReply = async ({
     if (yesLastAction === "ask_size") {
       decision = "yes_after_ask_size";
       resolvedReplyAction = "ask_size";
-      output = withActionAnswer(stripProductPayload(response), "تمام يا فندم، مقاسك كام؟", "ask_size", {
+      output = withActionAnswer(stripProductPayload(response), "تمام يا باشا، مقاسك كام؟", "ask_size", {
         suggested_actions: ["ask_size"],
       });
     } else if (yesLastAction === "ask_color") {
@@ -318,14 +352,14 @@ export const composeAiSalesReply = async ({
       decision = "yes_after_ask_color";
       resolvedReplyAction = colors.length ? "show_colors" : "ask_color";
       output = withActionAnswer(stripProductPayload(response), colors.length
-        ? `تمام يا فندم، الألوان المتاحة منه: ${colors.join("، ")}. تحب أنهي لون؟`
-        : "تمام يا فندم، تحب أنهي لون؟", "ask_color", {
+        ? `تمام يا باشا، الألوان المتاحة منه: ${colors.join("، ")}. تحب أنهي لون؟`
+        : "تمام يا باشا، تحب أنهي لون؟", "ask_color", {
         suggested_actions: ["ask_color"],
       });
     } else if (yesLastAction === "ask_order") {
       decision = "yes_after_ask_order";
       resolvedReplyAction = "start_checkout";
-      output = withActionAnswer(stripProductPayload(response), "تمام يا فندم، ابعتلي الاسم ورقم الموبايل والعنوان والمقاس عشان أجهز الطلب.", "ask_order", {
+      output = withActionAnswer(stripProductPayload(response), "تمام يا باشا، ابعتلي الاسم ورقم الموبايل والعنوان والمقاس عشان أجهز الطلب.", "ask_order", {
         detected_intent: "checkout_collection",
         suggested_actions: ["collect_order_details"],
       });
@@ -333,8 +367,8 @@ export const composeAiSalesReply = async ({
       decision = products.length && usedProductContext ? "yes_show_pending_alternatives" : "yes_pending_alternatives_missing";
       resolvedReplyAction = products.length && usedProductContext ? "show_alternatives" : "clarify";
       output = products.length && usedProductContext
-        ? withActionAnswer(response, "تمام يا فندم، دي أقرب بدائل شبهه جدًا.", "show_alternatives")
-        : withAnswer(stripProductPayload(response), "تمام يا فندم، تقصد موديل معين ولا مقاس معين؟");
+        ? withActionAnswer(response, "تمام يا باشا، دي أقرب بدائل شبهه جدًا.", "show_alternatives")
+        : withAnswer(stripProductPayload(response), "تمام يا باشا، تقصد موديل معين ولا مقاس معين؟");
     }
     if (decision !== "keep_existing") {
       console.info("[ai-reply-composer:yes-context]", {
@@ -346,7 +380,7 @@ export const composeAiSalesReply = async ({
     }
     if (decision === "keep_existing") {
       decision = "yes_without_context";
-      output = withAnswer(stripProductPayload(response), "تمام يا فندم، تقصد موديل معين ولا مقاس معين؟");
+      output = withAnswer(stripProductPayload(response), "تمام يا باشا، تقصد موديل معين ولا مقاس معين؟");
       console.info("[ai-reply-composer:yes-context]", {
         latest_customer_message: text(message),
         last_action: yesLastAction || "",
@@ -357,18 +391,18 @@ export const composeAiSalesReply = async ({
     if (false && state.pendingAlternativeForModel) {
       decision = products.length ? "yes_show_pending_alternatives" : "yes_pending_alternatives_missing";
       output = products.length
-        ? withAnswer(response, "تمام يا فندم، دي أقرب بدائل شبهه جدًا.")
-        : withAnswer(stripProductPayload(response), "تمام يا فندم، تحب أدورلك على نفس الستايل ولا سعر قريب؟");
+        ? withAnswer(response, "تمام يا باشا، دي أقرب بدائل شبهه جدًا.")
+        : withAnswer(stripProductPayload(response), "تمام يا باشا، تحب أدورلك على نفس الستايل ولا سعر قريب؟");
     } else if (false && (state.currentRequestedModel || state.lastProducts.length)) {
       decision = "yes_with_context_ask_size";
-      output = withAnswer(stripProductPayload(response), "تمام يا فندم  تحب أشوفلك مقاس كام؟");
+      output = withAnswer(stripProductPayload(response), "تمام يا باشا، تحب أشوفلك مقاس كام؟");
     } else if (false) {
       decision = "yes_without_context";
-      output = withAnswer(stripProductPayload(response), "تمام يا فندم، تقصد موديل معين ولا مقاس معين؟");
+      output = withAnswer(stripProductPayload(response), "تمام يا باشا، تقصد موديل معين ولا مقاس معين؟");
     }
   } else if (!isExplicitProductFollowup(message, response, intent) && ["general", "conversational", ""].includes(detectedIntent)) {
     decision = "block_general_product_cards";
-    output = withAnswer(stripProductPayload(response), "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم ", {
+    output = withAnswer(stripProductPayload(response), "وعليكم السلام ورحمة الله، أهلاً بيك يا باشا", {
       needs_human_support: false,
     });
   } else if (
@@ -429,8 +463,8 @@ export const composeAiSalesReply = async ({
     const hasCloseAlternatives = /alternative|similar|close|بدائل|شبه/i.test(fallback);
     decision = hasCloseAlternatives ? "unavailable_close_alternatives" : "unavailable_no_close_alternatives";
     output = withAnswer(stripProductPayload(response), hasCloseAlternatives
-      ? "الموديل ده مش متوفر حاليًا، بس عندي أقرب بدائل شبهه جدًا. تحب أبعتهم؟"
-      : "الموديل ده مش متوفر حاليًا للأسف، ومش هبعتلك بديل بعيد عن اللي طلبته. تحب أدورلك على نفس الستايل أو سعر قريب؟");
+      ? "الموديل ده مش موجود دلوقتي، بس عندي أقرب بدائل شبهه جدًا. تحب أبعتهم؟"
+      : "الموديل ده مش موجود دلوقتي، ومش هطلعلك بديل بعيد عن اللي طلبته. تحب أدورلك على نفس الستايل أو سعر قريب؟");
   } else if (/adidas|اديداس/i.test(message) && !/(running|رننج|جري|casual|كاجوال)/i.test(message) && products.length > 1) {
     decision = "ambiguous_adidas";
     const question = await buildDynamicClarificationQuestion(["gender", "product_type"]);
@@ -446,10 +480,41 @@ export const composeAiSalesReply = async ({
     productCardsBlocked: hasProducts(response) && !hasProducts(output),
     outputProductCount: selectedProducts(output).length,
   });
+
+  const personality = applyHumanSalesPersonalityLayer({
+    response: output,
+    message,
+    intent: { type: detectedIntent || intent?.type || "" },
+    memory,
+    source,
+    conversationId: text(context?.conversationId || context?.conversation_id || context?.id || context?.session_id || ""),
+    channel: text(context?.channel || context?.source || ""),
+  });
+
+  output = withAnswer(output, personality.text, {
+    closer: personality.closer,
+    missing_order_fields: personality.missing_order_fields,
+    next_best_question: personality.next_best_question,
+    ready_to_confirm_order: personality.ready_to_confirm_order,
+    reply_variations: personality.reply_variations,
+    conversation_stage_awareness: personality.conversation_stage_awareness,
+    buying_intent_awareness: personality.buying_intent_awareness,
+    personality_layer: personality.personality_layer,
+    reasoning: personality.reasoning,
+    customer_meaning: personality.customer_meaning,
+    detected_entities: personality.detected_entities,
+    sales_stage: personality.sales_stage,
+    reply_goal: personality.reply_goal,
+    next_best_action: personality.next_best_action,
+    reasoning_confidence: personality.confidence,
+    why_this_reply: personality.why_this_reply,
+  });
+
   console.info("[ai-reply-composer:output]", {
     source,
     decision,
     answerLength: text(output.answer || output.text).length,
+    stage: personality.conversation_stage_awareness?.stage || "",
   });
   return output;
 };

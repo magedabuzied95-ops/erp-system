@@ -2969,6 +2969,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     draft_order: channelAdapterPayload.draft_order,
     channel_adapter_payload: channelAdapterPayload,
     sales_intelligence: salesIntelligence,
+    reasoning: reply.reasoning || null,
   };
 };
 

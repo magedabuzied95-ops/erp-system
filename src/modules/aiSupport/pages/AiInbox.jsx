@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
+  ArrowUpDown,
   Bot,
   BadgePercent,
   ChevronDown,
@@ -77,6 +78,79 @@ const filters = [
   { key: "ai_replied", label: "AI replied" },
   { key: "unread", label: "Unread" },
 ];
+
+const leadFilters = [
+  { key: "all", label: "All" },
+  { key: "ready_to_buy", label: "Ready to Buy" },
+  { key: "hot", label: "Hot" },
+  { key: "warm", label: "Warm" },
+  { key: "needs_human", label: "Needs Human" },
+];
+
+const leadTemperatureMeta = {
+  cold: { label: "cold", tone: "zinc", icon: Snowflake, emphasis: "subtle" },
+  warm: { label: "warm", tone: "amber", icon: Sparkles, emphasis: "moderate" },
+  hot: { label: "hot", tone: "rose", icon: Flame, emphasis: "clear" },
+  ready_to_buy: { label: "ready_to_buy", tone: "emerald", icon: CheckCircle2, emphasis: "maximum" },
+};
+
+const normalizeLeadTemperature = (value = "") => {
+  const key = clean(value).toLowerCase().replace(/\s+/g, "_");
+  if (["ready_to_buy", "ready", "readytobuy", "ready_to_confirm", "ready_to_confirm_order"].includes(key)) return "ready_to_buy";
+  if (["hot", "hot_lead", "hotlead"].includes(key)) return "hot";
+  if (["warm", "warm_lead", "warmlead"].includes(key)) return "warm";
+  return "cold";
+};
+
+const normalizeLeadScore = (value = 0) => {
+  const score = Number(value);
+  return Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : 0;
+};
+
+const normalizeLeadReasons = (value = []) => asArray(value).map((item) => clean(item)).filter(Boolean);
+
+const normalizeSalesAction = (value = "") => clean(value) || "continue_conversation";
+
+const conversationLeadSnapshot = (conversation = {}) =>
+  conversation?.lead_metadata ||
+  conversation?.lead ||
+  conversation?.unified_reply ||
+  conversation?.latest_ai_reply ||
+  conversation?.ai_reply ||
+  conversation?.sales_intelligence ||
+  {};
+
+const conversationLeadScore = (conversation = {}) =>
+  normalizeLeadScore(
+    conversation?.lead_score ??
+      conversation?.memory_score ??
+      conversationLeadSnapshot(conversation)?.lead_score ??
+      conversationLeadSnapshot(conversation)?.memory_score ??
+      0
+  );
+
+const conversationLeadTemperature = (conversation = {}) =>
+  normalizeLeadTemperature(
+    conversation?.lead_temperature ??
+      conversationLeadSnapshot(conversation)?.lead_temperature ??
+      (conversation?.needs_human_support || conversation?.conversation_status === "human_takeover" ? "hot" : "")
+  );
+
+const conversationLeadReasons = (conversation = {}) =>
+  normalizeLeadReasons(
+    conversation?.lead_reasons ??
+      conversationLeadSnapshot(conversation)?.lead_reasons ??
+      conversationLeadSnapshot(conversation)?.lead_reasons_list ??
+      []
+  );
+
+const conversationRecommendedSalesAction = (conversation = {}) =>
+  normalizeSalesAction(
+    conversation?.recommended_sales_action ??
+      conversationLeadSnapshot(conversation)?.recommended_sales_action ??
+      conversationLeadSnapshot(conversation)?.sales_action ??
+      ""
+  );
 
 const leadMeta = {
   "Hot Lead": { tone: "rose", icon: Flame },
@@ -362,6 +436,12 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   const avatarUrl = customerAvatarUrl(item);
   const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "No messages yet.";
   const unreadCount = Number(item.unread_count || item.unread || 0);
+  const leadScore = conversationLeadScore(item);
+  const leadTemperature = conversationLeadTemperature(item);
+  const leadReasons = conversationLeadReasons(item);
+  const recommendedSalesAction = conversationRecommendedSalesAction(item);
+  const leadMetaInfo = leadTemperatureMeta[leadTemperature] || leadTemperatureMeta.cold;
+  const LeadIcon = leadMetaInfo.icon;
   const mainStatus = item.conversation_status === "closed"
     ? { tone: "rose", label: "Closed", icon: LockKeyhole }
     : item.conversation_status === "human_takeover"
@@ -373,17 +453,23 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
           : null;
   const MainStatusIcon = mainStatus?.icon;
   const channelTone = isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc";
+  const containerTone =
+    active
+      ? "border-cyan-300/45 bg-cyan-300/12 shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
+      : leadTemperature === "ready_to_buy"
+        ? "border-emerald-300/35 bg-emerald-300/10 shadow-[0_12px_34px_rgba(16,185,129,0.12)]"
+        : leadTemperature === "hot"
+          ? "border-amber-300/30 bg-amber-300/8"
+          : leadTemperature === "warm"
+            ? "border-white/10 bg-white/[0.045]"
+            : unreadCount || unseen || liveMeta
+              ? "border-white/10 bg-slate-950/85 hover:border-cyan-300/25 hover:bg-white/[0.045]"
+              : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-white/[0.045]";
   return (
     <button
       type="button"
       onClick={() => onSelect(item.session_id)}
-      className={`w-full rounded-2xl border p-4 text-left transition ${
-        active
-          ? "border-cyan-300/45 bg-cyan-300/12 shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
-          : unreadCount || unseen || liveMeta
-            ? "border-white/10 bg-slate-950/85 hover:border-cyan-300/25 hover:bg-white/[0.045]"
-            : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-white/[0.045]"
-      }`}
+      className={`w-full rounded-2xl border p-4 text-left transition ${containerTone} ${leadTemperature === "ready_to_buy" ? "ring-1 ring-emerald-300/20" : leadTemperature === "hot" ? "ring-1 ring-amber-300/10" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -405,11 +491,15 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
       </div>
       <p dir={isRtlText(lastMessage) ? "rtl" : "auto"} className="mt-3 line-clamp-2 text-[13px] leading-6 text-slate-300">{lastMessage}</p>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        <Pill tone={channelTone}>{channelLabel(channel)}</Pill>
+          <Pill tone={channelTone}>{channelLabel(channel)}</Pill>
+        <Pill tone={leadMetaInfo.tone}><LeadIcon className="h-3.5 w-3.5" />Lead {leadMetaInfo.label}</Pill>
+        <Pill tone={leadMetaInfo.tone}>{leadScore}</Pill>
         {mainStatus ? <Pill tone={mainStatus.tone}>{MainStatusIcon ? <MainStatusIcon className="h-3.5 w-3.5" /> : null}{mainStatus.label}</Pill> : null}
         {unreadCount ? <Pill tone="rose">Unread {unreadCount}</Pill> : null}
         {needsHumanAttention(item) ? <Pill tone="amber"><AlertTriangle className="h-3.5 w-3.5" />Needs human</Pill> : null}
       </div>
+      {leadReasons.length ? <p className="mt-2 line-clamp-1 text-[11px] font-bold text-slate-500">Reasons: {leadReasons.slice(0, 3).join(" · ")}</p> : null}
+      <p className="mt-1 line-clamp-1 text-[11px] font-bold text-slate-500">Next action: {recommendedSalesAction}</p>
     </button>
   );
 });
@@ -1483,6 +1573,8 @@ export default function AiInbox() {
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
   const pageVisible = usePageVisible();
   const [filter, setFilter] = useState("all");
+  const [leadFilter, setLeadFilter] = useState("all");
+  const [leadSort, setLeadSort] = useState("recent");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");
@@ -1636,6 +1728,30 @@ export default function AiInbox() {
   }, [toast.text]);
 
   const conversations = asArray(inbox.conversations);
+  const filteredConversations = useMemo(() => {
+    const items = [...conversations];
+    const matchesLeadFilter = (conversation = {}) => {
+      const temperature = conversationLeadTemperature(conversation);
+      if (leadFilter === "all") return true;
+      if (leadFilter === "needs_human") return needsHumanAttention(conversation);
+      return temperature === leadFilter;
+    };
+    const sortValue = (conversation = {}) => {
+      const score = conversationLeadScore(conversation);
+      const updatedAt = new Date(conversation.last_message_at || conversation.last_activity_at || conversation.updated_at || conversation.created_at || 0).getTime();
+      return leadSort === "lead_score_desc"
+        ? { primary: score, secondary: updatedAt }
+        : { primary: updatedAt, secondary: score };
+    };
+    const sorted = items.filter(matchesLeadFilter).sort((a, b) => {
+      const left = sortValue(a);
+      const right = sortValue(b);
+      if (right.primary !== left.primary) return right.primary - left.primary;
+      if (right.secondary !== left.secondary) return right.secondary - left.secondary;
+      return clean(b.session_id).localeCompare(clean(a.session_id));
+    });
+    return sorted;
+  }, [conversations, leadFilter, leadSort]);
   const realMetaCount = conversations.filter((item) => item.is_live_meta || isMetaChannel(item.channel || item.source)).length;
   const selectedConversation = useMemo(
     () => conversations.find((item) => item.session_id === selectedSessionId) ||
@@ -2326,21 +2442,60 @@ export default function AiInbox() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, external ID, phone, or message" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
             </label>
+            <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
+              <ArrowUpDown className="h-4 w-4 text-slate-500" />
+              <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sort</span>
+              <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
+                <option value="recent">Most recent</option>
+                <option value="lead_score_desc">Highest lead score first</option>
+              </select>
+            </label>
+          </div>
+          <div className="mt-3 flex flex-col gap-3">
             <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0">
-            {filters.map((item) => (
-              <button key={item.key} type="button" onClick={() => setFilter(item.key)} className={`h-10 shrink-0 rounded-xl px-3 text-xs font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>{item.label}</button>
-            ))}
+              {filters.map((item) => (
+                <button key={item.key} type="button" onClick={() => setFilter(item.key)} className={`h-10 shrink-0 rounded-xl px-3 text-xs font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>{item.label}</button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Lead filters</span>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {leadFilters.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setLeadFilter(item.key)}
+                    className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${
+                      leadFilter === item.key
+                        ? item.key === "ready_to_buy"
+                          ? "bg-emerald-300 text-slate-950"
+                          : item.key === "hot"
+                            ? "bg-rose-300 text-slate-950"
+                            : item.key === "warm"
+                              ? "bg-amber-300 text-slate-950"
+                              : "bg-cyan-300 text-slate-950"
+                        : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
         <section className={`grid gap-5 overflow-x-hidden ${profileOpen ? "xl:grid-cols-[24rem_minmax(0,1fr)_20rem]" : "xl:grid-cols-[24rem_minmax(0,1fr)]"}`}>
           <aside className="min-w-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-15rem)] xl:overflow-y-auto">
-            <SectionTitle icon={MessageSquareText} title="Conversations list" />
+            <SectionTitle
+              icon={MessageSquareText}
+              title="Conversations list"
+              action={<Pill tone="zinc">{filteredConversations.length} shown</Pill>}
+            />
             {loading && !conversations.length ? <LoadingBlock text="Loading conversations..." /> : null}
-            {conversations.length ? (
+            {filteredConversations.length ? (
               <VirtualList
-                items={conversations}
+                items={filteredConversations}
                 estimateSize={168}
                 className="max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
                 itemKey={(item) => item.session_id}
@@ -2355,7 +2510,7 @@ export default function AiInbox() {
                   </div>
                 )}
               />
-            ) : !loading ? <EmptyBlock text={filter === "all" ? "No real Meta messages yet. Demo data is hidden so live webhook conversations stay clear." : "No real conversations match this filter."} /> : null}
+            ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "No real Meta messages yet. Demo data is hidden so live webhook conversations stay clear." : "No real conversations match the selected filters."} /> : null}
           </aside>
 
           <main className="min-w-0 space-y-5">
@@ -2375,6 +2530,21 @@ export default function AiInbox() {
                           <span>{channelLabel(safeConversation.channel || safeConversation.source)}</span>
                           <span className="text-slate-600">/</span>
                           <span>{safeConversation.external_customer_id || safeConversation.session_id}</span>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Pill tone={leadTemperatureMeta[conversationLeadTemperature(safeConversation)]?.tone || "zinc"}>
+                            {(() => {
+                              const temp = conversationLeadTemperature(safeConversation);
+                              const meta = leadTemperatureMeta[temp] || leadTemperatureMeta.cold;
+                              const Icon = meta.icon;
+                              return <>
+                                <Icon className="h-3.5 w-3.5" />
+                                Lead {meta.label}
+                                <span className="opacity-70">{conversationLeadScore(safeConversation)}</span>
+                              </>;
+                            })()}
+                          </Pill>
+                          <Pill tone="zinc">Action: {conversationRecommendedSalesAction(safeConversation)}</Pill>
                         </div>
                       </div>
                     </div>
@@ -2398,6 +2568,18 @@ export default function AiInbox() {
                         </div>
                       </div>
                     ) : null}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-slate-950/65 p-4 lg:grid-cols-4">
+                    <Info label="Lead score" value={conversationLeadScore(safeConversation)} />
+                    <Info label="Lead temperature" value={conversationLeadTemperature(safeConversation)} />
+                    <Info label="Recommended action" value={conversationRecommendedSalesAction(safeConversation)} />
+                    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 lg:col-span-4">
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Lead reasons</div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {conversationLeadReasons(safeConversation).length ? conversationLeadReasons(safeConversation).map((reason) => <Pill key={reason} tone="zinc">{reason.replace(/_/g, " ")}</Pill>) : <span className="text-sm text-slate-500">No lead reasons yet</span>}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="mt-4">
