@@ -407,7 +407,6 @@ function AttendanceWorkspace({
         ) || nextEmployees[0] || null;
 
       setEmployees((prev) => {
-        console.trace("[hr-loop:set-state]", "setEmployees");
         return sameEmployeeList(prev, nextEmployees) ? prev : nextEmployees;
       });
       setBranches(nextBranches);
@@ -437,7 +436,6 @@ function AttendanceWorkspace({
       if (selectedMatch) {
         setSelectedEmployeeId((prev) => {
           const nextSelectedEmployeeId = String(prev || selectedMatch.id || "");
-          console.trace("[hr-loop:set-state]", "setSelectedEmployeeId");
           return prev === nextSelectedEmployeeId ? prev : nextSelectedEmployeeId;
         });
         setEmployeeForm((prev) => {
@@ -447,7 +445,6 @@ function AttendanceWorkspace({
           if (String(prev.branch_id || "") === String(nextBranchId) && String(prev.branch_name || "") === String(nextBranchName)) {
             return prev;
           }
-          console.trace("[hr-loop:set-state]", "setEmployeeForm");
           return {
             ...prev,
             branch_id: nextBranchId,
@@ -458,7 +455,6 @@ function AttendanceWorkspace({
         setEmployeeForm((prev) => {
           if (prev.branch_id) return prev;
           if (String(prev.branch_id || "") === String(defaultBranchId || "")) return prev;
-          console.trace("[hr-loop:set-state]", "setEmployeeForm");
           return { ...prev, branch_id: defaultBranchId };
         });
       }
@@ -487,7 +483,6 @@ function AttendanceWorkspace({
       selectedEmployeeId,
     });
     setSelectedEmployeeId((prev) => {
-      console.trace("[hr-loop:set-state]", "setSelectedEmployeeId");
       return prev === nextSelectedEmployeeId ? prev : nextSelectedEmployeeId;
     });
   }, [externalSelectedEmployeeId, selectedEmployeeId]);
@@ -1099,7 +1094,6 @@ function AttendanceWorkspace({
     setSelectedTab((prev) => {
       if (tabs.some((tab) => tab.key === prev)) return prev;
       if (prev === fallbackTab) return prev;
-      console.trace("[hr-loop:set-state]", "setSelectedTab");
       return fallbackTab;
     });
   }, [defaultTab, tabs]);
