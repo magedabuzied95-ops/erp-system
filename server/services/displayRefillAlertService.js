@@ -1,6 +1,7 @@
 ﻿import db from "../database/db.js";
 import { createEmployeePortalNotification } from "./employeePayrollPortalService.js";
 import { emitToRooms } from "../utils/socket.js";
+import { createNotification } from "./notificationsService.js";
 
 const clean = (value = "") => String(value ?? "").trim();
 const textOrNull = (value) => {
@@ -625,6 +626,33 @@ const notifyDisplayRefillAlert = async ({
     }))
   ));
 
+  await createNotification({
+    tenant_id: tenantId,
+    role_key: "manager",
+    branch_id: branchId || null,
+    type: "display_refill_alert",
+    category: "stock",
+    priority: "high",
+    title: "تنبيه إعادة العرض",
+    message: body,
+    action_url: "/inventory",
+    action_label: "فتح المخزون",
+    entity_type: "display_refill_alert",
+    entity_id: String(alert?.id || `${tenantId || "global"}:${branchId || "branch"}`),
+    metadata: {
+      display_refill_alert_id: alert?.id || null,
+      product_id: productId,
+      color_name: colorName,
+      sold_size: soldSize,
+      replacement_size: replacementSize,
+      image_url: imageUrl,
+      branch_id: branchId || null,
+    },
+  }).catch((error) => console.warn("[display-refill-alert:manager-notification-skipped]", {
+    alertId: alert?.id,
+    message: error?.message || String(error),
+  }));
+
   emitToRooms([branchId ? `branch:${branchId}` : null, sellerEmployeeId ? `employee:${sellerEmployeeId}` : null], "employee_portal:display_refill_alert", {
     alert,
     badge: { tag: "display_refill_alert", tab: "display-refill" },
@@ -1226,6 +1254,31 @@ export const resolveDisplayRefillAlert = async ({ employeeId, tenantId = null, b
     branch_id: numberOrNull(branchId),
     found: Boolean(alert),
   });
+  if (alert) {
+    await createNotification({
+      tenant_id: numberOrNull(alert.tenant_id || tenantId),
+      role_key: "manager",
+      branch_id: numberOrNull(alert.branch_id || branchId),
+      type: "display_refill_alert_resolved",
+      category: "stock",
+      priority: "medium",
+      title: "Display refill alert resolved",
+      message: `${alert.product_name || "Alert"} ${alert.color_name || ""} ${alert.sold_size || ""}`.trim(),
+      action_url: "/inventory/display-refill-alerts",
+      action_label: "Review alerts",
+      entity_type: "display_refill_alert",
+      entity_id: String(alert.id),
+      metadata: {
+        alert_id: alert.id,
+        status: alert.status,
+        product_name: alert.product_name || "",
+        color_name: alert.color_name || "",
+        sold_size: alert.sold_size || "",
+        replacement_size: alert.replacement_size || null,
+        branch_id: alert.branch_id || null,
+      },
+    });
+  }
   return alert;
 };
 

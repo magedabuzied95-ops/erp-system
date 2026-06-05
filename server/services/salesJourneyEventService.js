@@ -39,6 +39,44 @@ const hasAny = (value = "", terms = []) => {
   return terms.some((term) => normalized.includes(normalizeArabic(term)));
 };
 
+const toBigintId = (value = null) => {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value > 0 ? Math.trunc(value) : null;
+  }
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+  }
+  return null;
+};
+
+const resolveBigintId = (entity = {}, candidates = []) => {
+  for (const candidate of candidates) {
+    const resolved = toBigintId(candidate);
+    if (resolved !== null) return resolved;
+  }
+  if (entity && typeof entity === "object") {
+    const nested = [
+      entity.product?.id,
+      entity.product?.product_id,
+      entity.product?.database_id,
+      entity.product?.db_id,
+      entity.product?.numeric_id,
+      entity.selected_variant?.id,
+      entity.selected_variant?.variant_id,
+      entity.selected_variant?.database_id,
+      entity.selected_variant?.db_id,
+      entity.selected_variant?.numeric_id,
+    ];
+    for (const candidate of nested) {
+      const resolved = toBigintId(candidate);
+      if (resolved !== null) return resolved;
+    }
+  }
+  return null;
+};
+
 const explicitSize = (message = "") => {
   const match = text(message).match(/\b(3[5-9]|4[0-9]|5[0-2]|xs|s|m|l|xl|xxl|xxxl)\b/i);
   return match?.[1]?.toUpperCase() || "";
@@ -70,8 +108,8 @@ const normalizeEvent = (event = {}, fallback = {}) => ({
   event_type: text(event.event_type || event.type || fallback.event_type || ""),
   conversation_id: text(event.conversation_id || fallback.conversation_id || ""),
   customer_id: text(event.customer_id || fallback.customer_id || ""),
-  product_id: event.product_id || fallback.product_id || null,
-  variant_id: event.variant_id || fallback.variant_id || null,
+  product_id: toBigintId(event.product_id ?? fallback.product_id ?? null),
+  variant_id: toBigintId(event.variant_id ?? fallback.variant_id ?? null),
   channel: text(event.channel || fallback.channel || "web_chat"),
   metadata: event.metadata || fallback.metadata || {},
   created_at: event.created_at || fallback.created_at || new Date().toISOString(),
@@ -127,15 +165,34 @@ const buildEventsFromConversation = ({ conversation = {}, message = "", state = 
   const customerId = text(conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "");
   const channel = text(conversation.channel || conversation.source || "web_chat");
   const selectedProduct = product || productFromConversation(conversation) || asArray(products)[0] || null;
+  const selectedProductId = resolveBigintId(selectedProduct, [
+    selectedProduct?.product_db_id,
+    selectedProduct?.database_id,
+    selectedProduct?.db_id,
+    selectedProduct?.numeric_id,
+    selectedProduct?.id,
+    selectedProduct?.product_id,
+  ]);
+  const selectedVariantId = resolveBigintId(selectedProduct, [
+    selectedProduct?.selected_variant_id,
+    selectedProduct?.variant_db_id,
+    selectedProduct?.variant_database_id,
+    selectedProduct?.variant_id,
+    selectedProduct?.selected_variant?.id,
+    selectedProduct?.selected_variant?.variant_id,
+    selectedProduct?.selected_variant?.database_id,
+    selectedProduct?.selected_variant?.db_id,
+    selectedProduct?.selected_variant?.numeric_id,
+  ]);
   const events = [];
 
-  if (selectedProduct?.id || selectedProduct?.product_id) {
+  if (selectedProductId !== null) {
     events.push(normalizeEvent({
       event_type: SALES_JOURNEY_EVENT_TYPES.PRODUCT_MATCHED,
       conversation_id: conversationId,
       customer_id: customerId,
-      product_id: selectedProduct.id || selectedProduct.product_id,
-      variant_id: selectedProduct.variant_id || selectedProduct.selected_variant_id || null,
+      product_id: selectedProductId,
+      variant_id: selectedVariantId,
       channel,
       metadata: {
         reason: "product_context_present",
@@ -162,8 +219,8 @@ const buildEventsFromConversation = ({ conversation = {}, message = "", state = 
       event_type: SALES_JOURNEY_EVENT_TYPES.SIZE_SELECTED,
       conversation_id: conversationId,
       customer_id: customerId,
-      product_id: selectedProduct?.id || selectedProduct?.product_id || null,
-      variant_id: selectedProduct?.variant_id || null,
+      product_id: selectedProductId,
+      variant_id: selectedVariantId,
       channel,
       metadata: { size },
       created_at: conversation.updated_at || new Date().toISOString(),
@@ -185,7 +242,7 @@ const buildEventsFromConversation = ({ conversation = {}, message = "", state = 
       event_type: SALES_JOURNEY_EVENT_TYPES.COLOR_SELECTED,
       conversation_id: conversationId,
       customer_id: customerId,
-      product_id: selectedProduct?.id || selectedProduct?.product_id || null,
+      product_id: selectedProductId,
       channel,
       metadata: { color },
       created_at: conversation.updated_at || new Date().toISOString(),
@@ -197,7 +254,7 @@ const buildEventsFromConversation = ({ conversation = {}, message = "", state = 
       event_type: SALES_JOURNEY_EVENT_TYPES.IMAGES_REQUESTED,
       conversation_id: conversationId,
       customer_id: customerId,
-      product_id: selectedProduct?.id || selectedProduct?.product_id || null,
+      product_id: selectedProductId,
       channel,
       metadata: { message: latestMessage },
       created_at: conversation.updated_at || new Date().toISOString(),
@@ -209,7 +266,7 @@ const buildEventsFromConversation = ({ conversation = {}, message = "", state = 
       event_type: SALES_JOURNEY_EVENT_TYPES.ALTERNATIVE_REQUESTED,
       conversation_id: conversationId,
       customer_id: customerId,
-      product_id: selectedProduct?.id || selectedProduct?.product_id || null,
+      product_id: selectedProductId,
       channel,
       metadata: { message: latestMessage },
       created_at: conversation.updated_at || new Date().toISOString(),
@@ -232,7 +289,7 @@ const buildEventsFromConversation = ({ conversation = {}, message = "", state = 
       event_type: SALES_JOURNEY_EVENT_TYPES.DRAFT_ORDER_CREATED,
       conversation_id: conversationId,
       customer_id: customerId,
-      product_id: selectedProduct?.id || selectedProduct?.product_id || null,
+      product_id: selectedProductId,
       channel,
       metadata: { draft_order_count: conversation.draft_orders?.length || 0 },
       created_at: conversation.updated_at || new Date().toISOString(),
@@ -244,7 +301,7 @@ const buildEventsFromConversation = ({ conversation = {}, message = "", state = 
       event_type: SALES_JOURNEY_EVENT_TYPES.PAYMENT_LINK_SENT,
       conversation_id: conversationId,
       customer_id: customerId,
-      product_id: selectedProduct?.id || selectedProduct?.product_id || null,
+      product_id: selectedProductId,
       channel,
       metadata: { message: latestMessage },
       created_at: conversation.updated_at || new Date().toISOString(),
@@ -256,7 +313,7 @@ const buildEventsFromConversation = ({ conversation = {}, message = "", state = 
       event_type: SALES_JOURNEY_EVENT_TYPES.ORDER_CONFIRMED,
       conversation_id: conversationId,
       customer_id: customerId,
-      product_id: selectedProduct?.id || selectedProduct?.product_id || null,
+      product_id: selectedProductId,
       channel,
       metadata: { confirmed_count: conversation.confirmed_count || 0 },
       created_at: conversation.updated_at || new Date().toISOString(),

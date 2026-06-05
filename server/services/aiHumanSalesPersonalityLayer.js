@@ -340,6 +340,14 @@ const buildSalesReplyReasoning = ({
   const isAlternativeRequest = /(بديل|بدائل|شبه|similar|alternative|اقرب حاجة|اقرب بديل)/i.test(normalizedMessage);
   const isComparison = /(قارن|comparison|compare|احسن|افضل|الفرق|ولا)/i.test(normalizedMessage);
   const isCorrection = /(لا مش ده|مش ده|ده مش|مش هو|غلط|قصدي|اقصد|wrong|not this|no that's not)/i.test(normalizedMessage);
+  const rejectedAspect = (() => {
+    if (!isCorrection) return "";
+    if (/(السعر|سعره|غالي|غاليه|ارخص|خصم|price|cost|budget|ميزانية)/i.test(normalizedMessage)) return "price";
+    if (/(لون|اللون|الوان|color|colour)/i.test(normalizedMessage)) return "color";
+    if (/(صورة|صور|image|photo|picture|سكرين|لقطة)/i.test(normalizedMessage)) return "image";
+    if (/(ستايل|style|موديل|model|شكل|تصميم)/i.test(normalizedMessage)) return "style";
+    return "product";
+  })();
   const isHumanHandoff = /(بني ادم|human|agent|موظف|كلم حد|حد من الفريق|ظبطها مع انسان|handoff)/i.test(normalizedMessage) || normalizedIntent.includes("human");
   const isBuyingIntent = /(عايز اشتري|عاوز اشتري|عايز اجيب|احجزه|احجزهولي|reserve|buy|order|checkout|هات|هاتهولي|طلهولي)/i.test(normalizedMessage) || normalizedIntent.includes("buying") || normalizedIntent.includes("checkout") || normalizedIntent.includes("order");
   const isPaymentQuestion = /(الدفع|payment|pay|تحويل|instapay|فودافون|visa|mastercard|bank)/i.test(normalizedMessage);
@@ -393,6 +401,10 @@ const buildSalesReplyReasoning = ({
     if (salesStage === "COLOR_COLLECTION") return "العميل مهتم بالمنتج وبيحدد اللون المناسب.";
     if (salesStage === "PRICE_DISCUSSION") return "العميل بيسأل على السعر وبيوازن قبل القرار.";
     if (salesStage === "OBJECTION_HANDLING") return "العميل شايف السعر عالي وعايز بديل أو طمأنة.";
+    if (isCorrection && rejectedAspect === "price") return "العميل معترض على السعر وعايز قيمة أوضح قبل ما يكمّل.";
+    if (isCorrection && rejectedAspect === "color") return "العميل مش عايز اللون ده وعايز لون تاني من نفس المنتج.";
+    if (isCorrection && rejectedAspect === "image") return "العميل محتاج صورة أوضح أو زاوية تانية لنفس المنتج.";
+    if (isCorrection && rejectedAspect === "style") return "العميل مش مقتنع بالستايل وعايز شكل أقرب لذوقه.";
     if (isCorrection) return "العميل بيصحح الاختيار وعايز إعادة توجيه سريعة.";
     if (isImageRequest) return "العميل عايز صور أوضح لنفس المنتج قبل ما يقرر.";
     if (isAlternativeRequest) return "العميل طلب بديل قريب أو اختيار مشابه.";
@@ -590,6 +602,7 @@ const buildSalesReplyReasoning = ({
       image_request: isImageRequest,
       alternative_request: isAlternativeRequest,
       confusion_or_correction: isCorrection,
+      correction_target: rejectedAspect,
       human_handoff: isHumanHandoff,
       payment_question: isPaymentQuestion,
       product_context_present: hasProductContext,
@@ -680,19 +693,35 @@ const buildReasoningReplyEngine = ({
   } else if (normalizedMissingFields.length) {
     primaryText = pickMissingFieldReply();
   } else if (hasCorrectionSignal) {
-    primaryText = `تمام يا باشا، هنسيب ${productLabel && productLabel !== "الموديل ده" ? productLabel : "ده"}. تحب أقرب بديل شبهه؟`;
+    if ((reasoning.detected_entities?.correction_target || "").toLowerCase() === "price") {
+      primaryText = priceLabel
+        ? `فاهمك يا باشا، ${productLabel && productLabel !== "الموديل ده" ? productLabel : "ده"} سعره ${priceLabel} عشان خامته أعلى وشكله أشيك. لو السعر هو المشكلة أطلعلك حاجة أهدى.`
+        : `فاهمك يا باشا، لو السعر مش مناسب أشرحلك القيمة الأول، ولو تحب أطلعلك حاجة أهدى.`;
+    } else if ((reasoning.detected_entities?.correction_target || "").toLowerCase() === "color") {
+      primaryText = "تمام يا باشا، يبقى اللون ده مش اللي في بالك. تحب لون تاني من نفس الموديل؟";
+    } else if ((reasoning.detected_entities?.correction_target || "").toLowerCase() === "image") {
+      primaryText = "تمام يا باشا، هبعتلك صورة أوضح لنفس الموديل حالًا.";
+    } else if ((reasoning.detected_entities?.correction_target || "").toLowerCase() === "style") {
+      primaryText = "تمام يا باشا، يبقى الستايل ده مش مناسب. تحب حاجة كاجوال ولا شكل أهدى؟";
+    } else {
+      primaryText = `تمام يا باشا، يبقى ده مش اللي تقصده. تحب موديل تاني ولا لون مختلف من نفس الشكل؟`;
+    }
   } else if (hasAlternativeSignal) {
     primaryText = askAlternative;
   } else if (hasImageSignal) {
     primaryText = askImages;
   } else if (hasPriceSignal) {
-    primaryText = askPriceAlternative;
+    primaryText = priceLabel
+      ? `فاهمك يا باشا، ${productLabel && productLabel !== "الموديل ده" ? productLabel : "ده"} سعره ${priceLabel} عشان خامته أعلى وشكله أقوى شوية. لو تحب أطلعلك حاجة أهدى في السعر.`
+      : "فاهمك يا باشا، لو السعر مش مناسب أشرحلك القيمة الأول، ولو تحب أطلعلك حاجة أهدى.";
   } else if (salesStage === "SIZE_COLLECTION") {
     primaryText = askSize;
   } else if (salesStage === "COLOR_COLLECTION") {
     primaryText = askColor;
   } else if (salesStage === "OBJECTION_HANDLING") {
-    primaryText = askPriceAlternative;
+    primaryText = priceLabel
+      ? `فاهمك يا باشا، ${productLabel && productLabel !== "الموديل ده" ? productLabel : "ده"} سعره ${priceLabel} عشان خامته أعلى وشكله أقوى شوية. لو السعر هو المشكلة أقدر أطلعلك حاجة أقرب للمزانية.`
+      : "فاهمك يا باشا، لو السعر مش مناسب أشرحلك ليه المنتج ده مختلف، وبعدها أطلعلك بديل قريب.";
   } else if (salesStage === "PRODUCT_MATCHED" || salesStage === "PRODUCT_PRESENTATION") {
     primaryText = askFollowUp;
   } else if (salesStage === "DISCOVERY") {

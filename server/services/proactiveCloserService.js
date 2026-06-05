@@ -14,27 +14,27 @@ export const buildProactiveCloserPlan = ({ conversation = {}, state = {}, score 
 
   if (score?.score >= 80 && inStock && availableSize) {
     recommended_action = "DRAFT_ORDER";
-    suggested_message = `تمام يا فندم ❤️ المقاس ${availableSize} متاح، تحب أحجزهولك وأفتح الأوردر؟`;
+    suggested_message = `تمام يا باشا ❤️ المقاس ${availableSize} متاح، تحب أحجزهولك وأفتح الأوردر؟`;
     reasons.push("high_score_with_size_and_stock");
   } else if (state.current_state === "PRICE_DISCUSSION" && availableSize && inStock) {
     recommended_action = "CLOSE_WITH_ORDER";
-    suggested_message = `تمام يا فندم ❤️ السعر واضح والمقاس متاح، تحب أكمّللك الأوردر؟`;
+    suggested_message = `تمام يا باشا ❤️ السعر واضح والمقاس متاح، تحب أكمّللك الأوردر؟`;
     reasons.push("price_and_size_known");
   } else if (state.current_state === "OBJECTION_HANDLING") {
     recommended_action = "HANDLE_OBJECTION";
-    suggested_message = "مفهوم يا فندم ❤️ عندي بدائل قريبة بنفس الشكل والسعر لو تحب.";
+    suggested_message = "مفهوم يا باشا ❤️ عندي بدائل قريبة بنفس الشكل والسعر لو تحب.";
     reasons.push("objection_detected");
   } else if (state.current_state === "PAYMENT_PENDING") {
     recommended_action = "SEND_PAYMENT_LINK";
-    suggested_message = "تمام يا فندم ❤️ هبعتلك خطوة الدفع دلوقتي أو أرجعها لك لو تحب.";
+    suggested_message = "تمام يا باشا ❤️ هبعتلك خطوة الدفع دلوقتي أو أرجعها لك لو تحب.";
     reasons.push("payment_pending");
   } else if (state.current_state === "DRAFT_ORDER") {
     recommended_action = "FOLLOW_UP_DRAFT";
-    suggested_message = "لسه الحجز مفتوح يا فندم ❤️ تحب أكمّل قبل ما ينتهي؟";
+    suggested_message = "لسه الحجز مفتوح يا باشا ❤️ تحب أكمّل قبل ما ينتهي؟";
     reasons.push("draft_active");
   } else if (followUp?.follow_up_needed) {
     recommended_action = "FOLLOW_UP";
-    suggested_message = followUp.suggested_follow_up_message || "لسه متاح يا فندم ❤️ تحب أكملك من آخر اختيار؟";
+    suggested_message = followUp.suggested_follow_up_message || "لسه متاح يا باشا ❤️ تحب أكملك من آخر اختيار؟";
     reasons.push("follow_up_needed");
   }
 

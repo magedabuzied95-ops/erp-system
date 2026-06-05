@@ -1123,7 +1123,7 @@ const notifyTaskAssignment = async (client, task, assignee, eventType = "task_as
     tenant_id: task.tenant_id,
     user_id: assignee.user_id || null,
     branch_id: task.branch_id,
-    role_key: assignee.user_id || task.branch_id || assignee.role ? assignee.role || null : "admin",
+    role_key: "manager",
     type: eventType,
     category: "staff_tasks",
     priority: task.priority,
@@ -1168,7 +1168,7 @@ const emitTaskRealtime = async (eventType, task = {}, options = {}) => {
     tenant_id: task.tenant_id,
     user_id: task.assigned_user_id || null,
     branch_id: task.branch_id || null,
-    role_key: task.assigned_user_id || task.branch_id || task.role_key ? task.role_key || null : "admin",
+    role_key: "manager",
     type: `staff_task_${eventType}`,
     category: "staff_tasks",
     priority: task.priority || "medium",
@@ -2637,6 +2637,7 @@ const notifyEmployeeTaskDigest = async ({ tenantId, branchId, employeeId, attend
     tenant_id: tenantId,
     user_id: employee.user_id || null,
     branch_id: branchId,
+    role_key: "manager",
     type: "staff_tasks_available",
     category: "staff_tasks",
     priority: "medium",
@@ -2975,6 +2976,8 @@ export const getStaffTaskDashboard = async ({ tenantId = null, branchId = null }
       LEFT JOIN online_sessions os ON os.employee_id = e.id
       WHERE ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
         AND ($3::bigint IS NULL OR e.branch_id = $3::bigint)
+        AND COALESCE(e.is_deleted, FALSE) = FALSE
+        AND LOWER(COALESCE(e.status, 'active')) = 'active'
       GROUP BY e.id, e.job_title, e.position, e.role, e.department, ot.open_count, ta.check_in_at, ta.check_in, os.is_online, os.last_seen_at
       ORDER BY
         CASE

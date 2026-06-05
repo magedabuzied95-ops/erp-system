@@ -319,6 +319,13 @@ export const deleteNotification = async (id, userOrContext = {}) => {
 };
 
 export const createSystemNotification = async (type, payload = {}) => {
+  const managerAudienceTypes = new Set([
+    "website_order_created",
+    "payment_proof_uploaded",
+    "low_stock",
+    "purchase_confirmed",
+    "security_sensitive_action",
+  ]);
   const presets = {
     website_order_created: {
       category: "orders",
@@ -358,6 +365,7 @@ export const createSystemNotification = async (type, payload = {}) => {
     priority: preset.priority || "medium",
     title: preset.title || "System notification",
     action_label: preset.action_label || null,
+    role_key: payload.role_key || (managerAudienceTypes.has(type) ? "manager" : null),
     ...payload,
     metadata: {
       ...(payload.metadata || {}),

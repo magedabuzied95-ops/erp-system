@@ -1130,6 +1130,7 @@ const awardBadge = async ({ tenantId, employeeId, period, badgeCode, badgeLabel,
     await awardMonthlyPoints({ tenantId, employeeId, period: `${period}:${badgeCode}`, points, sourceType: "badge", description: badgeLabel });
     await createNotification({
       tenant_id: tenantId,
+      role_key: "manager",
       type: "employee_badge_earned",
       category: "employees",
       priority: "medium",
@@ -1811,6 +1812,8 @@ export const createEmployeePortalRequest = async ({ employee, data = {}, audit =
   });
   await createNotification({
     tenant_id: employee.tenant_id,
+    role_key: "manager",
+    branch_id: employee.branch_id || null,
     type: "employee_portal_request",
     category: "employees",
     priority: requestType === "advance" ? "high" : "medium",
@@ -2177,6 +2180,27 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         ]
       );
       await recordEmployeePortalAudit({ employee, action: "attendance_check_in", audit: auditWithGps, metadata: { branch_id: branch.id, attendance_id: result.rows[0]?.id, duplicate: true } });
+      await createNotification({
+        tenant_id: employee.tenant_id,
+        role_key: "manager",
+        branch_id: branch.id,
+        type: "employee_attendance_check_in",
+        category: "attendance",
+        priority: shiftResolution.lateMinutes > 0 ? "high" : "medium",
+        title: shiftResolution.lateMinutes > 0 ? "موظف متأخر" : "تسجيل حضور جديد",
+        message: `${employee.full_name || employee.name || employee.employee_code || "Employee"} ${shiftResolution.lateMinutes > 0 ? `تأخر ${shiftResolution.lateMinutes} دقيقة` : "سجل الحضور"}`,
+        action_url: "/attendance/today",
+        action_label: "فتح الحضور",
+        entity_type: "attendance_log",
+        entity_id: String(result.rows[0]?.id || ""),
+        metadata: {
+          employee_id: employee.id,
+          attendance_id: result.rows[0]?.id || null,
+          branch_id: branch.id,
+          action: "check_in",
+          late_minutes: shiftResolution.lateMinutes || 0,
+        },
+      }).catch(() => null);
       return { action, attendance: result.rows[0], branch: { id: branch.id, name: branch.name } };
     }
     const result = await db.query(
@@ -2211,6 +2235,27 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
       ]
     );
     await recordEmployeePortalAudit({ employee, action: "attendance_check_in", audit: auditWithGps, metadata: { branch_id: branch.id, attendance_id: result.rows[0]?.id } });
+    await createNotification({
+      tenant_id: employee.tenant_id,
+      role_key: "manager",
+      branch_id: branch.id,
+      type: "employee_attendance_check_in",
+      category: "attendance",
+      priority: shiftResolution.lateMinutes > 0 ? "high" : "medium",
+      title: shiftResolution.lateMinutes > 0 ? "موظف متأخر" : "تسجيل حضور جديد",
+      message: `${employee.full_name || employee.name || employee.employee_code || "Employee"} ${shiftResolution.lateMinutes > 0 ? `تأخر ${shiftResolution.lateMinutes} دقيقة` : "سجل الحضور"}`,
+      action_url: "/attendance/today",
+      action_label: "فتح الحضور",
+      entity_type: "attendance_log",
+      entity_id: String(result.rows[0]?.id || ""),
+      metadata: {
+        employee_id: employee.id,
+        attendance_id: result.rows[0]?.id || null,
+        branch_id: branch.id,
+        action: "check_in",
+        late_minutes: shiftResolution.lateMinutes || 0,
+      },
+    }).catch(() => null);
     return { action, attendance: result.rows[0], branch: { id: branch.id, name: branch.name } };
   }
   const existing = await db.query(
@@ -2295,6 +2340,26 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     ]
   );
   await recordEmployeePortalAudit({ employee, action: "attendance_check_out", audit: auditWithGps, metadata: { branch_id: branch.id, attendance_id: result.rows[0]?.id } });
+  await createNotification({
+    tenant_id: employee.tenant_id,
+    role_key: "manager",
+    branch_id: branch.id,
+    type: "employee_attendance_check_out",
+    category: "attendance",
+    priority: "medium",
+    title: "انصراف موظف",
+    message: `${employee.full_name || employee.name || employee.employee_code || "Employee"} سجل الانصراف`,
+    action_url: "/attendance/today",
+    action_label: "فتح الحضور",
+    entity_type: "attendance_log",
+    entity_id: String(result.rows[0]?.id || ""),
+    metadata: {
+      employee_id: employee.id,
+      attendance_id: result.rows[0]?.id || null,
+      branch_id: branch.id,
+      action: "check_out",
+    },
+  }).catch(() => null);
   return { action, attendance: result.rows[0], branch: { id: branch.id, name: branch.name } };
 };
 
@@ -2422,6 +2487,7 @@ export const grantEmployeeAdminReward = async ({ tenantId = null, employeeId, ti
   const reward = result.rows[0];
   await createNotification({
     tenant_id: tenantId,
+    role_key: "manager",
     type: "employee_reward_granted",
     category: "employees",
     priority: "medium",

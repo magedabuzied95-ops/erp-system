@@ -296,6 +296,7 @@ export const buildUnifiedAiReplyPayload = ({
   const journeyEvents = asArray(response?.journey_events || response?.sales_journey_events || salesIntelligence?.journeyEvents);
   const conversion = response?.conversion || response?.conversion_probability || salesIntelligence?.conversion || {};
   const followUp = response?.follow_up || response?.follow_up_recommendation || salesIntelligence?.followUp || {};
+  const suggestedActions = asArray(response?.suggested_actions || response?.actions || response?.channel_reply?.suggested_actions || response?.channel_reply?.actions);
   const closer = {
     ...(response?.closer || response?.proactive_closer || salesIntelligence?.closer || {}),
     stage: text(
@@ -319,8 +320,9 @@ export const buildUnifiedAiReplyPayload = ({
     intent: text(response?.detected_intent || response?.intent?.type || response?.intent || response?.detectedIntent || ""),
     product_cards: productCards,
     image_cards: imageCards,
-    quick_replies: quickReplies,
-    actions,
+    quick_replies: [],
+    actions: [],
+    suggested_actions: suggestedActions,
     draft_order: draftOrder,
     sales_state: salesState,
     journey_events: journeyEvents,
@@ -342,8 +344,9 @@ export const buildUnifiedAiReplyPayload = ({
     products,
     product_cards: productCards,
     image_cards: imageCards,
-    quick_replies: quickReplies,
-    actions,
+    quick_replies: [],
+    actions: [],
+    suggested_actions: suggestedActions,
     sales_state: salesState,
     journey_events: journeyEvents,
     conversion,
@@ -378,6 +381,7 @@ export const buildUnifiedAiReplyPayload = ({
       image_cards_count: imageCards.length,
       actions_count: actions.length,
       quick_replies_count: quickReplies.length,
+      suggested_actions_count: suggestedActions.length,
       has_memory: Boolean(memory),
       attachments_count: countItems(attachments),
       raw_channel_reply_text: text(channelReply.text),

@@ -245,7 +245,7 @@ export const buildAiSalesDiscoveryResponse = ({ message = "", state = {}, memory
   if (state.recommended_next_action !== "ask_discovery" && state.recommended_next_action !== "ask_clarification") return null;
   const questions = (state.missing_info || discoveryMissing({ message, memory })).slice(0, 2).map(questionFor).filter(Boolean);
   if (!questions.length) return null;
-  const answer = `تمام يا فندم، عشان أطلعلك حاجة مناسبة بجد: ${questions.join(" ")}`;
+  const answer = `تمام يا باشا، عشان أطلعلك حاجة مناسبة بجد: ${questions.join(" ")}`;
   console.log("[ai-sales-engine:discovery]", {
     message: text(message),
     missing_info: state.missing_info || [],
@@ -272,13 +272,13 @@ export const buildAiSalesCheckoutResponse = ({ state = {} } = {}) => {
   if (state.next_state !== SALES_CONVERSATION_STATES.checkout || state.recommended_next_action !== "collect_checkout_fields") return null;
   const missing = asArray(state.missing_info);
   const answer = missing.includes("customer_name")
-    ? "تمام يا فندم، تشرفنا باسم حضرتك؟"
+    ? "تمام يا باشا، تشرفنا باسمك؟"
     : missing.includes("customer_phone")
-      ? "تمام، ممكن رقم الموبايل للتواصل؟"
+      ? "ابعتلي رقم الموبايل بس عشان نأكد الطلب."
       : missing.includes("area")
-        ? "تمام، المحافظة والمنطقة إيه عشان أأكد التوصيل؟"
+        ? "ابعتلي المحافظة والمنطقة عشان أأكد التوصيل."
         : missing.includes("address")
-          ? "ممكن العنوان بالتفصيل؟"
+          ? "ابعتلي العنوان بالتفصيل."
           : "تمام، هجهز الطلب. ابعتلي أي ملاحظات قبل التأكيد.";
   console.log("[ai-sales-engine:closer]", {
     action: "collect_checkout_fields",

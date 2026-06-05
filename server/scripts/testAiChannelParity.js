@@ -207,7 +207,7 @@ const normalizeReasoning = (reasoning = null) => {
     next_best_action: text(reasoning.next_best_action || ""),
     confidence: Number(reasoning.confidence || 0),
     why_this_reply: text(reasoning.why_this_reply || ""),
-    detected_entities: reasoning.detected_entities || {},
+    detected_entities: normalizeDetectedEntities(reasoning.detected_entities || {}),
   };
 };
 const normalizeDetectedEntities = (value = {}) => {

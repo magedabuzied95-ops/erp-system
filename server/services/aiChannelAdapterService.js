@@ -544,9 +544,10 @@ export const normalizeOutgoingChannelReply = ({ channel = AI_AGENT_CHANNELS.WEB_
     visual_attachments: asArray(responseSource.visual_attachments),
     image_cards: imageCards,
     product_cards: productCards,
-    suggested_quick_replies: normalizeQuickReplies(responseSource),
-    quick_replies: normalizeQuickReplies(responseSource),
-    actions: asArray(responseSource.actions || responseSource.suggested_actions),
+    suggested_quick_replies: [],
+    quick_replies: [],
+    actions: [],
+    suggested_actions: asArray(responseSource.suggested_actions || responseSource.actions),
     handoff: responseSource.handoff || {
       needs_human_support: responseSource.needs_human_support === true,
       conversation_status: toText(responseSource.conversation_status || responseSource.status || ""),

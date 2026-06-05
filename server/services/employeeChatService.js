@@ -297,6 +297,8 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
   });
   await createNotification({
     tenant_id: employee.tenant_id || null,
+    role_key: "manager",
+    branch_id: employee.branch_id || null,
     type: "employee_chat_message",
     category: "employees",
     priority: "medium",

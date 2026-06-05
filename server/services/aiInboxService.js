@@ -292,12 +292,12 @@ const buildBareConfirmationPayload = ({ body = "", memory = null } = {}) => {
     : [];
   const colors = product ? colorsFromMemoryProduct(product, memoryCards) : [];
   const sizes = product ? sizesFromMemoryCards(product, memoryCards) : [];
-  let answer = "تمام يا فندم، تحب أساعدك بإيه؟";
+  let answer = "تمام يا باشا، تحب أساعدك بإيه؟";
   let resolvedAction = inferredAction || "clarify";
   let suggestedProducts = [];
   let productContext = product || cards[0] || null;
   if (inferredAction === "show_colors_sizes") {
-    answer = "تمام يا فندم، دي الألوان والمقاسات المتاحة ";
+    answer = "تمام يا باشا، دي الألوان والمقاسات المتاحة ";
     const detail = [
       colors.length ? `الألوان: ${colors.join("، ")}` : "",
       sizes.length ? `المقاسات: ${sizes.join("، ")}` : "",
@@ -306,7 +306,7 @@ const buildBareConfirmationPayload = ({ body = "", memory = null } = {}) => {
     suggestedProducts = cards;
     resolvedAction = "show_colors_sizes";
   } else if (inferredAction === "select_size") {
-    answer = "مقاس كام يا فندم؟";
+    answer = "مقاس كام يا باشا؟";
     resolvedAction = "select_size";
   } else if (inferredAction === "select_color") {
     answer = "تحب أنهي لون؟";
@@ -459,7 +459,7 @@ const buildClassificationFollowupPayload = async ({ body = "", memory = null } =
     const clarificationType = missingGroups[0] || "";
     const question = await buildDynamicClarificationQuestion(missingGroups);
     return {
-      answer: question || "تمام يا فندم، تحبها رجالي ولا حريمي؟ Running ولا Casual؟",
+      answer: question || "تمام يا باشا، تحبها رجالي ولا حريمي؟ Running ولا Casual؟",
       confidence: 0.94,
       detected_intent: "classification_clarification",
       product_search_skipped: true,

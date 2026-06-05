@@ -557,10 +557,10 @@ const nextCollectionStage = (missing = []) => {
 };
 
 const askForMissing = (missing = []) => {
-  if (missing.includes("customer_name")) return "تشرفنا ❤️ ممكن أعرف اسم حضرتك؟";
-  if (missing.includes("customer_phone")) return "تمام يا فندم، ممكن رقم الموبايل للتواصل؟";
-  if (missing.includes("area")) return "ممكن المحافظة والمنطقة عشان نأكد التوصيل؟";
-  if (missing.includes("address")) return "ممكن العنوان بالتفصيل؟";
+  if (missing.includes("customer_name")) return "تشرفنا ❤️ ممكن أعرف اسمك؟";
+  if (missing.includes("customer_phone")) return "ابعتلي رقم الموبايل بس عشان نأكد الطلب.";
+  if (missing.includes("area")) return "ابعتلي المحافظة والمنطقة عشان نأكد التوصيل.";
+  if (missing.includes("address")) return "ابعتلي العنوان بالتفصيل.";
   if (missing.includes("variant")) return "تحب أنهي مقاس ولون؟";
   if (missing.includes("quantity")) return "تحب كام قطعة؟";
   return "ممكن تبعت اسم المنتج أو صورته عشان أجهز الأوردر؟";

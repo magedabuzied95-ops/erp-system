@@ -20,6 +20,7 @@ import { emitToRooms, normalizeSocketRoomKey, setIo } from "./utils/socket.js";
 import { isPerfDebugEnabled, runWithPerfContext, slowestPhaseFromTimings } from "./utils/perfDebug.js";
 import { logEmployeePushVapidCheck } from "./services/employeePortalPushService.js";
 import { loadEmployeePortalByToken } from "./services/employeePayrollPortalService.js";
+import { loadManagerPortalByToken } from "./services/managerPortalService.js";
 import { getEvolutionInstanceEventsDebug, syncEvolutionWebhookOnStartup } from "./services/evolutionWebhookSyncService.js";
 import { protect } from "./middleware/authMiddleware.js";
 import permit from "./middleware/permissionMiddleware.js";
@@ -249,7 +250,8 @@ io.on("connection", async (socket) => {
   try {
     const token = socket.handshake?.auth?.token || socket.handshake?.query?.token;
     const employeePortalToken = socket.handshake?.auth?.employeePortalToken || socket.handshake?.query?.employeePortalToken;
-    if (!token && !employeePortalToken) throw new Error("missing socket token");
+    const managerPortalToken = socket.handshake?.auth?.managerPortalToken || socket.handshake?.query?.managerPortalToken;
+    if (!token && !employeePortalToken && !managerPortalToken) throw new Error("missing socket token");
 
     if (employeePortalToken && !token) {
       const employee = await loadEmployeePortalByToken(String(employeePortalToken || ""));
@@ -284,6 +286,33 @@ io.on("connection", async (socket) => {
         employee_id: employee.id,
         branch_id: employee.branch_id || null,
         portal: true,
+        at: new Date().toISOString(),
+      });
+      emitOnlineUsers();
+      socket.on("disconnect", () => {
+        emitOnlineUsers();
+      });
+      return;
+    }
+
+    if (managerPortalToken && !token) {
+      const manager = await loadManagerPortalByToken(String(managerPortalToken || ""));
+      if (!manager) throw new Error("invalid manager portal token");
+      socket.data.managerPortal = {
+        employee_id: manager.id,
+        tenant_id: manager.tenant_id || null,
+        branch_id: manager.branch_id || null,
+      };
+      socket.join("role:manager");
+      socket.join(`role:${String(manager.role || "manager").toLowerCase().replace(/[\s_]+/g, "_")}`);
+      socket.join(`employee:${manager.id}`);
+      socket.join(`employee-chat:tenant:${manager.tenant_id || "global"}`);
+      if (manager.tenant_id) socket.join(`tenant:${manager.tenant_id}`);
+      if (manager.branch_id) socket.join(`branch:${manager.branch_id}`);
+      socket.emit("realtime:ready", {
+        employee_id: manager.id,
+        branch_id: manager.branch_id || null,
+        manager_portal: true,
         at: new Date().toISOString(),
       });
       emitOnlineUsers();
@@ -422,6 +451,7 @@ const { default: rolesRoutes } = await import("./routes/roles.js");
 const { default: notificationsRoutes } = await import("./routes/notifications.js");
 const { default: staffTasksRoutes } = await import("./routes/staffTasks.js");
 const { default: employeePortalRoutes } = await import("./routes/employeePortal.js");
+const { default: managerPortalRoutes } = await import("./routes/managerPortal.js");
 const { default: adminStaffTasksRoutes } = await import("./routes/adminStaffTasks.js");
 const { default: settingsRoutes } = await import("./routes/settings.js");
 const { default: whatsappGatewayRoutes } = await import("./routes/whatsappGateway.js");
@@ -818,6 +848,15 @@ console.log("[server] Employee portal routes mounted", {
   hasEmployeeChat: registeredEmployeePortalEndpoints.includes("GET /api/employee-portal/:token/chat"),
   hasEmployeeChatSend: registeredEmployeePortalEndpoints.includes("POST /api/employee-portal/:token/chat/messages"),
   routes: registeredEmployeePortalEndpoints,
+});
+app.use("/api/manager-portal", managerPortalRoutes);
+const registeredManagerPortalEndpoints = collectRouterEndpoints(managerPortalRoutes, "/api/manager-portal");
+console.log("[server] Manager portal routes mounted", {
+  prefix: "/api/manager-portal",
+  routeCount: registeredManagerPortalEndpoints.length,
+  hasManagerChat: registeredManagerPortalEndpoints.includes("GET /api/manager-portal/:token/chat"),
+  hasManagerChatSend: registeredManagerPortalEndpoints.includes("POST /api/manager-portal/:token/chat/:threadId/messages"),
+  routes: registeredManagerPortalEndpoints,
 });
 app.use("/api/admin/staff-tasks", adminStaffTasksRoutes);
 console.log("[routes] /api/roles mounted");
