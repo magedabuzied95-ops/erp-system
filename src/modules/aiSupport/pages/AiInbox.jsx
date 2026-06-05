@@ -4,6 +4,9 @@ import {
   ArrowUpRight,
   Bot,
   BadgePercent,
+  ChevronDown,
+  ChevronUp,
+  Copy,
   Brain,
   CheckCircle2,
   Clock3,
@@ -40,7 +43,6 @@ import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStora
 import { subscribeRealtime } from "../../../shared/realtime/socketStore";
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
-import AISuggestedReplies from "../../../components/ai/AISuggestedReplies";
 import { useTenant } from "../../saas/context/TenantContext";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -191,6 +193,26 @@ const uniqueMessages = (messages = []) => {
 };
 const latestCustomerText = (messages = []) =>
   [...uniqueMessages(messages)].reverse().find((message) => clean(message.customer_message))?.customer_message || "";
+const displayFallback = (value, fallback = "Not set yet") => (clean(value) || fallback);
+const productImage = (product = {}) =>
+  clean(
+    product.matched_variant_image ||
+    product.matched_image_url ||
+    product.selected_card_image_url ||
+    product.image_url ||
+    product.image ||
+    product.thumbnail ||
+    product.photo_url
+  );
+const productScore = (product = {}) => Number(product.score || product.match_score || product.confidence || product.rank_score || 0);
+const productSource = (product = {}) => clean(product.source || product.origin || product.match_source || product.recommendation_source || "AI match");
+const productVariantLabel = (product = {}) =>
+  [product.size, product.color].filter(Boolean).join(" / ") ||
+  product.variant_name ||
+  product.sku ||
+  "No variant details";
+const productReason = (product = {}) =>
+  clean(product.reason || product.match_reason || product.explanation || product.ai_reason || product.note || "");
 
 function LinkifiedText({ text = "", className = "" }) {
   const value = String(text || "");
@@ -335,21 +357,34 @@ function ProductCards({ products = [] }) {
 const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
-  const customerName = customerDisplayName(item) || "Unknown customer";
+  const customerName = customerDisplayName(item) || "Customer";
+  const customerPhone = clean(item.phone || item.customer_phone || item.customer_profile?.phone || item.external_customer_id);
   const avatarUrl = customerAvatarUrl(item);
   const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "No messages yet.";
+  const unreadCount = Number(item.unread_count || item.unread || 0);
   const mainStatus = item.conversation_status === "closed"
     ? { tone: "rose", label: "Closed", icon: LockKeyhole }
     : item.conversation_status === "human_takeover"
-      ? { tone: "amber", label: "Human mode", icon: PauseCircle }
-      : item.unread || unseen || item.needs_human_support
-        ? { tone: "amber", label: "Waiting", icon: Clock3 }
+      ? { tone: "amber", label: "Human takeover", icon: PauseCircle }
+      : item.needs_human_support
+        ? { tone: "amber", label: "Needs human", icon: Handshake }
         : liveMeta
-          ? { tone: "emerald", label: "Live Meta", icon: Radio }
+          ? { tone: "emerald", label: "AI active", icon: Bot }
           : null;
   const MainStatusIcon = mainStatus?.icon;
+  const channelTone = isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc";
   return (
-    <button type="button" onClick={() => onSelect(item.session_id)} className={`w-full rounded-2xl p-4 text-left transition ${active ? "bg-cyan-300/10 ring-1 ring-cyan-300/35" : item.unread || unseen || liveMeta ? "bg-slate-950/85 ring-1 ring-cyan-300/15 hover:ring-cyan-300/30" : "bg-slate-950/65 ring-1 ring-white/10 hover:bg-white/[0.045] hover:ring-white/20"}`}>
+    <button
+      type="button"
+      onClick={() => onSelect(item.session_id)}
+      className={`w-full rounded-2xl border p-4 text-left transition ${
+        active
+          ? "border-cyan-300/45 bg-cyan-300/12 shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
+          : unreadCount || unseen || liveMeta
+            ? "border-white/10 bg-slate-950/85 hover:border-cyan-300/25 hover:bg-white/[0.045]"
+            : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-white/[0.045]"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -360,16 +395,19 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
             )}
             <span className="min-w-0">
               <span className="block truncate font-black text-white">{customerName}</span>
-              <span className="block truncate text-xs font-bold text-slate-500">{channelLabel(channel)} / {item.external_customer_id || item.session_id}</span>
+              <span className="block truncate text-xs font-bold text-slate-500">
+                {displayFallback(customerPhone, item.external_customer_id || item.session_id)} / {channelLabel(channel)}
+              </span>
             </span>
           </div>
         </div>
         <span className="shrink-0 text-xs font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
       </div>
-      <p dir={isRtlText(lastMessage) ? "rtl" : "auto"} className="mt-3 line-clamp-2 text-sm leading-6 text-slate-300">{lastMessage}</p>
+      <p dir={isRtlText(lastMessage) ? "rtl" : "auto"} className="mt-3 line-clamp-2 text-[13px] leading-6 text-slate-300">{lastMessage}</p>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        <Pill tone={liveMeta ? "cyan" : "zinc"}>{channelLabel(channel)}</Pill>
+        <Pill tone={channelTone}>{channelLabel(channel)}</Pill>
         {mainStatus ? <Pill tone={mainStatus.tone}>{MainStatusIcon ? <MainStatusIcon className="h-3.5 w-3.5" /> : null}{mainStatus.label}</Pill> : null}
+        {unreadCount ? <Pill tone="rose">Unread {unreadCount}</Pill> : null}
         {needsHumanAttention(item) ? <Pill tone="amber"><AlertTriangle className="h-3.5 w-3.5" />Needs human</Pill> : null}
       </div>
     </button>
@@ -448,39 +486,49 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
   );
 });
 
-function ConversationActions({ conversation, loading, assignName, onAssignNameChange, onAction }) {
+function ConversationActions({ conversation, channelStatus = {}, loading, assignName, onAssignNameChange, onAction }) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const assigned = conversation.assigned_user?.name || conversation.assigned_user_name || "Unassigned";
   const whatsappAiActive = isWhatsappChannel(conversation.channel || conversation.source) && status === "ai_active";
+  const liveChannel = channelStatus.live_operational === true || channelStatus.effective_enabled === true || channelStatus.messaging_active === true;
+  const tokenActive = Boolean(channelStatus.token_valid || channelStatus.page_access_token_configured);
   return (
-    <div className="mb-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+    <div className="mb-4 rounded-2xl border border-white/10 bg-slate-950/65 p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <Pill tone={status === "human_takeover" ? "amber" : status === "closed" ? "rose" : "cyan"}>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Pill tone={status === "human_takeover" ? "amber" : status === "closed" ? "rose" : "emerald"}>
             {status === "human_takeover" ? <PauseCircle className="h-3.5 w-3.5" /> : status === "closed" ? <LockKeyhole className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
             {status === "human_takeover" ? "AI paused" : status === "closed" ? "Closed" : "AI active"}
           </Pill>
-          {whatsappAiActive ? <Pill tone="emerald"><Bot className="h-3.5 w-3.5" />WhatsApp AI Active</Pill> : null}
+          <Pill tone={liveChannel ? "emerald" : "amber"}>
+            <Radio className="h-3.5 w-3.5" />
+            {liveChannel ? "Live channel" : "Channel standby"}
+          </Pill>
+          <Pill tone={tokenActive ? "emerald" : "rose"}>
+            {tokenActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+            {tokenActive ? "Token ready" : "Token issue"}
+          </Pill>
+          {whatsappAiActive ? <Pill tone="cyan"><Bot className="h-3.5 w-3.5" />WhatsApp AI active</Pill> : null}
           <Pill tone="zinc"><UserCheck className="h-3.5 w-3.5" />Assigned: {assigned}</Pill>
           {conversation.takeover_started_at ? <Pill tone="amber">Taken over {relativeTime(conversation.takeover_started_at)}</Pill> : null}
           {conversation.closed_at ? <Pill tone="rose">Closed {relativeTime(conversation.closed_at)}</Pill> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {status === "closed" ? (
-            <button type="button" onClick={() => onAction("reopen")} disabled={loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><PlayCircle className="h-4 w-4" />Reopen conversation</button>
+            <button type="button" onClick={() => onAction("reopen")} disabled={loading} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><PlayCircle className="h-4 w-4" />Reopen</button>
           ) : (
             <>
-              <button type="button" onClick={() => onAction("takeover")} disabled={loading || status === "human_takeover"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50"><Handshake className="h-4 w-4" />Take over</button>
-              <button type="button" onClick={() => onAction("return")} disabled={loading || status !== "human_takeover"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><PlayCircle className="h-4 w-4" />Return to AI</button>
-              <button type="button" onClick={() => onAction("close")} disabled={loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50"><LockKeyhole className="h-4 w-4" />Close</button>
+              <button type="button" onClick={() => onAction("takeover")} disabled={loading || status === "human_takeover"} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50"><Handshake className="h-4 w-4" />Take over</button>
+              <button type="button" onClick={() => onAction("return")} disabled={loading || status !== "human_takeover"} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><PlayCircle className="h-4 w-4" />Return to AI</button>
+              <button type="button" onClick={() => onAction("close")} disabled={loading} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50"><LockKeyhole className="h-4 w-4" />Close</button>
             </>
           )}
         </div>
       </div>
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <input value={assignName} onChange={(event) => onAssignNameChange(event.target.value)} placeholder="Employee/admin name" disabled={loading || status === "closed"} className="h-11 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40 disabled:opacity-50" />
-        <button type="button" onClick={() => onAction("assign")} disabled={loading || status === "closed" || !clean(assignName)} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] px-4 text-sm font-black text-white disabled:opacity-50"><UserPlus className="h-4 w-4" />Assign</button>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <input value={assignName} onChange={(event) => onAssignNameChange(event.target.value)} placeholder="Assign to employee / admin" disabled={loading || status === "closed"} className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40 disabled:opacity-50" />
+        <button type="button" onClick={() => onAction("assign")} disabled={loading || status === "closed" || !clean(assignName)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] px-4 text-sm font-black text-white disabled:opacity-50"><UserPlus className="h-4 w-4" />Assign</button>
       </div>
     </div>
   );
@@ -544,7 +592,7 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
   );
 }
 
-function AiSuggestedRepliesPanel({ conversation, suggestions, intent, confidence, loading, error, onGenerate, onUse, onSendSuggestion, channelStatus = {} }) {
+function AiSuggestedRepliesPanel({ conversation, suggestions, intent, confidence, loading, error, onGenerate, onUse, onSendSuggestion, onCopySuggestion, channelStatus = {} }) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const disabled = loading || status === "closed";
@@ -552,34 +600,45 @@ function AiSuggestedRepliesPanel({ conversation, suggestions, intent, confidence
   const autoReplyEnabled = channelStatus.ai_replies_enabled === true;
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <SectionTitle
-          icon={Sparkles}
-          title="AI Suggested Replies"
-          action={intent ? <Pill tone="violet">{intent} / {Number(confidence || 0).toFixed(2)}</Pill> : null}
-        />
+      <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <SectionTitle
+            icon={Sparkles}
+            title="AI Suggested Replies"
+            action={intent ? <Pill tone="violet">{intent} / {Number(confidence || 0).toFixed(2)}</Pill> : null}
+          />
+          <p className="max-w-2xl text-sm leading-6 text-slate-400">2-3 short Egyptian Arabic options that you can copy, edit, or send live.</p>
+        </div>
         <button type="button" onClick={onGenerate} disabled={disabled} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          Generate suggestions
+          Regenerate
         </button>
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
         <Pill tone={autoReplyEnabled ? "emerald" : "amber"}>Auto reply {autoReplyEnabled ? "enabled" : "disabled"}</Pill>
         {!hasChannelSetup ? <Pill tone="amber">Channel setup needed</Pill> : null}
+        {intent ? <Pill tone="zinc">Confidence {Number(confidence || 0).toFixed(2)}</Pill> : null}
       </div>
       {status === "closed" ? <div className="rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">Closed conversations cannot generate suggestions.</div> : null}
       {!hasChannelSetup ? <div className="mb-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm font-bold text-amber-100">No channel settings row was found for this channel. Open AI Channels to finish setup before enabling live sends.</div> : null}
       {error ? <div className="rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
-      {!suggestions.length && status !== "closed" && !error ? <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-500">Generate a staff-only suggested reply. It stays separate from sent replies until you approve or edit it.</div> : null}
+      {!suggestions.length && status !== "closed" && !error ? <div className="rounded-xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-500">Generate a staff-only suggested reply. It stays separate from sent replies until you approve or edit it.</div> : null}
       {suggestions.length ? (
-        <div className="grid gap-2 lg:grid-cols-3">
+        <div className="grid gap-3 xl:grid-cols-3">
           {suggestions.map((suggestion, index) => (
-            <div key={`${suggestion}-${index}`} className="rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-6 text-slate-100 transition hover:border-violet-300/30 hover:bg-violet-400/10">
-              <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-violet-200">Suggestion {index + 1}</span>
-              <p dir={isRtlText(suggestion) ? "rtl" : "auto"}>{suggestion}</p>
+            <div key={`${suggestion}-${index}`} className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm leading-6 text-slate-100 transition hover:border-violet-300/30 hover:bg-violet-400/10">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-200">Suggestion {index + 1}</span>
+                <Pill tone="zinc">Short reply</Pill>
+              </div>
+              <p dir={isRtlText(suggestion) ? "rtl" : "auto"} className="mt-3 text-[14px] leading-7 text-slate-50">{suggestion}</p>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => onUse(suggestion)} className="h-8 rounded-lg border border-white/10 bg-white/[0.055] text-[11px] font-black text-slate-100">Edit draft</button>
-                <button type="button" onClick={() => onSendSuggestion(suggestion)} disabled={disabled} className="h-8 rounded-lg border border-emerald-300/20 bg-emerald-400/10 text-[11px] font-black text-emerald-100 disabled:opacity-50">Send</button>
+                <button type="button" onClick={() => onCopySuggestion?.(suggestion)} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] text-[11px] font-black text-slate-100">
+                  <Copy className="h-3.5 w-3.5" />Copy
+                </button>
+                <button type="button" onClick={() => onUse(suggestion)} className="h-9 rounded-xl border border-white/10 bg-white/[0.055] text-[11px] font-black text-slate-100">Edit before send</button>
+                <button type="button" onClick={() => onSendSuggestion(suggestion)} disabled={disabled} className="h-9 rounded-xl border border-emerald-300/20 bg-emerald-400/10 text-[11px] font-black text-emerald-100 disabled:opacity-50">Send now</button>
+                <button type="button" onClick={onGenerate} disabled={disabled} className="h-9 rounded-xl border border-violet-300/20 bg-violet-400/10 text-[11px] font-black text-violet-100 disabled:opacity-50">Regenerate</button>
               </div>
             </div>
           ))}
@@ -612,7 +671,7 @@ function AutoReplyModePanel({ channelStatus = {}, mode, onChange, saving }) {
   );
 }
 
-function RecommendationsPanel({ products = [], loading, onRefresh, onQuickSend, onCreateDraft }) {
+function RecommendationsPanel({ products = [], loading, onRefresh, onQuickSend, onSendImages, onCreateDraft }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
       <SectionTitle
@@ -621,31 +680,43 @@ function RecommendationsPanel({ products = [], loading, onRefresh, onQuickSend, 
         action={<button type="button" onClick={onRefresh} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100 disabled:opacity-50">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}Refresh</button>}
       />
       {products.length ? (
-        <div className="grid gap-2">
-          {products.slice(0, 4).map((product) => (
-            <div key={product.id || product.product_id} className="rounded-xl border border-white/10 bg-slate-950/70 p-3">
-              <div className="flex gap-3">
-                {product.image_url ? <img src={product.image_url} alt={product.name || "Product"} className="h-16 w-16 rounded-lg object-cover" /> : <span className="grid h-16 w-16 place-items-center rounded-lg bg-white/[0.06]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-black text-white">{product.name || product.title || "Product"}</div>
-                  <div className="mt-1 text-xs text-slate-400">{money(product.final_price || product.price)} / {product.stock_state || product.availability || "stock unknown"}</div>
-                  <div className="mt-1 truncate text-xs text-slate-500">{[product.size, product.color].filter(Boolean).join(" / ") || product.sku || "No variant details"}</div>
+        <div className="grid gap-3 xl:grid-cols-2">
+          {products.slice(0, 6).map((product) => {
+            const image = productImage(product);
+            const variantLabel = productVariantLabel(product);
+            const score = productScore(product);
+            const reason = productReason(product);
+            return (
+              <div key={product.id || product.product_id} className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
+                <div className="flex gap-3">
+                  {image ? <img src={image} alt={product.name || "Product"} className="h-20 w-20 shrink-0 rounded-xl object-cover" loading="lazy" /> : <span className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-white/[0.06]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-black text-white">{product.name || product.title || "Product"}</div>
+                    <div className="mt-1 text-xs font-bold text-emerald-100">{money(product.final_price || product.price || product.sale_price || 0)}</div>
+                    <div className="mt-1 text-xs text-slate-400">{variantLabel}</div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <Pill tone="zinc">{productSource(product)}</Pill>
+                      {score ? <Pill tone="cyan">Score {score.toFixed(2)}</Pill> : null}
+                    </div>
+                  </div>
+                </div>
+                {reason ? <p dir={isRtlText(reason) ? "rtl" : "auto"} className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-400">{reason}</p> : null}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => onQuickSend(product)} className="h-9 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2 text-[11px] font-black text-cyan-100">Quick send</button>
+                  <button type="button" onClick={() => onSendImages?.(product)} className="h-9 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2 text-[11px] font-black text-violet-100">Send images</button>
+                  <button type="button" onClick={() => onCreateDraft(product)} className="h-9 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2 text-[11px] font-black text-emerald-100">Draft order</button>
+                  <a href={product.product_url || (product.id ? `/shop/product/${product.id}` : "#")} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2 text-[11px] font-black text-white">Open product</a>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <button type="button" onClick={() => onQuickSend(product)} className="h-9 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2 text-[11px] font-black text-cyan-100">Quick send</button>
-                <button type="button" onClick={() => onCreateDraft(product)} className="h-9 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 text-[11px] font-black text-emerald-100">Draft order</button>
-                <a href={product.product_url || "#"} className="inline-flex h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.055] px-2 text-[11px] font-black text-white">Open</a>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-500">No matched products yet. Refresh after the customer sends a model, color, size, or category.</div>}
     </div>
   );
 }
 
-function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading, onRefresh, onTakeover, onUseText }) {
+function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading, onRefresh, onTakeover, onUseText, onCreateDraft, onPaymentAction }) {
   const intent = plan.intent || {};
   const lead = plan.lead || {};
   const actions = asArray(plan.suggested_actions);
@@ -657,16 +728,19 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
   const recommendedStep = needsHuman
     ? "Human review recommended because this conversation is escalated."
     : primary
-      ? "Product context found. Suggest price or availability reply."
+      ? "Product context found. Lead with availability and a clear next action."
       : intent.size
         ? "Ask the customer for product name or photo."
         : "Ask for size before recommending stock.";
   const practicalActions = [
-    { key: "ask_size", label: "Ask for size", enabled: !intent.size },
-    { key: "ask_product", label: "Ask for product", enabled: !primary },
-    { key: "recommend_alternative", label: "Recommend alternative", enabled: Boolean(primary || products.length) },
+    { key: "ask_size", label: "Ask for size", enabled: !intent.size, action: () => onUseText(intent.product_model ? `تمام، المتوفر على ${intent.product_model}، تقولي المقاس اللي محتاجه؟` : "تمام، تقولي المقاس اللي محتاجه؟") },
+    { key: "ask_product", label: "Ask for product clarification", enabled: !primary, action: () => onUseText("ممكن تبعتلي اسم المنتج أو صورة أوضح عشان أجيب لك الأنسب؟") },
+    { key: "recommend_alternative", label: "Recommend alternative", enabled: Boolean(primary || products.length), action: () => onUseText(followup.alternative_message || "لو المقاس أو اللون ده غير متوفر، أقدر أرشح لك بديل قريب جدًا.") },
     { key: "escalate_human", label: "Escalate to human", enabled: true, action: onTakeover },
-    { key: "follow_up", label: "Follow up", enabled: Boolean(followup.low_stock_message || followup.ten_minute_message), action: () => onUseText(followup.low_stock_message || followup.ten_minute_message || "") },
+    { key: "draft_order", label: "Draft order", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: false }) },
+    { key: "reserve_stock", label: "Reserve stock", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: true }) },
+    { key: "payment_link", label: "Send payment link", enabled: true, action: () => onPaymentAction?.("payment_link") },
+    { key: "follow_up", label: "Follow up", enabled: Boolean(followup.low_stock_message || followup.ten_minute_message), action: () => onUseText(followup.low_stock_message || followup.ten_minute_message || "هتابع معاك أول ما يتوفر المقاس المناسب.") },
   ];
   const chips = [
     intent.product_model ? `Model: ${intent.product_model}` : "",
@@ -677,22 +751,39 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
     intent.urgency ? `Urgency: ${intent.urgency}` : "",
   ].filter(Boolean);
   return (
-    <div className="rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/10">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
       <SectionTitle
         icon={Brain}
         title="AI Next Step"
         action={<button type="button" onClick={onRefresh} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10 disabled:opacity-50">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}Analyze</button>}
       />
-      <div className="mb-3 rounded-2xl bg-cyan-300/10 p-4 ring-1 ring-cyan-300/20">
-        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">Recommended next step</div>
+      <div className="mb-3 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">Recommended next step</div>
+          <Pill tone={leadTone}>{lead.label || "cold"} / {Number(lead.score || 0).toFixed(0)}%</Pill>
+        </div>
         <p className="mt-2 text-sm font-black leading-6 text-white">{recommendedStep}</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-xl bg-slate-950/50 p-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Confidence</div>
+            <div className="mt-1 text-sm font-black text-white">{Number(lead.score || 0).toFixed(2)}</div>
+          </div>
+          <div className="rounded-xl bg-slate-950/50 p-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Reason</div>
+            <div className="mt-1 line-clamp-2 text-sm font-bold text-slate-200">{clean(plan.reason || plan.explanation || plan.summary || intent.reason || recommendedStep)}</div>
+          </div>
+          <div className="rounded-xl bg-slate-950/50 p-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Suggested action</div>
+            <div className="mt-1 text-sm font-black text-white">{actions[0]?.label || "Continue conversation"}</div>
+          </div>
+        </div>
       </div>
-      <div className="grid gap-3 lg:grid-cols-[0.95fr_1.05fr]">
+      <div className="grid gap-3 xl:grid-cols-[0.95fr_1.05fr]">
         <div className="space-y-3">
-          <div className="rounded-xl bg-slate-950/65 p-3 ring-1 ring-white/10">
+          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
               <Pill tone={leadTone}>{(lead.label || "cold").toUpperCase()} lead</Pill>
-              <span className="text-2xl font-black text-white">{Number(lead.score || 0)}%</span>
+              <span className="text-xl font-black text-white">{Number(lead.score || 0).toFixed(0)}%</span>
             </div>
             <div className="text-xs leading-5 text-slate-400">Purchase intent: <span className="font-black text-slate-100">{intent.purchase_intent || "unknown"}</span></div>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -700,31 +791,31 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            {practicalActions.map((action) => (
-              <button key={action.key} type="button" onClick={action.action || (() => {})} disabled={loading || action.enabled === false} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white/[0.06] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10 disabled:text-slate-500 disabled:opacity-60">
-                {action.key === "follow_up" ? <Flame className="h-4 w-4" /> : action.key === "escalate_human" ? <Handshake className="h-4 w-4" /> : <MessageSquareText className="h-4 w-4" />}
-                {action.label}
-              </button>
-            ))}
-          </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {["Create order", "Reserve stock", "Payment link"].map((label) => (
-              <div key={label} className="rounded-xl bg-slate-950/45 p-3 text-xs font-black text-slate-500 ring-1 ring-white/10">
-                {label}
-                <span className="mt-1 block text-[11px] font-bold text-slate-600">Coming soon</span>
-              </div>
-            ))}
+            {practicalActions.map((action) => {
+              const Icon = action.key === "follow_up" ? Flame : action.key === "escalate_human" ? Handshake : action.key === "payment_link" ? CreditCard : action.key === "reserve_stock" ? PackageCheck : action.key === "draft_order" ? ShoppingCart : MessageSquareText;
+              return (
+                <button key={action.key} type="button" onClick={action.action || (() => {})} disabled={loading || action.enabled === false} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-slate-100 disabled:text-slate-500 disabled:opacity-60">
+                  <Icon className="h-4 w-4" />
+                  {action.label}
+                </button>
+              );
+            })}
           </div>
         </div>
         <div className="space-y-3">
           {primary ? (
-            <div className="rounded-xl bg-slate-950/65 p-3 ring-1 ring-white/10">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
               <div className="flex gap-3">
-                {primary.image_url ? <img src={primary.image_url} alt={primary.name || "Product"} className="h-20 w-20 rounded-lg object-cover" /> : <span className="grid h-20 w-20 place-items-center rounded-lg bg-white/[0.06]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
+                {productImage(primary) ? <img src={productImage(primary)} alt={primary.name || "Product"} className="h-20 w-20 rounded-xl object-cover" loading="lazy" /> : <span className="grid h-20 w-20 place-items-center rounded-xl bg-white/[0.06]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-black text-white">{primary.name || primary.title || "Matched product"}</div>
                   <div className="mt-1 text-xs text-emerald-100">{money(primary.final_price || primary.price)} / {primary.stock_state || primary.availability || "stock unknown"}</div>
-                  <div className="mt-1 text-xs text-slate-500">{[primary.size, primary.color].filter(Boolean).join(" / ") || primary.sku || "Variant selected during draft"}</div>
+                  <div className="mt-1 text-xs text-slate-500">{productVariantLabel(primary)}</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <Pill tone="zinc">{productSource(primary)}</Pill>
+                    {productScore(primary) ? <Pill tone="cyan">Score {productScore(primary).toFixed(2)}</Pill> : null}
+                  </div>
+                  {productReason(primary) ? <p dir={isRtlText(productReason(primary)) ? "rtl" : "auto"} className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-400">{productReason(primary)}</p> : null}
                   <button type="button" onClick={() => onUseText(`${primary.name || primary.title}\n${money(primary.final_price || primary.price)}\n${primary.product_url || ""}`.trim())} className="mt-2 inline-flex h-8 items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100">Quick send card</button>
                 </div>
               </div>
@@ -732,16 +823,16 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
           ) : <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-500">No product match yet. Ask for model, category, size, color, or budget.</div>}
           {actions.length ? <div className="grid gap-2 sm:grid-cols-2">
             {actions.slice(0, 4).map((action) => (
-              <div key={action.key} className="rounded-xl bg-slate-950/45 p-3 ring-1 ring-white/10">
+              <div key={action.key} className="rounded-xl border border-white/10 bg-slate-950/45 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-black text-slate-100">{action.label}</span>
                   <Pill tone={action.priority === "high" ? "rose" : action.priority === "low" ? "zinc" : "cyan"}>{action.priority || "normal"}</Pill>
                 </div>
-                <div className="mt-1 text-[11px] text-slate-500">{action.enabled === false ? "Needs more data" : "Suggested"}</div>
+                <div className="mt-1 text-[11px] text-slate-500">{action.enabled === false ? "Needs more data" : clean(action.reason || action.description || action.summary || "Suggested")}</div>
               </div>
             ))}
           </div> : null}
-          <div className="rounded-xl bg-slate-950/45 p-3 ring-1 ring-white/10">
+          <div className="rounded-xl border border-white/10 bg-slate-950/45 p-3">
             <div className="mb-2 flex items-center gap-2 text-xs font-black text-slate-100"><BadgePercent className="h-4 w-4 text-amber-200" />Memory</div>
             <div className="flex flex-wrap gap-1.5">
               {memory.preferred_size ? <Pill tone="zinc">Size {memory.preferred_size}</Pill> : null}
@@ -788,23 +879,39 @@ function CustomerContextCard({ conversation = {} }) {
   const lastSize = profile.preferred_size || channelMemory.last_selected_size || channelMemory.selectedSize || channelMemory.activeSize || conversation?.channel_metadata?.last_size || "";
   const lastProductLabel = lastProduct?.name || lastProduct?.title || lastProduct?.product_name || lastProduct?.id || lastProduct?.product_id || "No product context";
   const escalation = clean(conversation?.escalation_reason || conversation?.ai_escalation_reason);
+  const memoryScore = profile.memory_score ?? conversation?.lead_score ?? latestMemory.memory_score ?? 0;
+  const lastOrder = asArray(profile.previous_orders)[0] || conversation?.last_order || conversation?.order || null;
 
   return (
-    <div className="mb-4 rounded-2xl bg-slate-950/55 p-4 ring-1 ring-white/10">
+    <div className="mb-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
       <div className="mb-3 flex items-center gap-3">
         {avatarUrl ? <img src={avatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" /> : <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>}
-        <SectionTitle icon={User} title="Customer context" />
+        <div className="min-w-0">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Customer context</div>
+          <div className="mt-1 text-lg font-black text-white">{displayFallback(identityName, "No CRM match yet")}</div>
+        </div>
       </div>
-      <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
-        <Info label="Customer" value={identityName} />
-        <Info label="Phone / external ID" value={profile.phone || conversation?.phone || conversation?.external_customer_id || "No phone yet"} />
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <Info label="Matched CRM customer" value={profile.id ? `Profile #${profile.id}` : "No CRM match yet"} />
+        <Info label="Phone / external ID" value={profile.phone || conversation?.phone || conversation?.external_customer_id || "Not set yet"} />
         <Info label="Channel" value={channelLabel(conversation?.channel || conversation?.source)} />
-        <Info label="Last intent" value={latest.detected_intent || conversation?.detected_intent || "Unknown"} />
+        <Info label="Preferred size" value={profile.preferred_size || channelMemory.last_selected_size || "Not set yet"} />
         <Info label="Last product" value={lastProductLabel} />
-        <Info label="Last size" value={lastSize || "Unknown"} />
+        <Info label="Last intent" value={latest.detected_intent || conversation?.detected_intent || "Not set yet"} />
+      </div>
+      <div className="mb-3 grid gap-2 sm:grid-cols-4">
+        <Info label="Sentiment" value={profile.customer_sentiment || "neutral"} />
+        <Info label="Memory score" value={Number(memoryScore || 0).toFixed(0)} />
+        <Info label="Last order" value={lastOrder?.invoice_number || lastOrder?.order_number || lastOrder?.id || "No order yet"} />
+        <Info label="Last size" value={lastSize || "Not set yet"} />
+      </div>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Pill tone={sentimentTone(profile.customer_sentiment)}>{profile.customer_sentiment || "neutral"}</Pill>
+        {lastProduct ? <Pill tone="cyan">Last product {lastProductLabel}</Pill> : null}
+        {lastOrder ? <Pill tone="emerald">Last order {lastOrder.invoice_number || lastOrder.order_number || lastOrder.id}</Pill> : null}
       </div>
       {needsHumanAttention(conversation) ? (
-        <div className="mt-3 rounded-xl bg-amber-400/10 p-3 text-sm font-bold text-amber-100 ring-1 ring-amber-300/20">
+        <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm font-bold text-amber-100">
           Human mode active{escalation ? ` / ${escalation}` : ""}{conversation?.last_escalation_keyword ? ` / ${conversation.last_escalation_keyword}` : ""}
         </div>
       ) : null}
@@ -1149,11 +1256,11 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
   );
 }
 
-function Info({ label, value }) {
+function Info({ label, value, fallback = "Not set yet" }) {
   return (
     <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
       <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
-      <div className="mt-1 break-words text-sm font-black text-white">{value || "Unknown"}</div>
+      <div className="mt-1 break-words text-sm font-black text-white">{clean(value) || fallback}</div>
     </div>
   );
 }
@@ -1164,7 +1271,7 @@ function TagRow({ label, values = [] }) {
     <div>
       <div className="mb-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
       <div className="flex flex-wrap gap-1.5">
-        {items.length ? items.slice(0, 8).map((item) => <Pill key={item}>{item}</Pill>) : <span className="text-sm text-slate-500">Unknown</span>}
+        {items.length ? items.slice(0, 8).map((item) => <Pill key={item}>{item}</Pill>) : <span className="text-sm text-slate-500">Not set yet</span>}
       </div>
     </div>
   );
@@ -1181,7 +1288,7 @@ function MiniList({ title, items = [], empty }) {
             <div className="font-black text-white">{item.name || item.product_name || item.invoice_number || item.id || "Item"}</div>
             {item.price || item.total_amount ? <div className="mt-1 text-xs text-emerald-100">{money(item.price || item.total_amount)}</div> : null}
           </div>
-        )) : <div className="text-sm text-slate-500">{empty}</div>}
+        )) : <div className="rounded-xl border border-dashed border-white/10 bg-black/10 p-3 text-sm text-slate-500">{empty}</div>}
       </div>
     </div>
   );
@@ -1988,6 +2095,32 @@ export default function AiInbox() {
     setReplyText(`تمام، ممكن الدفع عند الاستلام${total ? ` بإجمالي ${money(total)}` : ""}. ابعتلي الاسم ورقم الموبايل والعنوان لتأكيد الطلب.`);
   };
 
+  const copySuggestedReply = useCallback(async (text) => {
+    const value = clean(text);
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setToast({ tone: "emerald", text: "Reply copied" });
+    } catch {
+      setReplyText(value);
+      setToast({ tone: "amber", text: "Clipboard unavailable, loaded into composer" });
+    }
+  }, []);
+
+  const sendProductImages = useCallback((product) => {
+    if (!product) return;
+    const imageList = [productImage(product), ...asArray(product.images || product.gallery_images || product.image_urls || [])]
+      .map((url) => clean(url))
+      .filter(Boolean);
+    const composed = [
+      product.name || product.title || "Product images",
+      money(product.final_price || product.price || product.sale_price || 0),
+      productVariantLabel(product),
+      ...imageList.slice(0, 3),
+    ].filter(Boolean).join("\n");
+    setReplyText(composed);
+  }, []);
+
   return (
     <div dir="ltr" className="min-h-full bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-3 text-white md:p-6">
       {toast.text ? (
@@ -2066,14 +2199,14 @@ export default function AiInbox() {
           </div>
         </section>
 
-        <section className={`grid gap-5 ${profileOpen ? "xl:grid-cols-[26rem_minmax(0,1fr)_20rem]" : "xl:grid-cols-[26rem_minmax(0,1fr)]"}`}>
-          <aside className="space-y-3 xl:max-h-[calc(100vh-15rem)] xl:overflow-y-auto">
+        <section className={`grid gap-5 overflow-x-hidden ${profileOpen ? "xl:grid-cols-[24rem_minmax(0,1fr)_20rem]" : "xl:grid-cols-[24rem_minmax(0,1fr)]"}`}>
+          <aside className="min-w-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-15rem)] xl:overflow-y-auto">
             <SectionTitle icon={MessageSquareText} title="Conversations list" />
             {loading && !conversations.length ? <LoadingBlock text="Loading conversations..." /> : null}
             {conversations.length ? (
               <VirtualList
                 items={conversations}
-                estimateSize={172}
+                estimateSize={168}
                 className="max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
                 itemKey={(item) => item.session_id}
                 renderItem={(item) => (
@@ -2091,60 +2224,10 @@ export default function AiInbox() {
           </aside>
 
           <main className="min-w-0 space-y-5">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-              <SectionTitle
-                icon={Bot}
-                title="Conversation detail"
-                action={selectedConversation ? (
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    {isWhatsappChannel(safeConversation.channel || safeConversation.source) ? (
-                      <button
-                        type="button"
-                        onClick={openAiTrace}
-                        disabled={aiTrace.loading && aiTrace.sessionId === safeConversation.session_id}
-                        className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-violet-300/20 bg-violet-300/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50"
-                      >
-                        {aiTrace.loading && aiTrace.sessionId === safeConversation.session_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-                        AI Trace
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={syncMessengerProfile}
-                      disabled={profileSyncing}
-                      className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"
-                    >
-                      {profileSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      Sync Messenger Profile
-                    </button>
-                    <button
-                      type="button"
-                      onClick={debugMessengerProfile}
-                      disabled={profileDebugging}
-                      className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50"
-                    >
-                      {profileDebugging ? <Loader2 className="h-4 w-4 animate-spin" /> : <InfoIcon className="h-4 w-4" />}
-                      Debug Messenger Profile
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetAiState}
-                      disabled={resettingAiState}
-                      className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50"
-                    >
-                      {resettingAiState ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                      Reset AI State
-                    </button>
-                    <button type="button" onClick={() => setProfileOpen((value) => !value)} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100">
-                      {profileOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                      Profile
-                    </button>
-                  </div>
-                ) : null}
-              />
+            <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-4 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
               {selectedConversation ? (
                 <>
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-center gap-3">
                       {customerAvatarUrl(safeConversation) ? (
                         <img src={customerAvatarUrl(safeConversation)} alt="" className="h-12 w-12 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
@@ -2152,27 +2235,22 @@ export default function AiInbox() {
                         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>
                       )}
                       <div className="min-w-0">
-                        <div className="truncate text-xl font-black text-white">{customerDisplayName(safeConversation) || "Unknown customer"}</div>
-                        <div className="mt-1 truncate text-sm text-slate-500">{channelLabel(safeConversation.channel || safeConversation.source)} / {safeConversation.external_customer_id || safeConversation.session_id}</div>
+                        <div className="truncate text-xl font-black text-white">{customerDisplayName(safeConversation) || "Customer"}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                          <span>{channelLabel(safeConversation.channel || safeConversation.source)}</span>
+                          <span className="text-slate-600">/</span>
+                          <span>{safeConversation.external_customer_id || safeConversation.session_id}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <AIStatusBadge status={selectedAIStatus} />
+                      <Pill tone={selectedMessagingActive ? "emerald" : "amber"}><Radio className="h-3.5 w-3.5" />{selectedMessagingActive ? "Live channel" : "Channel standby"}</Pill>
                       {needsHumanAttention(selectedConversation) ? <Pill tone="amber"><AlertTriangle className="h-3.5 w-3.5" />Needs human</Pill> : null}
                     </div>
                   </div>
-                  <CustomerContextCard conversation={safeConversation} />
-                  {canViewAiDebug ? (
-                    <AiDebugPanel
-                      open={aiDebug.open}
-                      loading={aiDebug.loading && aiDebug.sessionId === safeConversation.session_id}
-                      error={aiDebug.sessionId === safeConversation.session_id ? aiDebug.error : ""}
-                      data={aiDebug.sessionId === safeConversation.session_id ? aiDebug.data : null}
-                      onToggle={toggleAiDebug}
-                      onRefresh={loadAiDebug}
-                    />
-                  ) : null}
-                  <div className="mb-4 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-xs sm:grid-cols-3">
+
+                  <div className="mt-4 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-3 text-xs sm:grid-cols-3">
                     <div><span className="text-slate-500">Webhook</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "Healthy" : "Failed"}</div></div>
                     <div><span className="text-slate-500">Token</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "Active" : "Expired"}</div></div>
                     <div><span className="text-slate-500">Messaging</span><div className={selectedMessagingActive ? "font-black text-emerald-100" : "font-black text-slate-300"}>{selectedMessagingActive ? "Active" : "Inactive"}</div></div>
@@ -2186,8 +2264,92 @@ export default function AiInbox() {
                       </div>
                     ) : null}
                   </div>
-                  <ConversationActions conversation={selectedConversation} loading={loading} assignName={currentAssignName} onAssignNameChange={updateAssignName} onAction={updateConversationAction} />
-                  <div className="mb-4 grid gap-3 lg:grid-cols-2">
+
+                  <ConversationActions
+                    conversation={selectedConversation}
+                    channelStatus={selectedChannelStatus}
+                    loading={loading}
+                    assignName={currentAssignName}
+                    onAssignNameChange={updateAssignName}
+                    onAction={updateConversationAction}
+                  />
+
+                  <details className="group mb-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Developer tools</div>
+                        <div className="mt-1 text-sm font-black text-white">Debug, profile sync, traces, and state reset</div>
+                      </div>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[11px] font-black text-slate-200">
+                        <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
+                        Toggle
+                      </span>
+                    </summary>
+                    <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {isWhatsappChannel(safeConversation.channel || safeConversation.source) ? (
+                            <button
+                              type="button"
+                              onClick={openAiTrace}
+                              disabled={aiTrace.loading && aiTrace.sessionId === safeConversation.session_id}
+                              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-violet-300/20 bg-violet-300/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50"
+                            >
+                              {aiTrace.loading && aiTrace.sessionId === safeConversation.session_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+                              AI Trace
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={syncMessengerProfile}
+                            disabled={profileSyncing}
+                            className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"
+                          >
+                            {profileSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                            Sync Messenger Profile
+                          </button>
+                          <button
+                            type="button"
+                            onClick={debugMessengerProfile}
+                            disabled={profileDebugging}
+                            className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50"
+                          >
+                            {profileDebugging ? <Loader2 className="h-4 w-4 animate-spin" /> : <InfoIcon className="h-4 w-4" />}
+                            Debug Messenger Profile
+                          </button>
+                          <button
+                            type="button"
+                            onClick={resetAiState}
+                            disabled={resettingAiState}
+                            className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50"
+                          >
+                            {resettingAiState ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                            Reset AI State
+                          </button>
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                        <button type="button" onClick={() => setProfileOpen((value) => !value)} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100">
+                          {profileOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+                          {profileOpen ? "Hide profile" : "Show profile"}
+                        </button>
+                      </div>
+                    </div>
+                    {canViewAiDebug ? (
+                      <div className="mt-4">
+                        <AiDebugPanel
+                          open={aiDebug.open}
+                          loading={aiDebug.loading && aiDebug.sessionId === safeConversation.session_id}
+                          error={aiDebug.sessionId === safeConversation.session_id ? aiDebug.error : ""}
+                          data={aiDebug.sessionId === safeConversation.session_id ? aiDebug.data : null}
+                          onToggle={toggleAiDebug}
+                          onRefresh={loadAiDebug}
+                        />
+                      </div>
+                    ) : null}
+                  </details>
+
+                  <div className="mb-4 grid gap-3 xl:grid-cols-2">
                     <AutoReplyModePanel
                       channelStatus={selectedChannelStatus}
                       mode={selectedChannelStatus.auto_reply_mode || (selectedChannelStatus.ai_replies_enabled ? "fully_automatic" : "off")}
@@ -2203,7 +2365,8 @@ export default function AiInbox() {
                       </div>
                     </div>
                   </div>
-                  <div className="mb-4">
+
+                  <div className="grid gap-4 xl:grid-cols-2">
                     <SalesCloserPanel
                       plan={salesCloser.sessionId === safeConversation.session_id ? salesCloser.plan : {}}
                       products={recommendations.sessionId === safeConversation.session_id ? recommendations.products : []}
@@ -2212,44 +2375,68 @@ export default function AiInbox() {
                       onRefresh={loadSalesCloser}
                       onTakeover={() => updateConversationAction("takeover")}
                       onUseText={setReplyText}
+                      onCreateDraft={createDraftFromProduct}
+                      onPaymentAction={usePaymentAction}
                     />
-                  </div>
-                  <div className="mb-4">
                     <RecommendationsPanel
                       products={recommendations.sessionId === safeConversation.session_id ? recommendations.products : []}
                       loading={recommendations.loading}
                       onRefresh={loadRecommendations}
                       onQuickSend={quickSendProduct}
+                      onSendImages={sendProductImages}
                       onCreateDraft={createDraftFromProduct}
                     />
                   </div>
-                  <div className="max-h-[52vh] overflow-y-auto pr-1">
-                    <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} />
-                  </div>
-                  <div className="mt-4 space-y-4">
-                    <AISuggestedReplies
-                      conversationId={selectedConversation?.session_id}
-                      channelId={selectedConversation?.channel_id || selectedConversation?.channel || selectedConversation?.source}
-                      platform={selectedConversation?.platform || selectedConversation?.channel || selectedConversation?.source}
-                      lastCustomerMessage={lastCustomerMessage}
-                      productId={selectedConversation?.product_id || selectedConversation?.matched_product_id}
-                      onUseSuggestion={setReplyText}
-                    />
-                    <ManualReplyComposer conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }} value={replyText} onChange={setReplyText} onSend={() => sendManualReply()} onSaveDraft={saveDraftReply} loading={loading} />
+
+                  <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)]">
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div>
+                            <h3 className="text-lg font-black leading-7">Conversation timeline</h3>
+                            <p className="text-sm leading-6 text-slate-400">Live thread, staff replies, and message events.</p>
+                          </div>
+                          {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} messages</Pill> : null}
+                        </div>
+                        <div className="max-h-[34rem] overflow-y-auto pr-1">
+                          <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} />
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <AiSuggestedRepliesPanel
+                          conversation={selectedConversation}
+                          suggestions={currentSuggestions.items}
+                          intent={currentSuggestions.intent}
+                          confidence={currentSuggestions.confidence}
+                          loading={suggesting}
+                          error={currentSuggestions.error}
+                          onGenerate={generateSuggestedReplies}
+                          onUse={setReplyText}
+                          onCopySuggestion={copySuggestedReply}
+                          onSendSuggestion={sendManualReply}
+                          channelStatus={selectedChannelStatus}
+                        />
+                      </div>
+                      <ManualReplyComposer conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }} value={replyText} onChange={setReplyText} onSend={() => sendManualReply()} onSaveDraft={saveDraftReply} loading={loading} />
+                    </div>
+                    <div className="space-y-4">
+                      {selectedConversation?.draft_orders?.length ? <OrderDraftPanel conversation={selectedConversation} drafts={drafts} onAction={updateDraft} busy={loading} /> : null}
+                    </div>
                   </div>
                 </>
               ) : <EmptyBlock text="Select a conversation to inspect the transcript." />}
             </div>
-            {selectedConversation?.draft_orders?.length ? <OrderDraftPanel conversation={selectedConversation} drafts={drafts} onAction={updateDraft} busy={loading} /> : null}
           </main>
 
           {profileOpen ? (
-            <CustomerProfilePanel
-              conversation={selectedConversation}
-              canSyncMessenger={canSyncMessengerProfile(selectedConversation)}
-              syncing={profileSyncing}
-              onSyncMessengerProfile={syncMessengerProfile}
-            />
+            <aside className="min-w-0 space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-15rem)] xl:overflow-y-auto">
+              <CustomerProfilePanel
+                conversation={selectedConversation}
+                canSyncMessenger={canSyncMessengerProfile(selectedConversation)}
+                syncing={profileSyncing}
+                onSyncMessengerProfile={syncMessengerProfile}
+              />
+            </aside>
           ) : null}
         </section>
       </div>
