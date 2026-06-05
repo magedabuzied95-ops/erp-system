@@ -254,6 +254,7 @@ function AttendanceWorkspace({
   const [error, setError] = useState("");
   const [reportError, setReportError] = useState("");
   const hasShownReportError = useRef(false);
+  const lastNotifiedSelectedEmployeeIdRef = useRef("");
   const employeePhotoInputRef = useRef(null);
   const activeBranches = branches.filter((branch) => isBranchActive(branch.is_active));
   const singleBranchId = activeBranches.length === 1 ? String(normalizeBranch(activeBranches[0]).id || "") : "";
@@ -446,21 +447,39 @@ function AttendanceWorkspace({
   useEffect(() => {
     const nextSelectedEmployeeId = String(externalSelectedEmployeeId || "");
     if (!nextSelectedEmployeeId || nextSelectedEmployeeId === String(selectedEmployeeId || "")) return;
+    console.log("[hr-loop]", "sync_external_selected_employee", {
+      employee_id: nextSelectedEmployeeId,
+      selectedEmployeeId,
+      editingEmployeeId: String(employeeForm.id || ""),
+    });
     setSelectedEmployeeId(nextSelectedEmployeeId);
-  }, [externalSelectedEmployeeId, selectedEmployeeId]);
+  }, [employeeForm.id, externalSelectedEmployeeId, selectedEmployeeId]);
 
   useEffect(() => {
     if (typeof onSelectedEmployeeChange !== "function") return;
+    const nextSelectedEmployeeId = String(selectedEmployee?.id || "");
+    if (lastNotifiedSelectedEmployeeIdRef.current === nextSelectedEmployeeId) return;
+    lastNotifiedSelectedEmployeeIdRef.current = nextSelectedEmployeeId;
+    console.log("[hr-loop]", "notify_parent_selected_employee", {
+      employee_id: nextSelectedEmployeeId,
+      selectedEmployeeId,
+      editingEmployeeId: String(employeeForm.id || ""),
+    });
     onSelectedEmployeeChange(selectedEmployee || null);
-  }, [onSelectedEmployeeChange, selectedEmployee]);
+  }, [employeeForm.id, onSelectedEmployeeChange, selectedEmployee?.id, selectedEmployeeId]);
 
   useEffect(() => {
     if (selectedEmployeeId) {
+      console.log("[hr-loop]", "load_employee_related_data", {
+        employee_id: String(selectedEmployeeId || ""),
+        selectedEmployeeId,
+        editingEmployeeId: String(employeeForm.id || ""),
+      });
       queueMicrotask(() => {
         void loadEmployeeRelatedData(selectedEmployeeId);
       });
     }
-  }, [loadEmployeeRelatedData, selectedEmployeeId]);
+  }, [employeeForm.id, loadEmployeeRelatedData, selectedEmployeeId]);
 
   const dashboardSummary = useMemo(() => {
     const summary = dailyReport?.summary || dailyReport || {};

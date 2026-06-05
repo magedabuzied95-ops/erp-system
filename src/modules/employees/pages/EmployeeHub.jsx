@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Navigate, NavLink, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -59,6 +59,14 @@ export default function EmployeeHub() {
   }
   const activeTab = validTabs.has(params.tab) ? params.tab : "overview";
   const selectedEmployeeId = String(selectedEmployee?.id || selectedEmployee?.employee_id || "");
+
+  useEffect(() => {
+    console.log("[hr-loop]", "employee_hub_selection", {
+      employee_id: selectedEmployeeId,
+      selectedEmployeeId,
+      editingEmployeeId: "",
+    });
+  }, [selectedEmployeeId]);
 
   const activeMeta = tabs.find((tab) => tab.id === activeTab) || tabs[0];
 
@@ -122,6 +130,13 @@ function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChang
   const { t, i18n } = useTranslation();
   const [section, setSection] = useState("directory");
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
+  useEffect(() => {
+    console.log("[hr-loop]", "employee_directory_props", {
+      employee_id: String(selectedEmployeeId || ""),
+      selectedEmployeeId: String(selectedEmployeeId || ""),
+      editingEmployeeId: "",
+    });
+  }, [selectedEmployeeId]);
   const sections = [
     {
       id: "directory",
