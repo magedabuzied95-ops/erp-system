@@ -317,16 +317,41 @@ const sendUnifiedReplyThroughChannelAdapter = async ({ channel = AI_AGENT_CHANNE
     adapter_used: adapterUsed,
   });
   let result = null;
-  if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
-    result = await sendWhatsAppCloudReply({ to, reply: unifiedReply.channel_reply, messageText: messageText || unifiedReply.text || unifiedReply.channel_reply?.text || "" });
-  } else if ([AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(normalizedChannel)) {
-    result = await sendMetaPageReply({ channel: normalizedChannel, to, reply: unifiedReply.channel_reply, messageText: messageText || unifiedReply.text || unifiedReply.channel_reply?.text || "" });
-  } else {
+  try {
+    if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
+      result = await sendWhatsAppCloudReply({ to, reply: unifiedReply.channel_reply, messageText: messageText || unifiedReply.text || unifiedReply.channel_reply?.text || "" });
+    } else if ([AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(normalizedChannel)) {
+      result = await sendMetaPageReply({ channel: normalizedChannel, to, reply: unifiedReply.channel_reply, messageText: messageText || unifiedReply.text || unifiedReply.channel_reply?.text || "" });
+    } else {
+      result = {
+        sent: true,
+        reply: unifiedReply.channel_reply,
+        messageText: messageText || unifiedReply.text || "",
+      };
+    }
+  } catch (error) {
     result = {
-      sent: true,
-      reply: unifiedReply.channel_reply,
-      messageText: messageText || unifiedReply.text || "",
+      sent: false,
+      error: error?.message || String(error),
+      code: error?.code || "",
+      status: error?.status || "",
     };
+    logOrchestrator("AI_CHANNEL_ADAPTER_RESULT", {
+      tenant_id: tenantId,
+      channel: normalizedChannel,
+      conversation_id: text(replySource?.conversation_id || replySource?.session_id || ""),
+      provider_message_id: text(replySource?.provider_message_id || ""),
+      inbound_text: text(messageText || unifiedReply.text || unifiedReply.channel_reply?.text || ""),
+      intent: text(replySource?.intent || replySource?.detected_intent || ""),
+      products_count: countItems(replySource?.products || replySource?.suggested_products),
+      product_cards_count: countItems(replySource?.product_cards || replySource?.channel_reply?.product_cards),
+      image_cards_count: countItems(replySource?.image_cards || replySource?.visual_attachments),
+      actions_count: countItems(replySource?.actions || replySource?.suggested_actions),
+      early_return_reason: text(replySource?.debug?.early_return_reason || ""),
+      adapter_used: adapterUsed,
+      send_result: result,
+    });
+    throw error;
   }
   logOrchestrator("AI_CHANNEL_ADAPTER_RESULT", {
     tenant_id: tenantId,

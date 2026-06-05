@@ -17,6 +17,7 @@ import {
   getAiSupportInsights,
   listAiSupportHistory,
   logAiSupportMessage,
+  updateAiSupportConversationState,
   trackAiSupportCartOutcome,
   trackAiSupportProductClick,
 } from "../services/aiSupportLogService.js";
@@ -461,6 +462,29 @@ const selectionPatch = (selected = null) => selected ? {
   last_product_id: selected.product_id || selected.id || "",
   last_product_name: selected.product_name || selected.name || selected.title || "",
 } : {};
+
+const metadataPreferencePatch = (metadata = {}) => {
+  const preferences = {};
+  const selectedProductContext = metadata.selected_product_context || metadata.selectedProductContext || null;
+  if (selectedProductContext) {
+    preferences.selected_product_context = selectedProductContext;
+    preferences.last_product = selectedProductContext;
+    preferences.lastProductCard = selectedProductContext;
+    preferences.last_product_id = selectedProductContext.product_id || selectedProductContext.id || metadata.selected_product_id || "";
+    preferences.last_product_name = selectedProductContext.product_name || selectedProductContext.name || selectedProductContext.title || "";
+  }
+  if (metadata.selected_product_id) preferences.last_product_id = toText(metadata.selected_product_id);
+  if (metadata.selected_variant_id) preferences.selected_variant_id = toText(metadata.selected_variant_id);
+  if (metadata.selected_size) preferences.selected_size = toText(metadata.selected_size);
+  if (metadata.selected_color) preferences.selected_color = toText(metadata.selected_color);
+  if (metadata.selected_color_key) preferences.selected_color_key = toText(metadata.selected_color_key);
+  if (metadata.rejected_product_context) preferences.rejected_product_context = metadata.rejected_product_context;
+  if (metadata.rejected_product_id) preferences.rejected_product_id = toText(metadata.rejected_product_id);
+  if (metadata.last_action) preferences.last_ai_action = toText(metadata.last_action);
+  if (metadata.conversation_status) preferences.conversation_status = toText(metadata.conversation_status);
+  if (metadata.handoff_requested === true) preferences.handoff_requested = true;
+  return preferences;
+};
 
 const messageHasSizeReference = (message = "") => Boolean(selectionReferenceFromMessage(message).size);
 
@@ -1484,7 +1508,10 @@ const updateMemoryAndPersonalize = async ({ req, tenantId, metadata = {}, messag
       message,
       metadata,
       suggestedProducts: response.suggested_products || [],
-      preferencesPatch: response.ai_memory_patch?.preferences || {},
+      preferencesPatch: {
+        ...(response.ai_memory_patch?.preferences || {}),
+        ...metadataPreferencePatch(metadata),
+      },
     });
     const personalized = personalizeAiSupportResponse({ response, memory, message });
     return {
@@ -2055,6 +2082,34 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
     };
 
     if (tenantId && metadata.session_id) {
+      const requestedConversationStatus = toText(metadata.conversation_status || "");
+      if (requestedConversationStatus === "human_takeover" || metadata.handoff_requested === true) {
+        await updateAiSupportConversationState({
+          tenantId,
+          sessionId: metadata.session_id,
+          status: "human_takeover",
+          source: normalizedMessage.channel || metadata.channel || "website_chat",
+        }).catch((error) => {
+          console.warn("[ai-support] conversation handoff update skipped", {
+            requestId: req.id,
+            tenantId,
+            sessionId: metadata.session_id,
+            message: error?.message,
+          });
+        });
+        const responsePayload = buildPausedConversationPayload("human_takeover");
+        await logAiSupportMessage({
+          tenantId,
+          userId: req.user?.id || req.optionalUser?.id || req.optionalUser?.user_id || null,
+          sessionId: metadata.session_id,
+          customerMessage: message,
+          response: { ...responsePayload, answer: "" },
+          detectedIntent: "human_takeover",
+          fallbackReason: "human_takeover_requested",
+          source: req.user || req.optionalUser ? "admin_console" : "api",
+        });
+        return sendAiSupportChannelResponse(req, res, responsePayload);
+      }
       const conversationState = await getAiSupportConversationState({ tenantId, sessionId: metadata.session_id });
       if (["human_takeover", "closed"].includes(conversationState?.status)) {
         const responsePayload = buildPausedConversationPayload(conversationState.status);
@@ -2107,10 +2162,20 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
           return null;
         })
       : null;
-    const selectionBrain = resolveProductSelection({ message, memory: previousMemory });
-    const effectiveMemory = selectionBrain?.selected_card
-      ? memoryWithSelectedProduct(previousMemory, selectionBrain.selected_card)
+    const metadataMemoryPatch = metadataPreferencePatch(metadata);
+    const metadataEffectiveMemory = Object.keys(metadataMemoryPatch).length
+      ? {
+          ...(previousMemory || {}),
+          preferences: {
+            ...(previousMemory?.preferences || {}),
+            ...metadataMemoryPatch,
+          },
+        }
       : previousMemory;
+    const selectionBrain = resolveProductSelection({ message, memory: metadataEffectiveMemory });
+    const effectiveMemory = selectionBrain?.selected_card
+      ? memoryWithSelectedProduct(metadataEffectiveMemory, selectionBrain.selected_card)
+      : metadataEffectiveMemory;
     const visualProductIntent = detectVisualProductIntent(message);
     const cleanProductTrace = cleanVisualProductQuery({ message, detectedIntent: visualProductIntent });
     if (visualProductIntent) {

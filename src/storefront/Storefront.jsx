@@ -286,6 +286,7 @@ const getSearchFallbackSections = () => {
 const AI_SUPPORT_SESSION_KEY = "storefront.ai_support.session_id";
 const AI_SUPPORT_TENANT_KEY = "storefront.tenant_id";
 const AI_SUPPORT_LAST_CLICK_KEY = "storefront.ai_support.last_clicked_product";
+const AI_SUPPORT_CONTEXT_KEY_PREFIX = "storefront.ai_support.context";
 const AI_SUPPORT_HINT_DISMISSED_KEY = "storefront.ai_support.hint_dismissed";
 
 const STORAGE_ARRAY_LIMITS = {
@@ -1030,6 +1031,85 @@ const getAiSupportSessionId = () => {
     return generateAiSessionId();
   }
 };
+const getAiSupportContextKey = (sessionId = "") => `${AI_SUPPORT_CONTEXT_KEY_PREFIX}.${sessionId || "default"}`;
+const createDefaultAiSupportContext = () => ({
+  selected_product_context: null,
+  selected_product_id: "",
+  selected_variant_id: "",
+  selected_size: "",
+  selected_color: "",
+  selected_color_key: "",
+  rejected_product_context: null,
+  last_action: "",
+  handoff: false,
+  last_shown_product_cards: [],
+  last_shown_image_cards: [],
+});
+const normalizeAiSupportCardContext = (product = {}) => {
+  if (!product || typeof product !== "object") return null;
+  const selectedProductContext = product.selected_product_context && typeof product.selected_product_context === "object"
+    ? product.selected_product_context
+    : null;
+  const selectedProduct = selectedProductContext || product;
+  const resolvedVariants = Array.isArray(selectedProduct.variants) ? selectedProduct.variants : Array.isArray(product.variants) ? product.variants : [];
+  return {
+    ...selectedProductContext,
+    ...selectedProduct,
+    product_id: selectedProduct.product_id || selectedProduct.id || product.product_id || product.id || "",
+    id: selectedProduct.id || selectedProduct.product_id || product.id || product.product_id || "",
+    variant_id: selectedProduct.variant_id || selectedProduct.selected_variant_id || selectedProduct.matched_variant_id || product.variant_id || product.selected_variant_id || product.matched_variant_id || "",
+    selected_variant_id: selectedProduct.selected_variant_id || selectedProduct.variant_id || product.selected_variant_id || product.variant_id || "",
+    selected_size: cleanDisplayText(selectedProduct.selected_size || selectedProduct.size || product.selected_size || product.size || ""),
+    selected_color: cleanDisplayText(selectedProduct.selected_color || selectedProduct.color || selectedProduct.color_name || product.selected_color || product.color || product.color_name || ""),
+    selected_color_key: cleanDisplayText(selectedProduct.selected_color_key || selectedProduct.color_key || product.selected_color_key || product.color_key || ""),
+    variants: resolvedVariants,
+    sizes: Array.isArray(selectedProduct.sizes) && selectedProduct.sizes.length ? selectedProduct.sizes : Array.isArray(product.sizes) ? product.sizes : [],
+    available_sizes: Array.isArray(selectedProduct.available_sizes) && selectedProduct.available_sizes.length ? selectedProduct.available_sizes : Array.isArray(product.available_sizes) ? product.available_sizes : [],
+    colors: Array.isArray(selectedProduct.colors) && selectedProduct.colors.length ? selectedProduct.colors : Array.isArray(product.colors) ? product.colors : [],
+  };
+};
+const loadAiSupportContext = (sessionId = "") => {
+  if (typeof window === "undefined") return createDefaultAiSupportContext();
+  try {
+    const payload = JSON.parse(localStorage.getItem(getAiSupportContextKey(sessionId)) || "null");
+    return {
+      ...createDefaultAiSupportContext(),
+      ...(payload && typeof payload === "object" ? payload : {}),
+      last_shown_product_cards: Array.isArray(payload?.last_shown_product_cards) ? payload.last_shown_product_cards : [],
+      last_shown_image_cards: Array.isArray(payload?.last_shown_image_cards) ? payload.last_shown_image_cards : [],
+    };
+  } catch {
+    return createDefaultAiSupportContext();
+  }
+};
+const saveAiSupportContext = (sessionId = "", context = {}) => {
+  if (typeof window === "undefined") return createDefaultAiSupportContext();
+  const nextContext = {
+    ...createDefaultAiSupportContext(),
+    ...(context && typeof context === "object" ? context : {}),
+    last_shown_product_cards: Array.isArray(context?.last_shown_product_cards) ? context.last_shown_product_cards : [],
+    last_shown_image_cards: Array.isArray(context?.last_shown_image_cards) ? context.last_shown_image_cards : [],
+  };
+  try {
+    localStorage.setItem(getAiSupportContextKey(sessionId), JSON.stringify(nextContext));
+  } catch {
+    // Ignore storage access errors.
+  }
+  return nextContext;
+};
+const mergeAiSupportContext = (current = {}, patch = {}) => {
+  const next = {
+    ...createDefaultAiSupportContext(),
+    ...(current && typeof current === "object" ? current : {}),
+    ...(patch && typeof patch === "object" ? patch : {}),
+  };
+  if (Array.isArray(patch?.last_shown_product_cards)) next.last_shown_product_cards = patch.last_shown_product_cards;
+  if (Array.isArray(patch?.last_shown_image_cards)) next.last_shown_image_cards = patch.last_shown_image_cards;
+  if (patch?.selected_product_context === null) next.selected_product_context = null;
+  if (patch?.rejected_product_context === null) next.rejected_product_context = null;
+  return next;
+};
+const textOrEmpty = (value = "") => cleanDisplayText(String(value || ""));
 const rememberAiSuggestedProductClick = ({ tenantId, sessionId, productId }) => {
   if (typeof window === "undefined" || !tenantId || !sessionId || !productId) return;
   try {
@@ -1938,6 +2018,7 @@ function AiSupportChatWidget() {
   const openRef = useRef(open);
   const sessionId = useMemo(() => getAiSupportSessionId(), []);
   const tenantId = useMemo(() => resolveStorefrontTenantId(), []);
+  const [aiSupportContext, setAiSupportContext] = useState(() => loadAiSupportContext(sessionId));
 
   useEffect(() => {
     openRef.current = open;
@@ -1963,12 +2044,28 @@ function AiSupportChatWidget() {
     imagePreviewUrlsRef.current = [];
   }, []);
 
+  useEffect(() => {
+    setAiSupportContext(loadAiSupportContext(sessionId));
+  }, [sessionId]);
+
+  useEffect(() => {
+    saveAiSupportContext(sessionId, aiSupportContext);
+  }, [aiSupportContext, sessionId]);
+
   const supportHref = useMemo(() => {
     const text = encodeURIComponent(`محتاج مساعدة من الدعم بخصوص محادثة رقم ${sessionId}`);
     return whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${text}` : "/shop/contact";
   }, [sessionId]);
 
-  const submitQuestion = useCallback(async (questionText) => {
+  const pushAiSupportContext = useCallback((patch = {}) => {
+    setAiSupportContext((current) => mergeAiSupportContext(current, patch));
+  }, []);
+
+  const submitQuestion = useCallback(async (questionText, options = {}) => {
+    if (aiSupportContext.handoff && !options.force) {
+      setError(sfText("storefront.aiSupport.handoffActive", "A human is now handling this chat."));
+      return;
+    }
     const text = cleanDisplayText(questionText || input);
     if (!text || loading || imageLoading) return;
     setInput("");
@@ -1977,6 +2074,7 @@ function AiSupportChatWidget() {
     setMessages((items) => [...items, { id: `u_${Date.now()}`, role: "user", answer: text }]);
     setLoading(true);
     try {
+      const contextualPayload = mergeAiSupportContext(aiSupportContext, options.context || {});
       const response = await api.post(
         "/ai-support/chat",
         {
@@ -1987,6 +2085,18 @@ function AiSupportChatWidget() {
           metadata: {
             channel: "storefront_chat",
             surface: "shop",
+            selected_product_context: contextualPayload.selected_product_context || null,
+            selected_product_id: contextualPayload.selected_product_id || "",
+            selected_variant_id: contextualPayload.selected_variant_id || "",
+            selected_size: contextualPayload.selected_size || "",
+            selected_color: contextualPayload.selected_color || "",
+            selected_color_key: contextualPayload.selected_color_key || "",
+            rejected_product_context: contextualPayload.rejected_product_context || null,
+            last_action: contextualPayload.last_action || "",
+            handoff: contextualPayload.handoff === true,
+            selected_product_cards: contextualPayload.last_shown_product_cards || [],
+            selected_image_cards: contextualPayload.last_shown_image_cards || [],
+            ...(options.metadata || {}),
           },
         },
         { timeoutMs: 30000, headers: { "x-tenant-id": tenantId } }
@@ -2004,6 +2114,12 @@ function AiSupportChatWidget() {
       const imageCards = unifiedReplyImageCards(response);
       const quickReplies = unifiedReplyQuickReplies(response);
       const actions = unifiedReplyActions(response);
+      pushAiSupportContext({
+        last_shown_product_cards: productCards,
+        last_shown_image_cards: imageCards,
+        last_action: options.metadata?.last_action || contextualPayload.last_action || "",
+        handoff: Boolean(unifiedReply?.handoff?.needs_human_support || response?.needs_human_support || contextualPayload.handoff),
+      });
       if (isAiSupportDebugEnabled()) {
         console.debug("[storefront-ai] unified reply render payload", {
           channel: response?.channel || "storefront_chat",
@@ -2057,7 +2173,7 @@ function AiSupportChatWidget() {
     } finally {
       setLoading(false);
     }
-  }, [imageLoading, input, loading, sessionId, tenantId]);
+  }, [aiSupportContext, imageLoading, input, loading, pushAiSupportContext, sessionId, tenantId]);
 
   const submitImage = useCallback(async (file) => {
     if (!file || loading || imageLoading) return;
@@ -2130,6 +2246,12 @@ function AiSupportChatWidget() {
       const imageCards = unifiedReplyImageCards(response);
       const quickReplies = unifiedReplyQuickReplies(response);
       const actions = unifiedReplyActions(response);
+      pushAiSupportContext({
+        last_shown_product_cards: productCards,
+        last_shown_image_cards: imageCards,
+        last_action: "image_search",
+        handoff: Boolean(unifiedReply?.handoff?.needs_human_support || response?.needs_human_support),
+      });
       setMessages((items) => [
         ...items,
         {
@@ -2178,48 +2300,335 @@ function AiSupportChatWidget() {
     }
   }, [imageLoading, loading, sessionId, tenantId]);
 
-  const handleUnifiedActionClick = useCallback((action, context = {}) => {
+  const logWebsiteChatEvent = useCallback((eventName, extra = {}) => {
+    console.log(eventName, {
+      channel: "website_chat",
+      conversation_id: sessionId,
+      provider_message_id: extra.provider_message_id || "",
+      tenant_id: tenantId,
+      intent: extra.intent || "",
+      products_count: Number.isFinite(Number(extra.products_count)) ? Number(extra.products_count) : Number(aiSupportContext.last_shown_product_cards?.length || 0),
+      product_cards_count: Number.isFinite(Number(extra.product_cards_count)) ? Number(extra.product_cards_count) : 0,
+      image_cards_count: Number.isFinite(Number(extra.image_cards_count)) ? Number(extra.image_cards_count) : 0,
+      actions_count: Number.isFinite(Number(extra.actions_count)) ? Number(extra.actions_count) : 0,
+      early_return_reason: extra.early_return_reason || "",
+      ...extra,
+    });
+  }, [aiSupportContext.last_shown_product_cards, sessionId, tenantId]);
+
+  const resolveAiSupportProductDetails = useCallback(async (candidateProduct = null) => {
+    const normalized = normalizeAiSupportCardContext(candidateProduct);
+    if (!normalized) return null;
+    if (Array.isArray(normalized.variants) && normalized.variants.length) return normalized;
+    const identifier = textOrEmpty(normalized.slug || normalized.id || normalized.product_id || normalized.productId || normalized.product_url || normalized.url);
+    if (!identifier) return normalized;
+    try {
+      const response = await storefrontApi.getProductDetails(identifier, { headers: { "x-tenant-id": tenantId } });
+      const product = productFromDetailsResponse(response);
+      return product || normalized;
+    } catch {
+      return normalized;
+    }
+  }, [tenantId]);
+
+  const resolveAiSupportVariantSelection = useCallback(async (candidateProduct = null, selection = {}) => {
+    const product = await resolveAiSupportProductDetails(candidateProduct);
+    if (!product) {
+      return { product: null, variant: null, reason: "missing_product" };
+    }
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    if (!variants.length) {
+      return { product, variant: null, reason: "missing_variants" };
+    }
+    const selectedSize = textOrEmpty(selection.selected_size || aiSupportContext.selected_size || product.selected_size || product.size || "");
+    const selectedColor = textOrEmpty(selection.selected_color || aiSupportContext.selected_color || product.selected_color || product.color || product.color_name || "");
+    const selectedColorKey = textOrEmpty(selection.selected_color_key || aiSupportContext.selected_color_key || product.selected_color_key || product.color_key || "").toLowerCase();
+    const requestedVariantId = textOrEmpty(selection.selected_variant_id || aiSupportContext.selected_variant_id || product.selected_variant_id || product.variant_id || product.matched_variant_id || "");
+    const availableSizes = [...new Set(variants.filter(variantHasStock).map((variant) => String(variant.size || "").trim()).filter(Boolean))];
+    const colorGroups = getProductColorGroups(product);
+    if (availableSizes.length > 1 && !selectedSize) {
+      return { product, variant: null, reason: "missing_size", availableSizes, colorGroups };
+    }
+    if (colorGroups.length > 1 && !selectedColor && !selectedColorKey) {
+      return { product, variant: null, reason: "missing_color", availableSizes, colorGroups };
+    }
+    const colorMatchKey = selectedColorKey || selectedColor.toLowerCase();
+    const matchedVariant = variants.find((variant) =>
+      requestedVariantId && (
+        String(variant.id) === String(requestedVariantId) ||
+        String(variant.variant_id || "") === String(requestedVariantId) ||
+        String(variant.selected_variant_id || "") === String(requestedVariantId) ||
+        String(variant.edition_slug || "") === String(requestedVariantId)
+      ) && variantHasStock(variant)
+    ) || variants.find((variant) =>
+      selectedSize &&
+      String(variant.size || "").trim() === String(selectedSize).trim() &&
+      (selectedColorKey ? variantColorKey(variant) === selectedColorKey : !selectedColor || variantColorName(variant).toLowerCase() === selectedColor.toLowerCase()) &&
+      variantHasStock(variant)
+    ) || variants.find((variant) =>
+      selectedSize &&
+      String(variant.size || "").trim() === String(selectedSize).trim() &&
+      (!selectedColorKey && !selectedColor)
+    ) || variants.find((variant) =>
+      colorMatchKey && (variantColorKey(variant) === colorMatchKey || variantColorName(variant).toLowerCase() === colorMatchKey) && variantHasStock(variant)
+    ) || firstDisplayVariant(variants);
+    return {
+      product,
+      variant: matchedVariant || null,
+      reason: matchedVariant ? "resolved" : "no_variant",
+      availableSizes,
+      colorGroups,
+    };
+  }, [aiSupportContext.selected_color, aiSupportContext.selected_color_key, aiSupportContext.selected_size, aiSupportContext.selected_variant_id, resolveAiSupportProductDetails]);
+
+  const openProduct = useCallback((product) => {
+    const normalizedProduct = normalizeAiSupportCardContext(product);
+    trackAiSupportClick({ tenantId, sessionId, productId: normalizedProduct?.id || normalizedProduct?.product_id });
+    pushAiSupportContext({
+      selected_product_context: normalizedProduct,
+      selected_product_id: normalizedProduct?.product_id || normalizedProduct?.id || "",
+      selected_variant_id: normalizedProduct?.selected_variant_id || normalizedProduct?.variant_id || "",
+      selected_size: normalizedProduct?.selected_size || aiSupportContext.selected_size || "",
+      selected_color: normalizedProduct?.selected_color || aiSupportContext.selected_color || "",
+      selected_color_key: normalizedProduct?.selected_color_key || aiSupportContext.selected_color_key || "",
+      handoff: false,
+      last_action: "open_product",
+    });
+    navigate(aiSuggestedProductUrl(normalizedProduct));
+    setOpen(false);
+  }, [aiSupportContext.selected_color, aiSupportContext.selected_color_key, aiSupportContext.selected_size, navigate, pushAiSupportContext, sessionId, tenantId]);
+
+  const handleUnifiedActionClick = useCallback(async (action, context = {}) => {
     const raw = typeof action === "string"
       ? action
       : String(action?.action || action?.type || action?.id || action?.value || action?.label || action?.text || "").trim();
     const key = raw.toLowerCase();
     if (!key) return;
 
-    if (["choose_size", "select_size", "ask_size"].includes(key)) {
-      submitQuestion("عايز مقاس 42");
+    const product = normalizeAiSupportCardContext(context.product || context.productCard || context.selectedProduct || context.card || null);
+    const sizeFromAction = textOrEmpty(action?.size || action?.size_value || action?.value || action?.label || action?.text || context.size || context.selected_size || "").replace(/\s+/g, " ");
+    const colorFromAction = textOrEmpty(action?.color || action?.color_value || action?.value || action?.label || action?.text || context.color || context.selected_color || "");
+    const explicitSizeValue = /^\d{1,2}(?:\.\d)?$/.test(sizeFromAction || raw);
+    const knownColorValues = ["black", "white", "gray", "grey", "red", "blue", "green", "beige", "brown", "pink", "yellow", "orange", "purple", "اسود", "أبيض", "ابيض", "رمادي", "احمر", "أحمر", "ازرق", "أزرق", "اخضر", "أخضر", "بيج", "بني", "وردي", "اصفر", "أصفر", "برتقالي", "بنفسجي"];
+    const explicitColorValue = knownColorValues.some((value) => {
+      const candidate = colorFromAction.toLowerCase();
+      const target = String(value || "").toLowerCase();
+      return candidate === target || candidate.includes(target) || target.includes(candidate);
+    });
+    const isSizeAction = ["choose_size", "select_size", "ask_size"].includes(key) || explicitSizeValue;
+    const isColorAction = ["choose_color", "select_color", "ask_color"].includes(key) || explicitColorValue;
+    const messageContext = {
+      selected_product_context: product || aiSupportContext.selected_product_context || null,
+      selected_product_id: product?.product_id || product?.id || aiSupportContext.selected_product_id || "",
+      selected_variant_id: product?.selected_variant_id || product?.variant_id || aiSupportContext.selected_variant_id || "",
+      selected_size: sizeFromAction || aiSupportContext.selected_size || "",
+      selected_color: colorFromAction || aiSupportContext.selected_color || "",
+      selected_color_key: textOrEmpty(action?.color_key || action?.selected_color_key || context.color_key || aiSupportContext.selected_color_key || "").toLowerCase(),
+      rejected_product_context: aiSupportContext.rejected_product_context || null,
+      last_action: key,
+      handoff: aiSupportContext.handoff === true,
+      last_shown_product_cards: aiSupportContext.last_shown_product_cards || [],
+      last_shown_image_cards: aiSupportContext.last_shown_image_cards || [],
+    };
+
+    logWebsiteChatEvent("WEBSITE_CHAT_ACTION_CLICKED", {
+      intent: key,
+      products_count: Array.isArray(aiSupportContext.last_shown_product_cards) ? aiSupportContext.last_shown_product_cards.length : 0,
+      product_cards_count: Array.isArray(aiSupportContext.last_shown_product_cards) ? aiSupportContext.last_shown_product_cards.length : 0,
+      image_cards_count: Array.isArray(aiSupportContext.last_shown_image_cards) ? aiSupportContext.last_shown_image_cards.length : 0,
+      actions_count: Array.isArray(action?.actions) ? action.actions.length : 0,
+      selected_product_id: messageContext.selected_product_id,
+      selected_variant_id: messageContext.selected_variant_id,
+      selected_size: messageContext.selected_size,
+      selected_color: messageContext.selected_color,
+    });
+
+    if (["choose_size", "select_size", "ask_size"].includes(key) || isSizeAction) {
+      const selectedSize = explicitSizeValue ? (sizeFromAction || raw) : (context.size || context.selected_size || aiSupportContext.selected_size || "");
+      pushAiSupportContext({ ...messageContext, selected_size: selectedSize, last_action: "choose_size" });
+      await submitQuestion(selectedSize || "عايز مقاس", {
+        metadata: {
+          last_action: "choose_size",
+          selected_size: selectedSize,
+          selected_product_context: messageContext.selected_product_context,
+          selected_product_id: messageContext.selected_product_id,
+          selected_color: messageContext.selected_color,
+        },
+        context: { ...messageContext, selected_size: selectedSize },
+      });
       return;
     }
-    if (["choose_color", "select_color", "ask_color"].includes(key)) {
-      submitQuestion("الألوان المتاحة؟");
+    if (["choose_color", "select_color", "ask_color"].includes(key) || isColorAction) {
+      const selectedColor = explicitColorValue ? (colorFromAction || raw) : (context.color || context.selected_color || aiSupportContext.selected_color || "");
+      pushAiSupportContext({ ...messageContext, selected_color: selectedColor, last_action: "choose_color" });
+      await submitQuestion(selectedColor || "الألوان المتاحة؟", {
+        metadata: {
+          last_action: "choose_color",
+          selected_color: selectedColor,
+          selected_product_context: messageContext.selected_product_context,
+          selected_product_id: messageContext.selected_product_id,
+          selected_size: messageContext.selected_size,
+        },
+        context: { ...messageContext, selected_color: selectedColor },
+      });
       return;
     }
     if (["ask_for_more_images", "show_more_images", "more_images"].includes(key)) {
-      submitQuestion("صور أكتر");
+      pushAiSupportContext({ ...messageContext, last_action: "more_images" });
+      await submitQuestion("صور أكتر", {
+        metadata: {
+          last_action: "more_images",
+          selected_product_context: messageContext.selected_product_context,
+          selected_product_id: messageContext.selected_product_id,
+          selected_size: messageContext.selected_size,
+          selected_color: messageContext.selected_color,
+        },
+        context: messageContext,
+      });
       return;
     }
     if (["show_alternatives", "alternatives", "similar_products"].includes(key)) {
-      submitQuestion("مش عاجبني، وريني بدائل");
+      pushAiSupportContext({ ...messageContext, rejected_product_context: messageContext.selected_product_context || messageContext.rejected_product_context || null, last_action: "show_alternatives" });
+      await submitQuestion("مش عاجبني، وريني بدائل", {
+        metadata: {
+          last_action: "show_alternatives",
+          selected_product_context: messageContext.selected_product_context,
+          rejected_product_context: messageContext.selected_product_context || messageContext.rejected_product_context || null,
+          selected_size: messageContext.selected_size,
+          selected_color: messageContext.selected_color,
+        },
+        context: messageContext,
+      });
       return;
     }
     if (["escalate_to_human", "human_handoff", "handoff", "contact_support"].includes(key)) {
+      logWebsiteChatEvent("WEBSITE_CHAT_HANDOFF_TRIGGERED", {
+        intent: "human_handoff",
+        early_return_reason: "website_handoff_requested",
+      });
+      pushAiSupportContext({ ...messageContext, handoff: true, last_action: "escalate_to_human" });
+      await submitQuestion("كلم بني آدم", {
+        force: true,
+        metadata: {
+          last_action: "escalate_to_human",
+          conversation_status: "human_takeover",
+          handoff_requested: true,
+          selected_product_context: messageContext.selected_product_context,
+          selected_product_id: messageContext.selected_product_id,
+        },
+        context: { ...messageContext, handoff: true },
+      });
       window.open(supportHref, "_blank", "noreferrer");
       return;
     }
     if (["add_to_cart", "buy_now", "buy_now_action", "checkout", "order_now"].includes(key)) {
-      const product = context.product || context.productCard || context.selectedProduct || context.card || null;
-      if (product) {
-        trackAiSupportCartOutcome({ tenantId, sessionId, productId: product?.id || product?.product_id || "" });
-        openProduct(product);
+      const selection = await resolveAiSupportVariantSelection(product || messageContext.selected_product_context, messageContext);
+      if (!selection.product) {
+        logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "missing_product_context" });
+        await submitQuestion("عايز أشتري", { metadata: { last_action: key, ...messageContext }, context: messageContext });
         return;
       }
-      submitQuestion("عايز أشتري");
+      if (selection.reason === "missing_size") {
+        logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "missing_size" });
+        await submitQuestion("عايز مقاس كام؟", {
+          metadata: {
+            last_action: key,
+            selected_product_context: selection.product,
+            selected_product_id: selection.product?.id || selection.product?.product_id || "",
+            selected_color: messageContext.selected_color,
+            selected_color_key: messageContext.selected_color_key,
+          },
+          context: { ...messageContext, selected_product_context: selection.product },
+        });
+        return;
+      }
+      if (selection.reason === "missing_color") {
+        logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "missing_color" });
+        await submitQuestion("أي لون تفضل؟", {
+          metadata: {
+            last_action: key,
+            selected_product_context: selection.product,
+            selected_product_id: selection.product?.id || selection.product?.product_id || "",
+            selected_size: messageContext.selected_size,
+          },
+          context: { ...messageContext, selected_product_context: selection.product },
+        });
+        return;
+      }
+      const resolvedProduct = selection.product;
+      const resolvedVariant = selection.variant;
+      if (!resolvedVariant) {
+        logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: selection.reason || "variant_resolution_failed" });
+        await submitQuestion("مش قادر أحدد النسخة المناسبة دلوقتي، جرب مرة تانية أو ابعت صورة أوضح.", {
+          metadata: { last_action: key, selected_product_context: resolvedProduct },
+          context: { ...messageContext, selected_product_context: resolvedProduct },
+        });
+        return;
+      }
+      logWebsiteChatEvent("WEBSITE_CHAT_VARIANT_RESOLVED", {
+        intent: key,
+        selected_product_id: resolvedProduct?.id || resolvedProduct?.product_id || "",
+        selected_variant_id: resolvedVariant?.id || resolvedVariant?.variant_id || "",
+        selected_size: resolvedVariant?.size || messageContext.selected_size || "",
+        selected_color: resolvedVariant?.color || resolvedVariant?.color_name || messageContext.selected_color || "",
+      });
+      pushAiSupportContext({
+        selected_product_context: resolvedProduct,
+        selected_product_id: resolvedProduct?.id || resolvedProduct?.product_id || "",
+        selected_variant_id: resolvedVariant?.id || resolvedVariant?.variant_id || "",
+        selected_size: resolvedVariant?.size || messageContext.selected_size || "",
+        selected_color: resolvedVariant?.color || resolvedVariant?.color_name || messageContext.selected_color || "",
+        selected_color_key: variantColorKey(resolvedVariant),
+        last_action: key,
+      });
+      const result = addToCart(resolvedProduct, resolvedVariant, 1);
+      if (result === "capture_required") {
+        logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "customer_capture_required" });
+        await submitQuestion("لازم أولًا أراجع بياناتك قبل ما أكمل الإضافة للسلة.", {
+          force: true,
+          metadata: {
+            last_action: key,
+            selected_product_context: resolvedProduct,
+            selected_variant_id: resolvedVariant?.id || resolvedVariant?.variant_id || "",
+          },
+          context: { ...messageContext, selected_product_context: resolvedProduct, selected_variant_id: resolvedVariant?.id || resolvedVariant?.variant_id || "" },
+        });
+        return;
+      }
+      if (result === "added") {
+        trackAiSupportCartOutcome({ tenantId, sessionId, productId: resolvedProduct?.id || resolvedProduct?.product_id || "" });
+        logWebsiteChatEvent("WEBSITE_CHAT_ADD_TO_CART_SUCCESS", {
+          intent: key,
+          selected_product_id: resolvedProduct?.id || resolvedProduct?.product_id || "",
+          selected_variant_id: resolvedVariant?.id || resolvedVariant?.variant_id || "",
+          selected_size: resolvedVariant?.size || messageContext.selected_size || "",
+          selected_color: resolvedVariant?.color || resolvedVariant?.color_name || messageContext.selected_color || "",
+        });
+        setMessages((items) => [
+          ...items,
+          {
+            id: `a_cart_${Date.now()}`,
+            role: "assistant",
+            answer: `تمام، ضفت ${cleanDisplayText(mirrorProductTitle(resolvedProduct, resolvedVariant) || resolvedProduct.name || "المنتج")} ${resolvedVariant?.size ? `مقاس ${resolvedVariant.size}` : ""}${resolvedVariant?.color ? ` - ${resolvedVariant.color}` : ""} للسلة.`,
+            reply_text: `تمام، ضفت ${cleanDisplayText(mirrorProductTitle(resolvedProduct, resolvedVariant) || resolvedProduct.name || "المنتج")} ${resolvedVariant?.size ? `مقاس ${resolvedVariant.size}` : ""}${resolvedVariant?.color ? ` - ${resolvedVariant.color}` : ""} للسلة.`,
+            confidence: 1,
+            needs_human_support: false,
+            detected_intent: "cart_confirmation",
+            handoff: null,
+            draft_order: null,
+          },
+        ]);
+      }
+      if (["buy_now", "buy_now_action", "checkout", "order_now"].includes(key)) {
+        navigate("/shop/checkout");
+      }
       return;
     }
 
     if (raw.length && raw.length <= 64) {
-      submitQuestion(raw);
+      await submitQuestion(raw, { context: messageContext, metadata: { last_action: key } });
     }
-  }, [openProduct, submitQuestion, supportHref]);
+  }, [addToCart, aiSupportContext, navigate, pushAiSupportContext, resolveAiSupportVariantSelection, sessionId, submitQuestion, supportHref, tenantId, logWebsiteChatEvent]);
 
   const handleImageInputChange = useCallback((event) => {
     const file = event.target.files?.[0];
@@ -2233,12 +2642,6 @@ function AiSupportChatWidget() {
     const file = Array.from(event.dataTransfer?.files || []).find((item) => item.type?.startsWith("image/"));
     if (file) submitImage(file);
   }, [submitImage]);
-
-  const openProduct = useCallback((product) => {
-    trackAiSupportClick({ tenantId, sessionId, productId: product?.id || product?.product_id });
-    navigate(aiSuggestedProductUrl(product));
-    setOpen(false);
-  }, [navigate, sessionId, tenantId]);
 
   const openAssistant = useCallback(() => {
     dismissAssistantHint();
@@ -2354,7 +2757,7 @@ function AiSupportChatWidget() {
                               <button
                                 key={`quick-reply-${label}-${index}`}
                                 type="button"
-                                onClick={() => handleUnifiedActionClick(item, { product: message.product_cards?.[0] || message.suggested_products?.[0] || null })}
+                                onClick={() => handleUnifiedActionClick(item, { product: message.product_cards?.[0] || message.suggested_products?.[0] || aiSupportContext.selected_product_context || null })}
                                 className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
                               >
                                 {label}
@@ -2373,7 +2776,7 @@ function AiSupportChatWidget() {
                               <button
                                 key={`action-${key}-${index}`}
                                 type="button"
-                                onClick={() => handleUnifiedActionClick(item, { product: message.product_cards?.[0] || message.suggested_products?.[0] || null })}
+                                onClick={() => handleUnifiedActionClick(item, { product: message.product_cards?.[0] || message.suggested_products?.[0] || aiSupportContext.selected_product_context || null })}
                                 className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-right text-[11px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:bg-[#f5f3ff] hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
                               >
                                 {key}

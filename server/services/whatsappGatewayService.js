@@ -2041,6 +2041,19 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       image_sent_count: imageMessages.length,
       image_failed_count: imageSendErrors.length,
     });
+    console.log("[AI_CHANNEL_ADAPTER_RESULT]", {
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      adapter_used: "whatsappAdapter",
+      conversation_id: outboundPlan.conversation_id,
+      provider_message_id: text(message.external_message_id || message.raw?.event?.message?.mid || ""),
+      inbound_text: body,
+      intent: currentIntent,
+      products_count: Array.isArray(generated.aiPayload?.suggested_products) ? generated.aiPayload.suggested_products.length : 0,
+      product_cards_count: Array.isArray(generated.aiPayload?.product_cards) ? generated.aiPayload.product_cards.length : 0,
+      image_cards_count: sendableImageCards.length,
+      actions_count: Array.isArray(generated.aiPayload?.actions) ? generated.aiPayload.actions.length : 0,
+      send_result: result,
+    });
     return {
       ...generated,
       replyText: finalReplyText,
