@@ -17,3 +17,4 @@ export const updateEmployeePenalty = (id, payload = {}) => api.patch(`/employee-
 export const cancelEmployeePenalty = (id) => api.delete(`/employee-penalties/${id}`);
 export const updateEmployeePayrollSettings = (employeeId, payload = {}) => api.patch(`/employees/${employeeId}/payroll-settings`, payload);
 export const regenerateEmployeePortalToken = (employeeId) => api.post(`/employees/${employeeId}/portal-token/regenerate`, {});
+export const regenerateManagerPortalToken = (employeeId) => api.post(`/employees/${employeeId}/manager-portal-token/regenerate`, {});
