@@ -500,6 +500,31 @@ const logOrchestrator = (event, payload = {}) => {
   console.log(`[${event}]`, buildLogPayload(payload));
 };
 
+const logReasoningFailureRootCause = ({
+  intent = "",
+  activeProductId = "",
+  activeVariantId = "",
+  generatedReasoningText = "",
+  generatedProductCardsCount = 0,
+  generatedImageCardsCount = 0,
+  failureReason = "",
+  fallbackReplyUsed = false,
+  message = "",
+} = {}) => {
+  console.log("[REASONING_FAILURE_ROOT_CAUSE]", {
+    stage: "generateUnifiedAiReply",
+    intent: text(intent),
+    active_product_id: text(activeProductId),
+    active_variant_id: text(activeVariantId),
+    generated_reasoning_text: text(generatedReasoningText),
+    generated_product_cards_count: Number(generatedProductCardsCount) || 0,
+    generated_image_cards_count: Number(generatedImageCardsCount) || 0,
+    failure_reason: text(failureReason),
+    fallback_reply_used: Boolean(fallbackReplyUsed),
+    message: text(message),
+  });
+};
+
 const fetchUnifiedAiSupportReply = async ({
   tenantId,
   branchId = null,
@@ -574,6 +599,17 @@ const fetchUnifiedAiSupportReply = async ({
       image_cards_count: countItems(raw?.visual_attachments),
       actions_count: countItems(raw?.suggested_actions),
       early_return_reason: text(raw?.fallback_reason || raw?.reason || "request_failed"),
+    });
+    logReasoningFailureRootCause({
+      intent: text(raw?.detected_intent || raw?.intent?.type || message?.intent || ""),
+      activeProductId: text(productsContext?.active_product_id || productsContext?.selected_product_id || productsContext?.selected_product_context?.product_id || ""),
+      activeVariantId: text(productsContext?.active_variant_id || productsContext?.selected_variant_id || productsContext?.selected_product_context?.variant_id || ""),
+      generatedReasoningText: text(raw?.answer || raw?.text || raw?.channel_reply?.text || ""),
+      generatedProductCardsCount: countItems(raw?.product_cards || raw?.suggested_products || raw?.channel_reply?.product_cards),
+      generatedImageCardsCount: countItems(raw?.image_cards || raw?.visual_attachments),
+      failureReason: text(raw?.fallback_reason || raw?.reason || "request_failed"),
+      fallbackReplyUsed: true,
+      message: bodyText,
     });
     throw Object.assign(new Error(raw?.message || "Unified AI support request failed"), {
       status: response.status,
@@ -664,6 +700,33 @@ const fetchUnifiedAiSupportReply = async ({
     lead_reasons: leadScoring.lead_reasons,
     recommended_sales_action: leadScoring.recommended_sales_action,
   };
+  const generatedReasoningText = text(
+    raw?.reasoning_reply_engine?.text ||
+      raw?.reasoning?.reply_text ||
+      raw?.answer ||
+      raw?.text ||
+      unified?.text ||
+      ""
+  );
+  const generatedImageCardsCount = countItems(raw?.image_cards || raw?.visual_attachments || raw?.channel_reply?.image_cards || raw?.channel_reply?.visual_attachments);
+  const failureReason = text(raw?.fallback_reason || raw?.reason || raw?.debug?.early_return_reason || unified?.debug?.early_return_reason || "");
+  const fallbackReplyUsed =
+    Boolean(failureReason) ||
+    !text(generatedReasoningText) ||
+    (generatedReasoningText.length > 0 && generatedReasoningText === text(raw?.product_context?.name || raw?.product_context?.title || raw?.suggested_products?.[0]?.name || raw?.suggested_products?.[0]?.title || raw?.product_cards?.[0]?.name || raw?.product_cards?.[0]?.title || ""));
+  if (fallbackReplyUsed || failureReason) {
+    logReasoningFailureRootCause({
+      intent: unified.intent,
+      activeProductId: unified.active_product_id,
+      activeVariantId: unified.active_variant_id,
+      generatedReasoningText,
+      generatedProductCardsCount: unified.product_cards.length,
+      generatedImageCardsCount,
+      failureReason: failureReason || "reasoning_degraded_output",
+      fallbackReplyUsed,
+      message: bodyText,
+    });
+  }
   logOrchestrator("AI_ORCHESTRATOR_DECISION", {
     tenant_id: tenantId,
     branch_id: branchId,

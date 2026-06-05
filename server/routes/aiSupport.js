@@ -2,7 +2,6 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import db from "../database/db.js";
-import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import {
   buildAiSupportImageProductSearch,
   buildAiSupportImageRankingDebug,
@@ -316,13 +315,21 @@ const dedupeImageCards = (cards = [], { logLabel = "[image-card-dedupe]" } = {})
 
 const resolveVisualCardPrice = (product = {}, variant = null) => {
   const selected = variant || product?.selected_variant || product?.variant || product?.matched_variant || {};
-  const resolved = resolveCustomerDisplayPrice({
-    ...product,
-    variant: selected,
-    selected_variant: selected,
-  });
+  const displayPriceCandidates = [
+    selected?.display_price,
+    selected?.sale_price,
+    selected?.selling_price,
+    product?.matched_variant?.display_price,
+    product?.matched_variant?.sale_price,
+    product?.matched_variant?.selling_price,
+    product?.final_price,
+    product?.price,
+    product?.sale_price,
+  ]
+    .map((value) => Number(value))
+    .find((value) => Number.isFinite(value) && value > 0) || 0;
   return {
-    display_price: Number(resolved.display_price || 0) > 0 ? Number(resolved.display_price) : null,
+    display_price: displayPriceCandidates > 0 ? displayPriceCandidates : null,
     price_source:
       Number(selected?.display_price || 0) > 0 ? "selected_variant.display_price" :
       Number(selected?.sale_price || 0) > 0 ? "selected_variant.sale_price" :
@@ -1377,68 +1384,92 @@ const channelReplyPayload = (req, response = {}) =>
     response,
   });
 
+const aiSupportChatLogContext = (req, response = {}, status = null, error = null) => ({
+  tenant_id: req.aiSupportTenantId || resolveTenantId(req),
+  conversation_id: toText(req.aiChannelMessage?.external_conversation_id || req.body?.session_id || req.body?.metadata?.session_id || ""),
+  channel: req.aiChannelMessage?.channel || req.body?.channel || req.body?.metadata?.channel || AI_AGENT_CHANNELS.WEB_CHAT,
+  message: toText(req.aiChannelMessage?.message_text || req.body?.message || ""),
+  status: status ?? null,
+  error_message: error?.message || "",
+  stack_first_line: toText(error?.stack || "").split("\n")[0] || "",
+  response_shape_keys: Object.keys(response || {}),
+  product_cards_count: Array.isArray(response?.product_cards) ? response.product_cards.length : 0,
+  image_cards_count: Array.isArray(response?.image_cards || response?.visual_attachments) ? (response?.image_cards || response?.visual_attachments).length : 0,
+});
+
 const sendAiSupportChannelResponse = async (req, res, response = {}, status = 200) =>
   {
     const message = toText(req.aiChannelMessage?.message_text || req.body?.message);
     const channel = req.aiChannelMessage?.channel || AI_AGENT_CHANNELS.WEB_CHAT;
-    console.log("[AI_ORCHESTRATOR_ENTER]", {
-      channel,
-      conversation_id: toText(req.aiChannelMessage?.external_conversation_id || req.body?.session_id || req.body?.metadata?.session_id || ""),
-      provider_message_id: toText(req.body?.metadata?.provider_message_id || req.body?.metadata?.external_message_id || ""),
-      inbound_text: message,
-      intent: toText(response?.detected_intent || ""),
-      products_count: Array.isArray(response?.suggested_products) ? response.suggested_products.length : 0,
-      product_cards_count: Array.isArray(response?.product_cards) ? response.product_cards.length : 0,
-      image_cards_count: Array.isArray(response?.visual_attachments) ? response.visual_attachments.length : 0,
-      actions_count: Array.isArray(response?.suggested_actions) ? response.suggested_actions.length : 0,
-      tenant_id: req.aiSupportTenantId || resolveTenantId(req),
-      branch_id: req.aiChannelMessage?.branch_id || null,
-    });
-    const composed = await composeAiSalesReply({
-      message,
-      response,
-      intent: response?.detected_intent ? { type: response.detected_intent } : {},
-      source: channel || "ai_support",
-    });
-    const unified = buildUnifiedAiReplyPayload({
-      tenantId: req.aiSupportTenantId || resolveTenantId(req),
-      channel,
-      conversation: {
-        id: req.aiChannelMessage?.external_conversation_id || req.body?.session_id || req.body?.metadata?.session_id || "",
-        session_id: req.aiChannelMessage?.external_conversation_id || req.body?.session_id || req.body?.metadata?.session_id || "",
-        customer_name: req.aiChannelMessage?.customer_name || req.body?.metadata?.customer_name || "",
-      },
-      customer: {
-        name: req.aiChannelMessage?.customer_name || req.body?.metadata?.customer_name || "",
-        phone: req.aiChannelMessage?.external_customer_id || req.body?.metadata?.customer_phone || "",
-      },
-      message: {
-        text: message,
-        provider_message_id: req.body?.metadata?.provider_message_id || req.body?.metadata?.external_message_id || "",
-      },
-      attachments: req.aiChannelMessage?.attachments || req.body?.metadata?.attachments || [],
-      response: composed,
-      source: "ai_support_route",
-    });
-    console.log("[AI_CHANNEL_ADAPTER_RESULT]", {
-      channel,
-      adapter_used: "websiteChatAdapter",
-      conversation_id: unified.conversation_id,
-      provider_message_id: unified.provider_message_id,
-      inbound_text: message,
-      intent: unified.intent,
-      products_count: Array.isArray(unified.products) ? unified.products.length : 0,
-      product_cards_count: Array.isArray(unified.product_cards) ? unified.product_cards.length : 0,
-      image_cards_count: Array.isArray(unified.image_cards) ? unified.image_cards.length : 0,
-      actions_count: Array.isArray(unified.actions) ? unified.actions.length : 0,
-      send_result: { sent: true, status },
-    });
-    return res.status(status).json({
-      success: status < 400,
-      ...composed,
-      unified_reply: unified,
-      channel_reply: channelReplyPayload(req, composed),
-    });
+    try {
+      const composed = await composeAiSalesReply({
+        message,
+        response,
+        intent: response?.detected_intent ? { type: response.detected_intent } : {},
+        source: channel || "ai_support",
+      });
+      const unified = buildUnifiedAiReplyPayload({
+        tenantId: req.aiSupportTenantId || resolveTenantId(req),
+        channel,
+        conversation: {
+          id: req.aiChannelMessage?.external_conversation_id || req.body?.session_id || req.body?.metadata?.session_id || "",
+          session_id: req.aiChannelMessage?.external_conversation_id || req.body?.session_id || req.body?.metadata?.session_id || "",
+          customer_name: req.aiChannelMessage?.customer_name || req.body?.metadata?.customer_name || "",
+        },
+        customer: {
+          name: req.aiChannelMessage?.customer_name || req.body?.metadata?.customer_name || "",
+          phone: req.aiChannelMessage?.external_customer_id || req.body?.metadata?.customer_phone || "",
+        },
+        message: {
+          text: message,
+          provider_message_id: req.body?.metadata?.provider_message_id || req.body?.metadata?.external_message_id || "",
+        },
+        attachments: req.aiChannelMessage?.attachments || req.body?.metadata?.attachments || [],
+        response: composed,
+        source: "ai_support_route",
+      });
+      console.log("[AI_SUPPORT_CHAT_RESPONSE]", {
+        ...aiSupportChatLogContext(req, composed, status, null),
+        provider_message_id: toText(req.body?.metadata?.provider_message_id || req.body?.metadata?.external_message_id || ""),
+        intent: toText(unified?.intent || composed?.detected_intent || response?.detected_intent || ""),
+        products_count: Array.isArray(unified?.products) ? unified.products.length : 0,
+        product_cards_count: Array.isArray(unified?.product_cards) ? unified.product_cards.length : 0,
+        image_cards_count: Array.isArray(unified?.image_cards) ? unified.image_cards.length : 0,
+        actions_count: Array.isArray(unified?.actions) ? unified.actions.length : 0,
+        branch_id: req.aiChannelMessage?.branch_id || null,
+        status,
+      });
+      console.log("[AI_CHANNEL_ADAPTER_RESULT]", {
+        channel,
+        adapter_used: "websiteChatAdapter",
+        conversation_id: unified.conversation_id,
+        provider_message_id: unified.provider_message_id,
+        inbound_text: message,
+        intent: unified.intent,
+        products_count: Array.isArray(unified.products) ? unified.products.length : 0,
+        product_cards_count: Array.isArray(unified.product_cards) ? unified.product_cards.length : 0,
+        image_cards_count: Array.isArray(unified.image_cards) ? unified.image_cards.length : 0,
+        actions_count: Array.isArray(unified.actions) ? unified.actions.length : 0,
+        send_result: { sent: true, status },
+      });
+      return res.status(status).json({
+        success: status < 400,
+        ...composed,
+        unified_reply: unified,
+        channel_reply: channelReplyPayload(req, composed),
+      });
+    } catch (error) {
+      console.error("[AI_SUPPORT_CHAT_ERROR]", {
+        ...aiSupportChatLogContext(req, response, status, error),
+        provider_message_id: toText(req.body?.metadata?.provider_message_id || req.body?.metadata?.external_message_id || ""),
+        intent: toText(response?.detected_intent || ""),
+        products_count: Array.isArray(response?.suggested_products) ? response.suggested_products.length : 0,
+        product_cards_count: Array.isArray(response?.product_cards) ? response.product_cards.length : 0,
+        image_cards_count: Array.isArray(response?.visual_attachments) ? response.visual_attachments.length : 0,
+        actions_count: Array.isArray(response?.suggested_actions) ? response.suggested_actions.length : 0,
+      });
+      throw error;
+    }
   };
 
 const statelessGreetingOnlyAnswer = (message = "") => {
@@ -2033,6 +2064,18 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
   const tenantId = resolveTenantId(req);
   const earlyIntent = detectAiSupportIntent(req.body?.message);
   if (!tenantId && earlyIntent.type !== "conversational" && earlyIntent.type !== "greeting_only") {
+    console.warn("[AI_SUPPORT_CHAT_ERROR]", {
+      tenant_id: null,
+      conversation_id: toText(req.body?.session_id || req.body?.metadata?.session_id || ""),
+      channel: req.body?.metadata?.channel || req.body?.channel || AI_AGENT_CHANNELS.WEB_CHAT,
+      message: toText(req.body?.message || ""),
+      status: 400,
+      error_message: "A valid tenant id is required for AI support.",
+      stack_first_line: "",
+      response_shape_keys: [],
+      product_cards_count: 0,
+      image_cards_count: 0,
+    });
     return res.status(400).json({
       success: false,
       message: "A valid tenant id is required for AI support.",
@@ -2042,6 +2085,18 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
   next();
 }, aiSupportRateLimit, async (req, res) => {
   try {
+    console.log("[AI_SUPPORT_CHAT_ENTER]", {
+      tenant_id: resolveTenantId(req),
+      conversation_id: toText(req.body?.session_id || req.body?.metadata?.session_id || ""),
+      channel: req.body?.metadata?.channel || req.body?.channel || AI_AGENT_CHANNELS.WEB_CHAT,
+      message: toText(req.body?.message || ""),
+      status: "entered",
+      error_message: "",
+      stack_first_line: "",
+      response_shape_keys: [],
+      product_cards_count: 0,
+      image_cards_count: 0,
+    });
     const tenantId = req.aiSupportTenantId;
     const normalizedMessage = normalizeIncomingChannelMessage({
       channel: req.body?.metadata?.channel || req.body?.channel || AI_AGENT_CHANNELS.WEB_CHAT,
@@ -2061,6 +2116,15 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
     };
     const message = toText(normalizedMessage.message_text);
     if (!message) {
+      console.warn("[AI_SUPPORT_CHAT_ERROR]", {
+        ...aiSupportChatLogContext(req, {}, 400, new Error("Customer message is required.")),
+        provider_message_id: toText(req.body?.metadata?.provider_message_id || req.body?.metadata?.external_message_id || ""),
+        intent: toText(earlyIntent?.type || ""),
+        products_count: 0,
+        product_cards_count: 0,
+        image_cards_count: 0,
+        actions_count: 0,
+      });
       return res.status(400).json({
         success: false,
         message: "Customer message is required.",
@@ -2629,10 +2693,16 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       context: { intent: { type: "route_error" }, fallbackReason: "route_error" },
       response: responsePayload,
     });
-    console.error("[ai-support] route error", {
-      requestId: req.id,
-      message: error?.message,
+    console.error("[AI_SUPPORT_CHAT_ERROR]", {
+      ...aiSupportChatLogContext(req, responsePayload, 500, error),
+      provider_message_id: toText(req.body?.metadata?.provider_message_id || req.body?.metadata?.external_message_id || ""),
+      intent: "route_error",
+      products_count: 0,
+      product_cards_count: 0,
+      image_cards_count: 0,
+      actions_count: 0,
     });
+    console.error("[AI_SUPPORT_CHAT_ERROR_STACK]", error?.stack || "");
     return sendAiSupportChannelResponse(req, res, responsePayload, 500);
   }
 });

@@ -107,14 +107,15 @@ const inferSize = (response = {}, message = "", memory = {}) => {
 const pickFirstText = (...values) => asArray(values).map((value) => text(value)).find(Boolean) || "";
 
 const productColorList = (product = {}, memory = {}) => {
+  const safeProduct = product || {};
   const direct = [
-    ...(Array.isArray(product.available_colors) ? product.available_colors : []),
-    ...(Array.isArray(product.colors) ? product.colors : []),
-    ...(Array.isArray(product.variants) ? product.variants.flatMap((variant) => [variant?.color, variant?.color_name]) : []),
-    product.color,
-    product.matched_variant_color,
-    product.selected_variant?.color,
-    product.selected_variant?.color_name,
+    ...(Array.isArray(safeProduct.available_colors) ? safeProduct.available_colors : []),
+    ...(Array.isArray(safeProduct.colors) ? safeProduct.colors : []),
+    ...(Array.isArray(safeProduct.variants) ? safeProduct.variants.flatMap((variant) => [variant?.color, variant?.color_name]) : []),
+    safeProduct.color,
+    safeProduct.matched_variant_color,
+    safeProduct.selected_variant?.color,
+    safeProduct.selected_variant?.color_name,
     memory?.active_color,
     memory?.preferences?.active_color,
     memory?.preferences?.selected_color,
@@ -1030,6 +1031,31 @@ export function applyHumanSalesPersonalityLayer({
     : stageAwareness.is_buying_intent && closerMeta?.reply_variations?.length
       ? closerMeta.reply_variations
       : buildReasonedVariations;
+
+  const generatedReasoningText = text(reasonedReply.text || "");
+  const fallbackReplyUsed =
+    !generatedReasoningText ||
+    text(finalText) === text(baseText) ||
+    text(finalText).length <= 3 ||
+    /^(?:أيوه|ايوه|موجود|متاح|available)/i.test(normalizeArabic(finalText));
+  if (fallbackReplyUsed) {
+    console.log("[REASONING_FAILURE_ROOT_CAUSE]", {
+      stage: "applyHumanSalesPersonalityLayer",
+      intent: text(intent || response?.detected_intent || response?.intent?.type || response?.intent || ""),
+      active_product_id: activeContext.active_product_id || "",
+      active_variant_id: activeContext.active_variant_id || "",
+      generated_reasoning_text: generatedReasoningText,
+      generated_product_cards_count: asArray(response?.suggested_products).length || asArray(response?.product_cards).length,
+      generated_image_cards_count: asArray(response?.image_cards || response?.visual_attachments).length,
+      failure_reason: !generatedReasoningText
+        ? "personality_reasoning_text_empty"
+        : text(finalText) === text(baseText)
+          ? "personality_used_base_text"
+          : "personality_degraded_to_stub",
+      fallback_reply_used: true,
+      message: text(message),
+    });
+  }
 
   return {
     text: finalText,

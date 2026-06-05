@@ -597,6 +597,30 @@ export const composeAiSalesReply = async ({
     outputProductCount: selectedProducts(output).length,
   });
 
+  const generatedReasoningText = text(output?.answer || output?.text || "");
+  const generatedProductCardsCount = selectedProducts(output).length;
+  const generatedImageCardsCount = asArray(output?.image_cards || output?.visual_attachments || output?.channel_reply?.image_cards).length;
+  const fallbackReplyUsed =
+    !generatedReasoningText ||
+    /^(\u0623\u064a\u0648\u0647|\u0627\u064a\u0648\u0647|\u0645\u0648\u062c\u0648\u062f|\u0645\u062a\u0627\u062d|available)/i.test(normalizeArabic(generatedReasoningText)) ||
+    text(generatedReasoningText).length <= 3;
+  if (fallbackReplyUsed) {
+    console.log("[REASONING_FAILURE_ROOT_CAUSE]", {
+      stage: "composeAiSalesReply",
+      intent: detectedIntent,
+      active_product_id: text(response?.active_product_id || response?.memory_updates?.active_product_id || response?.ai_memory_patch?.preferences?.active_product_id || ""),
+      active_variant_id: text(response?.active_variant_id || response?.memory_updates?.active_variant_id || response?.ai_memory_patch?.preferences?.active_variant_id || ""),
+      generated_reasoning_text: generatedReasoningText,
+      generated_product_cards_count: generatedProductCardsCount,
+      generated_image_cards_count: generatedImageCardsCount,
+      failure_reason: !generatedReasoningText
+        ? "compose_output_empty"
+        : "compose_output_degraded_to_stub",
+      fallback_reply_used: true,
+      message: text(message),
+    });
+  }
+
   const personality = applyHumanSalesPersonalityLayer({
     response: output,
     message,

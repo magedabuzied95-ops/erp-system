@@ -5389,6 +5389,54 @@ const logReasoningRouteUsed = (context = {}) => {
   console.log("[REASONING_ROUTE_USED]", legacyRouteLogContext(context));
 };
 
+const logReasoningFailureRootCause = ({
+  route = "",
+  intent = "",
+  activeProductId = "",
+  activeVariantId = "",
+  generatedReasoningText = "",
+  generatedProductCardsCount = 0,
+  generatedImageCardsCount = 0,
+  failureReason = "",
+  fallbackReplyUsed = false,
+  message = {},
+} = {}) => {
+  console.log("[REASONING_FAILURE_ROOT_CAUSE]", {
+    route: text(route),
+    intent: text(intent),
+    active_product_id: text(activeProductId),
+    active_variant_id: text(activeVariantId),
+    generated_reasoning_text: text(generatedReasoningText),
+    generated_product_cards_count: Number(generatedProductCardsCount) || 0,
+    generated_image_cards_count: Number(generatedImageCardsCount) || 0,
+    failure_reason: text(failureReason),
+    fallback_reply_used: Boolean(fallbackReplyUsed),
+    message: text(message?.message_text || message?.text || ""),
+  });
+};
+
+const logRouteMessageThroughAiError = ({
+  tenantId = "",
+  conversationId = "",
+  channel = "",
+  message = "",
+  error = null,
+  response = null,
+} = {}) => {
+  console.error("[ROUTE_MESSAGE_THROUGH_AI_ERROR]", {
+    tenant_id: text(tenantId),
+    conversation_id: text(conversationId),
+    channel: text(channel),
+    message: text(message),
+    status: error?.status || response?.status || "",
+    error_message: text(error?.message || response?.message || ""),
+    stack_first_line: text(error?.stack || "").split("\n")[0] || "",
+    response_shape_keys: Object.keys(response || error?.responseBody || {}),
+    product_cards_count: Array.isArray(response?.product_cards || error?.responseBody?.product_cards) ? (response?.product_cards || error?.responseBody?.product_cards).length : 0,
+    image_cards_count: Array.isArray(response?.image_cards || response?.responseBody?.image_cards || error?.responseBody?.visual_attachments) ? (response?.image_cards || response?.responseBody?.image_cards || error?.responseBody?.visual_attachments).length : 0,
+  });
+};
+
 const sendReasoningRecoveryReply = async ({
   config,
   message,
@@ -5403,6 +5451,14 @@ const sendReasoningRecoveryReply = async ({
 } = {}) => {
   logLegacyRouteTriggered({ message, route, intent, productId, activeProductId, activeVariantId });
   const reasoningReply = await routeMessageThroughAi({ req: null, message, config }).catch((error) => {
+    logRouteMessageThroughAiError({
+      tenantId: config?.tenant_id,
+      conversationId: message?.external_conversation_id || "",
+      channel: message?.channel || "",
+      message,
+      error,
+      response: error?.responseBody || null,
+    });
     console.warn("[reasoning-route] unified reply failed, falling back to local orchestration", {
       tenant_id: config?.tenant_id,
       conversation_id: message?.external_conversation_id || "",
@@ -5429,6 +5485,36 @@ const sendReasoningRecoveryReply = async ({
     { limit: 6 }
   );
   const selectedReplyText = reasoningText || text(fallbackProductCards?.[0]?.name || fallbackProductCards?.[0]?.title || "");
+  const generatedImageCardsCount = countItems(
+    reasoningReply?.image_cards ||
+      reasoningReply?.visual_attachments ||
+      reasoningReply?.channel_reply?.image_cards ||
+      reasoningReply?.channel_reply?.visual_attachments
+  );
+  const fallbackReplyUsed = !text(reasoningText) || text(selectedReplyText) !== text(reasoningText);
+  const failureReason = !reasoningReply
+    ? "unified_reply_request_failed"
+    : !text(reasoningText) && reasoningCards.length > 0
+      ? "reasoning_text_missing_fallback_to_product_cards"
+      : !text(reasoningText) && reasoningCards.length === 0
+        ? "reasoning_text_missing_fallback_to_text"
+        : /^(?:\s*(?:أيوه|ايوه|موجود|متاح|available|exists)\b)/i.test(text(reasoningText)) && text(reasoningText).length < 30
+          ? "reasoning_text_degraded_to_availability_stub"
+          : text(reasoningText).length > 0 && text(reasoningText) === text(fallbackProductCards?.[0]?.name || fallbackProductCards?.[0]?.title || "")
+            ? "reasoning_text_degraded_to_product_title"
+            : "";
+  logReasoningFailureRootCause({
+    route,
+    intent: reasoningReply?.intent || intent,
+    activeProductId,
+    activeVariantId,
+    generatedReasoningText: reasoningText,
+    generatedProductCardsCount: reasoningCards.length,
+    generatedImageCardsCount,
+    failureReason,
+    fallbackReplyUsed,
+    message,
+  });
   logReasoningRouteUsed({
     message,
     route: `reasoning_${route || "recovery"}`,
@@ -15327,6 +15413,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
         externalCustomerId: message.external_customer_id,
       }).catch(() => {});
     } catch (error) {
+      logRouteMessageThroughAiError({
+        tenantId: config?.tenant_id,
+        conversationId: message?.external_conversation_id || "",
+        channel: alias,
+        message,
+        error,
+        response: error?.responseBody || null,
+      });
       console.error("[meta-inbox] auto_reply_ai_generation_failed", {
         tenant_id: config.tenant_id,
         session_id: message.external_conversation_id,
