@@ -713,15 +713,21 @@ function AttendanceWorkspace({
     ));
   };
 
-  const setManagerPortalToken = (employeeId, token) => {
+  const setManagerPortalToken = (employeeId, token, portalUrl = "") => {
     setEmployees((prev) => prev.map((employee) => (
-      String(employee.id) === String(employeeId) ? { ...employee, manager_portal_token: token } : employee
+      String(employee.id) === String(employeeId)
+        ? { ...employee, manager_portal_token: token, manager_portal_url: portalUrl || employee.manager_portal_url || "" }
+        : employee
     )));
     setEmployeeForm((prev) => (
-      String(prev.id) === String(employeeId) ? { ...prev, manager_portal_token: token } : prev
+      String(prev.id) === String(employeeId)
+        ? { ...prev, manager_portal_token: token, manager_portal_url: portalUrl || prev.manager_portal_url || "" }
+        : prev
     ));
     setEditingEmployee((prev) => (
-      String(prev?.id || "") === String(employeeId) ? { ...prev, manager_portal_token: token } : prev
+      String(prev?.id || "") === String(employeeId)
+        ? { ...prev, manager_portal_token: token, manager_portal_url: portalUrl || prev?.manager_portal_url || "" }
+        : prev
     ));
   };
 

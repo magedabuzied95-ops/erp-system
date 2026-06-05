@@ -30,32 +30,47 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const [portalTokenBusy, setPortalTokenBusy] = useState(false);
   const [portalQrUrl, setPortalQrUrl] = useState("");
+  const [portalToken, setPortalToken] = useState(() => String(employee?.manager_portal_token || "").trim());
+  const [portalTokenUrl, setPortalTokenUrl] = useState(() =>
+    String(employee?.manager_portal_url || employee?.portal_url || "").trim()
+  );
 
-  const token = String(employee?.manager_portal_token || "").trim();
   const employeePortalUrl = String(employee?.manager_portal_url || employee?.portal_url || "").trim();
-  const portalUrl = useMemo(() => (token ? portalUrlFromToken(token) : ""), [token]);
-  const effectivePortalUrl = portalUrl || employeePortalUrl || portalQrUrl;
+  const portalUrl = useMemo(() => (portalToken ? portalUrlFromToken(portalToken) : ""), [portalToken]);
+  const effectivePortalUrl = portalUrl || portalTokenUrl || employeePortalUrl || portalQrUrl;
   const eligibleForManagerPortal = hasManagerPortalAccess(employee);
-  const hasAccess = Boolean(token || eligibleForManagerPortal);
+  const hasAccess = Boolean(portalToken || eligibleForManagerPortal);
   const hasPortalLink = Boolean(effectivePortalUrl);
   const showGenerateAction = !hasPortalLink;
-  const actionLabel = token || employeePortalUrl || portalQrUrl
+  const actionLabel = portalToken || employeePortalUrl || portalQrUrl
     ? (isArabic ? "تجديد الرابط" : "Regenerate Link")
     : (isArabic ? "إنشاء رابط المدير" : "Generate Manager Link");
 
   useEffect(() => {
+    setPortalToken(String(employee?.manager_portal_token || "").trim());
+    setPortalTokenUrl(String(employee?.manager_portal_url || employee?.portal_url || "").trim());
     setPortalQrUrl("");
-  }, [employee?.id]);
+  }, [employee?.id, employee?.manager_portal_token, employee?.manager_portal_url, employee?.portal_url]);
 
-  if (!employee?.id || (!eligibleForManagerPortal && !token)) return null;
+  if (!employee?.id || (!eligibleForManagerPortal && !portalToken)) return null;
 
-  const regeneratePortalLink = async () => {
+  const handleActionEvent = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+  };
+
+  const regeneratePortalLink = async (event) => {
+    handleActionEvent(event);
     try {
       setPortalTokenBusy(true);
       const result = await regenerateManagerPortalToken(employee.id);
       const nextToken = String(result?.token || "").trim();
       const nextUrl = String(result?.portal_url || result?.url || (nextToken ? portalUrlFromToken(nextToken) : "")).trim();
-      if (nextToken) onEmployeeTokenChange(employee.id, nextToken, nextUrl);
+      if (nextToken) {
+        setPortalToken(nextToken);
+        setPortalTokenUrl(nextUrl);
+        onEmployeeTokenChange?.(employee.id, nextToken, nextUrl);
+      }
       setPortalQrUrl(nextUrl);
       toast.success(isArabic ? "تم إنشاء رابط بوابة المدير." : "Manager portal link generated.");
     } catch (error) {
@@ -65,7 +80,8 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
     }
   };
 
-  const copyPortalLink = async () => {
+  const copyPortalLink = async (event) => {
+    handleActionEvent(event);
     try {
       if (!hasPortalLink) return;
       await navigator.clipboard.writeText(effectivePortalUrl);
@@ -75,12 +91,14 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
     }
   };
 
-  const openPortal = () => {
+  const openPortal = (event) => {
+    handleActionEvent(event);
     if (!hasPortalLink) return;
     window.open(effectivePortalUrl, "_blank", "noopener,noreferrer");
   };
 
-  const shareWhatsapp = () => {
+  const shareWhatsapp = (event) => {
+    handleActionEvent(event);
     if (!hasPortalLink) return;
     const message = `${employee.full_name || employee.name || ""}\n${effectivePortalUrl}`;
     shareViaWhatsappWeb({ phone: employee.phone || "", message });
