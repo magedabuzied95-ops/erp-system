@@ -32,10 +32,16 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
   const [portalQrUrl, setPortalQrUrl] = useState("");
 
   const token = String(employee?.manager_portal_token || "").trim();
+  const employeePortalUrl = String(employee?.manager_portal_url || employee?.portal_url || "").trim();
   const portalUrl = useMemo(() => (token ? portalUrlFromToken(token) : ""), [token]);
-  const effectivePortalUrl = portalUrl || portalQrUrl;
+  const effectivePortalUrl = portalUrl || employeePortalUrl || portalQrUrl;
   const eligibleForManagerPortal = hasManagerPortalAccess(employee);
   const hasAccess = Boolean(token || eligibleForManagerPortal);
+  const hasPortalLink = Boolean(effectivePortalUrl);
+  const showGenerateAction = !hasPortalLink;
+  const actionLabel = token || employeePortalUrl || portalQrUrl
+    ? (isArabic ? "تجديد الرابط" : "Regenerate Link")
+    : (isArabic ? "إنشاء رابط المدير" : "Generate Manager Link");
 
   useEffect(() => {
     setPortalQrUrl("");
@@ -47,8 +53,10 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
     try {
       setPortalTokenBusy(true);
       const result = await regenerateManagerPortalToken(employee.id);
-      if (result.token) onEmployeeTokenChange(employee.id, result.token);
-      setPortalQrUrl(result.portal_url || result.url || (result.token ? portalUrlFromToken(result.token) : ""));
+      const nextToken = String(result?.token || "").trim();
+      const nextUrl = String(result?.portal_url || result?.url || (nextToken ? portalUrlFromToken(nextToken) : "")).trim();
+      if (nextToken) onEmployeeTokenChange(employee.id, nextToken, nextUrl);
+      setPortalQrUrl(nextUrl);
       toast.success(isArabic ? "تم إنشاء رابط بوابة المدير." : "Manager portal link generated.");
     } catch (error) {
       toast.error(error?.message || (isArabic ? "تعذر إنشاء رابط بوابة المدير." : "Unable to generate manager portal link."));
@@ -59,7 +67,7 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
 
   const copyPortalLink = async () => {
     try {
-      if (!effectivePortalUrl) return;
+      if (!hasPortalLink) return;
       await navigator.clipboard.writeText(effectivePortalUrl);
       toast.success(isArabic ? "تم نسخ رابط بوابة المدير." : "Manager portal link copied.");
     } catch (error) {
@@ -68,12 +76,12 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
   };
 
   const openPortal = () => {
-    if (!effectivePortalUrl) return;
+    if (!hasPortalLink) return;
     window.open(effectivePortalUrl, "_blank", "noopener,noreferrer");
   };
 
   const shareWhatsapp = () => {
-    if (!effectivePortalUrl) return;
+    if (!hasPortalLink) return;
     const message = `${employee.full_name || employee.name || ""}\n${effectivePortalUrl}`;
     shareViaWhatsappWeb({ phone: employee.phone || "", message });
   };
@@ -122,7 +130,7 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
               : "The manager portal link is tied to the employee record and can be generated or regenerated here without leaving the employee profile."}
           </p>
         </div>
-        {effectivePortalUrl ? (
+        {hasPortalLink ? (
           <div className="rounded-2xl bg-white p-3">
             <Suspense fallback={<div className="h-[96px] w-[96px] rounded-xl bg-white" />}>
               <QRCodeCanvas id={`manager-portal-qr-${employee.id}`} value={effectivePortalUrl} size={96} level="M" />
@@ -134,30 +142,39 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
       <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="text-[10px] font-bold text-zinc-500">{isArabic ? "رابط بوابة المدير" : "Manager portal URL"}</div>
         <div className="mt-2 break-all text-sm font-semibold text-white" dir="ltr">
-          {effectivePortalUrl || (isArabic ? "لم يتم إنشاء رابط بعد" : "No portal link generated yet")}
+          {hasPortalLink ? effectivePortalUrl : (isArabic ? "لم يتم إنشاء رابط بعد" : "No portal link generated yet")}
         </div>
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        <button type="button" onClick={copyPortalLink} disabled={!effectivePortalUrl} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={copyPortalLink} disabled={!hasPortalLink} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
           <Copy className="h-4 w-4" />
           {isArabic ? "نسخ الرابط" : "Copy Link"}
         </button>
-        <button type="button" onClick={openPortal} disabled={!effectivePortalUrl} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={openPortal} disabled={!hasPortalLink} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
           <ExternalLink className="h-4 w-4" />
           {isArabic ? "فتح الرابط" : "Open Link"}
         </button>
-        <button type="button" onClick={shareWhatsapp} disabled={!effectivePortalUrl} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={shareWhatsapp} disabled={!hasPortalLink} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-4 w-4" />
           {isArabic ? "مشاركة واتساب" : "WhatsApp Share"}
         </button>
-        <button type="button" onClick={downloadQr} disabled={portalTokenBusy || !effectivePortalUrl} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" onClick={downloadQr} disabled={portalTokenBusy || !hasPortalLink} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
           <Download className="h-4 w-4" />
           {isArabic ? "تنزيل QR" : "Download QR"}
         </button>
-        <button type="button" onClick={regeneratePortalLink} disabled={portalTokenBusy} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+        <button
+          type="button"
+          onClick={regeneratePortalLink}
+          disabled={portalTokenBusy}
+          className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            showGenerateAction
+              ? "border border-amber-300/30 bg-amber-500 px-4 text-sm font-black text-black hover:bg-amber-400"
+              : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
+          }`}
+        >
           <RefreshCw className={`h-4 w-4 ${portalTokenBusy ? "animate-spin" : ""}`} />
-          {token ? (isArabic ? "تجديد الرابط" : "Regenerate Link") : (isArabic ? "إنشاء الرابط" : "Generate Link")}
+          {actionLabel}
         </button>
       </div>
     </div>
