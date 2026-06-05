@@ -76,7 +76,7 @@ const normalizeConversationMemory = (conversation = {}) => ({
   customer_state: conversation.sales_conversation_state?.current_state || conversation.sales_intelligence?.state?.current_state || "",
 });
 
-const buildSalesConversationIntelligence = async ({
+export const buildSalesConversationIntelligence = async ({
   tenantId,
   conversation,
   messages = [],
@@ -86,6 +86,9 @@ const buildSalesConversationIntelligence = async ({
   selectedProduct = null,
   currentStateRow = null,
   existingJourneyEvents = [],
+  channel = "",
+  providerMessageId = "",
+  traceReason = "",
 } = {}) => {
   const lastCustomerMessage = [...messages].reverse().find((message) => text(message.customer_message || message.message_text || message.last_message));
   const latestMessage = text(lastCustomerMessage?.customer_message || lastCustomerMessage?.message_text || conversation.latest_message_preview || conversation.last_message);
@@ -186,6 +189,19 @@ const buildSalesConversationIntelligence = async ({
     selectedProduct,
     score,
   });
+  if (text(traceReason)) {
+    console.info("[SALES_ENGINE_CHANNEL_TRACE]", {
+      channel: text(channel || conversation.channel || conversation.source || "web_chat"),
+      conversation_id: text(conversation.session_id || ""),
+      provider_message_id: text(providerMessageId || ""),
+      sales_state: text(statePayload.current_state || state.current_state || ""),
+      conversion_score: Number(score?.score ?? 0) || 0,
+      recommended_action: text(closer?.recommended_action || followUp?.recommended_action || score?.recommended_action || "CONTINUE"),
+      product_cards_count: asArray(recommendations).length,
+      draft_order_id: draftOrders[0]?.id || conversation.draft_order?.id || conversation.draft_order_id || "",
+      trace_reason: text(traceReason || ""),
+    });
+  }
   return {
     state: {
       ...statePayload,
@@ -2763,6 +2779,25 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   const productContext = buildProductContext(currentProductForConversation(conversation, recommendations.products));
   const conversationMemory = getConversationMemory(conversationId);
   const replyProductContext = productContext || buildProductContext(conversationMemory?.lastProduct);
+  const latestMessageRow = [...asArray(conversation.messages)].reverse().find((message) => text(message.customer_message || message.message_text || message.last_message)) || {};
+  const salesIntelligence = await buildSalesConversationIntelligence({
+    tenantId,
+    conversation: {
+      ...conversation,
+      channel: conversation.channel || conversation.source || "web_chat",
+      source: conversation.source || conversation.channel || "web_chat",
+    },
+    messages: conversation.messages,
+    draftOrders: asArray(conversation.draft_orders),
+    conversationFollowups: asArray(conversation.followups),
+    recommendations: recommendations.products,
+    selectedProduct: replyProductContext || productContext || currentProductForConversation(conversation, recommendations.products),
+    currentStateRow: conversation.sales_conversation_state || null,
+    existingJourneyEvents: asArray(conversation.sales_journey_events),
+    channel: conversation.channel || conversation.source || "web_chat",
+    providerMessageId: text(latestMessageRow.external_message_id || latestMessageRow.provider_message_id || latestMessageRow.message_id || ""),
+    traceReason: "ai_inbox_reply_generation",
+  }).catch(() => null);
   if (productContext) {
     const lastProduct = rememberProduct(productContext);
     updateConversationMemory(conversationId, { lastProduct });
@@ -2890,6 +2925,19 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     memory: conversationMemory,
     source: "ai_inbox",
   });
+  const channelAdapterPayload = {
+    channel: conversation.channel || conversation.source || "web_chat",
+    text: reply.answer || "",
+    product_cards: reply.suggested_products || [],
+    image_cards: reply.visual_attachments || [],
+    suggested_actions: reply.suggested_actions || [],
+    draft_order: salesIntelligence?.state?.current_state === "DRAFT_ORDER" ? (conversation.draft_order || conversation.draft_orders?.[0] || null) : null,
+    sales_state: salesIntelligence?.state || null,
+    journey_events: salesIntelligence?.journeyEvents || [],
+    conversion: salesIntelligence?.conversion || {},
+    follow_up: salesIntelligence?.followUp || {},
+    closer: salesIntelligence?.closer || {},
+  };
   let message = null;
   if (persist) {
     message = await appendAiGeneratedSupportReply({
@@ -2905,7 +2953,23 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: new Date().toISOString() });
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
   }
-  return { conversation_id: conversationId, reply, message };
+  return {
+    conversation_id: conversationId,
+    reply,
+    message,
+    text: reply.answer || "",
+    intent: intent,
+    sales_state: salesIntelligence?.state || null,
+    journey_events: salesIntelligence?.journeyEvents || [],
+    conversion: salesIntelligence?.conversion || {},
+    follow_up: salesIntelligence?.followUp || {},
+    closer: salesIntelligence?.closer || {},
+    product_cards: reply.suggested_products || [],
+    suggested_actions: reply.suggested_actions || [],
+    draft_order: channelAdapterPayload.draft_order,
+    channel_adapter_payload: channelAdapterPayload,
+    sales_intelligence: salesIntelligence,
+  };
 };
 
 const productLineAr = (product = {}) => {

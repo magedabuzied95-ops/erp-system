@@ -1,5 +1,6 @@
 import { AI_AGENT_CHANNELS, normalizeChannel, normalizeOutgoingChannelReply, sendMetaPageReply, sendWhatsAppCloudReply } from "./aiChannelAdapterService.js";
 import { normalizeProductCards } from "./aiProductCards.js";
+import { buildSalesConversationIntelligence } from "./aiSalesAgentService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -110,6 +111,27 @@ export const buildUnifiedAiReplyPayload = ({
     reason: text(response?.fallback_reason || response?.reason || response?.handoff?.reason || earlyReturnReason || ""),
   };
   const draftOrder = response?.draft_order || response?.ai_order || response?.order_draft || null;
+  const salesIntelligence = response?.sales_intelligence || null;
+  const salesState = response?.sales_state || response?.sales_conversation_state || salesIntelligence?.state || null;
+  const journeyEvents = asArray(response?.journey_events || response?.sales_journey_events || salesIntelligence?.journeyEvents);
+  const conversion = response?.conversion || response?.conversion_probability || salesIntelligence?.conversion || {};
+  const followUp = response?.follow_up || response?.follow_up_recommendation || salesIntelligence?.followUp || {};
+  const closer = response?.closer || response?.proactive_closer || salesIntelligence?.closer || {};
+  const channelAdapterPayload = {
+    channel: normalizedChannel,
+    text: text(response?.answer || response?.text || channelReply.text),
+    intent: text(response?.detected_intent || response?.intent?.type || response?.intent || response?.detectedIntent || ""),
+    product_cards: productCards,
+    image_cards: imageCards,
+    quick_replies: quickReplies,
+    actions,
+    draft_order: draftOrder,
+    sales_state: salesState,
+    journey_events: journeyEvents,
+    conversion,
+    follow_up: followUp,
+    closer,
+  };
   return {
     tenant_id: tenantId,
     branch_id: branchId,
@@ -126,9 +148,16 @@ export const buildUnifiedAiReplyPayload = ({
     image_cards: imageCards,
     quick_replies: quickReplies,
     actions,
+    sales_state: salesState,
+    journey_events: journeyEvents,
+    conversion,
+    follow_up: followUp,
+    closer,
     memory_updates: memoryUpdates,
     draft_order: draftOrder,
     handoff,
+    channel_adapter_payload: channelAdapterPayload,
+    sales_intelligence: salesIntelligence,
     debug: {
       ...(response?.debug || {}),
       source,
@@ -246,6 +275,35 @@ const fetchUnifiedAiSupportReply = async ({
       responseBody: raw,
     });
   }
+  const salesProducts = collectProducts(raw);
+  const salesIntelligence = await buildSalesConversationIntelligence({
+    tenantId,
+    conversation: {
+      ...conversation,
+      id: sessionId,
+      session_id: sessionId,
+      channel: normalizedChannel,
+      source: normalizedChannel,
+      latest_message_preview: bodyText,
+      last_message: bodyText,
+    },
+    messages: [{
+      customer_message: bodyText,
+      message_text: bodyText,
+      last_message: bodyText,
+      channel: normalizedChannel,
+      created_at: new Date().toISOString(),
+    }],
+    draftOrders: asArray(raw.draft_order ? [raw.draft_order] : raw.draft_orders),
+    conversationFollowups: asArray(raw.follow_up ? [raw.follow_up] : raw.follow_ups),
+    recommendations: salesProducts,
+    selectedProduct: salesProducts[0] || productsContext?.selected_product || null,
+    currentStateRow: raw.sales_conversation_state || null,
+    existingJourneyEvents: asArray(raw.journey_events || raw.sales_journey_events),
+    channel: normalizedChannel,
+    providerMessageId: text(providerMessageId || message?.provider_message_id || ""),
+    traceReason: "unified_ai_support_reply",
+  }).catch(() => null);
   const unified = buildUnifiedAiReplyPayload({
     tenantId,
     branchId,
@@ -257,7 +315,18 @@ const fetchUnifiedAiSupportReply = async ({
     memory,
     productsContext,
     providerMessageId,
-    response: raw,
+    response: {
+      ...raw,
+      sales_intelligence: salesIntelligence || raw.sales_intelligence || null,
+      sales_state: salesIntelligence?.state || raw.sales_state || raw.sales_conversation_state || null,
+      sales_conversation_state: salesIntelligence?.state || raw.sales_conversation_state || null,
+      journey_events: salesIntelligence?.journeyEvents || raw.journey_events || raw.sales_journey_events || [],
+      conversion: salesIntelligence?.conversion || raw.conversion || raw.conversion_probability || {},
+      follow_up: salesIntelligence?.followUp || raw.follow_up || raw.follow_up_recommendation || {},
+      closer: salesIntelligence?.closer || raw.closer || raw.proactive_closer || {},
+      draft_order: raw.draft_order || raw.ai_order || raw.order_draft || null,
+      suggested_actions: raw.suggested_actions || raw.actions || [],
+    },
     source: "ai_support_route",
   });
   logOrchestrator("AI_ORCHESTRATOR_DECISION", {
