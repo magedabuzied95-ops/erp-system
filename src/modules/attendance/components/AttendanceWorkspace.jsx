@@ -551,6 +551,9 @@ function AttendanceWorkspace({
       return;
     }
 
+    const saveMode = employeeForm.id ? "update" : "create";
+    const employeeId = String(employeeForm.id || "");
+
     try {
       setSaving(true);
       const payload = {
@@ -559,9 +562,18 @@ function AttendanceWorkspace({
         salary: Number(employeeForm.salary || 0),
       };
 
+      console.info("[employee-save:start]", {
+        mode: saveMode,
+        employee_id: employeeId || null,
+        full_name: String(payload.full_name || "").trim(),
+      });
+      console.info("[employee-save:payload]", payload);
+
       const response = employeeForm.id
         ? await updateAttendanceEmployee(employeeForm.id, payload)
         : await createAttendanceEmployee(payload);
+
+      console.info("[employee-save:response]", response);
 
       const row = {
         ...(response?.data || response?.employee || response || {}),
@@ -604,15 +616,19 @@ function AttendanceWorkspace({
       ));
       setSelectedEmployeeId((current) => String(row.id || current || ""));
       toast.success(employeeForm.id ? tr("toasts.employeeUpdated") : tr("toasts.employeeCreated"));
-      await loadBaseData({ silent: true });
+      void loadBaseData({ silent: true });
       if (row.id) {
-        await loadEmployeeRelatedData(String(row.id));
+        void loadEmployeeRelatedData(String(row.id));
       }
     } catch (err) {
-      console.log(err);
+      console.error("[employee-save:error]", err);
       toast.error(err?.message || tr("errors.saveEmployee"));
     } finally {
       setSaving(false);
+      console.info("[employee-save:finally]", {
+        saving: false,
+        employee_id: employeeId || null,
+      });
     }
   };
 
