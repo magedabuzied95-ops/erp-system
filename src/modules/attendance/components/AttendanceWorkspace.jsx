@@ -201,6 +201,18 @@ const createEmptyShiftForm = () => ({
   working_days: "Sun,Mon,Tue,Wed,Thu",
 });
 
+const sameEmployeeRecord = (left = {}, right = {}) =>
+  resolveEmployeeRecordId(left) === resolveEmployeeRecordId(right) &&
+  String(left.full_name || "") === String(right.full_name || "") &&
+  String(left.branch_id || "") === String(right.branch_id || "") &&
+  String(left.employee_code || "") === String(right.employee_code || "") &&
+  String(left.status || "") === String(right.status || "") &&
+  cleanPhotoUrl(left.photo_url || "") === cleanPhotoUrl(right.photo_url || "") &&
+  String(left.job_title || left.position || "") === String(right.job_title || right.position || "");
+
+const sameEmployeeList = (previous = [], next = []) =>
+  previous.length === next.length && previous.every((employee, index) => sameEmployeeRecord(employee, next[index]));
+
 function AttendanceWorkspace({
   defaultTab = "dashboard",
   visibleTabs = null,
@@ -393,12 +405,20 @@ function AttendanceWorkspace({
               .some((value) => String(item.email || item.full_name || "").toLowerCase() === String(value).toLowerCase())
         ) || nextEmployees[0] || null;
 
-      setEmployees(nextEmployees);
+      setEmployees((prev) => {
+        console.trace("[hr-loop:set-state]", "setEmployees");
+        return sameEmployeeList(prev, nextEmployees) ? prev : nextEmployees;
+      });
       setBranches(nextBranches);
       getAttendanceDevices().then((rows) => setAttendanceDevices(safeArray(rows))).catch(() => setAttendanceDevices([]));
       getAttendanceDeviceSettings().then((settings) => setDeviceSettings(settings?.data || settings || { new_device_policy: "pending" })).catch(() => {});
       if (defaultBranchId) {
-        setFilters((prev) => (prev.branchId ? prev : { ...prev, branchId: defaultBranchId }));
+        setFilters((prev) => {
+          if (prev.branchId) return prev;
+          const nextBranchId = String(defaultBranchId || "");
+          if (String(prev.branchId || "") === nextBranchId) return prev;
+          return { ...prev, branchId: nextBranchId };
+        });
       }
       setBranchesLoading(false);
       setDailyReport(nextDailyReport);
@@ -414,18 +434,32 @@ function AttendanceWorkspace({
         hasShownReportError.current = false;
       }
       if (selectedMatch) {
-        setSelectedEmployeeId((prev) => prev || String(selectedMatch.id));
-        setEmployeeForm((prev) =>
-          prev.id
-            ? prev
-            : {
-                ...prev,
-                branch_id: selectedMatch.branch_id || defaultBranchId || "",
-                branch_name: selectedMatch.branch_name || "",
-              }
-        );
+        setSelectedEmployeeId((prev) => {
+          const nextSelectedEmployeeId = String(prev || selectedMatch.id || "");
+          console.trace("[hr-loop:set-state]", "setSelectedEmployeeId");
+          return prev === nextSelectedEmployeeId ? prev : nextSelectedEmployeeId;
+        });
+        setEmployeeForm((prev) => {
+          if (prev.id) return prev;
+          const nextBranchId = selectedMatch.branch_id || defaultBranchId || "";
+          const nextBranchName = selectedMatch.branch_name || "";
+          if (String(prev.branch_id || "") === String(nextBranchId) && String(prev.branch_name || "") === String(nextBranchName)) {
+            return prev;
+          }
+          console.trace("[hr-loop:set-state]", "setEmployeeForm");
+          return {
+            ...prev,
+            branch_id: nextBranchId,
+            branch_name: nextBranchName,
+          };
+        });
       } else if (defaultBranchId) {
-        setEmployeeForm((prev) => (prev.branch_id ? prev : { ...prev, branch_id: defaultBranchId }));
+        setEmployeeForm((prev) => {
+          if (prev.branch_id) return prev;
+          if (String(prev.branch_id || "") === String(defaultBranchId || "")) return prev;
+          console.trace("[hr-loop:set-state]", "setEmployeeForm");
+          return { ...prev, branch_id: defaultBranchId };
+        });
       }
     } catch (err) {
       console.log(err);
@@ -450,36 +484,34 @@ function AttendanceWorkspace({
     console.log("[hr-loop]", "sync_external_selected_employee", {
       employee_id: nextSelectedEmployeeId,
       selectedEmployeeId,
-      editingEmployeeId: String(employeeForm.id || ""),
     });
-    setSelectedEmployeeId(nextSelectedEmployeeId);
-  }, [employeeForm.id, externalSelectedEmployeeId, selectedEmployeeId]);
+    setSelectedEmployeeId((prev) => {
+      console.trace("[hr-loop:set-state]", "setSelectedEmployeeId");
+      return prev === nextSelectedEmployeeId ? prev : nextSelectedEmployeeId;
+    });
+  }, [externalSelectedEmployeeId, selectedEmployeeId]);
 
   useEffect(() => {
     if (typeof onSelectedEmployeeChange !== "function") return;
-    const nextSelectedEmployeeId = String(selectedEmployee?.id || "");
+    const nextSelectedEmployeeId = String(selectedEmployee?.id || selectedEmployee?.employee_id || "");
     if (lastNotifiedSelectedEmployeeIdRef.current === nextSelectedEmployeeId) return;
     lastNotifiedSelectedEmployeeIdRef.current = nextSelectedEmployeeId;
     console.log("[hr-loop]", "notify_parent_selected_employee", {
       employee_id: nextSelectedEmployeeId,
-      selectedEmployeeId,
-      editingEmployeeId: String(employeeForm.id || ""),
     });
     onSelectedEmployeeChange(selectedEmployee || null);
-  }, [employeeForm.id, onSelectedEmployeeChange, selectedEmployee?.id, selectedEmployeeId]);
+  }, [onSelectedEmployeeChange, selectedEmployee?.employee_id, selectedEmployee?.id]);
 
   useEffect(() => {
     if (selectedEmployeeId) {
       console.log("[hr-loop]", "load_employee_related_data", {
         employee_id: String(selectedEmployeeId || ""),
-        selectedEmployeeId,
-        editingEmployeeId: String(employeeForm.id || ""),
       });
       queueMicrotask(() => {
         void loadEmployeeRelatedData(selectedEmployeeId);
       });
     }
-  }, [employeeForm.id, loadEmployeeRelatedData, selectedEmployeeId]);
+  }, [loadEmployeeRelatedData, selectedEmployeeId]);
 
   const dashboardSummary = useMemo(() => {
     const summary = dailyReport?.summary || dailyReport || {};
@@ -1034,21 +1066,32 @@ function AttendanceWorkspace({
     }
   };
 
-  const allTabs = [
-    { key: "dashboard", label: tr("tabs.dashboard") },
-    { key: "employees", label: tr("tabs.employees") },
-    { key: "devices", label: tr("tabs.devices") },
-    { key: "reports", label: tr("tabs.reports") },
-    { key: "kiosk", label: tr("tabs.kiosk") },
-  ];
-  const tabs = Array.isArray(visibleTabs) && visibleTabs.length
-    ? allTabs.filter((tab) => visibleTabs.includes(tab.key))
-    : allTabs;
+  const allTabs = useMemo(
+    () => [
+      { key: "dashboard", label: tr("tabs.dashboard") },
+      { key: "employees", label: tr("tabs.employees") },
+      { key: "devices", label: tr("tabs.devices") },
+      { key: "reports", label: tr("tabs.reports") },
+      { key: "kiosk", label: tr("tabs.kiosk") },
+    ],
+    [tr]
+  );
+  const visibleTabsKey = Array.isArray(visibleTabs) ? visibleTabs.join("|") : "";
+  const visibleTabsSet = useMemo(() => new Set(Array.isArray(visibleTabs) ? visibleTabs : []), [visibleTabsKey]);
+  const tabs = useMemo(
+    () => (visibleTabsSet.size ? allTabs.filter((tab) => visibleTabsSet.has(tab.key)) : allTabs),
+    [allTabs, visibleTabsSet]
+  );
 
   useEffect(() => {
     const fallbackTab = tabs.some((tab) => tab.key === defaultTab) ? defaultTab : tabs[0]?.key || "dashboard";
-    if (!tabs.some((tab) => tab.key === selectedTab)) setSelectedTab(fallbackTab);
-  }, [defaultTab, selectedTab, tabs]);
+    setSelectedTab((prev) => {
+      if (tabs.some((tab) => tab.key === prev)) return prev;
+      if (prev === fallbackTab) return prev;
+      console.trace("[hr-loop:set-state]", "setSelectedTab");
+      return fallbackTab;
+    });
+  }, [defaultTab, tabs]);
 
   return (
     <div className="space-y-6" dir={direction}>

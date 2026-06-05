@@ -181,6 +181,23 @@ const payrollNumber = (value) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : NaN;
 };
+const monthRangeFromAnchor = (anchorValue, offset = 0) => {
+  const anchor = new Date(`${String(anchorValue || today).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(anchor.getTime())) {
+    const fallback = new Date(`${today}T00:00:00Z`);
+    const start = new Date(Date.UTC(fallback.getUTCFullYear(), fallback.getUTCMonth() + offset, 1));
+    const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0));
+    return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10), period: start.toISOString().slice(0, 7) };
+  }
+  const start = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + offset, 1));
+  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0));
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10), period: start.toISOString().slice(0, 7) };
+};
+const payrollPeriodLabel = (start, end) => {
+  const date = new Date(`${String(start || "").slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return `${String(start || "-")} - ${String(end || "-")}`;
+  return date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+};
 
 const SalesEmployeeRow = memo(function SalesEmployeeRow({ employee, t, onConfigure }) {
   const mode = normalizeCommissionMode(employee);
@@ -305,6 +322,8 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const [payrollEmployeeAdjusted, setPayrollEmployeeAdjusted] = useState(false);
   const [report, setReport] = useState({ rows: [], summary: {} });
   const [payrollPreview, setPayrollPreview] = useState(null);
+  const [payrollHistory, setPayrollHistory] = useState([]);
+  const [payrollHistoryLoading, setPayrollHistoryLoading] = useState(false);
   const [payrollCalculating, setPayrollCalculating] = useState(false);
   const [payrollFinalizing, setPayrollFinalizing] = useState(false);
   const [payrollCalculateStatus, setPayrollCalculateStatus] = useState("");
@@ -320,6 +339,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const [saving, setSaving] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const lastSyncedReportEmployeeIdRef = useRef("");
+  const payrollHistoryRequestRef = useRef(0);
   const staffTableRef = useRef(null);
   const reportTableRef = useRef(null);
   const penaltiesTableRef = useRef(null);
@@ -365,6 +385,97 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     () => employees.find((item) => matchEmployeeId(item.id, payroll.employee_id)) || null,
     [employees, payroll.employee_id]
   );
+  const payrollPeriodLabelValue = useMemo(
+    () => payrollPeriodLabel(filters.start_date, filters.end_date),
+    [filters.start_date, filters.end_date]
+  );
+  const payrollSnapshot = payrollPreview?.payroll || {};
+  const payrollCurrentNet = numberValue(payrollSnapshot.net_pay ?? payrollSnapshot.final_salary);
+  const payrollBaseSalary = numberValue(payrollSnapshot.base_salary ?? payroll.base_salary ?? payrollEmployee?.salary ?? payrollEmployee?.base_salary ?? 0);
+  const payrollCommissions = numberValue(payrollSnapshot.sales_earnings ?? payrollSnapshot.commissions ?? 0);
+  const payrollBonuses = numberValue(payrollSnapshot.bonuses ?? payroll.bonuses ?? 0);
+  const payrollManualDeductions = numberValue(payrollSnapshot.manual_deductions ?? payroll.deductions ?? 0);
+  const payrollAdvanceDeductions = numberValue(payrollSnapshot.advance_deductions ?? 0);
+  const payrollPenaltyDeductions = numberValue(payrollSnapshot.penalty_deductions ?? payrollSnapshot.penalties_total ?? 0);
+  const payrollAttendanceDeductions = numberValue(payrollSnapshot.attendance_deduction_total ?? payrollSnapshot.absence_deductions ?? 0);
+  const payrollLateDeductions = numberValue(payrollSnapshot.late_deduction ?? 0);
+  const payrollAttendanceOnlyDeductions = Math.max(0, payrollAttendanceDeductions - payrollLateDeductions);
+  const payrollTotalDeductions = numberValue(payrollSnapshot.deductions ?? payrollManualDeductions + payrollAdvanceDeductions + payrollPenaltyDeductions + payrollAttendanceDeductions);
+  const payrollSubtotal = payrollBaseSalary + payrollCommissions + payrollBonuses;
+  const payrollStatusIssues = useMemo(() => {
+    const issues = [];
+    const hasEmployee = Boolean(payroll.employee_id);
+    if (!hasEmployee) {
+      issues.push({ key: "employee", label: t("sales.payroll.selectEmployee", "Select employee") });
+      return issues;
+    }
+    if (!payrollEmployee) {
+      issues.push({ key: "employee_missing", label: t("sales.payroll.missingEmployee", "Employee record is missing") });
+    }
+    if (!payrollBaseSalary) {
+      issues.push({ key: "salary", label: t("sales.payroll.missingSalarySetup", "Missing employee salary setup") });
+    }
+    if (!payrollPreview) {
+      issues.push({ key: "preview", label: t("sales.payroll.calculatePrompt", "Calculate payroll to review totals") });
+      return issues;
+    }
+    if (numberValue(payrollSnapshot.expected_working_days) > 0 && numberValue(payrollSnapshot.attended_days) === 0) {
+      issues.push({ key: "attendance", label: t("sales.payroll.missingAttendanceData", "Missing attendance data") });
+    }
+    if (numberValue(payrollSnapshot.qr_records_count) === 0 && numberValue(payrollSnapshot.expected_working_days) > 0) {
+      issues.push({ key: "attendance_records", label: t("sales.payroll.unresolvedAttendanceRecords", "Unresolved attendance records") });
+    }
+    if ((payrollPreview.employee_advances || []).some((advance) => String(advance.status || advance.deduction_status || "").toLowerCase() !== "settled")) {
+      issues.push({ key: "advance", label: t("sales.payroll.pendingAdvanceRequest", "Pending advance request") });
+    }
+    return issues;
+  }, [payroll.employee_id, payrollBaseSalary, payrollEmployee, payrollPreview, payrollSnapshot, t]);
+  const payrollStatus = useMemo(() => {
+    if (!payroll.employee_id) {
+      return { key: "BLOCKED", label: t("sales.payroll.blocked", "Payroll Issues Detected"), tone: "rose" };
+    }
+    if (!payrollBaseSalary) {
+      return { key: "BLOCKED", label: t("sales.payroll.blocked", "Payroll Issues Detected"), tone: "rose" };
+    }
+    if (!payrollPreview) {
+      return { key: "REQUIRES_REVIEW", label: t("sales.payroll.requiresReview", "Requires Review"), tone: "amber" };
+    }
+    const blockedIssue = payrollStatusIssues.find((issue) =>
+      ["salary", "attendance", "attendance_records", "employee_missing"].includes(issue.key)
+    );
+    if (blockedIssue) {
+      return { key: "BLOCKED", label: t("sales.payroll.blocked", "Payroll Issues Detected"), tone: "rose" };
+    }
+    if (payrollStatusIssues.length) {
+      return { key: "REQUIRES_REVIEW", label: t("sales.payroll.requiresReview", "Requires Review"), tone: "amber" };
+    }
+    return { key: "READY_FOR_APPROVAL", label: t("sales.payroll.readyForApproval", "Ready For Approval"), tone: "emerald" };
+  }, [payroll.employee_id, payrollBaseSalary, payrollPreview, payrollStatusIssues, t]);
+  const payrollChangeIndicator = useMemo(() => {
+    const previous = payrollHistory[1]?.payroll || null;
+    const previousNet = numberValue(previous?.net_pay ?? previous?.final_salary);
+    if (!previousNet) return null;
+    const delta = payrollCurrentNet - previousNet;
+    const percent = previousNet ? (delta / previousNet) * 100 : 0;
+    return { delta, percent };
+  }, [payrollCurrentNet, payrollHistory]);
+  const payrollChecklist = useMemo(() => {
+    const hasPreview = Boolean(payrollPreview);
+    return [
+      { label: t("sales.payroll.attendanceCalculated", "Attendance Calculated"), passed: Boolean(hasPreview && numberValue(payrollSnapshot.expected_working_days) >= 0) },
+      { label: t("sales.payroll.commissionsCalculated", "Commissions Calculated"), passed: Boolean(hasPreview) },
+      { label: t("sales.payroll.advancesApplied", "Advances Applied"), passed: Boolean(hasPreview) },
+      { label: t("sales.payroll.deductionsApplied", "Deductions Applied"), passed: Boolean(hasPreview) },
+      { label: t("sales.payroll.noPendingIssues", "No Pending Payroll Issues"), passed: payrollStatus.key === "READY_FOR_APPROVAL" },
+    ];
+  }, [payrollPreview, payrollSnapshot.expected_working_days, payrollStatus.key, t]);
+  const payrollHistoryRows = useMemo(() => {
+    const currentPeriod = String(filters.end_date || today).slice(0, 7);
+    return payrollHistory.map((row) => ({
+      ...row,
+      isCurrent: row.period === currentPeriod,
+    }));
+  }, [filters.end_date, payrollHistory]);
   const payrollPortalUrl = useMemo(() => {
     const token = payrollEmployee?.employee_portal_token;
     if (!token) return "";
@@ -373,6 +484,71 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   }, [payrollEmployee?.employee_portal_token]);
   const showEmployeeGamificationSettings = featureFlags.showEmployeeGamificationSettings;
   const showEmployeeWalletQa = false;
+
+  useEffect(() => {
+    if (!payroll.employee_id || !selectedBranchId) {
+      setPayrollHistory([]);
+      return undefined;
+    }
+    const requestId = payrollHistoryRequestRef.current + 1;
+    payrollHistoryRequestRef.current = requestId;
+    let active = true;
+    const employeeId = String(payroll.employee_id);
+    const baseSalary = numberValue(payrollEmployee?.salary ?? payrollEmployee?.base_salary ?? 0);
+    const periods = Array.from({ length: 6 }, (_, index) => monthRangeFromAnchor(filters.end_date || today, -index));
+    setPayrollHistoryLoading(true);
+    Promise.all(
+      periods.map(async (period) => {
+        try {
+          const response = await getSalesEmployeePayrollPreview(employeeId, {
+            branch_id: selectedBranchId,
+            start: period.start,
+            end: period.end,
+            base_salary: baseSalary,
+            bonuses: 0,
+            deductions: 0,
+            deduction_month: period.period,
+          });
+          const payrollData = response?.payroll || {};
+          return {
+            period: period.period,
+            label: payrollPeriodLabel(period.start, period.end),
+            start: period.start,
+            end: period.end,
+            payroll: payrollData,
+            isCurrent: period.period === String(filters.end_date || today).slice(0, 7),
+            finalized: Boolean(response?.payroll_run),
+          };
+        } catch (error) {
+          return {
+            period: period.period,
+            label: payrollPeriodLabel(period.start, period.end),
+            start: period.start,
+            end: period.end,
+            payroll: {
+              base_salary: baseSalary,
+              sales_earnings: 0,
+              commissions: 0,
+              bonuses: 0,
+              deductions: 0,
+              net_pay: baseSalary,
+            },
+            isCurrent: period.period === String(filters.end_date || today).slice(0, 7),
+            finalized: false,
+          };
+        }
+      })
+    ).then((rows) => {
+      if (!active || payrollHistoryRequestRef.current !== requestId) return;
+      setPayrollHistory(rows.filter(Boolean));
+    }).finally(() => {
+      if (!active || payrollHistoryRequestRef.current !== requestId) return;
+      setPayrollHistoryLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [filters.end_date, payroll.employee_id, payrollEmployee, selectedBranchId]);
 
   const categories = useMemo(() => {
     const byId = new Map();
@@ -1201,6 +1377,26 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       {activeTab === "payroll" ? (
         <main className="space-y-4">
           <section className="theme-card p-4">
+            <PayrollFinancialSummary
+              payroll={payrollSnapshot}
+              historyRows={payrollHistoryRows}
+              historyLoading={payrollHistoryLoading}
+              currentPayrollFinalized={Boolean(payrollPreview?.payroll_run || payrollPreview?.finalized)}
+              status={payrollStatus}
+              issues={payrollStatusIssues}
+              checklist={payrollChecklist}
+              changeIndicator={payrollChangeIndicator}
+              periodLabel={payrollPeriodLabelValue}
+              isRtl={isRtl}
+              t={t}
+              onCalculate={handleCalculatePayroll}
+              onFinalize={finalizePayroll}
+              calculating={payrollCalculating}
+              finalizing={payrollFinalizing}
+            />
+          </section>
+
+          <section className="theme-card p-4">
             <div className="mb-4 flex items-center gap-3">
               <Calculator className="h-5 w-5 text-[var(--primary)]" />
               <div>
@@ -1387,28 +1583,6 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
             </div>
           </section>
           ) : null}
-
-          <section className="theme-card p-4">
-            <div className="mb-4 flex flex-col gap-1">
-              <h3 className="text-lg font-black leading-7">{t("sales.payroll.salarySummary", "Salary Summary")}</h3>
-              <p className="text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.editableInputsHint", "Editable inputs remain above and calculated totals are summarized here.")}</p>
-            </div>
-            {payrollPreview ? (
-              <PayrollFinancialSummary
-                payroll={payrollPreview.payroll || {}}
-                periodStart={filters.start_date}
-                periodEnd={filters.end_date}
-                isRtl={isRtl}
-                t={t}
-                onFinalize={finalizePayroll}
-                finalizing={payrollFinalizing}
-              />
-            ) : (
-              <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm font-semibold text-[var(--muted)]">
-                {t("sales.payroll.empty", "Select an employee and calculate payroll to preview totals.")}
-              </div>
-            )}
-          </section>
 
           {payrollPreview ? (
             <section className="theme-card p-4">
@@ -1741,54 +1915,313 @@ function Metric({ label, value, emphasis = false, isRtl = false }) {
   );
 }
 
-function PayrollFinancialSummary({ payroll, periodStart, periodEnd, isRtl, t, onFinalize, finalizing }) {
-  const netPay = numberValue(payroll.net_pay ?? payroll.final_salary);
-  const totalDeductions = numberValue(payroll.deductions);
+function PayrollFinancialSummary({
+  payroll,
+  historyRows = [],
+  historyLoading = false,
+  currentPayrollFinalized = false,
+  status,
+  issues = [],
+  checklist = [],
+  changeIndicator = null,
+  periodLabel,
+  isRtl,
+  t,
+  onCalculate,
+  onFinalize,
+  calculating,
+  finalizing,
+}) {
+  const baseSalary = numberValue(payroll.base_salary);
+  const commissions = numberValue(payroll.sales_earnings ?? payroll.commissions ?? 0);
+  const bonuses = numberValue(payroll.bonuses);
+  const subtotal = baseSalary + commissions + bonuses;
+  const manualDeductions = numberValue(payroll.manual_deductions);
   const advanceDeductions = numberValue(payroll.advance_deductions);
-  const penaltyDeductions = numberValue(payroll.penalty_deductions ?? payroll.penalties);
-  const absenceDeductions = numberValue(payroll.attendance_deduction_total ?? payroll.absence_deductions ?? payroll.absence_penalties);
-  const otherDeductions = Math.max(0, totalDeductions - advanceDeductions - penaltyDeductions - absenceDeductions);
-  const periodLabel = periodStart && periodEnd ? `${periodStart} - ${periodEnd}` : t("sales.payroll.currentPeriod", "Current payroll period");
-  const absenceDetails = [
-    { label: t("sales.payroll.expectedWorkingDays", "Expected working days"), value: numberValue(payroll.expected_working_days), raw: true },
-    { label: t("sales.payroll.presentDays", "Present days"), value: numberValue(payroll.attended_days), raw: true },
-    { label: t("sales.payroll.deductedAbsenceDays", "Deducted absence days"), value: numberValue(payroll.absent_working_days ?? payroll.absence_days), raw: true },
-    { label: t("sales.payroll.excludedDaysOff", "Excluded days off"), value: numberValue(payroll.excluded_days_off), raw: true },
-    { label: t("sales.payroll.dailyRate", "Daily rate"), value: numberValue(payroll.daily_rate), money: true },
-    { label: t("sales.payroll.absenceDeduction", "Absence deduction"), value: numberValue(payroll.absence_deduction), deduction: true },
+  const penaltyDeductions = numberValue(payroll.penalty_deductions ?? payroll.penalties_total ?? payroll.penalties);
+  const attendanceDeductions = numberValue(payroll.attendance_deduction_total ?? payroll.absence_deductions ?? payroll.absence_penalties);
+  const lateDeductions = numberValue(payroll.late_deduction);
+  const attendanceOnlyDeductions = Math.max(0, attendanceDeductions - lateDeductions);
+  const totalDeductions = numberValue(payroll.deductions ?? manualDeductions + advanceDeductions + penaltyDeductions + attendanceDeductions);
+  const netPay = numberValue(payroll.net_pay ?? payroll.final_salary ?? subtotal - totalDeductions);
+  const attendanceSnapshot = [
+    { label: t("sales.payroll.presentDays", "Present Days"), value: numberValue(payroll.attended_days), tone: "emerald" },
+    { label: t("sales.payroll.absentDays", "Absent Days"), value: numberValue(payroll.absent_working_days ?? payroll.absence_days), tone: "rose" },
+    { label: t("sales.payroll.lateDays", "Late Days"), value: numberValue(payroll.late_hours ?? 0), tone: "amber" },
+    { label: t("sales.payroll.earlyLeaveCount", "Early Leave Count"), value: numberValue(payroll.early_leave_hours ?? 0), tone: "sky" },
+    { label: t("sales.payroll.overtimeHours", "Overtime Hours"), value: numberValue(payroll.overtime_hours ?? 0), tone: "cyan" },
+    { label: t("sales.payroll.approvedLeaves", "Approved Leaves"), value: numberValue((payroll.excluded_leave_days ?? 0) + (payroll.excluded_holiday_days ?? 0)), tone: "zinc" },
   ];
-  const deductionItems = [
+  const deductionRows = [
+    { label: t("sales.payroll.lateDeductions", "Late Deductions"), value: lateDeductions, deduction: true },
+    { label: t("sales.payroll.attendanceDeductions", "Attendance Deductions"), value: attendanceOnlyDeductions, deduction: true },
     { label: t("sales.payroll.advances", "Advances"), value: advanceDeductions, deduction: true },
     { label: t("sales.payroll.penalties", "Penalties"), value: penaltyDeductions, deduction: true },
-    { label: t("sales.payroll.absence", "Absence"), value: absenceDeductions, deduction: true },
-    { label: t("sales.payroll.otherDeductions", "Other deductions"), value: otherDeductions, deduction: true },
+    { label: t("sales.payroll.otherDeductions", "Other deductions"), value: Math.max(0, totalDeductions - lateDeductions - attendanceOnlyDeductions - advanceDeductions - penaltyDeductions), deduction: true },
   ];
-  const cards = [
-    { label: t("sales.payroll.baseSalary", "Base Salary"), value: formatPayrollMoney(payroll.base_salary), tone: "neutral", icon: Banknote },
-    { label: t("sales.payroll.salesCommission", "Sales Commission"), value: formatPayrollMoney(payroll.sales_earnings ?? payroll.commissions ?? 0), tone: "positive", icon: TrendingUp },
-    { label: t("sales.payroll.bonuses", "Bonuses"), value: formatPayrollMoney(payroll.bonuses), tone: "positive", icon: Coins },
-    { label: t("sales.payroll.employeeSales", "Employee Sales"), value: formatPayrollMoney(payroll.earned_sales_amount || 0), tone: "analytics", icon: ReceiptText },
-    { label: t("sales.payroll.eligibleItems", "Eligible Items"), value: payroll.eligible_items_count || 0, tone: "analytics", icon: ShieldCheck },
-    { label: t("sales.payroll.totalDeductions", "Total Deductions"), value: formatDeductions(totalDeductions), tone: "negative", icon: CreditCard, details: deductionItems },
-    { label: t("sales.payroll.absence", "Absence"), value: formatDeductions(absenceDeductions), tone: "negative", icon: CalendarDays, details: absenceDetails },
-    { label: t("sales.payroll.employeeAdvances", "Employee Advances"), value: formatDeductions(advanceDeductions), tone: "warning", icon: WalletCards },
+  const overviewCards = [
+    { label: t("sales.payroll.baseSalary", "Base Salary"), value: formatPayrollMoney(baseSalary), tone: "neutral", icon: Banknote },
+    { label: t("sales.payroll.totalDeductions", "Total Deductions"), value: formatDeductions(totalDeductions), tone: "negative", icon: CreditCard, details: deductionRows },
+    { label: t("sales.payroll.totalBonuses", "Total Bonuses"), value: formatPayrollMoney(bonuses), tone: "positive", icon: Gift },
+    { label: t("sales.payroll.totalAdvances", "Total Advances"), value: formatDeductions(advanceDeductions), tone: "warning", icon: WalletCards },
+    { label: t("sales.payroll.totalCommissions", "Total Commissions"), value: formatPayrollMoney(commissions), tone: "analytics", icon: TrendingUp },
   ];
+  const historyTone = (row) => {
+    if (row.finalized || (row.isCurrent && currentPayrollFinalized)) return "bg-emerald-500/15 text-emerald-200";
+    if (row.isCurrent && status?.key === "BLOCKED") return "bg-rose-500/15 text-rose-200";
+    if (row.isCurrent && status?.key === "REQUIRES_REVIEW") return "bg-amber-500/15 text-amber-100";
+    return "bg-white/5 text-white";
+  };
 
   return (
-    <div dir={isRtl ? "rtl" : "ltr"} className={`grid gap-4 text-start xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.46fr)] ${isRtl ? "xl:[direction:ltr]" : ""}`}>
-      <div className={`grid grid-cols-2 gap-3 text-start lg:grid-cols-3 ${isRtl ? "xl:[direction:rtl]" : ""}`}>
-        {cards.map((card) => (
-          <PayrollBreakdownCard key={card.label} {...card} isRtl={isRtl} />
-        ))}
+    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-12">
+        <section className="theme-card p-4 xl:col-span-8">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className={isRtl ? "text-[11px] font-bold text-[var(--muted)]" : "text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]"}>{t("sales.payroll.overview", "Payroll Overview")}</div>
+              <h3 className="mt-1 text-2xl font-black leading-8">{periodLabel}</h3>
+            </div>
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black ${status?.tone === "emerald" ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : status?.tone === "rose" ? "border-rose-300/25 bg-rose-400/10 text-rose-100" : "border-amber-300/25 bg-amber-400/10 text-amber-100"}`}>
+              <ShieldCheck className="h-4 w-4" />
+              {status?.label}
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <div className="rounded-[28px] border border-emerald-300/20 bg-[radial-gradient(circle_at_20%_0%,rgba(16,185,129,.26),transparent_32%),linear-gradient(145deg,rgba(6,78,59,.96),rgba(2,6,23,.98))] p-5 text-white shadow-[0_24px_70px_rgba(16,185,129,.18)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-100/80">{t("sales.payroll.netSalary", "Net Salary")}</div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-emerald-200/25 bg-white/10 px-3 py-1 text-xs font-black text-emerald-50">
+                      {status?.label}
+                    </span>
+                    {changeIndicator ? (
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${changeIndicator.delta >= 0 ? "bg-emerald-400/15 text-emerald-100" : "bg-rose-400/15 text-rose-100"}`}>
+                        {changeIndicator.delta >= 0 ? "↑" : "↓"} {formatPayrollMoney(Math.abs(changeIndicator.delta))} ({changeIndicator.percent >= 0 ? "+" : ""}{changeIndicator.percent.toFixed(0)}%)
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-200/25 bg-emerald-300/15 text-emerald-50">
+                  <WalletCards className="h-6 w-6" />
+                </div>
+              </div>
+              <div dir="ltr" className={`mt-6 text-4xl font-black leading-tight tabular-nums text-emerald-50 [unicode-bidi:isolate] md:text-5xl ${isRtl ? "text-right" : "text-left"}`}>
+                {formatPayrollMoney(netPay)}
+              </div>
+              <div className="mt-3 text-sm font-bold text-emerald-100/75">
+                {t("sales.payroll.comparedToPrevious", "Compared to Previous Payroll")}
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm font-black sm:grid-cols-3">
+                {overviewCards.map((card) => (
+                  <PayrollBreakdownCard key={card.label} {...card} isRtl={isRtl} />
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-3">
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                <div className={labelClass(isRtl, "text-[10px]")}>{t("sales.payroll.statusEngine", "Payroll Status Engine")}</div>
+                <div className="mt-3 grid gap-2">
+                  {issues.length ? issues.map((issue) => (
+                    <div key={issue.key} className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/10 px-3 py-2 text-sm font-semibold text-white">
+                      <AlertTriangle className="h-4 w-4 text-amber-300" />
+                      <span dir="auto">{issue.label}</span>
+                    </div>
+                  )) : (
+                    <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-3 text-sm font-semibold text-emerald-100">
+                      {t("sales.payroll.noIssuesDetected", "No payroll issues detected.")}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                <div className={labelClass(isRtl, "text-[10px]")}>{t("sales.payroll.validationChecklist", "Pre-Approval Validation Checklist")}</div>
+                <div className="mt-3 grid gap-2">
+                  {checklist.map((item) => (
+                    <div key={item.label} className={`flex items-center justify-between rounded-2xl border px-3 py-2 text-sm font-semibold ${item.passed ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-amber-300/20 bg-amber-400/10 text-amber-100"}`}>
+                      <span>{item.label}</span>
+                      {item.passed ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="theme-card p-4 xl:col-span-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className={labelClass(isRtl, "text-[10px]")}>{t("sales.payroll.workflow", "Approval Workflow")}</div>
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black ${status?.tone === "emerald" ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : status?.tone === "rose" ? "border-rose-300/25 bg-rose-400/10 text-rose-100" : "border-amber-300/25 bg-amber-400/10 text-amber-100"}`}>
+              <ShieldCheck className="h-3.5 w-3.5" />
+              {status?.label}
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {[
+              { step: 1, label: t("sales.payroll.calculatePayroll", "Calculate Payroll"), active: Boolean(payrollPreview), action: onCalculate, button: t("sales.payroll.calculate", "Calculate Salary"), icon: Calculator },
+              { step: 2, label: t("sales.payroll.reviewBreakdown", "Review Breakdown"), active: Boolean(payrollPreview), button: t("sales.payroll.review", "Review"), icon: ReceiptText },
+              { step: 3, label: t("sales.payroll.approvePayroll", "Approve Payroll"), active: status?.key === "READY_FOR_APPROVAL", action: onFinalize, button: finalizing ? t("sales.payroll.finalizing", "Finalizing...") : t("sales.payroll.approvePayroll", "Approve Payroll"), icon: CheckCircle2 },
+              { step: 4, label: t("sales.payroll.markAsPaid", "Mark As Paid"), active: Boolean(payrollPreview?.payroll_run || payrollPreview?.finalized), button: t("sales.payroll.markAsPaid", "Mark As Paid"), icon: WalletCards, disabled: true },
+            ].map((item) => (
+              <div key={item.step} className={`rounded-2xl border p-3 ${item.active ? "border-emerald-300/20 bg-emerald-400/10" : "border-white/10 bg-white/[0.03]"}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("sales.payroll.stepLabel", "Step {{step}}", { step: item.step })}</div>
+                    <div className="mt-1 text-sm font-black text-white">{item.label}</div>
+                  </div>
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.active ? "bg-emerald-300/15 text-emerald-100" : "bg-white/10 text-[var(--muted)]"}`}>
+                    <item.icon className="h-4 w-4" />
+                  </div>
+                </div>
+                {item.action ? (
+                  <button
+                    type="button"
+                    onClick={item.action}
+                    disabled={item.step === 3 ? finalizing || status?.key !== "READY_FOR_APPROVAL" : calculating}
+                    className={`mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black ${item.step === 3 ? "bg-emerald-400 text-slate-950" : "border border-white/10 bg-white/5 text-white"} disabled:cursor-not-allowed disabled:opacity-60`}
+                  >
+                    {item.step === 1 && calculating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {item.button}
+                  </button>
+                ) : (
+                  <div className="mt-3 rounded-2xl border border-dashed border-white/10 px-4 py-3 text-sm font-semibold text-[var(--muted)]">
+                    {item.disabled ? t("sales.payroll.completedAfterApproval", "This becomes available after approval.") : t("sales.payroll.reviewHint", "Open the breakdown panel below for details.")}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
-      <PayrollSalaryHero
-        amount={netPay}
-        periodLabel={periodLabel}
-        isRtl={isRtl}
-        t={t}
-        onFinalize={onFinalize}
-        finalizing={finalizing}
-      />
+
+      <div className="grid gap-4 xl:grid-cols-12">
+        <section className="theme-card p-4 xl:col-span-7">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-black leading-7">{t("sales.payroll.payrollBreakdown", "Payroll Breakdown")}</h3>
+              <p className="text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.breakdownHint", "Accounting-style summary of earnings and deductions.")}</p>
+            </div>
+            <div className="rounded-full border border-white/10 bg-black/10 px-3 py-1 text-xs font-black text-[var(--muted)]">
+              {periodLabel}
+            </div>
+          </div>
+          <div className="grid gap-2">
+            {[
+              { label: t("sales.payroll.baseSalary", "Base Salary"), value: baseSalary, positive: true },
+              { label: t("sales.payroll.bonuses", "Bonuses"), value: bonuses, positive: true },
+              { label: t("sales.payroll.commission", "Commissions"), value: commissions, positive: true },
+              { label: t("sales.payroll.subtotal", "Subtotal"), value: subtotal, subtotal: true },
+              { label: t("sales.payroll.lateDeductions", "Late Deductions"), value: lateDeductions, deduction: true },
+              { label: t("sales.payroll.attendanceDeductions", "Attendance Deductions"), value: attendanceOnlyDeductions, deduction: true },
+              { label: t("sales.payroll.totalDeductions", "Total Deductions"), value: totalDeductions, deduction: true, total: true },
+              { label: t("sales.payroll.netSalary", "Net Salary"), value: netPay, total: true, featured: true },
+            ].map((row) => (
+              <div key={row.label} className={`grid grid-cols-[1fr_auto] items-center gap-3 rounded-2xl border px-4 py-3 ${row.featured ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-50" : row.total ? "border-white/10 bg-white/[0.04]" : row.deduction ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : "border-white/10 bg-black/10 text-white"}`}>
+                <span className={`text-sm font-black ${row.featured ? "text-emerald-50" : "text-white"}`}>{row.label}</span>
+                <span dir="ltr" className={`tabular-nums [unicode-bidi:isolate] ${row.deduction ? "text-rose-100" : row.featured ? "text-emerald-50" : "text-white"}`}>
+                  {row.deduction ? formatDeductions(row.value) : formatPayrollMoney(row.value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="theme-card p-4 xl:col-span-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-black leading-7">{t("sales.payroll.performanceSnapshot", "Employee Performance Snapshot")}</h3>
+              <p className="text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.attendanceBasedMetrics", "Attendance data used in payroll calculations.")}</p>
+            </div>
+            <ShieldCheck className="h-5 w-5 text-emerald-300" />
+          </div>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {attendanceSnapshot.map((item) => (
+              <div key={item.label} className={`rounded-2xl border px-3 py-3 ${item.tone === "rose" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : item.tone === "amber" ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : item.tone === "emerald" ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.04] text-white"}`}>
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--muted)]">{item.label}</div>
+                <div dir="ltr" className="mt-2 text-2xl font-black tabular-nums [unicode-bidi:isolate]">{item.value}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="theme-card p-4 xl:col-span-12">
+          <div className="mb-4 flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h3 className="text-lg font-black leading-7">{t("sales.payroll.historyTitle", "Employee Payroll History")}</h3>
+              <p className="text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.historySubtitle", "Last 6 payroll periods for the selected employee.")}</p>
+            </div>
+            {historyLoading ? <div className="text-xs font-bold text-[var(--muted)]">{t("sales.payroll.loadingHistory", "Loading history...")}</div> : null}
+          </div>
+          <div className="hidden overflow-x-auto rounded-2xl border border-[var(--border)] lg:block">
+            <table className="w-full min-w-[780px] text-sm">
+              <thead className={`sticky top-0 z-10 ${tableHeadClass}`}>
+                <tr>
+                  <th className="px-4 py-3">{t("sales.payroll.month", "Month")}</th>
+                  <th className="px-4 py-3 text-end">{t("sales.payroll.baseSalary", "Base Salary")}</th>
+                  <th className="px-4 py-3 text-end">{t("sales.payroll.totalDeductions", "Deductions")}</th>
+                  <th className="px-4 py-3 text-end">{t("sales.payroll.netSalary", "Net Salary")}</th>
+                  <th className="px-4 py-3">{t("sales.payroll.status", "Status")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyRows.length ? historyRows.map((row) => (
+                  <tr key={row.period} className="border-t border-[var(--border)] transition hover:bg-white/[0.03]">
+                    <td className="px-4 py-3">
+                      <div className="font-black text-white">{row.label}</div>
+                      <div className="text-xs text-[var(--muted)]" dir="ltr">{row.period}</div>
+                    </td>
+                    <td className="px-4 py-3 text-end tabular-nums" dir="ltr">{formatPayrollMoney(numberValue(row.payroll?.base_salary))}</td>
+                    <td className="px-4 py-3 text-end tabular-nums" dir="ltr">{formatDeductions(numberValue(row.payroll?.deductions))}</td>
+                    <td className="px-4 py-3 text-end tabular-nums font-black" dir="ltr">{formatPayrollMoney(numberValue(row.payroll?.net_pay ?? row.payroll?.final_salary))}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${historyTone(row)}`}>{row.finalized || (row.isCurrent && currentPayrollFinalized) ? t("sales.payroll.paid", "Paid") : row.isCurrent ? status?.label : t("sales.payroll.calculated", "Calculated")}</span>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan={5} className="px-4 py-10 text-center text-sm font-semibold text-[var(--muted)]">{t("sales.payroll.noHistory", "No payroll history yet.")}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="grid gap-3 lg:hidden">
+            {historyRows.length ? historyRows.map((row) => (
+              <div key={row.period} className="rounded-2xl border border-[var(--border)] bg-black/10 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-black text-white">{row.label}</div>
+                    <div className="text-xs text-[var(--muted)]" dir="ltr">{row.period}</div>
+                  </div>
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${historyTone(row)}`}>{row.finalized || (row.isCurrent && currentPayrollFinalized) ? t("sales.payroll.paid", "Paid") : row.isCurrent ? status?.label : t("sales.payroll.calculated", "Calculated")}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted)]">{t("sales.payroll.baseSalary", "Base Salary")}</div>
+                    <div className="mt-1 tabular-nums" dir="ltr">{formatPayrollMoney(numberValue(row.payroll?.base_salary))}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted)]">{t("sales.payroll.totalDeductions", "Deductions")}</div>
+                    <div className="mt-1 tabular-nums" dir="ltr">{formatDeductions(numberValue(row.payroll?.deductions))}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted)]">{t("sales.payroll.netSalary", "Net Salary")}</div>
+                    <div className="mt-1 tabular-nums font-black" dir="ltr">{formatPayrollMoney(numberValue(row.payroll?.net_pay ?? row.payroll?.final_salary))}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted)]">{t("sales.payroll.status", "Status")}</div>
+                    <div className="mt-1">{row.finalized ? t("sales.payroll.paid", "Paid") : row.isCurrent ? status?.label : t("sales.payroll.calculated", "Calculated")}</div>
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center text-sm font-semibold text-[var(--muted)]">{t("sales.payroll.noHistory", "No payroll history yet.")}</div>
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

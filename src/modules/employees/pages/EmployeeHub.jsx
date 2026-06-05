@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, NavLink, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -50,6 +50,13 @@ export default function EmployeeHub() {
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
   const direction = isRtl ? "rtl" : "ltr";
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const handleSelectedEmployeeChange = useCallback((employee) => {
+    setSelectedEmployee(employee);
+  }, []);
+  const employeeDirectoryVisibleTabs = useMemo(() => ["employees"], []);
+  const payrollVisibleTabs = useMemo(() => ["payroll", "penalties"], []);
+  const advancesVisibleTabs = useMemo(() => ["advances", "approvals", "reports"], []);
+  const staffVisibleTabs = useMemo(() => ["staff"], []);
   const tabs = useMemo(
     () => tabDefinitions.map((tab) => ({ ...tab, label: t(`common.employeeHub.tabs.${tab.labelKey}`, tab.id === "analytics" ? t("common.analytics", "Analytics") : tab.labelKey) })),
     [t]
@@ -109,12 +116,12 @@ export default function EmployeeHub() {
 
       {activeTab === "overview" ? <EmployeeOverview onSelectTab={(tab) => navigate(`/employees/${tab}`)} t={t} isRtl={isRtl} /> : null}
       <Suspense fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">{t("common.loading", "Loading...")}</div>}>
-        {activeTab === "employees" ? <HREmployeesWorkspace selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={setSelectedEmployee} /> : null}
+        {activeTab === "employees" ? <HREmployeesWorkspace selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={handleSelectedEmployeeChange} /> : null}
         {activeTab === "attendance" ? <AttendanceCenter /> : null}
-        {activeTab === "payroll" ? <SalesEmployees defaultTab="payroll" visibleTabs={["payroll", "penalties"]} embedded /> : null}
+        {activeTab === "payroll" ? <SalesEmployees defaultTab="payroll" visibleTabs={payrollVisibleTabs} embedded /> : null}
         {activeTab === "requests" ? <HRRequestsWorkspace /> : null}
-        {activeTab === "advances" ? <Expenses defaultTab="advances" visibleTabs={["advances", "approvals", "reports"]} embedded /> : null}
-        {activeTab === "chat" ? <EmployeeChatInbox selectedEmployee={selectedEmployee} selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={setSelectedEmployee} /> : null}
+        {activeTab === "advances" ? <Expenses defaultTab="advances" visibleTabs={advancesVisibleTabs} embedded /> : null}
+        {activeTab === "chat" ? <EmployeeChatInbox selectedEmployee={selectedEmployee} selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={handleSelectedEmployeeChange} /> : null}
         {activeTab === "analytics" ? <EmployeeAnalyticsWorkspace embedded /> : null}
       </Suspense>
       {activeTab === "reports" ? <EmployeeReports onSelectTab={(tab) => navigate(`/employees/${tab}`)} t={t} isRtl={isRtl} /> : null}
@@ -198,8 +205,8 @@ function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChang
         </p>
       </section>
 
-      {section === "directory" ? <AttendanceWorkspace defaultTab="employees" visibleTabs={["employees"]} embedded hideMetrics selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={onSelectedEmployeeChange} /> : null}
-      {section === "sales" ? <SalesEmployees defaultTab="staff" visibleTabs={["staff"]} embedded /> : null}
+      {section === "directory" ? <AttendanceWorkspace defaultTab="employees" visibleTabs={employeeDirectoryVisibleTabs} embedded hideMetrics selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={onSelectedEmployeeChange} /> : null}
+      {section === "sales" ? <SalesEmployees defaultTab="staff" visibleTabs={staffVisibleTabs} embedded /> : null}
     </div>
   );
 }
