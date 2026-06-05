@@ -9,7 +9,7 @@ import {
   upsertChannelConversationMapping,
 } from "./aiChannelAdapterService.js";
 import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
-import { normalizeProductCards } from "./aiProductCards.js";
+import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { appendAiGeneratedSupportReply } from "./aiSupportLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
 import { emitToRooms } from "../utils/socket.js";
@@ -623,7 +623,7 @@ const resolveImageCardPrice = (product = {}) => {
   for (const candidate of candidateSources) {
     const parsed = Number(candidate.value);
     if (Number.isFinite(parsed) && parsed > 0) {
-      console.info("[image-card-price-source]", {
+      debugAiImagesLog("[image-card-price-source]", {
         product_id: text(product?.product_id || product?.id || ""),
         variant_id: text(variant?.id || variant?.variant_id || product?.variant_id || product?.selected_variant_id || product?.matched_variant_id || ""),
         color: text(product?.color || product?.matched_variant_color || variant?.color || ""),
@@ -1700,7 +1700,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       dedupedOutboundCards.push(card);
     }
     if (beforeCardDedupe !== dedupedOutboundCards.length) {
-      console.log("[image-card-dedupe]", {
+      debugAiImagesLog("[image-card-dedupe]", {
         before_count: beforeCardDedupe,
         after_count: dedupedOutboundCards.length,
         removed_count: beforeCardDedupe - dedupedOutboundCards.length,
@@ -1868,7 +1868,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         color: text(product?.color || product?.matched_variant_color || ""),
         sizes,
       });
-      console.info("[image-card-image-url]", {
+      debugAiImagesLog("[image-card-image-url]", {
         product_id: product?.id || product?.product_id || null,
         color: text(product?.color || product?.matched_variant_color || ""),
         image_url: imageSourceUrl,

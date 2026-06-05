@@ -10,6 +10,7 @@ import {
   getAiSupportConversationState,
   markAiSupportConversationEscalated,
 } from "./aiSupportLogService.js";
+import { createNotification } from "./notificationsService.js";
 import {
   AI_AGENT_CHANNELS,
   extractMetaWebhookMessages,
@@ -91,8 +92,8 @@ const numberOrNull = (value) => {
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const nowIso = () => new Date().toISOString();
 const minutesFromNow = (minutes) => new Date(Date.now() + minutes * 60 * 1000).toISOString();
-const META_COMMERCE_ACTIONS = ["المقاسات", "صور أكتر", "متاح كاش/فيزا؟", "اطلب الآن", "بدائل", "موظف"];
-const META_COMMERCE_ACTION_FALLBACK = "اكتب: المقاسات / صور أكتر / اطلب الآن / بدائل / موظف";
+const META_COMMERCE_ACTIONS = ["المقاسات", "صور أكتر", "متاح كاش/فيزا؟", "اكمل الطلب", "أقرب بديل", "اتكلم مع حد من الفريق"];
+const META_COMMERCE_ACTION_FALLBACK = "تحب أشوفلك المقاسات أو صور أكتر أو بديل قريب أو أكمل الطلب أو أوصلك بحد من الفريق؟";
 const ORDER_DRAFT_REPLY = "تمام، جهزتلك الطلب. ابعتلي الاسم ورقم الموبايل والعنوان للتأكيد.";
 const CHECKOUT_INFO_REPLY = "ابعتلي الاسم ورقم الموبايل والعنوان عشان أجهز الطلب.";
 const HUMAN_HANDOFF_REPLY = "تمام، هحوّلك لحد من الفريق يساعدك حالًا.";
@@ -5571,6 +5572,30 @@ const updateHotLeadState = async ({ tenantId, conversationId, score = 0, reason 
       insight,
       reason,
     });
+    await createNotification({
+      tenant_id: tenantId,
+      role_key: "manager",
+      type: "ai_hot_lead",
+      category: "ai_leads",
+      priority: "high",
+      title: "AI hot lead detected",
+      message: insight || reason || "A hot lead was detected in AI support.",
+      action_url: "/ai/inbox",
+      action_label: "Open AI inbox",
+      entity_type: "ai_support_session",
+      entity_id: String(conversationId),
+      metadata: {
+        session_id: conversationId,
+        hot_lead: true,
+        lead_score: score,
+        insight,
+        reason,
+      },
+    }).catch((error) => console.warn("[ai-hot-lead-notification-skipped]", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      message: error?.message || String(error),
+    }));
   }
   return result.rows[0] || null;
 };

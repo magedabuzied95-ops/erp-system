@@ -8,6 +8,10 @@ export { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const productUrlCache = new Map();
+export const debugAiImagesEnabled = () => ["1", "true", "yes", "on"].includes(String(process.env.DEBUG_AI_IMAGES || "").trim().toLowerCase());
+export const debugAiImagesLog = (...args) => {
+  if (debugAiImagesEnabled()) console.log(...args);
+};
 const trimSlashes = (value = "") => text(value).replace(/^\/+|\/+$/g, "");
 const slugify = (value = "") =>
   text(value)
@@ -108,7 +112,7 @@ const resolvePublicProductUrlCached = (product = {}, { baseUrl = storefrontBaseU
   const cacheKey = `${text(product?.id || product?.product_id || "")}|${text(product?.slug || product?.canonical_slug || product?.product_slug || product?.name || product?.title || product?.product_name)}`;
   const cached = productUrlCache.get(cacheKey);
   if (cached) {
-    console.info("[ai-card-url-cache]", {
+    debugAiImagesLog("[ai-card-url-cache]", {
       product_id: product?.id || product?.product_id || null,
       slug: text(product?.slug || product?.canonical_slug || product?.product_slug || ""),
       cache_hit: true,
@@ -118,7 +122,7 @@ const resolvePublicProductUrlCached = (product = {}, { baseUrl = storefrontBaseU
   }
   const url = resolvePublicProductUrl(product, { baseUrl });
   productUrlCache.set(cacheKey, url);
-  console.info("[ai-card-url-cache]", {
+  debugAiImagesLog("[ai-card-url-cache]", {
     product_id: product?.id || product?.product_id || null,
     slug: text(product?.slug || product?.canonical_slug || product?.product_slug || ""),
     cache_hit: false,
@@ -381,7 +385,7 @@ export const debugProductColorExpansion = (product = {}, { limit = 6 } = {}) => 
       ""
   ).toLowerCase();
   const maxCards = Math.max(1, Number(limit) || 6);
-  console.log("[whatsapp-model-expansion-source]", {
+  debugAiImagesLog("[whatsapp-model-expansion-source]", {
     model_family: text(product?.model_family || product?.model || product?.matched_model || product?.product_family || ""),
     matched_product_id: product?.id || product?.product_id || null,
     raw_products_count: asArray(product?.product_images).length || 0,
@@ -544,7 +548,7 @@ const buildBaseCard = (product = {}, overrides = {}) => {
       ? text(product?.canonical_slug || product?.product_slug)
       : "";
   const cardImageUrl = overrides.image_url || resolveProductImageFromRecord(product);
-  console.info("[ai-card-cloudinary-source]", {
+  debugAiImagesLog("[ai-card-cloudinary-source]", {
     product_id: id,
     variant_id: selectedVariantId,
     color,
@@ -574,7 +578,7 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     numericPrice(product?.price) ? "product.price" :
     numericPrice(product?.sale_price) ? "product.sale_price" :
     "missing";
-  console.info("[image-card-price-source]", {
+  debugAiImagesLog("[image-card-price-source]", {
     product_id: id,
     variant_id: selectedVariantId,
     color,
@@ -583,7 +587,7 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     selected_for_text: selectedVariantId,
     selected_for_card: selectedVariantId,
   });
-  console.info("[image-card-image-url]", {
+  debugAiImagesLog("[image-card-image-url]", {
     product_id: id,
     variant_id: selectedVariantId,
     color,
@@ -636,7 +640,7 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
 
   if (!colorGroups.size) {
     const fallbackCard = buildBaseCard(product);
-    console.log("[ai-product-cards] grouped color cards", {
+    debugAiImagesLog("[ai-product-cards] grouped color cards", {
       product_id: fallbackCard.product_id,
       grouped_colors_count: 0,
       selected_cards: [{ color: fallbackCard.color || "", selected_image: fallbackCard.image_url || "", sizes: fallbackCard.sizes || [] }],
@@ -675,14 +679,14 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
     uniqueCards.push(card);
   }
   if (beforeImageDedupe !== uniqueCards.length) {
-    console.log("[image-card-dedupe]", {
+    debugAiImagesLog("[image-card-dedupe]", {
       before_count: beforeImageDedupe,
       after_count: uniqueCards.length,
       removed_count: beforeImageDedupe - uniqueCards.length,
     });
   }
 
-  console.log("[ai-product-cards] grouped color cards", {
+  debugAiImagesLog("[ai-product-cards] grouped color cards", {
     product_id: product?.id || product?.product_id || null,
     model_family: expansionDebug.model_family || "",
     strong_model_detected: Boolean(product?.strong_model_match || product?.exact_match_found || product?.model_match_confidence >= 0.72),
@@ -722,7 +726,7 @@ export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
       seen.add(key);
       deduped.push(card);
     }
-    console.log("[image-card-dedupe]", {
+    debugAiImagesLog("[image-card-dedupe]", {
       before_count: beforeCount,
       after_count: deduped.length,
       removed_count: beforeCount - deduped.length,
@@ -742,7 +746,7 @@ export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
     }
     const maxCards = Math.max(1, Number(limit) || 6);
     return namedCards.slice(0, maxCards).map((card) => {
-      console.log("[ai-product-cards] card data integrity", {
+      debugAiImagesLog("[ai-product-cards] card data integrity", {
         product_id: card.product_id || card.id || null,
         name: card.name || "",
         slug: card.slug || "",

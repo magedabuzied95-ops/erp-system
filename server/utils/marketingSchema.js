@@ -26,7 +26,7 @@ const defaultTemplates = [
     channel: "all",
     title_template: "Special offer: {{product_name}}",
     caption_template:
-      "عرض مميز على {{product_name}}.\nالسعر الحالي: {{price}} ج.م\n\nالكمية محدودة، اطلب الآن قبل انتهاء العرض.",
+      "عرض مميز على {{product_name}}.\nالسعر الحالي: {{price}} ج.م\n\nالكمية محدودة، كمل الطلب قبل انتهاء العرض.",
     hashtags: "#offer #sale #shopnow #discount",
     is_default: false,
   },
