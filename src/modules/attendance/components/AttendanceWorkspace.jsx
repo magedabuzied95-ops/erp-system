@@ -307,8 +307,36 @@ function AttendanceWorkspace({
   );
   const activeEditingEmployeeName = String(employeeForm.full_name || "").trim() || editingEmployee?.full_name || "";
   const profileEmployee = useMemo(
-    () => editingEmployee || employees.find((item) => resolveEmployeeRecordId(item) === String(employeeForm.id || "")) || null,
-    [editingEmployee, employeeForm.id, employees]
+    () => {
+      const employeeId = String(employeeForm.id || editingEmployee?.id || "");
+      if (!employeeId) return null;
+
+      const baseEmployee =
+        editingEmployee ||
+        employees.find((item) => resolveEmployeeRecordId(item) === employeeId) ||
+        null;
+
+      const mergedEmployee = {
+        ...(baseEmployee || {}),
+        ...employeeForm,
+        id: employeeId,
+      };
+
+      return {
+        ...mergedEmployee,
+        branch_id: employeeForm.branch_id || baseEmployee?.branch_id || "",
+        branch_name: employeeForm.branch_name || baseEmployee?.branch_name || "",
+        role: employeeForm.role || baseEmployee?.role || "",
+        position: employeeForm.position || baseEmployee?.position || employeeForm.job_title || baseEmployee?.job_title || "",
+        job_title: employeeForm.job_title || baseEmployee?.job_title || employeeForm.position || baseEmployee?.position || "",
+        manager_portal_enabled:
+          employeeForm.manager_portal_enabled !== undefined
+            ? Boolean(employeeForm.manager_portal_enabled)
+            : Boolean(baseEmployee?.manager_portal_enabled),
+        manager_portal_token: employeeForm.manager_portal_token || baseEmployee?.manager_portal_token || "",
+      };
+    },
+    [editingEmployee, employeeForm, employees]
   );
   const fallback = tr("fields.notAvailable");
   const employeeSelectOptions = useMemo(
