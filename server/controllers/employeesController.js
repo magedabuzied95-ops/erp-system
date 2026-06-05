@@ -174,7 +174,9 @@ export const getEmployees = async (req, res) => {
         COALESCE(e.late_deduction_enabled, TRUE) AS late_deduction_enabled,
         COALESCE(e.early_leave_deduction_enabled, TRUE) AS early_leave_deduction_enabled,
         e.status,
+        e.manager_portal_enabled,
         e.employee_portal_token,
+        e.manager_portal_token,
         e.created_at,
         e.updated_at
       FROM employees e

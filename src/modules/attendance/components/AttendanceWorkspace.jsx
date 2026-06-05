@@ -188,6 +188,7 @@ const createEmptyEmployeeForm = (branchId = "") => ({
   salary: "",
   hire_date: todayValue(),
   status: "active",
+  manager_portal_enabled: false,
 });
 
 const createEmptyShiftForm = () => ({
@@ -209,7 +210,9 @@ const sameEmployeeRecord = (left = {}, right = {}) =>
   String(left.employee_code || "") === String(right.employee_code || "") &&
   String(left.status || "") === String(right.status || "") &&
   cleanPhotoUrl(left.photo_url || "") === cleanPhotoUrl(right.photo_url || "") &&
-  String(left.job_title || left.position || "") === String(right.job_title || right.position || "");
+  String(left.job_title || left.position || "") === String(right.job_title || right.position || "") &&
+  Boolean(left.manager_portal_enabled) === Boolean(right.manager_portal_enabled) &&
+  String(left.manager_portal_token || "") === String(right.manager_portal_token || "");
 
 const sameEmployeeList = (previous = [], next = []) =>
   previous.length === next.length && previous.every((employee, index) => sameEmployeeRecord(employee, next[index]));
@@ -627,6 +630,8 @@ function AttendanceWorkspace({
         salary: row.salary || "",
         hire_date: row.hire_date || todayValue(),
         status: row.status || "active",
+        manager_portal_enabled: Boolean(row.manager_portal_enabled),
+        manager_portal_token: row.manager_portal_token || "",
       }));
       setEditingEmployee((prev) => (
         String(prev?.id || "") === String(row.id || "")
@@ -712,6 +717,7 @@ function AttendanceWorkspace({
       salary: employee.salary || "",
       hire_date: employee.hire_date || todayValue(),
       status: employee.status || "active",
+      manager_portal_enabled: Boolean(employee.manager_portal_enabled),
       employee_portal_token: employee.employee_portal_token || "",
       manager_portal_token: employee.manager_portal_token || "",
     };
@@ -1624,6 +1630,35 @@ function AttendanceWorkspace({
                       { id: "inactive", label: statusLabel("inactive") },
                     ]}
                   />
+                  <div className="rounded-[28px] border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+                          {isArabic ? "وصول بوابة المدير" : "Manager Portal Access"}
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {isArabic ? "تفعيل بوابة المدير لهذا الموظف" : "Enable manager portal for this employee"}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-zinc-400">
+                          {isArabic
+                            ? "يمكن منح صلاحية بوابة المدير بدون تغيير الدور الرئيسي للموظف."
+                            : "Manager portal access can be granted without changing the employee's main role."}
+                        </div>
+                        <div className="mt-2 text-xs font-bold text-zinc-400">
+                          {isArabic ? "الفرع الحالي" : "Current branch"}: {employeeForm.branch_name || selectedEmployee?.branch_name || fallback}
+                        </div>
+                      </div>
+                      <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+                        <span className="text-xs font-black text-white">{employeeForm.manager_portal_enabled ? (isArabic ? "مفعّل" : "Enabled") : (isArabic ? "غير مفعّل" : "Disabled")}</span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(employeeForm.manager_portal_enabled)}
+                          onChange={(event) => setEmployeeForm((prev) => ({ ...prev, manager_portal_enabled: event.target.checked }))}
+                          className="h-5 w-5 accent-emerald-500"
+                        />
+                      </label>
+                    </div>
+                  </div>
                   <button
                     type="button"
                     onClick={handleSaveEmployee}

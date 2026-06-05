@@ -28,9 +28,28 @@ const numberOrNull = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
 };
 const jsonObject = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+const toBool = (value) => value === true || value === "true" || value === "1" || value === 1;
 const isManagerRole = (role = "") => {
   const normalized = lower(role).replace(/[\s_-]+/g, "_");
   return ["manager", "admin", "super_admin", "superadmin"].includes(normalized);
+};
+const isManagerPortalAccessEnabled = (row = {}) => {
+  if (toBool(row.manager_portal_enabled)) return true;
+  const normalizedFields = [row.role, row.job_title, row.position]
+    .map((value) => lower(value).replace(/[\s_-]+/g, " "))
+    .filter(Boolean)
+    .join(" ");
+  return [
+    "manager",
+    "branch manager",
+    "branch_manager",
+    "admin",
+    "super admin",
+    "superadmin",
+    "super_admin",
+    "مدير",
+    "مدير فرع",
+  ].some((needle) => normalizedFields.includes(lower(needle).replace(/[\s_-]+/g, " ")));
 };
 
 const DEFAULT_MANAGER_NOTIFICATION_SETTINGS = {
@@ -167,7 +186,8 @@ const resolveBranchScope = (manager = {}) => {
   return manager.branch_id ? "branch" : "all";
 };
 
-const resolveManagerPermissions = async ({ tenantId = null, role = "" } = {}) => {
+const resolveManagerPermissions = async ({ tenantId = null, role = "", enabled = false } = {}) => {
+  if (enabled) return defaultManagerPermissions;
   const roleName = clean(role);
   if (!roleName) return defaultManagerPermissions;
   try {
@@ -197,6 +217,7 @@ export const ensureManagerPortalSchema = async (clientOrPool = db) => {
   const runEnsure = async () => {
     await ensureAttendanceSchema(clientOrPool);
     await clientOrPool.query(`ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS manager_portal_token TEXT`);
+    await clientOrPool.query(`ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS manager_portal_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
     await clientOrPool.query(`ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS manager_portal_settings JSONB NOT NULL DEFAULT '{}'::jsonb`);
     await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_manager_portal_token ON employees (manager_portal_token) WHERE manager_portal_token IS NOT NULL AND manager_portal_token <> ''`);
     await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employees_manager_portal_settings ON employees USING GIN (manager_portal_settings)`);
@@ -266,7 +287,12 @@ export const repairMissingManagerPortalTokens = async ({ tenantId = null, client
     FROM employees
     WHERE COALESCE(is_deleted, FALSE) = FALSE
       AND LOWER(COALESCE(status, 'active')) = 'active'
-      AND LOWER(COALESCE(role, '')) IN ('manager', 'admin', 'super_admin', 'superadmin')
+      AND (
+        COALESCE(manager_portal_enabled, FALSE) = TRUE
+        OR LOWER(COALESCE(role, '')) IN ('manager', 'admin', 'super_admin', 'superadmin')
+        OR LOWER(COALESCE(job_title, '')) IN ('manager', 'branch manager', 'branch_manager', 'admin', 'super_admin', 'superadmin', 'super admin', 'مدير', 'مدير فرع')
+        OR LOWER(COALESCE(position, '')) IN ('manager', 'branch manager', 'branch_manager', 'admin', 'super_admin', 'superadmin', 'super admin', 'مدير', 'مدير فرع')
+      )
       AND ($1::bigint IS NULL OR tenant_id = $1::bigint)
       AND (manager_portal_token IS NULL OR manager_portal_token = '')
     ORDER BY id ASC
@@ -288,7 +314,12 @@ export const repairMissingManagerPortalTokens = async ({ tenantId = null, client
           WHERE id::text = $1::text
             AND COALESCE(is_deleted, FALSE) = FALSE
             AND LOWER(COALESCE(status, 'active')) = 'active'
-            AND LOWER(COALESCE(role, '')) IN ('manager', 'admin', 'super_admin', 'superadmin')
+            AND (
+              COALESCE(manager_portal_enabled, FALSE) = TRUE
+              OR LOWER(COALESCE(role, '')) IN ('manager', 'admin', 'super_admin', 'superadmin')
+              OR LOWER(COALESCE(job_title, '')) IN ('manager', 'branch manager', 'branch_manager', 'admin', 'super_admin', 'superadmin', 'super admin', 'مدير', 'مدير فرع')
+              OR LOWER(COALESCE(position, '')) IN ('manager', 'branch manager', 'branch_manager', 'admin', 'super_admin', 'superadmin', 'super admin', 'مدير', 'مدير فرع')
+            )
             AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
             AND (manager_portal_token IS NULL OR manager_portal_token = '')
           RETURNING id, manager_portal_token
@@ -328,6 +359,7 @@ export const loadManagerPortalByToken = async (token) => {
       e.salary,
       e.status,
       COALESCE(e.is_deleted, FALSE) AS is_deleted,
+      COALESCE(e.manager_portal_enabled, FALSE) AS manager_portal_enabled,
       e.branch_id,
       e.manager_portal_token,
       e.manager_portal_settings,
@@ -339,7 +371,12 @@ export const loadManagerPortalByToken = async (token) => {
     WHERE e.manager_portal_token = $1
       AND COALESCE(e.is_deleted, FALSE) = FALSE
       AND LOWER(COALESCE(e.status, 'active')) = 'active'
-      AND LOWER(COALESCE(e.role, '')) IN ('manager', 'admin', 'super_admin', 'superadmin')
+      AND (
+        COALESCE(e.manager_portal_enabled, FALSE) = TRUE
+        OR LOWER(COALESCE(e.role, '')) IN ('manager', 'admin', 'super_admin', 'superadmin')
+        OR LOWER(COALESCE(e.job_title, '')) IN ('manager', 'branch manager', 'branch_manager', 'admin', 'super_admin', 'superadmin', 'super admin', 'مدير', 'مدير فرع')
+        OR LOWER(COALESCE(e.position, '')) IN ('manager', 'branch manager', 'branch_manager', 'admin', 'super_admin', 'superadmin', 'super admin', 'مدير', 'مدير فرع')
+      )
     LIMIT 1
     `,
     [token]
@@ -347,7 +384,7 @@ export const loadManagerPortalByToken = async (token) => {
   const row = result.rows[0] || null;
   if (!row) return null;
 
-  const permissions = await resolveManagerPermissions({ tenantId: row.tenant_id, role: row.role });
+  const permissions = await resolveManagerPermissions({ tenantId: row.tenant_id, role: row.role, enabled: row.manager_portal_enabled });
   return {
     ...row,
     permissions,
@@ -412,6 +449,7 @@ export const getManagerPortalMe = async (manager = {}) => ({
     salary: null,
     branch_id: manager.branch_id || null,
     branch_name: manager.branch_name || "",
+    manager_portal_enabled: Boolean(manager.manager_portal_enabled),
     user_email: manager.user_email || "",
     branch_scope: manager.branch_scope || resolveBranchScope(manager),
   },

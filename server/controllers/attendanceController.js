@@ -1011,6 +1011,8 @@ const normalizeEmployee = (row = {}) => ({
   hire_date: row.hire_date || null,
   status: row.status || "active",
   is_deleted: Boolean(row.is_deleted),
+  manager_portal_enabled: Boolean(row.manager_portal_enabled),
+  manager_portal_token: row.manager_portal_token || "",
   deleted_at: row.deleted_at || null,
   deleted_by_user_id: row.deleted_by_user_id || null,
   created_at: row.created_at || null,
@@ -1516,6 +1518,7 @@ export const createEmployee = async (req, res) => {
       salary,
       hire_date,
       status,
+      manager_portal_enabled = false,
     } = req.body || {};
 
     if (!full_name || !String(full_name).trim()) {
@@ -1544,9 +1547,10 @@ export const createEmployee = async (req, res) => {
         position,
         salary,
         hire_date,
-        status
+        status,
+        manager_portal_enabled
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       RETURNING *
       `,
       [
@@ -1564,6 +1568,7 @@ export const createEmployee = async (req, res) => {
         Number(salary || 0),
         hire_date || new Date().toISOString().slice(0, 10),
         status || "active",
+        Boolean(manager_portal_enabled),
       ]
     );
 
@@ -1602,6 +1607,7 @@ export const updateEmployee = async (req, res) => {
       salary,
       hire_date,
       status,
+      manager_portal_enabled = false,
     } = req.body || {};
 
     const resolvedJobTitle = String(job_title ?? jobTitle ?? position ?? "").trim();
@@ -1623,9 +1629,10 @@ export const updateEmployee = async (req, res) => {
         salary = $11,
         hire_date = $12,
         status = $13,
+        manager_portal_enabled = $14,
         updated_at = NOW()
-      WHERE id = $14
-        AND ($15::bigint IS NULL OR tenant_id = $15::bigint)
+      WHERE id = $15
+        AND ($16::bigint IS NULL OR tenant_id = $16::bigint)
         AND COALESCE(is_deleted, FALSE) = FALSE
       RETURNING *
       `,
@@ -1643,6 +1650,7 @@ export const updateEmployee = async (req, res) => {
         Number(salary || 0),
         hire_date || new Date().toISOString().slice(0, 10),
         status || "active",
+        Boolean(manager_portal_enabled),
         id,
         tenantId,
       ]

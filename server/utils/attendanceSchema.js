@@ -90,6 +90,7 @@ const statements = [
     salary NUMERIC(12,2) NOT NULL DEFAULT 0,
     hire_date DATE NOT NULL DEFAULT CURRENT_DATE,
     status VARCHAR(50) NOT NULL DEFAULT 'active',
+    manager_portal_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     user_id BIGINT NULL,
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
     deleted_at TIMESTAMP NULL,
@@ -135,6 +136,10 @@ const statements = [
   `
   ALTER TABLE IF EXISTS employees
     ADD COLUMN IF NOT EXISTS photo_url TEXT;
+  `,
+  `
+  ALTER TABLE IF EXISTS employees
+    ADD COLUMN IF NOT EXISTS manager_portal_enabled BOOLEAN NOT NULL DEFAULT FALSE;
   `,
   `
   ALTER TABLE IF EXISTS employees

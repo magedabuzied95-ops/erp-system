@@ -19,9 +19,10 @@ const normalizeRole = (value = "") =>
     .toLowerCase()
     .replace(/[_-]+/g, " ");
 
-const isEligibleManagerRole = (employee = {}) => {
+const hasManagerPortalAccess = (employee = {}) => {
+  if (employee?.manager_portal_enabled === true) return true;
   const role = normalizeRole(employee.role || employee.position || employee.job_title || "");
-  return ["manager", "branch manager", "admin", "super admin", "superadmin"].includes(role);
+  return ["manager", "branch manager", "admin", "super admin", "superadmin", "مدير", "مدير فرع"].includes(role);
 };
 
 export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChange = () => {} }) {
@@ -33,7 +34,8 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
   const token = String(employee?.manager_portal_token || "").trim();
   const portalUrl = useMemo(() => (token ? portalUrlFromToken(token) : ""), [token]);
   const effectivePortalUrl = portalUrl || portalQrUrl;
-  const eligibleForManagerPortal = isEligibleManagerRole(employee);
+  const eligibleForManagerPortal = hasManagerPortalAccess(employee);
+  const hasAccess = Boolean(token || eligibleForManagerPortal);
 
   useEffect(() => {
     setPortalQrUrl("");
@@ -103,13 +105,16 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <h3 className="text-2xl font-black text-white">{isArabic ? "إدارة بوابة المدير" : "Manager portal settings"}</h3>
-            <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${token ? "bg-emerald-500/15 text-emerald-200" : "bg-amber-500/15 text-amber-100"}`}>
-              {token ? (isArabic ? "نشط" : "Active") : (isArabic ? "بدون رابط" : "No link")}
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${hasAccess ? "bg-emerald-500/15 text-emerald-200" : "bg-amber-500/15 text-amber-100"}`}>
+              {hasAccess ? (isArabic ? "مفعّل" : "Enabled") : (isArabic ? "بدون صلاحية" : "No access")}
             </span>
           </div>
           <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-zinc-400">
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{isArabic ? "الفرع" : "Branch"}: {employee.branch_name || employee.branch || "-"}</span>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{isArabic ? "الدور" : "Role"}: {employee.role || employee.position || employee.job_title || "-"}</span>
+            {employee.manager_portal_enabled ? (
+              <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-emerald-100">{isArabic ? "مفعل من الإعداد" : "Enabled by toggle"}</span>
+            ) : null}
           </div>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
             {isArabic
