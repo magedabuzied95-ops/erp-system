@@ -389,7 +389,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     () => payrollPeriodLabel(filters.start_date, filters.end_date),
     [filters.start_date, filters.end_date]
   );
-  const payrollSnapshot = payrollPreview?.payroll || {};
+  const payrollSnapshot = (payrollPreview ?? null)?.payroll || {};
   const payrollCurrentNet = numberValue(payrollSnapshot.net_pay ?? payrollSnapshot.final_salary);
   const payrollBaseSalary = numberValue(payrollSnapshot.base_salary ?? payroll.base_salary ?? payrollEmployee?.salary ?? payrollEmployee?.base_salary ?? 0);
   const payrollCommissions = numberValue(payrollSnapshot.sales_earnings ?? payrollSnapshot.commissions ?? 0);
@@ -415,7 +415,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     if (!payrollBaseSalary) {
       issues.push({ key: "salary", label: t("sales.payroll.missingSalarySetup", "Missing employee salary setup") });
     }
-    if (!payrollPreview) {
+    if (!preview) {
       issues.push({ key: "preview", label: t("sales.payroll.calculatePrompt", "Calculate payroll to review totals") });
       return issues;
     }
@@ -425,11 +425,11 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     if (numberValue(payrollSnapshot.qr_records_count) === 0 && numberValue(payrollSnapshot.expected_working_days) > 0) {
       issues.push({ key: "attendance_records", label: t("sales.payroll.unresolvedAttendanceRecords", "Unresolved attendance records") });
     }
-    if ((payrollPreview.employee_advances || []).some((advance) => String(advance.status || advance.deduction_status || "").toLowerCase() !== "settled")) {
+    if ((preview?.employee_advances || []).some((advance) => String(advance.status || advance.deduction_status || "").toLowerCase() !== "settled")) {
       issues.push({ key: "advance", label: t("sales.payroll.pendingAdvanceRequest", "Pending advance request") });
     }
     return issues;
-  }, [payroll.employee_id, payrollBaseSalary, payrollEmployee, payrollPreview, payrollSnapshot, t]);
+  }, [payroll.employee_id, payrollBaseSalary, payrollEmployee, payrollSnapshot, preview, t]);
   const payrollStatus = useMemo(() => {
     if (!payroll.employee_id) {
       return { key: "BLOCKED", label: t("sales.payroll.blocked", "Payroll Issues Detected"), tone: "rose" };
@@ -437,7 +437,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     if (!payrollBaseSalary) {
       return { key: "BLOCKED", label: t("sales.payroll.blocked", "Payroll Issues Detected"), tone: "rose" };
     }
-    if (!payrollPreview) {
+    if (!preview) {
       return { key: "REQUIRES_REVIEW", label: t("sales.payroll.requiresReview", "Requires Review"), tone: "amber" };
     }
     const blockedIssue = payrollStatusIssues.find((issue) =>
@@ -450,7 +450,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       return { key: "REQUIRES_REVIEW", label: t("sales.payroll.requiresReview", "Requires Review"), tone: "amber" };
     }
     return { key: "READY_FOR_APPROVAL", label: t("sales.payroll.readyForApproval", "Ready For Approval"), tone: "emerald" };
-  }, [payroll.employee_id, payrollBaseSalary, payrollPreview, payrollStatusIssues, t]);
+  }, [payroll.employee_id, payrollBaseSalary, payrollStatusIssues, preview, t]);
   const payrollChangeIndicator = useMemo(() => {
     const previous = payrollHistory[1]?.payroll || null;
     const previousNet = numberValue(previous?.net_pay ?? previous?.final_salary);
@@ -460,7 +460,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     return { delta, percent };
   }, [payrollCurrentNet, payrollHistory]);
   const payrollChecklist = useMemo(() => {
-    const hasPreview = Boolean(payrollPreview);
+    const hasPreview = Boolean(preview);
     return [
       { label: t("sales.payroll.attendanceCalculated", "Attendance Calculated"), passed: Boolean(hasPreview && numberValue(payrollSnapshot.expected_working_days) >= 0) },
       { label: t("sales.payroll.commissionsCalculated", "Commissions Calculated"), passed: Boolean(hasPreview) },
@@ -468,7 +468,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       { label: t("sales.payroll.deductionsApplied", "Deductions Applied"), passed: Boolean(hasPreview) },
       { label: t("sales.payroll.noPendingIssues", "No Pending Payroll Issues"), passed: payrollStatus.key === "READY_FOR_APPROVAL" },
     ];
-  }, [payrollPreview, payrollSnapshot.expected_working_days, payrollStatus.key, t]);
+  }, [payrollSnapshot.expected_working_days, payrollStatus.key, preview, t]);
   const payrollHistoryRows = useMemo(() => {
     const currentPeriod = String(filters.end_date || today).slice(0, 7);
     return payrollHistory.map((row) => ({
@@ -1379,9 +1379,10 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
           <section className="theme-card p-4">
             <PayrollFinancialSummary
               payroll={payrollSnapshot}
+              payrollPreview={payrollPreview}
               historyRows={payrollHistoryRows}
               historyLoading={payrollHistoryLoading}
-              currentPayrollFinalized={Boolean(payrollPreview?.payroll_run || payrollPreview?.finalized)}
+              currentPayrollFinalized={Boolean((payrollPreview ?? null)?.payroll_run || (payrollPreview ?? null)?.finalized)}
               status={payrollStatus}
               issues={payrollStatusIssues}
               checklist={payrollChecklist}
@@ -1592,7 +1593,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
                   <p className="text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.advancesSubtitle", "Preview includes active unpaid advances; finalization settles them.")}</p>
                 </div>
               </div>
-              <PayrollAdvancesActivity advances={payrollPreview.employee_advances || []} isRtl={isRtl} t={t} />
+              <PayrollAdvancesActivity advances={(payrollPreview ?? null)?.employee_advances || []} isRtl={isRtl} t={t} />
             </section>
           ) : null}
         </main>
@@ -1917,6 +1918,7 @@ function Metric({ label, value, emphasis = false, isRtl = false }) {
 
 function PayrollFinancialSummary({
   payroll,
+  payrollPreview = null,
   historyRows = [],
   historyLoading = false,
   currentPayrollFinalized = false,
@@ -1932,6 +1934,7 @@ function PayrollFinancialSummary({
   calculating,
   finalizing,
 }) {
+  const preview = payrollPreview ?? null;
   const baseSalary = numberValue(payroll.base_salary);
   const commissions = numberValue(payroll.sales_earnings ?? payroll.commissions ?? 0);
   const bonuses = numberValue(payroll.bonuses);
@@ -2062,10 +2065,10 @@ function PayrollFinancialSummary({
           </div>
           <div className="mt-3 grid gap-2">
             {[
-              { step: 1, label: t("sales.payroll.calculatePayroll", "Calculate Payroll"), active: Boolean(payrollPreview), action: onCalculate, button: t("sales.payroll.calculate", "Calculate Salary"), icon: Calculator },
-              { step: 2, label: t("sales.payroll.reviewBreakdown", "Review Breakdown"), active: Boolean(payrollPreview), button: t("sales.payroll.review", "Review"), icon: ReceiptText },
+              { step: 1, label: t("sales.payroll.calculatePayroll", "Calculate Payroll"), active: Boolean(preview), action: onCalculate, button: t("sales.payroll.calculate", "Calculate Salary"), icon: Calculator },
+              { step: 2, label: t("sales.payroll.reviewBreakdown", "Review Breakdown"), active: Boolean(preview), button: t("sales.payroll.review", "Review"), icon: ReceiptText },
               { step: 3, label: t("sales.payroll.approvePayroll", "Approve Payroll"), active: status?.key === "READY_FOR_APPROVAL", action: onFinalize, button: finalizing ? t("sales.payroll.finalizing", "Finalizing...") : t("sales.payroll.approvePayroll", "Approve Payroll"), icon: CheckCircle2 },
-              { step: 4, label: t("sales.payroll.markAsPaid", "Mark As Paid"), active: Boolean(payrollPreview?.payroll_run || payrollPreview?.finalized), button: t("sales.payroll.markAsPaid", "Mark As Paid"), icon: WalletCards, disabled: true },
+              { step: 4, label: t("sales.payroll.markAsPaid", "Mark As Paid"), active: Boolean(preview?.payroll_run || preview?.finalized), button: t("sales.payroll.markAsPaid", "Mark As Paid"), icon: WalletCards, disabled: true },
             ].map((item) => (
               <div key={item.step} className={`rounded-2xl border p-3 ${item.active ? "border-emerald-300/20 bg-emerald-400/10" : "border-white/10 bg-white/[0.03]"}`}>
                 <div className="flex items-start justify-between gap-3">
