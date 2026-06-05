@@ -391,7 +391,19 @@ export const loadAiConversationMemory = async ({ tenantId, sessionId, customerPh
     `,
     params
   );
-  return result.rows[0] || null;
+  const memory = result.rows[0] || null;
+  if (memory) {
+    const preferences = memory.preferences || {};
+    memory.active_product_id = memory.active_product_id || preferences.active_product_id || preferences.selected_product_id || preferences.last_product_id || "";
+    memory.active_variant_id = memory.active_variant_id || preferences.active_variant_id || preferences.selected_variant_id || preferences.last_product_variant_id || "";
+    memory.active_color = memory.active_color || preferences.active_color || preferences.selected_color || preferences.last_selected_color || "";
+    memory.active_model_family = memory.active_model_family || preferences.active_model_family || preferences.last_model_family || "";
+    memory.selected_product_context = memory.selected_product_context || preferences.selected_product_context || preferences.last_product || preferences.lastProductCard || null;
+    memory.selected_product_id = memory.selected_product_id || preferences.selected_product_id || preferences.last_product_id || "";
+    memory.selected_variant_id = memory.selected_variant_id || preferences.selected_variant_id || preferences.last_product_variant_id || "";
+    memory.selected_color = memory.selected_color || preferences.selected_color || preferences.last_selected_color || "";
+  }
+  return memory;
 };
 
 const mergePreferences = (current = {}, next = {}) => {
@@ -477,6 +489,118 @@ const summarizeProducts = (products = []) =>
     }))
     .filter((product) => product.id || product.name)
     .slice(0, MEMORY_PRODUCT_LIMIT);
+
+const firstNonEmptyText = (...values) => values.map((value) => toText(value)).find(Boolean) || "";
+
+const summarizeActiveProductContext = (product = {}, fallback = {}) => {
+  if (!product || typeof product !== "object") {
+    return {
+      active_product_id: firstNonEmptyText(fallback.active_product_id, fallback.selected_product_id),
+      active_variant_id: firstNonEmptyText(fallback.active_variant_id, fallback.selected_variant_id),
+      active_color: firstNonEmptyText(fallback.active_color, fallback.selected_color),
+      active_model_family: firstNonEmptyText(fallback.active_model_family, fallback.last_model_family),
+      selected_product_context: null,
+    };
+  }
+
+  const selectedVariant = product.selected_variant || product.variant || product.matched_variant || {};
+  const summarized = summarizeProducts([product])[0] || product;
+  return {
+    active_product_id: firstNonEmptyText(product.product_id, product.id, fallback.active_product_id, fallback.selected_product_id),
+    active_variant_id: firstNonEmptyText(
+      product.selected_variant_id,
+      product.variant_id,
+      selectedVariant.id,
+      selectedVariant.variant_id,
+      fallback.active_variant_id,
+      fallback.selected_variant_id
+    ),
+    active_color: firstNonEmptyText(
+      product.color,
+      product.selected_color,
+      product.matched_variant_color,
+      selectedVariant.color,
+      selectedVariant.color_name,
+      fallback.active_color,
+      fallback.selected_color
+    ),
+    active_model_family: firstNonEmptyText(
+      product.model_family,
+      product.model,
+      product.brand,
+      summarized.model_family,
+      fallback.active_model_family,
+      fallback.last_model_family
+    ),
+    selected_product_context: summarized,
+  };
+};
+
+const hasFollowUpContextSignal = (message = "", metadata = {}) => {
+  const blob = normalizeComparable([
+    message,
+    metadata?.followup_intent,
+    metadata?.detected_intent,
+    metadata?.message_type,
+  ].filter(Boolean).join(" "));
+  return /(?:ط§ظ„ظ„ظˆظ†|ظ„ظˆظ†|color|طµظˆط±|image|photo|طµظˆط± ط£ظƒطھط±|more images|ط§ظ„ظ…ظ‚ط§ط³|مقاس|size|غالي|السعر|price|بدائل|بديل|alternatives?)/i.test(blob);
+};
+
+export const resolveActiveProductContext = ({
+  current = null,
+  message = "",
+  metadata = {},
+  suggestedProducts = [],
+  preferencesPatch = {},
+} = {}) => {
+  const currentPreferences = current?.preferences || {};
+  const patch = preferencesPatch && typeof preferencesPatch === "object" ? preferencesPatch : {};
+  const candidate =
+    patch.selected_product_context ||
+    patch.last_product ||
+    metadata.selected_product_context ||
+    metadata.selectedProductContext ||
+    metadata.product_context ||
+    metadata.selected_product ||
+    metadata.product_card ||
+    currentPreferences.selected_product_context ||
+    currentPreferences.last_product ||
+    currentPreferences.lastProductCard ||
+    current?.selected_product_context ||
+    current?.last_product ||
+    current?.lastProductCard ||
+    (Array.isArray(suggestedProducts) && suggestedProducts[0]) ||
+    (Array.isArray(current?.last_products) && current.last_products[0]) ||
+    null;
+
+  const baseFallback = {
+    active_product_id: current?.active_product_id || currentPreferences.active_product_id || currentPreferences.selected_product_id || currentPreferences.last_product_id || "",
+    active_variant_id: current?.active_variant_id || currentPreferences.active_variant_id || currentPreferences.selected_variant_id || currentPreferences.last_product_variant_id || "",
+    active_color: current?.active_color || currentPreferences.active_color || currentPreferences.selected_color || currentPreferences.last_selected_color || "",
+    active_model_family: current?.active_model_family || currentPreferences.active_model_family || currentPreferences.last_model_family || "",
+    selected_product_id: currentPreferences.selected_product_id || currentPreferences.last_product_id || "",
+    selected_variant_id: currentPreferences.selected_variant_id || currentPreferences.last_product_variant_id || "",
+    selected_color: currentPreferences.selected_color || currentPreferences.last_selected_color || "",
+    last_model_family: currentPreferences.last_model_family || "",
+  };
+
+  const active = summarizeActiveProductContext(candidate || {}, baseFallback);
+  const shouldPreserveCurrent = !candidate && hasFollowUpContextSignal(message, metadata) && (
+    Boolean(baseFallback.active_product_id) ||
+    Boolean(baseFallback.active_variant_id) ||
+    Boolean(baseFallback.active_color) ||
+    Boolean(baseFallback.active_model_family)
+  );
+
+  if (shouldPreserveCurrent) {
+    return {
+      ...baseFallback,
+      selected_product_context: currentPreferences.selected_product_context || currentPreferences.last_product || currentPreferences.lastProductCard || null,
+    };
+  }
+
+  return active;
+};
 
 const scoreMemory = ({ memory = {}, extracted = {}, suggestedProducts = [] } = {}) => {
   const preferences = memory.preferences || {};
@@ -667,6 +791,26 @@ export const updateAiConversationMemory = async ({
   if (Array.isArray(preferences.last_product_cards)) {
     preferences.last_product_cards = summarizeProducts(preferences.last_product_cards);
   }
+  const activeContext = resolveActiveProductContext({
+    current,
+    message,
+    metadata,
+    suggestedProducts,
+    preferencesPatch: safePreferencesPatch,
+  });
+  preferences.active_product_id = activeContext.active_product_id || preferences.active_product_id || preferences.selected_product_id || preferences.last_product_id || "";
+  preferences.active_variant_id = activeContext.active_variant_id || preferences.active_variant_id || preferences.selected_variant_id || preferences.last_product_variant_id || "";
+  preferences.active_color = activeContext.active_color || preferences.active_color || preferences.selected_color || preferences.last_selected_color || "";
+  preferences.active_model_family = activeContext.active_model_family || preferences.active_model_family || preferences.last_model_family || "";
+  preferences.selected_product_context = activeContext.selected_product_context || preferences.selected_product_context || preferences.last_product || preferences.lastProductCard || null;
+  preferences.selected_product_id = preferences.selected_product_context?.product_id || preferences.selected_product_context?.id || preferences.selected_product_id || preferences.last_product_id || "";
+  preferences.selected_variant_id = preferences.selected_product_context?.variant_id || preferences.selected_variant_id || preferences.last_product_variant_id || "";
+  preferences.selected_color = preferences.active_color || preferences.selected_color || preferences.last_selected_color || "";
+  preferences.last_product = preferences.selected_product_context || preferences.last_product || null;
+  preferences.last_product_id = preferences.selected_product_id || preferences.last_product_id || "";
+  preferences.last_product_name = preferences.selected_product_context?.name || preferences.selected_product_context?.title || preferences.last_product_name || "";
+  preferences.last_model_family = preferences.active_model_family || preferences.last_model_family || "";
+  preferences.last_selected_color = preferences.selected_color || preferences.last_selected_color || "";
   if (preferences.selected_product_context && typeof preferences.selected_product_context === "object") {
     preferences.selected_product_context = summarizeProducts([preferences.selected_product_context])[0] || preferences.selected_product_context;
   }
@@ -745,6 +889,14 @@ export const updateAiConversationMemory = async ({
 
   const memory = result.rows[0] || null;
   if (memory?.customer_phone) {
+    memory.active_product_id = preferences.active_product_id || "";
+    memory.active_variant_id = preferences.active_variant_id || "";
+    memory.active_color = preferences.active_color || "";
+    memory.active_model_family = preferences.active_model_family || "";
+    memory.selected_product_context = preferences.selected_product_context || null;
+    memory.selected_product_id = preferences.selected_product_id || "";
+    memory.selected_variant_id = preferences.selected_variant_id || "";
+    memory.selected_color = preferences.selected_color || "";
     const customer = await upsertCustomerAiProfile({ tenantId: safeTenantId, memory }).catch((error) => {
       console.warn("[ai-memory] CRM sync skipped", { tenantId: safeTenantId, message: error?.message });
       return null;
@@ -753,6 +905,16 @@ export const updateAiConversationMemory = async ({
       await db.query(`UPDATE ai_conversation_memories SET customer_id = $3 WHERE tenant_id = $1 AND session_id = $2`, [safeTenantId, safeSessionId, customer.id]);
       memory.customer_id = customer.id;
     }
+  }
+  if (memory) {
+    memory.active_product_id = preferences.active_product_id || "";
+    memory.active_variant_id = preferences.active_variant_id || "";
+    memory.active_color = preferences.active_color || "";
+    memory.active_model_family = preferences.active_model_family || "";
+    memory.selected_product_context = preferences.selected_product_context || null;
+    memory.selected_product_id = preferences.selected_product_id || "";
+    memory.selected_variant_id = preferences.selected_variant_id || "";
+    memory.selected_color = preferences.selected_color || "";
   }
   return memory;
 };
@@ -778,6 +940,13 @@ export const buildAiMemoryContextSource = (memory = null) => {
       lastVisualFeatures: memory.preferences?.lastVisualFeatures || {},
       lastVisualMatches: memory.preferences?.lastVisualMatches || [],
       rejectedVisualMatches: memory.preferences?.rejectedVisualMatches || [],
+      active_product_id: memory.active_product_id || memory.preferences?.active_product_id || "",
+      active_variant_id: memory.active_variant_id || memory.preferences?.active_variant_id || "",
+      active_color: memory.active_color || memory.preferences?.active_color || "",
+      active_model_family: memory.active_model_family || memory.preferences?.active_model_family || "",
+      selected_product_id: memory.selected_product_id || memory.preferences?.selected_product_id || "",
+      selected_variant_id: memory.selected_variant_id || memory.preferences?.selected_variant_id || "",
+      selected_color: memory.selected_color || memory.preferences?.selected_color || "",
       lead_quality_score: memory.lead_quality_score || 0,
       engagement_score: memory.engagement_score || 0,
       intent_score: memory.intent_score || 0,

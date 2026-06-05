@@ -84,6 +84,119 @@ const stockCount = (product = {}) => {
   return 0;
 };
 
+const buildActiveProductMemoryPatch = ({ personality = {}, response = {}, memory = {} } = {}) => {
+  const activeProductContext = {
+    active_product_id: text(
+      personality?.personality_layer?.active_product_id ||
+      response?.memory_updates?.active_product_id ||
+      response?.ai_memory_patch?.preferences?.active_product_id ||
+      memory?.active_product_id ||
+      memory?.preferences?.active_product_id ||
+      ""
+    ),
+    active_variant_id: text(
+      personality?.personality_layer?.active_variant_id ||
+      response?.memory_updates?.active_variant_id ||
+      response?.ai_memory_patch?.preferences?.active_variant_id ||
+      memory?.active_variant_id ||
+      memory?.preferences?.active_variant_id ||
+      ""
+    ),
+    active_color: text(
+      personality?.personality_layer?.active_color ||
+      response?.memory_updates?.active_color ||
+      response?.ai_memory_patch?.preferences?.active_color ||
+      memory?.active_color ||
+      memory?.preferences?.active_color ||
+      ""
+    ),
+    active_model_family: text(
+      personality?.personality_layer?.active_model_family ||
+      response?.memory_updates?.active_model_family ||
+      response?.ai_memory_patch?.preferences?.active_model_family ||
+      memory?.active_model_family ||
+      memory?.preferences?.active_model_family ||
+      ""
+    ),
+    selected_product_context:
+      response?.memory_updates?.selected_product_context ||
+      response?.ai_memory_patch?.preferences?.selected_product_context ||
+      memory?.preferences?.selected_product_context ||
+      response?.product_context ||
+      response?.suggested_products?.[0] ||
+      response?.product_cards?.[0] ||
+      null,
+    selected_product_id: text(
+      personality?.personality_layer?.active_product_id ||
+      response?.memory_updates?.selected_product_id ||
+      response?.ai_memory_patch?.preferences?.selected_product_id ||
+      memory?.selected_product_id ||
+      memory?.preferences?.selected_product_id ||
+      ""
+    ),
+    selected_variant_id: text(
+      personality?.personality_layer?.active_variant_id ||
+      response?.memory_updates?.selected_variant_id ||
+      response?.ai_memory_patch?.preferences?.selected_variant_id ||
+      memory?.selected_variant_id ||
+      memory?.preferences?.selected_variant_id ||
+      ""
+    ),
+    selected_color: text(
+      personality?.personality_layer?.active_color ||
+      response?.memory_updates?.selected_color ||
+      response?.ai_memory_patch?.preferences?.selected_color ||
+      memory?.selected_color ||
+      memory?.preferences?.selected_color ||
+      ""
+    ),
+    last_product_id: text(
+      personality?.personality_layer?.active_product_id ||
+      response?.memory_updates?.last_product_id ||
+      response?.ai_memory_patch?.preferences?.last_product_id ||
+      memory?.last_product_id ||
+      memory?.preferences?.last_product_id ||
+      ""
+    ),
+    last_product_name: text(
+      response?.product_context?.name ||
+      response?.product_context?.title ||
+      response?.memory_updates?.last_product_name ||
+      response?.ai_memory_patch?.preferences?.last_product_name ||
+      memory?.last_product_name ||
+      memory?.preferences?.last_product_name ||
+      ""
+    ),
+    last_model_family: text(
+      personality?.personality_layer?.active_model_family ||
+      response?.memory_updates?.last_model_family ||
+      response?.ai_memory_patch?.preferences?.last_model_family ||
+      memory?.last_model_family ||
+      memory?.preferences?.last_model_family ||
+      ""
+    ),
+    last_selected_color: text(
+      personality?.personality_layer?.active_color ||
+      response?.memory_updates?.last_selected_color ||
+      response?.ai_memory_patch?.preferences?.last_selected_color ||
+      memory?.last_selected_color ||
+      memory?.preferences?.last_selected_color ||
+      ""
+    ),
+  };
+
+  return {
+    memory_updates: activeProductContext,
+    ai_memory_patch: {
+      ...(response?.ai_memory_patch || {}),
+      preferences: {
+        ...(response?.ai_memory_patch?.preferences || {}),
+        ...activeProductContext,
+      },
+    },
+  };
+};
+
 const hasProducts = (response = {}) =>
   asArray(response.suggested_products).length > 0 || asArray(response.product_cards).length > 0 || asArray(response.channel_reply?.product_cards).length > 0;
 
@@ -293,6 +406,7 @@ export const composeAiSalesReply = async ({
       conversationId: text(context?.conversationId || context?.conversation_id || context?.id || context?.session_id || ""),
       channel: text(context?.channel || context?.source || ""),
     });
+    const activeProductMemoryPatch = buildActiveProductMemoryPatch({ personality, response, memory });
     const output = withAnswer(response, personality.text, {
       closer: personality.closer,
       missing_order_fields: personality.missing_order_fields,
@@ -310,6 +424,8 @@ export const composeAiSalesReply = async ({
       next_best_action: personality.next_best_action,
       reasoning_confidence: personality.confidence,
       why_this_reply: personality.why_this_reply,
+      memory_updates: activeProductMemoryPatch.memory_updates,
+      ai_memory_patch: activeProductMemoryPatch.ai_memory_patch,
     });
     console.info("[ai-reply-composer:decision]", {
       source,
@@ -490,6 +606,7 @@ export const composeAiSalesReply = async ({
     conversationId: text(context?.conversationId || context?.conversation_id || context?.id || context?.session_id || ""),
     channel: text(context?.channel || context?.source || ""),
   });
+  const activeProductMemoryPatch = buildActiveProductMemoryPatch({ personality, response: output, memory });
 
   output = withAnswer(output, personality.text, {
     closer: personality.closer,
@@ -508,6 +625,8 @@ export const composeAiSalesReply = async ({
     next_best_action: personality.next_best_action,
     reasoning_confidence: personality.confidence,
     why_this_reply: personality.why_this_reply,
+    memory_updates: activeProductMemoryPatch.memory_updates,
+    ai_memory_patch: activeProductMemoryPatch.ai_memory_patch,
   });
 
   console.info("[ai-reply-composer:output]", {
