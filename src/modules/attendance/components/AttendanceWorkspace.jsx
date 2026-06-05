@@ -239,6 +239,7 @@ function AttendanceWorkspace({
   const [resettingAttendanceId, setResettingAttendanceId] = useState("");
   const [uploadingEmployeePhoto, setUploadingEmployeePhoto] = useState(false);
   const [employeeForm, setEmployeeForm] = useState(() => createEmptyEmployeeForm());
+  const [editingEmployee, setEditingEmployee] = useState(null);
   const [shiftForm, setShiftForm] = useState(() => createEmptyShiftForm());
   const [filters, setFilters] = useState({
     date: todayValue(),
@@ -284,18 +285,15 @@ function AttendanceWorkspace({
     () => employees.find((item) => resolveEmployeeRecordId(item) === String(selectedEmployeeId || "")) || null,
     [employees, selectedEmployeeId]
   );
+  const activeEditingEmployeeName = String(employeeForm.full_name || "").trim() || editingEmployee?.full_name || "";
   const profileEmployee = useMemo(
-    () => employees.find((item) => resolveEmployeeRecordId(item) === String(employeeForm.id || "")) || null,
-    [employeeForm.id, employees]
+    () => editingEmployee || employees.find((item) => resolveEmployeeRecordId(item) === String(employeeForm.id || "")) || null,
+    [editingEmployee, employeeForm.id, employees]
   );
   const fallback = tr("fields.notAvailable");
   const employeeSelectOptions = useMemo(
     () => [{ id: "", label: tr("options.selectEmployee") }, ...employees.map((employee) => ({ id: employee.id, label: employee.full_name || tr("fields.employee") }))],
     [employees, tr]
-  );
-  const editingEmployee = useMemo(
-    () => employees.find((item) => String(item.id) === String(employeeForm.id)) || null,
-    [employeeForm.id, employees]
   );
   const employeePhotoPreviewUrl = useMemo(
     () => resolveEmployeeProfileImageUrl(cleanPhotoUrl(employeeForm.photo_url) || cleanPhotoUrl(editingEmployee?.photo_url)),
@@ -545,6 +543,18 @@ function AttendanceWorkspace({
         hire_date: row.hire_date || todayValue(),
         status: row.status || "active",
       }));
+      setEditingEmployee((prev) => (
+        String(prev?.id || "") === String(row.id || "")
+          ? {
+              ...(prev || {}),
+              ...row,
+              photo_url: cleanPhotoUrl(row.photo_url || payload.photo_url),
+            }
+          : {
+              ...row,
+              photo_url: cleanPhotoUrl(row.photo_url || payload.photo_url),
+            }
+      ));
       setSelectedEmployeeId((current) => String(row.id || current || ""));
       toast.success(employeeForm.id ? tr("toasts.employeeUpdated") : tr("toasts.employeeCreated"));
       await loadBaseData({ silent: true });
@@ -561,6 +571,7 @@ function AttendanceWorkspace({
 
   const handleStartNewEmployee = () => {
     setSelectedEmployeeId("");
+    setEditingEmployee(null);
     setEmployeeForm(createEmptyEmployeeForm(singleBranchId));
     setShiftForm(createEmptyShiftForm());
   };
@@ -572,10 +583,16 @@ function AttendanceWorkspace({
     setEmployeeForm((prev) => (
       String(prev.id) === String(employeeId) ? { ...prev, employee_portal_token: token } : prev
     ));
+    setEditingEmployee((prev) => (
+      String(prev?.id || "") === String(employeeId) ? { ...prev, employee_portal_token: token } : prev
+    ));
   };
 
   const handleEditEmployee = (employee) => {
-    setEmployeeForm({
+    const nextEmployeeId = String(employee?.id || "");
+    if (!nextEmployeeId || String(employeeForm.id || "") === nextEmployeeId) return;
+
+    const snapshot = {
       id: employee.id,
       branch_id: employee.branch_id || "",
       branch_name: employee.branch_name || "",
@@ -591,8 +608,15 @@ function AttendanceWorkspace({
       salary: employee.salary || "",
       hire_date: employee.hire_date || todayValue(),
       status: employee.status || "active",
+    };
+
+    setEditingEmployee(snapshot);
+    setEmployeeForm({
+      ...createEmptyEmployeeForm(singleBranchId),
+      ...snapshot,
     });
-    setSelectedEmployeeId(String(employee.id));
+    setShiftForm(createEmptyShiftForm());
+    setSelectedEmployeeId(nextEmployeeId);
     setSelectedTab("employees");
   };
 
@@ -639,6 +663,7 @@ function AttendanceWorkspace({
       }
       if (String(employeeForm.id) === employeeId) {
         setEmployeeForm(createEmptyEmployeeForm(singleBranchId));
+        setEditingEmployee(null);
       }
       toast.success(tr("toasts.employeeDeleted"));
     } catch (err) {
@@ -1484,7 +1509,7 @@ function AttendanceWorkspace({
             {isEditable ? (
               <div className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("employees.shiftAssignment")}</div>
-                <h3 className="mt-2 text-2xl font-black text-white">{selectedEmployee ? selectedEmployee.full_name : tr("options.selectEmployee")}</h3>
+                <h3 className="mt-2 text-2xl font-black text-white">{activeEditingEmployeeName || tr("options.selectEmployee")}</h3>
                 <div className="mt-4 grid gap-3">
                   <InputField label={tr("fields.shiftName")} value={shiftForm.shift_name} onChange={(value) => setShiftForm((prev) => ({ ...prev, shift_name: value }))} />
                   <div className="grid grid-cols-2 gap-3">
