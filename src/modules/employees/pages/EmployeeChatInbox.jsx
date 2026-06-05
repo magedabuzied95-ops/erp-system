@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownCircle, CheckCheck, FileText, Loader2, MessageCircle, Mic, Paperclip, RefreshCw, Send, UserRound, X } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
+import { dedupeChatMessages, dedupeChatThreads, mergeChatMessages, mergeChatThreads } from "../../../shared/lib/chatState";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 import { socket } from "../../../socket";
 import { getAttendanceEmployees } from "../../attendance/attendanceApi";
@@ -219,7 +220,7 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
   );
 
   const normalizedThreads = useMemo(() => {
-    const deduped = dedupeThreadsByEmployee(threads);
+    const deduped = dedupeChatThreads(threads);
     if (typeof import.meta !== "undefined" && import.meta.env?.DEV) {
       const grouped = new Map();
       threads.forEach((item) => {
@@ -361,7 +362,10 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
       setError("");
       const response = await api.get("/employees/chat/threads", controller ? { signal: controller.signal } : {});
       const nextThreads = safeArray(response.threads);
-      setThreads((current) => (shallowRecordArrayEqual(current, nextThreads) ? current : nextThreads));
+      setThreads((current) => {
+        const next = dedupeChatThreads(nextThreads);
+        return shallowRecordArrayEqual(current, next) ? current : next;
+      });
       return true;
     } catch (err) {
       if (err?.cause?.name === "AbortError" || err?.cause?.name === "TimeoutError") return false;
@@ -396,7 +400,10 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
       const nextThread = response.thread || null;
       const nextMessages = safeArray(response.messages);
       setThread((current) => (shallowRecordEqual(current, nextThread) ? current : nextThread));
-      setMessages((current) => (shallowRecordArrayEqual(current, nextMessages) ? current : nextMessages));
+      setMessages((current) => {
+        const next = dedupeChatMessages(nextMessages);
+        return shallowRecordArrayEqual(current, next) ? current : next;
+      });
       setThreads((current) => {
         let changed = false;
         const nextRows = current.map((item) => {
@@ -523,15 +530,20 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
   }, [activeThreadId, loadThread, loadThreads, realtime.connected, selectedEmployeeId]);
 
   useEffect(() => {
+    if (!realtime.connected || !selectedEmployeeId || !activeThreadId) return undefined;
+    void Promise.all([
+      loadThread(activeThreadId, { force: true }),
+      loadThreads(),
+    ]);
+    return undefined;
+  }, [activeThreadId, loadThread, loadThreads, realtime.connected, selectedEmployeeId]);
+
+  useEffect(() => {
     const upsertThread = (nextThread) => {
       if (!nextThread?.id) return;
       setThreads((current) => {
-        const exists = current.some((item) => String(item.id) === String(nextThread.id));
-        const rows = exists
-          ? current.map((item) => (String(item.id) === String(nextThread.id) ? { ...item, ...nextThread } : item))
-          : [nextThread, ...current];
-        const sortedRows = sortThreads(rows);
-        return shallowRecordArrayEqual(current, sortedRows) ? current : sortedRows;
+        const nextRows = mergeChatThreads(current, [nextThread]);
+        return shallowRecordArrayEqual(current, nextRows) ? current : nextRows;
       });
     };
 
@@ -543,8 +555,8 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
       if (!nextEmployeeId || nextEmployeeId !== String(selectedEmployeeId || "")) return;
       if (nextThread) setThread((current) => (shallowRecordEqual(current, nextThread) ? current : nextThread));
       setMessages((current) => {
-        if (!message?.id || current.some((item) => String(item.id) === String(message.id))) return current;
-        return [...current, message];
+        if (!message?.id) return current;
+        return mergeChatMessages(current, [message]);
       });
       if (nextThread?.id && message?.sender_type === "employee") void loadThread(nextThread.id);
     };
@@ -565,13 +577,12 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
       if (String(payload.thread_id) === String(activeThreadId || "")) {
         setMessages((current) => {
           const readAt = payload.at || new Date().toISOString();
-          let changed = false;
-          const nextMessages = current.map((message) => {
-            if (message.sender_type !== payload.read_sender_type || message.read_at) return message;
-            changed = true;
-            return { ...message, read_at: readAt };
-          });
-          return changed ? nextMessages : current;
+          const nextMessages = current.map((message) =>
+            message.sender_type !== payload.read_sender_type || message.read_at
+              ? message
+              : { ...message, read_at: readAt }
+          );
+          return shallowRecordArrayEqual(current, nextMessages) ? current : nextMessages;
         });
       }
     };

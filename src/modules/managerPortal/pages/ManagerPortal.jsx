@@ -34,6 +34,7 @@ import {
 import toast from "react-hot-toast";
 
 import { formatCurrency } from "../../../shared/lib/currency";
+import { dedupeChatMessages, dedupeChatThreads, mergeChatMessages, mergeChatThreads } from "../../../shared/lib/chatState";
 import { SOCKET_URL } from "../../../shared/constants/app";
 import { playRealtimeSound, requestBrowserNotificationPermission, unlockRealtimeFeedbackAudio } from "../../../services/realtimeFeedbackService";
 import { managerPortalApi } from "../services/managerPortalApi";
@@ -186,9 +187,12 @@ export default function ManagerPortal() {
   const [settings, setSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS);
   const [browserNotificationPermission, setBrowserNotificationPermission] = useState(() => (isBrowser() && "Notification" in window ? window.Notification.permission : "unsupported"));
   const [soundUnlocked, setSoundUnlocked] = useState(false);
+  const [showMoreNotifications, setShowMoreNotifications] = useState(false);
   const socketRef = useRef(null);
   const selectedThreadRef = useRef("");
   const selectedTabRef = useRef(activeTab);
+  const settingsRef = useRef(settings);
+  const browserNotificationPermissionRef = useRef(browserNotificationPermission);
 
   useEffect(() => {
     selectedThreadRef.current = selectedThreadId;
@@ -206,6 +210,14 @@ export default function ManagerPortal() {
   useEffect(() => {
     setSettings((current) => mergeSettings(me?.notification_settings || current));
   }, [me]);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  useEffect(() => {
+    browserNotificationPermissionRef.current = browserNotificationPermission;
+  }, [browserNotificationPermission]);
 
   const canEditTasks = true;
   const notificationsUnread = useMemo(() => notifications.filter((item) => !item.is_read).length, [notifications]);
@@ -226,12 +238,14 @@ export default function ManagerPortal() {
   const refillAlerts = dashboard?.refill_alerts || stockAlerts?.refill_alerts || [];
   const aiInsights = dashboard?.ai_insights || sales?.ai_insights || [];
   const topProducts = sales?.top_products || [];
+  const visibleNotifications = showMoreNotifications ? notifications.slice(0, 12) : notifications.slice(0, 5);
+  const hasMoreNotifications = notifications.length > visibleNotifications.length;
 
   const categoryEnabled = (category, key) => Boolean(settings?.[category]?.[key]);
 
   const notifyClient = async (notification) => {
     const category = categoryFromNotification(notification);
-    const enabled = settings?.[category] || DEFAULT_NOTIFICATION_SETTINGS[category] || DEFAULT_NOTIFICATION_SETTINGS.messages;
+    const enabled = settingsRef.current?.[category] || DEFAULT_NOTIFICATION_SETTINGS[category] || DEFAULT_NOTIFICATION_SETTINGS.messages;
     const title = notification.title || "تنبيه";
     const message = notification.message || notification.body || "";
     const priority = String(notification.priority || "medium");
@@ -248,7 +262,7 @@ export default function ManagerPortal() {
         // Sound is optional.
       }
     }
-    if (browserNotificationPermission === "granted" && "Notification" in window) {
+    if (browserNotificationPermissionRef.current === "granted" && "Notification" in window) {
       try {
         new window.Notification(title, { body: message || "" });
       } catch {
@@ -290,14 +304,14 @@ export default function ManagerPortal() {
       setNotifications(Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []);
       setUnreadCount(Number(notificationsRes?.unread_count || 0));
       setSettings(mergeSettings(notificationsRes?.settings || meRes?.notification_settings || {}));
-      setChatThreads(Array.isArray(chatRes?.threads) ? chatRes.threads : []);
+      setChatThreads(dedupeChatThreads(Array.isArray(chatRes?.threads) ? chatRes.threads : []));
       if (!selectedThreadRef.current && Array.isArray(chatRes?.threads) && chatRes.threads[0]?.id) {
         setSelectedThreadId(String(chatRes.threads[0].id));
       }
       if (!selectedThreadRef.current && chatRes?.thread?.id) {
         setSelectedThreadId(String(chatRes.thread.id));
         setChatThread(chatRes.thread);
-        setChatMessages(Array.isArray(chatRes.messages) ? chatRes.messages : []);
+        setChatMessages(dedupeChatMessages(Array.isArray(chatRes.messages) ? chatRes.messages : []));
       }
     } catch (loadError) {
       setError(loadError?.responseBody?.message || loadError?.message || "تعذر تحميل بوابة المدير.");
@@ -327,7 +341,24 @@ export default function ManagerPortal() {
     });
     socketRef.current = socket;
 
-    socket.on("connect", () => {});
+    const refreshChat = () => {
+      if (selectedTabRef.current !== "chat") return;
+      const threadId = String(selectedThreadRef.current || "");
+      if (!threadId) {
+        managerPortalApi.chat(token).then((response) => {
+          setChatThreads(dedupeChatThreads(Array.isArray(response?.threads) ? response.threads : []));
+        }).catch(() => null);
+        return;
+      }
+      managerPortalApi.chatThread(token, threadId).then((response) => {
+        setChatThread(response?.thread || null);
+        setChatMessages(dedupeChatMessages(Array.isArray(response?.messages) ? response.messages : []));
+        setChatThreads((current) => mergeChatThreads(current, [response?.thread].filter(Boolean)));
+      }).catch(() => null);
+    };
+
+    socket.on("connect", refreshChat);
+    socket.io.on("reconnect", refreshChat);
     socket.on("notification:new", (payload) => {
       const next = payload || {};
       upsertNotification(next);
@@ -342,21 +373,26 @@ export default function ManagerPortal() {
     socket.on("employee-chat:new-message", (payload) => {
       const threadId = String(payload?.thread?.id || payload?.thread_id || "");
       if (!threadId) return;
-      setChatThreads((current) => [payload.thread, ...current.filter((item) => String(item.id) !== threadId)].filter(Boolean));
+      setChatThreads((current) => mergeChatThreads(current, payload.thread ? [payload.thread] : []));
+      if (payload?.message) {
+        setChatMessages((current) => mergeChatMessages(current, [payload.message]));
+      }
       if (selectedThreadRef.current && String(selectedThreadRef.current) === threadId) {
-        setChatThread(payload.thread || null);
+        if (payload.thread) setChatThread((current) => (current ? { ...current, ...payload.thread } : payload.thread));
         managerPortalApi.chatThread(token, threadId).then((response) => {
-          setChatThread(response?.thread || null);
-          setChatMessages(Array.isArray(response?.messages) ? response.messages : []);
+          if (response?.thread) {
+            setChatThread((current) => (current ? { ...current, ...response.thread } : response.thread));
+          }
+          setChatMessages(dedupeChatMessages(Array.isArray(response?.messages) ? response.messages : []));
         }).catch(() => null);
       }
     });
     socket.on("employee-chat:thread-updated", (payload) => {
       const nextThread = payload?.thread;
       if (!nextThread?.id) return;
-      setChatThreads((current) => [nextThread, ...current.filter((item) => String(item.id) !== String(nextThread.id))]);
+      setChatThreads((current) => mergeChatThreads(current, [nextThread]));
       if (selectedThreadRef.current && String(selectedThreadRef.current) === String(nextThread.id)) {
-        setChatThread(nextThread);
+        setChatThread((current) => (current ? { ...current, ...nextThread } : nextThread));
       }
     });
     socket.on("employee-chat:read", (payload) => {
@@ -364,17 +400,21 @@ export default function ManagerPortal() {
       if (!threadId) return;
       if (selectedThreadRef.current && String(selectedThreadRef.current) === threadId) {
         managerPortalApi.chatThread(token, threadId).then((response) => {
-          setChatThread(response?.thread || null);
-          setChatMessages(Array.isArray(response?.messages) ? response.messages : []);
+          if (response?.thread) {
+            setChatThread((current) => (current ? { ...current, ...response.thread } : response.thread));
+          }
+          setChatMessages(dedupeChatMessages(Array.isArray(response?.messages) ? response.messages : []));
         }).catch(() => null);
       }
     });
 
     return () => {
+      socket.off("connect", refreshChat);
+      socket.io.off("reconnect", refreshChat);
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [token, browserNotificationPermission, settings]);
+  }, [token]);
 
   const reloadTabData = async (tab = activeTab) => {
     try {
@@ -404,11 +444,11 @@ export default function ManagerPortal() {
       }
       if (tab === "chat") {
         const response = await managerPortalApi.chat(token, selectedThreadId || null);
-        setChatThreads(Array.isArray(response?.threads) ? response.threads : chatThreads);
+        setChatThreads((current) => mergeChatThreads(current, Array.isArray(response?.threads) ? response.threads : []));
         if (response?.thread) {
-          setChatThread(response.thread);
-          setChatMessages(Array.isArray(response.messages) ? response.messages : []);
-        }
+          setChatThread((current) => (current ? { ...current, ...response.thread } : response.thread));
+        setChatMessages(dedupeChatMessages(Array.isArray(response.messages) ? response.messages : []));
+      }
       }
     } catch (reloadError) {
       toast.error(reloadError?.responseBody?.message || reloadError?.message || "تعذر تحديث البيانات");
@@ -472,8 +512,8 @@ export default function ManagerPortal() {
     try {
       const response = await managerPortalApi.chatThread(token, threadId);
       setChatThread(response?.thread || null);
-      setChatMessages(Array.isArray(response?.messages) ? response.messages : []);
-      setChatThreads((current) => [response?.thread || current.find((item) => String(item.id) === String(threadId)), ...current.filter((item) => String(item.id) !== String(threadId))].filter(Boolean));
+      setChatMessages(dedupeChatMessages(Array.isArray(response?.messages) ? response.messages : []));
+      setChatThreads((current) => mergeChatThreads(current, [response?.thread || current.find((item) => String(item.id) === String(threadId))].filter(Boolean)));
       await managerPortalApi.markChatRead(token, threadId);
     } catch (chatError) {
       toast.error(chatError?.responseBody?.message || chatError?.message || "تعذر فتح المحادثة");
@@ -489,8 +529,8 @@ export default function ManagerPortal() {
     try {
       setChatBody("");
       const response = await managerPortalApi.sendChatMessage(token, selectedThreadId, formData);
-      if (response?.thread) setChatThread(response.thread);
-      if (response?.message) setChatMessages((current) => [...current, response.message]);
+      if (response?.thread) setChatThread((current) => (current ? { ...current, ...response.thread } : response.thread));
+      if (response?.message) setChatMessages((current) => mergeChatMessages(current, [response.message]));
       await reloadTabData("chat");
     } catch (sendError) {
       toast.error(sendError?.responseBody?.message || sendError?.message || "تعذر إرسال الرسالة");
@@ -560,7 +600,7 @@ export default function ManagerPortal() {
 
   return (
     <main data-testid="manager-portal-root" dir="rtl" className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.18),_transparent_24%),radial-gradient(circle_at_80%_10%,_rgba(16,185,129,0.14),_transparent_28%),linear-gradient(180deg,#eff6ff_0%,#f8fafc_44%,#ffffff_100%)] px-3 py-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-slate-950 dark:bg-slate-950 dark:text-white md:px-4 md:py-4">
-      <div className="mx-auto grid max-w-7xl gap-4 lg:grid-cols-[260px_minmax(0,1fr)_360px]">
+      <div className="mx-auto grid max-w-[96rem] gap-4 lg:grid-cols-[240px_minmax(0,1.55fr)_320px]">
         <aside className="hidden min-h-[calc(100dvh-2rem)] rounded-[2rem] border border-white/60 bg-white/80 p-4 shadow-xl shadow-slate-200/70 backdrop-blur dark:border-white/10 dark:bg-slate-900/80 lg:block">
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-slate-950 p-3 text-white">
@@ -816,9 +856,10 @@ export default function ManagerPortal() {
           ) : null}
 
           {activeTab === "chat" ? (
-            <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-              <Card title="المحادثات" subtitle="Staff chat" icon={MessageSquare} className="min-h-[36rem]">
-                <div className="space-y-2">
+            <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+              <Card title="المحادثات" subtitle="Staff chat" icon={MessageSquare} className="xl:h-[calc(100dvh-13rem)]">
+                <div className="flex h-full min-h-0 flex-col">
+                  <div className="flex-1 space-y-2 overflow-auto pr-1">
                   {chatThreads.length ? chatThreads.map((thread) => (
                     <button key={thread.id} type="button" data-testid={`chat-thread-${thread.id}`} onClick={() => void selectThread(thread.id)} className={`w-full rounded-2xl border px-3 py-3 text-right transition ${String(thread.id) === String(selectedThreadId) ? "border-sky-300 bg-sky-50 dark:border-sky-500/30 dark:bg-sky-500/10" : "border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]"}`}>
                       <div className="flex items-start justify-between gap-3">
@@ -831,6 +872,7 @@ export default function ManagerPortal() {
                       <div className="mt-2 line-clamp-2 text-xs font-semibold text-slate-500 dark:text-slate-400">{thread.last_message || "-"}</div>
                     </button>
                   )) : <EmptyState title="لا توجد محادثات" body="سنظهر المحادثات الحقيقية هنا عند وجودها." />}
+                  </div>
                 </div>
               </Card>
 
@@ -867,6 +909,52 @@ export default function ManagerPortal() {
 
           {activeTab === "more" ? (
             <div className="space-y-4">
+              <div className="grid gap-4 xl:grid-cols-2">
+                <Card title="الملف الشخصي" subtitle="Manager profile" icon={Building2}>
+                  <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
+                    <div className="font-black text-slate-950 dark:text-white">{me?.full_name || me?.name || "Manager"}</div>
+                    <div>{me?.role || "manager"} · {me?.department || "—"}</div>
+                    <div>{me?.user_email || "No email"}</div>
+                    <div>{formatNumber(me?.permissions?.length || 0)} permissions</div>
+                  </div>
+                </Card>
+                <Card title="بيانات الفرع" subtitle="Branch info" icon={Store}>
+                  <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
+                    <div className="font-black text-slate-950 dark:text-white">{me?.branch_name || "All branches"}</div>
+                    <div>Scope: {me?.branch_scope || "all"}</div>
+                    <div>Live alerts: {formatNumber(notifications.length || 0)}</div>
+                    <div>Unread: {formatNumber(unreadCount || notificationsUnread)}</div>
+                  </div>
+                </Card>
+                <Card title="روابط سريعة" subtitle="Quick links" icon={ChevronRight}>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {[
+                      ["Today", "today"],
+                      ["Staff", "staff"],
+                      ["Tasks", "tasks"],
+                      ["Sales", "sales"],
+                      ["Chat", "chat"],
+                    ].map(([label, tab]) => (
+                      <button key={tab} type="button" onClick={() => setActiveTab(tab)} className="inline-flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-3 text-right text-sm font-black text-slate-800 transition hover:border-sky-300 hover:bg-sky-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:hover:border-sky-500/30 dark:hover:bg-sky-500/10">
+                        <span>{label}</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    ))}
+                  </div>
+                </Card>
+                <Card title="سجل الإشعارات" subtitle="Notification history" icon={Bell}>
+                  <div className="space-y-2">
+                    {notifications.slice(0, 3).length ? notifications.slice(0, 3).map((item) => (
+                      <div key={`history-${item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
+                        <div className="font-black text-slate-950 dark:text-white">{item.title || item.type || "Notification"}</div>
+                        <div className="mt-1 line-clamp-2 text-xs opacity-80">{item.message || item.body || ""}</div>
+                        <div className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{formatDateTime(item.created_at)}</div>
+                      </div>
+                    )) : <EmptyState title="لا يوجد سجل حديث" body="ستظهر آخر الإشعارات هنا عندما تتوفر." />}
+                  </div>
+                </Card>
+              </div>
+
               <Card title="إعدادات التنبيه" subtitle="Notifications settings" icon={Bell}>
                 <div className="grid gap-3 md:grid-cols-2">
                   {Object.entries(settings).map(([category, config]) => (
@@ -915,7 +1003,7 @@ export default function ManagerPortal() {
           <Card title="الإشعارات" subtitle="Live feed" icon={Bell} className="min-h-[18rem]">
             <div data-testid="notifications-panel" />
             <div className="space-y-2">
-              {notifications.length ? notifications.slice(0, 8).map((item) => (
+              {visibleNotifications.length ? visibleNotifications.map((item) => (
                 <button key={item.id} type="button" data-testid={`notification-${item.id}`} onClick={() => void markNotificationRead(item.id)} className={`w-full rounded-2xl border px-3 py-3 text-right transition ${item.is_read ? "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300" : "border-sky-200 bg-sky-50 text-slate-950 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-white"}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -927,6 +1015,11 @@ export default function ManagerPortal() {
                 </button>
               )) : <EmptyState title="لا توجد إشعارات" body="ستظهر هنا الإشعارات الحية عند وصولها." />}
             </div>
+            {hasMoreNotifications ? (
+              <button type="button" onClick={() => setShowMoreNotifications((current) => !current)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                {showMoreNotifications ? "Show less" : "Show more"}
+              </button>
+            ) : null}
           </Card>
 
           <Card title="AI + alerts" subtitle="Right rail" icon={Bot}>
