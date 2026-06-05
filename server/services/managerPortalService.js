@@ -12,8 +12,10 @@ import {
 import { getUnreadCount, listNotifications, markAsRead, createNotification } from "./notificationsService.js";
 import { listRecentDisplayRefillAlerts } from "./displayRefillAlertService.js";
 import { getRolePermissions } from "./rolesService.js";
+import { getPublicAppUrl } from "../utils/publicUrl.js";
 
 const tokenBytes = 32;
+const DEFAULT_MANAGER_PORTAL_APP_URL = "https://erp-system-ten-green.vercel.app";
 const clean = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => clean(value).toLowerCase();
 const toNumber = (value, fallback = 0) => {
@@ -180,6 +182,12 @@ const resolveManagerPermissions = async ({ tenantId = null, role = "" } = {}) =>
 
 export const generateManagerPortalToken = () => {
   return randomBytes(tokenBytes).toString("hex");
+};
+
+export const buildManagerPortalLink = (token) => {
+  const origin = getPublicAppUrl() || clean(process.env.PUBLIC_APP_URL) || DEFAULT_MANAGER_PORTAL_APP_URL;
+  const normalizedOrigin = clean(origin).replace(/\/+$/, "");
+  return normalizedOrigin ? `${normalizedOrigin}/manager-portal/${encodeURIComponent(token)}` : `/manager-portal/${encodeURIComponent(token)}`;
 };
 
 export const ensureManagerPortalSchema = async (clientOrPool = db) => {

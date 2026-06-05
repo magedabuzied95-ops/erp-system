@@ -22,12 +22,14 @@ import {
   grantEmployeeRewardRecord,
   markEmployeeChatThreadReadRecord,
   regenerateEmployeePayrollPortalToken,
+  regenerateManagerPortalTokenRecord,
   reviewEmployeePortalRequestRecord,
   sendEmployeeChatThreadMessageRecord,
   updateCommissionRule,
   updateEmployeePenaltyRecord,
   updateEmployeePayrollSettings,
   updateEmployeeGamificationSettingsRecord,
+  repairMissingManagerPortalTokensRecord,
 } from "../controllers/employeesController.js";
 
 const router = express.Router();
@@ -98,6 +100,8 @@ router.post("/gamification/rewards", protect, permit("employees", "edit"), grant
 router.patch("/:employeeId/payroll-settings", protect, permit("employees", "edit"), updateEmployeePayrollSettings);
 router.post("/portal-token/repair-missing", protect, permit("employees", "edit"), repairMissingEmployeePayrollPortalTokens);
 router.post("/:employeeId/portal-token/regenerate", logPortalTokenRegenerateRouteHit, protect, permit("employees", "edit"), regenerateEmployeePayrollPortalToken);
+router.post("/manager-portal-token/repair-missing", protect, permit("employees", "edit"), repairMissingManagerPortalTokensRecord);
+router.post("/:employeeId/manager-portal-token/regenerate", logPortalTokenRegenerateRouteHit, protect, permit("employees", "edit"), regenerateManagerPortalTokenRecord);
 router.get("/:employeeId/penalties", protect, permit("employees", "view"), getEmployeePenalties);
 router.post("/:employeeId/penalties", protect, permit("employees", "edit"), createEmployeePenaltyRecord);
 router.patch("/employee-penalties/:id", protect, permit("employees", "edit"), updateEmployeePenaltyRecord);

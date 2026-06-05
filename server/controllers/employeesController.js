@@ -22,6 +22,12 @@ import {
   updateEmployeeGamificationSettings,
 } from "../services/employeePayrollPortalService.js";
 import {
+  buildManagerPortalLink,
+  ensureManagerPortalSchema,
+  repairMissingManagerPortalTokens,
+  regenerateManagerPortalToken,
+} from "../services/managerPortalService.js";
+import {
   getAdminEmployeeChatThread,
   listEmployeeChatThreads,
   markAdminEmployeeChatThreadRead,
@@ -213,6 +219,32 @@ export const regenerateEmployeePayrollPortalToken = async (req, res) => {
   }
 };
 
+export const regenerateManagerPortalTokenRecord = async (req, res) => {
+  try {
+    await ensureManagerPortalSchema(db);
+    const { tenantId } = getTenantContext(req);
+    const token = await regenerateManagerPortalToken({
+      employeeId: req.params.employeeId,
+      tenantId,
+    });
+    const portalUrl = buildManagerPortalLink(token);
+    console.info("[employees] manager portal token regenerated", {
+      requestId: req.id,
+      employeeId: req.params.employeeId,
+      token,
+    });
+    return res.json({
+      success: true,
+      token,
+      portal_url: portalUrl,
+      url: portalUrl,
+    });
+  } catch (error) {
+    console.error("[employees] regenerate manager portal token error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to regenerate manager portal token" });
+  }
+};
+
 export const repairMissingEmployeePayrollPortalTokens = async (req, res) => {
   try {
     const { tenantId } = getTenantContext(req);
@@ -235,6 +267,32 @@ export const repairMissingEmployeePayrollPortalTokens = async (req, res) => {
   } catch (error) {
     console.error("[employees] repair missing payroll portal tokens error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to repair employee portal tokens" });
+  }
+};
+
+export const repairMissingManagerPortalTokensRecord = async (req, res) => {
+  try {
+    await ensureManagerPortalSchema(db);
+    const { tenantId } = getTenantContext(req);
+    const result = await repairMissingManagerPortalTokens({
+      tenantId,
+      limit: req.body?.limit || req.query?.limit || 500,
+    });
+    console.info("[employees] missing manager portal tokens repaired", {
+      requestId: req.id,
+      tenantId,
+      scanned: result.scanned,
+      repaired_count: result.repaired_count,
+    });
+    return res.json({
+      success: true,
+      scanned: result.scanned,
+      repaired_count: result.repaired_count,
+      repaired_employee_ids: result.repaired.map((employee) => employee.id),
+    });
+  } catch (error) {
+    console.error("[employees] repair missing manager portal tokens error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to repair manager portal tokens" });
   }
 };
 
