@@ -26,10 +26,20 @@ const normalizeId = (value = "") => text(value).toLowerCase();
 const normalizeProductEntry = (product = {}) => ({
   id: text(product.id || product.product_id || product.variant_id || product.sku || ""),
   name: text(product.name || product.title || product.product_name || ""),
+  image_url: text(product.image_url || product.image || product.main_image || ""),
+  price: text(product.price || product.display_price || product.selected_display_price || ""),
+  available_sizes: Array.isArray(product.available_sizes || product.sizes) ? (product.available_sizes || product.sizes).map((item) => text(item)).filter(Boolean) : [],
+  product_url: text(product.product_url || product.url || ""),
+  color: text(product.color || product.matched_variant_color || ""),
 });
 const normalizeCardEntry = (card = {}) => ({
   id: text(card.id || card.product_id || card.variant_id || card.sku || ""),
   name: text(card.name || card.title || card.product_name || ""),
+  image_url: text(card.image_url || card.image || card.main_image || ""),
+  price: text(card.price || card.display_price || card.selected_display_price || ""),
+  available_sizes: Array.isArray(card.available_sizes || card.sizes) ? (card.available_sizes || card.sizes).map((item) => text(item)).filter(Boolean) : [],
+  product_url: text(card.product_url || card.url || ""),
+  color: text(card.color || card.matched_variant_color || ""),
 });
 const normalizeImageCardEntry = (card = {}) => ({
   product_id: text(card.product_id || card.id || card.product?.id || ""),
@@ -272,6 +282,10 @@ const summarizeUnifiedReply = (reply = {}) => ({
   next_best_action: text(reply.next_best_action || reply.reasoning?.next_best_action || ""),
   confidence: Number(reply.confidence ?? reply.reasoning?.confidence ?? 0),
   why_this_reply: text(reply.why_this_reply || reply.reasoning?.why_this_reply || ""),
+  active_product_id: text(reply.active_product_id || reply.personality_layer?.active_product_id || reply.memory_updates?.active_product_id || ""),
+  active_variant_id: text(reply.active_variant_id || reply.personality_layer?.active_variant_id || reply.memory_updates?.active_variant_id || ""),
+  active_color: text(reply.active_color || reply.personality_layer?.active_color || reply.memory_updates?.active_color || ""),
+  active_model_family: text(reply.active_model_family || reply.personality_layer?.active_model_family || reply.memory_updates?.active_model_family || ""),
   memory_updates: stableStringify(reply.memory_updates || {}),
   reasoning: normalizeReasoning(reply.reasoning || null),
 });
@@ -388,6 +402,22 @@ const compareScenario = ({ inboundText, captures }) => {
       decisionMatch = false;
       channelDiffs.push("why_this_reply");
     }
+    if (!eq(capture.active_product_id, baseline.active_product_id)) {
+      decisionMatch = false;
+      channelDiffs.push("active_product_id");
+    }
+    if (!eq(capture.active_variant_id, baseline.active_variant_id)) {
+      decisionMatch = false;
+      channelDiffs.push("active_variant_id");
+    }
+    if (!eq(capture.active_color, baseline.active_color)) {
+      decisionMatch = false;
+      channelDiffs.push("active_color");
+    }
+    if (!eq(capture.active_model_family, baseline.active_model_family)) {
+      decisionMatch = false;
+      channelDiffs.push("active_model_family");
+    }
     if (!eq(capture.memory_updates, baseline.memory_updates)) {
       decisionMatch = false;
       channelDiffs.push("memory_updates");
@@ -422,6 +452,7 @@ const validateScenarioExpectations = ({ scenario = {}, capture = {}, channel = "
   const expectations = scenario.expectations || {};
   const reasoning = capture.reasoning || {};
   const issues = [];
+  const firstProductCard = Array.isArray(capture.product_cards) ? capture.product_cards[0] || {} : {};
 
   if (expectations.sales_stage && reasoning.sales_stage !== expectations.sales_stage) {
     issues.push(`sales_stage=${reasoning.sales_stage || "missing"}`);
@@ -431,6 +462,23 @@ const validateScenarioExpectations = ({ scenario = {}, capture = {}, channel = "
   }
   if (expectations.next_best_action && reasoning.next_best_action !== expectations.next_best_action) {
     issues.push(`next_best_action=${reasoning.next_best_action || "missing"}`);
+  }
+  if (expectations.rich_product_cards === true) {
+    if (!Array.isArray(capture.product_cards) || capture.product_cards.length === 0) {
+      issues.push("product_cards_missing");
+    }
+    if (!Array.isArray(capture.image_cards) || capture.image_cards.length === 0) {
+      issues.push("image_cards_missing");
+    }
+    if (
+      !text(firstProductCard.image_url || "") ||
+      !text(firstProductCard.price || "") ||
+      !Array.isArray(firstProductCard.available_sizes) ||
+      !firstProductCard.available_sizes.length ||
+      !text(firstProductCard.product_url || "")
+    ) {
+      issues.push("first_card_missing_rich_fields");
+    }
   }
   if (issues.length) {
     throw new Error(`[AI_CHANNEL_PARITY_EXPECTATION_FAIL] ${scenario.id}:${channel} ${issues.join(" | ")}`);
@@ -452,6 +500,14 @@ const scenarios = [
 ];
 const parityScenarios = [
   { id: "product_search_jordan", message: "ط¹ظ†ط¯ظƒ ط¬ظˆط±ط¯ظ† 4طں", test_case_id: "product_inquiry" },
+  {
+    id: "rich_cards_jordan4",
+    message: "متاح جوردن فور؟",
+    test_case_id: "product_inquiry",
+    expectations: {
+      rich_product_cards: true,
+    },
+  },
   { id: "more_images", message: "طµظˆط± ط£ظƒطھط±", test_case_id: "more_images" },
   { id: "price_objection", message: "غالي شوية", test_case_id: "price_objection" },
   { id: "size_only", message: "ط¹ط§ظٹط² ظ…ظ‚ط§ط³ 42", test_case_id: "size_availability" },
@@ -544,6 +600,114 @@ parityScenarios.push(
       reply_goal: "help_pick_product",
       next_best_action: "offer_options",
     },
+  },
+  {
+    id: "active_context_color_followup",
+    message: "لون واحد؟",
+    test_case_id: "active_context_color_followup",
+    seedMemory: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+      selected_product_context: {
+        product_id: "jordan-4-black",
+        variant_id: "jordan-4-black-43",
+        name: "Jordan 4 Retro Black",
+        color: "Black",
+        model_family: "air_jordan_4",
+      },
+      selected_product_id: "jordan-4-black",
+      selected_variant_id: "jordan-4-black-43",
+      selected_color: "Black",
+    },
+    expectations: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+    },
+  },
+  {
+    id: "active_context_size_followup",
+    message: "طب مقاس 42؟",
+    test_case_id: "active_context_size_followup",
+    seedMemory: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+      selected_product_context: {
+        product_id: "jordan-4-black",
+        variant_id: "jordan-4-black-43",
+        name: "Jordan 4 Retro Black",
+        color: "Black",
+        model_family: "air_jordan_4",
+      },
+      selected_product_id: "jordan-4-black",
+      selected_variant_id: "jordan-4-black-43",
+      selected_color: "Black",
+    },
+    expectations: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+    },
+  },
+  {
+    id: "active_context_price_followup",
+    message: "غالي",
+    test_case_id: "active_context_price_followup",
+    seedMemory: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+      selected_product_context: {
+        product_id: "jordan-4-black",
+        variant_id: "jordan-4-black-43",
+        name: "Jordan 4 Retro Black",
+        color: "Black",
+        model_family: "air_jordan_4",
+      },
+      selected_product_id: "jordan-4-black",
+      selected_variant_id: "jordan-4-black-43",
+      selected_color: "Black",
+    },
+    expectations: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+    },
+  },
+  {
+    id: "active_context_more_images_followup",
+    message: "صور أكتر",
+    test_case_id: "active_context_more_images_followup",
+    seedMemory: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+      selected_product_context: {
+        product_id: "jordan-4-black",
+        variant_id: "jordan-4-black-43",
+        name: "Jordan 4 Retro Black",
+        color: "Black",
+        model_family: "air_jordan_4",
+      },
+      selected_product_id: "jordan-4-black",
+      selected_variant_id: "jordan-4-black-43",
+      selected_color: "Black",
+    },
+    expectations: {
+      active_product_id: "jordan-4-black",
+      active_variant_id: "jordan-4-black-43",
+      active_color: "Black",
+      active_model_family: "air_jordan_4",
+    },
   }
 );
 
@@ -554,6 +718,29 @@ const catalog = {
     color: "Black",
     image: "https://example.com/jordan-4-black.jpg",
     price: 4200,
+    sizes: ["40", "41", "42", "43"],
+    variants: [
+      {
+        id: "jordan-4-black-variant",
+        variant_id: "jordan-4-black-variant",
+        color: "Black",
+        size: "40,41,42,43",
+        image_url: "https://example.com/jordan-4-black.jpg",
+        display_price: 4200,
+      },
+      {
+        id: "jordan-4-grey-variant",
+        variant_id: "jordan-4-grey-variant",
+        color: "Grey",
+        size: "40,41,42,43",
+        image_url: "https://example.com/jordan-4-grey.jpg",
+        display_price: 4200,
+      },
+    ],
+    product_variant_images: [
+      { variant_id: "jordan-4-black-variant", color_name: "Black", image_url: "https://example.com/jordan-4-black.jpg" },
+      { variant_id: "jordan-4-grey-variant", color_name: "Grey", image_url: "https://example.com/jordan-4-grey.jpg" },
+    ],
   },
   jordan4Grey: {
     id: "jordan-4-grey",
@@ -561,6 +748,7 @@ const catalog = {
     color: "Grey",
     image: "https://example.com/jordan-4-grey.jpg",
     price: 4200,
+    sizes: ["40", "41", "42", "43"],
   },
   jordan1Low: {
     id: "jordan-1-low",
@@ -568,6 +756,7 @@ const catalog = {
     color: "White",
     image: "https://example.com/jordan-1-low.jpg",
     price: 3800,
+    sizes: ["41", "42", "43", "44"],
   },
 };
 
@@ -1139,7 +1328,7 @@ const run = async () => {
   for (const scenario of parityScenarios) {
     const inboundText = scenario.message;
     const perChannelCapture = {};
-    const memoryByChannel = Object.fromEntries(channelConfigs.map((item) => [item.key, {}]));
+    const memoryByChannel = Object.fromEntries(channelConfigs.map((item) => [item.key, { ...(scenario.seedMemory || {}) }]));
 
     for (const config of channelConfigs) {
       const reply = await generateUnifiedAiReply({

@@ -271,6 +271,45 @@ export const buildUnifiedAiReplyPayload = ({
   const actions = collectActions(response);
   const quickReplies = collectQuickReplies(response);
   const memoryUpdates = response?.memory_updates || response?.ai_memory_patch || response?.memory_patch || {};
+  const activeProductId = text(
+    response?.active_product_id ||
+      response?.personality_layer?.active_product_id ||
+      response?.personalityLayer?.active_product_id ||
+      memoryUpdates?.active_product_id ||
+      memoryUpdates?.preferences?.active_product_id ||
+      ""
+  );
+  const activeVariantId = text(
+    response?.active_variant_id ||
+      response?.personality_layer?.active_variant_id ||
+      response?.personalityLayer?.active_variant_id ||
+      memoryUpdates?.active_variant_id ||
+      memoryUpdates?.preferences?.active_variant_id ||
+      ""
+  );
+  const activeColor = text(
+    response?.active_color ||
+      response?.personality_layer?.active_color ||
+      response?.personalityLayer?.active_color ||
+      memoryUpdates?.active_color ||
+      memoryUpdates?.preferences?.active_color ||
+      ""
+  );
+  const activeModelFamily = text(
+    response?.active_model_family ||
+      response?.personality_layer?.active_model_family ||
+      response?.personalityLayer?.active_model_family ||
+      memoryUpdates?.active_model_family ||
+      memoryUpdates?.preferences?.active_model_family ||
+      ""
+  );
+  const selectedProductContext =
+    response?.selected_product_context ||
+    response?.personality_layer?.selected_product_context ||
+    response?.personalityLayer?.selected_product_context ||
+    memoryUpdates?.selected_product_context ||
+    memoryUpdates?.preferences?.selected_product_context ||
+    null;
   const handoff = {
     needs_human_support: response?.needs_human_support === true || response?.handoff?.needs_human_support === true,
     conversation_status: text(response?.conversation_status || response?.status || conversation?.status || ""),
@@ -297,6 +336,23 @@ export const buildUnifiedAiReplyPayload = ({
   const conversion = response?.conversion || response?.conversion_probability || salesIntelligence?.conversion || {};
   const followUp = response?.follow_up || response?.follow_up_recommendation || salesIntelligence?.followUp || {};
   const suggestedActions = asArray(response?.suggested_actions || response?.actions || response?.channel_reply?.suggested_actions || response?.channel_reply?.actions);
+  const firstCard = productCards[0] || {};
+  console.info("[RICH_PRODUCT_CARDS_READY]", {
+    channel: normalizedChannel,
+    conversation_id: text(conversation?.id || conversation?.session_id || conversation?.conversation_id || message?.session_id || message?.conversation_id || ""),
+    product_cards_count: productCards.length,
+    image_cards_count: imageCards.length,
+    first_card: {
+      product_id: text(firstCard.product_id || firstCard.id || ""),
+      variant_id: text(firstCard.variant_id || firstCard.selected_variant_id || firstCard.matched_variant_id || ""),
+      name: text(firstCard.name || firstCard.title || firstCard.product_name || ""),
+      color: text(firstCard.color || firstCard.matched_variant_color || ""),
+      price: text(firstCard.price || ""),
+      available_sizes: asArray(firstCard.available_sizes || firstCard.sizes).map((item) => text(item)).filter(Boolean),
+      product_url: text(firstCard.product_url || firstCard.url || ""),
+      image_url: text(firstCard.image_url || firstCard.image || firstCard.main_image || ""),
+    },
+  });
   const closer = {
     ...(response?.closer || response?.proactive_closer || salesIntelligence?.closer || {}),
     stage: text(
@@ -330,6 +386,22 @@ export const buildUnifiedAiReplyPayload = ({
     follow_up: followUp,
     closer,
   };
+  console.info("[CHANNEL_CARD_PAYLOAD]", {
+    channel: normalizedChannel,
+    conversation_id: text(conversation?.id || conversation?.session_id || conversation?.conversation_id || message?.session_id || message?.conversation_id || ""),
+    product_cards_count: productCards.length,
+    image_cards_count: imageCards.length,
+    first_card: {
+      product_id: text(firstCard.product_id || firstCard.id || ""),
+      variant_id: text(firstCard.variant_id || firstCard.selected_variant_id || firstCard.matched_variant_id || ""),
+      name: text(firstCard.name || firstCard.title || firstCard.product_name || ""),
+      color: text(firstCard.color || firstCard.matched_variant_color || ""),
+      price: text(firstCard.price || ""),
+      available_sizes: asArray(firstCard.available_sizes || firstCard.sizes).map((item) => text(item)).filter(Boolean),
+      product_url: text(firstCard.product_url || firstCard.url || ""),
+      image_url: text(firstCard.image_url || firstCard.image || firstCard.main_image || ""),
+    },
+  });
   return {
     tenant_id: tenantId,
     branch_id: branchId,
@@ -347,6 +419,11 @@ export const buildUnifiedAiReplyPayload = ({
     quick_replies: [],
     actions: [],
     suggested_actions: suggestedActions,
+    active_product_id: activeProductId,
+    active_variant_id: activeVariantId,
+    active_color: activeColor,
+    active_model_family: activeModelFamily,
+    selected_product_context: selectedProductContext,
     sales_state: salesState,
     journey_events: journeyEvents,
     conversion,
@@ -356,6 +433,11 @@ export const buildUnifiedAiReplyPayload = ({
     next_best_question: nextBestQuestion,
     ready_to_confirm_order: readyToConfirmOrder,
     memory_updates: memoryUpdates,
+    active_product_id: activeProductId,
+    active_variant_id: activeVariantId,
+    active_color: activeColor,
+    active_model_family: activeModelFamily,
+    selected_product_context: selectedProductContext,
     draft_order: draftOrder,
     handoff,
     reply_variations: replyVariations,
@@ -389,6 +471,10 @@ export const buildUnifiedAiReplyPayload = ({
       personality_stage: text(conversationStageAwareness?.stage || personalityLayer?.stage || ""),
       missing_order_fields_count: missingOrderFields.length,
       ready_to_confirm_order: readyToConfirmOrder,
+      active_product_id: activeProductId,
+      active_variant_id: activeVariantId,
+      active_color: activeColor,
+      active_model_family: activeModelFamily,
     },
     channel_reply: channelReply,
     raw_response: response,

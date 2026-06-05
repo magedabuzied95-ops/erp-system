@@ -775,14 +775,20 @@ export const productCardReplyText = (product = {}) => {
   if (replyMode === "image_only") return "";
   if (replyMode === "color_only") {
     return [
+      productCardName(product) ? `المنتج: ${productCardName(product)}` : "",
       product.color ? `\u0627\u0644\u0644\u0648\u0646: ${product.color}` : "",
-    product.product_url || product.url ? product.product_url || product.url : "",
+      formatAvailableSizesLine(product.available_sizes || product.sizes),
+      formatCloserPrice(product.price) ? `\u0627\u0644\u0633\u0639\u0631: ${formatCloserPrice(product.price)}` : "",
+      productCardUrl(product) || "",
     ].filter(Boolean).join("\n");
   }
   const sizes = sortSizes(product.available_sizes || product.sizes);
   return [
-    "\u0623\u064a\u0648\u0647 \u0645\u0648\u062c\u0648\u062f \u2705",
-    sizes.length ? `\u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c")}` : "",
+    productCardName(product),
+    product.color ? `\u0627\u0644\u0644\u0648\u0646: ${product.color}` : "",
+    sizes.length ? `\u0627\u0644\u0645\u062a\u0627\u062d: ${sizes.join("\u060c ")}` : "",
+    formatCloserPrice(product.price) ? `\u0627\u0644\u0633\u0639\u0631: ${formatCloserPrice(product.price)}` : "",
+    productCardUrl(product) ? `\u0627\u0644\u0644\u064a\u0646\u0643: ${productCardUrl(product)}` : "",
     "",
     "\u062a\u062d\u0628 \u0623\u062d\u062c\u0632\u0647\u0648\u0644\u0643\u061f",
   ].filter(Boolean).join("\n");
@@ -793,6 +799,7 @@ export const productImageCaption = (product = {}) => {
   const sizesLine = formatAvailableSizesLine(product.available_sizes || product.sizes);
   return [
     productCardName(product),
+    product.color ? `\u0627\u0644\u0644\u0648\u0646: ${product.color}` : "",
     sizesLine,
     priceText ? `\u0627\u0644\u0633\u0639\u0631: ${priceText}` : "",
     productCardUrl(product),

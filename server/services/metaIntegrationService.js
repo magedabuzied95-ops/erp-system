@@ -15293,6 +15293,22 @@ export const processMetaWebhook = async ({ req } = {}) => {
     const modelNameSearch = detectModelNameSearch(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
     const productCardLimit = Number(metadata.product_card_limit || 0) || (modelNameSearch ? 12 : 6);
     let productCards = normalizeProductCards(reply.product_cards || aiPayload.suggested_products || [], { limit: productCardLimit });
+    const firstCard = productCards[0] || {};
+    console.info("[CHANNEL_CARD_PAYLOAD]", {
+      channel: message.channel,
+      product_cards_count: productCards.length,
+      image_cards_count: Array.isArray(reply.image_cards) ? reply.image_cards.length : 0,
+      first_card: {
+        product_id: text(firstCard.product_id || firstCard.id || ""),
+        variant_id: text(firstCard.variant_id || firstCard.selected_variant_id || firstCard.matched_variant_id || ""),
+        name: text(firstCard.name || firstCard.title || firstCard.product_name || ""),
+        color: text(firstCard.color || firstCard.matched_variant_color || ""),
+        price: text(firstCard.price || ""),
+        available_sizes: Array.isArray(firstCard.available_sizes || firstCard.sizes) ? (firstCard.available_sizes || firstCard.sizes).map((item) => text(item)).filter(Boolean) : [],
+        product_url: text(firstCard.product_url || firstCard.url || ""),
+        image_url: text(firstCard.image_url || firstCard.image || firstCard.main_image || ""),
+      },
+    });
     if (modelNameSearch) {
       console.log("ai_model_color_limit_applied", {
         tenant_id: config.tenant_id,

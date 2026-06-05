@@ -1742,6 +1742,22 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       cards_count: dedupedOutboundCards.length,
       first_5_cards: dedupedOutboundCards.slice(0, 5).map(productImageDebugCard),
     });
+    const firstCard = dedupedOutboundCards[0] || {};
+    console.info("[CHANNEL_CARD_PAYLOAD]", {
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      product_cards_count: dedupedOutboundCards.length,
+      image_cards_count: dedupedOutboundCards.length,
+      first_card: {
+        product_id: text(firstCard.product_id || firstCard.id || ""),
+        variant_id: text(firstCard.variant_id || firstCard.selected_variant_id || firstCard.matched_variant_id || ""),
+        name: text(firstCard.name || firstCard.title || firstCard.product_name || ""),
+        color: text(firstCard.color || firstCard.matched_variant_color || ""),
+        price: text(firstCard.price || ""),
+        available_sizes: Array.isArray(firstCard.available_sizes || firstCard.sizes) ? (firstCard.available_sizes || firstCard.sizes).map((item) => text(item)).filter(Boolean) : [],
+        product_url: text(firstCard.product_url || firstCard.url || ""),
+        image_url: text(firstCard.image_url || firstCard.image || firstCard.main_image || ""),
+      },
+    });
     for (const card of dedupedOutboundCards.slice(0, 6)) {
       console.info("[whatsapp-card-built]", {
         product_id: text(card.product_id || card.id || ""),

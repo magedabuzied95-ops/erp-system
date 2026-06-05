@@ -1018,7 +1018,7 @@ const visualAttachmentImageUrls = (reply = {}) =>
   ]
     .map(toText)
     .filter((url) => /^https?:\/\//i.test(url))
-    .slice(0, 3);
+    .slice(0, 6);
 
 export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" } = {}) => {
   const config = whatsappConfig();
@@ -1028,6 +1028,26 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
   if (!recipient) throw Object.assign(new Error("WhatsApp recipient is required"), { code: "WHATSAPP_RECIPIENT_REQUIRED" });
   const text = toText(messageText || reply.text);
   const results = [];
+  const productCards = normalizeStructuredProductCards(reply.product_cards, { limit: 6 });
+  const imageCards = visualAttachmentImageUrls(reply);
+  if (productCards.length || imageCards.length) {
+    const firstCard = productCards[0] || {};
+    console.info("[CHANNEL_CARD_PAYLOAD]", {
+      channel: normalized,
+      product_cards_count: productCards.length,
+      image_cards_count: imageCards.length,
+      first_card: {
+        product_id: toText(firstCard.product_id || firstCard.id || ""),
+        variant_id: toText(firstCard.variant_id || firstCard.selected_variant_id || firstCard.matched_variant_id || ""),
+        name: toText(firstCard.name || firstCard.title || firstCard.product_name || ""),
+        color: toText(firstCard.color || firstCard.matched_variant_color || ""),
+        price: toText(firstCard.price || ""),
+        available_sizes: asArray(firstCard.available_sizes || firstCard.sizes).map((item) => toText(item)).filter(Boolean),
+        product_url: toText(firstCard.product_url || firstCard.url || ""),
+        image_url: toText(firstCard.image_url || firstCard.image || firstCard.main_image || ""),
+      },
+    });
+  }
   if (text) {
     results.push(await postWhatsAppMessage({
       config,
@@ -1040,7 +1060,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
       },
     }));
   }
-  for (const imageUrl of visualAttachmentImageUrls(reply)) {
+  for (const imageUrl of imageCards) {
     try {
       results.push(await postWhatsAppMessage({
         config,
@@ -1143,7 +1163,26 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
   console.log("[meta-send] token present", { tokenPresent: Boolean(config.pageAccessToken), source: "aiChannelAdapterService" });
   const text = toText(messageText || reply.text);
   const results = [];
-  const productCards = normalizeStructuredProductCards(reply.product_cards, { limit: 4 });
+  const productCards = normalizeStructuredProductCards(reply.product_cards, { limit: 6 });
+  const imageCards = visualAttachmentImageUrls(reply);
+  if (productCards.length || imageCards.length) {
+    const firstCard = productCards[0] || {};
+    console.info("[CHANNEL_CARD_PAYLOAD]", {
+      channel: normalized,
+      product_cards_count: productCards.length,
+      image_cards_count: imageCards.length,
+      first_card: {
+        product_id: toText(firstCard.product_id || firstCard.id || ""),
+        variant_id: toText(firstCard.variant_id || firstCard.selected_variant_id || firstCard.matched_variant_id || ""),
+        name: toText(firstCard.name || firstCard.title || firstCard.product_name || ""),
+        color: toText(firstCard.color || firstCard.matched_variant_color || ""),
+        price: toText(firstCard.price || ""),
+        available_sizes: asArray(firstCard.available_sizes || firstCard.sizes).map((item) => toText(item)).filter(Boolean),
+        product_url: toText(firstCard.product_url || firstCard.url || ""),
+        image_url: toText(firstCard.image_url || firstCard.image || firstCard.main_image || ""),
+      },
+    });
+  }
   if (productCards.length) {
     for (const product of productCards) {
       console.log("[ai-agent:meta] selected product card", {
@@ -1194,7 +1233,7 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
     }
     return { sent: results.length > 0, results };
   }
-  for (const imageUrl of visualAttachmentImageUrls(reply)) {
+  for (const imageUrl of imageCards) {
     try {
       const imageResult = await postMetaPageMessage({
         config,

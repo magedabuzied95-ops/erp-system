@@ -1,3 +1,5 @@
+import { resolveActiveProductContext } from "./aiConversationMemoryService.js";
+
 const text = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : [value]).flat().filter(Boolean);
 const lower = (value = "") => text(value).toLowerCase();
@@ -49,20 +51,36 @@ const sanitizeForbiddenPhrases = (value = "") => {
     .trim();
 };
 
-const inferProductName = (response = {}) => {
+const inferProductName = (response = {}, memory = {}) => {
+  const activeContext = resolveActiveProductContext({
+    current: memory,
+    message: "",
+    metadata: {},
+    suggestedProducts: asArray(response?.suggested_products),
+    preferencesPatch: response?.memory_updates || response?.ai_memory_patch?.preferences || {},
+  });
   const product =
     response?.product_context ||
     asArray(response?.suggested_products).find((item) => item && (item.name || item.title || item.product_name)) ||
     asArray(response?.product_cards).find((item) => item && (item.name || item.title || item.product_name)) ||
+    activeContext.selected_product_context ||
     null;
-  return text(product?.name || product?.title || product?.product_name || "");
+  return text(product?.name || product?.title || product?.product_name || activeContext.selected_product_context?.name || activeContext.selected_product_context?.title || "");
 };
 
-const inferPrice = (response = {}, baseText = "") => {
+const inferPrice = (response = {}, baseText = "", memory = {}) => {
+  const activeContext = resolveActiveProductContext({
+    current: memory,
+    message: baseText,
+    metadata: {},
+    suggestedProducts: asArray(response?.suggested_products),
+    preferencesPatch: response?.memory_updates || response?.ai_memory_patch?.preferences || {},
+  });
   const product =
     response?.product_context ||
     asArray(response?.suggested_products)[0] ||
     asArray(response?.product_cards)[0] ||
+    activeContext.selected_product_context ||
     null;
   const direct =
     Number(product?.final_price || product?.sale_price || product?.price || product?.regular_price || product?.product_price);
@@ -71,16 +89,24 @@ const inferPrice = (response = {}, baseText = "") => {
   return match ? Number(match[1]) : null;
 };
 
-const inferSize = (response = {}, message = "") => {
+const inferSize = (response = {}, message = "", memory = {}) => {
   const direct = text(response?.requested_size || response?.detected_size || response?.entities?.size);
   if (direct) return direct;
+  const memorySize = text(
+    memory?.preferences?.selected_size ||
+      memory?.preferences?.size ||
+      memory?.selected_size ||
+      memory?.activeSize ||
+      memory?.preferences?.last_selected_size
+  );
+  if (memorySize) return memorySize;
   const match = text(message).match(/\b(3[5-9]|4[0-9]|5[0-2])\b/);
   return match ? match[1] : "";
 };
 
 const pickFirstText = (...values) => asArray(values).map((value) => text(value)).find(Boolean) || "";
 
-const productColorList = (product = {}) => {
+const productColorList = (product = {}, memory = {}) => {
   const direct = [
     ...(Array.isArray(product.available_colors) ? product.available_colors : []),
     ...(Array.isArray(product.colors) ? product.colors : []),
@@ -89,6 +115,9 @@ const productColorList = (product = {}) => {
     product.matched_variant_color,
     product.selected_variant?.color,
     product.selected_variant?.color_name,
+    memory?.active_color,
+    memory?.preferences?.active_color,
+    memory?.preferences?.selected_color,
   ];
   return [...new Set(direct.map((value) => text(value)).filter(Boolean))];
 };
@@ -312,7 +341,14 @@ const buildSalesReplyReasoning = ({
 } = {}) => {
   const normalizedMessage = normalizeArabic(message);
   const normalizedIntent = lower(intent || response?.detected_intent || response?.intent?.type || response?.intent || "");
-  const primaryProduct = asArray(response?.suggested_products)[0] || asArray(response?.product_cards)[0] || asArray(response?.channel_reply?.product_cards)[0] || null;
+  const activeContext = resolveActiveProductContext({
+    current: memory,
+    message,
+    metadata: response?.debug || {},
+    suggestedProducts: asArray(response?.suggested_products).length ? asArray(response?.suggested_products) : asArray(response?.product_cards),
+    preferencesPatch: response?.memory_updates || response?.ai_memory_patch?.preferences || {},
+  });
+  const primaryProduct = asArray(response?.suggested_products)[0] || asArray(response?.product_cards)[0] || asArray(response?.channel_reply?.product_cards)[0] || activeContext.selected_product_context || null;
   const productContextName = text(
     productName ||
       primaryProduct?.name ||
@@ -320,7 +356,10 @@ const buildSalesReplyReasoning = ({
       primaryProduct?.product_name ||
       response?.product_context?.name ||
       response?.product_context?.title ||
-      response?.product_context?.product_name
+      response?.product_context?.product_name ||
+      activeContext.selected_product_context?.name ||
+      activeContext.selected_product_context?.title ||
+      activeContext.selected_product_context?.product_name
   );
   const detectedColor = pickFirstText(
     response?.requested_color,
@@ -329,9 +368,10 @@ const buildSalesReplyReasoning = ({
     response?.product_context?.color,
     response?.product_context?.matched_variant_color,
     memory?.preferences?.selected_color,
-    memory?.preferences?.color
+    memory?.preferences?.color,
+    activeContext.active_color
   );
-  const productColors = productContextName ? productColorList(primaryProduct || response?.product_context || {}) : [];
+  const productColors = productContextName ? productColorList(primaryProduct || response?.product_context || activeContext.selected_product_context || {}, memory) : [];
   const explicitProductMention = Boolean(productContextName) || /(جوردن|jordan|aj4|j4|نايك|nike|اديداس|adidas|air force|dunk|shox|samba|yeezy|campus|كوتشي|سنيكر|موديل)/i.test(normalizedMessage);
   const isPriceQuestion = /(بكام|السعر|سعره|price|cost|كام سعره|قد ايه)/i.test(normalizedMessage);
   const isSizeQuestion = /(مقاس|size|نمرة|نمره)/i.test(normalizedMessage) || Boolean(size);
@@ -354,7 +394,15 @@ const buildSalesReplyReasoning = ({
   const isObjection = /(غالي|غاليه|سعره عالي|ارخص|خصم|discount|ميزانيه|ميزانية|مش مناسب|مش عاجبني السعر|عايزه ارخص)/i.test(normalizedMessage) || normalizedIntent.includes("objection");
   const hasOrderDraft = Boolean(response?.draft_order || response?.ai_order?.status === "ai_draft" || response?.ai_order?.status === "draft");
   const closer = inferBuyingIntentCloser({ response, memory, message, productName: productContextName, size });
-  const hasProductContext = Boolean(productContextName || explicitProductMention || hasOrderDraft || productColors.length || asArray(response?.suggested_products).length || asArray(response?.product_cards).length);
+  const hasProductContext = Boolean(
+    productContextName ||
+      explicitProductMention ||
+      hasOrderDraft ||
+      productColors.length ||
+      asArray(response?.suggested_products).length ||
+      asArray(response?.product_cards).length ||
+      activeContext.active_product_id
+  );
 
   let salesStage = "DISCOVERY";
   if (isHumanHandoff) {
@@ -634,9 +682,16 @@ const buildReasoningReplyEngine = ({
   memory = {},
 } = {}) => {
   const salesStage = text(reasoning.sales_stage || stageAwareness?.stage || "DISCOVERY").toUpperCase();
-  const productLabel = text(productName || inferProductName(response) || "الموديل ده");
+  const activeContext = resolveActiveProductContext({
+    current: memory,
+    message,
+    metadata: response?.debug || {},
+    suggestedProducts: asArray(response?.suggested_products).length ? asArray(response?.suggested_products) : asArray(response?.product_cards),
+    preferencesPatch: response?.memory_updates || response?.ai_memory_patch?.preferences || {},
+  });
+  const productLabel = text(productName || inferProductName(response, memory) || activeContext.selected_product_context?.name || activeContext.selected_product_context?.title || "الموديل ده");
   const priceLabel = Number.isFinite(Number(price)) && Number(price) > 0 ? `${Math.round(Number(price)).toLocaleString("en-US")} جنيه` : "";
-  const productColors = productColorList(response?.product_context || asArray(response?.suggested_products)[0] || asArray(response?.product_cards)[0] || {});
+  const productColors = productColorList(response?.product_context || asArray(response?.suggested_products)[0] || asArray(response?.product_cards)[0] || activeContext.selected_product_context || {}, memory);
   const selectedProduct = productLabel || text(response?.draft_order?.product_name || response?.draft_order?.product?.name || "");
   const missingFields = asArray(closerMeta?.missing_order_fields || response?.missing_order_fields || response?.closer?.missing_order_fields || []);
   const normalizedMissingFields = missingFields.map((item) => text(item)).filter(Boolean);
@@ -876,15 +931,23 @@ export function applyHumanSalesPersonalityLayer({
   channel = "",
 } = {}) {
   const baseText = text(response.answer || response.text || "");
-  const productName = inferProductName(response);
-  const price = inferPrice(response, baseText);
-  const size = inferSize(response, message);
+  const activeContext = resolveActiveProductContext({
+    current: memory,
+    message,
+    metadata: response?.debug || {},
+    suggestedProducts: asArray(response?.suggested_products).length ? asArray(response?.suggested_products) : asArray(response?.product_cards),
+    preferencesPatch: response?.memory_updates || response?.ai_memory_patch?.preferences || {},
+  });
+  const productName = inferProductName(response, memory);
+  const price = inferPrice(response, baseText, memory);
+  const size = inferSize(response, message, memory);
   const existingCloser = response?.closer || response?.proactive_closer || {};
   const reasoning = buildSalesReplyReasoning({
     response,
     message,
     intent,
     memory,
+    activeContext,
     productName,
     price,
     size,
@@ -903,6 +966,7 @@ export function applyHumanSalesPersonalityLayer({
     reasoning,
     stageAwareness,
     closerMeta,
+    activeContext,
     productName,
     price,
     size,
@@ -948,6 +1012,10 @@ export function applyHumanSalesPersonalityLayer({
     stage: stageAwareness.stage,
     product_name: productName,
     price,
+    active_product_id: activeContext.active_product_id || "",
+    active_variant_id: activeContext.active_variant_id || "",
+    active_color: activeContext.active_color || "",
+    active_model_family: activeContext.active_model_family || "",
   };
   const closer = closerMeta?.closer
     ? {
