@@ -291,15 +291,15 @@ export const createVariant = async (productId, body) => {
   return unwrapItem(await api.post(`/products/${productId}/variants`, payload));
 };
 
-export const uploadProductImage = async (file) => {
+export const uploadProductImage = async (file, { timeoutMs = 45000 } = {}) => {
   const formData = new FormData();
   formData.append("image", file);
 
   try {
-    return await api.post("/uploads", formData);
+    return await api.post("/uploads", formData, { timeoutMs });
   } catch (error) {
     if (Number(error?.status || error?.response?.status) === 404) {
-      return api.post("/upload", formData);
+      return api.post("/upload", formData, { timeoutMs });
     }
     throw error;
   }

@@ -10,6 +10,46 @@ let singleBranchResult = null;
 let singleBranchRuntimeWarningLogged = false;
 
 const q = (identifier) => `"${String(identifier).replaceAll('"', '""')}"`;
+const transientLockCodes = new Set(["40P01", "55P03", "57014"]);
+
+const isTransientLockError = (error) => transientLockCodes.has(error?.code);
+
+const applyBootstrapDdlTimeouts = async (clientOrPool) => {
+  try {
+    await clientOrPool.query(`SET LOCAL lock_timeout = '2s'`);
+    await clientOrPool.query(`SET LOCAL statement_timeout = '5s'`);
+  } catch (error) {
+    if (error?.code !== "25001") throw error;
+
+    await clientOrPool.query(`SET lock_timeout = '2s'`);
+    await clientOrPool.query(`SET statement_timeout = '5s'`);
+  }
+};
+
+async function safeRequiredDdl(client, sql, label) {
+  await client.query(sql);
+  console.log("[single-branch-ddl:ok]", { label });
+  return true;
+}
+
+async function safeOptionalDdl(client, sql, label) {
+  try {
+    await client.query(sql);
+    console.log("[single-branch-ddl:ok]", { label });
+    return true;
+  } catch (error) {
+    if (isTransientLockError(error)) {
+      console.warn("[single-branch-ddl:skipped-transient-lock]", {
+        label,
+        code: error.code,
+        message: error.message,
+      });
+      return false;
+    }
+
+    throw error;
+  }
+}
 
 const getBranchIdTables = async (clientOrPool) => {
   const result = await clientOrPool.query(
@@ -37,8 +77,11 @@ const warnRuntimeSingleBranchSchemaExecution = () => {
 };
 
 const ensureSingleBranchModeNow = async (clientOrPool = db) => {
-  await clientOrPool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
-  await clientOrPool.query(`
+  await applyBootstrapDdlTimeouts(clientOrPool);
+  await safeRequiredDdl(clientOrPool, `CREATE EXTENSION IF NOT EXISTS pgcrypto;`, "create_pgcrypto_extension");
+  await safeRequiredDdl(
+    clientOrPool,
+    `
     CREATE TABLE IF NOT EXISTS tenants (
       id BIGSERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -48,13 +91,19 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
-  `);
-  await clientOrPool.query(`
+  `,
+    "create_tenants_table"
+  );
+  await safeRequiredDdl(
+    clientOrPool,
+    `
     INSERT INTO tenants (name, slug, status, plan)
     SELECT 'Default Company', 'default-company', 'active', 'trial'
     WHERE NOT EXISTS (SELECT 1 FROM tenants)
     ON CONFLICT (slug) DO NOTHING
-  `);
+  `,
+    "seed_default_tenant"
+  );
 
   const tenantResult = await clientOrPool.query(`
     SELECT id
@@ -64,7 +113,9 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
   `);
   const tenantId = tenantResult.rows[0]?.id || 1;
 
-  await clientOrPool.query(`
+  await safeRequiredDdl(
+    clientOrPool,
+    `
     CREATE TABLE IF NOT EXISTS branches (
       id BIGSERIAL PRIMARY KEY,
       tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -85,10 +136,24 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
-  `);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS notes TEXT`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS attendance_public_code VARCHAR(32)`);
+  `,
+    "create_branches_table"
+  );
+  await safeRequiredDdl(
+    clientOrPool,
+    `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS notes TEXT`,
+    "alter_branches_add_notes"
+  );
+  await safeRequiredDdl(
+    clientOrPool,
+    `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`,
+    "alter_branches_add_is_active"
+  );
+  await safeRequiredDdl(
+    clientOrPool,
+    `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS attendance_public_code VARCHAR(32)`,
+    "alter_branches_add_attendance_public_code"
+  );
 
   const keeperResult = await clientOrPool.query(
     `
@@ -126,9 +191,15 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
        OR TRIM(attendance_public_code) = ''
     `
   );
-  await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_attendance_public_code ON branches (attendance_public_code)`);
+  await safeOptionalDdl(
+    clientOrPool,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_attendance_public_code ON branches (attendance_public_code)`,
+    "create_branches_attendance_public_code_index"
+  );
 
-  await clientOrPool.query(`
+  await safeRequiredDdl(
+    clientOrPool,
+    `
     DO $$
     BEGIN
       IF EXISTS (
@@ -143,7 +214,9 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
         WHERE branch_name IS DISTINCT FROM '${SINGLE_BRANCH_NAME.replaceAll("'", "''")}';
       END IF;
     END $$;
-  `);
+  `,
+    "sync_warehouse_branch_name"
+  );
 
   await clientOrPool.query(
     `
@@ -169,12 +242,18 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
   }
 
   await clientOrPool.query(`DELETE FROM branches WHERE id <> $1`, [branchId]);
-  await clientOrPool.query(`
+  await safeOptionalDdl(
+    clientOrPool,
+    `
     CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_single_system_branch
     ON branches ((TRUE))
-  `);
+  `,
+    "create_single_system_branch_index"
+  );
 
-  await clientOrPool.query(`
+  await safeRequiredDdl(
+    clientOrPool,
+    `
     CREATE OR REPLACE FUNCTION enforce_single_system_branch_id()
     RETURNS trigger AS $$
     DECLARE
@@ -193,18 +272,28 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
       RETURN NEW;
     END;
     $$ LANGUAGE plpgsql;
-  `);
+  `,
+    "create_enforce_single_system_branch_id_function"
+  );
 
   for (const { table_schema: schema, table_name: table } of branchTables) {
     const triggerName = `trg_single_branch_${table}`.slice(0, 63);
-    await clientOrPool.query(`DROP TRIGGER IF EXISTS ${q(triggerName)} ON ${q(schema)}.${q(table)}`);
+    await safeOptionalDdl(
+      clientOrPool,
+      `DROP TRIGGER IF EXISTS ${q(triggerName)} ON ${q(schema)}.${q(table)}`,
+      table === "employees" ? "drop_single_branch_employees_trigger" : `drop_single_branch_${table}_trigger`
+    );
     try {
-      await clientOrPool.query(`
+      await safeOptionalDdl(
+        clientOrPool,
+        `
         CREATE TRIGGER ${q(triggerName)}
         BEFORE INSERT OR UPDATE OF branch_id ON ${q(schema)}.${q(table)}
         FOR EACH ROW
         EXECUTE FUNCTION enforce_single_system_branch_id()
-      `);
+      `,
+        `create_single_branch_trigger_${schema}.${table}`
+      );
     } catch (error) {
       if (error?.code !== "42710") throw error;
     }

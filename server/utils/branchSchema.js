@@ -3,6 +3,14 @@ import { ensureSingleBranchMode } from "./singleBranchMode.js";
 import { ensureForeignKeyConstraint } from "./schemaConstraints.js";
 
 let schemaReadyPromise = null;
+const transientLockCodes = new Set(["40P01", "55P03", "57014"]);
+
+const isTransientLockError = (error) => transientLockCodes.has(error?.code);
+
+const applyBootstrapDdlTimeouts = async (client) => {
+  await client.query(`SET LOCAL lock_timeout = '2s'`);
+  await client.query(`SET LOCAL statement_timeout = '5s'`);
+};
 
 const statements = [
   `CREATE EXTENSION IF NOT EXISTS pgcrypto;`,
@@ -107,11 +115,22 @@ export const ensureBranchSchema = async () => {
       const client = await db.connect();
       try {
         await client.query("BEGIN");
+        await applyBootstrapDdlTimeouts(client);
         for (const statement of statements) {
           await client.query(statement);
         }
         await ensureBranchForeignKeys(client);
-        await ensureSingleBranchMode(client);
+        console.log("[single-branch-mode:startup]");
+        try {
+          await ensureSingleBranchMode(client);
+        } catch (error) {
+          if (!isTransientLockError(error)) throw error;
+
+          console.warn("[single-branch-mode:startup-skipped-transient-lock]", {
+            code: error.code,
+            message: error.message,
+          });
+        }
         await client.query("COMMIT");
       } catch (error) {
         await client.query("ROLLBACK");

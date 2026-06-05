@@ -250,6 +250,7 @@ function AttendanceWorkspace({
   const [attendanceResetOptions, setAttendanceResetOptions] = useState({ clearDeviceLocks: false });
   const [resettingAttendanceId, setResettingAttendanceId] = useState("");
   const [uploadingEmployeePhoto, setUploadingEmployeePhoto] = useState(false);
+  const [employeePhotoUploadError, setEmployeePhotoUploadError] = useState("");
   const [employeeForm, setEmployeeForm] = useState(() => createEmptyEmployeeForm());
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [shiftForm, setShiftForm] = useState(() => createEmptyShiftForm());
@@ -500,7 +501,7 @@ function AttendanceWorkspace({
       employee_id: nextSelectedEmployeeId,
     });
     onSelectedEmployeeChange(selectedEmployee || null);
-  }, [onSelectedEmployeeChange, selectedEmployee?.employee_id, selectedEmployee?.id]);
+  }, [onSelectedEmployeeChange, selectedEmployee, selectedEmployee?.employee_id, selectedEmployee?.id]);
 
   useEffect(() => {
     if (selectedEmployeeId) {
@@ -672,23 +673,30 @@ function AttendanceWorkspace({
   };
 
   const handleEmployeePhotoUpload = async (event) => {
-    const file = event.target.files?.[0];
+    const input = event.currentTarget;
+    const file = input.files?.[0];
     if (!file) return;
 
     try {
+      setEmployeePhotoUploadError("");
       setUploadingEmployeePhoto(true);
-      const response = await uploadProductImage(file);
+      const response = await uploadProductImage(file, { timeoutMs: 45000 });
       const nextUrl = String(resolveUploadedImageUrl(response) || "").trim();
-      if (!nextUrl) throw new Error(isArabic ? "فشل رفع صورة الموظف." : "Employee photo upload failed.");
+      if (!nextUrl) throw new Error(isArabic ? "ظپط´ظ„ ط±ظپط¹ طµظˆط±ط© ط§ظ„ظ…ظˆط¸ظپ." : "Employee photo upload failed.");
       setEmployeeForm((prev) => ({ ...prev, photo_url: cleanPhotoUrl(nextUrl) }));
-      toast.success(isArabic ? "تم رفع صورة الموظف." : "Employee photo uploaded.");
+      toast.success(isArabic ? "طھظ… ط±ظپط¹ طµظˆط±ط© ط§ظ„ظ…ظˆط¸ظپ." : "Employee photo uploaded.");
     } catch (err) {
       console.log(err);
-      toast.error(err?.message || (isArabic ? "فشل رفع صورة الموظف." : "Employee photo upload failed."));
+      const errorMessage =
+        err?.name === "TimeoutError" || String(err?.message || "").toLowerCase().includes("timed out")
+          ? (isArabic ? "ط§ظ†طھظ‡ظ‰ ظˆظ‚طھ ط±ظپط¹ طµظˆط±ط© ط§ظ„ظ…ظˆط¸ظپ. ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰." : "Employee photo upload timed out. Please try again.")
+          : (err?.message || (isArabic ? "ظپط´ط„ ط±ظپط¹ طµظˆط±ط© ط§ظ„ظ…ظˆط¸ظپ." : "Employee photo upload failed."));
+      setEmployeePhotoUploadError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setUploadingEmployeePhoto(false);
-      if (event.target) {
-        event.target.value = "";
+      if (input) {
+        input.value = "";
       }
     }
   };
@@ -1077,10 +1085,13 @@ function AttendanceWorkspace({
     [tr]
   );
   const visibleTabsKey = Array.isArray(visibleTabs) ? visibleTabs.join("|") : "";
-  const visibleTabsSet = useMemo(() => new Set(Array.isArray(visibleTabs) ? visibleTabs : []), [visibleTabsKey]);
   const tabs = useMemo(
-    () => (visibleTabsSet.size ? allTabs.filter((tab) => visibleTabsSet.has(tab.key)) : allTabs),
-    [allTabs, visibleTabsSet]
+    () => {
+      const tabIds = visibleTabsKey ? visibleTabsKey.split("|").filter(Boolean) : [];
+      const visibleTabsSet = new Set(tabIds);
+      return visibleTabsSet.size ? allTabs.filter((tab) => visibleTabsSet.has(tab.key)) : allTabs;
+    },
+    [allTabs, visibleTabsKey]
   );
 
   useEffect(() => {
@@ -1487,7 +1498,10 @@ function AttendanceWorkspace({
                       />
                       <button
                         type="button"
-                        onClick={() => employeePhotoInputRef.current?.click()}
+                        onClick={() => {
+                          setEmployeePhotoUploadError("");
+                          employeePhotoInputRef.current?.click();
+                        }}
                         disabled={uploadingEmployeePhoto}
                         className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                       >
@@ -1504,6 +1518,11 @@ function AttendanceWorkspace({
                         </button>
                       ) : null}
                     </div>
+                    {employeePhotoUploadError ? (
+                      <p className="mt-2 text-sm font-semibold text-rose-400">
+                        {employeePhotoUploadError}
+                      </p>
+                    ) : null}
                   </div>
                   {activeBranches.length > 1 ? (
                     <SelectField

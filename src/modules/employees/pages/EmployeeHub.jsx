@@ -53,20 +53,14 @@ export default function EmployeeHub() {
   const handleSelectedEmployeeChange = useCallback((employee) => {
     setSelectedEmployee(employee);
   }, []);
-  const employeeDirectoryVisibleTabs = useMemo(() => ["employees"], []);
   const payrollVisibleTabs = useMemo(() => ["payroll", "penalties"], []);
   const advancesVisibleTabs = useMemo(() => ["advances", "approvals", "reports"], []);
-  const staffVisibleTabs = useMemo(() => ["staff"], []);
   const tabs = useMemo(
     () => tabDefinitions.map((tab) => ({ ...tab, label: t(`common.employeeHub.tabs.${tab.labelKey}`, tab.id === "analytics" ? t("common.analytics", "Analytics") : tab.labelKey) })),
     [t]
   );
-  if (legacyTabRedirects[params.tab]) {
-    return <Navigate to={`/employees/${legacyTabRedirects[params.tab]}`} replace />;
-  }
   const activeTab = validTabs.has(params.tab) ? params.tab : "overview";
   const selectedEmployeeId = String(selectedEmployee?.id || selectedEmployee?.employee_id || "");
-
   useEffect(() => {
     console.log("[hr-loop]", "employee_hub_selection", {
       employee_id: selectedEmployeeId,
@@ -74,6 +68,9 @@ export default function EmployeeHub() {
       editingEmployeeId: "",
     });
   }, [selectedEmployeeId]);
+  if (legacyTabRedirects[params.tab]) {
+    return <Navigate to={`/employees/${legacyTabRedirects[params.tab]}`} replace />;
+  }
 
   const activeMeta = tabs.find((tab) => tab.id === activeTab) || tabs[0];
 
@@ -134,9 +131,11 @@ export default function EmployeeHub() {
 }
 
 function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChange = null }) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const [section, setSection] = useState("directory");
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
+  const employeeDirectoryVisibleTabs = useMemo(() => ["employees"], []);
+  const staffVisibleTabs = useMemo(() => ["staff"], []);
   useEffect(() => {
     console.log("[hr-loop]", "employee_directory_props", {
       employee_id: String(selectedEmployeeId || ""),
