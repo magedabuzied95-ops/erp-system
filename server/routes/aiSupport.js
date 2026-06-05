@@ -41,6 +41,7 @@ import {
   normalizeIncomingChannelMessage,
   normalizeOutgoingChannelReply,
 } from "../services/aiChannelAdapterService.js";
+import { buildUnifiedAiReplyPayload } from "../services/aiConversationOrchestrator.js";
 import {
   humanizeSalesResponse,
   scheduleAiFollowupIfNeeded,
@@ -1355,15 +1356,63 @@ const channelReplyPayload = (req, response = {}) =>
 const sendAiSupportChannelResponse = async (req, res, response = {}, status = 200) =>
   {
     const message = toText(req.aiChannelMessage?.message_text || req.body?.message);
+    const channel = req.aiChannelMessage?.channel || AI_AGENT_CHANNELS.WEB_CHAT;
+    console.log("[AI_ORCHESTRATOR_ENTER]", {
+      channel,
+      conversation_id: toText(req.aiChannelMessage?.external_conversation_id || req.body?.session_id || req.body?.metadata?.session_id || ""),
+      provider_message_id: toText(req.body?.metadata?.provider_message_id || req.body?.metadata?.external_message_id || ""),
+      inbound_text: message,
+      intent: toText(response?.detected_intent || ""),
+      products_count: Array.isArray(response?.suggested_products) ? response.suggested_products.length : 0,
+      product_cards_count: Array.isArray(response?.product_cards) ? response.product_cards.length : 0,
+      image_cards_count: Array.isArray(response?.visual_attachments) ? response.visual_attachments.length : 0,
+      actions_count: Array.isArray(response?.suggested_actions) ? response.suggested_actions.length : 0,
+      tenant_id: req.aiSupportTenantId || resolveTenantId(req),
+      branch_id: req.aiChannelMessage?.branch_id || null,
+    });
     const composed = await composeAiSalesReply({
       message,
       response,
       intent: response?.detected_intent ? { type: response.detected_intent } : {},
-      source: req.aiChannelMessage?.channel || "ai_support",
+      source: channel || "ai_support",
+    });
+    const unified = buildUnifiedAiReplyPayload({
+      tenantId: req.aiSupportTenantId || resolveTenantId(req),
+      channel,
+      conversation: {
+        id: req.aiChannelMessage?.external_conversation_id || req.body?.session_id || req.body?.metadata?.session_id || "",
+        session_id: req.aiChannelMessage?.external_conversation_id || req.body?.session_id || req.body?.metadata?.session_id || "",
+        customer_name: req.aiChannelMessage?.customer_name || req.body?.metadata?.customer_name || "",
+      },
+      customer: {
+        name: req.aiChannelMessage?.customer_name || req.body?.metadata?.customer_name || "",
+        phone: req.aiChannelMessage?.external_customer_id || req.body?.metadata?.customer_phone || "",
+      },
+      message: {
+        text: message,
+        provider_message_id: req.body?.metadata?.provider_message_id || req.body?.metadata?.external_message_id || "",
+      },
+      attachments: req.aiChannelMessage?.attachments || req.body?.metadata?.attachments || [],
+      response: composed,
+      source: "ai_support_route",
+    });
+    console.log("[AI_CHANNEL_ADAPTER_RESULT]", {
+      channel,
+      adapter_used: "websiteChatAdapter",
+      conversation_id: unified.conversation_id,
+      provider_message_id: unified.provider_message_id,
+      inbound_text: message,
+      intent: unified.intent,
+      products_count: Array.isArray(unified.products) ? unified.products.length : 0,
+      product_cards_count: Array.isArray(unified.product_cards) ? unified.product_cards.length : 0,
+      image_cards_count: Array.isArray(unified.image_cards) ? unified.image_cards.length : 0,
+      actions_count: Array.isArray(unified.actions) ? unified.actions.length : 0,
+      send_result: { sent: true, status },
     });
     return res.status(status).json({
       success: status < 400,
       ...composed,
+      unified_reply: unified,
       channel_reply: channelReplyPayload(req, composed),
     });
   };

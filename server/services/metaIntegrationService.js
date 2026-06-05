@@ -53,6 +53,7 @@ import {
   sizeAvailabilityReplyText,
 } from "./aiSizeAvailabilityLinkService.js";
 import { resolveProductCardLinks } from "./storefrontProductUrlService.js";
+import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v20.0";
 const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -1731,6 +1732,7 @@ export const getAiInboxConversationDebug = async ({ tenantId, channel = "", conv
     route: text(latestEvent.selected_route || latestEvent.handled_reason || ""),
     memory: compactMemoryForDebug(memory),
     processed_inbound_key_count: inboundKeys.length,
+    unified_reply_preview: text(latestOutboundSignature?.preview || latestEvent.reply_preview || latestEvent.reply || ""),
     last_outbound_signature_preview: text(latestOutboundSignature?.preview || latestOutboundSignature?.signature || ""),
     lastOutboundAttemptAt: health.lastOutboundAttemptAt || health.last_outbound_send_attempt_at || null,
     lastOutboundStatus: health.lastOutboundStatus || health.last_outbound_send_status || "",
@@ -5313,14 +5315,23 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
   const channel = channelAlias(message.channel);
   const aiMemory = persistentAiMemoryFromRuntime(getConversationMemory(message.external_conversation_id) || {});
   const customerContext = aiMemory.customerContext || null;
-  const response = await fetch(`${text(process.env.INTERNAL_AI_SUPPORT_URL) || `${req.protocol || "http"}://${req.get("host")}`}/api/ai-support/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-tenant-id": String(config.tenant_id) },
-    body: json({
-      tenant_id: config.tenant_id,
-      message: message.message_text || "Customer sent an attachment",
+  return generateUnifiedAiReply({
+    tenantId: config.tenant_id,
+    branchId: config.branch_id || null,
+    channel,
+    conversation: {
+      id: message.external_conversation_id,
       session_id: message.external_conversation_id,
-      channel: message.channel,
+      customer_name: message.customer_name,
+    },
+    customer: {
+      id: customerContext?.customerId || aiMemory.customerId || message.external_customer_id,
+      name: aiMemory.knownName || customerContext?.fullName || message.customer_name || "",
+      phone: aiMemory.knownPhone || customerContext?.phone || message.external_customer_id || "",
+    },
+    message: {
+      text: message.message_text || "Customer sent an attachment",
+      provider_message_id: message.external_message_id || message.raw?.event?.message?.mid || "",
       metadata: {
         session_id: message.external_conversation_id,
         customer_id: message.external_customer_id,
@@ -5344,11 +5355,20 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
         preferred_sizes: aiMemory.preferredSizes || customerContext?.preferredSizes || [],
         preferred_brands: aiMemory.preferredBrands || customerContext?.preferredBrands || [],
       },
-    }),
+    },
+    attachments: message.attachments || [],
+    memory: aiMemory,
+    providerMessageId: message.external_message_id || message.raw?.event?.message?.mid || "",
+    productsContext: {
+      active_product_id: aiMemory.activeProductId || null,
+      active_variant_id: aiMemory.activeVariantId || null,
+      active_color: aiMemory.activeColor || "",
+      active_size: aiMemory.activeSize || "",
+      customer_context: customerContext,
+      preferred_sizes: aiMemory.preferredSizes || customerContext?.preferredSizes || [],
+      preferred_brands: aiMemory.preferredBrands || customerContext?.preferredBrands || [],
+    },
   });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(payload?.message || "AI support flow failed"), { status: response.status });
-  return payload;
 };
 
 const postMetaMessage = async ({ token, recipientId, messageText, sendContext = {} }) => {
@@ -8179,6 +8199,20 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     }).catch(() => {});
     return { dedupe_skipped: true, delivery_status: "skipped", signature, skip_reason: dedupe.reason || "duplicate_outbound", graph_api_called: false };
   }
+  const adapterUsed = text(message.channel) === AI_AGENT_CHANNELS.INSTAGRAM ? "instagramAdapter" : "messengerAdapter";
+  console.log("[AI_CHANNEL_ADAPTER_SEND]", {
+    channel: message.channel,
+    adapter_used: adapterUsed,
+    conversation_id: message.external_conversation_id,
+    provider_message_id: text(message.external_message_id || message.raw?.event?.message?.mid || ""),
+    inbound_text: finalReplyText,
+    intent: text(detectedIntent || finalMetadata.trigger || ""),
+    products_count: Number(metadata.product_card_count || 0),
+    product_cards_count: Number(metadata.product_card_count || 0),
+    image_cards_count: Number(metadata.image_card_count || 0),
+    actions_count: Number(metadata.actions_count || 0),
+    early_return_reason: "",
+  });
   const result = await sendMetaInboxOutboundMessage({
     tenantId: config.tenant_id,
     channel: message.channel,
@@ -8202,6 +8236,19 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     resolvedQuestionType: finalMetadata.resolvedQuestionType,
   });
   if (result?.dedupe_skipped) return result;
+  console.log("[AI_CHANNEL_ADAPTER_RESULT]", {
+    channel: message.channel,
+    adapter_used: adapterUsed,
+    conversation_id: message.external_conversation_id,
+    provider_message_id: text(message.external_message_id || message.raw?.event?.message?.mid || ""),
+    inbound_text: finalReplyText,
+    intent: text(detectedIntent || finalMetadata.trigger || ""),
+    products_count: Number(metadata.product_card_count || 0),
+    product_cards_count: Number(metadata.product_card_count || 0),
+    image_cards_count: Number(metadata.image_card_count || 0),
+    actions_count: Number(metadata.actions_count || 0),
+    send_result: result,
+  });
   const inserted = await appendAiGeneratedSupportReply({
     tenantId: config.tenant_id,
     sessionId: message.external_conversation_id,

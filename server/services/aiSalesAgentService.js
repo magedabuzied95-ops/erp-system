@@ -10,6 +10,9 @@ import {
 import { pushAIEvent } from "./aiEventLogger.js";
 import { resolveIntent } from "./aiIntentResolver.js";
 import { buildProductContext, ensureProductLinkInReply } from "./aiProductContext.js";
+import { buildCrossSellUpsellSuggestions } from "./crossSellUpsellService.js";
+import { scoreConversationConversion } from "./conversionScoringService.js";
+import { buildFollowUpRecommendation } from "./followUpRecommendationService.js";
 import {
   getConversationMemory,
   updateConversationMemory,
@@ -27,6 +30,14 @@ import {
   detectSalesProductUnderstanding,
   gateRelevantProducts,
 } from "./aiSalesOrchestratorService.js";
+import {
+  buildSalesDiscoveryQuestions,
+  buildSalesStateBadge,
+  inferSalesConversationState,
+  upsertSalesConversationState,
+} from "./salesConversationStateService.js";
+import { loadRecentSalesJourneyEvents, recordSalesJourneyEvents } from "./salesJourneyEventService.js";
+import { buildProactiveCloserPlan } from "./proactiveCloserService.js";
 import { composeAiSalesReply } from "./aiSalesReplyComposerService.js";
 
 let schemaReadyPromise = null;
@@ -52,6 +63,149 @@ const maskIdForLog = (value = "") => {
   if (!safe) return "";
   if (safe.length <= 8) return "***";
   return `${safe.slice(0, 4)}...${safe.slice(-4)}`;
+};
+
+const normalizeConversationMemory = (conversation = {}) => ({
+  preferences: {
+    ...(conversation.customer_profile?.preferred_size ? { size: conversation.customer_profile.preferred_size } : {}),
+    ...(conversation.customer_profile?.preferred_colors?.length ? { preferred_colors: conversation.customer_profile.preferred_colors } : {}),
+    ...(conversation.customer_profile?.preferred_models?.length ? { preferred_models: conversation.customer_profile.preferred_models } : {}),
+    ...(conversation.customer_profile?.memory_score ? { memory_score: conversation.customer_profile.memory_score } : {}),
+    ...(conversation.customer_profile?.external_customer_id ? { external_customer_id: conversation.customer_profile.external_customer_id } : {}),
+  },
+  customer_state: conversation.sales_conversation_state?.current_state || conversation.sales_intelligence?.state?.current_state || "",
+});
+
+const buildSalesConversationIntelligence = async ({
+  tenantId,
+  conversation,
+  messages = [],
+  draftOrders = [],
+  conversationFollowups = [],
+  recommendations = [],
+  selectedProduct = null,
+  currentStateRow = null,
+  existingJourneyEvents = [],
+} = {}) => {
+  const lastCustomerMessage = [...messages].reverse().find((message) => text(message.customer_message || message.message_text || message.last_message));
+  const latestMessage = text(lastCustomerMessage?.customer_message || lastCustomerMessage?.message_text || conversation.latest_message_preview || conversation.last_message);
+  const memory = normalizeConversationMemory(conversation);
+  const conversationDraft = draftOrders[0] || conversation.draft_order || null;
+  const latestOrder = conversationDraft || null;
+  const state = inferSalesConversationState({
+    message: latestMessage,
+    conversation,
+    memory,
+    order: latestOrder,
+    response: conversationDraft ? { ai_order: { status: conversationDraft.ai_agent_status || "ai_draft" } } : {},
+    journeyEvents: existingJourneyEvents,
+  });
+  const currentStateMatches = currentStateRow
+    && text(currentStateRow.current_state) === text(state.current_state)
+    && text(currentStateRow.previous_state) === text(state.previous_state)
+    && text(currentStateRow.state_reason) === text(state.state_reason)
+    && Math.round(Number(currentStateRow.confidence || 0) * 1000) === Math.round(Number(state.confidence || 0) * 1000);
+  const persistedState = currentStateMatches
+    ? currentStateRow
+    : await upsertSalesConversationState({
+        tenantId,
+        conversation,
+        state,
+        metadata: {
+          last_message: latestMessage,
+          has_draft_order: draftOrders.length > 0,
+          has_followup: conversationFollowups.length > 0,
+          selected_product_id: selectedProduct?.id || selectedProduct?.product_id || "",
+          state_reason: state.state_reason,
+          missing_criteria: state.missing_criteria || [],
+        },
+      }).catch(() => currentStateRow || state);
+  const statePayload = persistedState || currentStateRow || state;
+  const stateBadge = buildSalesStateBadge({
+    current_state: statePayload.current_state || state.current_state,
+    state_reason: statePayload.state_reason || state.state_reason,
+    confidence: statePayload.confidence || state.confidence,
+  });
+  const followUp = buildFollowUpRecommendation({
+    conversation,
+    state: statePayload,
+    journeyEvents: existingJourneyEvents,
+    score: null,
+    memory,
+    message: latestMessage,
+  });
+  const score = scoreConversationConversion({
+    conversation,
+    state: statePayload,
+    journeyEvents: existingJourneyEvents,
+    followUp,
+    products: recommendations,
+    memory,
+    message: latestMessage,
+  });
+  const closer = buildProactiveCloserPlan({
+    conversation,
+    state: statePayload,
+    score,
+    journeyEvents: existingJourneyEvents,
+    products: recommendations,
+    followUp,
+  });
+  const journeyEvents = asArray(existingJourneyEvents).length
+    ? asArray(existingJourneyEvents)
+    : await loadRecentSalesJourneyEvents({
+        tenantId,
+        conversationId: conversation.session_id,
+        limit: 8,
+      }).catch(() => []);
+  const derivedEvents = currentStateMatches && asArray(existingJourneyEvents).length
+    ? []
+    : await recordSalesJourneyEvents({
+        tenantId,
+        conversation,
+        state: statePayload,
+        followUp,
+        score,
+        product: selectedProduct,
+        products: recommendations,
+        message: latestMessage,
+      }).catch(() => []);
+  const recentJourneyEvents = [...derivedEvents, ...journeyEvents]
+    .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0))
+    .slice(0, 8);
+  const discoveryQuestions = buildSalesDiscoveryQuestions({
+    conversation,
+    memory,
+    state: statePayload,
+    maxQuestions: 2,
+  });
+  const crossSellSuggestions = buildCrossSellUpsellSuggestions({
+    conversation,
+    products: recommendations,
+    state: statePayload,
+    selectedProduct,
+    score,
+  });
+  return {
+    state: {
+      ...statePayload,
+      current_state: statePayload.current_state || state.current_state,
+      previous_state: statePayload.previous_state || state.previous_state,
+      state_reason: statePayload.state_reason || state.state_reason,
+      confidence: Number(statePayload.confidence ?? state.confidence ?? 0),
+      updated_at: statePayload.updated_at || new Date().toISOString(),
+      channel: text(statePayload.channel || conversation.channel || conversation.source || "web_chat"),
+      customer_id: text(statePayload.customer_id || conversation.external_customer_id || ""),
+      conversation_id: text(conversation.session_id || ""),
+      badge: stateBadge,
+      discovery_questions: discoveryQuestions,
+    },
+    journeyEvents: recentJourneyEvents,
+    conversion: score,
+    followUp,
+    crossSellSuggestions,
+    closer,
+  };
 };
 
 const tableColumnCache = new Map();
@@ -1043,12 +1197,56 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     `,
     [tenantId]
   );
-  const enriched = conversations.map((conversation) => {
+  const [salesStatesResult, salesJourneyEventsResult] = sessionIds.length
+    ? await Promise.all([
+        db.query(
+          `
+          SELECT *
+          FROM ai_sales_conversation_states
+          WHERE tenant_id = $1 AND conversation_id = ANY($2::text[])
+          `,
+          [tenantId, sessionIds]
+        ).catch(() => ({ rows: [] })),
+        db.query(
+          `
+          SELECT *
+          FROM ai_sales_journey_events
+          WHERE tenant_id = $1 AND conversation_id = ANY($2::text[])
+          ORDER BY created_at DESC, id DESC
+          LIMIT 500
+          `,
+          [tenantId, sessionIds]
+        ).catch(() => ({ rows: [] })),
+      ])
+    : [{ rows: [] }, { rows: [] }];
+  const salesStateByConversation = new Map();
+  salesStatesResult.rows.forEach((row) => {
+    salesStateByConversation.set(row.conversation_id, row);
+  });
+  const salesJourneyEventsByConversation = new Map();
+  salesJourneyEventsResult.rows.forEach((row) => {
+    const list = salesJourneyEventsByConversation.get(row.conversation_id) || [];
+    list.push({
+      event_type: row.event_type,
+      conversation_id: row.conversation_id,
+      customer_id: row.customer_id || "",
+      product_id: row.product_id || null,
+      variant_id: row.variant_id || null,
+      channel: row.channel || "web_chat",
+      metadata: row.metadata || {},
+      created_at: row.created_at,
+    });
+    salesJourneyEventsByConversation.set(row.conversation_id, list);
+  });
+
+  const enriched = await Promise.all(conversations.map(async (conversation) => {
     const memories = memoriesByProfile.get(conversation.profile_id) || [];
     const messages = messagesBySession.get(conversation.session_id) || [];
     const totalMessages = messageTotalsBySession.get(conversation.session_id) || messages.length;
     const draftOrders = draftsBySession.get(conversation.session_id) || [];
     const conversationFollowups = followupsBySession.get(conversation.session_id) || [];
+    const currentStateRow = salesStateByConversation.get(conversation.session_id) || null;
+    const existingJourneyEvents = salesJourneyEventsByConversation.get(conversation.session_id) || [];
     const leadType = leadTypeFrom({
       memoryScore: conversation.memory_score,
       sentiment: conversation.customer_sentiment,
@@ -1082,6 +1280,38 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       },
       memories,
     });
+    const salesIntelligence = await buildSalesConversationIntelligence({
+      tenantId,
+      conversation: {
+        ...conversation,
+        customer_profile: customerProfile,
+      },
+      messages,
+      draftOrders,
+      conversationFollowups,
+      recommendations: [],
+      selectedProduct: conversation.current_product || conversation.product || conversation.channel_metadata?.current_product || conversation.channel_metadata?.last_viewed_product || null,
+      currentStateRow,
+      existingJourneyEvents,
+    }).catch(() => ({
+      state: {
+        current_state: "DISCOVERY",
+        previous_state: "",
+        state_reason: "",
+        confidence: 0.5,
+        updated_at: new Date().toISOString(),
+        channel: conversation.channel || conversation.source || "web_chat",
+        customer_id: conversation.external_customer_id || "",
+        conversation_id: conversation.session_id || "",
+        badge: buildSalesStateBadge({ current_state: "DISCOVERY", state_reason: "", confidence: 0.5 }),
+        discovery_questions: [],
+      },
+      journeyEvents: existingJourneyEvents,
+      conversion: { score: 0, level: "low", reasons: [], risk_flags: [], recommended_action: "CONTINUE_CONVERSATION" },
+      followUp: { follow_up_needed: false, follow_up_reason: "", suggested_follow_up_message: "", suggested_follow_up_at: "" },
+      crossSellSuggestions: [],
+      closer: { last_closer_action: "", last_closer_at: "", recommended_action: "CONTINUE", suggested_message: "", reasons: [], should_offer_closer: false },
+    }));
     const systemEvents = [
       conversation.conversation_status === "human_takeover" ? {
         type: "human_takeover",
@@ -1131,6 +1361,13 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       followups: conversationFollowups,
       draft_orders: draftOrders,
       draft_order: draftOrders[0] || null,
+      sales_conversation_state: salesIntelligence.state,
+      sales_journey_events: salesIntelligence.journeyEvents,
+      conversion_probability: salesIntelligence.conversion,
+      follow_up_recommendation: salesIntelligence.followUp,
+      cross_sell_suggestions: salesIntelligence.crossSellSuggestions,
+      proactive_closer: salesIntelligence.closer,
+      sales_intelligence: salesIntelligence,
       system_events: systemEvents,
       status: conversation.conversation_status || "ai_active",
       conversation_status: conversation.conversation_status || "ai_active",
@@ -1156,7 +1393,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       waiting: conversation.due_followup_count > 0 || (conversation.updated_at && Date.now() - new Date(conversation.updated_at).getTime() > 15 * 60 * 1000),
       last_activity_at: conversation.last_message_at || conversation.updated_at,
     };
-  });
+  }));
   return { conversations: enriched, followups: followups.rows };
 };
 
@@ -2119,10 +2356,26 @@ export const loadAiInboxRecommendations = async ({ tenantId, conversationId, lim
       return items;
     }, [])
     .slice(0, Math.min(20, Math.max(1, Number(limit) || 8)));
+  const intelligence = await buildSalesConversationIntelligence({
+    tenantId,
+    conversation,
+    messages: conversation.messages,
+    draftOrders: asArray(conversation.draft_orders),
+    conversationFollowups: asArray(conversation.followups),
+    recommendations: products,
+    selectedProduct: conversation.current_product || conversation.product || products[0] || null,
+    existingJourneyEvents: asArray(conversation.sales_journey_events),
+  }).catch(() => null);
   return {
     conversation_id: conversationId,
     intent: extractSalesIntent(lastMessage),
     products,
+    sales_intelligence: intelligence,
+    sales_conversation_state: intelligence?.state || conversation.sales_conversation_state || null,
+    conversion_probability: intelligence?.conversion || conversation.conversion_probability || {},
+    follow_up_recommendation: intelligence?.followUp || conversation.follow_up_recommendation || {},
+    cross_sell_suggestions: intelligence?.crossSellSuggestions || conversation.cross_sell_suggestions || [],
+    proactive_closer: intelligence?.closer || conversation.proactive_closer || {},
   };
 };
 
@@ -2561,6 +2814,15 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     detectedSize,
   });
   const answer = ensureProductLinkInReply(guarded.reply, replyProductContext);
+  await buildSalesConversationIntelligence({
+    tenantId,
+    conversation,
+    messages: conversation.messages,
+    draftOrders: asArray(conversation.draft_orders),
+    conversationFollowups: asArray(conversation.followups),
+    recommendations: recommendations.products,
+    selectedProduct: replyProductContext || productContext || currentProductForConversation(conversation, recommendations.products),
+  }).catch(() => null);
   logProductShareContext({
     conversationId,
     platform: conversation.channel || conversation.source || "",

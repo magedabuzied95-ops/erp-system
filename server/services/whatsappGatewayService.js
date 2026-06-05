@@ -1776,6 +1776,19 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     const imageSendErrors = [];
     let result = null;
     const currentIntent = text(generated.aiPayload?.detected_intent || generated.aiPayload?.intent?.type || generated.aiPayload?.intent || "");
+    console.log("[AI_CHANNEL_ADAPTER_SEND]", {
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      adapter_used: "whatsappAdapter",
+      conversation_id: outboundPlan.conversation_id,
+      provider_message_id: text(message.external_message_id || message.raw?.event?.message?.mid || ""),
+      inbound_text: body,
+      intent: currentIntent,
+      products_count: Array.isArray(generated.aiPayload?.suggested_products) ? generated.aiPayload.suggested_products.length : 0,
+      product_cards_count: Array.isArray(generated.aiPayload?.product_cards) ? generated.aiPayload.product_cards.length : 0,
+      image_cards_count: sendableImageCards.length,
+      actions_count: Array.isArray(generated.aiPayload?.actions) ? generated.aiPayload.actions.length : 0,
+      early_return_reason: "",
+    });
     const explicitProductFollowup = /(بكام|السعر|سعره|price|cost|متاح|موجود|الوانه|الوان|صور|صوره|صور اكتر|لينك|لينكه|مقاس|المقاسات|عايز ده|فيه منه|فيه من|ابعت اللينك|ابعته)/i.test(text(message.text || message.message_text || ""));
     const willSendCards = outboundPlan.will_send_cards;
     const shouldSendTextOnly = outboundPlan.will_send_text && !willSendCards;

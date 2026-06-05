@@ -1150,6 +1150,43 @@ const trackAiSupportCartOutcome = ({ tenantId, sessionId, productId }) => {
 };
 const isAiGreetingOnlyResponse = (response = {}) =>
   response?.detected_intent === "greeting_only" || response?.greeting_only_mode === true;
+const getUnifiedAiReply = (response = {}) => response?.unified_reply || response?.channel_reply || response || {};
+const unifiedReplyProductCards = (response = {}) => {
+  const unified = getUnifiedAiReply(response);
+  return Array.isArray(unified.product_cards) && unified.product_cards.length
+    ? unified.product_cards
+    : Array.isArray(response?.suggested_products)
+      ? response.suggested_products
+      : Array.isArray(response?.product_cards)
+        ? response.product_cards
+        : [];
+};
+const unifiedReplyImageCards = (response = {}) => {
+  const unified = getUnifiedAiReply(response);
+  const cards = [
+    ...(Array.isArray(unified.image_cards) ? unified.image_cards : []),
+    ...(Array.isArray(unified.visual_attachments) ? unified.visual_attachments : []),
+  ];
+  return cards.filter(Boolean);
+};
+const unifiedReplyQuickReplies = (response = {}) => {
+  const unified = getUnifiedAiReply(response);
+  return Array.isArray(unified.quick_replies) && unified.quick_replies.length
+    ? unified.quick_replies
+    : Array.isArray(unified.suggested_quick_replies)
+      ? unified.suggested_quick_replies
+      : Array.isArray(response?.suggested_actions)
+        ? response.suggested_actions
+        : [];
+};
+const unifiedReplyActions = (response = {}) => {
+  const unified = getUnifiedAiReply(response);
+  return Array.isArray(unified.actions) && unified.actions.length
+    ? unified.actions
+    : Array.isArray(response?.suggested_actions)
+      ? response.suggested_actions
+      : [];
+};
 const EXACT_VARIANT_RENDERED_ANSWER = "أيوه، الموديل ده متاح عندنا، ونفس اللون/النسخة المطابقة للصورة ظاهر في النتيجة.";
 const REQUESTED_VARIANT_UNAVAILABLE_ANSWER = "الموديل موجود عندنا، لكن المقاس أو اللون المطلوب مش متاح في نفس الفاريانت حاليا. النتيجة المعروضة هي نفس الموديل مع حالة التوفر الحالية.";
 const responseExactVariantProduct = (response = {}) => {
@@ -1199,8 +1236,14 @@ const logImageSearchSuggestedProductRanking = (response = {}) => {
 const countAiProductUiCards = (messages = []) =>
   (Array.isArray(messages) ? messages : []).reduce((count, message) => {
     if (message?.role !== "assistant") return count;
-    const products = Array.isArray(message.suggested_products) ? message.suggested_products.length : 0;
-    const attachments = Array.isArray(message.visual_attachments)
+    const products = Array.isArray(message.product_cards) && message.product_cards.length
+      ? message.product_cards.length
+      : Array.isArray(message.suggested_products)
+        ? message.suggested_products.length
+        : 0;
+    const attachments = Array.isArray(message.image_cards) && message.image_cards.length
+      ? message.image_cards.length
+      : Array.isArray(message.visual_attachments)
       ? message.visual_attachments.reduce((sum, attachment) => sum + (Array.isArray(attachment.items) ? attachment.items.length : attachment.sizes?.length ? 1 : 0), 0)
       : 0;
     const visualSections = message.detected_style_model || message.image_ranking_debug || message.response_debug || message.exact_match_found ? 1 : 0;
@@ -1213,6 +1256,13 @@ const clearAiProductUiState = (messages = []) =>
       ...message,
       suggested_products: [],
       visual_attachments: [],
+      product_cards: [],
+      image_cards: [],
+      quick_replies: [],
+      actions: [],
+      unified_reply: null,
+      handoff: null,
+      draft_order: null,
       detected_style_model: "",
       image_ranking_debug: null,
       response_debug: null,
@@ -1817,6 +1867,21 @@ function AiVisualAttachments({ attachments = [], onOpenProduct }) {
           );
         }
 
+        if (attachment.url) {
+          return (
+            <button
+              key={`${attachment.type || "image"}-${sectionIndex}`}
+              type="button"
+              onClick={() => onOpenProduct?.({ id: attachment.product_id, product_url: attachment.product_url, name: attachment.title })}
+              className="w-full rounded-2xl border border-stone-200 bg-white/75 p-2 text-right shadow-sm transition hover:-translate-y-0.5 active:scale-[0.99] dark:border-white/10 dark:bg-white/10"
+            >
+              <img src={imageFor(attachment.url)} onError={fallbackProductImage} alt={attachment.title || "صورة المنتج"} className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" />
+              <span className="mt-2 block truncate text-[11px] font-black text-stone-950 dark:text-white">{attachment.title || "صورة المنتج"}</span>
+              {attachment.subtitle ? <span className="mt-0.5 block truncate text-[10px] font-bold text-stone-500 dark:text-stone-300">{attachment.subtitle}</span> : null}
+            </button>
+          );
+        }
+
         const items = Array.isArray(attachment.items) ? attachment.items.filter((item) => item?.image_url) : [];
         if (!items.length) return null;
         return (
@@ -1934,6 +1999,24 @@ function AiSupportChatWidget() {
           suggested_products: response?.suggested_products,
         });
       }
+      const unifiedReply = getUnifiedAiReply(response);
+      const productCards = unifiedReplyProductCards(response);
+      const imageCards = unifiedReplyImageCards(response);
+      const quickReplies = unifiedReplyQuickReplies(response);
+      const actions = unifiedReplyActions(response);
+      if (isAiSupportDebugEnabled()) {
+        console.debug("[storefront-ai] unified reply render payload", {
+          channel: response?.channel || "storefront_chat",
+          conversation_id: response?.session_id || sessionId,
+          inbound_text: text,
+          intent: unifiedReply?.intent || response?.detected_intent || "",
+          products_count: Array.isArray(unifiedReply?.products) ? unifiedReply.products.length : 0,
+          product_cards_count: Array.isArray(productCards) ? productCards.length : 0,
+          image_cards_count: Array.isArray(imageCards) ? imageCards.length : 0,
+          quick_replies_count: Array.isArray(quickReplies) ? quickReplies.length : 0,
+          actions_count: Array.isArray(actions) ? actions.length : 0,
+        });
+      }
       const isGreetingOnly = isAiGreetingOnlyResponse(response);
       setMessages((items) => {
         const clearedCount = isGreetingOnly ? countAiProductUiCards(items) : 0;
@@ -1950,13 +2033,21 @@ function AiSupportChatWidget() {
           {
             id: `a_${Date.now()}`,
             role: "assistant",
-            answer: response?.answer || "مش قادر أأكد الإجابة من بيانات المتجر حاليا. تواصل مع الدعم لو سمحت.",
+            answer: unifiedReply?.text || response?.answer || "مش قادر أأكد الإجابة من بيانات المتجر حاليا. تواصل مع الدعم لو سمحت.",
+            reply_text: unifiedReply?.text || response?.answer || "",
             confidence: Number(response?.confidence || 0),
             needs_human_support: Boolean(response?.needs_human_support),
             detected_intent: response?.detected_intent || "",
             greeting_only_mode: Boolean(response?.greeting_only_mode),
-            suggested_products: isGreetingOnly ? [] : Array.isArray(response?.suggested_products) ? response.suggested_products : [],
-            visual_attachments: isGreetingOnly ? [] : Array.isArray(response?.visual_attachments) ? response.visual_attachments : [],
+            suggested_products: isGreetingOnly ? [] : productCards,
+            visual_attachments: isGreetingOnly ? [] : imageCards,
+            unified_reply: isGreetingOnly ? null : unifiedReply,
+            product_cards: isGreetingOnly ? [] : productCards,
+            image_cards: isGreetingOnly ? [] : imageCards,
+            quick_replies: isGreetingOnly ? [] : quickReplies,
+            actions: isGreetingOnly ? [] : actions,
+            handoff: unifiedReply?.handoff || response?.handoff || null,
+            draft_order: unifiedReply?.draft_order || response?.draft_order || null,
           },
         ];
       });
@@ -2034,16 +2125,29 @@ function AiSupportChatWidget() {
           suggested_products: response?.suggested_products,
         });
       }
+      const unifiedReply = getUnifiedAiReply(response);
+      const productCards = unifiedReplyProductCards(response);
+      const imageCards = unifiedReplyImageCards(response);
+      const quickReplies = unifiedReplyQuickReplies(response);
+      const actions = unifiedReplyActions(response);
       setMessages((items) => [
         ...items,
         {
           id: `a_img_${Date.now()}`,
           role: "assistant",
-          answer: renderedAnswer,
+          answer: unifiedReply?.text || renderedAnswer,
+          reply_text: unifiedReply?.text || renderedAnswer,
           confidence: Number(response?.confidence || 0),
           needs_human_support: Boolean(response?.needs_human_support),
-          suggested_products: Array.isArray(response?.suggested_products) ? response.suggested_products : [],
-          visual_attachments: Array.isArray(response?.visual_attachments) ? response.visual_attachments : [],
+          suggested_products: productCards,
+          visual_attachments: imageCards,
+          unified_reply: unifiedReply,
+          product_cards: productCards,
+          image_cards: imageCards,
+          quick_replies: quickReplies,
+          actions,
+          handoff: unifiedReply?.handoff || response?.handoff || null,
+          draft_order: unifiedReply?.draft_order || response?.draft_order || null,
           detected_style_model: response?.detected_style_model || "",
           image_ranking_debug: response?.image_ranking_debug || null,
           response_debug: response?.response_debug || null,
@@ -2073,6 +2177,49 @@ function AiSupportChatWidget() {
       if (galleryInputRef.current) galleryInputRef.current.value = "";
     }
   }, [imageLoading, loading, sessionId, tenantId]);
+
+  const handleUnifiedActionClick = useCallback((action, context = {}) => {
+    const raw = typeof action === "string"
+      ? action
+      : String(action?.action || action?.type || action?.id || action?.value || action?.label || action?.text || "").trim();
+    const key = raw.toLowerCase();
+    if (!key) return;
+
+    if (["choose_size", "select_size", "ask_size"].includes(key)) {
+      submitQuestion("عايز مقاس 42");
+      return;
+    }
+    if (["choose_color", "select_color", "ask_color"].includes(key)) {
+      submitQuestion("الألوان المتاحة؟");
+      return;
+    }
+    if (["ask_for_more_images", "show_more_images", "more_images"].includes(key)) {
+      submitQuestion("صور أكتر");
+      return;
+    }
+    if (["show_alternatives", "alternatives", "similar_products"].includes(key)) {
+      submitQuestion("مش عاجبني، وريني بدائل");
+      return;
+    }
+    if (["escalate_to_human", "human_handoff", "handoff", "contact_support"].includes(key)) {
+      window.open(supportHref, "_blank", "noreferrer");
+      return;
+    }
+    if (["add_to_cart", "buy_now", "buy_now_action", "checkout", "order_now"].includes(key)) {
+      const product = context.product || context.productCard || context.selectedProduct || context.card || null;
+      if (product) {
+        trackAiSupportCartOutcome({ tenantId, sessionId, productId: product?.id || product?.product_id || "" });
+        openProduct(product);
+        return;
+      }
+      submitQuestion("عايز أشتري");
+      return;
+    }
+
+    if (raw.length && raw.length <= 64) {
+      submitQuestion(raw);
+    }
+  }, [openProduct, submitQuestion, supportHref]);
 
   const handleImageInputChange = useCallback((event) => {
     const file = event.target.files?.[0];
@@ -2141,7 +2288,13 @@ function AiSupportChatWidget() {
             {messages.map((message) => (
               <div key={message.id} className={`sf-ai-chat-message-row flex ${message.role === "user" ? "sf-ai-chat-message-row--user justify-end" : "sf-ai-chat-message-row--assistant justify-start"}`}>
                 <div className={`sf-ai-chat-bubble max-w-[82%] rounded-[1.35rem] px-3.5 py-2.5 text-[13px] font-bold leading-6 shadow-sm sm:max-w-[86%] ${message.role === "user" ? "sf-ai-chat-bubble--user rounded-tl-md" : "sf-ai-chat-bubble--assistant rounded-tr-md"}`}>
-                  <p className="whitespace-pre-wrap break-words">{message.answer}</p>
+                  <p className="whitespace-pre-wrap break-words">{message.unified_reply?.text || message.reply_text || message.answer}</p>
+                  {message.role === "assistant" && message.unified_reply ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-stone-500 dark:text-stone-300">
+                      {message.unified_reply.intent ? <span className="rounded-full bg-white/70 px-2 py-1 dark:bg-white/10">Intent: {message.unified_reply.intent}</span> : null}
+                      {Number.isFinite(Number(message.unified_reply.confidence)) ? <span className="rounded-full bg-white/70 px-2 py-1 dark:bg-white/10">Confidence: {Math.round(Number(message.unified_reply.confidence) * 100)}%</span> : null}
+                    </div>
+                  ) : null}
                   {message.image_preview ? (
                     <img src={message.image_preview} alt={t("storefront.aiSupport.uploadedImageAlt", "Uploaded image")} className="mt-2 max-h-44 w-full rounded-2xl object-cover ring-1 ring-white/30" />
                   ) : null}
@@ -2150,7 +2303,7 @@ function AiSupportChatWidget() {
                       {message.detected_style_model}
                     </p>
                   ) : null}
-                  {message.role === "assistant" && Array.isArray(message.suggested_products) && message.suggested_products.length > 0 && (
+                  {message.role === "assistant" && Array.isArray(message.suggested_products) && message.suggested_products.length > 0 && !Array.isArray(message.product_cards) && (
                     <div className="mt-3 grid gap-2">
                       {message.suggested_products.slice(0, 3).map((product, index) => (
                         <button key={`${product.id || product.sku || index}`} type="button" onClick={() => openProduct(product)} className="sf-ai-product-card flex min-w-0 items-center gap-2.5 rounded-2xl border p-2 text-right transition hover:-translate-y-0.5 active:scale-[0.99]">
@@ -2167,9 +2320,70 @@ function AiSupportChatWidget() {
                       ))}
                     </div>
                   )}
-                  {message.role === "assistant" && Array.isArray(message.visual_attachments) && message.visual_attachments.length > 0 ? (
-                    <AiVisualAttachments attachments={message.visual_attachments} onOpenProduct={openProduct} />
-                  ) : null}
+                  {message.role === "assistant" && (
+                    <div className="mt-3 space-y-3">
+                      {Array.isArray(message.product_cards) && message.product_cards.length > 0 ? (
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          {message.product_cards.slice(0, 3).map((product, index) => (
+                            <button key={`product-card-${product.id || product.product_id || index}`} type="button" onClick={() => openProduct(product)} className="sf-ai-product-card flex min-w-0 gap-3 rounded-3xl border border-stone-200 bg-white/80 p-2.5 text-right transition hover:-translate-y-0.5 active:scale-[0.99] dark:border-white/10 dark:bg-white/5">
+                              <img src={aiSuggestedProductImage(product)} onError={fallbackProductImage} alt={product.name || t("storefront.aiSupport.suggestedProduct", "Suggested product")} className="h-20 w-20 shrink-0 rounded-2xl object-cover" loading="lazy" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-xs font-black">{product.name || t("storefront.aiSupport.suggestedProduct", "Suggested product")}</span>
+                                <span className="mt-1 block text-[11px] font-bold text-stone-500 dark:text-stone-300">{product.reason || product.match_reason || product.top_rank_reason || product.subtitle || ""}</span>
+                                <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-stone-500 dark:text-stone-300">
+                                  <span>{aiSuggestedProductPriceText(product)}</span>
+                                  <span className={product.stock_status === "in_stock" || Number(product.total_stock || product.stock || 0) > 0 ? "text-emerald-600 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300"}>{aiAvailabilityText(product)}</span>
+                                </span>
+                              </span>
+                              <ChevronLeft className="h-4 w-4 shrink-0 text-stone-400" />
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {Array.isArray(message.image_cards) && message.image_cards.length > 0 ? (
+                        <AiVisualAttachments attachments={message.image_cards} onOpenProduct={openProduct} />
+                      ) : Array.isArray(message.visual_attachments) && message.visual_attachments.length > 0 ? (
+                        <AiVisualAttachments attachments={message.visual_attachments} onOpenProduct={openProduct} />
+                      ) : null}
+                      {Array.isArray(message.quick_replies) && message.quick_replies.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {message.quick_replies.slice(0, 6).map((item, index) => {
+                            const label = String(item?.label || item?.text || item?.title || item || "").trim();
+                            if (!label) return null;
+                            return (
+                              <button
+                                key={`quick-reply-${label}-${index}`}
+                                type="button"
+                                onClick={() => handleUnifiedActionClick(item, { product: message.product_cards?.[0] || message.suggested_products?.[0] || null })}
+                                className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      {Array.isArray(message.actions) && message.actions.length > 0 ? (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {message.actions.slice(0, 6).map((item, index) => {
+                            const value = typeof item === "string" ? item : item?.label || item?.text || item?.title || item?.action || item?.type || "";
+                            const key = String(value || "").trim();
+                            if (!key) return null;
+                            return (
+                              <button
+                                key={`action-${key}-${index}`}
+                                type="button"
+                                onClick={() => handleUnifiedActionClick(item, { product: message.product_cards?.[0] || message.suggested_products?.[0] || null })}
+                                className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-right text-[11px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:bg-[#f5f3ff] hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
+                              >
+                                {key}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
                   {message.role === "assistant" && message.needs_human_support && (
                     <a href={supportHref} target={whatsappPhone ? "_blank" : undefined} rel={whatsappPhone ? "noreferrer" : undefined} className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-lg shadow-emerald-900/20 transition hover:-translate-y-0.5">
                       <MessageCircle className="h-4 w-4" />

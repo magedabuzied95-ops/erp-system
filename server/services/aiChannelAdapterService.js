@@ -21,7 +21,7 @@ export const AI_AGENT_CHANNELS = Object.freeze({
 
 const supportedChannels = new Set(Object.values(AI_AGENT_CHANNELS));
 
-const normalizeChannel = (value = AI_AGENT_CHANNELS.WEB_CHAT) => {
+export const normalizeChannel = (value = AI_AGENT_CHANNELS.WEB_CHAT) => {
   const channel = toText(value || AI_AGENT_CHANNELS.WEB_CHAT).toLowerCase();
   return supportedChannels.has(channel) ? channel : AI_AGENT_CHANNELS.WEB_CHAT;
 };
@@ -520,13 +520,46 @@ export const buildAiFlowPayloadFromNormalizedMessage = ({ normalizedMessage = {}
   };
 };
 
-export const normalizeOutgoingChannelReply = ({ channel = AI_AGENT_CHANNELS.WEB_CHAT, response = {} } = {}) => ({
-  channel: normalizeChannel(channel),
-  text: toText(response.answer || response.text),
-  visual_attachments: asArray(response.visual_attachments),
-  product_cards: normalizeStructuredProductCards(response.suggested_products || response.product_cards, { limit: 6 }),
-  suggested_quick_replies: normalizeQuickReplies(response),
-});
+export const normalizeOutgoingChannelReply = ({ channel = AI_AGENT_CHANNELS.WEB_CHAT, response = {} } = {}) => {
+  const normalizedChannel = normalizeChannel(channel);
+  const responseSource = response?.channel_reply || response?.unified_reply || response;
+  const productCards = normalizeStructuredProductCards(
+    responseSource.suggested_products?.length ? responseSource.suggested_products : responseSource.product_cards,
+    { limit: 6 }
+  );
+  const imageCards = [
+    ...asArray(responseSource.image_cards),
+    ...asArray(responseSource.visual_attachments),
+  ].map((item) => ({
+    type: String(item?.type || item?.card_type || "image_card").trim() || "image_card",
+    url: toText(item?.url || item?.image_url || item?.image || item?.main_image || ""),
+    title: toText(item?.title || item?.name || item?.caption || ""),
+    subtitle: toText(item?.subtitle || item?.description || ""),
+    product_id: toText(item?.product_id || item?.id || ""),
+  })).filter((item) => item.url);
+
+  return {
+    channel: normalizedChannel,
+    text: toText(responseSource.answer || responseSource.text),
+    visual_attachments: asArray(responseSource.visual_attachments),
+    image_cards: imageCards,
+    product_cards: productCards,
+    suggested_quick_replies: normalizeQuickReplies(responseSource),
+    quick_replies: normalizeQuickReplies(responseSource),
+    actions: asArray(responseSource.actions || responseSource.suggested_actions),
+    handoff: responseSource.handoff || {
+      needs_human_support: responseSource.needs_human_support === true,
+      conversation_status: toText(responseSource.conversation_status || responseSource.status || ""),
+      reason: toText(responseSource.fallback_reason || responseSource.reason || ""),
+    },
+    draft_order: responseSource.draft_order || responseSource.ai_order || responseSource.order_draft || null,
+    memory_updates: responseSource.memory_updates || responseSource.ai_memory_patch || responseSource.memory_patch || {},
+    intent: toText(responseSource.detected_intent || responseSource.intent?.type || responseSource.intent || ""),
+    confidence: Number(responseSource.confidence ?? responseSource.intent_confidence ?? responseSource.intent?.confidence ?? 0) || 0,
+    language: toText(responseSource.detected_language || responseSource.language || ""),
+    tone: toText(responseSource.tone || responseSource.ai_tone || responseSource.reply_tone || ""),
+  };
+};
 
 export const upsertChannelConversationMapping = async ({
   tenantId,
@@ -974,6 +1007,7 @@ const postWhatsAppMessage = async ({ payload, config }) => {
 
 const visualAttachmentImageUrls = (reply = {}) =>
   [
+    ...asArray(reply.image_cards).map((card) => card.url || card.image_url || card.image || ""),
     ...asArray(reply.product_cards).map((product) => product.image_url || product.image || ""),
     ...asArray(reply.visual_attachments)
     .flatMap((attachment) => [

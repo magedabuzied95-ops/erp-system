@@ -961,6 +961,12 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
   const preferredSizes = asArray(visualPro.preferredSizes || memory.preferredSizes).join(", ");
   const preferredBrands = asArray(visualPro.preferredBrands || memory.preferredBrands).join(", ");
   const preferredColors = asArray(visualPro.preferredColors || memory.preferredColors).join(", ");
+  const unifiedReply = data?.unified_reply || data?.channel_reply || {};
+  const unifiedProducts = asArray(unifiedReply.product_cards || data?.suggested_products);
+  const unifiedImageCards = asArray(unifiedReply.image_cards || unifiedReply.visual_attachments || data?.visual_attachments);
+  const unifiedQuickReplies = asArray(unifiedReply.quick_replies || unifiedReply.suggested_quick_replies);
+  const unifiedActions = asArray(unifiedReply.actions || data?.suggested_actions);
+  const unifiedHandoff = unifiedReply.handoff || data?.handoff || {};
   const outboundStatus = clean(data?.lastOutboundStatus);
   const outboundDecision = clean(data?.lastOutboundDecision);
   const skipReason = clean(data?.lastOutboundSkipReason);
@@ -1024,6 +1030,13 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                 <DebugField label="Active color" value={memory.activeColor} />
                 <DebugField label="Buying stage" value={memory.buyingStage} />
                 <DebugField label="Last reply preview" value={lastReplyPreview} />
+                <DebugField label="Unified reply preview" value={data.unified_reply_preview || lastReplyPreview} />
+                <DebugField label="Unified intent" value={unifiedReply.intent || data.current_intent || ""} />
+                <DebugField label="Unified products" value={`${unifiedProducts.length} cards`} />
+                <DebugField label="Unified image cards" value={`${unifiedImageCards.length} cards`} />
+                <DebugField label="Unified quick replies" value={`${unifiedQuickReplies.length} items`} />
+                <DebugField label="Unified actions" value={`${unifiedActions.length} items`} />
+                <DebugField label="Handoff state" value={unifiedHandoff?.needs_human_support ? `handoff / ${unifiedHandoff.reason || "human_review"}` : unifiedHandoff?.conversation_status || "ai_active"} />
                 <DebugField label="Visual confidence" value={visualPro.visual_confidence ?? memory.lastVisualConfidence ?? visualAttributes.confidence ?? ""} />
                 <DebugField label="Brand guess" value={visualPro.brand_guess || visualAttributes.brand || visualAttributes.brand_guess || ""} />
                 <DebugField label="Model guess" value={visualPro.model_guess || visualAttributes.modelFamily || visualAttributes.model_guess || ""} />
@@ -1064,6 +1077,18 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              ) : null}
+
+              {unifiedProducts.length || unifiedImageCards.length || unifiedQuickReplies.length || unifiedActions.length ? (
+                <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
+                  <SectionTitle icon={MessageSquareText} title="Unified reply payload" />
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {unifiedProducts.length ? <DebugField label="Product cards" value={unifiedProducts.slice(0, 3).map((item) => item.name || item.title || item.product_name || item.id || "").filter(Boolean).join(" · ") || `${unifiedProducts.length} cards`} /> : null}
+                    {unifiedImageCards.length ? <DebugField label="Image cards" value={unifiedImageCards.slice(0, 3).map((item) => item.title || item.name || item.subtitle || item.url || "").filter(Boolean).join(" · ") || `${unifiedImageCards.length} cards`} /> : null}
+                    {unifiedQuickReplies.length ? <DebugField label="Quick replies" value={unifiedQuickReplies.slice(0, 4).map((item) => item.label || item.text || item.title || item).filter(Boolean).join(" · ") || `${unifiedQuickReplies.length} items`} /> : null}
+                    {unifiedActions.length ? <DebugField label="Actions" value={unifiedActions.slice(0, 4).map((item) => item.label || item.text || item.title || item.action || item.type || item).filter(Boolean).join(" · ") || `${unifiedActions.length} items`} /> : null}
                   </div>
                 </div>
               ) : null}
@@ -1140,7 +1165,7 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
               AI Trace
             </div>
             <div className="mt-1 text-xs text-slate-500">
-              {latestTrace ? `${latestTrace.channel} / ${latestTrace.session_id} / ${absoluteTime(latestTrace.created_at)}` : "Latest WhatsApp reply decision timeline"}
+              {latestTrace ? `${latestTrace.channel} / ${latestTrace.session_id} / ${absoluteTime(latestTrace.created_at)}` : "Latest AI reply decision timeline"}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1156,7 +1181,7 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
           {loading && !latestTrace ? <LoadingBlock text="Loading AI trace..." /> : null}
-          {!loading && !latestTrace ? <EmptyBlock text="No AI trace has been recorded for this WhatsApp conversation yet." /> : null}
+          {!loading && !latestTrace ? <EmptyBlock text="No AI trace has been recorded for this conversation yet." /> : null}
           {latestTrace ? (
             <div className="space-y-4">
               <div className="grid gap-2 sm:grid-cols-3">
@@ -1343,6 +1368,116 @@ function DraftCard({ draft, onAction, busy }) {
   );
 }
 
+function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null, salesCloserPlan = {} }) {
+  const state = conversation.sales_conversation_state || conversation.sales_intelligence?.state || {};
+  const journeyEvents = asArray(conversation.sales_journey_events || conversation.sales_intelligence?.journeyEvents);
+  const conversion = conversation.conversion_probability || conversation.sales_intelligence?.conversion || recommendationIntel?.conversion_probability || {};
+  const followUp = conversation.follow_up_recommendation || conversation.sales_intelligence?.followUp || recommendationIntel?.follow_up_recommendation || {};
+  const suggestions = asArray(conversation.cross_sell_suggestions || conversation.sales_intelligence?.crossSellSuggestions || recommendationIntel?.cross_sell_suggestions || salesCloserPlan.cross_sell_suggestions);
+  const stateBadge = state.badge || {};
+  const score = Number(conversion.score || 0);
+  const scoreLevel = clean(conversion.level || "").replace(/_/g, " ");
+  const reasons = asArray(conversion.reasons);
+  const risks = asArray(conversion.risk_flags);
+  const eventLabels = {
+    PRODUCT_VIEWED: "Product viewed",
+    PRODUCT_MATCHED: "Product matched",
+    PRICE_ASKED: "Price asked",
+    SIZE_ASKED: "Size asked",
+    SIZE_SELECTED: "Size selected",
+    COLOR_SELECTED: "Color selected",
+    IMAGES_REQUESTED: "Images requested",
+    ALTERNATIVE_REQUESTED: "Alternative requested",
+    OBJECTION_PRICE: "Price objection",
+    DRAFT_ORDER_CREATED: "Draft created",
+    PAYMENT_LINK_SENT: "Payment link sent",
+    PAYMENT_PROOF_REQUESTED: "Payment proof requested",
+    ORDER_CONFIRMED: "Order confirmed",
+    FOLLOW_UP_SENT: "Follow-up suggested",
+    HUMAN_TAKEOVER_STARTED: "Human takeover",
+    HUMAN_TAKEOVER_ENDED: "Back to AI",
+    STATE_CHANGED: "State changed",
+  };
+
+  return (
+    <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/5 p-4">
+      <SectionTitle icon={BadgePercent} title="Sales intelligence" />
+      <div className="flex flex-wrap gap-2">
+        <Pill tone={stateBadge.tone || "cyan"}>{stateBadge.label || state.current_state || "DISCOVERY"}</Pill>
+        {state.state_reason ? <Pill tone="zinc">{state.state_reason}</Pill> : null}
+        {state.confidence ? <Pill tone="zinc">{Math.round(Number(state.confidence || 0) * 100)}% confidence</Pill> : null}
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-black text-white">Conversion probability</div>
+            <Pill tone={score >= 85 ? "emerald" : score >= 65 ? "cyan" : score >= 40 ? "amber" : "rose"}>{score}/100</Pill>
+          </div>
+          <div className="mt-2 text-2xl font-black text-white">{scoreLevel || "low"}</div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {reasons.slice(0, 3).map((reason) => <Pill key={reason} tone="zinc">{reason}</Pill>)}
+          </div>
+          {risks.length ? <div className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-slate-500">Risk flags</div> : null}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {risks.slice(0, 3).map((risk) => <Pill key={risk} tone="amber">{risk}</Pill>)}
+          </div>
+          {conversion.recommended_action ? <div className="mt-3 text-sm text-slate-300">Recommended action: <span className="font-black text-white">{conversion.recommended_action}</span></div> : null}
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-black text-white">Follow-up</div>
+            <Pill tone={followUp.follow_up_needed ? "amber" : "zinc"}>{followUp.follow_up_needed ? "Needed" : "Not needed"}</Pill>
+          </div>
+          {followUp.follow_up_reason ? <div className="mt-2 text-sm text-slate-300">{followUp.follow_up_reason}</div> : <div className="mt-2 text-sm text-slate-500">No follow-up recommendation right now.</div>}
+          {followUp.suggested_follow_up_message ? <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-100">{followUp.suggested_follow_up_message}</div> : null}
+          {followUp.suggested_follow_up_at ? <div className="mt-3 text-xs font-bold text-slate-500">Suggested at {absoluteTime(followUp.suggested_follow_up_at)}</div> : null}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-black text-white">Sales journey</div>
+            <Pill tone="zinc">{journeyEvents.length} events</Pill>
+          </div>
+          <div className="mt-3 space-y-2">
+            {journeyEvents.length ? journeyEvents.slice(0, 5).map((event, index) => (
+              <div key={`${event.event_type}-${event.created_at}-${index}`} className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-black text-white">{eventLabels[event.event_type] || event.event_type}</div>
+                  {event.metadata?.message ? <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">{String(event.metadata.message)}</div> : null}
+                </div>
+                <div className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(event.created_at)}</div>
+              </div>
+            )) : <div className="text-sm text-slate-500">No sales journey events yet.</div>}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-black text-white">Cross-sell / Upsell</div>
+            <Pill tone="zinc">{suggestions.length}</Pill>
+          </div>
+          <div className="mt-3 space-y-2">
+            {suggestions.length ? suggestions.slice(0, 4).map((item, index) => (
+              <div key={`${item.product_id || item.type || index}`} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-black text-white">{item.type || "suggestion"}</div>
+                  <Pill tone="cyan">{Math.round(Number(item.confidence || 0) * 100)}%</Pill>
+                </div>
+                <div className="mt-1 text-xs text-slate-400">{item.reason || "catalog suggestion"}</div>
+                {item.suggested_message ? <div className="mt-2 text-sm leading-6 text-slate-200">{item.suggested_message}</div> : null}
+              </div>
+            )) : <div className="text-sm text-slate-500">No cross-sell suggestions right now.</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AiInbox() {
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
@@ -1355,7 +1490,7 @@ export default function AiInbox() {
   const [drafts, setDrafts] = useState([]);
   const [analytics, setAnalytics] = useState({});
   const [channelStatus, setChannelStatus] = useState({});
-  const [recommendations, setRecommendations] = useState({ sessionId: "", products: [], loading: false });
+  const [recommendations, setRecommendations] = useState({ sessionId: "", products: [], intelligence: null, loading: false });
   const [salesCloser, setSalesCloser] = useState({ sessionId: "", plan: {}, loading: false });
   const [aiReply, setAiReply] = useState({ sessionId: "", text: "", loading: false, error: "" });
   const [modeSaving, setModeSaving] = useState(false);
@@ -1984,9 +2119,9 @@ export default function AiInbox() {
     setRecommendations((current) => ({ ...current, sessionId, loading: true }));
     try {
       const payload = await api.get(aiInboxConversationEndpoint(sessionId, "/recommendations"), { params: { tenant_id: tenantId, limit: 8 }, headers, perfComponent: "AiInbox.recommendations" });
-      setRecommendations({ sessionId, products: asArray(payload.products), loading: false });
+      setRecommendations({ sessionId, products: asArray(payload.products), intelligence: payload.sales_intelligence || null, loading: false });
     } catch {
-      setRecommendations({ sessionId, products: [], loading: false });
+      setRecommendations({ sessionId, products: [], intelligence: null, loading: false });
     }
   };
 
@@ -2263,6 +2398,14 @@ export default function AiInbox() {
                         </div>
                       </div>
                     ) : null}
+                  </div>
+
+                  <div className="mt-4">
+                    <SalesIntelligencePanel
+                      conversation={selectedConversation}
+                      recommendationIntel={recommendations.sessionId === safeConversation.session_id ? recommendations.intelligence : null}
+                      salesCloserPlan={salesCloser.sessionId === safeConversation.session_id ? salesCloser.plan : {}}
+                    />
                   </div>
 
                   <ConversationActions

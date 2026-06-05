@@ -8,6 +8,7 @@ import {
   logChannelEvent,
   normalizeOutgoingChannelReply,
 } from "./aiChannelAdapterService.js";
+import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { pushAIEvent } from "./aiEventLogger.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
@@ -955,18 +956,21 @@ const routeWhatsappMessageThroughAi = async ({ tenantId, message = {} } = {}) =>
   const globalSettings = await getAISettings();
   const channelAISettings = await getAIChannelSettings(AI_AGENT_CHANNELS.WHATSAPP, AI_AGENT_CHANNELS.WHATSAPP);
   const effectiveTone = channelAISettings.tone || globalSettings.tone || "casual";
-  const resolvedUrl = `${aiSupportBaseUrl().replace(/\/+$/, "")}/api/ai-support/chat`;
-  console.info("[whatsapp:ai-generate-url]", { resolvedUrl });
-  const response = await fetch(resolvedUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-tenant-id": String(tenantId),
-    },
-    body: JSON.stringify({
-      tenant_id: tenantId,
-      message: message.message_text || "Customer sent an attachment",
+  return generateUnifiedAiReply({
+    tenantId,
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    conversation: {
+      id: message.external_conversation_id,
       session_id: message.external_conversation_id,
+      customer_name: message.customer_name,
+    },
+    customer: {
+      name: message.customer_name,
+      phone: message.external_customer_id,
+    },
+    message: {
+      text: message.message_text || "Customer sent an attachment",
+      provider_message_id: message.external_message_id || message.raw?.event?.message?.mid || "",
       metadata: {
         session_id: message.external_conversation_id,
         customer_id: message.external_customer_id,
@@ -980,13 +984,10 @@ const routeWhatsappMessageThroughAi = async ({ tenantId, message = {} } = {}) =>
         attachments: message.attachments || [],
         timestamp: message.timestamp,
       },
-    }),
+    },
+    attachments: message.attachments || [],
+    providerMessageId: message.external_message_id || message.raw?.event?.message?.mid || "",
   });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw Object.assign(new Error(payload?.message || "AI support flow failed"), { status: response.status, responseBody: payload });
-  }
-  return payload;
 };
 
 const syncWhatsappLiveMemoryToChannel = async ({ tenantId, sessionId, phone = "", memory = null } = {}) => {
