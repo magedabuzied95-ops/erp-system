@@ -148,6 +148,7 @@ const StaffTasks = lazy(() => import("./modules/employees/pages/StaffTasks"));
 const EmployeePortal = lazy(() => import("./modules/employees/pages/EmployeePortal"));
 const EmployeeAppShell = lazy(() => import("./modules/employees/pages/EmployeeAppShell"));
 const EmployeePayrollPortal = lazy(() => import("./modules/employees/pages/EmployeePayrollPortal"));
+const ManagerPortal = lazy(() => import("./modules/managerPortal/pages/ManagerPortal"));
 const AttendanceDashboard = lazy(() => import("./modules/attendance/pages/AttendanceDashboard"));
 const AttendanceEmployees = lazy(() => import("./modules/attendance/pages/EmployeesAttendance"));
 const AttendanceReports = lazy(() => import("./modules/attendance/pages/AttendanceReports"));
@@ -327,6 +328,11 @@ function App() {
       <Route
         path="/employee-portal/:token"
         element={<EmployeePayrollPortal />}
+      />
+
+      <Route
+        path="/manager-portal/:token"
+        element={<ManagerPortal />}
       />
 
       <Route

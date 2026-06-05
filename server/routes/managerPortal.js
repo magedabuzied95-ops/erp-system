@@ -1,0 +1,323 @@
+import express from "express";
+import employeeChatUpload from "../config/employeeChatUpload.js";
+import {
+  approveManagerPortalTask,
+  createManagerPortalTask,
+  getManagerPortalChat,
+  getManagerPortalChatThread,
+  getManagerPortalDashboard,
+  getManagerPortalMe,
+  getManagerPortalTasks,
+  getManagerPortalNotifications,
+  getManagerPortalSales,
+  getManagerPortalStaff,
+  getManagerPortalStockAlerts,
+  markManagerPortalChatRead,
+  markManagerPortalNotificationRead,
+  noteManagerPortalTask,
+  reopenManagerPortalTask,
+  rejectManagerPortalTask,
+  sendManagerPortalChat,
+  updateManagerPortalSettings,
+  loadManagerPortalByToken,
+} from "../services/managerPortalService.js";
+
+const router = express.Router();
+
+const invalidPortalLinkMessage = "رابط بوابة المدير غير صحيح أو تم تغييره. اطلب رابطًا جديدًا من الإدارة.";
+
+const portalTokenDebug = ({ req, token, manager = null, reason = "" }) => {
+  console.info("[manager-portal:token]", {
+    requestId: req.id,
+    tokenLength: String(token || "").length,
+    tokenPrefix: String(token || "").slice(0, 6),
+    managerId: manager?.id || null,
+    tenantId: manager?.tenant_id || null,
+    branchId: manager?.branch_id || null,
+    role: manager?.role || null,
+    reason,
+  });
+};
+
+const portalRoutePath = (req) => `${req.baseUrl || ""}${req.route?.path || req.path || ""}`;
+
+const invalidTokenResponse = async (req, res, token, reason = "invalid_token") => {
+  console.warn("[manager-portal:token-invalid]", {
+    requestId: req.id,
+    routePath: portalRoutePath(req),
+    tokenLength: String(token || "").length,
+    tokenPrefix: String(token || "").slice(0, 6),
+    reason,
+  });
+  return res.status(404).json({
+    success: false,
+    code: reason,
+    message: invalidPortalLinkMessage,
+  });
+};
+
+const loadVerifiedManager = async (req, res) => {
+  const token = String(req.params.token || "");
+  if (!token) {
+    await invalidTokenResponse(req, res, token, "missing_token");
+    return null;
+  }
+  const manager = await loadManagerPortalByToken(token);
+  if (!manager) {
+    await invalidTokenResponse(req, res, token, "manager_not_found");
+    return null;
+  }
+  portalTokenDebug({ req, token, manager });
+  return manager;
+};
+
+const verifyManagerPortalToken = async (req, res, next) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    req.managerPortalManager = manager;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+const uploadManagerChatAttachment = (req, res, next) => {
+  employeeChatUpload.single("attachment")(req, res, (error) => {
+    if (!error) return next();
+    return res.status(error.status || 400).json({
+      success: false,
+      code: error.code || "chat_attachment_invalid",
+      message: error.code === "LIMIT_FILE_SIZE" ? "Attachment is too large" : error.message || "Unsupported attachment",
+    });
+  });
+};
+
+router.get("/:token/me", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    return res.json({ success: true, ...(await getManagerPortalMe(manager)) });
+  } catch (error) {
+    console.error("[manager-portal] me load error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load manager portal profile" });
+  }
+});
+
+router.get("/:token/dashboard", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const dashboard = await getManagerPortalDashboard({ manager, filters: req.query || {} });
+    return res.json({ success: true, dashboard });
+  } catch (error) {
+    console.error("[manager-portal] dashboard error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load dashboard" });
+  }
+});
+
+router.get("/:token/staff", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const staff = await getManagerPortalStaff({ manager });
+    return res.json({ success: true, staff });
+  } catch (error) {
+    console.error("[manager-portal] staff error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load staff" });
+  }
+});
+
+router.get("/:token/tasks", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const tasks = await getManagerPortalTasks({ manager });
+    return res.json({ success: true, tasks });
+  } catch (error) {
+    console.error("[manager-portal] tasks error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load tasks" });
+  }
+});
+
+router.get("/:token/sales", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const sales = await getManagerPortalSales({ manager });
+    return res.json({ success: true, sales });
+  } catch (error) {
+    console.error("[manager-portal] sales error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load sales analytics" });
+  }
+});
+
+router.get("/:token/stock-alerts", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const stockAlerts = await getManagerPortalStockAlerts({ manager });
+    return res.json({ success: true, stockAlerts });
+  } catch (error) {
+    console.error("[manager-portal] stock alerts error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load stock alerts" });
+  }
+});
+
+router.get("/:token/notifications", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const notifications = await getManagerPortalNotifications({ manager, query: req.query || {} });
+    return res.json({ success: true, ...notifications });
+  } catch (error) {
+    console.error("[manager-portal] notifications error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load notifications" });
+  }
+});
+
+router.post("/:token/notifications/:id/read", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const notification = await markManagerPortalNotificationRead({ manager, notificationId: req.params.id });
+    if (!notification) return res.status(404).json({ success: false, message: "Notification not found" });
+    return res.json({ success: true, notification });
+  } catch (error) {
+    console.error("[manager-portal] notification read error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to mark notification as read" });
+  }
+});
+
+router.get("/:token/chat", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const chat = await getManagerPortalChat({ manager, threadId: req.query?.thread_id || req.query?.threadId || null });
+    return res.json({ success: true, ...chat });
+  } catch (error) {
+    console.error("[manager-portal] chat load error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load chat" });
+  }
+});
+
+router.get("/:token/chat/:threadId", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const chat = await getManagerPortalChatThread({ manager, threadId: req.params.threadId });
+    return res.json({ success: true, ...chat });
+  } catch (error) {
+    console.error("[manager-portal] chat thread error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load chat thread" });
+  }
+});
+
+router.post("/:token/chat/:threadId/read", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const thread = await markManagerPortalChatRead({ manager, threadId: req.params.threadId });
+    return res.json({ success: true, ...thread });
+  } catch (error) {
+    console.error("[manager-portal] chat read error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to mark chat read" });
+  }
+});
+
+router.post("/:token/chat/:threadId/messages", verifyManagerPortalToken, uploadManagerChatAttachment, async (req, res) => {
+  try {
+    const manager = req.managerPortalManager;
+    const result = await sendManagerPortalChat({
+      manager,
+      threadId: req.params.threadId,
+      body: req.body?.body || req.body?.message || "",
+      file: req.file || null,
+      replyToMessageId: req.body?.reply_to_message_id || req.body?.replyToMessageId || null,
+      attachmentDurationSeconds: req.body?.attachment_duration_seconds || req.body?.duration || null,
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    console.error("[manager-portal] chat send error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to send message" });
+  }
+});
+
+router.post("/:token/tasks", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const manager = req.managerPortalManager;
+    const task = await createManagerPortalTask({ manager, data: req.body || {} });
+    return res.status(201).json({ success: true, task });
+  } catch (error) {
+    console.error("[manager-portal] task create error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to create task" });
+  }
+});
+
+router.patch("/:token/tasks/:id/approve", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const manager = req.managerPortalManager;
+    const task = await approveManagerPortalTask({ manager, taskId: req.params.id, note: req.body?.note || "" });
+    if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+    return res.json({ success: true, task });
+  } catch (error) {
+    console.error("[manager-portal] task approve error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to approve task" });
+  }
+});
+
+router.patch("/:token/tasks/:id/reject", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const manager = req.managerPortalManager;
+    const task = await rejectManagerPortalTask({ manager, taskId: req.params.id, note: req.body?.note || "" });
+    if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+    return res.json({ success: true, task });
+  } catch (error) {
+    console.error("[manager-portal] task reject error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to reject task" });
+  }
+});
+
+router.patch("/:token/tasks/:id/reopen", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const manager = req.managerPortalManager;
+    const task = await reopenManagerPortalTask({ manager, taskId: req.params.id, note: req.body?.note || "" });
+    if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+    return res.json({ success: true, task });
+  } catch (error) {
+    console.error("[manager-portal] task reopen error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to reopen task" });
+  }
+});
+
+router.post("/:token/tasks/:id/notes", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const manager = req.managerPortalManager;
+    const comment = await noteManagerPortalTask({ manager, taskId: req.params.id, note: req.body?.note || req.body?.comment || "" });
+    if (!comment) return res.status(404).json({ success: false, message: "Task not found" });
+    return res.status(201).json({ success: true, comment });
+  } catch (error) {
+    console.error("[manager-portal] task note error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to add task note" });
+  }
+});
+
+router.patch("/:token/settings", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const manager = req.managerPortalManager;
+    const notification_settings = await updateManagerPortalSettings({
+      employeeId: manager.id,
+      tenantId: manager.tenant_id || null,
+      settings: req.body?.notification_settings || req.body?.settings || req.body || {},
+    });
+    return res.json({
+      success: true,
+      notification_settings,
+    });
+  } catch (error) {
+    console.error("[manager-portal] settings update error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update settings" });
+  }
+});
+
+export default router;
