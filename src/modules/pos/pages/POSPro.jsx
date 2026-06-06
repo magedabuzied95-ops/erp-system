@@ -5558,19 +5558,21 @@ function POSPro() {
           </div>
         </div>
 
-        <StickyMobileActionBar>
-          <button
-            type="button"
-            onClick={() => setMobileCartOpen(true)}
-            className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-emerald-500 px-3 text-sm font-black text-black transition hover:bg-emerald-400"
-          >
-            <span className="inline-flex min-w-0 items-center gap-2">
-              <ShoppingBag className="h-4 w-4 shrink-0" />
-              <span className="truncate">{cart.length} {t("pos.cart.items", "items")}</span>
-            </span>
-            <span dir="ltr" className="shrink-0 tabular-nums [unicode-bidi:isolate]">{formatCurrency(cartTotals.total)}</span>
-          </button>
-        </StickyMobileActionBar>
+        {!barcodeShopProduct ? (
+          <StickyMobileActionBar>
+            <button
+              type="button"
+              onClick={() => setMobileCartOpen(true)}
+              className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-emerald-500 px-3 text-sm font-black text-black transition hover:bg-emerald-400"
+            >
+              <span className="inline-flex min-w-0 items-center gap-2">
+                <ShoppingBag className="h-4 w-4 shrink-0" />
+                <span className="truncate">{cart.length} {t("pos.cart.items", "items")}</span>
+              </span>
+              <span dir="ltr" className="shrink-0 tabular-nums [unicode-bidi:isolate]">{formatCurrency(cartTotals.total)}</span>
+            </button>
+          </StickyMobileActionBar>
+        ) : null}
 
         <MobileBottomSheet
           open={mobileCartOpen}

@@ -135,7 +135,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
   if (!product) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 px-2 py-2 sm:px-4 sm:py-6 lg:items-center">
+    <div className="fixed inset-0 z-[100000] flex items-end justify-center bg-black/75 px-2 py-2 sm:px-4 sm:py-6 lg:items-center">
       <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.25rem] border border-white/10 bg-zinc-950 shadow-2xl shadow-black/50 sm:rounded-[2rem]">
         <div className="flex items-start justify-between gap-3 border-b border-white/10 p-3 sm:gap-4 sm:p-5">
           <div>
@@ -292,8 +292,8 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
             </div>
           </div>
         </div>
-        <div className="fixed inset-x-2 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-[90] sm:hidden">
-          <div className="rounded-2xl border border-emerald-300/20 bg-zinc-950/95 p-2 shadow-2xl shadow-black/50 backdrop-blur pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
+        <div className="fixed inset-x-2 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[100001] sm:hidden">
+          <div className="rounded-2xl border border-emerald-300/20 bg-zinc-950/95 p-2 shadow-2xl shadow-black/50 backdrop-blur pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
             <div className="mb-2 flex items-center justify-between gap-3 px-1 text-[11px] font-semibold text-zinc-300">
               <span className="truncate">{selectedLabel}</span>
               <span className="shrink-0 text-emerald-300">{formatCurrency(selectedPrice)}</span>
