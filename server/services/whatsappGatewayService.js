@@ -274,17 +274,17 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "" } = {}) =
 };
 
 export const buildOrderConfirmationMessage = (order = {}) => {
-  const customerName = text(order.customer_name || order.customerName || order.name, "ط¹ظ…ظٹظ„ظ†ط§");
+  const customerName = text(order.customer_name || order.customerName || order.name, "عميلنا");
   const orderNumber = text(order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || order.id, "-");
   const totalAmount = money(order.total_amount ?? order.grand_total ?? order.total ?? order.net_total);
-  return `ط£ظ‡ظ„ط§ظ‹ ظٹط§ ${customerName} 
-ط·ظ„ط¨ظƒ ظ…ظ† M1 Store ط¬ط§ظ‡ط² ظ„ظ„طھط£ظƒظٹط¯.
+  return `أهلاً يا ${customerName} 
+طلبك من M1 Store جاهز للتأكيد.
 
-ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨: ${orderNumber}
-ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ: ${totalAmount} ط¬ظ†ظٹظ‡
+رقم الطلب: ${orderNumber}
+الإجمالي: ${totalAmount} جنيه
 
-ظ„ظ„طھط§ظƒظٹط¯ ط±ط¯ ط¨ظ€ 1
-ظ„ظ„ط¥ظ„ط؛ط§ط، ط±ط¯ ط¨ظ€ 2`;
+للتاكيد رد بـ 1
+للإلغاء رد بـ 2`;
 };
 
 export const sendOrderConfirmationMessage = async ({ order } = {}) => {
@@ -782,7 +782,7 @@ const blockDuplicateWhatsappReply = async ({ plan = {}, outboundType = "unknown"
 
 const productImageUrlFallbackMessage = ({ imageUrl = "", productUrl = "" } = {}) =>
   [
-    "ط¯ظٹ طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬ ظٹط§ ظپظ†ط¯ظ…:",
+    "دي صورة المنتج يا فندم:",
     text(imageUrl),
     text(productUrl),
   ].filter(Boolean).join("\n");
@@ -1627,6 +1627,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
 };
 
 export const triggerWhatsappAiAutoReply = async (message = {}) => {
+  const inboundText = text(message?.text || message?.message_text || message?.body || "");
   const blockedByInboxGate = !message?.text || message?.fromMe || message?.inbox?.saved === false || message?.inbox?.duplicate === true || message?.inbox?.saved !== true;
   console.info("[ai-duplicate-gate]", {
     message_id: message?.message_id || message?.messageId || message?.inbox?.message?.external_message_id || "",
@@ -1797,7 +1798,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       adapter_used: "whatsappAdapter",
       conversation_id: outboundPlan.conversation_id,
       provider_message_id: text(message.external_message_id || message.raw?.event?.message?.mid || ""),
-      inbound_text: body,
+      inbound_text: inboundText,
       intent: currentIntent,
       products_count: Array.isArray(generated.aiPayload?.suggested_products) ? generated.aiPayload.suggested_products.length : 0,
       product_cards_count: Array.isArray(generated.aiPayload?.product_cards) ? generated.aiPayload.product_cards.length : 0,
@@ -2062,7 +2063,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       adapter_used: "whatsappAdapter",
       conversation_id: outboundPlan.conversation_id,
       provider_message_id: text(message.external_message_id || message.raw?.event?.message?.mid || ""),
-      inbound_text: body,
+      inbound_text: inboundText,
       intent: currentIntent,
       products_count: Array.isArray(generated.aiPayload?.suggested_products) ? generated.aiPayload.suggested_products.length : 0,
       product_cards_count: Array.isArray(generated.aiPayload?.product_cards) ? generated.aiPayload.product_cards.length : 0,
