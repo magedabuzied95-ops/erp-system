@@ -156,11 +156,42 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
       phoneSuffix: normalizedPhone.slice(-4),
     });
   }
-  const data = await evolutionFetch(`/message/sendText/${encodeURIComponent(current.instanceName)}`, {
-    method: "POST",
-    body: requestBody,
+  const endpoint = `/message/sendText/${encodeURIComponent(current.instanceName)}`;
+  console.info("[whatsapp:send-text-request]", {
+    provider: current.provider,
+    instanceName: current.instanceName,
+    endpoint,
+    number: normalizedPhone,
+    payload_shape: { number: "string", text: "string" },
+    textLength: body.length,
   });
-  return { success: true, provider: current.provider, instanceName: current.instanceName, phone: normalizedPhone, result: data };
+  try {
+    const data = await evolutionFetch(endpoint, {
+      method: "POST",
+      body: requestBody,
+    });
+    console.info("[whatsapp:send-text-success]", {
+      provider: current.provider,
+      instanceName: current.instanceName,
+      endpoint,
+      number: normalizedPhone,
+      result: data,
+    });
+    return { success: true, provider: current.provider, instanceName: current.instanceName, phone: normalizedPhone, result: data };
+  } catch (error) {
+    console.error("[whatsapp:send-text-error]", {
+      provider: current.provider,
+      instanceName: current.instanceName,
+      endpoint,
+      number: normalizedPhone,
+      message: error?.message || String(error),
+      code: error?.code || "",
+      status: error?.status || "",
+      response_body: error?.data || error?.responseBody || null,
+      response_raw: error?.responseRaw || "",
+    });
+    throw error;
+  }
 };
 
 export const sendImageMessage = async ({ phone, imageUrl, caption = "" } = {}) => {
@@ -384,12 +415,14 @@ const collectStrings = (value, output = [], seen = new WeakSet()) => {
 
 const isLidJid = (value = "") => /@lid$/i.test(text(value));
 const isWhatsappPhoneJid = (value = "") => /@(s\.whatsapp\.net|c\.us)$/i.test(text(value));
+const isGroupJid = (value = "") => /@g\.us$/i.test(text(value));
 const jidNumber = (value = "") => text(value).split("@")[0];
 const numberFromWhatsappJid = (value = "") => isWhatsappPhoneJid(value) ? normalizeEgyptPhone(jidNumber(value)) : "";
 const jidFromNumber = (value = "") => {
   const normalized = normalizeEgyptPhone(value);
   return normalized ? `${normalized}@s.whatsapp.net` : "";
 };
+const whatsappGroupRepliesEnabled = () => ["1", "true", "yes", "on"].includes(text(process.env.WHATSAPP_GROUP_REPLIES_ENABLED).toLowerCase());
 
 const replyTargetFromValue = (value = "") => {
   const raw = text(value);
@@ -403,7 +436,94 @@ const replyTargetFromValue = (value = "") => {
   return number ? { jid: jidFromNumber(number), number } : null;
 };
 
-const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJid = "" } = {}) => {
+const normalizeOwnerJid = (value = "") => {
+  const raw = text(value);
+  if (!raw || isLidJid(raw) || isGroupJid(raw)) return "";
+  if (isWhatsappPhoneJid(raw)) return jidFromNumber(numberFromWhatsappJid(raw));
+  if (/@/i.test(raw)) return "";
+  return jidFromNumber(raw);
+};
+
+const targetEqualsOwner = (target = null, ownerJids = []) => {
+  if (!target) return false;
+  const owners = Array.isArray(ownerJids) ? ownerJids : [ownerJids];
+  return owners.some((ownerJid) => {
+    const ownerNumber = numberFromWhatsappJid(ownerJid);
+    return Boolean(ownerNumber && target.number === ownerNumber);
+  });
+};
+
+const ownerJidsFromPayload = ({ payload = {}, data = {}, fromMe = null } = {}) => {
+  const candidates = [
+    process.env.WHATSAPP_CONNECTED_OWNER_JID,
+    process.env.WHATSAPP_INSTANCE_OWNER_JID,
+    process.env.EVOLUTION_INSTANCE_OWNER_JID,
+    process.env.WHATSAPP_CONNECTED_NUMBER,
+    process.env.WHATSAPP_INSTANCE_OWNER_NUMBER,
+    process.env.EVOLUTION_INSTANCE_OWNER_NUMBER,
+    process.env.WHATSAPP_OWNER_NUMBER,
+    data?.ownerJid,
+    data?.owner_jid,
+    data?.connectedOwnerJid,
+    data?.connected_owner_jid,
+    data?.instanceOwnerJid,
+    data?.instance_owner_jid,
+    data?.instance?.ownerJid,
+    data?.instance?.owner,
+    data?.instance?.ownerNumber,
+    data?.instance?.number,
+    data?.instance?.profile?.id,
+    payload?.ownerJid,
+    payload?.owner_jid,
+    payload?.connectedOwnerJid,
+    payload?.connected_owner_jid,
+    payload?.instanceOwnerJid,
+    payload?.instance_owner_jid,
+    payload?.instance?.ownerJid,
+    payload?.instance?.owner,
+    payload?.instance?.ownerNumber,
+    payload?.instance?.number,
+    payload?.instance?.profile?.id,
+    fromMe === true ? data?.sender : "",
+    fromMe === true ? payload?.sender : "",
+    fromMe === false ? data?.sender : "",
+    fromMe === false ? payload?.sender : "",
+    process.env.NODE_ENV !== "test" ? "201024960585" : "",
+  ];
+  const seen = new Set();
+  const owners = [];
+  for (const candidate of candidates) {
+    const jid = normalizeOwnerJid(candidate);
+    if (jid && !seen.has(jid)) {
+      seen.add(jid);
+      owners.push(jid);
+    }
+  }
+  return owners;
+};
+
+const ownerJidFromPayload = (input = {}) => ownerJidsFromPayload(input)[0] || "";
+const ownerNumberFromJids = (ownerJids = []) => numberFromWhatsappJid(Array.isArray(ownerJids) ? ownerJids[0] : ownerJids) || "";
+
+const logReplyTargetCandidateRejected = ({ candidateJid = "", candidateNumber = "", reason = "owner_number" } = {}) => {
+  console.info("[whatsapp:reply-target-candidate-rejected]", {
+    candidateJid: text(candidateJid),
+    candidateNumber: text(candidateNumber),
+    reason,
+  });
+};
+
+const rejectOwnerTarget = (target = null, ownerJids = [], candidateJid = "") => {
+  if (!target || !targetEqualsOwner(target, ownerJids)) return false;
+  logReplyTargetCandidateRejected({
+    candidateJid: candidateJid || target.jid,
+    candidateNumber: target.number,
+    reason: "owner_number",
+  });
+  return true;
+};
+
+const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJid = "", fromMe = null } = {}) => {
   const message = data?.message || data?.messages?.[0]?.message || {};
   const contextInfo =
     message?.contextInfo ||
@@ -418,56 +538,140 @@ const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJ
   const participant = text(keyParticipant || data?.participant || payload?.participant || "");
   const sender = text(data?.sender || payload?.sender || "");
   const contextParticipant = text(contextInfo?.participant || "");
-  const priorityCandidates = [
+  const ownerJids = ownerJidsFromPayload({ payload, data, fromMe });
+  const connectedOwnerJid = ownerJids[0] || "";
+  const instanceOwnerJid = connectedOwnerJid;
+  const configuredBotNumber = ownerNumberFromJids(ownerJids);
+  const remoteTarget = replyTargetFromValue(remoteJid);
+  const isGroup = isGroupJid(remoteJid);
+  const isLid = isLidJid(remoteJid);
+  let rejectedOwnerCandidate = false;
+  const rejectOwnTarget = (target = null, candidateJid = "") => {
+    const rejected = rejectOwnerTarget(target, ownerJids, candidateJid);
+    if (rejected) rejectedOwnerCandidate = true;
+    return rejected;
+  };
+  const base = {
+    remoteJid: text(remoteJid),
+    participant,
+    sender,
+    connectedOwnerJid,
+    instanceOwnerJid,
+    ownerJid: connectedOwnerJid,
+    configuredBotNumber,
+    isGroup,
+    isLid,
+    fromMe: fromMe === true,
+  };
+  if (fromMe === true) {
+    return {
+      ...base,
+      resolvedJid: "",
+      resolvedNumber: "",
+      reason: "from_me",
+    };
+  }
+  if (remoteTarget && !isGroup && !isLid) {
+    if (!rejectOwnTarget(remoteTarget, remoteJid)) {
+      return {
+        ...base,
+        resolvedJid: remoteTarget.jid,
+        resolvedNumber: remoteTarget.number,
+        reason: "remoteJid_private_chat",
+      };
+    }
+  }
+  const groupParticipantCandidates = [
     { label: "key.participant", value: keyParticipant },
     { label: "data.participant", value: data?.participant },
-    { label: "data.sender", value: data?.sender },
-    { label: "sender", value: payload?.sender },
     { label: "contextInfo.participant", value: contextParticipant },
   ];
-  for (const candidate of priorityCandidates) {
-    const target = replyTargetFromValue(candidate.value);
-    if (target) {
+  if (isGroup) {
+    for (const candidate of groupParticipantCandidates) {
+      const target = replyTargetFromValue(candidate.value);
+      if (target && !rejectOwnTarget(target, candidate.value)) {
+        return {
+          ...base,
+          resolvedJid: target.jid,
+          resolvedNumber: target.number,
+          reason: `group_${candidate.label}`,
+        };
+      }
+    }
+    if (groupParticipantCandidates.some((candidate) => isLidJid(candidate.value))) {
       return {
-        remoteJid: text(remoteJid),
-        participant,
-        sender,
+        ...base,
+        resolvedJid: "",
+        resolvedNumber: "",
+        reason: "lid_unresolved",
+      };
+    }
+    if (!whatsappGroupRepliesEnabled()) {
+      return {
+        ...base,
+        resolvedJid: "",
+        resolvedNumber: "",
+        reason: "group_reply_disabled",
+      };
+    }
+  }
+  const senderFallbackCandidates = connectedOwnerJid
+    ? [
+        { label: "data.sender", value: data?.sender },
+        { label: "sender", value: payload?.sender },
+      ]
+    : [];
+  const fallbackCandidates = [
+    ...groupParticipantCandidates,
+    ...(isLid ? senderFallbackCandidates : [
+      { label: "data.sender", value: data?.sender },
+      { label: "sender", value: payload?.sender },
+    ]),
+  ];
+  for (const candidate of fallbackCandidates) {
+    const target = replyTargetFromValue(candidate.value);
+    if (target && !rejectOwnTarget(target, candidate.value)) {
+      return {
+        ...base,
         resolvedJid: target.jid,
         resolvedNumber: target.number,
         reason: candidate.label,
       };
     }
   }
-  const remoteTarget = replyTargetFromValue(remoteJid);
-  if (remoteTarget) {
-    return {
-      remoteJid: text(remoteJid),
-      participant,
-      sender,
-      resolvedJid: remoteTarget.jid,
-      resolvedNumber: remoteTarget.number,
-      reason: "remote_jid_phone",
-    };
+  if (remoteTarget && !isLid && (whatsappGroupRepliesEnabled() || !isGroup)) {
+    if (!rejectOwnTarget(remoteTarget, remoteJid)) {
+      return {
+        ...base,
+        resolvedJid: remoteTarget.jid,
+        resolvedNumber: remoteTarget.number,
+        reason: isGroup ? "group_remote_jid_explicitly_enabled" : "remote_jid_phone",
+      };
+    }
   }
-  const recursivePhoneJid = collectStrings(payload).find((value) => isWhatsappPhoneJid(value));
+  const senderValues = new Set([text(data?.sender), text(payload?.sender)].filter(Boolean));
+  const recursivePhoneJid = collectStrings(payload).find((value) => {
+    if (isLid && senderValues.has(text(value))) return false;
+    if (!isWhatsappPhoneJid(value)) return false;
+    const target = replyTargetFromValue(value);
+    if (!target) return false;
+    if (rejectOwnTarget(target, value)) return false;
+    return true;
+  });
   const recursiveTarget = replyTargetFromValue(recursivePhoneJid);
   if (recursiveTarget) {
     return {
-      remoteJid: text(remoteJid),
-      participant,
-      sender,
+      ...base,
       resolvedJid: recursiveTarget.jid,
       resolvedNumber: recursiveTarget.number,
       reason: "payload_phone_jid",
     };
   }
   return {
-    remoteJid: text(remoteJid),
-    participant,
-    sender,
+    ...base,
     resolvedJid: "",
     resolvedNumber: "",
-    reason: isLidJid(remoteJid) ? "lid_unresolved" : "no_reply_target",
+    reason: rejectedOwnerCandidate ? "owner_target" : isLid ? "lid_unresolved" : isGroup ? "group_reply_target_unresolved" : "no_reply_target",
   };
 };
 
@@ -475,36 +679,81 @@ const resolveOutboundWhatsappReplyTarget = (message = {}) => {
   const remoteJid = text(message.remoteJid || message.remote_jid || "");
   const participant = text(message.participant || "");
   const sender = text(message.sender || "");
+  const connectedOwnerJid = text(message.connectedOwnerJid || message.connected_owner_jid || "");
+  const instanceOwnerJid = text(message.instanceOwnerJid || message.instance_owner_jid || connectedOwnerJid);
+  const ownerJid = text(message.ownerJid || message.owner_jid || connectedOwnerJid);
+  const configuredBotNumber = text(message.configuredBotNumber || message.configured_bot_number || numberFromWhatsappJid(ownerJid || instanceOwnerJid));
+  const isGroup = Boolean(message.isGroup ?? message.is_group ?? isGroupJid(remoteJid));
+  const isLid = Boolean(message.isLid ?? message.is_lid ?? isLidJid(remoteJid || message.phone));
   const resolvedPhone = normalizeEgyptPhone(message.resolvedPhone || message.resolved_phone || "");
+  const replyTargetReason = text(message.replyTargetReason || message.reply_target_reason || "");
+  const base = {
+    remoteJid,
+    participant,
+    sender,
+    connectedOwnerJid,
+    instanceOwnerJid,
+    ownerJid,
+    configuredBotNumber,
+    isGroup,
+    isLid,
+    fromMe: message.fromMe === true,
+  };
   if (resolvedPhone) {
     return {
-      remoteJid,
-      participant,
-      sender,
+      ...base,
       resolvedJid: text(message.resolvedReplyJid || message.resolved_reply_jid || jidFromNumber(resolvedPhone)),
       resolvedNumber: resolvedPhone,
-      reason: text(message.replyTargetReason || message.reply_target_reason || "resolved_phone"),
+      reason: replyTargetReason || "resolved_phone",
+    };
+  }
+  const unresolvedReason = replyTargetReason || (isLid ? "lid_unresolved" : isGroup ? "group_reply_target_unresolved" : "");
+  if (unresolvedReason || isGroup || isLid) {
+    return {
+      ...base,
+      resolvedJid: "",
+      resolvedNumber: "",
+      reason: unresolvedReason || "no_reply_target",
     };
   }
   const target = replyTargetFromValue(message.phone || remoteJid);
   if (target) {
     return {
-      remoteJid,
-      participant,
-      sender,
+      ...base,
       resolvedJid: target.jid,
       resolvedNumber: target.number,
       reason: isWhatsappPhoneJid(remoteJid) ? "remote_jid_phone" : "direct_number",
     };
   }
   return {
-    remoteJid,
-    participant,
-    sender,
+    ...base,
     resolvedJid: "",
     resolvedNumber: "",
-    reason: isLidJid(remoteJid || message.phone) ? "lid_unresolved" : "no_reply_target",
+    reason: "no_reply_target",
   };
+};
+
+const outboundOwnerJidsForMessage = (message = {}) => {
+  const candidates = [
+    message.connectedOwnerJid,
+    message.connected_owner_jid,
+    message.instanceOwnerJid,
+    message.instance_owner_jid,
+    process.env.WHATSAPP_CONNECTED_OWNER_JID,
+    process.env.WHATSAPP_INSTANCE_OWNER_JID,
+    process.env.EVOLUTION_INSTANCE_OWNER_JID,
+    process.env.WHATSAPP_CONNECTED_NUMBER,
+    process.env.WHATSAPP_INSTANCE_OWNER_NUMBER,
+    process.env.EVOLUTION_INSTANCE_OWNER_NUMBER,
+    process.env.WHATSAPP_OWNER_NUMBER,
+    "201024960585",
+  ];
+  const seen = new Set();
+  return candidates.map(normalizeOwnerJid).filter((jid) => {
+    if (!jid || seen.has(jid)) return false;
+    seen.add(jid);
+    return true;
+  });
 };
 
 const errorSummary = (error = {}) => ({
@@ -1098,6 +1347,73 @@ const extractMessageText = (data = {}) => {
   );
 };
 
+const extractWhatsappWebhookEnvelope = (payload = {}) => {
+  const data = payload?.data || payload?.body?.data || payload;
+  const key = data?.key || payload?.key || {};
+  const eventCandidates = [
+    payload?.event,
+    payload?.type,
+    payload?.name,
+    payload?.body?.event,
+    payload?.body?.type,
+    data?.event,
+    data?.type,
+    data?.name,
+    data?.event_name,
+    data?.eventName,
+    data?.webhookEvent,
+    data?.webhook_event,
+    data?.action,
+  ].filter((value) => value !== undefined && value !== null && String(value).trim() !== "");
+  const rawEvent = text(eventCandidates[0] || "");
+  const remoteJid = text(
+    key?.remoteJid ||
+    data?.remoteJid ||
+    data?.remote_jid ||
+    data?.from ||
+    data?.sender ||
+    data?.participant ||
+    data?.number ||
+    findFirstString(data, ["remoteJid", "remote_jid", "from", "sender", "participant", "number", "phone"]) ||
+    findFirstString(payload, ["remoteJid", "remote_jid", "from", "sender", "number", "phone"])
+  );
+  const fromMe = boolValue(key?.fromMe ?? data?.fromMe ?? data?.from_me ?? payload?.fromMe);
+  const sender = text(data?.sender || payload?.sender || "");
+  const participant = text(key?.participant || data?.key?.participant || data?.participant || payload?.participant || "");
+  const ownerJids = ownerJidsFromPayload({ payload, data, fromMe });
+  const ownerJid = ownerJids[0] || "";
+  const configuredBotNumber = ownerNumberFromJids(ownerJids);
+  return {
+    data,
+    key,
+    event: rawEvent.toLowerCase().replace(/[_\s]+/g, ".") || rawEvent,
+    rawEvent,
+    eventCandidates,
+    remoteJid,
+    sender,
+    participant,
+    fromMe,
+    ownerJid,
+    configuredBotNumber,
+    instance: text(payload?.instance || payload?.instanceName || data?.instance || data?.instanceName || instanceName()),
+    messageId: text(
+      key?.id ||
+      data?.messageId ||
+      data?.message_id ||
+      data?.id ||
+      data?.messages?.[0]?.id ||
+      findFirstString(data, ["messageId", "message_id", "message_id", "id", "mid"])
+    ),
+    timestamp: parseWhatsappTimestamp(
+      data?.messageTimestamp ||
+      data?.timestamp ||
+      data?.date_time ||
+      payload?.date_time ||
+      payload?.timestamp
+    ),
+  };
+};
+
 const extractIncomingWhatsapp = (payload = {}) => {
   const data = payload?.data || payload?.body?.data || payload;
   const key = data?.key || payload?.key || {};
@@ -1129,15 +1445,23 @@ const extractIncomingWhatsapp = (payload = {}) => {
     findFirstString(data, ["remoteJid", "remote_jid", "from", "sender", "participant", "number", "phone"]) ||
     findFirstString(payload, ["remoteJid", "remote_jid", "from", "sender", "number", "phone"])
   );
-  const replyTarget = resolveWhatsappReplyTarget({ payload, data, key, remoteJid });
+  const fromMe = boolValue(key?.fromMe ?? data?.fromMe ?? data?.from_me ?? payload?.fromMe);
+  const replyTarget = resolveWhatsappReplyTarget({ payload, data, key, remoteJid, fromMe });
   const phone = replyTarget.resolvedNumber || (isLidJid(remoteJid) ? remoteJid : normalizeEgyptPhone(jidNumber(remoteJid)));
   console.info("[whatsapp:reply-target-resolution]", {
     remoteJid,
     participant: replyTarget.participant,
     sender: replyTarget.sender,
+    fromMe,
+    connectedOwnerJid: replyTarget.connectedOwnerJid,
+    instanceOwnerJid: replyTarget.instanceOwnerJid,
+    ownerJid: replyTarget.ownerJid,
+    configuredBotNumber: replyTarget.configuredBotNumber,
     resolvedJid: replyTarget.resolvedJid,
     resolvedNumber: replyTarget.resolvedNumber,
     reason: replyTarget.reason,
+    isGroup: replyTarget.isGroup,
+    isLid: replyTarget.isLid,
   });
   const messageId = text(
     key?.id ||
@@ -1177,12 +1501,18 @@ const extractIncomingWhatsapp = (payload = {}) => {
     replyTargetReason: replyTarget.reason,
     participant: replyTarget.participant,
     sender: replyTarget.sender,
+    connectedOwnerJid: replyTarget.connectedOwnerJid,
+    instanceOwnerJid: replyTarget.instanceOwnerJid,
+    ownerJid: replyTarget.ownerJid,
+    configuredBotNumber: replyTarget.configuredBotNumber,
+    isGroup: replyTarget.isGroup,
+    isLid: replyTarget.isLid,
     text: extractMessageText(data),
     senderName,
     messageId,
     timestamp,
     instance,
-    fromMe: boolValue(key?.fromMe ?? data?.fromMe ?? data?.from_me ?? payload?.fromMe),
+    fromMe,
     raw: payload,
   };
 };
@@ -1383,6 +1713,10 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       resolved_reply_jid: resolvedReplyJid,
       resolved_phone: resolvedPhone,
       reply_target_reason: message.replyTargetReason || "",
+      connected_owner_jid: message.connectedOwnerJid || "",
+      instance_owner_jid: message.instanceOwnerJid || "",
+      is_group: message.isGroup === true,
+      is_lid: message.isLid === true,
       instance: message.instance,
       source: "evolution_api",
       last_message: body,
@@ -1393,6 +1727,8 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       remote_jid: remoteJid,
       resolved_reply_jid: resolvedReplyJid,
       resolved_phone: resolvedPhone,
+      connected_owner_jid: message.connectedOwnerJid || "",
+      instance_owner_jid: message.instanceOwnerJid || "",
     },
     lastMessageAt: receivedAt,
   });
@@ -1597,6 +1933,10 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       resolved_reply_jid: resolvedReplyJid,
       resolved_phone: resolvedPhone,
       reply_target_reason: message.replyTargetReason || "",
+      connected_owner_jid: message.connectedOwnerJid || "",
+      instance_owner_jid: message.instanceOwnerJid || "",
+      is_group: message.isGroup === true,
+      is_lid: message.isLid === true,
       external_message_id: externalMessageId,
       dedupe_key: dedupeKey,
     },
@@ -1707,6 +2047,53 @@ export const handleIncomingWebhook = async (payload = {}) => {
   console.info("[whatsapp:event-detected]", {
     received_events: eventCandidates.map((value) => String(value)),
   });
+  const envelope = extractWhatsappWebhookEnvelope(payload);
+  if (envelope.fromMe) {
+    console.info("[whatsapp:skip-from-me-before-ai]", {
+      event: envelope.event,
+      rawEvent: envelope.rawEvent || "",
+      instance: envelope.instance,
+      remoteJid: envelope.remoteJid,
+      sender: envelope.sender,
+      participant: envelope.participant,
+      fromMe: true,
+      ownerJid: envelope.ownerJid,
+      configuredBotNumber: envelope.configuredBotNumber,
+      resolvedJid: "",
+      skip_reason: "from_me",
+      message_id: envelope.messageId,
+    });
+    return {
+      event: envelope.event,
+      rawEvent: envelope.rawEvent,
+      eventCandidates: envelope.eventCandidates,
+      phone: "",
+      remoteJid: envelope.remoteJid,
+      resolvedReplyJid: "",
+      resolvedPhone: "",
+      replyTargetReason: "from_me",
+      participant: envelope.participant,
+      sender: envelope.sender,
+      connectedOwnerJid: envelope.ownerJid,
+      instanceOwnerJid: envelope.ownerJid,
+      ownerJid: envelope.ownerJid,
+      configuredBotNumber: envelope.configuredBotNumber,
+      isGroup: isGroupJid(envelope.remoteJid),
+      isLid: isLidJid(envelope.remoteJid),
+      text: "",
+      senderName: "",
+      messageId: envelope.messageId,
+      timestamp: envelope.timestamp,
+      instance: envelope.instance,
+      fromMe: true,
+      raw: payload,
+      received_at: envelope.timestamp,
+      message_id: envelope.messageId,
+      instanceName: envelope.instance,
+      trace_id: null,
+      inbox: { saved: false, reason: "from_me" },
+    };
+  }
   const normalized = extractIncomingWhatsapp(payload);
   const traceTenantId = tenantIdForWhatsapp(normalized.raw || {});
   let trace = null;
@@ -1797,6 +2184,27 @@ export const handleIncomingWebhook = async (payload = {}) => {
 
 export const triggerWhatsappAiAutoReply = async (message = {}) => {
   const inboundText = text(message?.text || message?.message_text || message?.body || "");
+  if (message?.fromMe === true) {
+    const ownerJids = outboundOwnerJidsForMessage(message);
+    const ownerJid = ownerJids[0] || "";
+    console.info("[whatsapp:skip-from-me-before-ai]", {
+      remoteJid: text(message?.remoteJid || message?.remote_jid || ""),
+      sender: text(message?.sender || ""),
+      participant: text(message?.participant || ""),
+      fromMe: true,
+      ownerJid,
+      configuredBotNumber: ownerNumberFromJids(ownerJids),
+      resolvedJid: "",
+      skip_reason: "from_me",
+      message_id: message?.message_id || message?.messageId || "",
+    });
+    await addTraceStep(message?.trace_id, "ai_mode_check", {
+      shouldAutoSend: false,
+      skip_reason: "from_me",
+    });
+    await finishTrace(message?.trace_id, { status: "skipped", reason: "from_me" });
+    return { triggered: false, sent: false, reason: "from_me" };
+  }
   const blockedByInboxGate = !message?.text || message?.fromMe || message?.inbox?.saved === false || message?.inbox?.duplicate === true || message?.inbox?.saved !== true;
   console.info("[ai-duplicate-gate]", {
     message_id: message?.message_id || message?.messageId || message?.inbox?.message?.external_message_id || "",
@@ -1835,16 +2243,34 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     remoteJid: outboundReplyTarget.remoteJid,
     participant: outboundReplyTarget.participant,
     sender: outboundReplyTarget.sender,
+    fromMe: outboundReplyTarget.fromMe,
+    connectedOwnerJid: outboundReplyTarget.connectedOwnerJid,
+    instanceOwnerJid: outboundReplyTarget.instanceOwnerJid,
+    ownerJid: outboundReplyTarget.ownerJid,
+    configuredBotNumber: outboundReplyTarget.configuredBotNumber,
     resolvedJid: outboundReplyTarget.resolvedJid,
     resolvedNumber: outboundReplyTarget.resolvedNumber,
     reason: outboundReplyTarget.reason,
+    isGroup: outboundReplyTarget.isGroup,
+    isLid: outboundReplyTarget.isLid,
   });
   if (!sendTargetNumber) {
-    console.info("[whatsapp:send-skipped-lid-unresolved]", {
+    const skipReason = outboundReplyTarget.reason || "no_reply_target";
+    const skipLogLabel = skipReason === "owner_target" ? "[whatsapp:send-skipped-own-number]" : "[whatsapp:send-skipped-lid-unresolved]";
+    console.info(skipLogLabel, {
       tenantId: generated.tenantId,
       sessionId: generated.sessionId,
       remoteJid: outboundReplyTarget.remoteJid,
+      participant: outboundReplyTarget.participant,
+      sender: outboundReplyTarget.sender,
+      fromMe: outboundReplyTarget.fromMe,
+      connectedOwnerJid: outboundReplyTarget.connectedOwnerJid,
+      instanceOwnerJid: outboundReplyTarget.instanceOwnerJid,
+      ownerJid: outboundReplyTarget.ownerJid,
+      configuredBotNumber: outboundReplyTarget.configuredBotNumber,
       reason: outboundReplyTarget.reason,
+      isGroup: outboundReplyTarget.isGroup,
+      isLid: outboundReplyTarget.isLid,
       replyLength: generated.replyText.length,
     });
     await appendAiGeneratedSupportReply({
@@ -1858,11 +2284,11 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       suggestedActions: generated.aiPayload?.suggested_actions || [],
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       deliveryStatus: "suggested",
-      deliveryError: "lid_unresolved_no_real_phone_jid",
-      sourcePath: "whatsapp_ai_auto_reply_lid_unresolved",
+      deliveryError: skipReason === "owner_target" ? "owner_target_connected_instance" : "lid_unresolved_no_real_phone_jid",
+      sourcePath: skipReason === "owner_target" ? "whatsapp_ai_auto_reply_owner_target" : "whatsapp_ai_auto_reply_lid_unresolved",
       insertSource: "whatsapp_ai_suggestion",
     }).catch((error) => {
-      console.warn("[whatsapp:send-skipped-lid-unresolved:suggestion-save-failed]", {
+      console.warn(skipReason === "owner_target" ? "[whatsapp:send-skipped-own-number:suggestion-save-failed]" : "[whatsapp:send-skipped-lid-unresolved:suggestion-save-failed]", {
         sessionId: generated.sessionId,
         message: error?.message || String(error),
       });
@@ -1874,7 +2300,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       replyText: generated.replyText,
       sent: false,
       metadata: {
-        reason: "lid_unresolved",
+        reason: skipReason,
         reply_target: outboundReplyTarget,
       },
     });
@@ -1882,11 +2308,78 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       target_phone_suffix: "",
       evolution_instance: instanceName(),
       delivery_status: "skipped",
-      skip_reason: "lid_unresolved",
+      skip_reason: skipReason,
       reply_target: outboundReplyTarget,
     });
-    await finishTrace(message.trace_id, { status: "skipped", reason: "lid_unresolved" });
-    return { ...generated, sent: false, reason: "lid_unresolved", replyTarget: outboundReplyTarget };
+    await finishTrace(message.trace_id, { status: "skipped", reason: skipReason });
+    return { ...generated, sent: false, reason: skipReason, replyTarget: outboundReplyTarget };
+  }
+  const ownerTarget = { jid: outboundReplyTarget.resolvedJid || jidFromNumber(sendTargetNumber), number: sendTargetNumber };
+  const outgoingTargetsOwner = message.fromMe === false && targetEqualsOwner(ownerTarget, outboundOwnerJidsForMessage(message));
+  if (outgoingTargetsOwner) {
+    logReplyTargetCandidateRejected({
+      candidateJid: ownerTarget.jid,
+      candidateNumber: ownerTarget.number,
+      reason: "owner_number",
+    });
+    console.info("[whatsapp:send-skipped-own-number]", {
+      tenantId: generated.tenantId,
+      sessionId: generated.sessionId,
+      remoteJid: outboundReplyTarget.remoteJid,
+      participant: outboundReplyTarget.participant,
+      sender: outboundReplyTarget.sender,
+      fromMe: outboundReplyTarget.fromMe,
+      connectedOwnerJid: outboundReplyTarget.connectedOwnerJid,
+      instanceOwnerJid: outboundReplyTarget.instanceOwnerJid,
+      ownerJid: outboundReplyTarget.ownerJid,
+      configuredBotNumber: outboundReplyTarget.configuredBotNumber,
+      resolvedJid: outboundReplyTarget.resolvedJid,
+      resolvedNumber: sendTargetNumber,
+      reason: "owner_number",
+      isGroup: outboundReplyTarget.isGroup,
+      isLid: outboundReplyTarget.isLid,
+      replyLength: generated.replyText.length,
+    });
+    await appendAiGeneratedSupportReply({
+      tenantId: generated.tenantId,
+      sessionId: generated.sessionId,
+      answer: generated.replyText,
+      confidence: generated.aiPayload?.confidence || 0,
+      detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
+      suggestedProducts: generated.aiPayload?.suggested_products || [],
+      visualAttachments: generated.aiPayload?.visual_attachments || [],
+      suggestedActions: generated.aiPayload?.suggested_actions || [],
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      deliveryStatus: "suggested",
+      deliveryError: "owner_target_connected_instance",
+      sourcePath: "whatsapp_ai_auto_reply_owner_target",
+      insertSource: "whatsapp_ai_suggestion",
+    }).catch((error) => {
+      console.warn("[whatsapp:send-skipped-own-number:suggestion-save-failed]", {
+        sessionId: generated.sessionId,
+        message: error?.message || String(error),
+      });
+    });
+    await logWhatsappAiOutbound({
+      tenantId: generated.tenantId,
+      phone: message.phone,
+      sessionId: generated.sessionId,
+      replyText: generated.replyText,
+      sent: false,
+      metadata: {
+        reason: "owner_target",
+        reply_target: outboundReplyTarget,
+      },
+    });
+    await addTraceStep(message.trace_id, "send_to_whatsapp", {
+      target_phone_suffix: sendTargetNumber.slice(-4),
+      evolution_instance: instanceName(),
+      delivery_status: "skipped",
+      skip_reason: "owner_target",
+      reply_target: outboundReplyTarget,
+    });
+    await finishTrace(message.trace_id, { status: "skipped", reason: "owner_target" });
+    return { ...generated, sent: false, reason: "owner_target", replyTarget: outboundReplyTarget };
   }
 
   console.info("[whatsapp:ai-send-start]", {
