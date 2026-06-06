@@ -14,6 +14,7 @@ import {
   getManagerPortalStockAlerts,
   markManagerPortalChatRead,
   markManagerPortalNotificationRead,
+  markManagerPortalNotificationsRead,
   noteManagerPortalTask,
   reopenManagerPortalTask,
   rejectManagerPortalTask,
@@ -186,6 +187,18 @@ router.post("/:token/notifications/:id/read", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] notification read error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to mark notification as read" });
+  }
+});
+
+router.post("/:token/notifications/read-all", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const count = await markManagerPortalNotificationsRead({ manager });
+    return res.json({ success: true, count });
+  } catch (error) {
+    console.error("[manager-portal] notifications read all error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to mark notifications as read" });
   }
 });
 

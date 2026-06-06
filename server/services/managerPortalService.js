@@ -9,7 +9,7 @@ import {
   sendAdminEmployeeChatMessage,
   markAdminEmployeeChatThreadRead,
 } from "./employeeChatService.js";
-import { getUnreadCount, listNotifications, markAsRead, createNotification } from "./notificationsService.js";
+import { getUnreadCount, listNotifications, markAsRead, markAllAsRead, createNotification } from "./notificationsService.js";
 import { listRecentDisplayRefillAlerts } from "./displayRefillAlertService.js";
 import { getRolePermissions } from "./rolesService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
@@ -662,9 +662,18 @@ export const getManagerPortalTasks = async ({ manager = {} } = {}) => {
 export const getManagerPortalSales = async ({ manager = {} } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
-  const [overview, trend, hourly, topProducts, recentInvoices, aiInsights] = await Promise.all([
+  const hasOrders = await tableExists("orders");
+  const hasOrderItems = await tableExists("order_items");
+  const hasProducts = await tableExists("products");
+  const hasCategories = await tableExists("categories");
+  const hasBrands = await tableExists("brands");
+  const hasAiSupportSessions = await tableExists("ai_support_sessions");
+  const hasAiAgentConversationColumn = await columnExists("orders", "ai_agent_conversation_id");
+  const hasAiAgentStatusColumn = await columnExists("orders", "ai_agent_status");
+
+  const [overview, trend7d, hourly, topProducts, recentInvoices, aiInsights, comparisonRows, sellerRows, categoryRows, brandRows, customerConversionRows, aiConversionRows] = await Promise.all([
     getDashboardOverview({ tenantId, filters: { branchId } }),
-    getSalesTrend({ tenantId, filters: { branchId } }),
+    getSalesTrend({ tenantId, filters: { branchId, range: "7d" }, days: 7 }),
     getHourlySales({ tenantId, filters: { branchId } }),
     getTopProducts({ tenantId, filters: { branchId } }),
     tableExists("orders").then((exists) => (exists ? safeQuery(
@@ -680,17 +689,195 @@ export const getManagerPortalSales = async ({ manager = {} } = {}) => {
       []
     ) : [])).catch(() => []),
     getAiInsights({ tenantId }),
+    hasOrders
+      ? safeQuery(
+          `
+          SELECT
+            COALESCE(SUM(CASE WHEN o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day' THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS today_sales,
+            COUNT(*) FILTER (WHERE o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day')::int AS today_orders,
+            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day'), 0) AS today_aov,
+            COALESCE(SUM(CASE WHEN o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS yesterday_sales,
+            COUNT(*) FILTER (WHERE o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE)::int AS yesterday_orders,
+            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE), 0) AS yesterday_aov
+          FROM orders o
+          WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            ${branchId ? "AND o.branch_id = $2::bigint" : ""}
+            AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+            AND o.created_at >= CURRENT_DATE - INTERVAL '1 day'
+            AND o.created_at < CURRENT_DATE + INTERVAL '1 day'
+          `,
+          branchId ? [tenantId, branchId] : [tenantId],
+          [],
+        )
+      : [],
+    hasOrders
+      ? safeQuery(
+          `
+          SELECT
+            COALESCE(o.sales_employee_id, o.seller_user_id, o.created_by)::text AS seller_key,
+            COALESCE(NULLIF(e.full_name, ''), NULLIF(o.seller_name, ''), 'Unassigned seller') AS seller_name,
+            COUNT(DISTINCT o.id)::int AS orders_count,
+            COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS revenue
+          FROM orders o
+          LEFT JOIN employees e ON e.id = o.sales_employee_id
+          WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            AND o.created_at >= NOW() - INTERVAL '30 days'
+            ${branchId ? "AND o.branch_id = $2::bigint" : ""}
+            AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+          GROUP BY COALESCE(o.sales_employee_id, o.seller_user_id, o.created_by)::text, COALESCE(NULLIF(e.full_name, ''), NULLIF(o.seller_name, ''), 'Unassigned seller')
+          HAVING COUNT(DISTINCT o.id) > 0
+          ORDER BY revenue DESC, orders_count DESC, seller_name ASC
+          `,
+          branchId ? [tenantId, branchId] : [tenantId],
+          [],
+        )
+      : [],
+    hasOrderItems && hasProducts
+      ? safeQuery(
+          `
+          SELECT
+            COALESCE(NULLIF(c.name, ''), NULLIF(p.product_type, ''), 'Uncategorized') AS name,
+            COALESCE(SUM(oi.quantity), 0)::int AS quantity,
+            COALESCE(SUM(COALESCE(oi.total_amount, oi.price * oi.quantity, oi.sale_price * oi.quantity, 0)), 0) AS revenue
+          FROM order_items oi
+          JOIN orders o ON o.id = oi.order_id
+          LEFT JOIN products p ON p.id = oi.product_id
+          LEFT JOIN categories c ON c.id = p.category_id
+          WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            AND o.created_at >= NOW() - INTERVAL '30 days'
+            ${branchId ? "AND o.branch_id = $2::bigint" : ""}
+            AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+          GROUP BY COALESCE(NULLIF(c.name, ''), NULLIF(p.product_type, ''), 'Uncategorized')
+          ORDER BY revenue DESC, quantity DESC, name ASC
+          LIMIT 1
+          `,
+          branchId ? [tenantId, branchId] : [tenantId],
+          [],
+        )
+      : [],
+    hasOrderItems && hasProducts && hasBrands
+      ? safeQuery(
+          `
+          SELECT
+            COALESCE(NULLIF(b.name, ''), 'Unbranded') AS name,
+            COALESCE(SUM(oi.quantity), 0)::int AS quantity,
+            COALESCE(SUM(COALESCE(oi.total_amount, oi.price * oi.quantity, oi.sale_price * oi.quantity, 0)), 0) AS revenue
+          FROM order_items oi
+          JOIN orders o ON o.id = oi.order_id
+          LEFT JOIN products p ON p.id = oi.product_id
+          LEFT JOIN brands b ON b.id = p.brand_id
+          WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            AND o.created_at >= NOW() - INTERVAL '30 days'
+            ${branchId ? "AND o.branch_id = $2::bigint" : ""}
+            AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+          GROUP BY COALESCE(NULLIF(b.name, ''), 'Unbranded')
+          ORDER BY revenue DESC, quantity DESC, name ASC
+          LIMIT 1
+          `,
+          branchId ? [tenantId, branchId] : [tenantId],
+          [],
+        )
+      : [],
+    hasOrders
+      ? safeQuery(
+          `
+          SELECT
+            COUNT(*)::int AS total_orders,
+            COUNT(*) FILTER (WHERE o.customer_id IS NOT NULL)::int AS customer_linked_orders,
+            COALESCE(ROUND(COUNT(*) FILTER (WHERE o.customer_id IS NOT NULL)::numeric / NULLIF(COUNT(*), 0) * 100, 2), 0) AS customer_link_rate,
+            COUNT(*) FILTER (
+              WHERE LOWER(COALESCE(o.channel, '')) IN ('web_chat', 'website', 'storefront', 'online', 'instagram', 'facebook', 'whatsapp')
+            )::int AS online_orders,
+            COALESCE(ROUND(COUNT(*) FILTER (
+              WHERE LOWER(COALESCE(o.channel, '')) IN ('web_chat', 'website', 'storefront', 'online', 'instagram', 'facebook', 'whatsapp')
+            )::numeric / NULLIF(COUNT(*), 0) * 100, 2), 0) AS online_order_share
+          FROM orders o
+          WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            AND o.created_at >= NOW() - INTERVAL '30 days'
+            ${branchId ? "AND o.branch_id = $2::bigint" : ""}
+            AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+          `,
+          branchId ? [tenantId, branchId] : [tenantId],
+          [],
+        )
+      : [],
+    hasAiSupportSessions && hasAiAgentConversationColumn && hasAiAgentStatusColumn && hasOrders
+      ? safeQuery(
+          `
+          WITH sessions AS (
+            SELECT s.session_id
+            FROM ai_support_sessions s
+            WHERE ($1::bigint IS NULL OR s.tenant_id = $1::bigint)
+              AND s.created_at >= NOW() - INTERVAL '30 days'
+          ),
+          converted AS (
+            SELECT DISTINCT o.ai_agent_conversation_id AS session_id
+            FROM orders o
+            WHERE ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+              AND o.created_at >= NOW() - INTERVAL '30 days'
+              AND o.ai_agent_status = 'confirmed'
+              AND COALESCE(o.ai_agent_conversation_id, '') <> ''
+          )
+          SELECT
+            COUNT(*)::int AS ai_sessions,
+            COUNT(converted.session_id)::int AS ai_confirmed_orders,
+            COALESCE(ROUND(COUNT(converted.session_id)::numeric / NULLIF(COUNT(*), 0) * 100, 2), 0) AS ai_conversion_rate
+          FROM sessions
+          LEFT JOIN converted ON converted.session_id = sessions.session_id
+          `,
+          [tenantId],
+          [],
+        )
+      : [],
   ]);
   if (!canViewProfitForManager(manager) && overview?.today) {
     overview.today.profit = null;
   }
+  const comparison = comparisonRows[0] || {};
+  const sellerStats = sellerRows || [];
+  const topSeller = sellerStats[0] || null;
+  const worstSeller = sellerStats.length > 1 ? sellerStats[sellerStats.length - 1] : sellerStats[0] || null;
+  const bestCategory = categoryRows[0] || null;
+  const bestBrand = brandRows[0] || null;
+  const conversionSummary = customerConversionRows[0] || {};
+  const aiConversionSummary = aiConversionRows[0] || {};
   return {
     overview,
-    trend,
+    trend: trend7d,
+    trend_7d: trend7d,
     hourly,
     top_products: topProducts,
     recent_invoices: recentInvoices,
     ai_insights: aiInsights,
+    comparison: {
+      today_sales: Number(comparison.today_sales || overview?.today?.sales || 0),
+      yesterday_sales: Number(comparison.yesterday_sales || 0),
+      today_orders: Number(comparison.today_orders || overview?.today?.orders || 0),
+      yesterday_orders: Number(comparison.yesterday_orders || 0),
+      today_average_invoice: Number(comparison.today_aov || overview?.today?.averageOrderValue || 0),
+      yesterday_average_invoice: Number(comparison.yesterday_aov || 0),
+      sales_delta: Number(comparison.today_sales || 0) - Number(comparison.yesterday_sales || 0),
+      orders_delta: Number(comparison.today_orders || 0) - Number(comparison.yesterday_orders || 0),
+      average_invoice_delta: Number(comparison.today_aov || 0) - Number(comparison.yesterday_aov || 0),
+      sales_growth: Number(comparison.yesterday_sales || 0) > 0 ? ((Number(comparison.today_sales || 0) - Number(comparison.yesterday_sales || 0)) / Number(comparison.yesterday_sales || 0)) * 100 : Number(comparison.today_sales || 0) ? 100 : 0,
+      orders_growth: Number(comparison.yesterday_orders || 0) > 0 ? ((Number(comparison.today_orders || 0) - Number(comparison.yesterday_orders || 0)) / Number(comparison.yesterday_orders || 0)) * 100 : Number(comparison.today_orders || 0) ? 100 : 0,
+      average_invoice_growth: Number(comparison.yesterday_aov || 0) > 0 ? ((Number(comparison.today_aov || 0) - Number(comparison.yesterday_aov || 0)) / Number(comparison.yesterday_aov || 0)) * 100 : Number(comparison.today_aov || 0) ? 100 : 0,
+    },
+    leaders: {
+      top_seller: topSeller,
+      worst_seller: worstSeller,
+    },
+    best_category: bestCategory,
+    best_brand: bestBrand,
+    conversion_indicators: {
+      customer_linked_orders: Number(conversionSummary.customer_linked_orders || 0),
+      customer_link_rate: Number(conversionSummary.customer_link_rate || 0),
+      online_orders: Number(conversionSummary.online_orders || 0),
+      online_order_share: Number(conversionSummary.online_order_share || 0),
+      ai_sessions: Number(aiConversionSummary.ai_sessions || 0),
+      ai_confirmed_orders: Number(aiConversionSummary.ai_confirmed_orders || 0),
+      ai_conversion_rate: Number(aiConversionSummary.ai_conversion_rate || 0),
+    },
   };
 };
 
@@ -736,6 +923,14 @@ export const getManagerPortalNotifications = async ({ manager = {}, query = {} }
 
 export const markManagerPortalNotificationRead = async ({ manager = {}, notificationId } = {}) => {
   return markAsRead(notificationId, {
+    tenant_id: manager.tenant_id || null,
+    role_key: "manager",
+    is_super_admin: false,
+  });
+};
+
+export const markManagerPortalNotificationsRead = async ({ manager = {} } = {}) => {
+  return markAllAsRead({
     tenant_id: manager.tenant_id || null,
     role_key: "manager",
     is_super_admin: false,

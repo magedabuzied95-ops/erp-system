@@ -817,7 +817,7 @@ export const detectAiSupportIntent = (message = "") => {
     ? false
     : hasAnyTerm(text, PRODUCT_INTENT_TERMS) || aliasMatches.length > 0 || codes.length > 0 || colors.length > 0 || Boolean(sizeMatch);
 
-  return {
+  const result = {
     type: isInternal
       ? "internal_data"
       : wantsHuman
@@ -834,10 +834,10 @@ export const detectAiSupportIntent = (message = "") => {
     conversational: {
       subtype: conversationalSubtype,
     },
-    product: {
-      codes,
-      colors,
-      size: sizeMatch?.[0] || "",
+      product: {
+        codes,
+        colors,
+        size: sizeMatch?.[0] || "",
       asksSimilar,
       asksAvailability,
       asksPrice,
@@ -847,9 +847,22 @@ export const detectAiSupportIntent = (message = "") => {
         ...intelligenceIntent,
         style: styleIntent,
         alias_matches: aliasMatches.map((entry) => entry.canonical_name),
+        },
       },
-    },
   };
+  console.log("[INTENT_ROUTING_AUDIT]", {
+    message: text,
+    detected_intent: result.type,
+    reason: result.type === "product_discovery" ? "product_discovery_classified" : result.type === "product" ? "product_classified" : result.type === "human_support" ? "human_support_classified" : result.type,
+    asks_price: result.product.asksPrice === true,
+    asks_availability: result.product.asksAvailability === true,
+    asks_similar: result.product.asksSimilar === true,
+    mentions_image_model: result.product.mentionsImageModel === true,
+    codes_count: result.product.codes.length,
+    colors_count: result.product.colors.length,
+    size: result.product.size || "",
+  });
+  return result;
 };
 
 const buildProductConditions = ({ productColumns, variantColumns, terms, codes, includeActiveFilters = true, includeVisibilityFilters = true }) => {

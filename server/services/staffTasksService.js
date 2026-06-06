@@ -946,6 +946,9 @@ const taskSelect = `
   w.name AS warehouse_name,
   p.name AS product_name,
   COALESCE(attachments.attachments_count, 0) AS attachments_count,
+  attachments.latest_attachment_url AS latest_attachment_url,
+  attachments.latest_attachment_type AS latest_attachment_type,
+  attachments.latest_attachment_name AS latest_attachment_name,
   COALESCE(history.timeline, '[]'::json) AS timeline,
   (sta.due_at IS NOT NULL AND sta.due_at < NOW() AND sta.status IN ('pending','in_progress')) AS is_overdue
 `;
@@ -956,7 +959,30 @@ const taskJoins = `
   LEFT JOIN warehouses w ON w.id = sta.warehouse_id
   LEFT JOIN products p ON p.id = sta.product_id
   LEFT JOIN LATERAL (
-    SELECT COUNT(*)::int AS attachments_count
+    SELECT
+      COUNT(*)::int AS attachments_count,
+      MAX(ta.created_at) AS latest_attachment_created_at,
+      (
+        SELECT ta2.url
+        FROM task_attachments ta2
+        WHERE ta2.task_id = sta.id
+        ORDER BY ta2.created_at DESC, ta2.id DESC
+        LIMIT 1
+      ) AS latest_attachment_url,
+      (
+        SELECT ta2.attachment_type
+        FROM task_attachments ta2
+        WHERE ta2.task_id = sta.id
+        ORDER BY ta2.created_at DESC, ta2.id DESC
+        LIMIT 1
+      ) AS latest_attachment_type,
+      (
+        SELECT ta2.metadata->>'name'
+        FROM task_attachments ta2
+        WHERE ta2.task_id = sta.id
+        ORDER BY ta2.created_at DESC, ta2.id DESC
+        LIMIT 1
+      ) AS latest_attachment_name
     FROM task_attachments ta
     WHERE ta.task_id = sta.id
   ) attachments ON TRUE

@@ -161,6 +161,20 @@ const emitToAudience = (notification) => {
   target.emit("notification:count:refresh", { at: new Date().toISOString() });
 };
 
+const emitCountRefresh = (context = {}, count = null) => {
+  if (!io) return;
+  const rooms = new Set();
+  if (context.userId) rooms.add(`user:${context.userId}`);
+  if (context.roleKey) rooms.add(`role:${String(context.roleKey).toLowerCase()}`);
+  if (context.branchId) rooms.add(`branch:${context.branchId}`);
+  if (context.tenantId !== null && context.tenantId !== undefined) rooms.add(`tenant:${context.tenantId}`);
+  if (!rooms.size) rooms.add("notifications:all");
+  for (const room of rooms) {
+    io.to(room).emit("notification:count", { count: typeof count === "number" ? count : 0 });
+    io.to(room).emit("notification:count:refresh", { at: new Date().toISOString() });
+  }
+};
+
 export const createNotification = async (data = {}) => {
   await ensureNotificationsSchema();
   const notification = normalizeNotification(data);
@@ -287,6 +301,10 @@ export const markAsRead = async (id, userOrContext = {}) => {
     `,
     params
   );
+  if (result.rows[0]) {
+    const count = await getUnreadCount(userOrContext);
+    emitCountRefresh(context, count);
+  }
   return result.rows[0] ? rowToNotification(result.rows[0]) : null;
 };
 
@@ -304,7 +322,7 @@ export const markAllAsRead = async (userOrContext = {}) => {
     `,
     params
   );
-  if (io && context.userId) io.to(`user:${context.userId}`).emit("notification:count", { count: 0 });
+  emitCountRefresh(context, 0);
   return result.rowCount || 0;
 };
 

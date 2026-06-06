@@ -11,6 +11,7 @@ export const managerPortalApi = {
   stockAlerts: (token) => api.get(`${tokenPath(token)}/stock-alerts`),
   notifications: (token, params = {}) => api.get(`${tokenPath(token)}/notifications`, { params }),
   markNotificationRead: (token, id) => api.post(`${tokenPath(token)}/notifications/${encodeURIComponent(id)}/read`),
+  markAllNotificationsRead: (token) => api.post(`${tokenPath(token)}/notifications/read-all`),
   chat: (token, threadId = null) => api.get(`${tokenPath(token)}/chat`, { params: threadId ? { thread_id: threadId } : {} }),
   chatThread: (token, threadId) => api.get(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}`),
   sendChatMessage: (token, threadId, formData) => api.post(`${tokenPath(token)}/chat/${encodeURIComponent(threadId)}/messages`, formData),
