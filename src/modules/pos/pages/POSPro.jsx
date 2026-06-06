@@ -1228,6 +1228,7 @@ function POSPro() {
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
   const [quickExpense, setQuickExpense] = useState(quickExpenseDefaults);
   const [quickExpenseSaving, setQuickExpenseSaving] = useState(false);
+  const isVariantModalOpen = Boolean(barcodeShopProduct);
 
   const searchRef = useRef(null);
   const posShellRef = useRef(null);
@@ -1255,6 +1256,13 @@ function POSPro() {
     if (!currentUserId) return true;
     return !salesEmployees.some((employee) => String(employee.user_id || "") === currentUserId);
   }, [canOverrideSeller, currentUser?.id, salesEmployees]);
+
+  useEffect(() => {
+    console.log("[pos-mobile-variant-modal-open]", {
+      isVariantModalOpen,
+      selectedProductId: barcodeShopProduct?.product_id || barcodeShopProduct?.id || null,
+    });
+  }, [barcodeShopProduct, isVariantModalOpen]);
 
   useEffect(() => {
     writePosCart(cart);
@@ -5558,7 +5566,7 @@ function POSPro() {
           </div>
         </div>
 
-        {!barcodeShopProduct ? (
+        {!isVariantModalOpen ? (
           <StickyMobileActionBar>
             <button
               type="button"
@@ -5937,7 +5945,7 @@ function POSPro() {
           </div>
         ) : null}
 
-        {barcodeShopProduct ? (
+        {isVariantModalOpen ? (
           <ProductAvailabilityModal
             product={liveBarcodeShopProduct}
             onClose={() => setBarcodeShopProduct(null)}

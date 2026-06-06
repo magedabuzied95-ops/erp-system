@@ -77,6 +77,17 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
     setImageFailed(failedAvailabilityImageUrls.has(imageUrl));
   }, [imageUrl]);
 
+  useEffect(() => {
+    console.log("[pos-mobile-variant-modal-render]", {
+      selectedColor,
+      selectedSize,
+      selectedVariant,
+      selectedVariantStock: selectedVariant?.stock,
+      selectedVariantPrice: selectedVariant?.price,
+      canAddSelectedVariant: canAddSelected,
+    });
+  }, [canAddSelected, selectedColor, selectedSize, selectedVariant]);
+
   const handleAdd = () => {
     if (isSimpleMode) {
       if (!canAddSelected) return;
@@ -265,7 +276,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                   <div className="truncate">{t("pos.labels.barcode")}: {selectedSize?.barcode || t("common.notAvailable")}</div>
                 </div>
               </details>
-              <div className="mt-3 sm:hidden">
+              <div className="hidden mt-3 sm:hidden">
                 <button
                   type="button"
                   onClick={handleAdd}
@@ -278,8 +289,27 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                   </span>
                 </button>
               </div>
+              <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
+                DEBUG: ProductAvailabilityModal CTA render path
+              </div>
+              {selectedVariant ? (
+                <div className="mt-3 sm:hidden">
+                  <button
+                    type="button"
+                    onClick={handleAdd}
+                    disabled={selectedStock <= 0}
+                    className="inline-flex min-h-12 w-full flex-col items-center justify-center gap-1 rounded-2xl bg-emerald-500 px-4 py-3 text-center text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-zinc-400"
+                  >
+                    <span className="text-base leading-none">
+                      {selectedStock <= 0 ? t("pos.variantSelector.outOfStock", "Out of stock") : t("pos.labels.addToInvoiceArabic", "إضافة للفاتورة")}
+                    </span>
+                    <span className="text-[11px] font-bold leading-none text-black/75">
+                      {formatCurrency(selectedPrice)} • {selectedStock > 0 ? `${t("pos.labels.stock", "Stock")} ${selectedStock}` : t("pos.variantSelector.outOfStock", "Out of stock")}
+                    </span>
+                  </button>
+                </div>
+              ) : null}
             </div>
-
             <div className="hidden flex-col-reverse gap-3 sm:flex sm:flex-row sm:justify-end">
               <button
                 type="button"
