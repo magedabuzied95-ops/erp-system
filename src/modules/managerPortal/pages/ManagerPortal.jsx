@@ -108,6 +108,36 @@ const ARABIC_LETTER_RE = /[\u0600-\u06FF]/g;
 const HAS_ARABIC_LETTER_RE = /[\u0600-\u06FF]/;
 const MOJIBAKE_HINT_RE = /[ØÙÃÂÐ�]|Ã|Â|Ø|Ù/;
 const MOJIBAKE_SEQUENCE_RE = /(ط[اأإآء-ي]|ظ[اأإآء-ي]|Ø.|Ù.|Ã.|Â.|Ð.){2,}/;
+const BACKEND_TEXT_FIELD_KEYS = new Set([
+  "title",
+  "message",
+  "body",
+  "text",
+  "description",
+  "note",
+  "name",
+  "full_name",
+  "employee_name",
+  "branch_name",
+  "customer_name",
+  "product_name",
+  "ai_insight",
+  "seller_name",
+  "department",
+  "job_title",
+  "label",
+  "display_name",
+  "summary",
+  "reason",
+  "content",
+  "last_message",
+  "attachment_name",
+  "latest_attachment_name",
+  "color_name",
+  "replacement_size",
+]);
+const BACKEND_TEXT_FIELD_HINT_RE = /(?:_?(?:title|message|body|text|description|note|name|label|summary|reason|content))$/i;
+const BACKEND_TEXT_FIELD_EXCLUDE_RE = /(?:^|_)(?:category|type|status|route|url|action_url|branch_scope|permission|tag|code|id|token)$/i;
 const latin1BytesToText = (value, encoding = "utf-8") => {
   if (typeof TextDecoder === "undefined") return value;
   try {
@@ -124,19 +154,20 @@ const escapeDecodeText = (value) => {
     return value;
   }
 };
-const scoreArabicText = (value) => {
+const scoreMojibakeCandidate = (value) => {
   const text = String(value || "");
   const arabic = (text.match(ARABIC_LETTER_RE) || []).length;
   const latin = (text.match(/[A-Za-z]/g) || []).length;
   const mojibake = (text.match(MOJIBAKE_HINT_RE) || []).length;
-  const replacements = (text.match(/�/g) || []).length;
-  const spaces = (text.match(/\s/g) || []).length;
-  return arabic * 4 + spaces * 0.2 - latin * 2 - mojibake * 4 - replacements * 6 - Math.max(0, 3 - arabic);
+  const replacement = (text.match(/�/g) || []).length;
+  const mixedSequence = (text.match(MOJIBAKE_SEQUENCE_RE) || []).length;
+  return arabic * 5 - latin * 3 - mojibake * 7 - replacement * 8 - mixedSequence * 5;
 };
-const shouldAttemptArabicDecode = (value) => MOJIBAKE_HINT_RE.test(value) || HAS_ARABIC_LETTER_RE.test(value);
-const decodeManagerPortalText = (value) => {
+const safeDecodeMojibake = (value) => {
   if (typeof value !== "string" || !value) return value;
-  if (!shouldAttemptArabicDecode(value)) return value;
+  const hasHint = MOJIBAKE_HINT_RE.test(value);
+  const hasSequence = MOJIBAKE_SEQUENCE_RE.test(value);
+  if (!hasHint && !hasSequence) return value;
 
   const candidates = new Set([value]);
   const queue = [value];
@@ -159,13 +190,13 @@ const decodeManagerPortalText = (value) => {
   }
 
   let best = value;
-  let bestScore = scoreArabicText(value);
+  let bestScore = scoreMojibakeCandidate(value);
   for (const candidate of candidates) {
-    const nextScore = scoreArabicText(candidate);
-    const hasArabic = (candidate.match(ARABIC_LETTER_RE) || []).length > 0;
-    const improved = nextScore > bestScore && hasArabic;
-    const clearlyBetter = nextScore >= bestScore + 2 && !/[ØÙÃÂÐ�]/.test(candidate);
-    if (improved || clearlyBetter) {
+    const nextScore = scoreMojibakeCandidate(candidate);
+    const candidateArabic = (candidate.match(ARABIC_LETTER_RE) || []).length;
+    const currentArabic = (best.match(ARABIC_LETTER_RE) || []).length;
+    const clearlyBetter = nextScore >= bestScore + 4 && candidateArabic >= currentArabic && !MOJIBAKE_HINT_RE.test(candidate) && !MOJIBAKE_SEQUENCE_RE.test(candidate);
+    if (clearlyBetter) {
       best = candidate;
       bestScore = nextScore;
     }
@@ -173,20 +204,26 @@ const decodeManagerPortalText = (value) => {
 
   return best;
 };
-const normalizeManagerPortalValue = (value) => {
-  if (typeof value === "string") return decodeManagerPortalText(value);
-  if (Array.isArray(value)) return value.map((item) => normalizeManagerPortalValue(item));
+const shouldDecodeBackendField = (key) => {
+  if (!key || typeof key !== "string") return false;
+  if (BACKEND_TEXT_FIELD_EXCLUDE_RE.test(key)) return false;
+  if (BACKEND_TEXT_FIELD_KEYS.has(key)) return true;
+  return BACKEND_TEXT_FIELD_HINT_RE.test(key) || key.endsWith("_name") || key.endsWith("_title") || key.endsWith("_message");
+};
+const normalizeManagerPortalValue = (value, key = "") => {
+  if (typeof value === "string") return shouldDecodeBackendField(String(key)) ? safeDecodeMojibake(value) : value;
+  if (Array.isArray(value)) return value.map((item) => normalizeManagerPortalValue(item, key));
   if (value && typeof value === "object") {
     if (value instanceof Date) return value;
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeManagerPortalValue(item)]));
+    return Object.fromEntries(Object.entries(value).map(([childKey, item]) => [childKey, normalizeManagerPortalValue(item, childKey)]));
   }
   return value;
 };
 const collectSuspiciousManagerPortalStrings = (value, path = "", results = [], seen = new WeakSet()) => {
   if (typeof value === "string") {
-    const decoded = decodeManagerPortalText(value);
-    if (decoded !== value || MOJIBAKE_HINT_RE.test(value) || MOJIBAKE_SEQUENCE_RE.test(value)) {
-      results.push({ path, value, decoded });
+    if (MOJIBAKE_HINT_RE.test(value) || MOJIBAKE_SEQUENCE_RE.test(value)) {
+      const decoded = safeDecodeMojibake(value);
+      results.push({ path, value, decoded, fixed: decoded !== value });
     }
     return results;
   }
@@ -198,8 +235,8 @@ const collectSuspiciousManagerPortalStrings = (value, path = "", results = [], s
     value.forEach((item, index) => collectSuspiciousManagerPortalStrings(item, `${path}[${index}]`, results, seen));
     return results;
   }
-  Object.entries(value).forEach(([key, item]) => {
-    const nextPath = path ? `${path}.${key}` : key;
+  Object.entries(value).forEach(([childKey, item]) => {
+    const nextPath = path ? `${path}.${childKey}` : childKey;
     collectSuspiciousManagerPortalStrings(item, nextPath, results, seen);
   });
   return results;
@@ -215,8 +252,7 @@ const warnSuspiciousManagerPortalPayload = (label, value) => {
   });
 };
 const portalText = (value, fallback = "-") => {
-  const decoded = decodeManagerPortalText(value);
-  const safe = decoded === undefined || decoded === null || decoded === "" ? fallback : decoded;
+  const safe = value === undefined || value === null || value === "" ? fallback : value;
   return safe;
 };
 const normalizeManagerPortalPayload = (label, value) => {
@@ -224,6 +260,19 @@ const normalizeManagerPortalPayload = (label, value) => {
   warnSuspiciousManagerPortalPayload(label, normalized);
   return normalized;
 };
+if (import.meta.env.DEV) {
+  const decoderCases = [
+    ["مرحباً بك", "مرحباً بك"],
+    ["مبيعات اليوم", "مبيعات اليوم"],
+    ["إعدادات التنبيه", "إعدادات التنبيه"],
+    ["Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª", "المبيعات"],
+    ["ط§ظ„ظ…ط¨ظٹط¹ط§طھ", "المبيعات"],
+  ];
+  for (const [input, expected] of decoderCases) {
+    const actual = safeDecodeMojibake(input);
+    console.assert(actual === expected, "[manager-portal:decoder]", { input, expected, actual });
+  }
+}
 const MANAGER_NOTIFICATION_CATEGORIES = [
   { key: "all", label: "All", icon: Bell },
   { key: "employee_chat", label: "Employee chat", icon: MessageSquare },
@@ -585,10 +634,10 @@ export default function ManagerPortal() {
   const categoryEnabled = (category, key) => Boolean(settings?.[category]?.[key]);
 
   const notifyClient = async (notification) => {
-    const category = categoryFromNotification(notification);
-    const enabled = settingsRef.current?.[category] || DEFAULT_NOTIFICATION_SETTINGS[category] || DEFAULT_NOTIFICATION_SETTINGS.messages;
-    const title = portalText(notification.title || "Notification");
-    const message = portalText(notification.message || notification.body || "");
+  const category = categoryFromNotification(notification);
+  const enabled = settingsRef.current?.[category] || DEFAULT_NOTIFICATION_SETTINGS[category] || DEFAULT_NOTIFICATION_SETTINGS.messages;
+    const title = safeDecodeMojibake(notification.title || "Notification");
+    const message = safeDecodeMojibake(notification.message || notification.body || "");
     const priority = String(notification.priority || "medium");
     const tone = priority === "critical" || priority === "high" ? "high" : "normal";
     if (enabled.toast !== false) {
