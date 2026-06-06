@@ -141,6 +141,37 @@ const writeLastSalespersonId = (salespersonId) => {
   }
 };
 
+const getActiveFullscreenElement = () => {
+  if (typeof document === "undefined") return null;
+  return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+};
+
+const getPosCustomerModalRuntime = () => {
+  if (typeof window === "undefined") {
+    return {
+      viewportWidth: 0,
+      viewportHeight: 0,
+      mode: "server",
+      fullscreen: false,
+      browserFullscreen: false,
+    };
+  }
+  const viewportWidth = Math.round(window.innerWidth || 0);
+  const viewportHeight = Math.round(window.innerHeight || 0);
+  const fullscreen = Boolean(getActiveFullscreenElement());
+  const browserFullscreen = Boolean(
+    window.screen &&
+    viewportHeight >= Math.max(0, Number(window.screen.availHeight || window.screen.height || 0) - 8)
+  );
+  return {
+    viewportWidth,
+    viewportHeight,
+    mode: viewportWidth < 640 ? "mobile" : fullscreen || browserFullscreen ? "fullscreen" : "desktop",
+    fullscreen,
+    browserFullscreen,
+  };
+};
+
 const WALK_IN_CUSTOMER = {
   id: null,
   name: "Walk-in Customer",
@@ -1423,6 +1454,11 @@ function POSPro() {
 
   useEffect(() => {
     if (!customerCreateOpen) return undefined;
+
+    console.log("[pos-customer-modal-render]", {
+      ...getPosCustomerModalRuntime(),
+      portalTarget: getActiveFullscreenElement() ? "fullscreenElement" : "body",
+    });
 
     const handleEscape = (event) => {
       if (event.key === "Escape") {
@@ -4888,6 +4924,13 @@ function POSPro() {
   const openCustomerCreateModal = () => {
     const searchText = String(customerSearch || "").trim();
     const normalizedPhone = normalizeReceiptPhone(searchText);
+    console.log("[pos-customer-modal-open]", {
+      ...getPosCustomerModalRuntime(),
+      hasSearchText: Boolean(searchText),
+      normalizedPhonePresent: Boolean(normalizedPhone),
+      selectedCustomerId: selectedCustomerId || null,
+      portalTarget: getActiveFullscreenElement() ? "fullscreenElement" : "body",
+    });
     setQuickCustomer((prev) => ({
       ...prev,
       name: normalizedPhone ? prev.name : searchText || prev.name,
@@ -5255,20 +5298,22 @@ function POSPro() {
 
           {customerCreateOpen && typeof document !== "undefined" ? createPortal(
             <div
-              className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-4 py-6 backdrop-blur-sm"
+              className="fixed inset-0 flex items-end justify-center overflow-hidden bg-black/80 p-2 backdrop-blur-sm sm:items-center sm:p-6"
+              style={{ zIndex: 2147483000 }}
               onMouseDown={(event) => {
                 if (event.target === event.currentTarget) setCustomerCreateOpen(false);
               }}
+              dir="auto"
             >
               <div
-                className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-auto rounded-2xl border border-emerald-400/20 bg-slate-950 p-4 shadow-2xl shadow-black/70"
+                className="flex max-h-[calc(100vh-1rem)] w-full max-w-lg min-w-0 flex-col overflow-hidden rounded-t-3xl border border-emerald-400/20 bg-slate-950 shadow-2xl shadow-black/70 sm:max-h-[calc(100vh-3rem)] sm:rounded-3xl"
                 onMouseDown={(event) => event.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="pos-add-customer-title"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+                <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
+                  <div className="min-w-0">
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">ADD CUSTOMER</div>
                     <h3 id="pos-add-customer-title" className="mt-1 text-lg font-black text-white">Quick customer creation</h3>
                   </div>
@@ -5281,7 +5326,7 @@ function POSPro() {
                   </button>
                 </div>
 
-                <div className="mt-4 space-y-3">
+                <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
                   <label className="block">
                     <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">Customer Name</div>
                     <input
@@ -5327,18 +5372,18 @@ function POSPro() {
                     </label>
                   ) : null}
 
-                  <div className="flex items-center justify-end gap-2 pt-2">
+                  <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:justify-end">
                     <button
                       type="button"
                       onClick={() => setCustomerCreateOpen(false)}
-                      className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.08]"
+                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.08]"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={handleCreateCustomerFromToolbar}
-                      className="rounded-2xl border border-emerald-400/20 bg-emerald-400/15 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
+                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/15 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
                     >
                       Save customer
                     </button>
@@ -5346,7 +5391,7 @@ function POSPro() {
                 </div>
               </div>
             </div>,
-            document.body
+            getActiveFullscreenElement() || document.body
           ) : null}
         </div>
 
