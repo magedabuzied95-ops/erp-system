@@ -180,6 +180,13 @@ self.addEventListener("push", (event) => {
 
   const badgeTag = payload.data?.tag || payload.tag || "employee-portal";
   const notificationTitle = badgeTag === "employee-chat" ? payload.title || "\u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629" : title;
+  console.info("[sw-push:received]", {
+    title: payload.title || "",
+    body: payload.body || "",
+    url: payload.data?.url || payload.url || "",
+    tag: payload.data?.tag || payload.tag || "",
+  });
+
   const broadcastBadge = () =>
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       clients.forEach((client) => {
@@ -190,6 +197,13 @@ self.addEventListener("push", (event) => {
         });
       });
     });
+
+  console.info("[sw-push:show-notification]", {
+    title: notificationTitle,
+    body: options.body || "",
+    url: options.data?.url || "",
+    tag: badgeTag,
+  });
 
   event.waitUntil(Promise.all([
     self.registration.showNotification(notificationTitle, options),
@@ -214,6 +228,11 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const data = event.notification.data || {};
   const url = data.url || (data.token ? `/employee-app/${encodeURIComponent(data.token)}${data.tab ? `?tab=${encodeURIComponent(data.tab)}` : ""}` : "/employee-app/");
+  console.info("[sw-push:click]", {
+    title: event.notification.title || "",
+    url,
+    tag: data.tag || "",
+  });
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       const isManagerUrl = String(url || "").includes("/manager-portal/");

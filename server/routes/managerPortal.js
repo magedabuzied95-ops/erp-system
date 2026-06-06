@@ -25,7 +25,9 @@ import {
 } from "../services/managerPortalService.js";
 import {
   getManagerPortalPushPublicKey,
+  getManagerPortalPushSubscriptionDebug,
   subscribeManagerPortalPush,
+  sendManagerPortalTestPush,
   unsubscribeManagerPortalPush,
 } from "../services/managerPortalPushService.js";
 
@@ -183,6 +185,34 @@ router.post("/:token/push/subscribe", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] push subscribe error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save push subscription" });
+  }
+});
+
+router.post("/:token/push/test", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const subscriptionDebug = await getManagerPortalPushSubscriptionDebug({ token: req.params.token });
+    const result = await sendManagerPortalTestPush({ token: req.params.token, manager });
+    return res.json({
+      success: true,
+      subscription_debug: {
+        token: subscriptionDebug.token,
+        active_count: subscriptionDebug.active_count,
+        total_count: subscriptionDebug.total_count,
+      },
+      result: {
+        token: result.token,
+        active_count: result.active_count,
+        sent: result.sent,
+        failed: result.failed,
+        deactivated: result.deactivated,
+        skipped: Boolean(result.skipped),
+      },
+    });
+  } catch (error) {
+    console.error("[manager-portal] push test error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to send test push" });
   }
 });
 

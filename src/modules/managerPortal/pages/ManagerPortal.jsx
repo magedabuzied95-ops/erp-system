@@ -29,6 +29,7 @@ import {
   Shield,
   ShoppingCart,
   Smartphone,
+  Send,
   SquarePen,
   Store,
   SunMedium,
@@ -328,13 +329,13 @@ const Badge = ({ children, className = "" }) => (
 );
 
 const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false }) => (
-  <section className={`rounded-3xl border border-slate-200 bg-white/90 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-950/80 ${compact ? "p-3" : "p-4"} ${className}`}>
+  <section className={`rounded-3xl border border-slate-200 bg-white shadow-sm ${compact ? "p-3" : "p-4"} ${className}`}>
     <div className="flex items-start justify-between gap-3">
       <div>
-        <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{subtitle}</div>
-        <h2 className="mt-1 text-base font-black text-slate-950 dark:text-white">{title}</h2>
+        <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{subtitle}</div>
+        <h2 className="mt-1 text-base font-black text-slate-950">{title}</h2>
       </div>
-      {Icon ? <div className="rounded-2xl bg-slate-950/5 p-2 text-slate-700 dark:bg-white/10 dark:text-white"><Icon className="h-4 w-4" /></div> : null}
+      {Icon ? <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2 text-slate-700"><Icon className="h-4 w-4" /></div> : null}
     </div>
     {action ? <div className="mt-3">{action}</div> : null}
     <div className={`mt-3 ${bodyClassName}`}>{children}</div>
@@ -343,22 +344,22 @@ const Card = ({ title, subtitle, icon: Icon, children, action, className = "", b
 
 const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
   const tones = {
-    slate: "border-slate-200 bg-white text-slate-950 dark:border-white/10 dark:bg-white/[0.04] dark:text-white",
-    green: "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-50",
-    cyan: "border-cyan-200 bg-cyan-50 text-cyan-950 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-50",
-    amber: "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-50",
-    red: "border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-400/25 dark:bg-rose-400/10 dark:text-rose-50",
-    blue: "border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-300/20 dark:bg-sky-300/10 dark:text-sky-50",
+    slate: "border-t-slate-400",
+    green: "border-t-emerald-500",
+    cyan: "border-t-sky-500",
+    amber: "border-t-amber-500",
+    red: "border-t-rose-500",
+    blue: "border-t-blue-500",
   };
   return (
-    <div className={`min-h-[6.25rem] rounded-3xl border p-3 shadow-sm ${tones[tone] || tones.slate}`}>
+    <div className={`kpi-card-readable min-h-[6.25rem] rounded-3xl border border-slate-200 border-t-4 bg-white p-3 shadow-sm ${tones[tone] || tones.slate}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[11px] font-black leading-5 text-slate-500 dark:text-white/65">{label}</div>
-          <div className="mt-1 text-2xl font-black leading-8">{value || formatNumber(0)}</div>
-          {sub ? <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500 dark:text-white/60">{sub}</div> : null}
+          <div className="text-[11px] font-black leading-5 text-slate-500">{label}</div>
+          <div className="mt-1 text-[1.9rem] font-black leading-none tracking-tight text-slate-950 sm:text-[2.05rem]">{value || formatNumber(0)}</div>
+          {sub ? <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">{sub}</div> : null}
         </div>
-        {Icon ? <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-slate-800 shadow-sm dark:bg-white/10 dark:text-white"><Icon className="h-4 w-4" /></div> : null}
+        {Icon ? <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-800 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
       </div>
     </div>
   );
@@ -393,8 +394,8 @@ const StatusPill = ({ value, tone = "slate" }) => {
 };
 
 const EmptyState = ({ title, body, compact = false }) => (
-  <div className={`rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-right font-semibold leading-6 text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300 ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
-    <div className="font-black text-slate-800 dark:text-white">{title}</div>
+  <div className={`rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-right font-semibold leading-6 text-slate-500 ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
+    <div className="font-black text-slate-800">{title}</div>
     <div className="mt-1">{body}</div>
   </div>
 );
@@ -1003,6 +1004,12 @@ export default function ManagerPortal() {
   const refreshPushState = async () => {
     const supported = pushSupported();
     const permission = isBrowser() && "Notification" in window ? window.Notification.permission : "unsupported";
+    console.info("[manager-push:permission]", {
+      token,
+      permission,
+      supported,
+      standalone,
+    });
     if (!supported) {
       setPushState((current) => ({ ...current, supported: false, permission, subscribed: false, endpointHost: "" }));
       return null;
@@ -1034,6 +1041,12 @@ export default function ManagerPortal() {
     try {
       const permission = await window.Notification.requestPermission();
       setBrowserNotificationPermission(permission);
+      console.info("[manager-push:permission]", {
+        token,
+        permission,
+        supported: true,
+        standalone,
+      });
       if (permission !== "granted") {
         setPushState((current) => ({ ...current, permission, saving: false, message: "تم رفض إذن الإشعارات." }));
         toast.error("لم يتم منح إذن الإشعارات");
@@ -1054,10 +1067,24 @@ export default function ManagerPortal() {
           applicationServerKey: urlBase64ToUint8Array(publicKey),
         });
       }
-      await managerPortalApi.subscribePush(token, {
+      console.info("[manager-push:subscription-created]", {
+        token,
+        endpoint_start: String(subscription.endpoint || "").slice(0, 64),
+        endpoint_host: endpointHost(subscription.endpoint),
+        permission,
+        application_server_key_length: publicKey.length,
+      });
+      const saveResponse = await managerPortalApi.subscribePush(token, {
         subscription: subscription.toJSON(),
         application_server_key_length: publicKey.length,
         portal_url: window.location.href,
+      });
+      console.info("[manager-push:subscription-saved]", {
+        token,
+        endpoint_start: String(subscription.endpoint || "").slice(0, 64),
+        endpoint_host: endpointHost(subscription.endpoint),
+        response_status: saveResponse?.__status || 201,
+        subscription_id: saveResponse?.subscription?.id || null,
       });
       setPushState({
         supported: true,
@@ -1071,6 +1098,34 @@ export default function ManagerPortal() {
     } catch (pushError) {
       setPushState((current) => ({ ...current, saving: false, message: pushError?.responseBody?.message || pushError?.message || "تعذر تفعيل Push Notifications" }));
       toast.error(pushError?.responseBody?.message || pushError?.message || "تعذر تفعيل Push Notifications");
+    }
+  };
+
+  const sendTestPushNotification = async () => {
+    if (!pushSupported()) {
+      setPushState((current) => ({ ...current, message: "هذا المتصفح لا يدعم Web Push." }));
+      return;
+    }
+    try {
+      setPushState((current) => ({ ...current, saving: true, message: "" }));
+      const response = await managerPortalApi.testPush(token, {});
+      const subscriptionCount = Number(response?.subscription_debug?.active_count ?? response?.result?.active_count ?? 0);
+      setPushState((current) => ({
+        ...current,
+        saving: false,
+        permission: isBrowser() && "Notification" in window ? window.Notification.permission : current.permission,
+        subscribed: subscriptionCount > 0 || current.subscribed,
+        endpointHost: current.endpointHost,
+        message: response?.result?.skipped
+          ? "تعذر إرسال الاختبار لأن إعدادات VAPID غير مفعلة."
+          : subscriptionCount > 0
+            ? `تم إرسال الاختبار إلى ${subscriptionCount} اشتراك.`
+            : "لا توجد اشتراكات نشطة مرتبطة بالرمز الحالي.",
+      }));
+      toast.success(response?.result?.skipped ? "إعدادات Push غير جاهزة" : subscriptionCount > 0 ? "تم إرسال إشعار الاختبار" : "لا توجد اشتراكات نشطة");
+    } catch (pushError) {
+      setPushState((current) => ({ ...current, saving: false, message: pushError?.responseBody?.message || pushError?.message || "تعذر إرسال إشعار الاختبار" }));
+      toast.error(pushError?.responseBody?.message || pushError?.message || "تعذر إرسال إشعار الاختبار");
     }
   };
 
@@ -1223,25 +1278,25 @@ export default function ManagerPortal() {
   }
 
   return (
-    <main data-testid="manager-portal-root" dir="rtl" className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.18),_transparent_24%),radial-gradient(circle_at_80%_10%,_rgba(16,185,129,0.14),_transparent_28%),linear-gradient(180deg,#eff6ff_0%,#f8fafc_44%,#ffffff_100%)] px-3 py-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-slate-950 dark:bg-slate-950 dark:text-white md:px-4 md:py-4">
+    <main data-testid="manager-portal-root" dir="rtl" className="manager-portal-readable-v2 min-h-[100dvh] bg-[#f8fafc] px-3 py-3 pb-[calc(8rem+env(safe-area-inset-bottom))] text-right text-slate-950 dark:bg-slate-950 dark:text-white md:px-4 md:py-4">
       <div className="mx-auto grid max-w-[96rem] gap-4 lg:grid-cols-[240px_minmax(0,1.55fr)_320px]">
-        <aside className="hidden min-h-[calc(100dvh-2rem)] rounded-[2rem] border border-white/60 bg-white/80 p-4 shadow-xl shadow-slate-200/70 backdrop-blur dark:border-white/10 dark:bg-slate-900/80 lg:block">
+        <aside className="hidden min-h-[calc(100dvh-2rem)] rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 lg:block">
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-slate-950 p-3 text-white">
               <Shield className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-xs font-black tracking-[0.16em] text-slate-400">مركز قيادة المدير</div>
+              <div className="text-xs font-black tracking-[0.16em] text-slate-500">مركز قيادة المدير</div>
               <div className="text-lg font-black">{portalText(me?.full_name || me?.name || "المدير")}</div>
             </div>
           </div>
           <div className="mt-4 space-y-3">
-            <div className="rounded-3xl bg-slate-950 p-4 text-white">
-              <div className="text-xs font-black text-white/60">اليوم</div>
-              <div className="mt-2 text-3xl font-black">{formatCurrency(dashboard?.today_sales_total || 0)}</div>
-              <div className="mt-2 text-sm font-semibold text-white/70">{formatNumber(dashboard?.invoice_count || 0)} فاتورة اليوم</div>
+            <div className="rounded-3xl bg-slate-950 p-4 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
+              <div className="text-xs font-black text-slate-300">اليوم</div>
+              <div className="mt-2 text-3xl font-black text-white">{formatCurrency(dashboard?.today_sales_total || 0)}</div>
+              <div className="mt-2 text-sm font-semibold text-slate-300">{formatNumber(dashboard?.invoice_count || 0)} فاتورة اليوم</div>
             </div>
-            <button type="button" data-testid="refresh-button-mobile" onClick={() => void loadAll({ silent: true })} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+            <button type="button" data-testid="refresh-button-mobile" onClick={() => void loadAll({ silent: true })} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-800">
               <span>تحديث مباشر</span>
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             </button>
@@ -1254,7 +1309,7 @@ export default function ManagerPortal() {
                 data-testid={`sidebar-tab-${tab}`}
                 onClick={() => setActiveTab(tab)}
                 className={`flex w-full items-center justify-between rounded-2xl px-3 py-3 text-sm font-black transition ${
-                  activeTab === tab ? "bg-slate-950 text-white" : "bg-white text-slate-700 dark:bg-white/[0.03] dark:text-slate-200"
+                  activeTab === tab ? "bg-slate-950 text-white" : "bg-white text-slate-700"
                 }`}
               >
                 <span>{tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : "المزيد"}</span>
@@ -1265,18 +1320,18 @@ export default function ManagerPortal() {
         </aside>
 
         <section className="space-y-4">
-          <header className="rounded-[2rem] border border-white/60 bg-white/90 p-4 shadow-xl shadow-slate-200/60 backdrop-blur dark:border-white/10 dark:bg-slate-900/70">
+          <header className="rounded-[2rem] border border-slate-200 bg-slate-950 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-600/70">بوابة المدير</div>
-                <h1 className="mt-1 text-2xl font-black leading-8 text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || "المدير")}</h1>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-300">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-300">بوابة المدير</div>
+                <h1 className="mt-1 text-2xl font-black leading-8 text-white">{portalText(me?.full_name || me?.name || "المدير")}</h1>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-300">
                   <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {portalText(me?.branch_name || "كل الفروع")}</span>
                   <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {portalText(me?.role || "مدير")}</span>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
-                <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100">مباشر</Badge>
+                <Badge className="border-slate-700 bg-slate-800 text-slate-100">مباشر</Badge>
                 <div className="flex items-center gap-2">
                   <button
                     ref={notificationButtonRef}
@@ -1285,16 +1340,16 @@ export default function ManagerPortal() {
                     aria-label="Open notifications"
                     aria-expanded={notificationsOpen}
                     onClick={() => setNotificationsOpen((current) => !current)}
-                    className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:hover:border-cyan-300/35 dark:hover:text-cyan-100"
+                    className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white transition hover:border-slate-500 hover:bg-slate-800"
                   >
                     <Bell className="h-4 w-4" />
                     {(unreadCount || notificationsUnread) ? (
-                      <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-black leading-4 text-white">
+                      <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-black leading-4 text-white shadow-sm">
                         {formatNumber(unreadCount || notificationsUnread)}
                       </span>
                     ) : null}
                   </button>
-                  <button type="button" data-testid="refresh-button" onClick={() => void loadAll({ silent: true })} className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-3 py-2 text-sm font-black text-white dark:bg-white dark:text-slate-950">
+                  <button type="button" data-testid="refresh-button" onClick={() => void loadAll({ silent: true })} className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm font-black text-slate-950 shadow-sm">
                     <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
                     تحديث
                   </button>
@@ -1304,20 +1359,20 @@ export default function ManagerPortal() {
           </header>
 
           {showInstallCard ? (
-            <div className="rounded-3xl border border-sky-200 bg-sky-50 p-4 text-slate-950 shadow-sm dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-white">
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-sky-700 shadow-sm dark:bg-slate-950 dark:text-cyan-200">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 shadow-sm">
                   <Smartphone className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-black">بوابة المدير كتطبيق</h3>
-                  <p className="mt-1 text-xs font-bold leading-5 text-sky-800 dark:text-cyan-100">
+                  <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
                     {isIosDevice()
                       ? "على iPhone: اضغط مشاركة ثم Add to Home Screen ثم افتح بوابة المدير من الأيقونة."
                       : "أضف بوابة المدير إلى الشاشة الرئيسية لتفتح كتطبيق مستقل."}
                   </p>
                   {installPrompt ? (
-                    <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white dark:bg-cyan-300 dark:text-slate-950">
+                    <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white">
                       <Download className="h-4 w-4" />
                       إضافة إلى الشاشة الرئيسية
                     </button>
@@ -1333,33 +1388,33 @@ export default function ManagerPortal() {
                 type="button"
                 aria-label="Close notifications"
                 onClick={() => setNotificationsOpen(false)}
-                className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
+                className="absolute inset-0 bg-slate-950/55"
               />
               <aside
                 ref={notificationPanelRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="manager-notifications-title"
-                className="absolute inset-x-0 bottom-0 top-0 ml-auto flex h-dvh w-full max-w-[40rem] flex-col overflow-hidden border-l border-slate-200 bg-slate-50 shadow-[0_24px_90px_rgba(15,23,42,0.32)] dark:border-white/10 dark:bg-[#07111f] sm:inset-y-0 sm:right-0 sm:w-[min(100vw,38rem)] sm:rounded-l-[2rem]"
+                className="absolute inset-x-0 bottom-0 top-0 ml-auto flex h-dvh w-full max-w-[40rem] flex-col overflow-hidden border-l border-slate-200 bg-[#f8fafc] shadow-[0_24px_90px_rgba(15,23,42,0.24)] sm:inset-y-0 sm:right-0 sm:w-[min(100vw,38rem)] sm:rounded-l-[2rem]"
               >
-                <div className="shrink-0 border-b border-slate-200 bg-white/95 px-4 py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/90 sm:px-5">
+                <div className="shrink-0 border-b border-slate-200 bg-slate-950 px-4 py-4 sm:px-5">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-sky-700 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-100">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-100">
                         <Bell className="h-3.5 w-3.5" />
                         مباشر
                       </div>
-                      <h2 id="manager-notifications-title" className="mt-3 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
+                      <h2 id="manager-notifications-title" className="mt-3 text-2xl font-black tracking-tight text-white">
                         مركز الإشعارات
                       </h2>
-                      <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                      <p className="mt-1 text-sm leading-6 text-slate-300">
                         تابع رسائل الموظفين والمهام والحضور والمبيعات والمخزون والعملاء الساخنين في مكان واحد.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setNotificationsOpen(false)}
-                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-cyan-300/35"
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white transition hover:border-slate-500 hover:bg-slate-800"
                       aria-label="إغلاق الإشعارات"
                     >
                       <X className="h-5 w-5" />
@@ -1367,19 +1422,19 @@ export default function ManagerPortal() {
                   </div>
 
                   <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
-                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="text-[11px] font-black text-slate-400">غير مقروء</div>
-                      <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">{formatNumber(unreadCount || notificationsUnread)}</div>
+                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+                      <div className="text-[11px] font-black text-slate-500">غير مقروء</div>
+                      <div className="mt-1 text-xl font-black text-slate-950">{formatNumber(unreadCount || notificationsUnread)}</div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="text-[11px] font-black text-slate-400">الإجمالي</div>
-                      <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">{formatNumber(managerNotifications.length || 0)}</div>
+                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+                      <div className="text-[11px] font-black text-slate-500">الإجمالي</div>
+                      <div className="mt-1 text-xl font-black text-slate-950">{formatNumber(managerNotifications.length || 0)}</div>
                     </div>
                     <button
                       type="button"
                       onClick={() => void markAllNotificationsRead()}
                       disabled={!notifications.some((item) => !item.is_read)}
-                      className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left text-slate-700 transition hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-100 dark:hover:border-cyan-300/35 dark:hover:text-cyan-100"
+                      className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left text-slate-700 transition hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       <CheckCheck className="h-4 w-4" />
                       <span className="mt-1 text-xs font-black">تحديد الكل كمقروء</span>
@@ -1387,7 +1442,7 @@ export default function ManagerPortal() {
                     <button
                       type="button"
                       onClick={() => void loadAll({ silent: true })}
-                      className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-2xl bg-slate-950 px-3 py-2.5 text-left text-white transition hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
+                      className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-2xl bg-slate-950 px-3 py-2.5 text-left text-white transition hover:bg-slate-800"
                     >
                       <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
                       <span className="mt-1 text-xs font-black">تحديث</span>
@@ -1406,13 +1461,13 @@ export default function ManagerPortal() {
                           onClick={() => setNotificationCategory(item.key)}
                           className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${
                             active
-                              ? "border-slate-950 bg-slate-950 text-white dark:border-cyan-300 dark:bg-cyan-300 dark:text-slate-950"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:text-sky-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-100"
+                              ? "border-slate-950 bg-slate-950 text-white"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-950"
                           }`}
                         >
                           <Icon className="h-3.5 w-3.5" />
                           <span>{item.label}</span>
-                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${active ? "bg-white/20 text-inherit" : "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"}`}>
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${active ? "bg-white/20 text-inherit" : "bg-slate-100 text-slate-600"}`}>
                             {formatNumber(count)}
                           </span>
                         </button>
@@ -1435,7 +1490,7 @@ export default function ManagerPortal() {
                             className={`overflow-hidden rounded-3xl border p-4 shadow-sm transition ${
                               unread
                                 ? "border-sky-200 bg-white ring-1 ring-sky-100 dark:border-cyan-300/25 dark:bg-white/[0.03] dark:ring-cyan-300/10"
-                                : "border-slate-200 bg-white/80 dark:border-white/10 dark:bg-white/[0.02]"
+                                : "border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02]"
                             }`}
                           >
                             <button
@@ -1534,21 +1589,14 @@ export default function ManagerPortal() {
                         key={event.key}
                         type="button"
                         onClick={() => event.kind === "invoice" && event.invoiceId ? void openInvoiceDetail(event.invoiceId) : undefined}
-                        className={`flex w-full items-start justify-between gap-3 rounded-2xl border px-3 py-3 text-right transition ${
-                          event.kind === "invoice"
-                            ? "border-emerald-200 bg-emerald-50 hover:border-emerald-300 dark:border-emerald-400/20 dark:bg-emerald-400/10"
-                            : event.tone === "amber"
-                              ? "border-amber-200 bg-amber-50 dark:border-amber-400/25 dark:bg-amber-400/10"
-                              : event.tone === "red"
-                                ? "border-rose-200 bg-rose-50 dark:border-rose-400/25 dark:bg-rose-400/10"
-                                : "border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]"
-                        }`}
+                        className="flex w-full items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-right transition hover:border-slate-300 hover:shadow-sm"
                       >
                         <div className="min-w-0">
                           <div className="text-sm font-black text-slate-950 dark:text-white">{event.title}</div>
                           <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">{event.detail || "لا توجد تفاصيل إضافية"}</div>
                         </div>
                         <div className="shrink-0 text-right">
+                          {event.kind ? <div className="mb-1 flex justify-end"><span className={`rounded-full border px-2 py-1 text-[10px] font-black ${event.kind === "invoice" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : event.tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-800" : event.tone === "red" ? "border-rose-200 bg-rose-50 text-rose-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>{event.kind === "invoice" ? "فاتورة" : event.kind === "lead" ? "عميل" : event.kind === "task" ? "مهمة" : "حدث"}</span></div> : null}
                           <StatusPill tone={event.tone || "slate"} value={formatDateTime(event.timestamp)} />
                         </div>
                       </button>
@@ -1563,9 +1611,9 @@ export default function ManagerPortal() {
                 {paymentBreakdown.length ? (
                   <div className="space-y-2">
                     {paymentBreakdown.map((row) => (
-                      <div key={row.method} className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-bold text-emerald-950 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-50">
-                        <span>{paymentMethodLabel(row.method)}</span>
-                        <span>{formatCurrency(row.total || 0)} · {formatNumber(row.count || 0)}</span>
+                      <div key={row.method} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800">
+                        <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />{paymentMethodLabel(row.method)}</span>
+                        <span className="text-slate-950">{formatCurrency(row.total || 0)} · {formatNumber(row.count || 0)}</span>
                       </div>
                     ))}
                   </div>
@@ -1578,15 +1626,15 @@ export default function ManagerPortal() {
                 {lowStock.length || refillAlerts.length ? (
                   <div className="space-y-2">
                     {refillAlerts.slice(0, 3).map((alert) => (
-                      <div key={`refill-${alert.id}`} className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-950 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100">
-                        <div className="font-black">إعادة عرض منتج: <InlineName>{portalText(alert.product_name || "منتج")}</InlineName></div>
-                        <div className="mt-1 text-xs font-bold opacity-80">{portalText(alert.color_name || alert.color || "")} {alert.replacement_size ? `· ${portalText(alert.replacement_size)}` : ""}</div>
+                      <div key={`refill-${alert.id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
+                        <div className="font-black text-slate-950">إعادة عرض منتج: <InlineName>{portalText(alert.product_name || "منتج")}</InlineName></div>
+                        <div className="mt-1 text-xs font-bold text-slate-500">{portalText(alert.color_name || alert.color || "")} {alert.replacement_size ? `· ${portalText(alert.replacement_size)}` : ""}</div>
                       </div>
                     ))}
                     {lowStock.slice(0, 3).map((item) => (
-                      <div key={`low-${item.id}-${item.name}`} className="rounded-2xl border border-amber-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 dark:border-amber-500/20 dark:bg-white/[0.03] dark:text-slate-100">
-                        <div className="font-black">مطلوب إعادة طلب: <InlineName>{portalText(item.name || "منتج")}</InlineName></div>
-                        <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{formatNumber(item.stock || 0)} قطعة متبقية</div>
+                      <div key={`low-${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
+                        <div className="font-black text-slate-950">مطلوب إعادة طلب: <InlineName>{portalText(item.name || "منتج")}</InlineName></div>
+                        <div className="mt-1 text-xs font-bold text-slate-500">{formatNumber(item.stock || 0)} قطعة متبقية</div>
                       </div>
                     ))}
                   </div>
@@ -1599,8 +1647,8 @@ export default function ManagerPortal() {
                 {aiInsights.length ? (
                   <div className="grid gap-2 md:grid-cols-2">
                     {aiInsights.map((item, index) => (
-                      <div key={`${item.title || item.body || index}`} className="rounded-2xl border border-sky-200 bg-sky-50 p-3 text-sm font-semibold leading-6 text-slate-800 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-50">
-                        <div className="text-xs font-black text-sky-700 dark:text-cyan-100">{insightTitleLabel(item.type, item.title)}</div>
+                      <div key={`${item.title || item.body || index}`} className="rounded-2xl border border-slate-200 bg-white p-3 text-sm font-semibold leading-6 text-slate-800">
+                        <div className="text-xs font-black text-slate-600">{insightTitleLabel(item.type, item.title)}</div>
                         <div className="mt-1">{renderInsightBody(item)}</div>
                       </div>
                     ))}
@@ -1614,11 +1662,11 @@ export default function ManagerPortal() {
                 {visibleLiveFeed.length ? (
                   <div className="space-y-2">
                     {visibleLiveFeed.map((item) => (
-                      <div key={`feed-${item.id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+                      <div key={`feed-${item.id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm shadow-sm">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="truncate font-black text-slate-950 dark:text-white">{portalText(item.title || notificationTypeLabel(item))}</div>
-                            <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">{portalText(item.message || item.body || "لا توجد تفاصيل")}</div>
+                            <div className="truncate font-black text-slate-950">{portalText(item.title || notificationTypeLabel(item))}</div>
+                            <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-500">{portalText(item.message || item.body || "لا توجد تفاصيل")}</div>
                           </div>
                           <StatusPill tone={item.is_read ? "slate" : "blue"} value={formatDateTime(item.created_at)} />
                         </div>
@@ -1634,13 +1682,13 @@ export default function ManagerPortal() {
                 {visibleLowStock.length ? (
                   <div className="space-y-2">
                     {visibleLowStock.map((item) => (
-                      <div key={`low-only-${item.id}-${item.name}`} className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-950 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100">
-                        <div className="font-black"><InlineName>{portalText(item.name || "منتج")}</InlineName></div>
-                        <div className="mt-1 text-xs font-bold opacity-80">{portalText(item.color || "")} {item.size ? `· ${portalText(item.size)}` : ""} · {formatNumber(item.stock || 0)} قطعة</div>
+                      <div key={`low-only-${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
+                        <div className="font-black text-slate-950"><InlineName>{portalText(item.name || "منتج")}</InlineName></div>
+                        <div className="mt-1 text-xs font-bold text-slate-500">{portalText(item.color || "")} {item.size ? `· ${portalText(item.size)}` : ""} · {formatNumber(item.stock || 0)} قطعة</div>
                       </div>
                     ))}
                     {hasMoreLowStock ? (
-                      <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center rounded-2xl border border-amber-200 bg-white px-4 py-2.5 text-sm font-black text-amber-900 dark:border-amber-500/25 dark:bg-white/[0.03] dark:text-amber-100">
+                      <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800">
                         {showMoreLowStock ? "عرض أقل" : "عرض المزيد"}
                       </button>
                     ) : null}
@@ -1771,8 +1819,11 @@ export default function ManagerPortal() {
               <div className="grid gap-4 xl:grid-cols-2">
                 <Card title="أفضل بائع" subtitle="آخر ٣٠ يوم" icon={Trophy}>
                   {salesLeaders.top_seller ? (
-                    <div className="space-y-2 rounded-2xl bg-emerald-50 px-4 py-4 text-slate-900 dark:bg-emerald-500/10 dark:text-white">
-                      <div className="text-lg font-black">{portalText(salesLeaders.top_seller.seller_name || "بائع غير محدد")}</div>
+                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                        <div className="text-lg font-black"><InlineName>{portalText(salesLeaders.top_seller.seller_name || "بائع غير محدد")}</InlineName></div>
+                      </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
                         <div>الإيراد: {formatCurrency(salesLeaders.top_seller.revenue || 0)}</div>
                         <div>الفواتير: {formatNumber(salesLeaders.top_seller.orders_count || 0)}</div>
@@ -1784,8 +1835,11 @@ export default function ManagerPortal() {
                 </Card>
                 <Card title="Worst seller" subtitle="30-day laggard" icon={Medal}>
                   {salesLeaders.worst_seller ? (
-                    <div className="space-y-2 rounded-2xl bg-amber-50 px-4 py-4 text-slate-900 dark:bg-amber-500/10 dark:text-white">
-                      <div className="text-lg font-black">{portalText(salesLeaders.worst_seller.seller_name || "Unknown seller")}</div>
+                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                        <div className="text-lg font-black"><InlineName>{portalText(salesLeaders.worst_seller.seller_name || "Unknown seller")}</InlineName></div>
+                      </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
                         <div>Revenue: {formatCurrency(salesLeaders.worst_seller.revenue || 0)}</div>
                         <div>Orders: {formatNumber(salesLeaders.worst_seller.orders_count || 0)}</div>
@@ -1800,8 +1854,11 @@ export default function ManagerPortal() {
               <div className="grid gap-4 xl:grid-cols-2">
                 <Card title="أفضل تصنيف" subtitle="آخر ٣٠ يوم" icon={Package}>
                   {bestCategory ? (
-                    <div className="space-y-2 rounded-2xl bg-sky-50 px-4 py-4 text-slate-900 dark:bg-sky-500/10 dark:text-white">
-                      <div className="text-lg font-black">{portalText(bestCategory.name || "Uncategorized")}</div>
+                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-sky-500" />
+                        <div className="text-lg font-black"><InlineName>{portalText(bestCategory.name || "Uncategorized")}</InlineName></div>
+                      </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
                         <div>الإيراد: {formatCurrency(bestCategory.revenue || 0)}</div>
                         <div>Units: {formatNumber(bestCategory.quantity || 0)}</div>
@@ -1813,8 +1870,11 @@ export default function ManagerPortal() {
                 </Card>
                 <Card title="أفضل علامة" subtitle="آخر ٣٠ يوم" icon={Store}>
                   {bestBrand ? (
-                    <div className="space-y-2 rounded-2xl bg-violet-50 px-4 py-4 text-slate-900 dark:bg-violet-500/10 dark:text-white">
-                      <div className="text-lg font-black">{portalText(bestBrand.name || "Unbranded")}</div>
+                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
+                        <div className="text-lg font-black"><InlineName>{portalText(bestBrand.name || "Unbranded")}</InlineName></div>
+                      </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
                         <div>الإيراد: {formatCurrency(bestBrand.revenue || 0)}</div>
                         <div>Units: {formatNumber(bestBrand.quantity || 0)}</div>
@@ -1852,11 +1912,11 @@ export default function ManagerPortal() {
                       const delta = Number(item.delta || 0);
                       const positive = delta >= 0;
                       return (
-                        <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                          <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{item.label}</div>
-                          <div className="mt-2 text-lg font-black text-slate-950 dark:text-white">{item.today}</div>
-                          <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">أمس: {item.yesterday}</div>
-                          <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${positive ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-200" : "bg-rose-500/10 text-rose-700 dark:text-rose-200"}`}>
+                        <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                          <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
+                          <div className="mt-2 text-lg font-black text-slate-950">{item.today}</div>
+                          <div className="mt-1 text-xs font-bold text-slate-500">أمس: {item.yesterday}</div>
+                          <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${positive ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
                             {positive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                             {delta >= 0 ? "+" : ""}
                             {formatPercent(delta)}
@@ -1869,21 +1929,21 @@ export default function ManagerPortal() {
 
                 <Card title="متوسط الفاتورة" subtitle="قيمة الفاتورة" icon={ClipboardList}>
                   <div className="space-y-3">
-                    <div className="rounded-2xl bg-amber-50 px-4 py-4 text-slate-900 dark:bg-amber-500/10 dark:text-white">
-                      <div className="text-xs font-black text-slate-500 dark:text-slate-300">اليوم</div>
-                      <div className="mt-2 text-3xl font-black">{formatCurrency(salesComparison.today_average_invoice || sales?.overview?.today?.averageOrderValue || 0)}</div>
-                      <div className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
+                      <div className="text-xs font-black text-slate-500">اليوم</div>
+                      <div className="mt-2 text-3xl font-black text-slate-950">{formatCurrency(salesComparison.today_average_invoice || sales?.overview?.today?.averageOrderValue || 0)}</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-600">
                         أمس: {formatCurrency(salesComparison.yesterday_average_invoice || 0)}
                       </div>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black text-slate-400">فواتير اليوم</div>
-                        <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{formatNumber(salesComparison.today_orders || sales?.overview?.today?.orders || 0)}</div>
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                        <div className="text-xs font-black text-slate-500">فواتير اليوم</div>
+                        <div className="mt-1 text-lg font-black text-slate-950">{formatNumber(salesComparison.today_orders || sales?.overview?.today?.orders || 0)}</div>
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black text-slate-400">النمو</div>
-                        <div className={`mt-1 inline-flex items-center gap-1 text-lg font-black ${Number(salesComparison.average_invoice_growth || 0) >= 0 ? "text-emerald-600 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300"}`}>
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                        <div className="text-xs font-black text-slate-500">النمو</div>
+                        <div className={`mt-1 inline-flex items-center gap-1 text-lg font-black ${Number(salesComparison.average_invoice_growth || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                           {Number(salesComparison.average_invoice_growth || 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
                           {Number(salesComparison.average_invoice_growth || 0) >= 0 ? "+" : ""}
                           {formatPercent(salesComparison.average_invoice_growth || 0)}
@@ -1898,23 +1958,23 @@ export default function ManagerPortal() {
                 {trend7d.length ? (
                   <div className="space-y-4">
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                      <div className="rounded-2xl bg-slate-50 px-3 py-3 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black text-slate-400">إيراد ٧ أيام</div>
-                        <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">{formatCurrency(trend7d.reduce((sum, item) => sum + Number(item.revenue || 0), 0))}</div>
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                        <div className="text-xs font-black text-slate-500">إيراد ٧ أيام</div>
+                        <div className="mt-1 text-xl font-black text-slate-950">{formatCurrency(trend7d.reduce((sum, item) => sum + Number(item.revenue || 0), 0))}</div>
                       </div>
-                      <div className="rounded-2xl bg-slate-50 px-3 py-3 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black text-slate-400">فواتير ٧ أيام</div>
-                        <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">{formatNumber(trend7d.reduce((sum, item) => sum + Number(item.orders || 0), 0))}</div>
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                        <div className="text-xs font-black text-slate-500">فواتير ٧ أيام</div>
+                        <div className="mt-1 text-xl font-black text-slate-950">{formatNumber(trend7d.reduce((sum, item) => sum + Number(item.orders || 0), 0))}</div>
                       </div>
-                      <div className="rounded-2xl bg-slate-50 px-3 py-3 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black text-slate-400">أفضل يوم</div>
-                        <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                        <div className="text-xs font-black text-slate-500">أفضل يوم</div>
+                        <div className="mt-1 text-xl font-black text-slate-950">
                           {formatShortDay(trend7d.reduce((best, item) => (Number(item.revenue || 0) > Number(best?.revenue || 0) ? item : best), trend7d[0] || {}).day)}
                         </div>
                       </div>
-                      <div className="rounded-2xl bg-slate-50 px-3 py-3 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black text-slate-400">أعلى إيراد</div>
-                        <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">{formatCurrency(Math.max(...trend7d.map((item) => Number(item.revenue || 0)), 0))}</div>
+                      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                        <div className="text-xs font-black text-slate-500">أعلى إيراد</div>
+                        <div className="mt-1 text-xl font-black text-slate-950">{formatCurrency(Math.max(...trend7d.map((item) => Number(item.revenue || 0)), 0))}</div>
                       </div>
                     </div>
                     <div className="grid items-end gap-2 sm:grid-cols-2 lg:grid-cols-7">
@@ -1922,13 +1982,13 @@ export default function ManagerPortal() {
                         const maxRevenue = Math.max(...trend7d.map((row) => Number(row.revenue || 0)), 1);
                         const height = Math.max(12, Math.round((Number(item.revenue || 0) / maxRevenue) * 100));
                         return (
-                          <div key={item.day} className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                          <div key={item.day} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
                             <div className="flex h-28 items-end">
                               <div className="w-full rounded-t-xl bg-gradient-to-t from-slate-950 to-sky-500" style={{ height: `${height}%` }} />
                             </div>
-                            <div className="mt-3 text-xs font-black text-slate-500 dark:text-slate-300">{formatShortDay(item.day)}</div>
-                            <div className="mt-1 text-sm font-black text-slate-950 dark:text-white">{formatCurrency(item.revenue || 0)}</div>
-                            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{formatNumber(item.orders || 0)} فاتورة</div>
+                            <div className="mt-3 text-xs font-black text-slate-500">{formatShortDay(item.day)}</div>
+                            <div className="mt-1 text-sm font-black text-slate-950">{formatCurrency(item.revenue || 0)}</div>
+                            <div className="text-[11px] font-bold text-slate-500">{formatNumber(item.orders || 0)} فاتورة</div>
                           </div>
                         );
                       })}
@@ -1942,20 +2002,20 @@ export default function ManagerPortal() {
               <Card title="Conversion indicators" subtitle="Shown only when data exists" icon={Megaphone}>
                 {hasConversionIndicators ? (
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Customer-linked orders</div>
-                      <div className="mt-2 text-2xl font-black text-slate-950 dark:text-white">{formatNumber(conversionIndicators.customer_linked_orders || 0)}</div>
-                      <div className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">{formatPercent(conversionIndicators.customer_link_rate || 0)} of orders</div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Customer-linked orders</div>
+                      <div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(conversionIndicators.customer_linked_orders || 0)}</div>
+                      <div className="mt-1 text-sm font-bold text-slate-500">{formatPercent(conversionIndicators.customer_link_rate || 0)} of orders</div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Online orders</div>
-                      <div className="mt-2 text-2xl font-black text-slate-950 dark:text-white">{formatNumber(conversionIndicators.online_orders || 0)}</div>
-                      <div className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">{formatPercent(conversionIndicators.online_order_share || 0)} of orders</div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Online orders</div>
+                      <div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(conversionIndicators.online_orders || 0)}</div>
+                      <div className="mt-1 text-sm font-bold text-slate-500">{formatPercent(conversionIndicators.online_order_share || 0)} of orders</div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">AI chat conversions</div>
-                      <div className="mt-2 text-2xl font-black text-slate-950 dark:text-white">{formatNumber(conversionIndicators.ai_confirmed_orders || 0)}</div>
-                      <div className="mt-1 text-sm font-bold text-slate-500 dark:text-slate-400">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">AI chat conversions</div>
+                      <div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(conversionIndicators.ai_confirmed_orders || 0)}</div>
+                      <div className="mt-1 text-sm font-bold text-slate-500">
                         {formatNumber(conversionIndicators.ai_sessions || 0)} sessions · {formatPercent(conversionIndicators.ai_conversion_rate || 0)}
                       </div>
                     </div>
@@ -1967,9 +2027,9 @@ export default function ManagerPortal() {
 
               <Card title={portalText("Top products")} subtitle="Top products" icon={Package}>
                 {topProducts.length ? topProducts.map((item) => (
-                  <div key={item.name} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:bg-white/[0.03] dark:text-slate-200">
-                    <span>{portalText(item.name)}</span>
-                    <span>{formatNumber(item.quantity || 0)} · {formatCurrency(item.revenue || 0)}</span>
+                  <div key={item.name} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">
+                    <span><InlineName>{portalText(item.name)}</InlineName></span>
+                    <span className="font-black text-slate-950">{formatNumber(item.quantity || 0)} · {formatCurrency(item.revenue || 0)}</span>
                   </div>
                 )) : <EmptyState title="لا توجد منتجات مبيعة" body="سيظهر هنا أفضل البائعين عند توفر بيانات فعلية." />}
               </Card>
@@ -1977,9 +2037,9 @@ export default function ManagerPortal() {
                 {Array.isArray(sales?.hourly) && sales.hourly.length ? (
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
                     {sales.hourly.map((item) => (
-                      <div key={item.hour} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                        <div className="text-xs font-black text-slate-400">{String(item.hour).padStart(2, "0")}:00</div>
-                        <div className="mt-1 font-black">{formatCurrency(item.sales || 0)}</div>
+                      <div key={item.hour} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">
+                        <div className="text-xs font-black text-slate-500">{String(item.hour).padStart(2, "0")}:00</div>
+                        <div className="mt-1 font-black text-slate-950">{formatCurrency(item.sales || 0)}</div>
                       </div>
                     ))}
                   </div>
@@ -2003,13 +2063,13 @@ export default function ManagerPortal() {
               managerPanel={() => (
                 selectedChatEmployee ? (
                   <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto pr-1" dir="rtl">
-                    <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="text-xs font-black tracking-[0.16em] text-slate-400">الموظف</div>
-                      <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{portalText(selectedChatEmployee.employee_name || selectedChatEmployee.full_name || selectedChatThread?.employee_name || "موظف")}</div>
+                    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="text-xs font-black tracking-[0.16em] text-slate-500">الموظف</div>
+                      <div className="mt-1 text-lg font-black text-slate-950">{portalText(selectedChatEmployee.employee_name || selectedChatEmployee.full_name || selectedChatThread?.employee_name || "موظف")}</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <StatusPill tone={selectedChatAttendanceTone} value={selectedChatAttendanceStatus} />
-                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee.branch_name || selectedChatThread?.branch_name || "لا يوجد فرع")}</Badge>
-                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee.employee_code || "لا يوجد كود")}</Badge>
+                        <Badge className="border-slate-200 bg-white text-slate-700">{portalText(selectedChatEmployee.branch_name || selectedChatThread?.branch_name || "لا يوجد فرع")}</Badge>
+                        <Badge className="border-slate-200 bg-white text-slate-700">{portalText(selectedChatEmployee.employee_code || "لا يوجد كود")}</Badge>
                       </div>
                     </div>
 
@@ -2064,10 +2124,10 @@ export default function ManagerPortal() {
                       </div>
                     </div>
 
-                    <div className="rounded-[1.3rem] border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold leading-6 text-emerald-950 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100">
-                      <div className="text-xs font-black text-emerald-700/80 dark:text-emerald-200/80">ملخص سريع</div>
-                      <div className="mt-2">آخر نشاط: {formatDateTime(selectedChatLastActivity)}</div>
-                      <div>المحادثة غير المقروءة: {formatNumber(selectedChatUnread)}</div>
+                    <div className="rounded-[1.3rem] border border-slate-200 bg-white p-3 text-sm font-semibold leading-6 text-slate-800 shadow-sm">
+                      <div className="text-xs font-black text-slate-600">ملخص سريع</div>
+                      <div className="mt-2 text-slate-700">آخر نشاط: {formatDateTime(selectedChatLastActivity)}</div>
+                      <div className="text-slate-700">المحادثة غير المقروءة: {formatNumber(selectedChatUnread)}</div>
                     </div>
                   </div>
                 ) : (
@@ -2116,9 +2176,9 @@ export default function ManagerPortal() {
                 <Card title="سجل الإشعارات" subtitle="سجل الإشعارات" icon={Bell}>
                   <div className="space-y-2">
                     {notifications.slice(0, 3).length ? notifications.slice(0, 3).map((item) => (
-                      <div key={`history-${item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                        <div className="font-black text-slate-950 dark:text-white">{portalText(item.title || item.type || "إشعار")}</div>
-                        <div className="mt-1 line-clamp-2 text-xs opacity-80">{portalText(item.message || item.body || "")}</div>
+                      <div key={`history-${item.id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm">
+                        <div className="font-black text-slate-950">{portalText(item.title || item.type || "إشعار")}</div>
+                        <div className="mt-1 line-clamp-2 text-xs text-slate-500">{portalText(item.message || item.body || "")}</div>
                         <div className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{formatDateTime(item.created_at)}</div>
                       </div>
                     )) : <EmptyState title="لا يوجد سجل حديث" body="ستظهر آخر الإشعارات هنا عندما تتوفر." />}
@@ -2129,9 +2189,9 @@ export default function ManagerPortal() {
               <Card title="إعدادات التنبيه" subtitle="إعدادات الإشعارات" icon={Bell}>
                 <div className="grid gap-3 md:grid-cols-2">
                   {Object.entries(settings).map(([category, config]) => (
-                    <div key={category} className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                    <div key={category} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
                       <div className="flex items-center justify-between">
-                      <div className="text-sm font-black text-slate-900 dark:text-white">{portalText(category)}</div>
+                        <div className="text-sm font-black text-slate-900">{portalText(category)}</div>
                         <StatusPill tone="slate" value={portalText(category)} />
                       </div>
                       <Toggle label="صوت" checked={Boolean(config.sound)} onChange={(value) => onCategoryToggle(category, "sound", value)} />
@@ -2172,10 +2232,10 @@ export default function ManagerPortal() {
                     </Badge>
                   </div>
                   {pushState.endpointHost ? (
-                    <div className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500 dark:bg-white/[0.03] dark:text-slate-300" dir="ltr">{pushState.endpointHost}</div>
+                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 shadow-sm" dir="ltr">{pushState.endpointHost}</div>
                   ) : null}
                   {isIosDevice() && !standalone ? (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-bold leading-6 text-amber-950 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
+                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold leading-6 text-slate-700 shadow-sm">
                       على iPhone يجب فتح بوابة المدير من التطبيق المثبت بعد Add to Home Screen لتفعيل Push Notifications.
                     </div>
                   ) : null}
@@ -2190,18 +2250,22 @@ export default function ManagerPortal() {
                       إيقاف Push
                     </button>
                   </div>
+                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={sendTestPushNotification} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <Send className="h-4 w-4" />
+                    Send Test Notification
+                  </button>
                 </div>
               </Card>
 
               <Card title="ملخص سريع" subtitle="ملخص سريع" icon={Megaphone}>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-950 p-4 text-white">
-                    <div className="text-xs font-black text-white/60">إشعارات غير مقروءة</div>
-                    <div className="mt-1 text-3xl font-black">{formatNumber(unreadCount || notificationsUnread)}</div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-sm">
+                    <div className="text-xs font-black text-slate-300">إشعارات غير مقروءة</div>
+                    <div className="mt-1 text-3xl font-black text-white">{formatNumber(unreadCount || notificationsUnread)}</div>
                   </div>
-                  <div className="rounded-2xl bg-slate-50 p-4 text-slate-900 dark:bg-white/[0.03] dark:text-white">
-                    <div className="text-xs font-black text-slate-400">صلاحيات</div>
-                    <div className="mt-1 text-sm font-semibold leading-6">{(me?.permissions || []).length ? `${formatNumber(me.permissions.length)} صلاحية` : "لا توجد صلاحيات ظاهرة"}</div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+                    <div className="text-xs font-black text-slate-500">صلاحيات</div>
+                    <div className="mt-1 text-sm font-semibold leading-6 text-slate-700">{(me?.permissions || []).length ? `${formatNumber(me.permissions.length)} صلاحية` : "لا توجد صلاحيات ظاهرة"}</div>
                   </div>
                 </div>
               </Card>
@@ -2217,22 +2281,22 @@ export default function ManagerPortal() {
                 const isEmployeeMessage = categoryFromNotification(item) === "employee_chat";
                 const isInvoiceNotification = categoryFromNotification(item) === "sales" && (item.metadata?.invoice_id || item.metadata?.order_id || item.entity_id);
                 return (
-                <div key={item.id} data-testid={`notification-${item.id}`} className={`w-full rounded-2xl border px-3 py-2.5 text-right transition ${item.is_read ? "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300" : "border-sky-200 bg-sky-50 text-slate-950 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-white"}`}>
+                <div key={item.id} data-testid={`notification-${item.id}`} className={`w-full rounded-2xl border px-3 py-2.5 text-right transition ${item.is_read ? "border-slate-200 bg-white text-slate-600" : "border-slate-300 bg-slate-50 text-slate-950 shadow-sm"}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-black">{portalText(isEmployeeMessage ? item.metadata?.employee_name || item.title || "رسالة موظف" : item.title || notificationTypeLabel(item))}</div>
-                      <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 opacity-80">{portalText(item.message || item.body || "لا توجد تفاصيل")}</div>
-                      <div className="mt-1 text-[11px] font-bold opacity-70">{formatDateTime(item.created_at)}</div>
+                      <div className="truncate text-sm font-black text-slate-950">{portalText(isEmployeeMessage ? item.metadata?.employee_name || item.title || "رسالة موظف" : item.title || notificationTypeLabel(item))}</div>
+                      <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-600">{portalText(item.message || item.body || "لا توجد تفاصيل")}</div>
+                      <div className="mt-1 text-[11px] font-bold text-slate-500">{formatDateTime(item.created_at)}</div>
                     </div>
                     <StatusPill tone={item.is_read ? "slate" : "blue"} value={notificationTypeLabel(item)} />
                   </div>
                   {isEmployeeMessage ? (
-                    <button type="button" onClick={() => void openNotification(item)} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-cyan-300 dark:text-slate-950">
+                    <button type="button" onClick={() => void openNotification(item)} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white">
                       فتح المحادثة
                     </button>
                   ) : null}
                   {isInvoiceNotification ? (
-                    <button type="button" onClick={() => void openNotification(item)} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-cyan-300 dark:text-slate-950">
+                    <button type="button" onClick={() => void openNotification(item)} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white">
                       عرض الفاتورة
                     </button>
                   ) : null}
@@ -2240,7 +2304,7 @@ export default function ManagerPortal() {
               );}) : <EmptyState title="لا توجد إشعارات" body="ستظهر هنا الإشعارات الحية عند وصولها." />}
             </div>
             {hasMoreNotifications ? (
-              <button type="button" onClick={() => setShowMoreNotifications((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+              <button type="button" onClick={() => setShowMoreNotifications((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800">
                 {showMoreNotifications ? "عرض أقل" : "عرض المزيد"}
               </button>
             ) : null}
@@ -2249,8 +2313,8 @@ export default function ManagerPortal() {
           <Card title="التنبيهات الذكية" subtitle="التنبيهات الذكية" icon={Bot} compact bodyClassName="space-y-2">
             <div className="space-y-1.5">
               {visibleAiInsights.map((insight, index) => (
-                <div key={`${insight.title || index}`} className="rounded-2xl border border-sky-200 bg-sky-50 p-2.5 text-sm font-semibold leading-5 text-slate-800 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-50">
-                  <div className="text-xs font-black text-sky-700 dark:text-cyan-100">{insightTitleLabel(insight.type, insight.title)}</div>
+                <div key={`${insight.title || index}`} className="rounded-2xl border border-slate-200 bg-white p-2.5 text-sm font-semibold leading-5 text-slate-800 shadow-sm">
+                  <div className="text-xs font-black text-slate-600">{insightTitleLabel(insight.type, insight.title)}</div>
                   <div className="mt-1 line-clamp-3">{renderInsightBody(insight)}</div>
                 </div>
               ))}
@@ -2266,11 +2330,11 @@ export default function ManagerPortal() {
           <Card title="العملاء الساخنون" subtitle="العملاء الساخنون" icon={Store} compact bodyClassName="space-y-2">
             <div className="space-y-1.5">
               {visibleLeads.length ? visibleLeads.map((lead) => (
-                <div key={leadIdentity(lead)} className="rounded-2xl border border-rose-200 bg-rose-50 p-2.5 text-sm font-semibold leading-5 text-rose-950 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-100">
-                  <div className="font-black">{leadName(lead)}</div>
-                  <div className="mt-1 text-xs font-bold opacity-80">{leadChannel(lead)} · الدرجة {formatNumber(lead.lead_score || 0)}</div>
-                  <div className="mt-1 line-clamp-2 text-xs font-semibold opacity-90">{leadPreview(lead)}</div>
-                  <button type="button" onClick={() => setActiveTab("chat")} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-rose-700 px-3 text-xs font-black text-white dark:bg-rose-300 dark:text-rose-950">
+                <div key={leadIdentity(lead)} className="rounded-2xl border border-slate-200 bg-white p-2.5 text-sm font-semibold leading-5 text-slate-800 shadow-sm">
+                  <div className="font-black text-slate-950">{leadName(lead)}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-500">{leadChannel(lead)} · الدرجة {formatNumber(lead.lead_score || 0)}</div>
+                  <div className="mt-1 line-clamp-2 text-xs font-semibold text-slate-600">{leadPreview(lead)}</div>
+                  <button type="button" onClick={() => setActiveTab("chat")} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white">
                     فتح المحادثة
                   </button>
                 </div>
@@ -2286,14 +2350,14 @@ export default function ManagerPortal() {
           <Card title="المخزون المنخفض" subtitle="المخزون المنخفض" icon={Package} compact bodyClassName="space-y-2">
             <div className="space-y-1.5">
               {visibleLowStock.length ? visibleLowStock.map((item) => (
-                <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-950 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100">
-                  <div className="font-black"><InlineName>{portalText(item.name || "-")}</InlineName></div>
-                  <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{portalText(item.color || item.size || "")} · {formatNumber(item.stock || 0)}</div>
+                <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm">
+                  <div className="font-black text-slate-950"><InlineName>{portalText(item.name || "-")}</InlineName></div>
+                  <div className="mt-1 text-xs font-bold text-slate-500">{portalText(item.color || item.size || "")} · {formatNumber(item.stock || 0)}</div>
                 </div>
               )) : <EmptyState title="لا توجد عناصر منخفضة" body="لن نعرض مخزونًا منخفضًا غير موجود في المصدر." />}
             </div>
             {hasMoreLowStock ? (
-              <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+              <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800">
                 {showMoreLowStock ? "عرض أقل" : "عرض المزيد"}
               </button>
             ) : null}
@@ -2301,7 +2365,7 @@ export default function ManagerPortal() {
         </aside>
       </div>
 
-      <nav className="fixed inset-x-3 bottom-3 z-40 mx-auto max-w-2xl rounded-[1.6rem] border border-white/60 bg-white/95 p-2 shadow-2xl shadow-slate-900/10 backdrop-blur dark:border-white/10 dark:bg-slate-950/90 lg:hidden">
+      <nav className="manager-bottom-nav-safe-padding fixed inset-x-3 bottom-3 z-40 mx-auto max-w-2xl rounded-[1.6rem] border border-slate-800 bg-slate-950 p-2 shadow-2xl shadow-slate-900/30 lg:hidden">
         <div className="grid grid-cols-6 gap-1">
           {TABS.map((tab) => {
             const active = activeTab === tab;
@@ -2309,7 +2373,7 @@ export default function ManagerPortal() {
             const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : Bell;
             const Icon = icon;
             return (
-              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => setActiveTab(tab)} className={`flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-black ${active ? "bg-slate-950 text-white" : "text-slate-500 dark:text-slate-300"}`}>
+              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => setActiveTab(tab)} className={`flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-black transition ${active ? "bg-white text-slate-950 shadow-sm" : "text-slate-300"}`}>
                 <Icon className="h-4 w-4" />
                 <span className="inline-flex items-center gap-1">
                   {label}
@@ -2356,18 +2420,18 @@ export default function ManagerPortal() {
                       ["الكاشير", invoiceSheet.invoice.cashier_name || invoiceSheet.invoice.seller_name || "-"],
                       ["الفرع", invoiceSheet.invoice.branch_name || "-"],
                     ].map(([label, value]) => (
-                      <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-white/10 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black text-slate-400">{label}</div>
-                        <div className="mt-1 font-black text-slate-950 dark:text-white">{value}</div>
+                      <div key={label} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm">
+                        <div className="text-xs font-black text-slate-500">{label}</div>
+                        <div className="mt-1 font-black text-slate-950">{value}</div>
                       </div>
                     ))}
                   </div>
 
                   <Card title="الدفع" subtitle="طريقة الدفع / التقسيم" icon={ArrowLeftRight} compact>
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-950 dark:bg-emerald-400/10 dark:text-emerald-50">
-                        <span>{paymentMethodLabel(invoiceSheet.invoice.payment_method)}</span>
-                        <span>{portalText(invoiceSheet.invoice.payment_status || "")}</span>
+                      <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 shadow-sm">
+                        <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />{paymentMethodLabel(invoiceSheet.invoice.payment_method)}</span>
+                        <span className="text-slate-950">{portalText(invoiceSheet.invoice.payment_status || "")}</span>
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {[

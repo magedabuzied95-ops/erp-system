@@ -2,6 +2,7 @@
 import { ensureEmployeePayrollPortalSchema } from "./employeePayrollPortalService.js";
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 import { createNotification } from "./notificationsService.js";
+import { sendManagerEmployeeChatPush } from "./managerPortalPushService.js";
 import { emitToRooms, getRoomClientCount } from "../utils/socket.js";
 
 const clean = (value = "") => String(value || "").trim();
@@ -288,6 +289,13 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
   );
   const updatedThread = await loadThreadSummary(thread.id);
   const message = (await loadMessages(thread.id)).find((item) => String(item.id) === String(result.rows[0]?.id)) || result.rows[0];
+  console.info("[manager-push:chat-trigger-entered]", {
+    employee_id: employee.id,
+    thread_id: thread.id,
+    sender_type: "employee",
+    message_id: message.id || result.rows[0]?.id || null,
+    attachment_type: message.attachment_type || null,
+  });
   emitChatEvent([adminChatRoom(employee.tenant_id), employeeChatRoom(employee.id)], "employee-chat:new-message", {
     thread: updatedThread,
     message,
@@ -310,6 +318,19 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
     entity_id: String(thread.id),
     metadata: { employee_id: employee.id, thread_id: thread.id, message_id: message.id },
   }).catch(() => null);
+  sendManagerEmployeeChatPush({
+    tenantId: employee.tenant_id || null,
+    branchId: employee.branch_id || null,
+    employee,
+    employeeId: employee.id,
+    employeeName: employee.full_name || employee.employee_name || employee.employee_code || "",
+    threadId: thread.id,
+    message,
+  }).catch((error) => console.warn("[manager-push:chat-message] failed", {
+    employee_id: employee.id,
+    thread_id: thread.id,
+    message: error?.message || String(error),
+  }));
   return { thread: updatedThread || { ...thread, last_message_at: message.created_at }, message };
 };
 

@@ -26,6 +26,8 @@ const endpointHost = (endpoint = "") => {
   }
 };
 
+const endpointPrefix = (endpoint = "", length = 64) => text(endpoint).slice(0, length);
+
 const hasVapidConfig = () => Boolean(vapidPublicKey() && vapidPrivateKey() && webPushSubject());
 
 const configureWebPush = () => {
@@ -125,8 +127,20 @@ export const subscribeManagerPortalPush = async ({ manager = {}, token = "", sub
       text(portalUrl).slice(0, 1000),
     ]
   );
+  const row = result.rows[0] || null;
+  if (row) {
+    console.info("[manager-push:db-saved]", {
+      subscription_id: row.id,
+      portal_token: text(token || manager.manager_portal_token),
+      manager_employee_id: numberOrNull(manager.id),
+      user_id: numberOrNull(manager.user_id),
+      endpoint_prefix: endpointPrefix(endpoint),
+      endpoint_host: endpointHost(endpoint),
+      revoked_at: null,
+    });
+  }
   return {
-    subscription: result.rows[0] || null,
+    subscription: row,
     endpoint_host: endpointHost(endpoint),
   };
 };
@@ -208,6 +222,65 @@ const loadManagerSubscriptions = async ({ tenantId = null, branchId = null, cate
   return result.rows.filter((row) => settingAllowsPush(row.manager_portal_settings || {}, category));
 };
 
+export const getManagerPortalPushSubscriptionDebug = async ({ token = "" } = {}) => {
+  await ensurePortalPushSchema(db);
+  const result = await db.query(
+    `
+    SELECT
+      s.id AS subscription_id,
+      s.portal_token,
+      s.endpoint,
+      s.p256dh,
+      s.auth,
+      s.revoked_at,
+      s.created_at,
+      s.updated_at,
+      s.last_seen_at,
+      s.user_id,
+      s.manager_employee_id,
+      e.id AS matched_employee_id,
+      e.tenant_id AS employee_tenant_id,
+      e.branch_id AS employee_branch_id,
+      e.full_name,
+      e.status,
+      COALESCE(e.is_deleted, FALSE) AS is_deleted
+    FROM portal_push_subscriptions s
+    LEFT JOIN employees e ON e.manager_portal_token = s.portal_token
+    WHERE s.portal_type = 'manager'
+      AND s.portal_token = $1
+    ORDER BY s.revoked_at NULLS FIRST, s.last_seen_at DESC, s.id DESC
+    `,
+    [text(token)]
+  );
+  const subscriptions = result.rows.map((row) => ({
+    subscription_id: row.subscription_id,
+    portal_token: row.portal_token,
+    endpoint_prefix: endpointPrefix(row.endpoint),
+    endpoint_host: endpointHost(row.endpoint),
+    p256dh: row.p256dh,
+    auth: row.auth,
+    revoked_at: row.revoked_at,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    last_seen_at: row.last_seen_at,
+    user_id: row.user_id,
+    manager_employee_id: row.manager_employee_id,
+    matched_employee_id: row.matched_employee_id,
+    employee_tenant_id: row.employee_tenant_id,
+    employee_branch_id: row.employee_branch_id,
+    full_name: row.full_name,
+    status: row.status,
+    is_deleted: row.is_deleted,
+  }));
+  const active = subscriptions.filter((row) => !row.revoked_at && row.matched_employee_id && !row.is_deleted && String(row.status || "").toLowerCase() === "active");
+  return {
+    token: text(token),
+    active_count: active.length,
+    total_count: subscriptions.length,
+    subscriptions,
+  };
+};
+
 const deactivateSubscription = async (id, statusCode = 0, reason = "") => {
   await db.query(
     `
@@ -239,6 +312,14 @@ const sendToManagerSubscriptions = async ({ tenantId = null, branchId = null, ca
     return { sent: 0, failed: 0, deactivated: 0, skipped: true };
   }
   const rows = await loadManagerSubscriptions({ tenantId, branchId, category });
+  console.info("[manager-push:recipient-count]", {
+    count: rows.length,
+    tenantId,
+    branchId,
+    category,
+    token_ref: rows[0]?.portal_token || null,
+    manager_employee_id: rows[0]?.manager_employee_id || null,
+  });
   let sent = 0;
   let failed = 0;
   let deactivated = 0;
@@ -258,9 +339,11 @@ const sendToManagerSubscriptions = async ({ tenantId = null, branchId = null, ca
     console.info(labels.attempt, {
       tenantId,
       branchId,
+      portal_token: row.portal_token,
       manager_employee_id: row.manager_employee_id,
       subscriptionId: row.subscription_id,
       endpointHost: endpointHost(row.endpoint),
+      endpointPrefix: endpointPrefix(row.endpoint),
       tag: payloadObject.tag || payloadObject.data?.tag || "",
     });
     try {
@@ -268,17 +351,23 @@ const sendToManagerSubscriptions = async ({ tenantId = null, branchId = null, ca
       if (endpointHost(row.endpoint) !== "web.push.apple.com") sendOptions.topic = text(payloadObject.tag || payloadObject.data?.tag).slice(0, 32) || undefined;
       await webPush.sendNotification({ endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } }, payload, sendOptions);
       sent += 1;
-      console.info(labels.success, { subscriptionId: row.subscription_id, manager_employee_id: row.manager_employee_id });
+      console.info(labels.success, {
+        subscriptionId: row.subscription_id,
+        portal_token: row.portal_token,
+        manager_employee_id: row.manager_employee_id,
+      });
     } catch (error) {
       failed += 1;
       const statusCode = Number(error.statusCode || error.status || 0);
       console.warn(labels.failed, {
         subscriptionId: row.subscription_id,
+        portal_token: row.portal_token,
         manager_employee_id: row.manager_employee_id,
         statusCode,
         message: error?.message || String(error),
         body: text(error?.body || error?.response?.body || error?.errorBody).slice(0, 1000),
         endpointHost: endpointHost(row.endpoint),
+        endpointPrefix: endpointPrefix(row.endpoint),
       });
       if ([400, 404, 410].includes(statusCode)) {
         deactivated += 1;
@@ -303,12 +392,14 @@ export const sendManagerEmployeeChatPush = async ({ tenantId = null, branchId = 
   const resolvedEmployeeId = numberOrNull(employeeId || employee.id || message.sender_employee_id);
   const resolvedThreadId = numberOrNull(threadId || message.thread_id);
   const name = text(employeeName || employee.full_name || employee.employee_name || employee.employee_code) || "موظف";
-  console.info("[manager-push:chat-message]", {
+  console.info("[manager-push:chat-trigger-entered]", {
     tenantId,
     branchId,
     employee_id: resolvedEmployeeId,
     thread_id: resolvedThreadId,
+    sender_type: "employee",
     message_id: message.id || null,
+    attachment_type: message.attachment_type || null,
   });
   return sendToManagerSubscriptions({
     tenantId: numberOrNull(tenantId),
@@ -335,6 +426,94 @@ export const sendManagerEmployeeChatPush = async ({ tenantId = null, branchId = 
       };
     },
   });
+};
+
+export const sendManagerPortalTestPush = async ({ token = "", manager = null } = {}) => {
+  await ensurePortalPushSchema(db);
+  if (!configureWebPush()) {
+    console.warn("[manager-push:vapid-missing]", {
+      token_ref: text(token || manager?.manager_portal_token),
+      hasPublicKey: Boolean(vapidPublicKey()),
+      hasPrivateKey: Boolean(vapidPrivateKey()),
+      hasSubject: Boolean(webPushSubject()),
+      test: true,
+    });
+    return { token: text(token || manager?.manager_portal_token), active_count: 0, sent: 0, failed: 0, deactivated: 0, skipped: true };
+  }
+  const payloadToken = text(token || manager?.manager_portal_token);
+  const debug = await getManagerPortalPushSubscriptionDebug({ token: payloadToken });
+  const activeSubscriptions = debug.subscriptions.filter((row) => !row.revoked_at && row.matched_employee_id && !row.is_deleted && String(row.status || "").toLowerCase() === "active");
+  console.info("[manager-push:recipient-count]", {
+    count: activeSubscriptions.length,
+    token_ref: payloadToken,
+    manager_employee_id: manager?.id || activeSubscriptions[0]?.manager_employee_id || null,
+    category: "messages",
+    test: true,
+  });
+
+  let sent = 0;
+  let failed = 0;
+  let deactivated = 0;
+  for (const row of activeSubscriptions) {
+    const payload = JSON.stringify({
+      title: "اختبار إشعار المدير",
+      body: "لو وصلك الإشعار ده يبقى الاشتراك شغال",
+      icon: "/icons/employee-portal-192.png",
+      badge: "/icons/employee-portal-192.png",
+      renotify: true,
+      data: {
+        url: `/manager-portal/${encodeURIComponent(row.portal_token)}`,
+        tag: "manager-portal-test",
+      },
+    });
+    console.info("[manager-push:send-attempt]", {
+      token_ref: payloadToken,
+      subscriptionId: row.subscription_id,
+      portal_token: row.portal_token,
+      endpointHost: row.endpoint_host,
+      endpointPrefix: row.endpoint_prefix,
+      test: true,
+    });
+    try {
+      const sendOptions = { TTL: 60 * 60 };
+      if (row.endpoint_host !== "web.push.apple.com") sendOptions.topic = "manager-portal-test";
+      await webPush.sendNotification({ endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } }, payload, sendOptions);
+      sent += 1;
+      console.info("[manager-push:send-success]", {
+        token_ref: payloadToken,
+        subscriptionId: row.subscription_id,
+        portal_token: row.portal_token,
+        test: true,
+      });
+    } catch (error) {
+      failed += 1;
+      const statusCode = Number(error.statusCode || error.status || 0);
+      console.warn("[manager-push:send-failed]", {
+        token_ref: payloadToken,
+        subscriptionId: row.subscription_id,
+        portal_token: row.portal_token,
+        statusCode,
+        message: error?.message || String(error),
+        body: text(error?.body || error?.response?.body || error?.errorBody).slice(0, 1000),
+        endpointHost: row.endpoint_host,
+        endpointPrefix: row.endpoint_prefix,
+        test: true,
+      });
+      if ([400, 404, 410].includes(statusCode)) {
+        deactivated += 1;
+        await deactivateSubscription(row.subscription_id, statusCode, `web-push ${statusCode}`);
+      }
+    }
+  }
+
+  return {
+    token: payloadToken,
+    active_count: activeSubscriptions.length,
+    sent,
+    failed,
+    deactivated,
+    subscriptions: activeSubscriptions,
+  };
 };
 
 export const sendManagerInvoiceCreatedPush = async ({ order = {}, source = "" } = {}) => {
