@@ -163,7 +163,11 @@ self.addEventListener("push", (event) => {
     badge: payload.badge || "/icons/employee-portal-192.png",
     tag: payload.data?.tag || payload.tag || "employee-portal",
     renotify: payload.renotify !== false,
-    data: payload.data || {},
+    data: {
+      ...(payload.data || {}),
+      url: payload.data?.url || payload.url || "/",
+      tag: payload.data?.tag || payload.tag || "employee-portal",
+    },
   };
   if ((payload.data?.tag || payload.tag) === "employee-chat") {
     options = {
@@ -212,7 +216,12 @@ self.addEventListener("notificationclick", (event) => {
   const url = data.url || (data.token ? `/employee-app/${encodeURIComponent(data.token)}${data.tab ? `?tab=${encodeURIComponent(data.tab)}` : ""}` : "/employee-app/");
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      const existing = clients.find((client) => client.url.includes("/employee-app/") || client.url.includes("/employee-portal/") || client.url.includes("/employee/portal/"));
+      const isManagerUrl = String(url || "").includes("/manager-portal/");
+      const existing = clients.find((client) => (
+        isManagerUrl
+          ? client.url.includes("/manager-portal/")
+          : client.url.includes("/employee-app/") || client.url.includes("/employee-portal/") || client.url.includes("/employee/portal/")
+      ));
       if (existing) {
         existing.navigate?.(url);
         return existing.focus();

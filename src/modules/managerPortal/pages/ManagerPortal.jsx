@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
   AlertTriangle,
@@ -14,13 +14,16 @@ import {
   ChevronRight,
   Clock3,
   ClipboardList,
+  Copy,
   Download,
+  ExternalLink,
   Loader2,
   MessageSquare,
   Megaphone,
   Medal,
   Package,
   Plus,
+  Printer,
   RefreshCw,
   Search,
   Shield,
@@ -48,12 +51,12 @@ import { managerPortalApi } from "../services/managerPortalApi";
 const TABS = ["today", "staff", "tasks", "sales", "chat", "more"];
 const STORAGE_KEY = "manager.portal.active.tab";
 const DEFAULT_NOTIFICATION_SETTINGS = {
-  messages: { sound: true, toast: true },
-  tasks: { sound: true, toast: true },
-  attendance: { sound: true, toast: true },
-  sales: { sound: true, toast: true },
-  stock: { sound: true, toast: true },
-  ai_leads: { sound: true, toast: true },
+  messages: { sound: true, toast: true, push: true },
+  tasks: { sound: true, toast: true, push: true },
+  attendance: { sound: true, toast: true, push: true },
+  sales: { sound: true, toast: true, push: true },
+  stock: { sound: true, toast: true, push: true },
+  ai_leads: { sound: true, toast: true, push: true },
 };
 const MANAGER_PORTAL_PWA_VERSION = "20260607";
 
@@ -65,6 +68,35 @@ const isStandaloneApp = () => {
 const isIosDevice = () => {
   if (!isBrowser()) return false;
   return /iphone|ipad|ipod/i.test(window.navigator?.userAgent || "");
+};
+const pushSupported = () => isBrowser() && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const urlBase64ToUint8Array = (base64String = "") => {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = `${base64String}${padding}`.replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+};
+const uint8ArrayToUrlBase64 = (value) => {
+  if (!value) return "";
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return window.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+};
+const pushSubscriptionUsesKey = (subscription, publicKey = "") => {
+  if (!subscription || !publicKey) return false;
+  try {
+    return uint8ArrayToUrlBase64(subscription.options?.applicationServerKey || null) === String(publicKey).trim();
+  } catch {
+    return false;
+  }
+};
+const endpointHost = (endpoint = "") => {
+  try {
+    return new URL(String(endpoint || "")).host;
+  } catch {
+    return "";
+  }
 };
 const safeJson = (value, fallback) => {
   try {
@@ -81,6 +113,7 @@ const mergeSettings = (stored = {}) => {
     next[key] = {
       sound: current.sound !== undefined ? Boolean(current.sound) : true,
       toast: current.toast !== undefined ? Boolean(current.toast) : true,
+      push: current.push !== undefined ? Boolean(current.push) : true,
     };
   }
   return next;
@@ -161,14 +194,14 @@ const normalizeManagerPortalPayload = (label, value) => {
   return normalized;
 };
 const MANAGER_NOTIFICATION_CATEGORIES = [
-  { key: "all", label: "All", icon: Bell },
-  { key: "employee_chat", label: "Employee chat", icon: MessageSquare },
-  { key: "task_completed", label: "Task completed", icon: CheckCircle2 },
-  { key: "task_overdue", label: "Task overdue", icon: AlertTriangle },
-  { key: "attendance", label: "Attendance", icon: Clock3 },
-  { key: "sales", label: "Sales", icon: ShoppingCart },
-  { key: "stock", label: "Stock", icon: Package },
-  { key: "ai_leads", label: "AI leads", icon: Bot },
+  { key: "all", label: "الكل", icon: Bell },
+  { key: "employee_chat", label: "رسائل الموظفين", icon: MessageSquare },
+  { key: "task_completed", label: "مهام مكتملة", icon: CheckCircle2 },
+  { key: "task_overdue", label: "مهام متأخرة", icon: AlertTriangle },
+  { key: "attendance", label: "الحضور", icon: Clock3 },
+  { key: "sales", label: "المبيعات", icon: ShoppingCart },
+  { key: "stock", label: "المخزون", icon: Package },
+  { key: "ai_leads", label: "العملاء الساخنون", icon: Bot },
 ];
 const MANAGER_NOTIFICATION_CATEGORY_KEYS = new Set(MANAGER_NOTIFICATION_CATEGORIES.map((item) => item.key));
 const normalizeNotificationText = (value = "") => String(value ?? "").toLowerCase().replace(/[\s_-]+/g, "_");
@@ -189,14 +222,14 @@ const categoryFromNotification = (notification = {}) => {
 const categoryMeta = (category) => MANAGER_NOTIFICATION_CATEGORIES.find((item) => item.key === category) || MANAGER_NOTIFICATION_CATEGORIES[0];
 const notificationTypeLabel = (notification = {}) => {
   const type = normalizeNotificationText(notification.type || "");
-  if (type.includes("task_overdue")) return "Task overdue";
-  if (type.includes("task_completed")) return "Task completed";
-  if (type.includes("employee") || type.includes("chat") || type.includes("message")) return "Employee message";
-  if (type.includes("attendance")) return "Attendance";
-  if (type.includes("lead") || type.includes("ai")) return "AI lead";
-  if (type.includes("stock") || type.includes("inventory") || type.includes("refill") || type.includes("low_stock")) return "Stock alert";
-  if (type.includes("sale") || type.includes("order") || type.includes("payment")) return "Sales";
-  return portalText(notification.category || notification.type || "Notification");
+  if (type.includes("task_overdue")) return "مهمة متأخرة";
+  if (type.includes("task_completed")) return "تم إكمال مهمة";
+  if (type.includes("employee") || type.includes("chat") || type.includes("message")) return "رسالة موظف";
+  if (type.includes("attendance")) return "الحضور";
+  if (type.includes("lead") || type.includes("ai")) return "عميل ساخن";
+  if (type.includes("stock") || type.includes("inventory") || type.includes("refill") || type.includes("low_stock")) return "تنبيه مخزون";
+  if (type.includes("sale") || type.includes("order") || type.includes("payment")) return "مبيعات";
+  return portalText(notification.category || notification.type || "إشعار");
 };
 const soundForCategory = (category) => {
   if (category === "employee_chat" || category === "task_completed") return "notification";
@@ -210,15 +243,85 @@ const formatPercent = (value) => `${Number(value || 0).toFixed(1)}%`;
 const normalizeText = (value = "") => String(value ?? "").trim().toLowerCase();
 const taskStatusMeta = (task = {}) => {
   const status = normalizeText(task.status || "pending");
-  if (status === "completed") return { label: "Completed", tone: "green" };
-  if (status === "overdue") return { label: "Overdue", tone: "red" };
-  if (status === "manager_review") return { label: "Needs review", tone: "amber" };
-  if (status === "in_progress") return { label: "In progress", tone: "blue" };
+  if (status === "completed") return { label: "مكتملة", tone: "green" };
+  if (status === "overdue") return { label: "متأخرة", tone: "red" };
+  if (status === "manager_review") return { label: "تحتاج مراجعة", tone: "amber" };
+  if (status === "in_progress") return { label: "قيد التنفيذ", tone: "blue" };
+  if (status === "pending") return { label: "قيد الانتظار", tone: "slate" };
   if (status === "rejected" || status === "cancelled") return { label: status, tone: "red" };
-  return { label: status || "pending", tone: "slate" };
+  return { label: status || "قيد الانتظار", tone: "slate" };
 };
 const taskProofUrl = (task = {}) => task.latest_attachment_url || task.proof_url || task.proof_image_url || task.attachment_url || "";
-const taskProofLabel = (task = {}) => task.latest_attachment_name || task.latest_attachment_type || (task.attachments_count ? "Proof attachment" : "");
+const taskProofLabel = (task = {}) => task.latest_attachment_name || task.latest_attachment_type || (task.attachments_count ? "مرفق إثبات" : "");
+
+const isLatinText = (value = "") => /[A-Za-z]/.test(String(value || "")) && !/[\u0600-\u06FF]/.test(String(value || ""));
+const InlineName = ({ children, className = "" }) => (
+  <span dir={isLatinText(children) ? "ltr" : "rtl"} style={{ unicodeBidi: "isolate" }} className={`inline-block ${className}`}>{children}</span>
+);
+const paymentMethodLabel = (value = "") => {
+  const key = normalizeNotificationText(value || "unknown");
+  const labels = {
+    cash: "كاش",
+    card: "بطاقة",
+    visa: "فيزا",
+    wallet: "محفظة",
+    vodafone_cash: "فودافون كاش",
+    instapay: "إنستاباي",
+    split: "دفع مقسم",
+    cod: "الدفع عند الاستلام",
+    cash_on_delivery: "الدفع عند الاستلام",
+    unknown: "غير محدد",
+  };
+  return labels[key] || portalText(value || "غير محدد");
+};
+const insightTitleLabel = (type = "", fallback = "") => {
+  const key = normalizeNotificationText(type || fallback);
+  if (key.includes("sales") || key.includes("best")) return "الأكثر مبيعاً";
+  if (key.includes("inventory") || key.includes("reorder")) return "مطلوب إعادة طلب";
+  if (key.includes("branch")) return "أفضل فرع";
+  if (key.includes("timing") || key.includes("hour")) return "أكثر ساعة مبيعاً";
+  return "رؤية تشغيلية";
+};
+const renderInsightBody = (item = {}) => {
+  const type = normalizeNotificationText(item.type || item.title || "");
+  const productName = item.productName || item.product_name || item.name || item.product || "";
+  const branchName = item.branchName || item.branch_name || item.branch || "";
+  const units = item.units || item.quantity || item.sold_units || "";
+  const stock = item.stock || item.current_stock || "";
+  const hour = item.hour || item.peak_hour || "";
+  if (type.includes("sales") || type.includes("best")) {
+    const name = productName || String(item.body || "").split(" leads with ")[0] || "منتج";
+    const count = units || String(item.body || "").match(/(\d+)\s+units/)?.[1] || 0;
+    return <>الأكثر مبيعاً: <InlineName>{name}</InlineName> باع {formatNumber(count)} قطعة خلال آخر ٣٠ يوم.</>;
+  }
+  if (type.includes("inventory") || type.includes("reorder")) {
+    const name = productName || String(item.body || "").split(" is at ")[0] || "منتج";
+    const count = stock || String(item.body || "").match(/(\d+)\s+units/)?.[1] || 0;
+    return <>مطلوب إعادة طلب: <InlineName>{name}</InlineName> وصل إلى {formatNumber(count)} قطعة.</>;
+  }
+  if (type.includes("branch")) {
+    const name = branchName || String(item.body || "").split(" is the ")[0] || "الفرع";
+    return <><InlineName>{name}</InlineName> هو الأعلى مبيعاً.</>;
+  }
+  if (type.includes("timing") || type.includes("hour")) {
+    const peak = hour || String(item.body || "").match(/(\d{1,2}:00)/)?.[1] || "-";
+    return <>أكثر ساعة مبيعاً حالياً: <span dir="ltr" className="inline-block">{peak}</span>.</>;
+  }
+  return portalText(item.body || "-");
+};
+const leadIdentity = (lead = {}) =>
+  [
+    lead.customer_id,
+    lead.customer_phone,
+    lead.customer_name,
+    lead.session_id,
+    lead.conversation_id,
+    lead.id,
+    lead.lead_score,
+  ].filter(Boolean).join(":") || JSON.stringify(lead);
+const leadName = (lead = {}) => portalText(lead.customer_name || lead.name || lead.contact_name || "عميل محتمل");
+const leadChannel = (lead = {}) => portalText(lead.channel || lead.platform || lead.source || "قناة غير محددة");
+const leadPreview = (lead = {}) => portalText(lead.last_message || lead.last_message_preview || lead.ai_insight || "لا توجد رسالة أخيرة");
 
 const Badge = ({ children, className = "" }) => (
   <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-black ${className}`}>{children}</span>
@@ -237,6 +340,29 @@ const Card = ({ title, subtitle, icon: Icon, children, action, className = "", b
     <div className={`mt-3 ${bodyClassName}`}>{children}</div>
   </section>
 );
+
+const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
+  const tones = {
+    slate: "border-slate-200 bg-white text-slate-950 dark:border-white/10 dark:bg-white/[0.04] dark:text-white",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-50",
+    cyan: "border-cyan-200 bg-cyan-50 text-cyan-950 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-50",
+    amber: "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-50",
+    red: "border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-400/25 dark:bg-rose-400/10 dark:text-rose-50",
+    blue: "border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-300/20 dark:bg-sky-300/10 dark:text-sky-50",
+  };
+  return (
+    <div className={`min-h-[6.25rem] rounded-3xl border p-3 shadow-sm ${tones[tone] || tones.slate}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[11px] font-black leading-5 text-slate-500 dark:text-white/65">{label}</div>
+          <div className="mt-1 text-2xl font-black leading-8">{value || formatNumber(0)}</div>
+          {sub ? <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500 dark:text-white/60">{sub}</div> : null}
+        </div>
+        {Icon ? <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-slate-800 shadow-sm dark:bg-white/10 dark:text-white"><Icon className="h-4 w-4" /></div> : null}
+      </div>
+    </div>
+  );
+};
 
 const Toggle = ({ label, checked, onChange }) => (
   <button
@@ -276,6 +402,7 @@ const EmptyState = ({ title, body, compact = false }) => (
 export default function ManagerPortal() {
   const navigate = useNavigate();
   const { token } = useParams();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => (isBrowser() ? window.localStorage.getItem(STORAGE_KEY) || "today" : "today"));
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -295,8 +422,17 @@ export default function ManagerPortal() {
   const [taskFilters, setTaskFilters] = useState({ status: "all", employee: "", query: "" });
   const [settings, setSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS);
   const [browserNotificationPermission, setBrowserNotificationPermission] = useState(() => (isBrowser() && "Notification" in window ? window.Notification.permission : "unsupported"));
+  const [pushState, setPushState] = useState(() => ({
+    supported: pushSupported(),
+    permission: isBrowser() && "Notification" in window ? window.Notification.permission : "unsupported",
+    subscribed: false,
+    endpointHost: "",
+    saving: false,
+    message: "",
+  }));
   const [standalone, setStandalone] = useState(() => isStandaloneApp());
   const [installPrompt, setInstallPrompt] = useState(null);
+  const [invoiceSheet, setInvoiceSheet] = useState({ open: false, loading: false, invoice: null, error: "" });
   const [soundUnlocked, setSoundUnlocked] = useState(false);
   const [showMoreNotifications, setShowMoreNotifications] = useState(false);
   const [showMoreAiInsights, setShowMoreAiInsights] = useState(false);
@@ -310,6 +446,7 @@ export default function ManagerPortal() {
   const selectedTabRef = useRef(activeTab);
   const settingsRef = useRef(settings);
   const browserNotificationPermissionRef = useRef(browserNotificationPermission);
+  const openedInvoiceQueryRef = useRef("");
 
   useEffect(() => {
     selectedTabRef.current = activeTab;
@@ -323,6 +460,13 @@ export default function ManagerPortal() {
   useEffect(() => {
     setSettings((current) => mergeSettings(me?.notification_settings || current));
   }, [me]);
+
+  useEffect(() => {
+    const queryTab = searchParams.get("tab");
+    if (queryTab && TABS.includes(queryTab) && queryTab !== activeTab) {
+      setActiveTab(queryTab);
+    }
+  }, [activeTab, searchParams]);
 
   useEffect(() => {
     settingsRef.current = settings;
@@ -354,6 +498,7 @@ export default function ManagerPortal() {
     ].includes(permission));
   }, [me]);
   const staffList = staff?.staff || [];
+  const queryEmployeeId = searchParams.get("employee_id") || searchParams.get("employeeId") || "";
   const managerChatApiAdapter = useMemo(() => ({
     listThreads: () => managerPortalApi.chat(token),
     getThread: (threadId) => managerPortalApi.chatThread(token, threadId),
@@ -418,25 +563,29 @@ export default function ManagerPortal() {
       const toStatus = normalizeText(row.to_status || "");
       const fromStatus = normalizeText(row.from_status || "");
       const title =
-        action.includes("assign") ? "Task assigned" :
-        action.includes("reassign") ? "Task reassigned" :
-        action.includes("complete") || toStatus === "completed" ? "Task completed" :
-        action.includes("approve") ? "Task approved" :
-        toStatus === "overdue" || fromStatus === "overdue" || action.includes("overdue") ? "Task overdue" :
-        "Task updated";
+        action.includes("assign") ? "تم إسناد مهمة" :
+        action.includes("reassign") ? "تمت إعادة إسناد مهمة" :
+        action.includes("complete") || toStatus === "completed" ? "تم إكمال مهمة" :
+        action.includes("approve") ? "تم اعتماد مهمة" :
+        toStatus === "overdue" || fromStatus === "overdue" || action.includes("overdue") ? "مهمة متأخرة" :
+        "تم تحديث مهمة";
       pushEvent({
         key: `task-${row.id || `${row.task_id || "task"}-${row.created_at || ""}`}`,
+        kind: "task",
         timestamp: row.created_at || row.updated_at || null,
         title: portalText(title),
-        detail: [portalText(row.actor_name || "System"), portalText(row.employee_name || row.to_employee_name || ""), portalText(row.note || "")].filter(Boolean).join(" · "),
+        detail: [portalText(row.actor_name || "النظام"), portalText(row.employee_name || row.to_employee_name || ""), portalText(row.note || "")].filter(Boolean).join(" · "),
         tone: toStatus === "completed" || action.includes("complete") ? "green" : toStatus === "overdue" || action.includes("overdue") ? "red" : "blue",
       });
     }
     for (const row of Array.isArray(dashboard?.overview?.recentInvoices) ? dashboard.overview.recentInvoices : []) {
       pushEvent({
         key: `invoice-${row.id || row.invoice_number || row.created_at || ""}`,
+        kind: "invoice",
+        invoiceId: row.id,
+        invoice: row,
         timestamp: row.created_at || null,
-        title: portalText(`Invoice ${row.invoice_number || row.id || ""}`.trim()),
+        title: portalText(`فاتورة ${row.invoice_number || row.id || ""}`.trim()),
         detail: [portalText(row.customer_name || "Walk-in"), formatCurrency(row.total || 0)].filter(Boolean).join(" · "),
         tone: "green",
       });
@@ -444,8 +593,9 @@ export default function ManagerPortal() {
     for (const row of Array.isArray(refillAlerts) ? refillAlerts : []) {
       pushEvent({
         key: `refill-${row.id || row.created_at || ""}`,
+        kind: "stock",
         timestamp: row.created_at || null,
-        title: portalText("Display refill"),
+        title: portalText("إعادة عرض منتج"),
         detail: [portalText(row.product_name || "Refill alert"), [portalText(row.color_name || row.color || ""), portalText(row.replacement_size || "")].filter(Boolean).join(" · ")].filter(Boolean).join(" · "),
         tone: "amber",
       });
@@ -453,9 +603,10 @@ export default function ManagerPortal() {
     for (const row of Array.isArray(dashboard?.new_leads) ? dashboard.new_leads : []) {
       pushEvent({
         key: `lead-${row.session_id || row.id || row.updated_at || ""}`,
+        kind: "lead",
         timestamp: row.updated_at || row.created_at || null,
-        title: portalText("AI lead"),
-        detail: [portalText(row.ai_insight || row.session_id || "Lead"), `Score ${formatNumber(row.lead_score || 0)}`].filter(Boolean).join(" · "),
+        title: portalText("عميل ساخن"),
+        detail: [portalText(row.ai_insight || row.session_id || "عميل محتمل"), `الدرجة ${formatNumber(row.lead_score || 0)}`].filter(Boolean).join(" · "),
         tone: "red",
       });
     }
@@ -476,13 +627,24 @@ export default function ManagerPortal() {
     }
     return counts;
   }, [managerNotifications]);
+  const employeeMessageNotifications = useMemo(() => managerNotifications.filter((item) => item.manager_category === "employee_chat"), [managerNotifications]);
+  const dedupedLeads = useMemo(() => {
+    const seen = new Set();
+    return (dashboard?.new_leads || []).filter((lead) => {
+      const key = leadIdentity(lead);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [dashboard?.new_leads]);
   const visibleNotifications = showMoreNotifications ? filteredManagerNotifications : filteredManagerNotifications.slice(0, 5);
+  const visibleLiveFeed = managerNotifications.slice(0, 5);
   const hasMoreNotifications = filteredManagerNotifications.length > visibleNotifications.length;
   const showInstallCard = !standalone && (Boolean(installPrompt) || isIosDevice());
   const visibleAiInsights = showMoreAiInsights ? aiInsights : aiInsights.slice(0, 3);
   const hasMoreAiInsights = aiInsights.length > visibleAiInsights.length;
-  const visibleLeads = showMoreLeads ? (dashboard?.new_leads || []) : (dashboard?.new_leads || []).slice(0, 3);
-  const hasMoreLeads = (dashboard?.new_leads || []).length > visibleLeads.length;
+  const visibleLeads = showMoreLeads ? dedupedLeads : dedupedLeads.slice(0, 3);
+  const hasMoreLeads = dedupedLeads.length > visibleLeads.length;
   const visibleLowStock = showMoreLowStock ? lowStock : lowStock.slice(0, 3);
   const hasMoreLowStock = lowStock.length > visibleLowStock.length;
   const selectedChatThread = managerChatState.thread || null;
@@ -756,7 +918,55 @@ export default function ManagerPortal() {
     if (!notification?.id) return;
     await markNotificationRead(notification.id);
     setNotificationsOpen(false);
+    const invoiceId = notification.metadata?.order_id || notification.metadata?.invoice_id || notification.entity_id;
+    if (categoryFromNotification(notification) === "sales" && invoiceId) {
+      await openInvoiceDetail(invoiceId);
+      return;
+    }
+    if (categoryFromNotification(notification) === "employee_chat") {
+      setActiveTab("chat");
+      return;
+    }
     if (notification.action_url) navigate(notification.action_url);
+  };
+
+  const openInvoiceDetail = async (invoiceId) => {
+    if (!invoiceId) return;
+    setInvoiceSheet({ open: true, loading: true, invoice: null, error: "" });
+    try {
+      const response = await managerPortalApi.invoice(token, invoiceId);
+      setInvoiceSheet({ open: true, loading: false, invoice: normalizeManagerPortalPayload("invoice", response?.invoice || null), error: "" });
+    } catch (invoiceError) {
+      setInvoiceSheet({ open: true, loading: false, invoice: null, error: invoiceError?.responseBody?.message || invoiceError?.message || "تعذر تحميل الفاتورة" });
+    }
+  };
+
+  useEffect(() => {
+    const invoiceId = searchParams.get("invoice_id") || searchParams.get("invoiceId") || "";
+    const shouldOpen = searchParams.get("open_invoice") === "1" || searchParams.get("openInvoice") === "1";
+    const key = `${token}:${invoiceId}`;
+    if (!token || !invoiceId || !shouldOpen || openedInvoiceQueryRef.current === key) return;
+    openedInvoiceQueryRef.current = key;
+    setActiveTab("sales");
+    void openInvoiceDetail(invoiceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, token]);
+
+  const copyText = async (value, successMessage = "تم النسخ") => {
+    if (!value) return;
+    try {
+      await window.navigator?.clipboard?.writeText(String(value));
+      toast.success(successMessage);
+    } catch {
+      toast.error("تعذر النسخ");
+    }
+  };
+
+  const openWhatsappShare = (invoice = {}) => {
+    const phone = String(invoice.customer_phone || "").replace(/[^\d+]/g, "");
+    if (!phone) return;
+    const message = encodeURIComponent(`فاتورتك من M1: ${invoice.public_invoice_url || invoice.invoice_number || ""}`);
+    window.open(`https://wa.me/${phone.replace(/^\+/, "")}?text=${message}`, "_blank", "noopener,noreferrer");
   };
 
   const saveSettings = async (nextSettings) => {
@@ -789,6 +999,102 @@ export default function ManagerPortal() {
     if (permission === "granted") toast.success("تم تفعيل إشعارات المتصفح");
     else toast.error("لم يتم تفعيل إشعارات المتصفح");
   };
+
+  const refreshPushState = async () => {
+    const supported = pushSupported();
+    const permission = isBrowser() && "Notification" in window ? window.Notification.permission : "unsupported";
+    if (!supported) {
+      setPushState((current) => ({ ...current, supported: false, permission, subscribed: false, endpointHost: "" }));
+      return null;
+    }
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      setPushState((current) => ({
+        ...current,
+        supported: true,
+        permission,
+        subscribed: Boolean(subscription),
+        endpointHost: endpointHost(subscription?.endpoint || ""),
+      }));
+      return subscription;
+    } catch {
+      setPushState((current) => ({ ...current, supported, permission, subscribed: false, endpointHost: "" }));
+      return null;
+    }
+  };
+
+  const enablePushNotifications = async () => {
+    if (!pushSupported()) {
+      setPushState((current) => ({ ...current, supported: false, message: "هذا المتصفح لا يدعم Web Push." }));
+      toast.error("هذا المتصفح لا يدعم Web Push");
+      return;
+    }
+    setPushState((current) => ({ ...current, saving: true, message: "" }));
+    try {
+      const permission = await window.Notification.requestPermission();
+      setBrowserNotificationPermission(permission);
+      if (permission !== "granted") {
+        setPushState((current) => ({ ...current, permission, saving: false, message: "تم رفض إذن الإشعارات." }));
+        toast.error("لم يتم منح إذن الإشعارات");
+        return;
+      }
+      const keyResponse = await managerPortalApi.pushPublicKey(token);
+      const publicKey = keyResponse?.publicKey || "";
+      if (!publicKey || keyResponse?.enabled === false) throw new Error("Web Push is not configured on the server");
+      const registration = await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      if (subscription && !pushSubscriptionUsesKey(subscription, publicKey)) {
+        await subscription.unsubscribe().catch(() => null);
+        subscription = null;
+      }
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+      }
+      await managerPortalApi.subscribePush(token, {
+        subscription: subscription.toJSON(),
+        application_server_key_length: publicKey.length,
+        portal_url: window.location.href,
+      });
+      setPushState({
+        supported: true,
+        permission: "granted",
+        subscribed: true,
+        endpointHost: endpointHost(subscription.endpoint),
+        saving: false,
+        message: "تم تفعيل Push Notifications.",
+      });
+      toast.success("تم تفعيل Push Notifications");
+    } catch (pushError) {
+      setPushState((current) => ({ ...current, saving: false, message: pushError?.responseBody?.message || pushError?.message || "تعذر تفعيل Push Notifications" }));
+      toast.error(pushError?.responseBody?.message || pushError?.message || "تعذر تفعيل Push Notifications");
+    }
+  };
+
+  const disablePushNotifications = async () => {
+    if (!pushSupported()) return;
+    setPushState((current) => ({ ...current, saving: true, message: "" }));
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      await managerPortalApi.unsubscribePush(token, { endpoint: subscription?.endpoint || "", subscription: subscription?.toJSON?.() || null });
+      await subscription?.unsubscribe?.();
+      setPushState((current) => ({ ...current, saving: false, subscribed: false, endpointHost: "", message: "تم إيقاف Push Notifications." }));
+      toast.success("تم إيقاف Push Notifications");
+    } catch (pushError) {
+      setPushState((current) => ({ ...current, saving: false, message: pushError?.responseBody?.message || pushError?.message || "تعذر إيقاف Push Notifications" }));
+      toast.error(pushError?.responseBody?.message || pushError?.message || "تعذر إيقاف Push Notifications");
+    }
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    void refreshPushState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, standalone]);
 
   const installApp = async () => {
     if (!installPrompt) return;
@@ -925,8 +1231,8 @@ export default function ManagerPortal() {
               <Shield className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Manager Command Center</div>
-              <div className="text-lg font-black">{portalText(me?.full_name || me?.name || "Manager")}</div>
+              <div className="text-xs font-black tracking-[0.16em] text-slate-400">مركز قيادة المدير</div>
+              <div className="text-lg font-black">{portalText(me?.full_name || me?.name || "المدير")}</div>
             </div>
           </div>
           <div className="mt-4 space-y-3">
@@ -951,7 +1257,7 @@ export default function ManagerPortal() {
                   activeTab === tab ? "bg-slate-950 text-white" : "bg-white text-slate-700 dark:bg-white/[0.03] dark:text-slate-200"
                 }`}
               >
-                <span>{tab === "today" ? "Today" : tab === "staff" ? "Staff" : tab === "tasks" ? "Tasks" : tab === "sales" ? "Sales" : tab === "chat" ? "Chat" : "More"}</span>
+                <span>{tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : "المزيد"}</span>
                 <ChevronRight className="h-4 w-4" />
               </button>
             ))}
@@ -963,14 +1269,14 @@ export default function ManagerPortal() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-600/70">بوابة المدير</div>
-                <h1 className="mt-1 text-2xl font-black leading-8 text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || "Manager")}</h1>
+                <h1 className="mt-1 text-2xl font-black leading-8 text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || "المدير")}</h1>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-300">
-                  <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {portalText(me?.branch_name || "All branches")}</span>
-                  <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {portalText(me?.role || "manager")}</span>
+                  <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {portalText(me?.branch_name || "كل الفروع")}</span>
+                  <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {portalText(me?.role || "مدير")}</span>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
-                <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100">Live</Badge>
+                <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100">مباشر</Badge>
                 <div className="flex items-center gap-2">
                   <button
                     ref={notificationButtonRef}
@@ -1013,7 +1319,7 @@ export default function ManagerPortal() {
                   {installPrompt ? (
                     <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white dark:bg-cyan-300 dark:text-slate-950">
                       <Download className="h-4 w-4" />
-                      Add to Home Screen
+                      إضافة إلى الشاشة الرئيسية
                     </button>
                   ) : null}
                 </div>
@@ -1041,20 +1347,20 @@ export default function ManagerPortal() {
                     <div className="min-w-0">
                       <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-sky-700 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-100">
                         <Bell className="h-3.5 w-3.5" />
-                        Realtime
+                        مباشر
                       </div>
                       <h2 id="manager-notifications-title" className="mt-3 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
-                        Notification Center
+                        مركز الإشعارات
                       </h2>
                       <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                        Track employee chats, tasks, attendance, sales, stock, and AI leads in one place.
+                        تابع رسائل الموظفين والمهام والحضور والمبيعات والمخزون والعملاء الساخنين في مكان واحد.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setNotificationsOpen(false)}
                       className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-cyan-300/35"
-                      aria-label="Close notifications"
+                      aria-label="إغلاق الإشعارات"
                     >
                       <X className="h-5 w-5" />
                     </button>
@@ -1062,11 +1368,11 @@ export default function ManagerPortal() {
 
                   <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
                     <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Unread</div>
+                      <div className="text-[11px] font-black text-slate-400">غير مقروء</div>
                       <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">{formatNumber(unreadCount || notificationsUnread)}</div>
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Total</div>
+                      <div className="text-[11px] font-black text-slate-400">الإجمالي</div>
                       <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">{formatNumber(managerNotifications.length || 0)}</div>
                     </div>
                     <button
@@ -1076,7 +1382,7 @@ export default function ManagerPortal() {
                       className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left text-slate-700 transition hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-100 dark:hover:border-cyan-300/35 dark:hover:text-cyan-100"
                     >
                       <CheckCheck className="h-4 w-4" />
-                      <span className="mt-1 text-xs font-black">Mark all read</span>
+                      <span className="mt-1 text-xs font-black">تحديد الكل كمقروء</span>
                     </button>
                     <button
                       type="button"
@@ -1084,7 +1390,7 @@ export default function ManagerPortal() {
                       className="inline-flex min-h-[4.5rem] flex-col items-start justify-center rounded-2xl bg-slate-950 px-3 py-2.5 text-left text-white transition hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
                     >
                       <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                      <span className="mt-1 text-xs font-black">Refresh</span>
+                      <span className="mt-1 text-xs font-black">تحديث</span>
                     </button>
                   </div>
 
@@ -1143,9 +1449,9 @@ export default function ManagerPortal() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
-                                    <h3 className="truncate text-sm font-black text-slate-950 dark:text-white">{item.title || "Notification"}</h3>
+                                    <h3 className="truncate text-sm font-black text-slate-950 dark:text-white">{item.title || "إشعار"}</h3>
                                     <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                      {item.message || item.body || "No extra details were provided."}
+                                      {item.message || item.body || "لا توجد تفاصيل إضافية."}
                                     </p>
                                   </div>
                                   {unread ? <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500 shadow-[0_0_12px_rgba(14,165,233,0.65)] dark:bg-cyan-300" /> : null}
@@ -1169,7 +1475,7 @@ export default function ManagerPortal() {
                                   className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
                                 >
                                   <ArrowUpRight className="h-3.5 w-3.5" />
-                                  Open
+                                  فتح
                                 </button>
                               ) : null}
                               {unread ? (
@@ -1179,7 +1485,7 @@ export default function ManagerPortal() {
                                   className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-cyan-300/35 dark:hover:text-cyan-100"
                                 >
                                   <CheckCheck className="h-3.5 w-3.5" />
-                                  Mark read
+                                  تحديد كمقروء
                                 </button>
                               ) : null}
                             </div>
@@ -1192,9 +1498,9 @@ export default function ManagerPortal() {
                       <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-500 ring-1 ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
                         <Bell className="h-8 w-8" />
                       </div>
-                      <h3 className="mt-5 text-lg font-black text-slate-950 dark:text-white">No notifications</h3>
+                      <h3 className="mt-5 text-lg font-black text-slate-950 dark:text-white">لا توجد إشعارات</h3>
                       <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500 dark:text-slate-400">
-                        New chat messages, task updates, sales events, and stock alerts will appear here as they arrive.
+                        ستظهر رسائل الشات وتحديثات المهام والمبيعات وتنبيهات المخزون فور وصولها.
                       </p>
                     </div>
                   )}
@@ -1204,95 +1510,143 @@ export default function ManagerPortal() {
           ) : null}
 
           {activeTab === "today" ? (
-            <div data-testid="more-panel" className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                {[
-                  { label: "Present now", value: formatNumber(dashboard?.active_employees_now || 0), icon: Users, tone: "green" },
-                  { label: "Absent", value: formatNumber(dashboard?.absent_employees || 0), icon: X, tone: "slate" },
-                  { label: "Late", value: formatNumber(dashboard?.late_employees || 0), icon: Clock3, tone: "amber" },
-                  { label: "Open tasks", value: formatNumber(dashboard?.pending_tasks || 0), icon: ClipboardList, tone: "blue" },
-                  { label: "Overdue tasks", value: formatNumber(dashboard?.overdue_tasks || 0), icon: AlertTriangle, tone: "red" },
-                ].map((card) => (
-                  <Card key={card.label} subtitle={card.label} title={card.value} icon={card.icon} className={`border-white/80 ${card.tone === "green" ? "shadow-emerald-100/60" : ""}`} />
-                ))}
+            <div data-testid="manager-dashboard-panel" className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                <MiniMetric label="مبيعات اليوم" value={formatCurrency(dashboard?.today_sales_total || 0)} icon={ShoppingCart} tone="green" />
+                <MiniMetric label="عدد الفواتير" value={formatNumber(dashboard?.invoice_count || 0)} icon={ClipboardList} tone="cyan" />
+                <MiniMetric label="العملاء الساخنون" value={formatNumber(dedupedLeads.length || 0)} icon={Bot} tone="red" />
+                <MiniMetric label="رسائل الموظفين" value={formatNumber(employeeMessageNotifications.length || 0)} icon={MessageSquare} tone="blue" />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Card title={formatCurrency(dashboard?.today_sales_total || 0)} subtitle="Today sales" icon={ShoppingCart} />
-                <Card title={formatNumber(dashboard?.invoice_count || 0)} subtitle="Invoices" icon={ClipboardList} />
-                <Card title={formatCurrency(dashboard?.overview?.today?.averageOrderValue || 0)} subtitle="Average order value" icon={ArrowLeftRight} />
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+                <MiniMetric label="الحاضرون الآن" value={formatNumber(dashboard?.active_employees_now || 0)} icon={Users} tone="green" />
+                <MiniMetric label="الغائبون" value={formatNumber(dashboard?.absent_employees || 0)} icon={X} tone="slate" />
+                <MiniMetric label="المتأخرون" value={formatNumber(dashboard?.late_employees || 0)} icon={Clock3} tone="amber" />
+                <MiniMetric label="المهام المفتوحة" value={formatNumber(dashboard?.pending_tasks || 0)} icon={ClipboardList} tone="blue" />
+                <MiniMetric label="المهام المتأخرة" value={formatNumber(dashboard?.overdue_tasks || 0)} icon={AlertTriangle} tone="red" />
               </div>
 
-              <Card title="Operational events" subtitle="Latest 5 actions" icon={Bell}>
+              <Card title="الأحداث التشغيلية" subtitle="آخر ٥ أحداث" icon={Bell}>
                 {operationalEvents.length ? (
                   <div className="space-y-2">
                     {operationalEvents.map((event) => (
-                      <div key={event.key} className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+                      <button
+                        key={event.key}
+                        type="button"
+                        onClick={() => event.kind === "invoice" && event.invoiceId ? void openInvoiceDetail(event.invoiceId) : undefined}
+                        className={`flex w-full items-start justify-between gap-3 rounded-2xl border px-3 py-3 text-right transition ${
+                          event.kind === "invoice"
+                            ? "border-emerald-200 bg-emerald-50 hover:border-emerald-300 dark:border-emerald-400/20 dark:bg-emerald-400/10"
+                            : event.tone === "amber"
+                              ? "border-amber-200 bg-amber-50 dark:border-amber-400/25 dark:bg-amber-400/10"
+                              : event.tone === "red"
+                                ? "border-rose-200 bg-rose-50 dark:border-rose-400/25 dark:bg-rose-400/10"
+                                : "border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]"
+                        }`}
+                      >
                         <div className="min-w-0">
                           <div className="text-sm font-black text-slate-950 dark:text-white">{event.title}</div>
-                          <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">{event.detail || "No additional details"}</div>
+                          <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">{event.detail || "لا توجد تفاصيل إضافية"}</div>
                         </div>
                         <div className="shrink-0 text-right">
                           <StatusPill tone={event.tone || "slate"} value={formatDateTime(event.timestamp)} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState compact title="لا توجد أحداث بعد" body="ستظهر هنا الفواتير والمهام والعملاء الساخنون وتنبيهات إعادة العرض." />
+                )}
+              </Card>
+
+              <Card title="توزيع الدفع" subtitle="توزيع الدفع" icon={ArrowLeftRight}>
+                {paymentBreakdown.length ? (
+                  <div className="space-y-2">
+                    {paymentBreakdown.map((row) => (
+                      <div key={row.method} className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-bold text-emerald-950 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-50">
+                        <span>{paymentMethodLabel(row.method)}</span>
+                        <span>{formatCurrency(row.total || 0)} · {formatNumber(row.count || 0)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState compact title="لا توجد بيانات دفع" body="ستظهر طرق الدفع بعد تسجيل فواتير اليوم." />
+                )}
+              </Card>
+
+              <Card title="تنبيهات المخزون" subtitle="تنبيهات المخزون" icon={Package}>
+                {lowStock.length || refillAlerts.length ? (
+                  <div className="space-y-2">
+                    {refillAlerts.slice(0, 3).map((alert) => (
+                      <div key={`refill-${alert.id}`} className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-950 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100">
+                        <div className="font-black">إعادة عرض منتج: <InlineName>{portalText(alert.product_name || "منتج")}</InlineName></div>
+                        <div className="mt-1 text-xs font-bold opacity-80">{portalText(alert.color_name || alert.color || "")} {alert.replacement_size ? `· ${portalText(alert.replacement_size)}` : ""}</div>
+                      </div>
+                    ))}
+                    {lowStock.slice(0, 3).map((item) => (
+                      <div key={`low-${item.id}-${item.name}`} className="rounded-2xl border border-amber-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 dark:border-amber-500/20 dark:bg-white/[0.03] dark:text-slate-100">
+                        <div className="font-black">مطلوب إعادة طلب: <InlineName>{portalText(item.name || "منتج")}</InlineName></div>
+                        <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{formatNumber(item.stock || 0)} قطعة متبقية</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState compact title="لا توجد تنبيهات مخزون" body="سيظهر المخزون المنخفض وإعادة العرض عند اكتشافهما." />
+                )}
+              </Card>
+
+              <Card title="رؤى الذكاء الاصطناعي" subtitle="التحليلات الذكية" icon={Bot}>
+                {aiInsights.length ? (
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {aiInsights.map((item, index) => (
+                      <div key={`${item.title || item.body || index}`} className="rounded-2xl border border-sky-200 bg-sky-50 p-3 text-sm font-semibold leading-6 text-slate-800 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-50">
+                        <div className="text-xs font-black text-sky-700 dark:text-cyan-100">{insightTitleLabel(item.type, item.title)}</div>
+                        <div className="mt-1">{renderInsightBody(item)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState compact title="لا توجد رؤى مباشرة" body="ستظهر الإشارات المهمة عند توفر بيانات تشغيل كافية." />
+                )}
+              </Card>
+
+              <Card title="الإشعارات المباشرة" subtitle="الإشعارات المباشرة" icon={Bell}>
+                {visibleLiveFeed.length ? (
+                  <div className="space-y-2">
+                    {visibleLiveFeed.map((item) => (
+                      <div key={`feed-${item.id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-black text-slate-950 dark:text-white">{portalText(item.title || notificationTypeLabel(item))}</div>
+                            <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">{portalText(item.message || item.body || "لا توجد تفاصيل")}</div>
+                          </div>
+                          <StatusPill tone={item.is_read ? "slate" : "blue"} value={formatDateTime(item.created_at)} />
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <EmptyState compact title="No events yet" body="Task changes, invoices, leads, and refill alerts will appear here as they happen." />
+                  <EmptyState compact title="لا توجد إشعارات مباشرة" body="ستظهر رسائل الموظفين والمهام والمبيعات هنا فور وصولها." />
                 )}
               </Card>
 
-              <div className="grid gap-3 xl:grid-cols-2">
-                <Card title="توزيع الدفع" subtitle="Payment breakdown" icon={ArrowLeftRight}>
-                {paymentBreakdown.length ? (
-                    <div className="space-y-2">
-                      {paymentBreakdown.map((row) => (
-                        <div key={row.method} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700 dark:bg-white/[0.03] dark:text-slate-200">
-                          <span>{portalText(row.method)}</span>
-                          <span>{formatCurrency(row.total || 0)} · {formatNumber(row.count || 0)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState compact title="No payment data" body="Payments will appear once today has completed invoices." />
-                  )}
-                </Card>
-                <Card title="تنبيهات السحب / العرض" subtitle="Stock alerts" icon={Package}>
-                  {lowStock.length || refillAlerts.length ? (
-                    <div className="space-y-2">
-                      {refillAlerts.slice(0, 3).map((alert) => (
-                        <div key={`refill-${alert.id}`} className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
-                          <div className="font-black">{portalText(alert.product_name || "Display refill")}</div>
-                          <div className="mt-1 text-xs font-bold opacity-80">{portalText(alert.color_name || alert.color || "")} {alert.replacement_size ? `· ${portalText(alert.replacement_size)}` : ""}</div>
-                        </div>
-                      ))}
-                      {lowStock.slice(0, 3).map((item) => (
-                        <div key={`low-${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                          <div className="font-black">{portalText(item.name || "Unknown item")}</div>
-                          <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{formatNumber(item.stock || 0)} متبقي</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState compact title="No stock alerts" body="Low stock and refill alerts will show up when the system detects them." />
-                  )}
-                </Card>
-              </div>
-
-              <Card title="AI insights" subtitle="Simple intelligence" icon={Bot}>
-                {aiInsights.length ? (
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {aiInsights.map((item, index) => (
-                        <div key={`${item.title || item.body || index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold leading-6 text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                        <div className="text-xs font-black uppercase tracking-[0.14em] text-sky-600/70">{portalText(item.type || "insight")}</div>
-                        <div className="mt-1 font-black text-slate-950 dark:text-white">{portalText(item.title || "Insight")}</div>
-                        <div className="mt-1">{portalText(item.body || "-")}</div>
+              <Card title="المخزون المنخفض" subtitle="المخزون المنخفض" icon={Package}>
+                {visibleLowStock.length ? (
+                  <div className="space-y-2">
+                    {visibleLowStock.map((item) => (
+                      <div key={`low-only-${item.id}-${item.name}`} className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-950 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100">
+                        <div className="font-black"><InlineName>{portalText(item.name || "منتج")}</InlineName></div>
+                        <div className="mt-1 text-xs font-bold opacity-80">{portalText(item.color || "")} {item.size ? `· ${portalText(item.size)}` : ""} · {formatNumber(item.stock || 0)} قطعة</div>
                       </div>
                     ))}
-                </div>
+                    {hasMoreLowStock ? (
+                      <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center rounded-2xl border border-amber-200 bg-white px-4 py-2.5 text-sm font-black text-amber-900 dark:border-amber-500/25 dark:bg-white/[0.03] dark:text-amber-100">
+                        {showMoreLowStock ? "عرض أقل" : "عرض المزيد"}
+                      </button>
+                    ) : null}
+                  </div>
                 ) : (
-                  <EmptyState compact title="No live insights" body="Useful signals will appear here once there is enough operational data." />
+                  <EmptyState compact title="لا يوجد مخزون منخفض" body="لا توجد عناصر منخفضة حالياً." />
                 )}
               </Card>
             </div>
@@ -1301,21 +1655,21 @@ export default function ManagerPortal() {
           {activeTab === "staff" ? (
             <div className="space-y-3">
               {staffList.length ? staffList.map((employee) => (
-                <Card key={employee.employee_id} title={portalText(employee.employee_name || "Employee")} subtitle={portalText(employee.department || employee.job_title || "Staff")} icon={Users}>
+                <Card key={employee.employee_id} title={portalText(employee.employee_name || "موظف")} subtitle={portalText(employee.department || employee.job_title || "الفريق")} icon={Users}>
                   <div className="flex flex-wrap gap-2">
                     <StatusPill tone={employee.attendance_status === "checked_in" ? "green" : employee.attendance_status === "online" ? "blue" : "slate"} value={portalText(employee.attendance_status || "absent")} />
-                    <StatusPill tone="blue" value={portalText(`Tasks ${formatNumber(employee.open_tasks || 0)}/${formatNumber(employee.completed_tasks || 0)}`)} />
-                    <StatusPill tone="amber" value={portalText(`Sales ${formatCurrency(employee.sales_today || 0)}`)} />
+                    <StatusPill tone="blue" value={`المهام ${formatNumber(employee.open_tasks || 0)}/${formatNumber(employee.completed_tasks || 0)}`} />
+                    <StatusPill tone="amber" value={`المبيعات ${formatCurrency(employee.sales_today || 0)}`} />
                   </div>
                   <div className="mt-3 grid gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 sm:grid-cols-2">
-                    <div>{portalText("Attendance")}: {formatTime(employee.check_in_time)} - {formatTime(employee.check_out_time)}</div>
-                    <div>{portalText("Shift")}: {Number(employee.shift_duration_hours || 0).toFixed(2)} {portalText("hours")}</div>
-                    <div>{portalText("Invoices")}: {formatNumber(employee.invoices_count || 0)}</div>
-                    <div>{portalText("Last activity")}: {formatDateTime(employee.last_activity)}</div>
+                    <div>الحضور: {formatTime(employee.check_in_time)} - {formatTime(employee.check_out_time)}</div>
+                    <div>الوردية: {Number(employee.shift_duration_hours || 0).toFixed(2)} ساعة</div>
+                    <div>الفواتير: {formatNumber(employee.invoices_count || 0)}</div>
+                    <div>آخر نشاط: {formatDateTime(employee.last_activity)}</div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText("Expected commission")} {employee.expected_commission == null ? portalText("Unavailable") : formatCurrency(employee.expected_commission || 0)}</Badge>
-                    <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText("Open tasks")} {formatNumber(employee.open_tasks || 0)}</Badge>
+                    <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">العمولة المتوقعة {employee.expected_commission == null ? "غير متاحة" : formatCurrency(employee.expected_commission || 0)}</Badge>
+                    <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">المهام المفتوحة {formatNumber(employee.open_tasks || 0)}</Badge>
                   </div>
                 </Card>
               )) : (
@@ -1347,7 +1701,7 @@ export default function ManagerPortal() {
                 <textarea value={taskDraft.description} onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))} placeholder="الوصف" rows={3} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
               </Card>
 
-              <Card title="المرشحات" subtitle="Filters" icon={Search}>
+              <Card title="المرشحات" subtitle="المرشحات" icon={Search}>
                 <div className="grid gap-2 md:grid-cols-4">
                   <input
                     value={taskFilters.query}
@@ -1360,47 +1714,47 @@ export default function ManagerPortal() {
                     onChange={(event) => setTaskFilters((current) => ({ ...current, status: event.target.value }))}
                     className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
                   >
-                    <option value="all">All statuses</option>
-                    <option value="open">Open tasks</option>
-                    <option value="completed">Completed tasks</option>
-                    <option value="overdue">Overdue tasks</option>
-                    <option value="pending">Pending</option>
-                    <option value="in_progress">In progress</option>
-                    <option value="manager_review">Manager review</option>
-                    <option value="reassigned">Reassigned</option>
-                    <option value="rejected">Rejected</option>
+                    <option value="all">كل الحالات</option>
+                    <option value="open">المهام المفتوحة</option>
+                    <option value="completed">المهام المكتملة</option>
+                    <option value="overdue">المهام المتأخرة</option>
+                    <option value="pending">قيد الانتظار</option>
+                    <option value="in_progress">قيد التنفيذ</option>
+                    <option value="manager_review">مراجعة المدير</option>
+                    <option value="reassigned">معاد إسنادها</option>
+                    <option value="rejected">مرفوضة</option>
                   </select>
                   <select
                     value={taskFilters.employee}
                     onChange={(event) => setTaskFilters((current) => ({ ...current, employee: event.target.value }))}
                     className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
                   >
-                    <option value="">All employees</option>
+                    <option value="">كل الموظفين</option>
                     {employeeFilterOptions.map((employee) => (
                       <option key={employee.value || employee.label} value={employee.value || employee.label}>{employee.label}</option>
                     ))}
                   </select>
                   <button type="button" onClick={() => setTaskFilters({ status: "all", employee: "", query: "" })} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                    Reset filters
+                    مسح المرشحات
                   </button>
                 </div>
               </Card>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <Card title={formatNumber(taskCounts.open)} subtitle="Open tasks" icon={ClipboardList} />
-                <Card title={formatNumber(taskCounts.completed)} subtitle="Completed tasks" icon={CheckCheck} />
-                <Card title={formatNumber(taskCounts.overdue)} subtitle="Overdue tasks" icon={AlertTriangle} />
+                <Card title={formatNumber(taskCounts.open)} subtitle="المهام المفتوحة" icon={ClipboardList} />
+                <Card title={formatNumber(taskCounts.completed)} subtitle="المهام المكتملة" icon={CheckCheck} />
+                <Card title={formatNumber(taskCounts.overdue)} subtitle="المهام المتأخرة" icon={AlertTriangle} />
               </div>
 
-              <Card title="Open tasks list" subtitle="Operational queue" icon={ClipboardList}>
+              <Card title="قائمة المهام المفتوحة" subtitle="قائمة التشغيل" icon={ClipboardList}>
                 {openTasks.length ? <div className="space-y-3">{openTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="لا توجد مهام مفتوحة" body="لا توجد مهام مطابقة للمرشحات الحالية." />}
               </Card>
 
-              <Card title="Completed tasks list" subtitle="Proof ready" icon={CheckCheck}>
+              <Card title="قائمة المهام المكتملة" subtitle="الإثبات جاهز" icon={CheckCheck}>
                 {completedTasks.length ? <div className="space-y-3">{completedTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="لا توجد مهام مكتملة" body="المهام المكتملة ستظهر هنا مع معاينة الإثبات." />}
               </Card>
 
-              <Card title="Overdue tasks list" subtitle="Needs attention" icon={AlertTriangle}>
+              <Card title="قائمة المهام المتأخرة" subtitle="تحتاج انتباه" icon={AlertTriangle}>
                 {overdueTasks.length ? <div className="space-y-3">{overdueTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="لا توجد مهام متأخرة" body="المهام المتأخرة أو المستحقة ستظهر هنا." />}
               </Card>
             </div>
@@ -1409,23 +1763,23 @@ export default function ManagerPortal() {
           {activeTab === "sales" ? (
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Card title={formatCurrency(sales?.overview?.today?.sales || dashboard?.today_sales_total || 0)} subtitle="Today sales" icon={ShoppingCart} />
-                <Card title={formatNumber(sales?.overview?.today?.orders || dashboard?.invoice_count || 0)} subtitle="Invoices" icon={ClipboardList} />
-                {canViewProfit ? <Card title={formatCurrency(sales?.overview?.today?.profit || 0)} subtitle="Profit" icon={SunMedium} /> : <Card title="—" subtitle="Profit hidden" icon={SunMedium} />}
-                <Card title={formatCurrency(sales?.overview?.today?.averageOrderValue || 0)} subtitle="Average order" icon={ArrowLeftRight} />
+                <Card title={formatCurrency(sales?.overview?.today?.sales || dashboard?.today_sales_total || 0)} subtitle="مبيعات اليوم" icon={ShoppingCart} />
+                <Card title={formatNumber(sales?.overview?.today?.orders || dashboard?.invoice_count || 0)} subtitle="الفواتير" icon={ClipboardList} />
+                {canViewProfit ? <Card title={formatCurrency(sales?.overview?.today?.profit || 0)} subtitle="الربح" icon={SunMedium} /> : <Card title="—" subtitle="الربح مخفي" icon={SunMedium} />}
+                <Card title={formatCurrency(sales?.overview?.today?.averageOrderValue || 0)} subtitle="متوسط الفاتورة" icon={ArrowLeftRight} />
               </div>
               <div className="grid gap-4 xl:grid-cols-2">
-                <Card title="Top seller" subtitle="30-day leader" icon={Trophy}>
+                <Card title="أفضل بائع" subtitle="آخر ٣٠ يوم" icon={Trophy}>
                   {salesLeaders.top_seller ? (
                     <div className="space-y-2 rounded-2xl bg-emerald-50 px-4 py-4 text-slate-900 dark:bg-emerald-500/10 dark:text-white">
-                      <div className="text-lg font-black">{portalText(salesLeaders.top_seller.seller_name || "Unknown seller")}</div>
+                      <div className="text-lg font-black">{portalText(salesLeaders.top_seller.seller_name || "بائع غير محدد")}</div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
-                        <div>Revenue: {formatCurrency(salesLeaders.top_seller.revenue || 0)}</div>
-                        <div>Orders: {formatNumber(salesLeaders.top_seller.orders_count || 0)}</div>
+                        <div>الإيراد: {formatCurrency(salesLeaders.top_seller.revenue || 0)}</div>
+                        <div>الفواتير: {formatNumber(salesLeaders.top_seller.orders_count || 0)}</div>
                       </div>
                     </div>
                   ) : (
-                    <EmptyState title="No seller data" body="Sales by seller will appear once orders are linked to employees." />
+                    <EmptyState title="لا توجد بيانات بائع" body="ستظهر مبيعات البائعين بعد ربط الفواتير بالموظفين." />
                   )}
                 </Card>
                 <Card title="Worst seller" subtitle="30-day laggard" icon={Medal}>
@@ -1444,30 +1798,30 @@ export default function ManagerPortal() {
               </div>
 
               <div className="grid gap-4 xl:grid-cols-2">
-                <Card title="Best category" subtitle="30-day category leader" icon={Package}>
+                <Card title="أفضل تصنيف" subtitle="آخر ٣٠ يوم" icon={Package}>
                   {bestCategory ? (
                     <div className="space-y-2 rounded-2xl bg-sky-50 px-4 py-4 text-slate-900 dark:bg-sky-500/10 dark:text-white">
                       <div className="text-lg font-black">{portalText(bestCategory.name || "Uncategorized")}</div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
-                        <div>Revenue: {formatCurrency(bestCategory.revenue || 0)}</div>
+                        <div>الإيراد: {formatCurrency(bestCategory.revenue || 0)}</div>
                         <div>Units: {formatNumber(bestCategory.quantity || 0)}</div>
                       </div>
                     </div>
                   ) : (
-                    <EmptyState title="No category data" body="Category performance appears once sold items can be linked to products." />
+                    <EmptyState title="لا توجد بيانات تصنيفات" body="ستظهر التصنيفات بعد ربط بنود البيع بالمنتجات." />
                   )}
                 </Card>
-                <Card title="Best brand" subtitle="30-day brand leader" icon={Store}>
+                <Card title="أفضل علامة" subtitle="آخر ٣٠ يوم" icon={Store}>
                   {bestBrand ? (
                     <div className="space-y-2 rounded-2xl bg-violet-50 px-4 py-4 text-slate-900 dark:bg-violet-500/10 dark:text-white">
                       <div className="text-lg font-black">{portalText(bestBrand.name || "Unbranded")}</div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
-                        <div>Revenue: {formatCurrency(bestBrand.revenue || 0)}</div>
+                        <div>الإيراد: {formatCurrency(bestBrand.revenue || 0)}</div>
                         <div>Units: {formatNumber(bestBrand.quantity || 0)}</div>
                       </div>
                     </div>
                   ) : (
-                    <EmptyState title="No brand data" body="Brand performance appears once sold items can be linked to products." />
+                    <EmptyState title="لا توجد بيانات علامات" body="ستظهر العلامات بعد ربط بنود البيع بالمنتجات." />
                   )}
                 </Card>
               </div>
@@ -1477,13 +1831,13 @@ export default function ManagerPortal() {
                   <div className="grid gap-3 sm:grid-cols-3">
                     {[
                       {
-                        label: "Sales",
+                        label: "المبيعات",
                         today: formatCurrency(salesComparison.today_sales || sales?.overview?.today?.sales || 0),
                         yesterday: formatCurrency(salesComparison.yesterday_sales || 0),
                         delta: salesComparison.sales_growth || 0,
                       },
                       {
-                        label: "Invoices",
+                        label: "الفواتير",
                         today: formatNumber(salesComparison.today_orders || sales?.overview?.today?.orders || 0),
                         yesterday: formatNumber(salesComparison.yesterday_orders || 0),
                         delta: salesComparison.orders_growth || 0,
@@ -1501,7 +1855,7 @@ export default function ManagerPortal() {
                         <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                           <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{item.label}</div>
                           <div className="mt-2 text-lg font-black text-slate-950 dark:text-white">{item.today}</div>
-                          <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">Yesterday: {item.yesterday}</div>
+                          <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">أمس: {item.yesterday}</div>
                           <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${positive ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-200" : "bg-rose-500/10 text-rose-700 dark:text-rose-200"}`}>
                             {positive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                             {delta >= 0 ? "+" : ""}
@@ -1513,22 +1867,22 @@ export default function ManagerPortal() {
                   </div>
                 </Card>
 
-                <Card title="Average invoice" subtitle="Ticket size" icon={ClipboardList}>
+                <Card title="متوسط الفاتورة" subtitle="قيمة الفاتورة" icon={ClipboardList}>
                   <div className="space-y-3">
                     <div className="rounded-2xl bg-amber-50 px-4 py-4 text-slate-900 dark:bg-amber-500/10 dark:text-white">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-300">Today</div>
+                      <div className="text-xs font-black text-slate-500 dark:text-slate-300">اليوم</div>
                       <div className="mt-2 text-3xl font-black">{formatCurrency(salesComparison.today_average_invoice || sales?.overview?.today?.averageOrderValue || 0)}</div>
                       <div className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                        Yesterday: {formatCurrency(salesComparison.yesterday_average_invoice || 0)}
+                        أمس: {formatCurrency(salesComparison.yesterday_average_invoice || 0)}
                       </div>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
                       <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Today's invoices</div>
+                        <div className="text-xs font-black text-slate-400">فواتير اليوم</div>
                         <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{formatNumber(salesComparison.today_orders || sales?.overview?.today?.orders || 0)}</div>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Growth</div>
+                        <div className="text-xs font-black text-slate-400">النمو</div>
                         <div className={`mt-1 inline-flex items-center gap-1 text-lg font-black ${Number(salesComparison.average_invoice_growth || 0) >= 0 ? "text-emerald-600 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300"}`}>
                           {Number(salesComparison.average_invoice_growth || 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
                           {Number(salesComparison.average_invoice_growth || 0) >= 0 ? "+" : ""}
@@ -1540,26 +1894,26 @@ export default function ManagerPortal() {
                 </Card>
               </div>
 
-              <Card title="Last 7 days trend" subtitle="Revenue and invoices" icon={Clock3}>
+              <Card title="اتجاه آخر ٧ أيام" subtitle="الإيراد والفواتير" icon={Clock3}>
                 {trend7d.length ? (
                   <div className="space-y-4">
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                       <div className="rounded-2xl bg-slate-50 px-3 py-3 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">7-day revenue</div>
+                        <div className="text-xs font-black text-slate-400">إيراد ٧ أيام</div>
                         <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">{formatCurrency(trend7d.reduce((sum, item) => sum + Number(item.revenue || 0), 0))}</div>
                       </div>
                       <div className="rounded-2xl bg-slate-50 px-3 py-3 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">7-day invoices</div>
+                        <div className="text-xs font-black text-slate-400">فواتير ٧ أيام</div>
                         <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">{formatNumber(trend7d.reduce((sum, item) => sum + Number(item.orders || 0), 0))}</div>
                       </div>
                       <div className="rounded-2xl bg-slate-50 px-3 py-3 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Best day</div>
+                        <div className="text-xs font-black text-slate-400">أفضل يوم</div>
                         <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">
                           {formatShortDay(trend7d.reduce((best, item) => (Number(item.revenue || 0) > Number(best?.revenue || 0) ? item : best), trend7d[0] || {}).day)}
                         </div>
                       </div>
                       <div className="rounded-2xl bg-slate-50 px-3 py-3 dark:bg-white/[0.03]">
-                        <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Peak revenue</div>
+                        <div className="text-xs font-black text-slate-400">أعلى إيراد</div>
                         <div className="mt-1 text-xl font-black text-slate-950 dark:text-white">{formatCurrency(Math.max(...trend7d.map((item) => Number(item.revenue || 0)), 0))}</div>
                       </div>
                     </div>
@@ -1574,14 +1928,14 @@ export default function ManagerPortal() {
                             </div>
                             <div className="mt-3 text-xs font-black text-slate-500 dark:text-slate-300">{formatShortDay(item.day)}</div>
                             <div className="mt-1 text-sm font-black text-slate-950 dark:text-white">{formatCurrency(item.revenue || 0)}</div>
-                            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{formatNumber(item.orders || 0)} invoices</div>
+                            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{formatNumber(item.orders || 0)} فاتورة</div>
                           </div>
                         );
                       })}
                     </div>
                   </div>
                 ) : (
-                  <EmptyState title="No 7-day trend" body="Daily trend data will appear after recent orders exist." />
+                  <EmptyState title="لا يوجد اتجاه ٧ أيام" body="سيظهر الاتجاه اليومي بعد توفر فواتير حديثة." />
                 )}
               </Card>
 
@@ -1640,6 +1994,7 @@ export default function ManagerPortal() {
             <SharedPortalChat
               apiAdapter={managerChatApiAdapter}
               employees={staffList}
+              selectedEmployeeId={queryEmployeeId}
               onThreadChange={setManagerChatState}
               headerTitle="محادثات الموظفين"
               headerKicker="بوابة المدير / الشات"
@@ -1649,68 +2004,68 @@ export default function ManagerPortal() {
                 selectedChatEmployee ? (
                   <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto pr-1" dir="rtl">
                     <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Employee</div>
-                      <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{portalText(selectedChatEmployee.employee_name || selectedChatEmployee.full_name || selectedChatThread?.employee_name || "Employee")}</div>
+                      <div className="text-xs font-black tracking-[0.16em] text-slate-400">الموظف</div>
+                      <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{portalText(selectedChatEmployee.employee_name || selectedChatEmployee.full_name || selectedChatThread?.employee_name || "موظف")}</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <StatusPill tone={selectedChatAttendanceTone} value={selectedChatAttendanceStatus} />
-                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee.branch_name || selectedChatThread?.branch_name || "No branch")}</Badge>
-                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee.employee_code || "No code")}</Badge>
+                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee.branch_name || selectedChatThread?.branch_name || "لا يوجد فرع")}</Badge>
+                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee.employee_code || "لا يوجد كود")}</Badge>
                       </div>
                     </div>
 
                     <div className="grid gap-2 sm:grid-cols-2">
                       <div className="rounded-[1.3rem] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Last activity</div>
+                        <div className="text-[11px] font-black text-slate-400">آخر نشاط</div>
                         <div className="mt-1 text-sm font-black text-slate-950 dark:text-white">{formatDateTime(selectedChatLastActivity)}</div>
                       </div>
                       <div className="rounded-[1.3rem] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Open tasks</div>
+                        <div className="text-[11px] font-black text-slate-400">المهام المفتوحة</div>
                         <div className="mt-1 text-2xl font-black text-slate-950 dark:text-white">{formatNumber(selectedChatOpenTasks)}</div>
                       </div>
                     </div>
 
                     <div className="rounded-[1.3rem] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Attendance snapshot</div>
+                      <div className="text-xs font-black text-slate-400">ملخص الحضور</div>
                       <div className="mt-3 grid gap-2">
                         <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                          <span>Status</span>
+                          <span>الحالة</span>
                           <span className="font-black text-slate-950 dark:text-white">{portalText(selectedChatAttendanceStatus)}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                          <span>Check-in</span>
+                          <span>الحضور</span>
                           <span dir="ltr" className="font-black text-slate-950 dark:text-white">{formatDateTime(selectedChatCheckIn)}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                          <span>Check-out</span>
+                          <span>الانصراف</span>
                           <span dir="ltr" className="font-black text-slate-950 dark:text-white">{formatDateTime(selectedChatCheckOut)}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                          <span>Shift hours</span>
+                          <span>ساعات الوردية</span>
                           <span className="font-black text-slate-950 dark:text-white">{selectedChatShiftHours.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                          <span>Late minutes</span>
+                          <span>دقائق التأخير</span>
                           <span className="font-black text-slate-950 dark:text-white">{formatNumber(selectedChatLateMinutes)}</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="rounded-[1.3rem] border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Sales snapshot</div>
+                      <div className="text-xs font-black text-slate-400">ملخص المبيعات</div>
                       <div className="mt-3 grid gap-2">
                         <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                          <span>Sales today</span>
+                          <span>مبيعات اليوم</span>
                           <span className="font-black text-slate-950 dark:text-white">{formatCurrency(selectedChatSalesTotal)}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                          <span>Invoices</span>
+                          <span>الفواتير</span>
                           <span className="font-black text-slate-950 dark:text-white">{formatNumber(selectedChatInvoices)}</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="rounded-[1.3rem] border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold leading-6 text-emerald-950 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-emerald-700/80 dark:text-emerald-200/80">Quick summary</div>
+                      <div className="text-xs font-black text-emerald-700/80 dark:text-emerald-200/80">ملخص سريع</div>
                       <div className="mt-2">آخر نشاط: {formatDateTime(selectedChatLastActivity)}</div>
                       <div>المحادثة غير المقروءة: {formatNumber(selectedChatUnread)}</div>
                     </div>
@@ -1726,12 +2081,12 @@ export default function ManagerPortal() {
           {activeTab === "more" ? (
             <div className="space-y-4">
               <div className="grid gap-4 xl:grid-cols-2">
-                <Card title="الملف الشخصي" subtitle="Manager profile" icon={Building2}>
+                <Card title="الملف الشخصي" subtitle="ملف المدير" icon={Building2}>
                   <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
-                    <div className="font-black text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || "Manager")}</div>
+                    <div className="font-black text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || "المدير")}</div>
                     <div>{portalText(me?.role || "manager")} · {portalText(me?.department || "—")}</div>
-                    <div>{portalText(me?.user_email || "No email")}</div>
-                    <div>{formatNumber(me?.permissions?.length || 0)} permissions</div>
+                    <div>{portalText(me?.user_email || "لا يوجد بريد")}</div>
+                    <div>{formatNumber(me?.permissions?.length || 0)} صلاحية</div>
                   </div>
                 </Card>
                 <Card title="بيانات الفرع" subtitle="Branch info" icon={Store}>
@@ -1742,13 +2097,13 @@ export default function ManagerPortal() {
                     <div>Unread: {formatNumber(unreadCount || notificationsUnread)}</div>
                   </div>
                 </Card>
-                <Card title="روابط سريعة" subtitle="Quick links" icon={ChevronRight}>
+                <Card title="روابط سريعة" subtitle="روابط سريعة" icon={ChevronRight}>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {[
-                      ["Today", "today"],
-                      ["Staff", "staff"],
-                      ["Tasks", "tasks"],
-                      ["Sales", "sales"],
+                      ["اليوم", "today"],
+                      ["الفريق", "staff"],
+                      ["المهام", "tasks"],
+                      ["المبيعات", "sales"],
                       ["Chat", "chat"],
                     ].map(([label, tab]) => (
                       <button key={tab} type="button" onClick={() => setActiveTab(tab)} className="inline-flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-3 text-right text-sm font-black text-slate-800 transition hover:border-sky-300 hover:bg-sky-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:hover:border-sky-500/30 dark:hover:bg-sky-500/10">
@@ -1758,11 +2113,11 @@ export default function ManagerPortal() {
                     ))}
                   </div>
                 </Card>
-                <Card title="سجل الإشعارات" subtitle="Notification history" icon={Bell}>
+                <Card title="سجل الإشعارات" subtitle="سجل الإشعارات" icon={Bell}>
                   <div className="space-y-2">
                     {notifications.slice(0, 3).length ? notifications.slice(0, 3).map((item) => (
                       <div key={`history-${item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                        <div className="font-black text-slate-950 dark:text-white">{portalText(item.title || item.type || "Notification")}</div>
+                        <div className="font-black text-slate-950 dark:text-white">{portalText(item.title || item.type || "إشعار")}</div>
                         <div className="mt-1 line-clamp-2 text-xs opacity-80">{portalText(item.message || item.body || "")}</div>
                         <div className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{formatDateTime(item.created_at)}</div>
                       </div>
@@ -1771,7 +2126,7 @@ export default function ManagerPortal() {
                 </Card>
               </div>
 
-              <Card title="إعدادات التنبيه" subtitle="Notifications settings" icon={Bell}>
+              <Card title="إعدادات التنبيه" subtitle="إعدادات الإشعارات" icon={Bell}>
                 <div className="grid gap-3 md:grid-cols-2">
                   {Object.entries(settings).map(([category, config]) => (
                     <div key={category} className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
@@ -1781,6 +2136,7 @@ export default function ManagerPortal() {
                       </div>
                       <Toggle label="صوت" checked={Boolean(config.sound)} onChange={(value) => onCategoryToggle(category, "sound", value)} />
                       <Toggle label="Toast" checked={Boolean(config.toast)} onChange={(value) => onCategoryToggle(category, "toast", value)} />
+                      <Toggle label="Push" checked={Boolean(config.push)} onChange={(value) => onCategoryToggle(category, "push", value)} />
                     </div>
                   ))}
                 </div>
@@ -1799,7 +2155,45 @@ export default function ManagerPortal() {
                 </div>
               </Card>
 
-              <Card title="ملخص سريع" subtitle="Quick stats" icon={Megaphone}>
+              <Card title="إشعارات Push" subtitle="Real mobile web push" icon={Smartphone}>
+                <div className="space-y-3">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Badge className={`${pushState.supported ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
+                      {pushState.supported ? "Supported" : "Not supported"}
+                    </Badge>
+                    <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
+                      Permission: {portalText(pushState.permission)}
+                    </Badge>
+                    <Badge className={`${pushState.subscribed ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
+                      Subscription: {pushState.subscribed ? "active" : "inactive"}
+                    </Badge>
+                    <Badge className={`${standalone ? "border-sky-200 bg-sky-50 text-sky-800" : "border-amber-200 bg-amber-50 text-amber-800"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
+                      {standalone ? "Installed PWA" : "Browser tab"}
+                    </Badge>
+                  </div>
+                  {pushState.endpointHost ? (
+                    <div className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500 dark:bg-white/[0.03] dark:text-slate-300" dir="ltr">{pushState.endpointHost}</div>
+                  ) : null}
+                  {isIosDevice() && !standalone ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-bold leading-6 text-amber-950 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
+                      على iPhone يجب فتح بوابة المدير من التطبيق المثبت بعد Add to Home Screen لتفعيل Push Notifications.
+                    </div>
+                  ) : null}
+                  {pushState.message ? <div className="text-xs font-bold text-slate-500 dark:text-slate-300">{pushState.message}</div> : null}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={enablePushNotifications} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-cyan-300 dark:text-slate-950">
+                      {pushState.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                      {pushState.subscribed ? "تحديث Push Notifications" : "Enable Push Notifications"}
+                    </button>
+                    <button type="button" disabled={pushState.saving || !pushState.subscribed} onClick={disablePushNotifications} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                      <X className="h-4 w-4" />
+                      إيقاف Push
+                    </button>
+                  </div>
+                </div>
+              </Card>
+
+              <Card title="ملخص سريع" subtitle="ملخص سريع" icon={Megaphone}>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div className="rounded-2xl bg-slate-950 p-4 text-white">
                     <div className="text-xs font-black text-white/60">إشعارات غير مقروءة</div>
@@ -1807,7 +2201,7 @@ export default function ManagerPortal() {
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-4 text-slate-900 dark:bg-white/[0.03] dark:text-white">
                     <div className="text-xs font-black text-slate-400">صلاحيات</div>
-                    <div className="mt-1 text-sm font-semibold leading-6">{(me?.permissions || []).length ? `${formatNumber(me.permissions.length)} permission(s)` : "لا توجد صلاحيات ظاهرة"}</div>
+                    <div className="mt-1 text-sm font-semibold leading-6">{(me?.permissions || []).length ? `${formatNumber(me.permissions.length)} صلاحية` : "لا توجد صلاحيات ظاهرة"}</div>
                   </div>
                 </div>
               </Card>
@@ -1816,74 +2210,91 @@ export default function ManagerPortal() {
         </section>
 
         <aside className="space-y-3">
-              <Card title="الإشعارات" subtitle="Live feed" icon={Bell} className="min-h-0" compact bodyClassName="space-y-2">
+          <Card title="الإشعارات المباشرة" subtitle="الإشعارات المباشرة" icon={Bell} className="min-h-0" compact bodyClassName="space-y-2">
             <div data-testid="notifications-panel" />
             <div className="space-y-1.5">
-              {visibleNotifications.length ? visibleNotifications.map((item) => (
-                <button key={item.id} type="button" data-testid={`notification-${item.id}`} onClick={() => void markNotificationRead(item.id)} className={`w-full rounded-2xl border px-3 py-2.5 text-right transition ${item.is_read ? "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300" : "border-sky-200 bg-sky-50 text-slate-950 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-white"}`}>
+              {visibleLiveFeed.length ? visibleLiveFeed.map((item) => {
+                const isEmployeeMessage = categoryFromNotification(item) === "employee_chat";
+                const isInvoiceNotification = categoryFromNotification(item) === "sales" && (item.metadata?.invoice_id || item.metadata?.order_id || item.entity_id);
+                return (
+                <div key={item.id} data-testid={`notification-${item.id}`} className={`w-full rounded-2xl border px-3 py-2.5 text-right transition ${item.is_read ? "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300" : "border-sky-200 bg-sky-50 text-slate-950 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-white"}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-black">{portalText(item.title || item.type || "Notification")}</div>
-                      <div className="mt-1 line-clamp-1 text-xs font-semibold opacity-80">{portalText(item.message || item.body || "")}</div>
+                      <div className="truncate text-sm font-black">{portalText(isEmployeeMessage ? item.metadata?.employee_name || item.title || "رسالة موظف" : item.title || notificationTypeLabel(item))}</div>
+                      <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 opacity-80">{portalText(item.message || item.body || "لا توجد تفاصيل")}</div>
+                      <div className="mt-1 text-[11px] font-bold opacity-70">{formatDateTime(item.created_at)}</div>
                     </div>
-                    <StatusPill tone={item.is_read ? "slate" : "blue"} value={portalText(item.category || "system")} />
+                    <StatusPill tone={item.is_read ? "slate" : "blue"} value={notificationTypeLabel(item)} />
                   </div>
-                </button>
-              )) : <EmptyState title="لا توجد إشعارات" body="ستظهر هنا الإشعارات الحية عند وصولها." />}
+                  {isEmployeeMessage ? (
+                    <button type="button" onClick={() => void openNotification(item)} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-cyan-300 dark:text-slate-950">
+                      فتح المحادثة
+                    </button>
+                  ) : null}
+                  {isInvoiceNotification ? (
+                    <button type="button" onClick={() => void openNotification(item)} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white dark:bg-cyan-300 dark:text-slate-950">
+                      عرض الفاتورة
+                    </button>
+                  ) : null}
+                </div>
+              );}) : <EmptyState title="لا توجد إشعارات" body="ستظهر هنا الإشعارات الحية عند وصولها." />}
             </div>
             {hasMoreNotifications ? (
               <button type="button" onClick={() => setShowMoreNotifications((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                {showMoreNotifications ? "Show less" : "Show more"}
+                {showMoreNotifications ? "عرض أقل" : "عرض المزيد"}
               </button>
             ) : null}
           </Card>
 
-          <Card title="AI + alerts" subtitle="Right rail" icon={Bot} compact bodyClassName="space-y-2">
+          <Card title="التنبيهات الذكية" subtitle="التنبيهات الذكية" icon={Bot} compact bodyClassName="space-y-2">
             <div className="space-y-1.5">
               {visibleAiInsights.map((insight, index) => (
-                <div key={`${insight.title || index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-2.5 text-sm font-semibold leading-5 text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                  <div className="text-xs font-black uppercase tracking-[0.12em] text-sky-600/70">{portalText(insight.type || "insight")}</div>
-                  <div className="mt-1 truncate font-black text-slate-950 dark:text-white">{portalText(insight.title || "-")}</div>
-                  <div className="mt-1 line-clamp-2">{portalText(insight.body || "-")}</div>
+                <div key={`${insight.title || index}`} className="rounded-2xl border border-sky-200 bg-sky-50 p-2.5 text-sm font-semibold leading-5 text-slate-800 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-50">
+                  <div className="text-xs font-black text-sky-700 dark:text-cyan-100">{insightTitleLabel(insight.type, insight.title)}</div>
+                  <div className="mt-1 line-clamp-3">{renderInsightBody(insight)}</div>
                 </div>
               ))}
               {!aiInsights.length ? <EmptyState title="لا توجد رؤى" body="إذا لم توجد بيانات حقيقية فلن نضيف افتراضات." /> : null}
             </div>
             {hasMoreAiInsights ? (
               <button type="button" onClick={() => setShowMoreAiInsights((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                {showMoreAiInsights ? "Show less" : "Show more"}
+                {showMoreAiInsights ? "عرض أقل" : "عرض المزيد"}
               </button>
             ) : null}
           </Card>
 
-          <Card title="AI leads" subtitle="Hot leads" icon={Store} compact bodyClassName="space-y-2">
+          <Card title="العملاء الساخنون" subtitle="العملاء الساخنون" icon={Store} compact bodyClassName="space-y-2">
             <div className="space-y-1.5">
               {visibleLeads.length ? visibleLeads.map((lead) => (
-                <div key={lead.session_id} className="rounded-2xl border border-rose-200 bg-rose-50 p-2.5 text-sm font-semibold leading-5 text-rose-900 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
-                  <div className="font-black">{portalText(lead.ai_insight || lead.session_id)}</div>
-                  <div className="mt-1 text-xs font-bold opacity-80">Score {formatNumber(lead.lead_score || 0)}</div>
+                <div key={leadIdentity(lead)} className="rounded-2xl border border-rose-200 bg-rose-50 p-2.5 text-sm font-semibold leading-5 text-rose-950 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-100">
+                  <div className="font-black">{leadName(lead)}</div>
+                  <div className="mt-1 text-xs font-bold opacity-80">{leadChannel(lead)} · الدرجة {formatNumber(lead.lead_score || 0)}</div>
+                  <div className="mt-1 line-clamp-2 text-xs font-semibold opacity-90">{leadPreview(lead)}</div>
+                  <button type="button" onClick={() => setActiveTab("chat")} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-rose-700 px-3 text-xs font-black text-white dark:bg-rose-300 dark:text-rose-950">
+                    فتح المحادثة
+                  </button>
                 </div>
               )) : <EmptyState title="لا توجد عملاء محتملون ساخنون" body="سيظهر هنا المصدر الحقيقي عند توفره." />}
             </div>
             {hasMoreLeads ? (
               <button type="button" onClick={() => setShowMoreLeads((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                {showMoreLeads ? "Show less" : "Show more"}
+                {showMoreLeads ? "عرض أقل" : "عرض المزيد"}
               </button>
             ) : null}
           </Card>
 
-          <Card title="المخزون السريع" subtitle="Low stock" icon={Package} compact bodyClassName="space-y-2">
+          <Card title="المخزون المنخفض" subtitle="المخزون المنخفض" icon={Package} compact bodyClassName="space-y-2">
             <div className="space-y-1.5">
               {visibleLowStock.length ? visibleLowStock.map((item) => (
-                <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                  <div className="font-black">{portalText(item.name || "-")}</div>
+                <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-950 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100">
+                  <div className="font-black"><InlineName>{portalText(item.name || "-")}</InlineName></div>
                   <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{portalText(item.color || item.size || "")} · {formatNumber(item.stock || 0)}</div>
                 </div>
               )) : <EmptyState title="لا توجد عناصر منخفضة" body="لن نعرض مخزونًا منخفضًا غير موجود في المصدر." />}
             </div>
             {hasMoreLowStock ? (
               <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                {showMoreLowStock ? "Show less" : "Show more"}
+                {showMoreLowStock ? "عرض أقل" : "عرض المزيد"}
               </button>
             ) : null}
           </Card>
@@ -1909,6 +2320,151 @@ export default function ManagerPortal() {
           })}
         </div>
       </nav>
+
+      {invoiceSheet.open ? (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/55 backdrop-blur-sm sm:items-center">
+          <button type="button" aria-label="إغلاق تفاصيل الفاتورة" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="absolute inset-0" />
+          <section className="relative max-h-[92dvh] w-full max-w-3xl overflow-hidden rounded-t-[2rem] border border-white/70 bg-white shadow-2xl dark:border-white/10 dark:bg-[#07111f] sm:rounded-[2rem]" dir="rtl">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 dark:border-white/10">
+              <div>
+                <div className="text-xs font-black text-emerald-600 dark:text-emerald-300">تفاصيل الفاتورة</div>
+                <h2 className="mt-1 text-xl font-black text-slate-950 dark:text-white">{invoiceSheet.invoice?.invoice_number || "فاتورة"}</h2>
+              </div>
+              <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(92dvh-5rem)] overflow-y-auto px-4 py-4">
+              {invoiceSheet.loading ? (
+                <div className="flex min-h-64 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin" /></div>
+              ) : invoiceSheet.error ? (
+                <EmptyState title="تعذر تحميل الفاتورة" body={invoiceSheet.error} />
+              ) : invoiceSheet.invoice ? (
+                <div className="space-y-4">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {[
+                      ["رقم الفاتورة", invoiceSheet.invoice.invoice_number],
+                      ["رقم الطلب", invoiceSheet.invoice.public_order_number || invoiceSheet.invoice.order_id || invoiceSheet.invoice.id || "-"],
+                      ["الحالة", invoiceSheet.invoice.status || "-"],
+                      ["التاريخ", formatDateTime(invoiceSheet.invoice.created_at)],
+                      ["العميل", invoiceSheet.invoice.customer_name || "عميل نقدي"],
+                      ["الهاتف", invoiceSheet.invoice.customer_phone || "-"],
+                      ["العنوان", invoiceSheet.invoice.customer_address || "-"],
+                      ["نوع العميل", invoiceSheet.invoice.customer_type || "-"],
+                      ["البائع", invoiceSheet.invoice.seller_name || "-"],
+                      ["الكاشير", invoiceSheet.invoice.cashier_name || invoiceSheet.invoice.seller_name || "-"],
+                      ["الفرع", invoiceSheet.invoice.branch_name || "-"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <div className="text-xs font-black text-slate-400">{label}</div>
+                        <div className="mt-1 font-black text-slate-950 dark:text-white">{value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Card title="الدفع" subtitle="طريقة الدفع / التقسيم" icon={ArrowLeftRight} compact>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-950 dark:bg-emerald-400/10 dark:text-emerald-50">
+                        <span>{paymentMethodLabel(invoiceSheet.invoice.payment_method)}</span>
+                        <span>{portalText(invoiceSheet.invoice.payment_status || "")}</span>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {[
+                          ["المدفوع", formatCurrency(invoiceSheet.invoice.paid_amount || 0)],
+                          ["المتبقي", formatCurrency(invoiceSheet.invoice.remaining_amount || 0)],
+                          ["COD", invoiceSheet.invoice.cod_amount ? formatCurrency(invoiceSheet.invoice.cod_amount) : "-"],
+                          ["إثبات الدفع", invoiceSheet.invoice.transfer_proof_status || "-"],
+                          ["الخزينة / الحساب", invoiceSheet.invoice.treasury_name || "-"],
+                        ].map(([label, value]) => (
+                          <div key={label} className="rounded-2xl border border-slate-200 px-3 py-2 text-xs font-bold dark:border-white/10">
+                            <div className="text-slate-400">{label}</div>
+                            <div className="mt-1 text-slate-950 dark:text-white">{value}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {Array.isArray(invoiceSheet.invoice.payment_breakdown) && invoiceSheet.invoice.payment_breakdown.length ? invoiceSheet.invoice.payment_breakdown.map((row, index) => (
+                        <div key={`${row.method || row.payment_method || index}`} className="flex items-center justify-between rounded-2xl border border-slate-200 px-3 py-2 text-sm font-bold dark:border-white/10">
+                          <span>{paymentMethodLabel(row.method || row.payment_method)}</span>
+                          <span>{formatCurrency(row.amount || row.total || 0)}</span>
+                        </div>
+                      )) : null}
+                    </div>
+                  </Card>
+
+                  <Card title="المنتجات" subtitle="قائمة المنتجات" icon={Package} compact>
+                    <div className="space-y-2">
+                      {(invoiceSheet.invoice.items || []).length ? invoiceSheet.invoice.items.map((item) => (
+                        <div key={item.id || `${item.product_name}-${item.variant_id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+                          <div className="flex items-start justify-between gap-3">
+                            {item.image_url ? (
+                              <img src={item.image_url} alt="" className="h-14 w-14 shrink-0 rounded-2xl border border-slate-200 object-cover dark:border-white/10" loading="lazy" />
+                            ) : null}
+                            <div className="min-w-0 flex-1">
+                              <div className="font-black text-slate-950 dark:text-white"><InlineName>{portalText(item.product_name || "منتج")}</InlineName></div>
+                              <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{portalText(item.color || "-")} · {portalText(item.size || "-")} · {formatNumber(item.quantity || 0)} قطعة</div>
+                              <div className="mt-1 text-[11px] font-bold text-slate-400">{[item.sku ? `SKU ${item.sku}` : "", item.barcode ? `Barcode ${item.barcode}` : ""].filter(Boolean).join(" · ") || "-"}</div>
+                            </div>
+                            <div className="shrink-0 text-left">
+                              <div className="font-black text-slate-950 dark:text-white">{formatCurrency(item.line_total || 0)}</div>
+                              <div className="text-xs font-bold text-slate-500 dark:text-slate-400">{formatCurrency(item.price || 0)}</div>
+                              {Number(item.discount_amount || 0) ? <div className="text-[11px] font-bold text-rose-500">-{formatCurrency(item.discount_amount)}</div> : null}
+                            </div>
+                          </div>
+                        </div>
+                      )) : <EmptyState compact title="لا توجد منتجات" body="لم ترجع الفاتورة أي بنود." />}
+                    </div>
+                  </Card>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {[
+                      ["الإجمالي قبل الخصم", formatCurrency(invoiceSheet.invoice.subtotal || 0)],
+                      ["الخصم", formatCurrency(invoiceSheet.invoice.discount || 0)],
+                      ["الشحن", formatCurrency(invoiceSheet.invoice.shipping || 0)],
+                      ["الضريبة", formatCurrency(invoiceSheet.invoice.tax || 0)],
+                      ["الإجمالي", formatCurrency(invoiceSheet.invoice.total || 0)],
+                      ["المدفوع", formatCurrency(invoiceSheet.invoice.paid_amount || 0)],
+                      ["المتبقي", formatCurrency(invoiceSheet.invoice.remaining_amount || 0)],
+                      ...(invoiceSheet.invoice.permissions?.can_view_profit ? [
+                        ["التكلفة", formatCurrency(invoiceSheet.invoice.cost || 0)],
+                        ["الربح", formatCurrency(invoiceSheet.invoice.profit || 0)],
+                      ] : []),
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold dark:border-white/10 dark:bg-white/[0.03]">
+                        <span className="text-slate-500 dark:text-slate-300">{label}</span>
+                        <span className="text-slate-950 dark:text-white">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-5">
+                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => window.open(invoiceSheet.invoice.public_invoice_url, "_blank", "noopener,noreferrer")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:opacity-45 dark:bg-cyan-300 dark:text-slate-950">
+                      <ExternalLink className="h-4 w-4" />
+                      عرض الفاتورة العامة
+                    </button>
+                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => copyText(invoiceSheet.invoice.public_invoice_url, "تم نسخ رابط الفاتورة")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                      <Copy className="h-4 w-4" />
+                      نسخ الرابط
+                    </button>
+                    <button type="button" onClick={() => window.print()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                      <Printer className="h-4 w-4" />
+                      طباعة
+                    </button>
+                    <button type="button" disabled={!invoiceSheet.invoice.customer_phone} onClick={() => openWhatsappShare(invoiceSheet.invoice)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-black text-emerald-900 disabled:opacity-45 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100">
+                      <MessageSquare className="h-4 w-4" />
+                      مشاركة واتساب
+                    </button>
+                    <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                      <X className="h-4 w-4" />
+                      إغلاق
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

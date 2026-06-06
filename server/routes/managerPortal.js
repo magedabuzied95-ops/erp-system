@@ -6,6 +6,7 @@ import {
   getManagerPortalChat,
   getManagerPortalChatThread,
   getManagerPortalDashboard,
+  getManagerPortalInvoiceDetail,
   getManagerPortalMe,
   getManagerPortalTasks,
   getManagerPortalNotifications,
@@ -22,6 +23,11 @@ import {
   updateManagerPortalSettings,
   loadManagerPortalByToken,
 } from "../services/managerPortalService.js";
+import {
+  getManagerPortalPushPublicKey,
+  subscribeManagerPortalPush,
+  unsubscribeManagerPortalPush,
+} from "../services/managerPortalPushService.js";
 
 const router = express.Router();
 
@@ -141,6 +147,78 @@ router.get("/:token/manifest.webmanifest", async (req, res) => {
   }
 });
 
+router.get("/:token/push/public-key", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const payload = await getManagerPortalPushPublicKey();
+    console.info("[manager-push:public-key]", {
+      manager_id: manager.id,
+      hasKey: Boolean(payload.publicKey),
+      keyLength: String(payload.publicKey || "").length,
+    });
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error("[manager-portal] push key error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load push key" });
+  }
+});
+
+router.post("/:token/push/subscribe", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const subscription = req.body?.subscription || req.body || {};
+    const result = await subscribeManagerPortalPush({
+      manager,
+      token: req.params.token,
+      subscription: {
+        ...subscription,
+        application_server_key_length: Number(req.body?.application_server_key_length || req.body?.applicationServerKeyLength || subscription.application_server_key_length || 0) || 0,
+      },
+      userAgent: req.get?.("user-agent") || "",
+      portalUrl: req.body?.portal_url || req.body?.portalUrl || "",
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (error) {
+    console.error("[manager-portal] push subscribe error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save push subscription" });
+  }
+});
+
+router.post("/:token/push/unsubscribe", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const subscription = req.body?.subscription || {};
+    const result = await unsubscribeManagerPortalPush({
+      manager,
+      token: req.params.token,
+      endpoint: req.body?.endpoint || subscription.endpoint || "",
+    });
+    return res.json({ success: true, subscription: result });
+  } catch (error) {
+    console.error("[manager-portal] push unsubscribe error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to remove push subscription" });
+  }
+});
+
+router.delete("/:token/push/unsubscribe", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await unsubscribeManagerPortalPush({
+      manager,
+      token: req.params.token,
+      endpoint: req.body?.endpoint || req.query?.endpoint || "",
+    });
+    return res.json({ success: true, subscription: result });
+  } catch (error) {
+    console.error("[manager-portal] push unsubscribe error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to remove push subscription" });
+  }
+});
+
 router.get("/:token/me", async (req, res) => {
   try {
     const manager = await loadVerifiedManager(req, res);
@@ -161,6 +239,18 @@ router.get("/:token/dashboard", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] dashboard error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load dashboard" });
+  }
+});
+
+router.get("/:token/invoices/:invoiceId", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const invoice = await getManagerPortalInvoiceDetail({ manager, invoiceId: req.params.invoiceId });
+    return res.json({ success: true, invoice });
+  } catch (error) {
+    console.error("[manager-portal] invoice detail error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load invoice details" });
   }
 });
 
