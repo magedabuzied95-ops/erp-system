@@ -59,7 +59,7 @@ const clearTimerSet = (timersRef) => {
 };
 
 function WarehouseLivePicks() {
-  useRealtimeConnection();
+  const realtime = useRealtimeConnection();
 
   const [alerts, setAlerts] = useState([]);
   const [flash, setFlash] = useState(false);
