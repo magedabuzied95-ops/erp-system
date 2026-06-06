@@ -325,17 +325,18 @@ const leadChannel = (lead = {}) => portalText(lead.channel || lead.platform || l
 const leadPreview = (lead = {}) => portalText(lead.last_message || lead.last_message_preview || lead.ai_insight || "لا توجد رسالة أخيرة");
 
 const Badge = ({ children, className = "" }) => (
-  <span className={`inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-700 ${className}`}>{children}</span>
+  <span className={`inline-flex items-center rounded-full border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-2.5 py-1 text-[11px] font-black text-slate-700 ${className}`}>{children}</span>
 );
 
 const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false }) => (
-  <section className={`rounded-3xl border border-slate-200 bg-white shadow-sm ${compact ? "p-3" : "p-4"} ${className}`}>
+  <section className={`overflow-hidden rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ${compact ? "p-3" : "p-4"} ${className}`}>
+    <div className="h-1 w-full bg-gradient-to-r from-slate-900 via-indigo-700 to-amber-400" />
     <div className="flex items-start justify-between gap-3">
       <div>
         <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{subtitle}</div>
         <h2 className="mt-1 text-base font-black text-slate-950">{title}</h2>
       </div>
-      {Icon ? <div className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-700"><Icon className="h-4 w-4" /></div> : null}
+      {Icon ? <div className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-700 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
     </div>
     {action ? <div className="mt-3">{action}</div> : null}
     <div className={`mt-3 ${bodyClassName}`}>{children}</div>
@@ -352,7 +353,7 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
     blue: "border-t-blue-500",
   };
   return (
-    <div className={`kpi-card-readable min-h-[6.25rem] rounded-3xl border border-slate-200 border-t-4 bg-white p-3 shadow-sm ${tones[tone] || tones.slate}`}>
+    <div className={`kpi-card-readable min-h-[6.25rem] rounded-3xl border border-slate-200 border-t-4 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.08)] ${tones[tone] || tones.slate}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[11px] font-black leading-5 text-slate-500">{label}</div>
@@ -371,8 +372,8 @@ const Toggle = ({ label, checked, onChange }) => (
     onClick={() => onChange(!checked)}
     className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-right transition ${
       checked
-        ? "border-emerald-200 bg-white text-emerald-900 shadow-sm dark:border-emerald-400/20 dark:bg-white/[0.03] dark:text-emerald-100"
-        : "border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200"
+        ? "border-emerald-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-emerald-900 shadow-sm dark:border-emerald-400/20 dark:bg-white/[0.03] dark:text-emerald-100"
+        : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200"
     }`}
   >
     <span className="text-sm font-black">{label}</span>
@@ -384,17 +385,17 @@ const Toggle = ({ label, checked, onChange }) => (
 
 const StatusPill = ({ value, tone = "slate" }) => {
   const tones = {
-    slate: "border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200",
-    green: "border-emerald-200 bg-white text-emerald-700 dark:border-emerald-400/20 dark:bg-white/[0.03] dark:text-emerald-200",
-    amber: "border-amber-200 bg-white text-amber-800 dark:border-amber-400/20 dark:bg-white/[0.03] dark:text-amber-200",
-    red: "border-rose-200 bg-white text-rose-700 dark:border-rose-400/20 dark:bg-white/[0.03] dark:text-rose-200",
-    blue: "border-sky-200 bg-white text-sky-700 dark:border-sky-400/20 dark:bg-white/[0.03] dark:text-sky-200",
+    slate: "border-slate-200 bg-slate-100 text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100",
+    amber: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100",
+    red: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100",
+    blue: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-100",
   };
   return <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${tones[tone] || tones.slate}`}>{value}</span>;
 };
 
 const EmptyState = ({ title, body, compact = false }) => (
-  <div className={`rounded-2xl border border-dashed border-slate-300 bg-white text-right font-semibold leading-6 text-slate-500 shadow-sm ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
+  <div className={`rounded-2xl border border-dashed border-slate-300 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-right font-semibold leading-6 text-slate-500 shadow-sm ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
     <div className="font-black text-slate-800">{title}</div>
     <div className="mt-1">{body}</div>
   </div>
@@ -1278,7 +1279,7 @@ export default function ManagerPortal() {
   }
 
   return (
-    <main data-testid="manager-portal-root" dir="rtl" className="manager-portal-readable-v2 min-h-[100dvh] bg-[#f8fafc] px-3 py-3 pb-[calc(8rem+env(safe-area-inset-bottom))] text-right text-slate-950 dark:bg-slate-950 dark:text-white md:px-4 md:py-4">
+    <main data-testid="manager-portal-root" dir="rtl" className="manager-portal-readable-v2 min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_26%),radial-gradient(circle_at_80%_0%,_rgba(245,158,11,0.10),_transparent_18%),radial-gradient(circle_at_15%_20%,_rgba(99,102,241,0.08),_transparent_20%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_52%,#e2e8f0_100%)] px-3 py-3 pb-[calc(8rem+env(safe-area-inset-bottom))] text-right text-slate-950 dark:bg-slate-950 dark:text-white md:px-4 md:py-4">
       <div className="mx-auto grid max-w-[96rem] gap-4 lg:grid-cols-[240px_minmax(0,1.55fr)_320px]">
         <aside className="hidden min-h-[calc(100dvh-2rem)] rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 lg:block">
           <div className="flex items-center gap-3">
@@ -1309,7 +1310,7 @@ export default function ManagerPortal() {
                 data-testid={`sidebar-tab-${tab}`}
                 onClick={() => setActiveTab(tab)}
                 className={`flex w-full items-center justify-between rounded-2xl px-3 py-3 text-sm font-black transition ${
-                  activeTab === tab ? "bg-slate-950 text-white" : "bg-white text-slate-700"
+                  activeTab === tab ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "bg-white text-slate-700"
                 }`}
               >
                 <span>{tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : "المزيد"}</span>
@@ -1340,7 +1341,7 @@ export default function ManagerPortal() {
                     aria-label="Open notifications"
                     aria-expanded={notificationsOpen}
                     onClick={() => setNotificationsOpen((current) => !current)}
-                    className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white transition hover:border-slate-500 hover:bg-slate-800"
+                    className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-700 bg-[linear-gradient(180deg,#0f172a,#111827)] text-white transition hover:border-slate-500 hover:bg-[linear-gradient(180deg,#111827,#1e293b)]"
                   >
                     <Bell className="h-4 w-4" />
                     {(unreadCount || notificationsUnread) ? (
@@ -2365,7 +2366,7 @@ export default function ManagerPortal() {
         </aside>
       </div>
 
-      <nav className="manager-bottom-nav-safe-padding fixed inset-x-3 bottom-3 z-40 mx-auto max-w-2xl rounded-[1.6rem] border border-slate-800 bg-slate-950 p-2 shadow-2xl shadow-slate-900/30 lg:hidden">
+      <nav className="manager-bottom-nav-safe-padding fixed inset-x-3 bottom-3 z-40 mx-auto max-w-2xl rounded-[1.6rem] border border-slate-800 bg-[linear-gradient(180deg,#020617,#0f172a)] p-2 shadow-2xl shadow-slate-900/30 lg:hidden">
         <div className="grid grid-cols-6 gap-1">
           {TABS.map((tab) => {
             const active = activeTab === tab;
@@ -2373,7 +2374,7 @@ export default function ManagerPortal() {
             const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : Bell;
             const Icon = icon;
             return (
-              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => setActiveTab(tab)} className={`flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-black transition ${active ? "bg-white text-slate-950 shadow-sm" : "text-slate-300"}`}>
+              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => setActiveTab(tab)} className={`flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-black transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
                 <Icon className="h-4 w-4" />
                 <span className="inline-flex items-center gap-1">
                   {label}

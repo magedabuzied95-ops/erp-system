@@ -154,6 +154,28 @@ const resolveWarehouseAlertImage = (product = {}, variant = {}) =>
     ""
   );
 
+const resolveWarehouseAlertArticleCode = (product = {}, variant = {}) =>
+  String(
+    variant.article_code ||
+    variant.articleCode ||
+    variant.variant_article_code ||
+    product.article_code ||
+    product.articleCode ||
+    product.variant_article_code ||
+    ""
+  ).trim();
+
+const resolveWarehouseAlertManufacturerName = (product = {}, variant = {}) =>
+  String(
+    variant.manufacturer_name ||
+    variant.manufacturerName ||
+    variant.manufacturer ||
+    product.manufacturer_name ||
+    product.manufacturerName ||
+    product.manufacturer ||
+    ""
+  ).trim();
+
 const buildWarehousePickAlertPayload = ({
   product = {},
   variant = {},
@@ -164,6 +186,8 @@ const buildWarehousePickAlertPayload = ({
   productId: product.product_id ?? product.id ?? null,
   productName: product.name || product.product_name || "Product",
   productImage: resolveWarehouseAlertImage(product, variant),
+  article_code: resolveWarehouseAlertArticleCode(product, variant),
+  manufacturer_name: resolveWarehouseAlertManufacturerName(product, variant),
   color: variant.color || variant.variant_color || variant.selected_color || "",
   size: variant.size || variant.variant_size || variant.selected_size || product.fixed_size_label || "",
   stock: Number(liveStock || variant.stock_quantity || variant.stock || 0),

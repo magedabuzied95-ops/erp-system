@@ -391,6 +391,8 @@ io.on("connection", async (socket) => {
         productId: payload.productId ?? payload.product_id ?? null,
         productName: String(payload.productName || payload.product_name || "Product").trim() || "Product",
         productImage: String(payload.productImage || payload.product_image || "").trim(),
+        article_code: String(payload.article_code || payload.articleCode || "").trim(),
+        manufacturer_name: String(payload.manufacturer_name || payload.manufacturerName || payload.manufacturer || "").trim(),
         color: String(payload.color || "").trim(),
         size: String(payload.size || "").trim(),
         stock: Number(payload.stock || 0),
