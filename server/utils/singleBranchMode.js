@@ -33,11 +33,51 @@ async function safeRequiredDdl(client, sql, label) {
 }
 
 async function safeOptionalDdl(client, sql, label) {
+  const savepointName = "before_optional_ddl";
   try {
+    await client.query(`SAVEPOINT ${savepointName}`);
     await client.query(sql);
+    await client.query(`RELEASE SAVEPOINT ${savepointName}`);
     console.log("[single-branch-ddl:ok]", { label });
     return true;
   } catch (error) {
+    const savepointError = error?.code === "25P01" || error?.code === "25P02";
+
+    if (savepointError) {
+      try {
+        await client.query(sql);
+        console.log("[single-branch-ddl:ok]", { label });
+        return true;
+      } catch (fallbackError) {
+        if (isTransientLockError(fallbackError)) {
+          console.warn("[single-branch-ddl:skipped-transient-lock]", {
+            label,
+            code: fallbackError.code,
+            message: fallbackError.message,
+          });
+          return false;
+        }
+
+        throw fallbackError;
+      }
+    }
+
+    try {
+      await client.query(`ROLLBACK TO SAVEPOINT ${savepointName}`);
+    } catch (savepointRollbackError) {
+      if (savepointRollbackError?.code !== "3B001" && savepointRollbackError?.code !== "25P01") {
+        throw savepointRollbackError;
+      }
+    }
+
+    try {
+      await client.query(`RELEASE SAVEPOINT ${savepointName}`);
+    } catch (savepointReleaseError) {
+      if (savepointReleaseError?.code !== "3B001" && savepointReleaseError?.code !== "25P01") {
+        throw savepointReleaseError;
+      }
+    }
+
     if (isTransientLockError(error)) {
       console.warn("[single-branch-ddl:skipped-transient-lock]", {
         label,
