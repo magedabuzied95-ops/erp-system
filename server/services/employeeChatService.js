@@ -42,9 +42,9 @@ const messageSelect = `
 const attachmentLabelSql = (alias = "m") => `
   CASE
     WHEN NULLIF(TRIM(${alias}.body), '') IS NOT NULL THEN ${alias}.body
-    WHEN ${alias}.attachment_type = 'image' THEN 'طµظˆط±ط©'
-    WHEN ${alias}.attachment_type = 'audio' THEN 'ط±ط³ط§ظ„ط© طµظˆطھظٹط©'
-    WHEN ${alias}.attachment_url IS NOT NULL THEN 'ظ…ظ„ظپ'
+    WHEN ${alias}.attachment_type = 'image' THEN 'صورة'
+    WHEN ${alias}.attachment_type = 'audio' THEN 'رسالة صوتية'
+    WHEN ${alias}.attachment_url IS NOT NULL THEN 'ملف'
     ELSE ''
   END
 `;
@@ -58,20 +58,20 @@ const chatPushPreview = (message = {}) => {
   const body = clean(message.body);
   if (body) {
     const shortText = body.length > 80 ? `${body.slice(0, 77)}...` : body;
-    return `ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط©: ${shortText}`;
+    return `رسالة جديدة: ${shortText}`;
   }
-  if (message.attachment_type === "image") return "طھظ… ط¥ط±ط³ط§ظ„ طµظˆط±ط©";
-  if (message.attachment_url) return "طھظ… ط¥ط±ط³ط§ظ„ ظ…ظ„ظپ";
-  return "ظ„ط¯ظٹظƒ ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط© ظپظٹ طھط·ط¨ظٹظ‚ ط§ظ„ظ…ظˆط¸ظپ";
+  if (message.attachment_type === "image") return "تم إرسال صورة";
+  if (message.attachment_url) return "تم إرسال ملف";
+  return "لديك رسالة جديدة في تطبيق الموظف";
 };
 
 const employeeChatPushBody = (message = {}) => {
   const body = clean(message.body);
-  if (body) return `ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط©: ${body.length > 80 ? `${body.slice(0, 77)}...` : body}`;
-  if (message.attachment_type === "image") return "طھظ… ط¥ط±ط³ط§ظ„ طµظˆط±ط©";
-  if (message.attachment_type === "audio") return "طھظ… ط¥ط±ط³ط§ظ„ ط±ط³ط§ظ„ط© طµظˆطھظٹط©";
-  if (message.attachment_url) return "طھظ… ط¥ط±ط³ط§ظ„ ظ…ظ„ظپ";
-  return "ظ„ط¯ظٹظƒ ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط© ظپظٹ طھط·ط¨ظٹظ‚ ط§ظ„ظ…ظˆط¸ظپ";
+  if (body) return `رسالة جديدة: ${body.length > 80 ? `${body.slice(0, 77)}...` : body}`;
+  if (message.attachment_type === "image") return "تم إرسال صورة";
+  if (message.attachment_type === "audio") return "تم إرسال رسالة صوتية";
+  if (message.attachment_url) return "تم إرسال ملف";
+  return "لديك رسالة جديدة في تطبيق الموظف";
 };
 
 const employeeChatMessagePreview = (message = {}) => {
@@ -302,10 +302,10 @@ export const sendEmployeeChatMessage = async ({ employee, body = "", file = null
     type: "employee_chat_message",
     category: "employees",
     priority: "medium",
-    title: "ط±ط³ط§ظ„ط© ط¬ط¯ظٹط¯ط© ظ…ظ† ظ…ظˆط¸ظپ",
+    title: "رسالة جديدة من موظف",
     message: chatPushPreview(message),
     action_url: "/employees/chat",
-    action_label: "ظپطھط­ ط´ط§طھ ط§ظ„ظ…ظˆط¸ظپظٹظ†",
+    action_label: "فتح شات الموظفين",
     entity_type: "employee_chat_thread",
     entity_id: String(thread.id),
     metadata: { employee_id: employee.id, thread_id: thread.id, message_id: message.id },

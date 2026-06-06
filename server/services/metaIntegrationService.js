@@ -106,6 +106,7 @@ const CORRUPTED_ARABIC_MARKERS = [
   "\u0638\u0679",
   "\u0638\u2026",
 ];
+const DB_CORRUPTED_ARABIC_SCAN_MARKERS = [...CORRUPTED_ARABIC_MARKERS, "\u0637", "\u0638"];
 const SOURCE_REPAIR_RANGES = [
   [0x0600, 0x06ff],
   [0x0750, 0x077f],
@@ -119,7 +120,8 @@ let corruptedArabicRepairMap = null;
 const escapeRegExp = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const hasCorruptedArabicMarker = (value = "") => {
   const next = String(value ?? "");
-  return CORRUPTED_ARABIC_MARKERS.some((marker) => next.includes(marker));
+  return CORRUPTED_ARABIC_MARKERS.some((marker) => next.includes(marker)) ||
+    /(?:[\u0637\u0638][\u00a1-\u00ff\u0600-\u06ff\u2018-\u203a]){2,}/.test(next);
 };
 const getCorruptedArabicRepairPattern = () => {
   if (corruptedArabicRepairPattern) return corruptedArabicRepairPattern;
@@ -155,12 +157,19 @@ const repairCorruptedArabicValue = (value = "") => {
   }
   return next;
 };
+const repairEmployeeChatNotificationMessage = (value = "") => {
+  const original = String(value ?? "");
+  if (!hasCorruptedArabicMarker(original)) return original;
+  const separatorIndex = original.indexOf(":");
+  if (separatorIndex >= 0) return `رسالة جديدة${original.slice(separatorIndex)}`;
+  return "لديك رسالة جديدة في تطبيق الموظف";
+};
 const corruptedArabicWhereClause = (columns = [], startIndex = 1) => {
   let index = startIndex;
   const clauses = [];
   const params = [];
   for (const column of columns) {
-    for (const marker of CORRUPTED_ARABIC_MARKERS) {
+    for (const marker of DB_CORRUPTED_ARABIC_SCAN_MARKERS) {
       clauses.push(`${column} LIKE $${index}`);
       params.push(`%${marker}%`);
       index += 1;
@@ -6093,7 +6102,7 @@ export const repairCorruptedArabicText = async (clientOrPool = db) => {
   );
 
   const aiWhere = corruptedArabicWhereClause(["ai_insight"]);
-  const notificationWhere = corruptedArabicWhereClause(["title", "message"]);
+  const notificationWhere = corruptedArabicWhereClause(["title", "message", "action_label"]);
   const [aiCandidateCount, notificationCandidateCount] = await Promise.all([
     clientOrPool.query(`SELECT COUNT(*)::int AS count FROM ai_support_sessions WHERE ${aiWhere.clause}`, aiWhere.params),
     clientOrPool.query(`SELECT COUNT(*)::int AS count FROM notifications WHERE ${notificationWhere.clause}`, notificationWhere.params),
@@ -6118,6 +6127,7 @@ export const repairCorruptedArabicText = async (clientOrPool = db) => {
     ai_support_sessions_ai_insight: 0,
     notification_title: 0,
     notification_message: 0,
+    notification_action_label: 0,
     notifications: 0,
   };
 
@@ -6137,22 +6147,61 @@ export const repairCorruptedArabicText = async (clientOrPool = db) => {
   }
 
   const notificationRows = await clientOrPool.query(
-    `SELECT id, title, message FROM notifications WHERE ${notificationWhere.clause}`,
+    `SELECT id, title, message, action_label FROM notifications WHERE ${notificationWhere.clause}`,
     notificationWhere.params
   );
   for (const row of notificationRows.rows) {
     const nextTitle = repairCorruptedArabicValue(row.title);
     const nextMessage = repairCorruptedArabicValue(row.message);
+    const nextActionLabel = row.action_label === null ? null : repairCorruptedArabicValue(row.action_label);
     const titleChanged = nextTitle !== String(row.title ?? "");
     const messageChanged = nextMessage !== String(row.message ?? "");
-    if (titleChanged || messageChanged) {
+    const actionLabelChanged = nextActionLabel !== row.action_label;
+    if (titleChanged || messageChanged || actionLabelChanged) {
       await clientOrPool.query(
-        `UPDATE notifications SET title = $2, message = $3, updated_at = NOW() WHERE id = $1`,
-        [row.id, nextTitle, nextMessage]
+        `UPDATE notifications SET title = $2, message = $3, action_label = $4, updated_at = NOW() WHERE id = $1`,
+        [row.id, nextTitle, nextMessage, nextActionLabel]
       );
       repaired.notifications += 1;
       if (titleChanged) repaired.notification_title += 1;
       if (messageChanged) repaired.notification_message += 1;
+      if (actionLabelChanged) repaired.notification_action_label += 1;
+    }
+  }
+
+  const employeeChatRows = await clientOrPool.query(
+    `
+    SELECT id, title, message, action_label
+    FROM notifications
+    WHERE type = 'employee_chat_message'
+      AND (
+        title <> 'رسالة جديدة من موظف'
+        OR action_label <> 'فتح شات الموظفين'
+        OR title LIKE '%ط%'
+        OR title LIKE '%ظ%'
+        OR message LIKE '%ط%'
+        OR message LIKE '%ظ%'
+        OR action_label LIKE '%ط%'
+        OR action_label LIKE '%ظ%'
+      )
+    `
+  );
+  for (const row of employeeChatRows.rows) {
+    const nextTitle = "رسالة جديدة من موظف";
+    const nextMessage = repairEmployeeChatNotificationMessage(row.message);
+    const nextActionLabel = "فتح شات الموظفين";
+    const titleChanged = nextTitle !== String(row.title ?? "");
+    const messageChanged = nextMessage !== String(row.message ?? "");
+    const actionLabelChanged = nextActionLabel !== String(row.action_label ?? "");
+    if (titleChanged || messageChanged || actionLabelChanged) {
+      await clientOrPool.query(
+        `UPDATE notifications SET title = $2, message = $3, action_label = $4, updated_at = NOW() WHERE id = $1`,
+        [row.id, nextTitle, nextMessage, nextActionLabel]
+      );
+      repaired.notifications += 1;
+      if (titleChanged) repaired.notification_title += 1;
+      if (messageChanged) repaired.notification_message += 1;
+      if (actionLabelChanged) repaired.notification_action_label += 1;
     }
   }
 
