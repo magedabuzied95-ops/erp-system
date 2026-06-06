@@ -65,7 +65,18 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
   const hasAvailableSizes = isSimpleMode
     ? true
     : colors.some((color) => color.sizes?.some((size) => size.available));
-  const canAddSelected = isSimpleMode ? Number(simpleVariant.stock || 0) > 0 : Boolean(selectedSize?.available);
+  const selectedVariant = isSimpleMode ? simpleVariant : selectedSize;
+  const selectedStock = Number(selectedVariant?.stock_quantity ?? selectedVariant?.stock ?? 0);
+  const selectedPrice = Number(selectedVariant?.sale_price ?? selectedVariant?.price ?? 0);
+  const selectedLabel = isSimpleMode
+    ? product?.fixed_size_label || t("pos.labels.oneSize")
+    : isColorOnlyMode
+      ? activeColor?.color || t("pos.labels.default")
+      : selectedSize?.size || t("common.notAvailable");
+  const hasSelectedColor = isSimpleMode ? true : Boolean(activeColor?.color || selectedColor);
+  const hasSelectedVariant = isSimpleMode ? true : isColorOnlyMode ? Boolean(activeColor) : Boolean(selectedSize?.variant_id);
+  const canAddSelected = hasSelectedColor && hasSelectedVariant && selectedStock > 0;
+  const isOutOfStock = hasSelectedColor && hasSelectedVariant && selectedStock <= 0;
 
   useEffect(() => {
     setImageFailed(failedAvailabilityImageUrls.has(imageUrl));
@@ -124,7 +135,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
   if (!product) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/75 px-2 py-2 sm:px-4 sm:py-6 lg:items-center">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 px-2 py-2 sm:px-4 sm:py-6 lg:items-center">
       <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.25rem] border border-white/10 bg-zinc-950 shadow-2xl shadow-black/50 sm:rounded-[2rem]">
         <div className="flex items-start justify-between gap-3 border-b border-white/10 p-3 sm:gap-4 sm:p-5">
           <div>
@@ -147,7 +158,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
           </button>
         </div>
 
-        <div className="grid flex-1 gap-3 overflow-y-auto p-3 pb-24 sm:gap-5 sm:p-5 sm:pb-5 lg:grid-cols-[0.85fr_1.15fr]">
+        <div className="grid flex-1 gap-3 overflow-y-auto p-3 pb-[calc(10rem+env(safe-area-inset-bottom))] sm:gap-5 sm:p-5 sm:pb-5 lg:grid-cols-[0.85fr_1.15fr]">
           <div className="space-y-3 sm:space-y-4">
             <div className="flex h-36 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 sm:h-72 sm:rounded-3xl">
               {imageUrl && !imageFailed ? (
@@ -281,21 +292,36 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
             </div>
           </div>
         </div>
-        <div className="fixed inset-x-2 bottom-2 z-[65] rounded-2xl border border-emerald-300/20 bg-zinc-950/95 p-2 shadow-2xl shadow-black/50 backdrop-blur sm:hidden">
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={!canAddSelected}
-            className="inline-flex min-h-11 w-full items-center justify-between gap-2 rounded-xl bg-emerald-500 px-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <span className="truncate">
-              {(isSimpleMode ? product?.fixed_size_label || t("pos.labels.oneSize") : selectedSize?.size || t("common.notAvailable"))} / {formatCurrency(isSimpleMode ? simpleVariant.price : selectedSize?.sale_price || 0)}
-            </span>
-            <span className="inline-flex items-center gap-1">
+        <div className="fixed inset-x-2 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-[90] sm:hidden">
+          <div className="rounded-2xl border border-emerald-300/20 bg-zinc-950/95 p-2 shadow-2xl shadow-black/50 backdrop-blur pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
+            <div className="mb-2 flex items-center justify-between gap-3 px-1 text-[11px] font-semibold text-zinc-300">
+              <span className="truncate">{selectedLabel}</span>
+              <span className="shrink-0 text-emerald-300">{formatCurrency(selectedPrice)}</span>
+            </div>
+            <div className="mb-2 flex items-center justify-between gap-3 px-1 text-[11px] text-zinc-400">
+              <span>{t("pos.labels.stock", "Stock")}</span>
+              <span className={selectedStock > 0 ? "text-zinc-200" : "text-red-300"}>
+                {selectedStock > 0 ? selectedStock : t("pos.variantSelector.outOfStock", "Out of stock")}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={!canAddSelected}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-zinc-400"
+            >
               <CheckCircle2 className="h-4 w-4" />
-              {t("pos.labels.addToCart", "Add to cart")}
-            </span>
-          </button>
+              {isOutOfStock
+                ? t("pos.variantSelector.outOfStock", "Out of stock")
+                : (
+                  <>
+                    <span className="ltr:mr-1 rtl:ml-1">Add to Cart</span>
+                    <span className="text-[11px] font-bold opacity-90">/</span>
+                    <span>{t("pos.labels.addToInvoiceArabic", "إضافة للفاتورة")}</span>
+                  </>
+                )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
