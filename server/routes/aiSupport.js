@@ -47,7 +47,10 @@ import {
   scheduleAiFollowupIfNeeded,
   upsertAiCustomerProfile,
 } from "../services/aiSalesAgentService.js";
-import { composeAiSalesReply } from "../services/aiSalesReplyComposerService.js";
+import {
+  buildCommerceAwareCardsReply,
+  composeAiSalesReply,
+} from "../services/aiSalesReplyComposerService.js";
 import { normalizeProductCards } from "../services/aiProductCards.js";
 import { getWebsiteSettings, updateWebsiteSettings } from "../services/liveActivityService.js";
 import { generateSupportAnswer, understandProductImageForSearch } from "../services/openaiSupportService.js";
@@ -132,6 +135,15 @@ const normalizePublicSuggestedProducts = (items = []) =>
           ? Number(item.final_price || item.price || item.sale_price)
           : null,
         stock_status: item?.stock_status || (Number(item?.total_stock || item?.stock || 0) > 0 ? "in_stock" : "out_of_stock"),
+      }))
+    : [];
+
+const normalizePublicImageCards = (items = []) =>
+  Array.isArray(items)
+    ? items.map((item) => ({
+        ...item,
+        url: item?.url || item?.image_url || item?.image || item?.selected_card_image_url || "",
+        image_url: item?.image_url || item?.url || item?.image || item?.selected_card_image_url || "",
       }))
     : [];
 
@@ -1253,7 +1265,12 @@ const buildImageSearchAnswerFromFinalProducts = ({ detected = {}, productSearch 
 };
 
 const sanitizePublicAiSupportResponse = ({ response, message }) => {
-  const suggestedProducts = normalizePublicSuggestedProducts(response?.suggested_products);
+  const suggestedProducts = normalizePublicSuggestedProducts(
+    response?.suggested_products?.length ? response.suggested_products : response?.product_cards?.length ? response.product_cards : response?.channel_reply?.product_cards
+  );
+  const imageCards = normalizePublicImageCards(
+    response?.image_cards?.length ? response.image_cards : response?.visual_attachments?.length ? response.visual_attachments : response?.channel_reply?.image_cards
+  );
   const arabicMessage = isArabicText(message);
   const answer = toText(response?.answer);
   const isGreetingOnly = response?.greeting_only_mode || response?.detected_intent === "greeting_only";
@@ -1262,8 +1279,8 @@ const sanitizePublicAiSupportResponse = ({ response, message }) => {
 
   if (isGreetingOnly) {
     const sanitizedAnswer = /السلام عليكم/.test(toText(message))
-      ? "وعليكم السلام\nأقدر أساعدك في المقاسات، الموديلات، أو البحث بصورة."
-      : "أهلاً بيك\nأقدر أساعدك في المقاسات، الموديلات، أو البحث بصورة.";
+      ? "وعليكم السلام\nابعتلي موديل أو صورة أو مقاس، ولو عندي اختيارات مناسبة هتظهر لك تحت."
+      : "أهلاً بيك\nابعتلي موديل أو صورة أو مقاس، ولو عندي اختيارات مناسبة هتظهر لك تحت.";
     const blockedPersonalizationText = personalizationTextPattern.test(answer);
     return {
       ...response,
@@ -1283,12 +1300,24 @@ const sanitizePublicAiSupportResponse = ({ response, message }) => {
   const shouldReplaceWithArabic =
     arabicMessage &&
     (isGenericEnglishFallback(answer) || answerLooksEnglish || (suggestedProducts.length > 0 && !answer));
+  const shouldUseCommerceComposer = suggestedProducts.length > 0 || imageCards.length > 0;
 
   return {
     ...response,
-    answer: shouldReplaceWithArabic ? buildArabicSalesFallback({ message, suggestedProducts }) : answer,
-    needs_human_support: suggestedProducts.length ? false : response?.needs_human_support !== false,
+    answer: shouldUseCommerceComposer
+      ? buildCommerceAwareCardsReply({
+          message,
+          response,
+          productCards: suggestedProducts,
+          imageCards,
+          route: "POST /api/ai-support/chat",
+          sourceFile: "server/routes/aiSupport.js",
+          textKey: "legacy_public_support_fallback_overridden",
+        })
+      : shouldReplaceWithArabic ? buildArabicSalesFallback({ message, suggestedProducts }) : answer,
+    needs_human_support: suggestedProducts.length || imageCards.length ? false : response?.needs_human_support !== false,
     suggested_products: suggestedProducts,
+    image_cards: imageCards,
   };
 };
 
@@ -1476,8 +1505,8 @@ const statelessGreetingOnlyAnswer = (message = "") => {
   const text = toText(message).toLowerCase();
   const isSalaam = /السلام\s+عليكم|سلام\s+عليكم|elsalam|salam/i.test(text);
   return isSalaam
-    ? "وعليكم السلام\nأقدر أساعدك في المقاسات، الموديلات، أو البحث بصورة."
-    : "أهلاً بيك\nأقدر أساعدك في المقاسات، الموديلات، أو البحث بصورة.";
+    ? "وعليكم السلام\nابعتلي موديل أو صورة أو مقاس، ولو عندي اختيارات مناسبة هتظهر لك تحت."
+    : "أهلاً بيك\nابعتلي موديل أو صورة أو مقاس، ولو عندي اختيارات مناسبة هتظهر لك تحت.";
 };
 
 const buildStatelessGreetingOnlyPayload = (message = "") => ({

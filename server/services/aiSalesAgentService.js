@@ -835,7 +835,11 @@ export const composeObjectionReply = ({ message = "", product = null, settings =
 export const humanizeSalesResponse = async ({ tenantId, message = "", response = {} } = {}) => {
   const settings = await getAiAgentSettings({ tenantId }).catch(() => DEFAULT_SETTINGS);
   let answer = text(response.answer);
-  const products = asArray(response.suggested_products);
+  const products = [
+    ...asArray(response.suggested_products),
+    ...asArray(response.product_cards),
+    ...asArray(response.channel_reply?.product_cards),
+  ];
   const firstProduct = products[0] || null;
   const objectionReply = composeObjectionReply({ message, product: firstProduct, settings });
   if (objectionReply) {

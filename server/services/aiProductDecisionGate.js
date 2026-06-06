@@ -87,7 +87,7 @@ const productMatchesModel = (product = {}, modelIntent = null) => {
 };
 
 const NO_RANDOM_BLOCK_MESSAGE =
-  "الموديل ده مش متوفر حاليًا للأسف، ومش هبعتلك بديل بعيد عن اللي طلبته. تحب أدورلك على نفس الستايل بس بلون تاني أو سعر قريب؟";
+  "ما لقيتش نفس الموديل بالضبط، لكن أقدر أطلعلك أقرب اختيارات من نفس الستايل أو سعر قريب.";
 
 const detectContextFlags = (blob = "") => ({
   lowCasualSkate: /\b(low|lowtop|low top|low profile|flat sole|slim sole|casual|skate|dunk|court|lifestyle)\b|كاجوال|دانك/.test(blob),
@@ -216,7 +216,7 @@ export const evaluateProductDecisionGate = ({
     decision = "strong_model";
   } else if (accepted.length && alternativesAllowed) {
     decision = "medium";
-    introText = "مش نفس الموديل بالظبط، بس دي أقرب حاجة شبهه ";
+    introText = "دي أقرب اختيارات شبهه من اللي عندنا ";
   } else if (!accepted.length) {
     decision = "low";
   } else {

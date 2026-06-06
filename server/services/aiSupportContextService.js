@@ -2761,8 +2761,8 @@ const buildDirectConversationalResponse = async ({ tenantId, intent, message }) 
 
 const buildGreetingOnlyResponse = ({ message = "" } = {}) => ({
   answer: normalizeConversationalText(message).includes("السلام عليكم")
-    ? "وعليكم السلام\nأقدر أساعدك في المقاسات، الموديلات، أو البحث بصورة."
-    : "أهلاً بيك\nأقدر أساعدك في المقاسات، الموديلات، أو البحث بصورة.",
+    ? "وعليكم السلام\nابعتلي موديل أو صورة أو مقاس، ولو عندي اختيارات مناسبة هتظهر لك تحت."
+    : "أهلاً بيك\nابعتلي موديل أو صورة أو مقاس، ولو عندي اختيارات مناسبة هتظهر لك تحت.",
   confidence: 1,
   needs_human_support: false,
   sources_used: [],

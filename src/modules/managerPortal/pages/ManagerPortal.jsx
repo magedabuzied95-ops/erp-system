@@ -105,33 +105,124 @@ const formatShortDay = (value) => {
 };
 const formatNumber = (value) => new Intl.NumberFormat("ar-EG").format(Number(value || 0));
 const ARABIC_LETTER_RE = /[\u0600-\u06FF]/g;
-const MOJIBAKE_HINT_RE = /[ØÙÃÂ]|ط|ظ/;
-const latin1BytesToUtf8 = (value) => {
+const HAS_ARABIC_LETTER_RE = /[\u0600-\u06FF]/;
+const MOJIBAKE_HINT_RE = /[ØÙÃÂÐ�]|Ã|Â|Ø|Ù/;
+const MOJIBAKE_SEQUENCE_RE = /(ط[اأإآء-ي]|ظ[اأإآء-ي]|Ø.|Ù.|Ã.|Â.|Ð.){2,}/;
+const latin1BytesToText = (value, encoding = "utf-8") => {
   if (typeof TextDecoder === "undefined") return value;
-  const bytes = Uint8Array.from(String(value), (char) => char.charCodeAt(0) & 0xff);
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  try {
+    const bytes = Uint8Array.from(String(value), (char) => char.charCodeAt(0) & 0xff);
+    return new TextDecoder(encoding, { fatal: false }).decode(bytes);
+  } catch {
+    return value;
+  }
 };
-const maybeDecodeArabicMojibake = (value) => {
+const escapeDecodeText = (value) => {
+  try {
+    return decodeURIComponent(escape(String(value)));
+  } catch {
+    return value;
+  }
+};
+const scoreArabicText = (value) => {
+  const text = String(value || "");
+  const arabic = (text.match(ARABIC_LETTER_RE) || []).length;
+  const latin = (text.match(/[A-Za-z]/g) || []).length;
+  const mojibake = (text.match(MOJIBAKE_HINT_RE) || []).length;
+  const replacements = (text.match(/�/g) || []).length;
+  const spaces = (text.match(/\s/g) || []).length;
+  return arabic * 4 + spaces * 0.2 - latin * 2 - mojibake * 4 - replacements * 6 - Math.max(0, 3 - arabic);
+};
+const shouldAttemptArabicDecode = (value) => MOJIBAKE_HINT_RE.test(value) || HAS_ARABIC_LETTER_RE.test(value);
+const decodeManagerPortalText = (value) => {
   if (typeof value !== "string" || !value) return value;
-  if (!MOJIBAKE_HINT_RE.test(value)) return value;
-  const decoded = latin1BytesToUtf8(value);
-  if (!decoded || decoded === value) return value;
-  const originalArabicCount = (value.match(ARABIC_LETTER_RE) || []).length;
-  const decodedArabicCount = (decoded.match(ARABIC_LETTER_RE) || []).length;
-  const originalLength = value.length;
-  const decodedLength = decoded.length;
-  const improvedArabic = decodedArabicCount > 0 && decodedArabicCount >= originalArabicCount;
-  const improvedLength = decodedLength + 1 < originalLength;
-  return improvedArabic && improvedLength ? decoded : value;
+  if (!shouldAttemptArabicDecode(value)) return value;
+
+  const candidates = new Set([value]);
+  const queue = [value];
+  const transforms = [
+    (input) => latin1BytesToText(input, "utf-8"),
+    (input) => latin1BytesToText(input, "windows-1256"),
+    (input) => escapeDecodeText(input),
+  ];
+
+  for (let depth = 0; depth < 2; depth += 1) {
+    const frontier = queue.splice(0, queue.length);
+    for (const current of frontier) {
+      for (const transform of transforms) {
+        const next = transform(current);
+        if (typeof next !== "string" || !next || next === current || candidates.has(next)) continue;
+        candidates.add(next);
+        queue.push(next);
+      }
+    }
+  }
+
+  let best = value;
+  let bestScore = scoreArabicText(value);
+  for (const candidate of candidates) {
+    const nextScore = scoreArabicText(candidate);
+    const hasArabic = (candidate.match(ARABIC_LETTER_RE) || []).length > 0;
+    const improved = nextScore > bestScore && hasArabic;
+    const clearlyBetter = nextScore >= bestScore + 2 && !/[ØÙÃÂÐ�]/.test(candidate);
+    if (improved || clearlyBetter) {
+      best = candidate;
+      bestScore = nextScore;
+    }
+  }
+
+  return best;
 };
 const normalizeManagerPortalValue = (value) => {
-  if (typeof value === "string") return maybeDecodeArabicMojibake(value);
+  if (typeof value === "string") return decodeManagerPortalText(value);
   if (Array.isArray(value)) return value.map((item) => normalizeManagerPortalValue(item));
   if (value && typeof value === "object") {
     if (value instanceof Date) return value;
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeManagerPortalValue(item)]));
   }
   return value;
+};
+const collectSuspiciousManagerPortalStrings = (value, path = "", results = [], seen = new WeakSet()) => {
+  if (typeof value === "string") {
+    const decoded = decodeManagerPortalText(value);
+    if (decoded !== value || MOJIBAKE_HINT_RE.test(value) || MOJIBAKE_SEQUENCE_RE.test(value)) {
+      results.push({ path, value, decoded });
+    }
+    return results;
+  }
+  if (!value || typeof value !== "object") return results;
+  if (value instanceof Date) return results;
+  if (seen.has(value)) return results;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectSuspiciousManagerPortalStrings(item, `${path}[${index}]`, results, seen));
+    return results;
+  }
+  Object.entries(value).forEach(([key, item]) => {
+    const nextPath = path ? `${path}.${key}` : key;
+    collectSuspiciousManagerPortalStrings(item, nextPath, results, seen);
+  });
+  return results;
+};
+const warnSuspiciousManagerPortalPayload = (label, value) => {
+  if (!import.meta.env.DEV) return;
+  const suspicious = collectSuspiciousManagerPortalStrings(value).slice(0, 20);
+  if (!suspicious.length) return;
+  console.warn("[manager-portal:mojibake]", {
+    label,
+    count: suspicious.length,
+    samples: suspicious,
+  });
+};
+const portalText = (value, fallback = "-") => {
+  const decoded = decodeManagerPortalText(value);
+  const safe = decoded === undefined || decoded === null || decoded === "" ? fallback : decoded;
+  return safe;
+};
+const normalizeManagerPortalPayload = (label, value) => {
+  const normalized = normalizeManagerPortalValue(value);
+  warnSuspiciousManagerPortalPayload(label, normalized);
+  return normalized;
 };
 const MANAGER_NOTIFICATION_CATEGORIES = [
   { key: "all", label: "All", icon: Bell },
@@ -169,7 +260,7 @@ const notificationTypeLabel = (notification = {}) => {
   if (type.includes("lead") || type.includes("ai")) return "AI lead";
   if (type.includes("stock") || type.includes("inventory") || type.includes("refill") || type.includes("low_stock")) return "Stock alert";
   if (type.includes("sale") || type.includes("order") || type.includes("payment")) return "Sales";
-  return notification.category || notification.type || "Notification";
+  return portalText(notification.category || notification.type || "Notification");
 };
 const soundForCategory = (category) => {
   if (category === "employee_chat" || category === "task_completed") return "notification";
@@ -349,7 +440,7 @@ export default function ManagerPortal() {
     const seen = new Map();
     for (const task of taskList) {
       const key = String(task.current_assignee_id || task.assigned_employee_id || task.employee_id || "");
-      const label = task.assignee_name || task.employee_name || task.employee_code || "Employee";
+      const label = portalText(task.assignee_name || task.employee_name || task.employee_code || "Employee");
       if (!key && !label) continue;
       if (!seen.has(key || label)) seen.set(key || label, label);
     }
@@ -358,9 +449,9 @@ export default function ManagerPortal() {
   const filteredTasks = useMemo(() => taskList.filter((task) => {
     const status = normalizeText(task.status);
     const employeeId = String(task.current_assignee_id || task.assigned_employee_id || task.employee_id || "");
-    const employeeName = normalizeText(task.assignee_name || task.employee_name || task.employee_code || "");
+    const employeeName = normalizeText(portalText(task.assignee_name || task.employee_name || task.employee_code || ""));
     const query = normalizeText(taskFilters.query);
-    const matchesQuery = !query || [task.title, task.title_ar, task.description, task.description_ar, task.branch_name, task.assignee_name, task.employee_name].some((value) => normalizeText(value).includes(query));
+    const matchesQuery = !query || [task.title, task.title_ar, task.description, task.description_ar, task.branch_name, task.assignee_name, task.employee_name].some((value) => normalizeText(portalText(value)).includes(query));
     const matchesEmployee = !taskFilters.employee || employeeId === taskFilters.employee || employeeName.includes(normalizeText(taskFilters.employee));
     const matchesStatus = taskFilters.status === "all" || (taskFilters.status === "open" ? ["pending", "in_progress", "manager_review", "reassigned"].includes(status) || Boolean(task.is_overdue && status !== "completed") : taskFilters.status === "completed" ? status === "completed" : taskFilters.status === "overdue" ? status === "overdue" || Boolean(task.is_overdue) : status === taskFilters.status);
     return matchesQuery && matchesEmployee && matchesStatus;
@@ -404,8 +495,8 @@ export default function ManagerPortal() {
       pushEvent({
         key: `task-${row.id || `${row.task_id || "task"}-${row.created_at || ""}`}`,
         timestamp: row.created_at || row.updated_at || null,
-        title,
-        detail: [row.actor_name || "System", row.employee_name || row.to_employee_name || "", row.note || ""].filter(Boolean).join(" · "),
+        title: portalText(title),
+        detail: [portalText(row.actor_name || "System"), portalText(row.employee_name || row.to_employee_name || ""), portalText(row.note || "")].filter(Boolean).join(" · "),
         tone: toStatus === "completed" || action.includes("complete") ? "green" : toStatus === "overdue" || action.includes("overdue") ? "red" : "blue",
       });
     }
@@ -413,8 +504,8 @@ export default function ManagerPortal() {
       pushEvent({
         key: `invoice-${row.id || row.invoice_number || row.created_at || ""}`,
         timestamp: row.created_at || null,
-        title: `Invoice ${row.invoice_number || row.id || ""}`.trim(),
-        detail: [row.customer_name || "Walk-in", formatCurrency(row.total || 0)].filter(Boolean).join(" · "),
+        title: portalText(`Invoice ${row.invoice_number || row.id || ""}`.trim()),
+        detail: [portalText(row.customer_name || "Walk-in"), formatCurrency(row.total || 0)].filter(Boolean).join(" · "),
         tone: "green",
       });
     }
@@ -422,8 +513,8 @@ export default function ManagerPortal() {
       pushEvent({
         key: `refill-${row.id || row.created_at || ""}`,
         timestamp: row.created_at || null,
-        title: "Display refill",
-        detail: [row.product_name || "Refill alert", [row.color_name || row.color || "", row.replacement_size || ""].filter(Boolean).join(" · ")].filter(Boolean).join(" · "),
+        title: portalText("Display refill"),
+        detail: [portalText(row.product_name || "Refill alert"), [portalText(row.color_name || row.color || ""), portalText(row.replacement_size || "")].filter(Boolean).join(" · ")].filter(Boolean).join(" · "),
         tone: "amber",
       });
     }
@@ -431,8 +522,8 @@ export default function ManagerPortal() {
       pushEvent({
         key: `lead-${row.session_id || row.id || row.updated_at || ""}`,
         timestamp: row.updated_at || row.created_at || null,
-        title: "AI lead",
-        detail: [row.ai_insight || row.session_id || "Lead", `Score ${formatNumber(row.lead_score || 0)}`].filter(Boolean).join(" · "),
+        title: portalText("AI lead"),
+        detail: [portalText(row.ai_insight || row.session_id || "Lead"), `Score ${formatNumber(row.lead_score || 0)}`].filter(Boolean).join(" · "),
         tone: "red",
       });
     }
@@ -471,12 +562,12 @@ export default function ManagerPortal() {
     const staffEmployee = staffList.find((employee) => String(employee.employee_id) === threadEmployeeId) || null;
     return staffEmployee
       ? {
-          ...selectedChatThread,
-          ...staffEmployee,
-          employee_name: selectedChatThread?.employee_name || staffEmployee.employee_name || staffEmployee.full_name || "Employee",
-          employee_code: selectedChatThread?.employee_code || staffEmployee.employee_code || "",
-          branch_name: selectedChatThread?.branch_name || staffEmployee.branch_name || "",
-        }
+        ...selectedChatThread,
+        ...staffEmployee,
+        employee_name: portalText(selectedChatThread?.employee_name || staffEmployee.employee_name || staffEmployee.full_name || "Employee"),
+        employee_code: portalText(selectedChatThread?.employee_code || staffEmployee.employee_code || ""),
+        branch_name: portalText(selectedChatThread?.branch_name || staffEmployee.branch_name || ""),
+      }
       : selectedChatThread;
   }, [selectedChatThread, staffList]);
   const selectedChatLastActivity = selectedChatEmployee?.last_activity || selectedChatThread?.last_message_created_at || selectedChatThread?.updated_at || selectedChatThread?.last_message_at || null;
@@ -496,8 +587,8 @@ export default function ManagerPortal() {
   const notifyClient = async (notification) => {
     const category = categoryFromNotification(notification);
     const enabled = settingsRef.current?.[category] || DEFAULT_NOTIFICATION_SETTINGS[category] || DEFAULT_NOTIFICATION_SETTINGS.messages;
-    const title = maybeDecodeArabicMojibake(notification.title || "طھظ†ط¨ظٹظ‡");
-    const message = maybeDecodeArabicMojibake(notification.message || notification.body || "");
+    const title = portalText(notification.title || "Notification");
+    const message = portalText(notification.message || notification.body || "");
     const priority = String(notification.priority || "medium");
     const tone = priority === "critical" || priority === "high" ? "high" : "normal";
     if (enabled.toast !== false) {
@@ -546,23 +637,23 @@ export default function ManagerPortal() {
         managerPortalApi.notifications(token, { limit: 40 }),
         managerPortalApi.chat(token),
       ]);
-      setMe(normalizeManagerPortalValue(meRes?.manager || meRes?.data?.manager || null));
-      setDashboard(normalizeManagerPortalValue(dashboardRes?.dashboard || null));
-      setStaff(normalizeManagerPortalValue(staffRes?.staff || null));
-      setTasks(normalizeManagerPortalValue(tasksRes?.tasks || null));
-      setSales(normalizeManagerPortalValue(salesRes?.sales || null));
-      setStockAlerts(normalizeManagerPortalValue(stockRes?.stockAlerts || null));
-      setNotifications(normalizeManagerPortalValue(Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []));
+      setMe(normalizeManagerPortalPayload("me", meRes?.manager || meRes?.data?.manager || null));
+      setDashboard(normalizeManagerPortalPayload("dashboard", dashboardRes?.dashboard || null));
+      setStaff(normalizeManagerPortalPayload("staff", staffRes?.staff || null));
+      setTasks(normalizeManagerPortalPayload("tasks", tasksRes?.tasks || null));
+      setSales(normalizeManagerPortalPayload("sales", salesRes?.sales || null));
+      setStockAlerts(normalizeManagerPortalPayload("stockAlerts", stockRes?.stockAlerts || null));
+      setNotifications(normalizeManagerPortalPayload("notifications", Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []));
       setUnreadCount(Number(notificationsRes?.unread_count || 0));
-      setSettings(mergeSettings(normalizeManagerPortalValue(notificationsRes?.settings || meRes?.notification_settings || {})));
-      setChatThreads(normalizeManagerPortalValue(dedupeChatThreads(Array.isArray(chatRes?.threads) ? chatRes.threads : [])));
+      setSettings(mergeSettings(normalizeManagerPortalPayload("settings", notificationsRes?.settings || meRes?.notification_settings || {})));
+      setChatThreads(normalizeManagerPortalPayload("chatThreads", dedupeChatThreads(Array.isArray(chatRes?.threads) ? chatRes.threads : [])));
       if (!selectedThreadRef.current && Array.isArray(chatRes?.threads) && chatRes.threads[0]?.id) {
         setSelectedThreadId(String(chatRes.threads[0].id));
       }
       if (!selectedThreadRef.current && chatRes?.thread?.id) {
         setSelectedThreadId(String(chatRes.thread.id));
-        setChatThread(normalizeManagerPortalValue(chatRes.thread));
-        setChatMessages(normalizeManagerPortalValue(dedupeChatMessages(Array.isArray(chatRes.messages) ? chatRes.messages : [], chatRes.thread)));
+        setChatThread(normalizeManagerPortalPayload("chatThread", chatRes.thread));
+        setChatMessages(normalizeManagerPortalPayload("chatMessages", dedupeChatMessages(Array.isArray(chatRes.messages) ? chatRes.messages : [], chatRes.thread)));
       }
     } catch (loadError) {
       setError(loadError?.responseBody?.message || loadError?.message || "طھط¹ط°ط± طھط­ظ…ظٹظ„ ط¨ظˆط§ط¨ط© ط§ظ„ظ…ط¯ظٹط±.");
@@ -617,33 +708,33 @@ export default function ManagerPortal() {
     });
     socket.on("notification:count:refresh", () => {
       managerPortalApi.notifications(token, { limit: 40 }).then((response) => {
-        setNotifications(normalizeManagerPortalValue(Array.isArray(response?.notifications) ? response.notifications : []));
+        setNotifications(normalizeManagerPortalPayload("socketNotifications", Array.isArray(response?.notifications) ? response.notifications : []));
         setUnreadCount(Number(response?.unread_count || 0));
       }).catch(() => null);
     });
     socket.on("employee-chat:new-message", (payload) => {
       const threadId = String(payload?.thread?.id || payload?.thread_id || "");
       if (!threadId) return;
-      setChatThreads((current) => normalizeManagerPortalValue(mergeChatThreads(current, payload.thread ? [payload.thread] : [])));
+      setChatThreads((current) => normalizeManagerPortalPayload("socketChatThreads", mergeChatThreads(current, payload.thread ? [payload.thread] : [])));
       if (payload?.message) {
-        setChatMessages((current) => normalizeManagerPortalValue(mergeChatMessages(current, [payload.message], payload.thread || chatThreadRef.current || null)));
+        setChatMessages((current) => normalizeManagerPortalPayload("socketChatMessages", mergeChatMessages(current, [payload.message], payload.thread || chatThreadRef.current || null)));
       }
       if (selectedThreadRef.current && String(selectedThreadRef.current) === threadId) {
-        if (payload.thread) setChatThread((current) => normalizeManagerPortalValue(current ? { ...current, ...payload.thread } : payload.thread));
+        if (payload.thread) setChatThread((current) => normalizeManagerPortalPayload("socketChatThread", current ? { ...current, ...payload.thread } : payload.thread));
         managerPortalApi.chatThread(token, threadId).then((response) => {
           if (response?.thread) {
-            setChatThread((current) => normalizeManagerPortalValue(current ? { ...current, ...response.thread } : response.thread));
+            setChatThread((current) => normalizeManagerPortalPayload("socketChatThreadReload", current ? { ...current, ...response.thread } : response.thread));
           }
-          setChatMessages((current) => normalizeManagerPortalValue(mergeChatMessages(current, Array.isArray(response?.messages) ? response.messages : [], response?.thread || payload?.thread || chatThreadRef.current || null)));
+          setChatMessages((current) => normalizeManagerPortalPayload("socketChatMessagesReload", mergeChatMessages(current, Array.isArray(response?.messages) ? response.messages : [], response?.thread || payload?.thread || chatThreadRef.current || null)));
         }).catch(() => null);
       }
     });
     socket.on("employee-chat:thread-updated", (payload) => {
       const nextThread = payload?.thread;
       if (!nextThread?.id) return;
-      setChatThreads((current) => normalizeManagerPortalValue(mergeChatThreads(current, [nextThread])));
+      setChatThreads((current) => normalizeManagerPortalPayload("socketThreadUpdated", mergeChatThreads(current, [nextThread])));
       if (selectedThreadRef.current && String(selectedThreadRef.current) === String(nextThread.id)) {
-        setChatThread((current) => normalizeManagerPortalValue(current ? { ...current, ...nextThread } : nextThread));
+        setChatThread((current) => normalizeManagerPortalPayload("socketThreadUpdatedCurrent", current ? { ...current, ...nextThread } : nextThread));
       }
     });
     socket.on("employee-chat:read", (payload) => {
@@ -652,9 +743,9 @@ export default function ManagerPortal() {
       if (selectedThreadRef.current && String(selectedThreadRef.current) === threadId) {
         managerPortalApi.chatThread(token, threadId).then((response) => {
           if (response?.thread) {
-            setChatThread((current) => normalizeManagerPortalValue(current ? { ...current, ...response.thread } : response.thread));
+            setChatThread((current) => normalizeManagerPortalPayload("socketThreadRead", current ? { ...current, ...response.thread } : response.thread));
           }
-          setChatMessages((current) => normalizeManagerPortalValue(mergeChatMessages(current, Array.isArray(response?.messages) ? response.messages : [], response?.thread || chatThreadRef.current || null)));
+          setChatMessages((current) => normalizeManagerPortalPayload("socketThreadReadMessages", mergeChatMessages(current, Array.isArray(response?.messages) ? response.messages : [], response?.thread || chatThreadRef.current || null)));
         }).catch(() => null);
       }
     });
@@ -675,30 +766,30 @@ export default function ManagerPortal() {
           managerPortalApi.notifications(token, { limit: 40 }),
           managerPortalApi.stockAlerts(token),
         ]);
-        setDashboard(normalizeManagerPortalValue(dashboardRes?.dashboard || null));
-        setNotifications(normalizeManagerPortalValue(Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []));
+        setDashboard(normalizeManagerPortalPayload("dashboardReload", dashboardRes?.dashboard || null));
+        setNotifications(normalizeManagerPortalPayload("notificationsReload", Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []));
         setUnreadCount(Number(notificationsRes?.unread_count || 0));
-        setSettings(mergeSettings(normalizeManagerPortalValue(notificationsRes?.settings || me?.notification_settings || {})));
-        setStockAlerts(normalizeManagerPortalValue(stockRes?.stockAlerts || null));
+        setSettings(mergeSettings(normalizeManagerPortalPayload("settingsReload", notificationsRes?.settings || me?.notification_settings || {})));
+        setStockAlerts(normalizeManagerPortalPayload("stockAlertsReload", stockRes?.stockAlerts || null));
       }
       if (tab === "staff") {
         const response = await managerPortalApi.staff(token);
-        setStaff(normalizeManagerPortalValue(response?.staff || null));
+        setStaff(normalizeManagerPortalPayload("staffReload", response?.staff || null));
       }
       if (tab === "tasks") {
         const response = await managerPortalApi.tasks(token);
-        setTasks(normalizeManagerPortalValue(response?.tasks || null));
+        setTasks(normalizeManagerPortalPayload("tasksReload", response?.tasks || null));
       }
       if (tab === "sales") {
         const response = await managerPortalApi.sales(token);
-        setSales(normalizeManagerPortalValue(response?.sales || null));
+        setSales(normalizeManagerPortalPayload("salesReload", response?.sales || null));
       }
       if (tab === "chat") {
         const response = await managerPortalApi.chat(token, selectedThreadId || null);
-        setChatThreads((current) => normalizeManagerPortalValue(mergeChatThreads(current, Array.isArray(response?.threads) ? response.threads : [])));
+        setChatThreads((current) => normalizeManagerPortalPayload("chatThreadsReload", mergeChatThreads(current, Array.isArray(response?.threads) ? response.threads : [])));
         if (response?.thread) {
-          setChatThread((current) => normalizeManagerPortalValue(current ? { ...current, ...response.thread } : response.thread));
-          setChatMessages((current) => normalizeManagerPortalValue(mergeChatMessages(current, Array.isArray(response.messages) ? response.messages : [], response.thread || chatThreadRef.current || null)));
+          setChatThread((current) => normalizeManagerPortalPayload("chatThreadReload", current ? { ...current, ...response.thread } : response.thread));
+          setChatMessages((current) => normalizeManagerPortalPayload("chatMessagesReload", mergeChatMessages(current, Array.isArray(response.messages) ? response.messages : [], response.thread || chatThreadRef.current || null)));
         }
       }
     } catch (reloadError) {
@@ -784,9 +875,9 @@ export default function ManagerPortal() {
     setSelectedThreadId(String(threadId));
     try {
       const response = await managerPortalApi.chatThread(token, threadId);
-      setChatThread(normalizeManagerPortalValue(response?.thread || null));
-      setChatMessages(normalizeManagerPortalValue(dedupeChatMessages(Array.isArray(response?.messages) ? response.messages : [], response?.thread)));
-      setChatThreads((current) => normalizeManagerPortalValue(mergeChatThreads(current, [response?.thread || current.find((item) => String(item.id) === String(threadId))].filter(Boolean))));
+      setChatThread(normalizeManagerPortalPayload("chatThreadSelect", response?.thread || null));
+      setChatMessages(normalizeManagerPortalPayload("chatMessagesSelect", dedupeChatMessages(Array.isArray(response?.messages) ? response.messages : [], response?.thread)));
+      setChatThreads((current) => normalizeManagerPortalPayload("chatThreadsSelect", mergeChatThreads(current, [response?.thread || current.find((item) => String(item.id) === String(threadId))].filter(Boolean))));
       await managerPortalApi.markChatRead(token, threadId);
     } catch (chatError) {
       toast.error(chatError?.responseBody?.message || chatError?.message || "طھط¹ط°ط± ظپطھط­ ط§ظ„ظ…ط­ط§ط¯ط«ط©");
@@ -848,12 +939,12 @@ export default function ManagerPortal() {
     const statusMeta = taskStatusMeta(task);
     const proofUrl = taskProofUrl(task);
     return (
-      <Card key={task.id} title={task.title_ar || task.title || "Task"} subtitle={task.branch_name || task.task_type || "task"} icon={ClipboardList}>
+      <Card key={task.id} title={portalText(task.title_ar || task.title || "Task")} subtitle={portalText(task.branch_name || task.task_type || "task")} icon={ClipboardList}>
         <div className="flex flex-wrap gap-2">
           <StatusPill tone={statusMeta.tone} value={statusMeta.label} />
           <StatusPill tone="amber" value={task.priority || "medium"} />
           <StatusPill tone="slate" value={task.assignee_name || task.employee_name || "Unassigned"} />
-          {task.branch_name ? <StatusPill tone="slate" value={task.branch_name} /> : null}
+          {task.branch_name ? <StatusPill tone="slate" value={portalText(task.branch_name)} /> : null}
         </div>
         <div className="mt-3 grid gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 sm:grid-cols-2">
           <div>ط§ظ„ظ…ظˆط¸ظپ: {task.assignee_name || task.employee_name || "-"}</div>
@@ -867,11 +958,11 @@ export default function ManagerPortal() {
           <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.03]">
             {["image", "photo", "img"].some((type) => String(task.latest_attachment_type || "").toLowerCase().includes(type)) ? (
               <a href={proofUrl} target="_blank" rel="noreferrer" className="block">
-                <img src={proofUrl} alt={taskProofLabel(task) || task.title || "Task proof"} className="h-44 w-full object-cover" />
+                <img src={proofUrl} alt={portalText(taskProofLabel(task) || task.title || "Task proof")} className="h-44 w-full object-cover" />
               </a>
             ) : (
               <a href={proofUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-200">
-                <span className="min-w-0 truncate">{taskProofLabel(task) || "Proof attachment"}</span>
+                <span className="min-w-0 truncate">{portalText(taskProofLabel(task) || "Proof attachment")}</span>
                 <ChevronRight className="h-4 w-4" />
               </a>
             )}
@@ -938,7 +1029,7 @@ export default function ManagerPortal() {
             </div>
             <div>
               <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Manager Command Center</div>
-              <div className="text-lg font-black">{me?.full_name || me?.name || "ظ…ط¯ظٹط±"}</div>
+              <div className="text-lg font-black">{portalText(me?.full_name || me?.name || "Manager")}</div>
             </div>
           </div>
           <div className="mt-4 space-y-3">
@@ -975,10 +1066,10 @@ export default function ManagerPortal() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-600/70">ط¨ظˆط§ط¨ط© ط§ظ„ظ…ط¯ظٹط±</div>
-                <h1 className="mt-1 text-2xl font-black leading-8 text-slate-950 dark:text-white">{me?.full_name || me?.name || "Manager"}</h1>
+                <h1 className="mt-1 text-2xl font-black leading-8 text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || "Manager")}</h1>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-300">
-                  <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {me?.branch_name || "All branches"}</span>
-                  <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {me?.role || "manager"}</span>
+                  <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {portalText(me?.branch_name || "All branches")}</span>
+                  <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {portalText(me?.role || "manager")}</span>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
@@ -1233,11 +1324,11 @@ export default function ManagerPortal() {
 
               <div className="grid gap-3 xl:grid-cols-2">
                 <Card title="طھظˆط²ظٹط¹ ط§ظ„ط¯ظپط¹" subtitle="Payment breakdown" icon={ArrowLeftRight}>
-                  {paymentBreakdown.length ? (
+                {paymentBreakdown.length ? (
                     <div className="space-y-2">
                       {paymentBreakdown.map((row) => (
                         <div key={row.method} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700 dark:bg-white/[0.03] dark:text-slate-200">
-                          <span>{row.method}</span>
+                          <span>{portalText(row.method)}</span>
                           <span>{formatCurrency(row.total || 0)} آ· {formatNumber(row.count || 0)}</span>
                         </div>
                       ))}
@@ -1251,13 +1342,13 @@ export default function ManagerPortal() {
                     <div className="space-y-2">
                       {refillAlerts.slice(0, 3).map((alert) => (
                         <div key={`refill-${alert.id}`} className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
-                          <div className="font-black">{alert.product_name || "Display refill"}</div>
-                          <div className="mt-1 text-xs font-bold opacity-80">{alert.color_name || alert.color || ""} {alert.replacement_size ? `آ· ${alert.replacement_size}` : ""}</div>
+                          <div className="font-black">{portalText(alert.product_name || "Display refill")}</div>
+                          <div className="mt-1 text-xs font-bold opacity-80">{portalText(alert.color_name || alert.color || "")} {alert.replacement_size ? `· ${portalText(alert.replacement_size)}` : ""}</div>
                         </div>
                       ))}
                       {lowStock.slice(0, 3).map((item) => (
                         <div key={`low-${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                          <div className="font-black">{item.name || "Unknown item"}</div>
+                          <div className="font-black">{portalText(item.name || "Unknown item")}</div>
                           <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{formatNumber(item.stock || 0)} ظ…طھط¨ظ‚ظٹ</div>
                         </div>
                       ))}
@@ -1272,10 +1363,10 @@ export default function ManagerPortal() {
                 {aiInsights.length ? (
                   <div className="grid gap-2 md:grid-cols-2">
                     {aiInsights.map((item, index) => (
-                      <div key={`${item.title || item.body || index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold leading-6 text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                        <div className="text-xs font-black uppercase tracking-[0.14em] text-sky-600/70">{item.type || "insight"}</div>
-                        <div className="mt-1 font-black text-slate-950 dark:text-white">{item.title || "Insight"}</div>
-                        <div className="mt-1">{item.body || "-"}</div>
+                        <div key={`${item.title || item.body || index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold leading-6 text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
+                        <div className="text-xs font-black uppercase tracking-[0.14em] text-sky-600/70">{portalText(item.type || "insight")}</div>
+                        <div className="mt-1 font-black text-slate-950 dark:text-white">{portalText(item.title || "Insight")}</div>
+                        <div className="mt-1">{portalText(item.body || "-")}</div>
                       </div>
                     ))}
                 </div>
@@ -1289,21 +1380,21 @@ export default function ManagerPortal() {
           {activeTab === "staff" ? (
             <div className="space-y-3">
               {staffList.length ? staffList.map((employee) => (
-                <Card key={employee.employee_id} title={employee.employee_name || "Employee"} subtitle={employee.department || employee.job_title || "Staff"} icon={Users}>
+                <Card key={employee.employee_id} title={portalText(employee.employee_name || "Employee")} subtitle={portalText(employee.department || employee.job_title || "Staff")} icon={Users}>
                   <div className="flex flex-wrap gap-2">
-                    <StatusPill tone={employee.attendance_status === "checked_in" ? "green" : employee.attendance_status === "online" ? "blue" : "slate"} value={employee.attendance_status || "absent"} />
-                    <StatusPill tone="blue" value={`Tasks ${formatNumber(employee.open_tasks || 0)}/${formatNumber(employee.completed_tasks || 0)}`} />
-                    <StatusPill tone="amber" value={`Sales ${formatCurrency(employee.sales_today || 0)}`} />
+                    <StatusPill tone={employee.attendance_status === "checked_in" ? "green" : employee.attendance_status === "online" ? "blue" : "slate"} value={portalText(employee.attendance_status || "absent")} />
+                    <StatusPill tone="blue" value={portalText(`Tasks ${formatNumber(employee.open_tasks || 0)}/${formatNumber(employee.completed_tasks || 0)}`)} />
+                    <StatusPill tone="amber" value={portalText(`Sales ${formatCurrency(employee.sales_today || 0)}`)} />
                   </div>
                   <div className="mt-3 grid gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 sm:grid-cols-2">
-                    <div>ط§ظ„ط­ط¶ظˆط±: {formatTime(employee.check_in_time)} - {formatTime(employee.check_out_time)}</div>
-                    <div>ط§ظ„ظˆط±ط¯ظٹط©: {Number(employee.shift_duration_hours || 0).toFixed(2)} ط³ط§ط¹ط©</div>
-                    <div>ط§ظ„ظپظˆط§طھظٹط±: {formatNumber(employee.invoices_count || 0)}</div>
-                    <div>ط¢ط®ط± ظ†ط´ط§ط·: {formatDateTime(employee.last_activity)}</div>
+                    <div>{portalText("Attendance")}: {formatTime(employee.check_in_time)} - {formatTime(employee.check_out_time)}</div>
+                    <div>{portalText("Shift")}: {Number(employee.shift_duration_hours || 0).toFixed(2)} {portalText("hours")}</div>
+                    <div>{portalText("Invoices")}: {formatNumber(employee.invoices_count || 0)}</div>
+                    <div>{portalText("Last activity")}: {formatDateTime(employee.last_activity)}</div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">ط¹ظ…ظˆظ„ط© ظ…طھظˆظ‚ط¹ط© {employee.expected_commission == null ? "ط؛ظٹط± ظ…طھط§ط­" : formatCurrency(employee.expected_commission || 0)}</Badge>
-                    <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">ظ…ظ‡ط§ظ… ظ…ظپطھظˆط­ط© {formatNumber(employee.open_tasks || 0)}</Badge>
+                    <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText("Expected commission")} {employee.expected_commission == null ? portalText("Unavailable") : formatCurrency(employee.expected_commission || 0)}</Badge>
+                    <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText("Open tasks")} {formatNumber(employee.open_tasks || 0)}</Badge>
                   </div>
                 </Card>
               )) : (
@@ -1319,7 +1410,7 @@ export default function ManagerPortal() {
                   <input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder="ط¹ظ†ظˆط§ظ† ط§ظ„ظ…ظ‡ظ…ط©" className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
                   <select value={taskDraft.assigned_employee_id} onChange={(event) => setTaskDraft((current) => ({ ...current, assigned_employee_id: event.target.value }))} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
                     <option value="">ط¥ط³ظ†ط§ط¯ ط§ط®طھظٹط§ط±ظٹ</option>
-                    {staffList.map((employee) => <option key={employee.employee_id} value={employee.employee_id}>{employee.employee_name}</option>)}
+                    {staffList.map((employee) => <option key={employee.employee_id} value={employee.employee_id}>{portalText(employee.employee_name)}</option>)}
                   </select>
                   <select value={taskDraft.priority} onChange={(event) => setTaskDraft((current) => ({ ...current, priority: event.target.value }))} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
                     <option value="low">ظ…ظ†ط®ظپط¶ط©</option>
@@ -1406,7 +1497,7 @@ export default function ManagerPortal() {
                 <Card title="Top seller" subtitle="30-day leader" icon={Trophy}>
                   {salesLeaders.top_seller ? (
                     <div className="space-y-2 rounded-2xl bg-emerald-50 px-4 py-4 text-slate-900 dark:bg-emerald-500/10 dark:text-white">
-                      <div className="text-lg font-black">{salesLeaders.top_seller.seller_name || "Unknown seller"}</div>
+                      <div className="text-lg font-black">{portalText(salesLeaders.top_seller.seller_name || "Unknown seller")}</div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
                         <div>Revenue: {formatCurrency(salesLeaders.top_seller.revenue || 0)}</div>
                         <div>Orders: {formatNumber(salesLeaders.top_seller.orders_count || 0)}</div>
@@ -1419,7 +1510,7 @@ export default function ManagerPortal() {
                 <Card title="Worst seller" subtitle="30-day laggard" icon={Medal}>
                   {salesLeaders.worst_seller ? (
                     <div className="space-y-2 rounded-2xl bg-amber-50 px-4 py-4 text-slate-900 dark:bg-amber-500/10 dark:text-white">
-                      <div className="text-lg font-black">{salesLeaders.worst_seller.seller_name || "Unknown seller"}</div>
+                      <div className="text-lg font-black">{portalText(salesLeaders.worst_seller.seller_name || "Unknown seller")}</div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
                         <div>Revenue: {formatCurrency(salesLeaders.worst_seller.revenue || 0)}</div>
                         <div>Orders: {formatNumber(salesLeaders.worst_seller.orders_count || 0)}</div>
@@ -1435,7 +1526,7 @@ export default function ManagerPortal() {
                 <Card title="Best category" subtitle="30-day category leader" icon={Package}>
                   {bestCategory ? (
                     <div className="space-y-2 rounded-2xl bg-sky-50 px-4 py-4 text-slate-900 dark:bg-sky-500/10 dark:text-white">
-                      <div className="text-lg font-black">{bestCategory.name || "Uncategorized"}</div>
+                      <div className="text-lg font-black">{portalText(bestCategory.name || "Uncategorized")}</div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
                         <div>Revenue: {formatCurrency(bestCategory.revenue || 0)}</div>
                         <div>Units: {formatNumber(bestCategory.quantity || 0)}</div>
@@ -1448,7 +1539,7 @@ export default function ManagerPortal() {
                 <Card title="Best brand" subtitle="30-day brand leader" icon={Store}>
                   {bestBrand ? (
                     <div className="space-y-2 rounded-2xl bg-violet-50 px-4 py-4 text-slate-900 dark:bg-violet-500/10 dark:text-white">
-                      <div className="text-lg font-black">{bestBrand.name || "Unbranded"}</div>
+                      <div className="text-lg font-black">{portalText(bestBrand.name || "Unbranded")}</div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
                         <div>Revenue: {formatCurrency(bestBrand.revenue || 0)}</div>
                         <div>Units: {formatNumber(bestBrand.quantity || 0)}</div>
@@ -1599,15 +1690,15 @@ export default function ManagerPortal() {
                 )}
               </Card>
 
-              <Card title="ط£ط¹ظ„ظ‰ ط§ظ„ظ…ظ†طھط¬ط§طھ" subtitle="Top products" icon={Package}>
+              <Card title={portalText("Top products")} subtitle="Top products" icon={Package}>
                 {topProducts.length ? topProducts.map((item) => (
                   <div key={item.name} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:bg-white/[0.03] dark:text-slate-200">
-                    <span>{item.name}</span>
+                    <span>{portalText(item.name)}</span>
                     <span>{formatNumber(item.quantity || 0)} آ· {formatCurrency(item.revenue || 0)}</span>
                   </div>
                 )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ظ…ظ†طھط¬ط§طھ ظ…ط¨ظٹط¹ط©" body="ط³ظٹط¸ظ‡ط± ظ‡ظ†ط§ ط£ظپط¶ظ„ ط§ظ„ط¨ط§ط¦ط¹ظٹظ† ط¹ظ†ط¯ طھظˆظپط± ط¨ظٹط§ظ†ط§طھ ظپط¹ظ„ظٹط©." />}
               </Card>
-              <Card title="ط¥ظٹط±ط§ط¯ط§طھ ط§ظ„ظٹظˆظ…" subtitle="Hourly trend" icon={Clock3}>
+              <Card title={portalText("Hourly trend")} subtitle="Hourly trend" icon={Clock3}>
                 {Array.isArray(sales?.hourly) && sales.hourly.length ? (
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
                     {sales.hourly.map((item) => (
@@ -1627,7 +1718,7 @@ export default function ManagerPortal() {
           {activeTab === "chat" ? (
             <div className="grid min-h-0 gap-4 xl:h-[calc(100dvh-13rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
               <Card
-                title="المحادثات"
+                title={portalText("Conversations")}
                 subtitle="Conversations"
                 icon={MessageSquare}
                 className="flex min-h-0 flex-col overflow-hidden xl:h-full"
@@ -1651,9 +1742,9 @@ export default function ManagerPortal() {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-black text-slate-950 dark:text-white">{thread.employee_name || thread.employee_code || "Employee"}</div>
-                              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                                <span className="truncate">{thread.branch_name || "No branch"}</span>
+                      <div className="truncate text-sm font-black text-slate-950 dark:text-white">{portalText(thread.employee_name || thread.employee_code || "Employee")}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                        <span className="truncate">{portalText(thread.branch_name || "No branch")}</span>
                                 <span>•</span>
                                 <span dir="ltr">{formatDateTime(lastMessageTime)}</span>
                               </div>
@@ -1665,7 +1756,7 @@ export default function ManagerPortal() {
                               {thread.last_sender_type ? <StatusPill tone={thread.last_sender_type === "admin" ? "blue" : "green"} value={thread.last_sender_type === "admin" ? "Admin" : "Employee"} /> : null}
                             </div>
                           </div>
-                          <div className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">{thread.last_message || "No message yet."}</div>
+                          <div className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">{portalText(thread.last_message || "No message yet.")}</div>
                         </button>
                       );
                     }) : (
@@ -1676,7 +1767,7 @@ export default function ManagerPortal() {
               </Card>
 
               <Card
-                title={selectedChatThread?.employee_name || "اختر محادثة"}
+                title={portalText(selectedChatThread?.employee_name || "اختر محادثة")}
                 subtitle="Messages"
                 icon={Phone}
                 className="flex min-h-0 flex-col overflow-hidden xl:h-full"
@@ -1684,9 +1775,9 @@ export default function ManagerPortal() {
                 action={
                   selectedChatThread ? (
                     <div className="flex flex-wrap items-center gap-2 text-xs font-black text-slate-500 dark:text-slate-300">
-                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{selectedChatThread.branch_name || "No branch"}</Badge>
+                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatThread.branch_name || "No branch")}</Badge>
                       <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{selectedChatUnread} unread</Badge>
-                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{selectedChatEmployee?.department || selectedChatEmployee?.job_title || "Staff"}</Badge>
+                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee?.department || selectedChatEmployee?.job_title || "Staff")}</Badge>
                     </div>
                   ) : null
                 }
@@ -1697,8 +1788,8 @@ export default function ManagerPortal() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700/80 dark:text-emerald-200/80">Conversation window</div>
-                          <div className="mt-1 truncate text-sm font-black text-slate-950 dark:text-white">{selectedChatEmployee?.employee_name || selectedChatThread.employee_name || "Employee"}</div>
-                          <div className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">{selectedChatEmployee?.employee_code || selectedChatThread.employee_code || "-"}</div>
+                          <div className="mt-1 truncate text-sm font-black text-slate-950 dark:text-white">{portalText(selectedChatEmployee?.employee_name || selectedChatThread.employee_name || "Employee")}</div>
+                          <div className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">{portalText(selectedChatEmployee?.employee_code || selectedChatThread.employee_code || "-")}</div>
                         </div>
                         <div className="shrink-0">
                           <StatusPill tone={selectedChatAttendanceTone} value={selectedChatAttendanceStatus} />
@@ -1716,10 +1807,10 @@ export default function ManagerPortal() {
                           >
                             <div className={`max-w-[92%] rounded-[1.4rem] px-3 py-2 text-sm font-semibold leading-6 shadow-sm ${outgoing ? "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950" : "bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100"}`}>
                               <div className="flex items-center justify-between gap-3 text-[11px] font-black uppercase tracking-[0.12em] opacity-75">
-                                <span>{outgoing ? "الإدارة" : selectedChatEmployee?.employee_name || "Employee"}</span>
+                                <span>{outgoing ? "الإدارة" : portalText(selectedChatEmployee?.employee_name || "Employee")}</span>
                                 <span dir="ltr">{formatDateTime(message.created_at)}</span>
                               </div>
-                              <div className="mt-1 whitespace-pre-wrap">{message.body || message.attachment_name || "Attachment"}</div>
+                              <div className="mt-1 whitespace-pre-wrap">{portalText(message.body || message.attachment_name || "Attachment")}</div>
                             </div>
                           </div>
                         );
@@ -1750,11 +1841,11 @@ export default function ManagerPortal() {
                   <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto pr-1">
                     <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                       <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Employee</div>
-                      <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{selectedChatEmployee.employee_name || selectedChatThread.employee_name || "Employee"}</div>
+                      <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{portalText(selectedChatEmployee.employee_name || selectedChatThread.employee_name || "Employee")}</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <StatusPill tone={selectedChatAttendanceTone} value={selectedChatAttendanceStatus} />
-                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{selectedChatEmployee.branch_name || selectedChatThread.branch_name || "No branch"}</Badge>
-                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{selectedChatEmployee.employee_code || "No code"}</Badge>
+                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee.branch_name || selectedChatThread.branch_name || "No branch")}</Badge>
+                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee.employee_code || "No code")}</Badge>
                       </div>
                     </div>
 
@@ -1774,7 +1865,7 @@ export default function ManagerPortal() {
                       <div className="mt-3 grid gap-2">
                         <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
                           <span>Status</span>
-                          <span className="font-black text-slate-950 dark:text-white">{selectedChatAttendanceStatus}</span>
+                          <span className="font-black text-slate-950 dark:text-white">{portalText(selectedChatAttendanceStatus)}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
                           <span>Check-in</span>
@@ -1827,16 +1918,16 @@ export default function ManagerPortal() {
               <div className="grid gap-4 xl:grid-cols-2">
                 <Card title="ط§ظ„ظ…ظ„ظپ ط§ظ„ط´ط®طµظٹ" subtitle="Manager profile" icon={Building2}>
                   <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
-                    <div className="font-black text-slate-950 dark:text-white">{me?.full_name || me?.name || "Manager"}</div>
-                    <div>{me?.role || "manager"} آ· {me?.department || "â€”"}</div>
-                    <div>{me?.user_email || "No email"}</div>
+                    <div className="font-black text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || "Manager")}</div>
+                    <div>{portalText(me?.role || "manager")} · {portalText(me?.department || "—")}</div>
+                    <div>{portalText(me?.user_email || "No email")}</div>
                     <div>{formatNumber(me?.permissions?.length || 0)} permissions</div>
                   </div>
                 </Card>
                 <Card title="ط¨ظٹط§ظ†ط§طھ ط§ظ„ظپط±ط¹" subtitle="Branch info" icon={Store}>
                   <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
-                    <div className="font-black text-slate-950 dark:text-white">{me?.branch_name || "All branches"}</div>
-                    <div>Scope: {me?.branch_scope || "all"}</div>
+                    <div className="font-black text-slate-950 dark:text-white">{portalText(me?.branch_name || "All branches")}</div>
+                    <div>Scope: {portalText(me?.branch_scope || "all")}</div>
                     <div>Live alerts: {formatNumber(notifications.length || 0)}</div>
                     <div>Unread: {formatNumber(unreadCount || notificationsUnread)}</div>
                   </div>
@@ -1861,8 +1952,8 @@ export default function ManagerPortal() {
                   <div className="space-y-2">
                     {notifications.slice(0, 3).length ? notifications.slice(0, 3).map((item) => (
                       <div key={`history-${item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                        <div className="font-black text-slate-950 dark:text-white">{item.title || item.type || "Notification"}</div>
-                        <div className="mt-1 line-clamp-2 text-xs opacity-80">{item.message || item.body || ""}</div>
+                        <div className="font-black text-slate-950 dark:text-white">{portalText(item.title || item.type || "Notification")}</div>
+                        <div className="mt-1 line-clamp-2 text-xs opacity-80">{portalText(item.message || item.body || "")}</div>
                         <div className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{formatDateTime(item.created_at)}</div>
                       </div>
                     )) : <EmptyState title="ظ„ط§ ظٹظˆط¬ط¯ ط³ط¬ظ„ ط­ط¯ظٹط«" body="ط³طھط¸ظ‡ط± ط¢ط®ط± ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ظ‡ظ†ط§ ط¹ظ†ط¯ظ…ط§ طھطھظˆظپط±." />}
@@ -1875,8 +1966,8 @@ export default function ManagerPortal() {
                   {Object.entries(settings).map(([category, config]) => (
                     <div key={category} className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                       <div className="flex items-center justify-between">
-                        <div className="text-sm font-black text-slate-900 dark:text-white">{category}</div>
-                        <StatusPill tone="slate" value={category} />
+                      <div className="text-sm font-black text-slate-900 dark:text-white">{portalText(category)}</div>
+                        <StatusPill tone="slate" value={portalText(category)} />
                       </div>
                       <Toggle label="طµظˆطھ" checked={Boolean(config.sound)} onChange={(value) => onCategoryToggle(category, "sound", value)} />
                       <Toggle label="Toast" checked={Boolean(config.toast)} onChange={(value) => onCategoryToggle(category, "toast", value)} />
@@ -1915,17 +2006,17 @@ export default function ManagerPortal() {
         </section>
 
         <aside className="space-y-3">
-          <Card title="ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ" subtitle="Live feed" icon={Bell} className="min-h-0" compact bodyClassName="space-y-2">
+              <Card title="ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ" subtitle="Live feed" icon={Bell} className="min-h-0" compact bodyClassName="space-y-2">
             <div data-testid="notifications-panel" />
             <div className="space-y-1.5">
               {visibleNotifications.length ? visibleNotifications.map((item) => (
                 <button key={item.id} type="button" data-testid={`notification-${item.id}`} onClick={() => void markNotificationRead(item.id)} className={`w-full rounded-2xl border px-3 py-2.5 text-right transition ${item.is_read ? "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300" : "border-sky-200 bg-sky-50 text-slate-950 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-white"}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-black">{item.title || item.type || "Notification"}</div>
-                      <div className="mt-1 line-clamp-1 text-xs font-semibold opacity-80">{item.message || item.body || ""}</div>
+                      <div className="truncate text-sm font-black">{portalText(item.title || item.type || "Notification")}</div>
+                      <div className="mt-1 line-clamp-1 text-xs font-semibold opacity-80">{portalText(item.message || item.body || "")}</div>
                     </div>
-                    <StatusPill tone={item.is_read ? "slate" : "blue"} value={item.category || "system"} />
+                    <StatusPill tone={item.is_read ? "slate" : "blue"} value={portalText(item.category || "system")} />
                   </div>
                 </button>
               )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط¥ط´ط¹ط§ط±ط§طھ" body="ط³طھط¸ظ‡ط± ظ‡ظ†ط§ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ط­ظٹط© ط¹ظ†ط¯ ظˆطµظˆظ„ظ‡ط§." />}
@@ -1941,9 +2032,9 @@ export default function ManagerPortal() {
             <div className="space-y-1.5">
               {visibleAiInsights.map((insight, index) => (
                 <div key={`${insight.title || index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-2.5 text-sm font-semibold leading-5 text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                  <div className="text-xs font-black uppercase tracking-[0.12em] text-sky-600/70">{insight.type || "insight"}</div>
-                  <div className="mt-1 truncate font-black text-slate-950 dark:text-white">{insight.title || "-"}</div>
-                  <div className="mt-1 line-clamp-2">{insight.body || "-"}</div>
+                  <div className="text-xs font-black uppercase tracking-[0.12em] text-sky-600/70">{portalText(insight.type || "insight")}</div>
+                  <div className="mt-1 truncate font-black text-slate-950 dark:text-white">{portalText(insight.title || "-")}</div>
+                  <div className="mt-1 line-clamp-2">{portalText(insight.body || "-")}</div>
                 </div>
               ))}
               {!aiInsights.length ? <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط±ط¤ظ‰" body="ط¥ط°ط§ ظ„ظ… طھظˆط¬ط¯ ط¨ظٹط§ظ†ط§طھ ط­ظ‚ظٹظ‚ظٹط© ظپظ„ظ† ظ†ط¶ظٹظپ ط§ظپطھط±ط§ط¶ط§طھ." /> : null}
@@ -1959,7 +2050,7 @@ export default function ManagerPortal() {
             <div className="space-y-1.5">
               {visibleLeads.length ? visibleLeads.map((lead) => (
                 <div key={lead.session_id} className="rounded-2xl border border-rose-200 bg-rose-50 p-2.5 text-sm font-semibold leading-5 text-rose-900 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
-                  <div className="font-black">{lead.ai_insight || lead.session_id}</div>
+                  <div className="font-black">{portalText(lead.ai_insight || lead.session_id)}</div>
                   <div className="mt-1 text-xs font-bold opacity-80">Score {formatNumber(lead.lead_score || 0)}</div>
                 </div>
               )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ leads ط³ط§ط®ظ†ط©" body="ط³ظٹط¸ظ‡ط± ظ‡ظ†ط§ ط§ظ„ظ…طµط¯ط± ط§ظ„ط­ظ‚ظٹظ‚ظٹ ط¹ظ†ط¯ طھظˆظپط±ظ‡." />}
@@ -1975,8 +2066,8 @@ export default function ManagerPortal() {
             <div className="space-y-1.5">
               {visibleLowStock.length ? visibleLowStock.map((item) => (
                 <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                  <div className="font-black">{item.name || "-"}</div>
-                  <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{item.color || item.size || ""} آ· {formatNumber(item.stock || 0)}</div>
+                  <div className="font-black">{portalText(item.name || "-")}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{portalText(item.color || item.size || "")} · {formatNumber(item.stock || 0)}</div>
                 </div>
               )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط¹ظ†ط§طµط± ظ…ظ†ط®ظپط¶ط©" body="ظ„ظ† ظ†ط¹ط±ط¶ ظ…ط®ط²ظˆظ†ظ‹ط§ ظ…ظ†ط®ظپظ¶ظ‹ط§ ط؛ظٹط± ظ…ظˆط¬ظˆط¯ ظپظٹ ط§ظ„ظ…طµط¯ط±." />}
             </div>

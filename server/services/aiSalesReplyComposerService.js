@@ -214,6 +214,138 @@ const selectedProducts = (response = {}) => {
   });
 };
 
+const selectedImageCards = (response = {}) => {
+  const seen = new Set();
+  return [
+    ...asArray(response.image_cards),
+    ...asArray(response.visual_attachments),
+    ...asArray(response.channel_reply?.image_cards),
+  ].filter((item) => {
+    const key = text(item?.id || item?.image_id || item?.url || item?.image_url || item?.selected_card_image_url || "");
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const isLegacyFallbackAnswer = (answer = "") => {
+  const normalized = normalizeArabic(answer);
+  return [
+    "لو عندك مقاس معين قولي عليه",
+    "دور على أي موديل",
+    "الموديل ده مش متوفر حاليا",
+    "أقدر أساعدك في المقاسات أو الموديلات",
+    "ده أقرب اختيار عندي",
+    "الموديل ده مش موجود دلوقتي",
+    "مش نفس الموديل بالظبط",
+    "أقرب اختيار بصريا",
+    "أقرب بدائل شبهه",
+  ].some((phrase) => normalized.includes(normalizeArabic(phrase)));
+};
+
+const hasCommerceSignals = (answer = "") => {
+  const normalized = normalizeArabic(answer);
+  return [
+    "بديل شبه",
+    "أطلعلك",
+    "سعره",
+    "المقاسات المتاحة",
+    "الألوان",
+    "بص على الكروت تحت",
+    "قولّي",
+    "أظبطهولك",
+    "اختيار مناسب",
+    "اختيارات مناسبة",
+    "لقيتلك",
+    "صورة مرفقة",
+    "تحب",
+  ].some((phrase) => normalized.includes(normalizeArabic(phrase)));
+};
+
+const legacyTextKeyForAnswer = (answer = "") => {
+  const normalized = normalizeArabic(answer);
+  if (!normalized) return "";
+  if (normalized.includes(normalizeArabic("لو عندك مقاس معين قولي عليه"))) return "legacy_size_prompt_fallback";
+  if (normalized.includes(normalizeArabic("دور على أي موديل"))) return "legacy_browse_any_model_fallback";
+  if (normalized.includes(normalizeArabic("الموديل ده مش متوفر حاليا"))) return "legacy_unavailable_model_fallback";
+  if (normalized.includes(normalizeArabic("أقدر أساعدك في المقاسات أو الموديلات"))) return "legacy_generic_support_help";
+  if (normalized.includes(normalizeArabic("ده أقرب اختيار عندي"))) return "legacy_nearest_choice_fallback";
+  if (normalized.includes(normalizeArabic("الموديل ده مش موجود دلوقتي"))) return "legacy_unavailable_model_fallback";
+  if (normalized.includes(normalizeArabic("مش نفس الموديل بالظبط"))) return "legacy_near_match_intro";
+  if (normalized.includes(normalizeArabic("أقرب اختيار بصريا"))) return "legacy_visual_near_match";
+  if (normalized.includes(normalizeArabic("أقرب بدائل شبهه"))) return "legacy_close_alternatives";
+  return "legacy_final_text_template_overridden";
+};
+
+export const logLegacyTextOverrideAudit = ({
+  textKey = "",
+  sourceFile = "",
+  route = "",
+  productCardsCount = 0,
+  imageCardsCount = 0,
+  blockedOrAllowed = "blocked",
+} = {}) => {
+  console.log("[LEGACY_TEXT_OVERRIDE_AUDIT]", {
+    text_key: textKey,
+    source_file: sourceFile,
+    route,
+    product_cards_count: Number(productCardsCount) || 0,
+    image_cards_count: Number(imageCardsCount) || 0,
+    blocked_or_allowed: blockedOrAllowed,
+  });
+};
+
+export const buildCommerceAwareCardsReply = ({
+  message = "",
+  response = {},
+  productCards = [],
+  imageCards = [],
+  route = "",
+  sourceFile = "",
+  textKey = "commerce_cards_reply",
+} = {}) => {
+  const cards = asArray(productCards);
+  const visuals = asArray(imageCards);
+  const top = cards[0] || {};
+  const name = productName(top) || "الموديل";
+  const price = productPrice(top);
+  const sizes = productSizes(top);
+  const colors = productColors(top);
+  const productCount = cards.length;
+  const imageCount = visuals.length;
+  const summary = [];
+
+  if (productCount > 0) {
+    summary.push(productCount === 1 ? `لقيتلك اختيار مناسب: ${name}.` : `لقيتلك ${productCount} اختيارات مناسبة. الأول هو ${name}.`);
+    if (price) summary.push(`سعره ${price} جنيه.`);
+    if (sizes.length) summary.push(`المقاسات المتاحة: ${sizes.join("، ")}.`);
+    if (colors.length) summary.push(`الألوان: ${colors.join("، ")}.`);
+  } else if (imageCount > 0) {
+    summary.push("لقيت صور/اختيارات قريبة من اللي طلبته.");
+  }
+
+  if (imageCount > 0) {
+    summary.push(`وفيه ${imageCount} صورة مرفقة تحت.`);
+  }
+
+  summary.push("بص على الكروت تحت، ولو تحب مقاس أو لون معين قولّي وأنا أظبطهولك.");
+
+  const answer = summary.join("\n");
+  const legacyDetected = isLegacyFallbackAnswer(response.answer || response.text || "");
+  if (legacyDetected || productCount > 0 || imageCount > 0) {
+    logLegacyTextOverrideAudit({
+      textKey: legacyDetected ? legacyTextKeyForAnswer(response.answer || response.text || "") : textKey,
+      sourceFile,
+      route,
+      productCardsCount: productCount,
+      imageCardsCount: imageCount,
+      blockedOrAllowed: productCount > 0 || imageCount > 0 ? "blocked" : "allowed",
+    });
+  }
+
+  return answer;
+};
+
 const explicitSize = (message = "", response = {}) => {
   const explicit = text(response.requested_size || response.detected_size || response.entities?.size);
   if (explicit) return explicit;
@@ -579,8 +711,8 @@ export const composeAiSalesReply = async ({
     const hasCloseAlternatives = /alternative|similar|close|بدائل|شبه/i.test(fallback);
     decision = hasCloseAlternatives ? "unavailable_close_alternatives" : "unavailable_no_close_alternatives";
     output = withAnswer(stripProductPayload(response), hasCloseAlternatives
-      ? "الموديل ده مش موجود دلوقتي، بس عندي أقرب بدائل شبهه جدًا. تحب أبعتهم؟"
-      : "الموديل ده مش موجود دلوقتي، ومش هطلعلك بديل بعيد عن اللي طلبته. تحب أدورلك على نفس الستايل أو سعر قريب؟");
+      ? "لقيت أقرب بدائل شبهه جدًا. تحب أبعتهم؟"
+      : "ما لقيتش نفس الموديل بالضبط، لكن أقدر أدورلك على أقرب اختيار من نفس الستايل أو سعر قريب.");
   } else if (/adidas|اديداس/i.test(message) && !/(running|رننج|جري|casual|كاجوال)/i.test(message) && products.length > 1) {
     decision = "ambiguous_adidas";
     const question = await buildDynamicClarificationQuestion(["gender", "product_type"]);
@@ -652,6 +784,23 @@ export const composeAiSalesReply = async ({
     memory_updates: activeProductMemoryPatch.memory_updates,
     ai_memory_patch: activeProductMemoryPatch.ai_memory_patch,
   });
+
+  const productCards = selectedProducts(output);
+  const imageCards = selectedImageCards(output);
+  if (
+    (productCards.length > 0 || imageCards.length > 0) &&
+    (isLegacyFallbackAnswer(output.answer || output.text || "") || !hasCommerceSignals(output.answer || output.text || ""))
+  ) {
+    output = withAnswer(output, buildCommerceAwareCardsReply({
+      message,
+      response: output,
+      productCards,
+      imageCards,
+      route: "POST /api/ai-support/chat",
+      sourceFile: "server/services/aiSalesReplyComposerService.js",
+      textKey: legacyTextKeyForAnswer(output.answer || output.text || ""),
+    }));
+  }
 
   console.info("[ai-reply-composer:output]", {
     source,
