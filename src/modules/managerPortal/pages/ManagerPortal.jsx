@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Clock3,
   ClipboardList,
+  Download,
   Loader2,
   MessageSquare,
   Megaphone,
@@ -24,6 +25,7 @@ import {
   Search,
   Shield,
   ShoppingCart,
+  Smartphone,
   SquarePen,
   Store,
   SunMedium,
@@ -53,8 +55,17 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
   stock: { sound: true, toast: true },
   ai_leads: { sound: true, toast: true },
 };
+const MANAGER_PORTAL_PWA_VERSION = "20260607";
 
 const isBrowser = () => typeof window !== "undefined";
+const isStandaloneApp = () => {
+  if (!isBrowser()) return false;
+  return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator?.standalone === true;
+};
+const isIosDevice = () => {
+  if (!isBrowser()) return false;
+  return /iphone|ipad|ipod/i.test(window.navigator?.userAgent || "");
+};
 const safeJson = (value, fallback) => {
   try {
     return value ? JSON.parse(value) : fallback;
@@ -284,6 +295,8 @@ export default function ManagerPortal() {
   const [taskFilters, setTaskFilters] = useState({ status: "all", employee: "", query: "" });
   const [settings, setSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS);
   const [browserNotificationPermission, setBrowserNotificationPermission] = useState(() => (isBrowser() && "Notification" in window ? window.Notification.permission : "unsupported"));
+  const [standalone, setStandalone] = useState(() => isStandaloneApp());
+  const [installPrompt, setInstallPrompt] = useState(null);
   const [soundUnlocked, setSoundUnlocked] = useState(false);
   const [showMoreNotifications, setShowMoreNotifications] = useState(false);
   const [showMoreAiInsights, setShowMoreAiInsights] = useState(false);
@@ -465,6 +478,7 @@ export default function ManagerPortal() {
   }, [managerNotifications]);
   const visibleNotifications = showMoreNotifications ? filteredManagerNotifications : filteredManagerNotifications.slice(0, 5);
   const hasMoreNotifications = filteredManagerNotifications.length > visibleNotifications.length;
+  const showInstallCard = !standalone && (Boolean(installPrompt) || isIosDevice());
   const visibleAiInsights = showMoreAiInsights ? aiInsights : aiInsights.slice(0, 3);
   const hasMoreAiInsights = aiInsights.length > visibleAiInsights.length;
   const visibleLeads = showMoreLeads ? (dashboard?.new_leads || []) : (dashboard?.new_leads || []).slice(0, 3);
@@ -578,8 +592,71 @@ export default function ManagerPortal() {
   useEffect(() => {
     if (!isBrowser()) return undefined;
     if (!("serviceWorker" in navigator)) return undefined;
-    navigator.serviceWorker.register("/employee-portal-sw.js").catch(() => null);
+    navigator.serviceWorker.register(`/employee-portal-sw.js?v=${MANAGER_PORTAL_PWA_VERSION}`).catch(() => null);
     return undefined;
+  }, []);
+
+  useEffect(() => {
+    if (!isBrowser() || !token) return undefined;
+    const previousManifests = Array.from(document.querySelectorAll('link[rel="manifest"]')).map((item) => ({
+      href: item.getAttribute("href") || "",
+    }));
+    document.querySelectorAll('link[rel="manifest"]').forEach((item) => item.remove());
+    const link = document.createElement("link");
+    link.setAttribute("rel", "manifest");
+    link.setAttribute("href", `/api/manager-portal/${encodeURIComponent(token)}/manifest.webmanifest?v=${encodeURIComponent(token)}`);
+    link.setAttribute("data-manager-portal-manifest", "true");
+    document.head.appendChild(link);
+    window.localStorage?.setItem("manager_portal_last_url", `/manager-portal/${encodeURIComponent(token)}${window.location.search || ""}`);
+
+    const previousTitle = document.title;
+    const previousAppleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute("content") || "";
+    let appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (!appleTitle) {
+      appleTitle = document.createElement("meta");
+      appleTitle.setAttribute("name", "apple-mobile-web-app-title");
+      document.head.appendChild(appleTitle);
+    }
+    appleTitle.setAttribute("content", "Manager");
+    document.title = "M1 Manager Portal";
+
+    return () => {
+      link.remove();
+      if (!window.location.pathname.startsWith("/manager-portal/")) {
+        previousManifests.forEach((item) => {
+          if (!item.href) return;
+          const restored = document.createElement("link");
+          restored.setAttribute("rel", "manifest");
+          restored.setAttribute("href", item.href);
+          document.head.appendChild(restored);
+        });
+      }
+      document.title = previousTitle || "M1 Manager Portal";
+      appleTitle?.setAttribute("content", previousAppleTitle || "Manager");
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!isBrowser()) return undefined;
+    const media = window.matchMedia?.("(display-mode: standalone)");
+    const updateStandalone = () => setStandalone(isStandaloneApp());
+    updateStandalone();
+    media?.addEventListener?.("change", updateStandalone);
+    window.addEventListener("appinstalled", updateStandalone);
+    return () => {
+      media?.removeEventListener?.("change", updateStandalone);
+      window.removeEventListener("appinstalled", updateStandalone);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isBrowser()) return undefined;
+    const onBeforeInstall = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    return () => window.removeEventListener("beforeinstallprompt", onBeforeInstall);
   }, []);
 
   useEffect(() => {
@@ -711,6 +788,14 @@ export default function ManagerPortal() {
     setBrowserNotificationPermission(permission);
     if (permission === "granted") toast.success("تم تفعيل إشعارات المتصفح");
     else toast.error("لم يتم تفعيل إشعارات المتصفح");
+  };
+
+  const installApp = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    await installPrompt.userChoice.catch(() => null);
+    setInstallPrompt(null);
+    setStandalone(isStandaloneApp());
   };
 
   const sendTaskAction = async (id, action, payload = {}) => {
@@ -911,6 +996,30 @@ export default function ManagerPortal() {
               </div>
             </div>
           </header>
+
+          {showInstallCard ? (
+            <div className="rounded-3xl border border-sky-200 bg-sky-50 p-4 text-slate-950 shadow-sm dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-white">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-sky-700 shadow-sm dark:bg-slate-950 dark:text-cyan-200">
+                  <Smartphone className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-black">بوابة المدير كتطبيق</h3>
+                  <p className="mt-1 text-xs font-bold leading-5 text-sky-800 dark:text-cyan-100">
+                    {isIosDevice()
+                      ? "على iPhone: اضغط مشاركة ثم Add to Home Screen ثم افتح بوابة المدير من الأيقونة."
+                      : "أضف بوابة المدير إلى الشاشة الرئيسية لتفتح كتطبيق مستقل."}
+                  </p>
+                  {installPrompt ? (
+                    <button type="button" onClick={installApp} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-xs font-black text-white dark:bg-cyan-300 dark:text-slate-950">
+                      <Download className="h-4 w-4" />
+                      Add to Home Screen
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {notificationsOpen ? (
             <div className="fixed inset-0 z-[70]">

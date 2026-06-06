@@ -15,9 +15,11 @@
           var path = window.location.pathname || "/";
           var standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
           var lastEmployeePortalUrl = window.localStorage && window.localStorage.getItem("employee_portal_last_url");
-          if (standalone && (path === "/" || path === "/login") && lastEmployeePortalUrl) {
-            lastEmployeePortalUrl = lastEmployeePortalUrl.replace("/employee-portal/", "/employee-app/");
-            window.location.replace(lastEmployeePortalUrl);
+          var lastManagerPortalUrl = window.localStorage && window.localStorage.getItem("manager_portal_last_url");
+          var lastPortalUrl = (window.localStorage && window.localStorage.getItem("portal_last_url")) || lastManagerPortalUrl || lastEmployeePortalUrl;
+          if (standalone && (path === "/" || path === "/login") && lastPortalUrl) {
+            lastPortalUrl = lastPortalUrl.replace("/employee-portal/", "/employee-app/");
+            window.location.replace(lastPortalUrl);
             return;
           }
           var existingManifests = Array.prototype.slice.call(document.querySelectorAll('link[rel="manifest"]'));
@@ -26,19 +28,33 @@
           });
           var manifest = document.createElement("link");
           manifest.setAttribute("rel", "manifest");
-          var match = path.match(/^\/employee-(?:portal|app)\/([^/?#]+)/);
-          if (match) {
-            var token = match[1];
+          var employeeMatch = path.match(/^\/employee-(?:portal|app)\/([^/?#]+)/);
+          var managerMatch = path.match(/^\/manager-portal\/([^/?#]+)/);
+          if (employeeMatch) {
+            var token = employeeMatch[1];
             manifest.setAttribute("href", "/api/employee-portal/" + encodeURIComponent(token) + "/manifest.webmanifest?v=" + encodeURIComponent(token));
-            window.localStorage && window.localStorage.setItem("employee_portal_last_url", "/employee-app/" + encodeURIComponent(token) + window.location.search);
+            if (window.localStorage) {
+              var employeeUrl = "/employee-app/" + encodeURIComponent(token) + window.location.search;
+              window.localStorage.setItem("employee_portal_last_url", employeeUrl);
+              window.localStorage.setItem("portal_last_url", employeeUrl);
+            }
+          } else if (managerMatch) {
+            var managerToken = managerMatch[1];
+            manifest.setAttribute("href", "/api/manager-portal/" + encodeURIComponent(managerToken) + "/manifest.webmanifest?v=" + encodeURIComponent(managerToken));
+            if (window.localStorage) {
+              var managerUrl = "/manager-portal/" + encodeURIComponent(managerToken) + window.location.search;
+              window.localStorage.setItem("manager_portal_last_url", managerUrl);
+              window.localStorage.setItem("portal_last_url", managerUrl);
+            }
           } else {
             manifest.setAttribute("href", "/manifest.webmanifest?v=global");
           }
           document.head.appendChild(manifest);
-          if (!match) return;
+          if (!employeeMatch && !managerMatch) return;
           var appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]') || document.createElement("meta");
           appleTitle.setAttribute("name", "apple-mobile-web-app-title");
           appleTitle.setAttribute("content", "الموظف");
+          if (managerMatch) appleTitle.setAttribute("content", "Manager");
           if (!appleTitle.parentNode) document.head.appendChild(appleTitle);
         } catch (error) {
           // PWA fallback must never block app startup.

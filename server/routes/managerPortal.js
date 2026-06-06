@@ -25,6 +25,40 @@ import {
 
 const router = express.Router();
 
+const managerPortalManifest = (token) => ({
+  name: "M1 Manager Portal",
+  short_name: "Manager",
+  description: "Manager portal for live sales, staff, tasks, stock alerts, and employee chat.",
+  start_url: `/manager-portal/${encodeURIComponent(token)}?source=pwa`,
+  scope: "/manager-portal/",
+  display: "standalone",
+  orientation: "portrait",
+  dir: "rtl",
+  lang: "ar",
+  background_color: "#eff6ff",
+  theme_color: "#0f172a",
+  icons: [
+    {
+      src: "/icons/employee-portal-192.png",
+      sizes: "192x192",
+      type: "image/png",
+      purpose: "any maskable",
+    },
+    {
+      src: "/icons/employee-portal-512.png",
+      sizes: "512x512",
+      type: "image/png",
+      purpose: "any maskable",
+    },
+    {
+      src: "/apple-touch-icon.png",
+      sizes: "180x180",
+      type: "image/png",
+      purpose: "any",
+    },
+  ],
+});
+
 const invalidPortalLinkMessage = "رابط بوابة المدير غير صحيح أو تم تغييره. اطلب رابطًا جديدًا من الإدارة.";
 
 const portalTokenDebug = ({ req, token, manager = null, reason = "" }) => {
@@ -93,6 +127,19 @@ const uploadManagerChatAttachment = (req, res, next) => {
     });
   });
 };
+
+router.get("/:token/manifest.webmanifest", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    return res.json(managerPortalManifest(String(req.params.token || "")));
+  } catch (error) {
+    console.error("[manager-portal] manifest error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load manager portal manifest" });
+  }
+});
 
 router.get("/:token/me", async (req, res) => {
   try {
