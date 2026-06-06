@@ -243,6 +243,7 @@ export const AI_INTENTS = Object.freeze({
   COLOR_REQUEST: "COLOR_REQUEST",
   MORE_IMAGES: "MORE_IMAGES",
   ALTERNATIVES: "ALTERNATIVES",
+  PRODUCT_PRESENTATION: "PRODUCT_PRESENTATION",
   BUYING_INTENT: "BUYING_INTENT",
   CHECKOUT: "CHECKOUT",
   ORDER_CONFIRMATION: "ORDER_CONFIRMATION",
@@ -276,6 +277,122 @@ const resolveExactModelAlias = (message = "") => {
   };
 };
 
+const normalizeShortReplyText = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
+    .replace(/\u0649/g, "\u064a")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const detectShortAffirmativeReply = (message = "") => {
+  const normalized = normalizeShortReplyText(message);
+  if (!normalized || normalized.length > 24) return false;
+  return new Set([
+    "يا ريت",
+    "ياريت",
+    "اه",
+    "ايوه",
+    "أيوه",
+    "تمام",
+    "ماشي",
+    "ماشى",
+    "ok",
+    "okay",
+    "yes",
+    "yeah",
+    "yep",
+    "yup",
+    "sure",
+  ]).has(normalized);
+};
+
+const resolveShortAffirmativeFollowup = ({ messageText = "", memory = {} } = {}) => {
+  const normalizedMessage = normalizeShortReplyText(messageText);
+  if (!detectShortAffirmativeReply(normalizedMessage)) return null;
+
+  const activeProductId = text(memory.activeProductId || memory.selectedProductId || memory.lastProductCard?.product_id || memory.lastProductCard?.id || "");
+  const activeVariantId = text(memory.activeVariantId || memory.selectedVariantId || memory.lastProductCard?.variant_id || "");
+  const lastReplyCategory = text(memory.lastReplyCategory || "").toUpperCase();
+  const replyDecisionReason = normalizeShortReplyText(memory.replyDecisionReason || memory.resolvedQuestion?.reason || "");
+  const lastIntent = text(memory.lastIntent || "").toUpperCase();
+  const hasActiveContext = Boolean(
+    activeProductId ||
+      activeVariantId ||
+      memory.lastProductCard ||
+      (Array.isArray(memory.lastProductCards) && memory.lastProductCards.length) ||
+      (Array.isArray(memory.lastShownCards) && memory.lastShownCards.length)
+  );
+
+  if (!hasActiveContext) {
+    return {
+      intent: "",
+      reason: "short_affirmative_without_context",
+      hasActiveContext: false,
+      activeProductId,
+      activeVariantId,
+    };
+  }
+
+  const routeContext = [lastReplyCategory, replyDecisionReason, lastIntent].join(" ");
+  if (/OBJECTION|PRICE_OBJECTION|COMPLAINT|negative_or_objection/i.test(routeContext)) {
+    return {
+      intent: "",
+      reason: "short_affirmative_objection_context",
+      hasActiveContext: false,
+      activeProductId,
+      activeVariantId,
+    };
+  }
+  if (/MORE[_\s]?IMAGES|product_presentation_followup|image_only|show\s+more\s+images/i.test(routeContext)) {
+    return {
+      intent: AI_INTENTS.MORE_IMAGES,
+      reason: "short_affirmative_more_images_followup",
+      hasActiveContext: true,
+      activeProductId,
+      activeVariantId,
+    };
+  }
+  if (/ALTERNATIVES|alternative|close_match/i.test(routeContext)) {
+    return {
+      intent: AI_INTENTS.ALTERNATIVES,
+      reason: "short_affirmative_alternatives_followup",
+      hasActiveContext: true,
+      activeProductId,
+      activeVariantId,
+    };
+  }
+  if (/SIZE[_\s]?SELECTION|SIZE[_\s]?CHECK|size_question|selected_size|size_selected/i.test(routeContext)) {
+    return {
+      intent: AI_INTENTS.SIZE_CHECK,
+      reason: "short_affirmative_size_followup",
+      hasActiveContext: true,
+      activeProductId,
+      activeVariantId,
+    };
+  }
+  if (/PRODUCT[_\s]?PRESENTATION|product_search|product_cards|presentation/i.test(routeContext) || activeProductId) {
+    return {
+      intent: AI_INTENTS.PRODUCT_PRESENTATION,
+      reason: "short_affirmative_product_presentation_followup",
+      hasActiveContext: true,
+      activeProductId,
+      activeVariantId,
+    };
+  }
+
+  return {
+    intent: "",
+    reason: "short_affirmative_without_context",
+    hasActiveContext: false,
+    activeProductId,
+    activeVariantId,
+  };
+};
+
 export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {}) => {
   const messageText = text(message.message_text);
   const normalized = messageText.toLowerCase().replace(/\s+/g, " ");
@@ -298,6 +415,7 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
       /\bavailable\s+in\s+(2[0-9]|3[0-9]|4[0-8])\b/i.test(messageText) ||
       /\b(2[0-9]|3[0-9]|4[0-8])\s+(?:ظ…ظˆط¬ظˆط¯|ظ…طھط§ط­|available|in\s*stock)\b/i.test(messageText)
   );
+  const affirmativeFollowup = detectShortAffirmativeReply(messageText) ? resolveShortAffirmativeFollowup({ messageText, memory }) : null;
   const entities = {
     product: hasProductEntity ? messageText : "",
     brand: brands[0] || "",
@@ -358,6 +476,26 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     intent = AI_INTENTS.ALTERNATIVES;
     confidence = 0.93;
     reason = "alternatives_keyword";
+  } else if (affirmativeFollowup?.intent === AI_INTENTS.MORE_IMAGES) {
+    intent = AI_INTENTS.MORE_IMAGES;
+    confidence = 0.91;
+    reason = affirmativeFollowup.reason;
+  } else if (affirmativeFollowup?.intent === AI_INTENTS.ALTERNATIVES) {
+    intent = AI_INTENTS.ALTERNATIVES;
+    confidence = 0.91;
+    reason = affirmativeFollowup.reason;
+  } else if (affirmativeFollowup?.intent === AI_INTENTS.SIZE_CHECK) {
+    intent = AI_INTENTS.SIZE_CHECK;
+    confidence = 0.88;
+    reason = affirmativeFollowup.reason;
+  } else if (affirmativeFollowup?.intent === AI_INTENTS.PRODUCT_PRESENTATION) {
+    intent = AI_INTENTS.PRODUCT_PRESENTATION;
+    confidence = 0.88;
+    reason = affirmativeFollowup.reason;
+  } else if (affirmativeFollowup && !affirmativeFollowup.intent) {
+    intent = AI_INTENTS.UNKNOWN;
+    confidence = 0.52;
+    reason = affirmativeFollowup.reason;
   } else if (checkoutStageAtLeast(stage, "buying_intent") && !detectSalesFinalConfirmation(messageText) && (detectReservationAffirmation(messageText) || detectCheckoutConfirmation(messageText) || detectExplicitCheckoutIntent(messageText))) {
     intent = AI_INTENTS.CHECKOUT;
     confidence = 0.93;
@@ -889,9 +1027,22 @@ const resolveCustomerQuestion = ({ message = {}, memory = {} } = {}) => {
   const resolvedMoreImages = Boolean(detectMoreImagesRequest(messageText) && !resolvedColorQuestion);
   const resolvedLinkQuestion = detectProductLinkRequest(messageText);
   const resolvedGreeting = detectGreetingMessage(messageText);
+  const affirmativeFollowup = detectShortAffirmativeReply(messageText) ? resolveShortAffirmativeFollowup({ messageText, memory }) : null;
   if (resolvedGreeting) {
     intent = QUESTION_TYPES.GREETING;
     reason = "greeting";
+  } else if (affirmativeFollowup?.intent === AI_INTENTS.MORE_IMAGES) {
+    intent = QUESTION_TYPES.MORE_IMAGES;
+    reason = affirmativeFollowup.reason;
+  } else if (affirmativeFollowup?.intent === AI_INTENTS.ALTERNATIVES) {
+    intent = QUESTION_TYPES.ALTERNATIVES_QUESTION;
+    reason = affirmativeFollowup.reason;
+  } else if (affirmativeFollowup?.intent === AI_INTENTS.SIZE_CHECK) {
+    intent = QUESTION_TYPES.SIZE_QUESTION;
+    reason = affirmativeFollowup.reason;
+  } else if (affirmativeFollowup?.intent === AI_INTENTS.PRODUCT_PRESENTATION) {
+    intent = QUESTION_TYPES.GENERAL_PRODUCT_QUESTION;
+    reason = affirmativeFollowup.reason;
   } else if (resolvedColorQuestion) {
     intent = QUESTION_TYPES.COLOR_QUESTION;
     reason = "color_request";
@@ -11013,6 +11164,146 @@ const handleAlternativesIfMatched = async ({ config, message } = {}) => {
   return { handled: true, reason: "visual_alternatives_sent" };
 };
 
+const continuationCardsFromMemory = (memory = {}) => {
+  const lastShownCards = Array.isArray(memory.lastProductCards) && memory.lastProductCards.length
+    ? memory.lastProductCards
+    : (Array.isArray(memory.lastShownCards) ? memory.lastShownCards.map((card) => ({
+        product_id: card.productId || null,
+        variant_id: card.variantId || null,
+        color: card.color || "",
+        title: card.title || "",
+        name: card.title || "",
+        sizes: card.sizes || [],
+        image_url: card.imageUrl || "",
+      })) : []);
+  return normalizeProductCards(lastShownCards.length ? lastShownCards : [memory.lastProductCard || {}], { limit: 6 });
+};
+
+const buildShortAffirmativeClarification = (memory = {}) => {
+  const category = text(memory.lastReplyCategory || "").toUpperCase();
+  const reason = normalizeShortReplyText(memory.replyDecisionReason || memory.resolvedQuestion?.reason || "");
+  if (/MORE[_\s]?IMAGES|image_only|product_presentation_followup|more_images/i.test([category, reason].join(" "))) return "تحب صور أكتر لنفس الموديل؟";
+  if (/ALTERNATIVES|alternative|close_match/i.test([category, reason].join(" "))) return "بديل لنفس الموديل ولا موديل تاني؟";
+  if (/SIZE[_\s]?SELECTION|SIZE[_\s]?CHECK|size_question|selected_size|size_selected/i.test([category, reason].join(" "))) return "مقاس كام؟";
+  return "تقصد أكمل على نفس الموديل ولا موديل تاني؟";
+};
+
+const handleShortAffirmativeFollowupIfMatched = async ({ config, message } = {}) => {
+  const memory = getConversationMemory(message.external_conversation_id) || {};
+  const followup = resolveShortAffirmativeFollowup({ messageText: message.message_text, memory });
+  if (!followup) return null;
+
+  if (!followup.hasActiveContext || !followup.intent) {
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: buildShortAffirmativeClarification(memory),
+      detectedIntent: "short_affirmative_followup_clarification",
+      metadata: {
+        replyDecisionReason: followup.reason,
+        replyCategory: "AFFIRMATIVE_FOLLOWUP_CLARIFICATION",
+        active_product_id: followup.activeProductId || "",
+        active_variant_id: followup.activeVariantId || "",
+      },
+    });
+    return { handled: true, reason: "short_affirmative_followup_clarification" };
+  }
+
+  if (followup.intent === AI_INTENTS.MORE_IMAGES) {
+    return handleMoreImagesIfMatched({
+      config,
+      message: {
+        ...message,
+        message_text: "صور أكتر",
+      },
+    });
+  }
+
+  if (followup.intent === AI_INTENTS.ALTERNATIVES) {
+    return handleAlternativesIfMatched({
+      config,
+      message: {
+        ...message,
+        message_text: "بدائل",
+      },
+    });
+  }
+
+  if (followup.intent === AI_INTENTS.SIZE_CHECK) {
+    const clarification = buildShortAffirmativeClarification(memory);
+    await sendAndLogMetaText({
+      config,
+      message,
+      text: clarification,
+      detectedIntent: "short_affirmative_size_followup",
+      metadata: {
+        replyDecisionReason: followup.reason,
+        replyCategory: "SIZE_SELECTION",
+        active_product_id: followup.activeProductId || "",
+        active_variant_id: followup.activeVariantId || "",
+      },
+    });
+    return { handled: true, reason: "short_affirmative_size_followup" };
+  }
+
+  if (followup.intent === AI_INTENTS.PRODUCT_PRESENTATION) {
+    let cards = continuationCardsFromMemory(memory);
+    if (!cards.length && followup.activeProductId) {
+      const rebuilt = await rebuildContextProductCardFromMemory({
+        tenantId: config.tenant_id,
+        memory,
+        activeProductId: followup.activeProductId,
+        activeVariantId: followup.activeVariantId,
+        activeColor: memory.activeColor || memory.selectedColor || "",
+      });
+      cards = normalizeProductCards(rebuilt ? [rebuilt] : [], { limit: 6 });
+    }
+    if (!cards.length) {
+      await sendAndLogMetaText({
+        config,
+        message,
+        text: buildShortAffirmativeClarification(memory),
+        detectedIntent: "short_affirmative_followup_clarification",
+        metadata: {
+          replyDecisionReason: followup.reason,
+          replyCategory: "AFFIRMATIVE_FOLLOWUP_CLARIFICATION",
+          active_product_id: followup.activeProductId || "",
+          active_variant_id: followup.activeVariantId || "",
+        },
+      });
+      return { handled: true, reason: "short_affirmative_followup_clarification" };
+    }
+
+    const introText = cards.length > 1
+      ? "تمام، دي نفس الاختيارات مرة تانية:"
+      : "تمام، ده نفس الموديل:";
+
+    await sendAndLogProductCards({
+      config,
+      message,
+      productCards: cards,
+      detectedIntent: "short_affirmative_product_presentation",
+      introText,
+      metadata: {
+        preserveReplyText: true,
+        replyCategory: "PRODUCT_PRESENTATION",
+        replyDecisionReason: followup.reason,
+        active_product_id: followup.activeProductId || "",
+        active_variant_id: followup.activeVariantId || "",
+        replyType: "product_search",
+      },
+    });
+    updateConversationMemory(message.external_conversation_id, {
+      lastIntent: "product_presentation_followup",
+      activeProductId: followup.activeProductId || memory.activeProductId || memory.selectedProductId || null,
+      activeVariantId: followup.activeVariantId || memory.activeVariantId || memory.selectedVariantId || null,
+    });
+    return { handled: true, reason: "short_affirmative_product_presentation_followup" };
+  }
+
+  return null;
+};
+
 const handleProductLinkIfMatched = async ({ config, message } = {}) => {
   const memory = getConversationMemory(message.external_conversation_id) || {};
   const resolved = message.resolvedQuestion || memory.resolvedQuestion || resolveCustomerQuestion({ message, memory });
@@ -14300,6 +14591,7 @@ const handlerNames = (handlers = []) => handlers.map((handler) => handler?.name 
 const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
   const fallbackHandlers = [
     handleGreetingIfMatched,
+    handleShortAffirmativeFollowupIfMatched,
     handleOrchestratorClarificationIfNeeded,
     handleVisualCorrectionIfMatched,
     handleBrandCorrectionIfMatched,
@@ -14329,6 +14621,7 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
     [AI_INTENTS.COLOR_REQUEST]: [handleOtherColorsIfMatched, handleColorSelectionIfMatched],
     [AI_INTENTS.MORE_IMAGES]: [handleMoreImagesIfMatched],
     [AI_INTENTS.ALTERNATIVES]: [handleAlternativesIfMatched],
+    [AI_INTENTS.PRODUCT_PRESENTATION]: [handleShortAffirmativeFollowupIfMatched],
     [AI_INTENTS.BUYING_INTENT]: [handleSalesCloserV2IfMatched, handleSalesBrainBuyingStageIfMatched, handleCheckoutContinuationIfMatched, handleOrderDraftIfMatched],
     [AI_INTENTS.CHECKOUT]: [handleSalesCloserV2IfMatched, handleCheckoutDataIfMatched, handleSalesBrainBuyingStageIfMatched, handleCheckoutContinuationIfMatched],
     [AI_INTENTS.ORDER_CONFIRMATION]: [handleSalesCloserV2IfMatched, handleSalesBrainBuyingStageIfMatched, handleCheckoutDataIfMatched],
