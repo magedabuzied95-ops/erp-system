@@ -395,7 +395,7 @@ io.on("connection", async (socket) => {
         size: String(payload.size || "").trim(),
         stock: Number(payload.stock || 0),
         sellerName: String(payload.sellerName || payload.seller_name || payload.salespersonName || "").trim() || "POS",
-        branchId: payload.branchId ?? payload.branch_id ?? branchId || null,
+        branchId: payload.branchId ?? payload.branch_id ?? (branchId || null),
         timestamp: String(payload.timestamp || new Date().toISOString()),
       };
       io.emit("warehouse-pick-alert", alertPayload);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BellRing, Clock3, Package2, Palette, SquareStack, Warehouse } from "lucide-react";
+import { BellRing, Clock3, Package2, SquareStack, Warehouse } from "lucide-react";
 
 import { getCurrentUser } from "../../../shared/auth/authStorage";
 import { useRealtimeConnection, subscribeRealtime } from "../../../shared/realtime/socketStore";
@@ -238,8 +238,7 @@ function WarehouseLivePicks() {
                     <h2 className="text-2xl font-black leading-tight text-white sm:text-4xl">{latestAlert.productName}</h2>
 
                     <div className="flex flex-wrap gap-2">
-                      <Pill label="القياس" value={latestAlert.size} large />
-                      <Pill label="الكمية" value={`× ${latestAlert.quantity}`} large />
+                      <Pill label="القياس" value={`${latestAlert.size} × ${latestAlert.quantity}`} large />
                       <Pill label="اللون" value={latestAlert.color} />
                     </div>
 
@@ -342,8 +341,7 @@ function AlertRow({ item }) {
         <div className="truncate text-sm font-black text-white">{item.productName}</div>
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-bold text-zinc-400">
           <span>اللون: {item.color}</span>
-          <span>المقاس: {item.size}</span>
-          <span>× {item.quantity}</span>
+          <span>المقاس: {item.size} × {item.quantity}</span>
         </div>
         <div className="mt-1 truncate text-[11px] font-bold text-zinc-500">
           {item.sellerName} · {timeFormatter.format(new Date(item.receivedAt || item.timestamp))}

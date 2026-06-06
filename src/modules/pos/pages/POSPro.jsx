@@ -2886,6 +2886,12 @@ function POSPro() {
       variant_color: variant.variant_color || variant.color || null,
     });
 
+    const existingCartItem = cart.find((item) => item.key === key);
+    if (existingCartItem && Number(existingCartItem.quantity || 0) >= liveStock) {
+      toast.error(t("pos.toasts.stockLimitReached"));
+      return;
+    }
+
     const resolvedBranchId = activePosShift?.branch_id || posShiftBranch?.id || currentUser?.branch_id || "";
     const selectedSeller = salesEmployees.find((employee) => String(employee.id) === String(selectedSalespersonId));
     const resolvedSellerName =
