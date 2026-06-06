@@ -5663,6 +5663,40 @@ const logMoreImagesRoutingAudit = ({
   });
 };
 
+const summarizeMoreImagesBaseCard = (card = {}) => ({
+  product_id: text(card.product_id || card.id || ""),
+  variant_id: text(card.variant_id || card.selected_variant_id || ""),
+  name: text(card.name || card.title || ""),
+  color: text(card.color || ""),
+  image_url: text(card.image_url || ""),
+});
+
+const logMoreImagesLiveAudit = ({
+  message = {},
+  activeProductId = "",
+  activeVariantId = "",
+  activeTopic = "",
+  modelFamily = "",
+  resolvedBaseCard = null,
+  productCards = [],
+  imageCards = [],
+  sentCardsCount = 0,
+  fallbackReason = "",
+} = {}) => {
+  console.log("[MORE_IMAGES_LIVE_AUDIT]", {
+    message: text(message?.message_text || message?.text || ""),
+    activeProductId: text(activeProductId),
+    activeVariantId: text(activeVariantId),
+    activeTopic: text(activeTopic),
+    modelFamily: text(modelFamily),
+    resolvedBaseCard: resolvedBaseCard ? summarizeMoreImagesBaseCard(resolvedBaseCard) : null,
+    product_cards_count: Array.isArray(productCards) ? productCards.length : 0,
+    image_cards_count: Array.isArray(imageCards) ? imageCards.length : 0,
+    sent_cards_count: Number(sentCardsCount) || 0,
+    fallback_reason: text(fallbackReason),
+  });
+};
+
 const logRouteMessageThroughAiError = ({
   tenantId = "",
   conversationId = "",
@@ -6951,6 +6985,14 @@ const rebuildContextProductCardFromMemory = async ({ tenantId, memory = {}, acti
     cards[0] ||
     null;
   if (!selectedCard) return null;
+  console.log("[more-images-context-rebuild]", {
+    tenant_id: tenantId || null,
+    active_product_id: productId,
+    active_variant_id: variantId,
+    selected_product_id: selectedCard.product_id || null,
+    selected_variant_id: selectedCard.variant_id || null,
+    color: selectedCard.color || "",
+  });
   return {
     ...selectedCard,
     id: selectedCard.id || selectedCard.product_id || productId,
@@ -8887,9 +8929,9 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
       })),
     });
   }
-  const productPresentationReply = detectedIntent === "product_search" && !detectOtherColorsRequest(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
   const guardedVisualIntroText = visualCards ? closestVisualIntroText({ guard: topConfirmationGuard, replyType: metadata.final_reply_type }) : "";
   const baseIntroText = visualCards ? guardedVisualIntroText : (gate.introText || introText);
+  const productPresentationReply = detectedIntent === "product_search" && !detectOtherColorsRequest(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
   const finalIntroText = modelNameSearch && guardedCards.length >= 2 && !productPresentationReply
     ? [modelColorLimitIntro, baseIntroText].filter(Boolean).join("\n")
     : baseIntroText;
@@ -8908,6 +8950,27 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   });
   const finalCardIntroText = orchestratedCardsReply.text;
   const finalCardMetadata = orchestratedCardsReply.metadata;
+  const memorySnapshot = getConversationMemory(message.external_conversation_id) || {};
+  const imageCardsCount = guardedCards.filter((card) => Boolean(card?.image_url || card?.imageUrl || card?.selected_card_image_url)).length;
+  const shouldSendProductPresentationFollowup = Boolean(
+    metadata.product_presentation_followup === true ||
+    metadata.force_followup_after_product_cards === true
+  );
+  const overrideReason = shouldSendProductPresentationFollowup
+    ? "explicit_product_presentation_followup_requested"
+    : "product_cards_present_prevented_size_followup";
+  console.log("[PRODUCT_PRESENTATION_AUDIT]", {
+    route: text(detectedIntent || metadata.replyType || metadata.handler || ""),
+    activeProductId: text(metadata.active_product_id || metadata.activeProductId || memorySnapshot.activeProductId || memorySnapshot.selectedProductId || guardedCards[0]?.product_id || guardedCards[0]?.id || ""),
+    activeVariantId: text(metadata.active_variant_id || metadata.activeVariantId || memorySnapshot.activeVariantId || memorySnapshot.selectedVariantId || guardedCards[0]?.variant_id || ""),
+    product_cards_count: guardedCards.length,
+    image_cards_count: imageCardsCount,
+    selected_stage: finalCardMetadata.nextConversationStage || finalCardMetadata.conversationStage || memorySnapshot.currentConversationStage || memorySnapshot.conversationStage || "",
+    nextRecommendedStage: memorySnapshot.nextRecommendedStage || finalCardMetadata.nextConversationStage || "",
+    selected_reply_text: finalCardIntroText || "",
+    selected_reply_type: finalCardMetadata.replyCategory || metadata.replyType || "",
+    override_reason: overrideReason,
+  });
   const responseDedup = evaluateResponseDeduplication({
     conversationId: message.external_conversation_id,
     productCards: guardedCards,
@@ -8941,16 +9004,6 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     };
   }
   const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
-  console.log("[PRODUCT_PRESENTATION_AUDIT]", {
-    activeProductId: text(message.activeProductId || message.selectedProductId || getConversationMemory(message.external_conversation_id)?.activeProductId || getConversationMemory(message.external_conversation_id)?.selectedProductId || ""),
-    activeVariantId: text(message.activeVariantId || message.selectedVariantId || getConversationMemory(message.external_conversation_id)?.activeVariantId || getConversationMemory(message.external_conversation_id)?.selectedVariantId || ""),
-    product_cards_count: guardedCards.length,
-    image_cards_count: guardedCards.filter((card) => Boolean(card?.image_url || card?.imageUrl || card?.selected_card_image_url)).length,
-    selected_stage: finalCardMetadata.nextConversationStage || finalCardMetadata.conversationStage || "",
-    selected_reply_type: finalCardMetadata.replyCategory || "",
-    replyDecisionReason: text(metadata.replyDecisionReason || message.resolvedQuestion?.reason || ""),
-    replyDecisionReasonSource: text(metadata.handler || metadata.replySource || detectedIntent || ""),
-  });
   const signature = outboundSignature({ messageText: finalCardIntroText, productCards: guardedCards, trigger: detectedIntent || metadata?.trigger || "" });
   const dedupe = await checkAndStoreOutboundSignature({
     tenantId: config.tenant_id,
@@ -9052,7 +9105,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     snapshot: responseDedup.snapshot,
     replyCategory: finalCardMetadata.replyCategory,
   });
-  if (productPresentationReply) {
+  if (shouldSendProductPresentationFollowup) {
     const colorSet = new Set([
       ...(Array.isArray(metadata.colors) ? metadata.colors : []),
       ...guardedCards.map((card) => card.color || card.matched_variant_color || ""),
@@ -9080,6 +9133,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
         has_multiple_colors: hasMultipleColors,
         replyPipelineId: productCardsPipelineId,
         replyType: "product_presentation_followup",
+        override_reason: overrideReason,
       },
     });
   }
@@ -10706,304 +10760,447 @@ const handleHumanHandoffIfMatched = async ({ config, message } = {}) => {
 };
 
 const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
-  const keyword = detectMoreImagesRequest(message.message_text);
-  if (!keyword || isColorQuestionMessage(message.message_text)) return null;
-  const memory = getConversationMemory(message.external_conversation_id) || {};
-  let context = resolveContextProductCard({ message });
-  let baseCard = context.card;
-  if (!baseCard) {
-    baseCard = await rebuildContextProductCardFromMemory({
-      tenantId: config.tenant_id,
-      memory,
-      activeProductId: memory.activeProductId || memory.selectedProductId || "",
-      activeVariantId: memory.activeVariantId || memory.selectedVariantId || "",
-      activeColor: memory.activeColor || memory.selectedColor || "",
-    });
-    if (baseCard) {
-      context = { ...context, card: baseCard, source: "active_memory_reconstructed", ambiguous: false };
+  try {
+    const messageText = message.message_text || "";
+    const keyword = detectMoreImagesRequest(messageText);
+    if (!keyword || isColorQuestionMessage(messageText)) return null;
+    const memory = getConversationMemory(message.external_conversation_id) || {};
+    let context = resolveContextProductCard({ message, allowAmbiguous: true });
+    let baseCard = context.card;
+    if (!baseCard) {
+      baseCard = await rebuildContextProductCardFromMemory({
+        tenantId: config.tenant_id,
+        memory,
+        activeProductId: memory.activeProductId || memory.selectedProductId || "",
+        activeVariantId: memory.activeVariantId || memory.selectedVariantId || "",
+        activeColor: memory.activeColor || memory.selectedColor || "",
+      });
+      if (baseCard) {
+        context = { ...context, card: baseCard, source: "active_memory_reconstructed", ambiguous: false };
+      }
     }
-  }
-  const wantsAllImages = Boolean(
-    detectAllColorsRequest(message.message_text) ||
-      /(?:all\s+images|all\s+colors|show\s+all|more\s+colors|ظƒظ„\s+ط§ظ„طµظˆط±|ظƒظ„\s+ط§ظ„ط£ظ„ظˆط§ظ†|ظƒظ„\s+ط§ظ„ط§ظ„ظˆط§ظ†)/i.test(text(message.message_text))
-  );
-  const includeOtherColors = wantsAllImages;
-  console.log("ai_action_images_requested", {
-    tenant_id: config.tenant_id,
-    conversation_id: message.external_conversation_id,
-    keyword,
-    selected_product_id: memory.selectedProductId || null,
-    selected_variant_id: memory.selectedVariantId || null,
-    selected_color: memory.selectedColor || "",
-  });
-  console.log("ai_inbox_more_images_requested", {
-    tenant_id: config.tenant_id,
-    conversation_id: message.external_conversation_id,
-    keyword,
-    has_product_context: Boolean(baseCard),
-    context_source: context.source || "",
-    include_other_colors: includeOtherColors,
-    wants_all_images: wantsAllImages,
-  });
-  console.log("ai_more_images_context", {
-    tenant_id: config.tenant_id,
-    conversation_id: message.external_conversation_id,
-    context_source: context.source || "",
-    product_id: baseCard?.product_id || null,
-    variant_id: baseCard?.variant_id || null,
-    color: baseCard?.color || "",
-    include_other_colors: includeOtherColors,
-    wants_all_images: wantsAllImages,
-  });
-  logMoreImagesRoutingAudit({
-    message,
-    route: "more_images",
-    intent: AI_INTENTS.MORE_IMAGES,
-    activeProductId: baseCard?.product_id || baseCard?.id || memory.selectedProductId || memory.activeProductId || "",
-    activeVariantId: baseCard?.variant_id || memory.selectedVariantId || memory.activeVariantId || "",
-    baseCard,
-    cards: context.cards || [],
-    reason: "entry",
-  });
-  if (context.ambiguous && !baseCard && !(memory.selectedProductId && memory.selectedColor)) {
+    const activeProductId = baseCard?.product_id || baseCard?.id || memory.selectedProductId || memory.activeProductId || "";
+    const activeVariantId = baseCard?.variant_id || memory.selectedVariantId || memory.activeVariantId || "";
+    const activeTopic = text(memory.activeTopic || memory.last_model_family || memory.lastProductQuery || baseCard?.model_family || baseCard?.family || baseCard?.name || "");
+    const modelFamily = text(baseCard?.model_family || baseCard?.family || memory.last_model_family || activeTopic || "");
+    const wantsAllImages = Boolean(
+      detectAllColorsRequest(messageText) ||
+        /(?:all\s+images|all\s+colors|show\s+all|more\s+colors|كل\s+الصور|كل\s+الألوان|كل\s+الالوان)/i.test(text(messageText))
+    );
+    const modelNameSearch = Boolean(detectModelNameSearch(messageText) || modelFamily);
+    let familyCards = [];
+    if (modelNameSearch) {
+      const familyQuery = text(activeTopic || modelFamily || baseCard?.name || messageText);
+      const familyProducts = await searchAiOrderProducts({
+        tenantId: config.tenant_id,
+        message: familyQuery,
+        metadata: {
+          active_product_id: activeProductId || "",
+          active_variant_id: activeVariantId || "",
+          model_family: modelFamily || activeTopic || "",
+        },
+      }).catch((error) => {
+        console.warn("[more-images-family-search] failed", {
+          tenant_id: config.tenant_id,
+          conversation_id: message.external_conversation_id,
+          message: error?.message || "family search failed",
+        });
+        return [];
+      });
+      familyCards = normalizeProductCards(familyProducts, { limit: wantsAllImages ? 12 : 8 });
+      console.log("[more-images-family-search]", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        family_query: familyQuery,
+        family_cards_count: familyCards.length,
+        wants_all_images: wantsAllImages,
+      });
+    }
+    const includeOtherColors = wantsAllImages;
+    console.log("ai_action_images_requested", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      keyword,
+      selected_product_id: memory.selectedProductId || null,
+      selected_variant_id: memory.selectedVariantId || null,
+      selected_color: memory.selectedColor || "",
+    });
+    console.log("ai_inbox_more_images_requested", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      keyword,
+      has_product_context: Boolean(baseCard),
+      context_source: context.source || "",
+      include_other_colors: includeOtherColors,
+      wants_all_images: wantsAllImages,
+      model_family: modelFamily,
+      active_topic: activeTopic,
+    });
+    console.log("ai_more_images_context", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      context_source: context.source || "",
+      product_id: baseCard?.product_id || null,
+      variant_id: baseCard?.variant_id || null,
+      color: baseCard?.color || "",
+      include_other_colors: includeOtherColors,
+      wants_all_images: wantsAllImages,
+      model_family: modelFamily,
+      active_topic: activeTopic,
+    });
     logMoreImagesRoutingAudit({
       message,
-      route: "more_images_color_clarification",
+      route: "more_images",
       intent: AI_INTENTS.MORE_IMAGES,
-      activeProductId: baseCard?.product_id || baseCard?.id || memory.selectedProductId || memory.activeProductId || "",
-      activeVariantId: baseCard?.variant_id || memory.selectedVariantId || memory.activeVariantId || "",
+      activeProductId,
+      activeVariantId,
       baseCard,
       cards: context.cards || [],
-      reason: "ambiguous_context",
-      handledReason: "more_images_color_clarification",
+      reason: "entry",
     });
-    await sendAndLogMetaText({
-      config,
-      message,
-      text: "\u0635\u0648\u0631 \u0623\u0643\u062a\u0631 \u0644\u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644\u061f",
-      detectedIntent: "more_images_color_clarification",
-      metadata: { reason: "multiple_product_context", product_card_count: context.cards.length },
-    });
-    return { handled: true, reason: "more_images_color_clarification" };
-  }
-  if (!baseCard) {
-    logMoreImagesRoutingAudit({
-      message,
-      route: "more_images_missing_context",
-      intent: AI_INTENTS.MORE_IMAGES,
-      activeProductId: memory.selectedProductId || memory.activeProductId || "",
-      activeVariantId: memory.selectedVariantId || memory.activeVariantId || "",
-      baseCard,
-      cards: context.cards || [],
-      reason: "missing_base_card",
-      handledReason: "missing_product_context",
-    });
-    console.log("[ai-memory] missing active product", {
+    if (context.ambiguous && !baseCard && !(memory.selectedProductId && memory.selectedColor)) {
+      logMoreImagesRoutingAudit({
+        message,
+        route: "more_images_color_clarification",
+        intent: AI_INTENTS.MORE_IMAGES,
+        activeProductId,
+        activeVariantId,
+        baseCard,
+        cards: context.cards || [],
+        reason: "ambiguous_context",
+        handledReason: "more_images_color_clarification",
+      });
+      logMoreImagesLiveAudit({
+        message,
+        activeProductId,
+        activeVariantId,
+        activeTopic,
+        modelFamily,
+        resolvedBaseCard: baseCard,
+        productCards: [],
+        imageCards: [],
+        sentCardsCount: 0,
+        fallbackReason: "ambiguous_context",
+      });
+      await sendAndLogMetaText({
+        config,
+        message,
+        text: "\u0635\u0648\u0631 \u0623\u0643\u062a\u0631 \u0644\u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644\u061f",
+        detectedIntent: "more_images_color_clarification",
+        metadata: { reason: "multiple_product_context", product_card_count: context.cards.length },
+      });
+      return { handled: true, reason: "more_images_color_clarification" };
+    }
+    if (!baseCard && !familyCards.length) {
+      logMoreImagesRoutingAudit({
+        message,
+        route: "more_images_missing_context",
+        intent: AI_INTENTS.MORE_IMAGES,
+        activeProductId,
+        activeVariantId,
+        baseCard,
+        cards: context.cards || [],
+        reason: "missing_base_card",
+        handledReason: "missing_product_context",
+      });
+      logMoreImagesLiveAudit({
+        message,
+        activeProductId,
+        activeVariantId,
+        activeTopic,
+        modelFamily,
+        resolvedBaseCard: null,
+        productCards: [],
+        imageCards: [],
+        sentCardsCount: 0,
+        fallbackReason: "missing_product_context",
+      });
+      console.log("[ai-memory] missing active product", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        contextual_intent: "more_images",
+        keyword,
+      });
+      await sendAndLogMetaText({
+        config,
+        message,
+        text: "\u062a\u0642\u0635\u062f \u0635\u0648\u0631\u0629 \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644 \u064a\u0627 \u0641\u0646\u062f\u0645\u061f",
+        detectedIntent: "more_images",
+        metadata: { reason: "missing_product_context" },
+      });
+      return { handled: true, reason: "missing_product_context" };
+    }
+    if (familyCards.length) {
+      baseCard = baseCard || familyCards[0] || null;
+    }
+    if (!baseCard) {
+      logMoreImagesLiveAudit({
+        message,
+        activeProductId,
+        activeVariantId,
+        activeTopic,
+        modelFamily,
+        resolvedBaseCard: null,
+        productCards: [],
+        imageCards: [],
+        sentCardsCount: 0,
+        fallbackReason: "resolved_base_card_missing",
+      });
+      return { handled: true, reason: "missing_product_context" };
+    }
+    console.log("[ai-memory] contextual intent resolved", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
       contextual_intent: "more_images",
-      keyword,
+      product_id: baseCard.product_id || baseCard.id || null,
+      variant_id: baseCard.variant_id || null,
+      color: baseCard.color || "",
+      model_family: modelFamily,
     });
-    console.log("[ai-followup:missing-context]", {
-      detected_intent: "image_request",
-      reply: "\u062a\u0642\u0635\u062f \u0635\u0648\u0631\u0629 \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644 \u064a\u0627 \u0641\u0646\u062f\u0645\u061f",
+    lockProductContext({
+      conversationId: message.external_conversation_id,
+      card: baseCard,
+      stage: "product_details",
+      reason: "more_images_same_color",
+    });
+    if (baseCard.color || memory.selectedColor) {
+      console.log("ai_context_color_reused", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        product_id: baseCard.product_id || null,
+        variant_id: baseCard.variant_id || null,
+        color: baseCard.color || memory.selectedColor || "",
+        action: "more_images",
+      });
+    }
+    const product = wantsAllImages
+      ? await loadFullProductForImageFlow({ tenantId: config.tenant_id, productId: baseCard.product_id || baseCard.id || null }) ||
+        await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text })
+      : await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
+    const moreImageCards = familyCards.length
+      ? familyCards
+      : normalizeProductCards(await buildMoreImageCardsExpanded({
+          tenantId: config.tenant_id,
+          conversationId: message.external_conversation_id,
+          product,
+          baseCard,
+          includeOtherColors,
+          wantsAllImages,
+        }), { limit: wantsAllImages ? 12 : 4 });
+    if (!moreImageCards.length) {
+      logMoreImagesRoutingAudit({
+        message,
+        route: "more_images_no_new_images",
+        intent: AI_INTENTS.MORE_IMAGES,
+        activeProductId,
+        activeVariantId,
+        baseCard,
+        cards: moreImageCards,
+        reason: "no_new_images",
+        handledReason: "no_new_images",
+      });
+      logMoreImagesLiveAudit({
+        message,
+        activeProductId,
+        activeVariantId,
+        activeTopic,
+        modelFamily,
+        resolvedBaseCard: baseCard,
+        productCards: [],
+        imageCards: [],
+        sentCardsCount: 0,
+        fallbackReason: "no_new_images",
+      });
+      await sendAndLogMetaText({
+        config,
+        message,
+        text: MORE_IMAGES_EMPTY_REPLY,
+        detectedIntent: "more_images",
+        metadata: { reason: "no_new_images", product_id: baseCard.product_id || null },
+      });
+      return { handled: true, reason: "no_new_images" };
+    }
+    const moreImagesPipelineId = finalReplyPipelineId({
+      message,
+      owner: "response_orchestrator",
+      replyType: "more_images",
+    });
+    const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
+    const imageOnlyCards = moreImageCards.map((card) => ({
+      ...card,
+      card_reply_mode: "image_only",
+    }));
+    console.log("[more-images-router]", {
+      message: message.message_text || "",
+      resolvedQuestionType: message.resolvedQuestion?.intent || QUESTION_TYPES.MORE_IMAGES,
+      blockedPresentation: true,
+      imageCount: imageOnlyCards.length,
+      family_cards_used: Boolean(familyCards.length),
+    });
+    logMoreImagesRoutingAudit({
+      message,
+      route: "more_images_sent",
+      intent: AI_INTENTS.MORE_IMAGES,
+      activeProductId,
+      activeVariantId,
+      baseCard,
+      cards: imageOnlyCards,
+      reason: "more_images_sent",
+      handledReason: "more_images_sent",
+    });
+    evaluateResponseDeduplication({
+      conversationId: message.external_conversation_id,
+      productCards: imageOnlyCards,
+      replyCategory: "MORE_IMAGES",
+      detectedIntent: "more_images",
+      message,
     });
     await sendAndLogMetaText({
       config,
       message,
-      text: "\u062a\u0642\u0635\u062f \u0635\u0648\u0631\u0629 \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644 \u064a\u0627 \u0641\u0646\u062f\u0645\u061f",
-      detectedIntent: "more_images",
-      metadata: { reason: "missing_product_context" },
+      text: "\u0623\u0643\u064a\u062f ",
+      detectedIntent: "more_images_intro",
+      metadata: {
+        preserveReplyText: true,
+        replyCategory: "MORE_IMAGES",
+        replyType: "more_images",
+        replyPipelineId: moreImagesPipelineId,
+      },
+      inboundKey,
+      inboundMetaMid,
     });
-    return { handled: true, reason: "missing_product_context" };
-  }
-  console.log("[ai-memory] contextual intent resolved", {
-    tenant_id: config.tenant_id,
-    conversation_id: message.external_conversation_id,
-    contextual_intent: "more_images",
-    product_id: baseCard.product_id || baseCard.id || null,
-    variant_id: baseCard.variant_id || null,
-    color: baseCard.color || "",
-  });
-  lockProductContext({
-    conversationId: message.external_conversation_id,
-    card: baseCard,
-    stage: "product_details",
-    reason: "more_images_same_color",
-  });
-  if (baseCard.color || memory.selectedColor) {
-    console.log("ai_context_color_reused", {
+    let result;
+    try {
+      result = await sendMetaInboxOutboundMessage({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        recipientId: message.external_customer_id,
+        conversationId: message.external_conversation_id,
+        productCards: imageOnlyCards,
+        productCardLimit: imageOnlyCards.length,
+        suggestedActions: [],
+        facebookPageId: config.facebook_page_id,
+        instagramBusinessAccountId: config.instagram_business_account_id,
+        preferredConfigId: config.id,
+        inboundKey,
+        inboundMetaMid,
+        replyOwner: "response_orchestrator",
+        replyType: "more_images",
+        replyPipelineId: moreImagesPipelineId,
+        messageSequenceId: message.messageSequenceId || null,
+        replySource: "response_orchestrator",
+        replyPath: ["question_resolver", "more_images_handler", "response_orchestrator", "final_reply"],
+        orchestratorUsed: true,
+        resolvedQuestionType: (getConversationMemory(message.external_conversation_id) || {}).resolvedQuestionType || "",
+      });
+    } catch (error) {
+      logMoreImagesLiveAudit({
+        message,
+        activeProductId,
+        activeVariantId,
+        activeTopic,
+        modelFamily,
+        resolvedBaseCard: baseCard,
+        productCards: imageOnlyCards,
+        imageCards: imageOnlyCards,
+        sentCardsCount: 0,
+        fallbackReason: error?.message || "more_images_send_failed",
+      });
+      throw error;
+    }
+    rememberLastProductCards({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+      productCards: imageOnlyCards,
+      sentMessages: result?.product_card_messages || [],
+      messageText: message.message_text || "",
+      lastIntent: "more_images",
+    });
+    rememberConversationCompression({
+      conversationId: message.external_conversation_id,
+      productCards: imageOnlyCards,
+      fields: ["shownProductCard"],
+      reason: "more_images_sent",
+    });
+    lockProductContext({
+      conversationId: message.external_conversation_id,
+      card: baseCard,
+      stage: "product_details",
+      reason: "same_color_images_sent",
+    });
+    console.log("ai_same_color_images", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
       product_id: baseCard.product_id || null,
       variant_id: baseCard.variant_id || null,
-      color: baseCard.color || memory.selectedColor || "",
-      action: "more_images",
+      color: baseCard.color || "",
+      image_count: moreImageCards.length,
     });
-  }
-  const product = wantsAllImages
-    ? await loadFullProductForImageFlow({ tenantId: config.tenant_id, productId: baseCard.product_id || baseCard.id || null }) ||
-      await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text })
-    : await loadRememberedProduct({ tenantId: config.tenant_id, card: baseCard, messageText: message.message_text });
-  const moreImageCards = normalizeProductCards(await buildMoreImageCardsExpanded({
-    tenantId: config.tenant_id,
-    conversationId: message.external_conversation_id,
-    product,
-    baseCard,
-    includeOtherColors,
-    wantsAllImages,
-  }), { limit: wantsAllImages ? 6 : 4 });
-  if (!moreImageCards.length) {
-    logMoreImagesRoutingAudit({
-      message,
-      route: "more_images_no_new_images",
-      intent: AI_INTENTS.MORE_IMAGES,
-      activeProductId: baseCard?.product_id || baseCard?.id || memory.selectedProductId || memory.activeProductId || "",
-      activeVariantId: baseCard?.variant_id || memory.selectedVariantId || memory.activeVariantId || "",
-      baseCard,
-      cards: moreImageCards,
-      reason: "no_new_images",
-      handledReason: "no_new_images",
+    console.log("ai_action_images_sent", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      product_id: baseCard.product_id || null,
+      variant_id: baseCard.variant_id || null,
+      color: baseCard.color || "",
+      image_count: moreImageCards.length,
     });
-    await sendAndLogMetaText({
-      config,
+    logMoreImagesLiveAudit({
       message,
-      text: MORE_IMAGES_EMPTY_REPLY,
+      activeProductId,
+      activeVariantId,
+      activeTopic,
+      modelFamily,
+      resolvedBaseCard: baseCard,
+      productCards: imageOnlyCards,
+      imageCards: imageOnlyCards,
+      sentCardsCount: Array.isArray(result?.product_card_messages) ? result.product_card_messages.length : 0,
+      fallbackReason: "",
+    });
+    const preview = "\u0623\u0643\u064a\u062f";
+    await appendAiGeneratedSupportReply({
+      tenantId: config.tenant_id,
+      sessionId: message.external_conversation_id,
+      answer: preview,
       detectedIntent: "more_images",
-      metadata: { reason: "no_new_images", product_id: baseCard.product_id || null },
+      suggestedProducts: moreImageCards,
+      suggestedActions: META_COMMERCE_ACTIONS,
+      channel: message.channel,
+      deliveryStatus: "sent",
+      externalMessageId: result?.message_id || "",
+    }).catch(() => {});
+    await logChannelEvent({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      direction: "outbound",
+      externalCustomerId: message.external_customer_id,
+      conversationId: message.external_conversation_id,
+      messagePreview: preview,
+      status: "sent",
+      metadata: { meta_message_id: result?.message_id || "", product_card_count: moreImageCards.length, more_images: true },
+    }).catch(() => {});
+    return { handled: true, reason: "more_images_sent" };
+  } catch (error) {
+    console.error("[more-images-router:error]", {
+      tenant_id: config?.tenant_id,
+      conversation_id: message?.external_conversation_id || "",
+      message: error?.message || "more images handling failed",
+      code: error?.code || "",
     });
-    return { handled: true, reason: "no_new_images" };
+    logMoreImagesLiveAudit({
+      message,
+      activeProductId: message?.activeProductId || "",
+      activeVariantId: message?.activeVariantId || "",
+      activeTopic: "",
+      modelFamily: "",
+      resolvedBaseCard: null,
+      productCards: [],
+      imageCards: [],
+      sentCardsCount: 0,
+      fallbackReason: error?.message || "more_images_handler_error",
+    });
+    return { handled: true, reason: "more_images_handler_error" };
   }
-  const moreImagesPipelineId = finalReplyPipelineId({
-    message,
-    owner: "response_orchestrator",
-    replyType: "more_images",
-  });
-  const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
-  const imageOnlyCards = moreImageCards.map((card) => ({
-    ...card,
-    card_reply_mode: "image_only",
-  }));
-  console.log("[more-images-router]", {
-    message: message.message_text || "",
-    resolvedQuestionType: message.resolvedQuestion?.intent || QUESTION_TYPES.MORE_IMAGES,
-    blockedPresentation: true,
-    imageCount: imageOnlyCards.length,
-  });
-  logMoreImagesRoutingAudit({
-    message,
-    route: "more_images_sent",
-    intent: AI_INTENTS.MORE_IMAGES,
-    activeProductId: baseCard?.product_id || baseCard?.id || memory.selectedProductId || memory.activeProductId || "",
-    activeVariantId: baseCard?.variant_id || memory.selectedVariantId || memory.activeVariantId || "",
-    baseCard,
-    cards: imageOnlyCards,
-    reason: "more_images_sent",
-    handledReason: "more_images_sent",
-  });
-  evaluateResponseDeduplication({
-    conversationId: message.external_conversation_id,
-    productCards: imageOnlyCards,
-    replyCategory: "MORE_IMAGES",
-    detectedIntent: "more_images",
-    message,
-  });
-  await sendAndLogMetaText({
-    config,
-    message,
-    text: "\u0623\u0643\u064a\u062f ",
-    detectedIntent: "more_images_intro",
-    metadata: {
-      preserveReplyText: true,
-      replyCategory: "MORE_IMAGES",
-      replyType: "more_images",
-      replyPipelineId: moreImagesPipelineId,
-    },
-    inboundKey,
-    inboundMetaMid,
-  });
-  const result = await sendMetaInboxOutboundMessage({
-    tenantId: config.tenant_id,
-    channel: message.channel,
-    recipientId: message.external_customer_id,
-    conversationId: message.external_conversation_id,
-    productCards: imageOnlyCards,
-    productCardLimit: imageOnlyCards.length,
-    suggestedActions: [],
-    facebookPageId: config.facebook_page_id,
-    instagramBusinessAccountId: config.instagram_business_account_id,
-    preferredConfigId: config.id,
-    inboundKey,
-    inboundMetaMid,
-    replyOwner: "response_orchestrator",
-    replyType: "more_images",
-    replyPipelineId: moreImagesPipelineId,
-    messageSequenceId: message.messageSequenceId || null,
-    replySource: "response_orchestrator",
-    replyPath: ["question_resolver", "more_images_handler", "response_orchestrator", "final_reply"],
-    orchestratorUsed: true,
-    resolvedQuestionType: (getConversationMemory(message.external_conversation_id) || {}).resolvedQuestionType || "",
-  });
-  rememberLastProductCards({
-    tenantId: config.tenant_id,
-    channel: message.channel,
-    conversationId: message.external_conversation_id,
-    productCards: imageOnlyCards,
-    sentMessages: result?.product_card_messages || [],
-    messageText: message.message_text || "",
-    lastIntent: "more_images",
-  });
-  rememberConversationCompression({
-    conversationId: message.external_conversation_id,
-    productCards: imageOnlyCards,
-    fields: ["shownProductCard"],
-    reason: "more_images_sent",
-  });
-  lockProductContext({
-    conversationId: message.external_conversation_id,
-    card: baseCard,
-    stage: "product_details",
-    reason: "same_color_images_sent",
-  });
-  console.log("ai_same_color_images", {
-    tenant_id: config.tenant_id,
-    conversation_id: message.external_conversation_id,
-    product_id: baseCard.product_id || null,
-    variant_id: baseCard.variant_id || null,
-    color: baseCard.color || "",
-    image_count: moreImageCards.length,
-  });
-  console.log("ai_action_images_sent", {
-    tenant_id: config.tenant_id,
-    conversation_id: message.external_conversation_id,
-    product_id: baseCard.product_id || null,
-    variant_id: baseCard.variant_id || null,
-    color: baseCard.color || "",
-    image_count: moreImageCards.length,
-  });
-  const preview = "\u0623\u0643\u064a\u062f";
-  await appendAiGeneratedSupportReply({
-    tenantId: config.tenant_id,
-    sessionId: message.external_conversation_id,
-    answer: preview,
-    detectedIntent: "more_images",
-    suggestedProducts: moreImageCards,
-    suggestedActions: META_COMMERCE_ACTIONS,
-    channel: message.channel,
-    deliveryStatus: "sent",
-    externalMessageId: result?.message_id || "",
-  }).catch(() => {});
-  await logChannelEvent({
-    tenantId: config.tenant_id,
-    channel: message.channel,
-    direction: "outbound",
-    externalCustomerId: message.external_customer_id,
-    conversationId: message.external_conversation_id,
-    messagePreview: preview,
-    status: "sent",
-    metadata: { meta_message_id: result?.message_id || "", product_card_count: moreImageCards.length, more_images: true },
-  }).catch(() => {});
-  return { handled: true, reason: "more_images_sent" };
 };
 
 const handleVisualAvailabilityFollowupIfMatched = async ({ config, message } = {}) => {
