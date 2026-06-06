@@ -10948,6 +10948,16 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
       });
       return { handled: true, reason: "missing_product_context" };
     }
+    console.log("[more-images-resolve-context]", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      context_source: context.source || "",
+      ambiguous: Boolean(context.ambiguous),
+      product_id: baseCard.product_id || baseCard.id || null,
+      variant_id: baseCard.variant_id || null,
+      active_product_id: activeProductId || null,
+      active_variant_id: activeVariantId || null,
+    });
     console.log("[ai-memory] contextual intent resolved", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
@@ -10987,6 +10997,15 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
           includeOtherColors,
           wantsAllImages,
         }), { limit: wantsAllImages ? 12 : 4 });
+    console.log("[more-images-card-generation]", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      family_cards_used: Boolean(familyCards.length),
+      product_cards_count: moreImageCards.length,
+      image_cards_count: moreImageCards.filter((card) => Boolean(card?.image_url)).length,
+      wants_all_images: wantsAllImages,
+      model_family: modelFamily,
+    });
     if (!moreImageCards.length) {
       logMoreImagesRoutingAudit({
         message,
