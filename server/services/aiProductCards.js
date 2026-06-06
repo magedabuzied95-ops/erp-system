@@ -782,6 +782,17 @@ export const productCardReplyText = (product = {}) => {
       productCardUrl(product) || "",
     ].filter(Boolean).join("\n");
   }
+  if (replyMode === "more_images") {
+    return [
+      productCardName(product),
+      product.color ? `\u0627\u0644\u0644\u0648\u0646: ${product.color}` : "",
+      formatAvailableSizesLine(product.available_sizes || product.sizes),
+      formatCloserPrice(product.price) ? `\u0627\u0644\u0633\u0639\u0631: ${formatCloserPrice(product.price)}` : "",
+      productCardUrl(product) ? `\u0627\u0644\u0644\u064a\u0646\u0643: ${productCardUrl(product)}` : "",
+      "",
+      "\u0641\u064a\u0647 \u0644\u0648\u0646 \u0639\u062c\u0628\u0643\u061f",
+    ].filter(Boolean).join("\n");
+  }
   const sizes = sortSizes(product.available_sizes || product.sizes);
   return [
     productCardName(product),

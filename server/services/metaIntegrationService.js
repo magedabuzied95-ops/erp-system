@@ -92,14 +92,14 @@ const numberOrNull = (value) => {
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const nowIso = () => new Date().toISOString();
 const minutesFromNow = (minutes) => new Date(Date.now() + minutes * 60 * 1000).toISOString();
-const META_COMMERCE_ACTIONS = ["ط§ظ„ظ…ظ‚ط§ط³ط§طھ", "طµظˆط± ط£ظƒطھط±", "ظ…طھط§ط­ ظƒط§ط´/ظپظٹط²ط§طں", "ط§ظƒظ…ظ„ ط§ظ„ط·ظ„ط¨", "ط£ظ‚ط±ط¨ ط¨ط¯ظٹظ„", "ط§طھظƒظ„ظ… ظ…ط¹ ط­ط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚"];
-const META_COMMERCE_ACTION_FALLBACK = "طھط­ط¨ ط£ط´ظˆظپظ„ظƒ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط£ظˆ طµظˆط± ط£ظƒطھط± ط£ظˆ ط¨ط¯ظٹظ„ ظ‚ط±ظٹط¨ ط£ظˆ ط£ظƒظ…ظ„ ط§ظ„ط·ظ„ط¨ ط£ظˆ ط£ظˆطµظ„ظƒ ط¨ط­ط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚طں";
-const ORDER_DRAFT_REPLY = "طھظ…ط§ظ…طŒ ط¬ظ‡ط²طھظ„ظƒ ط§ظ„ط·ظ„ط¨. ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ظ„ظ„طھط£ظƒظٹط¯.";
-const CHECKOUT_INFO_REPLY = "ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ط¹ط´ط§ظ† ط£ط¬ظ‡ط² ط§ظ„ط·ظ„ط¨.";
-const HUMAN_HANDOFF_REPLY = "طھظ…ط§ظ…طŒ ظ‡ط­ظˆظ‘ظ„ظƒ ظ„ط­ط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚ ظٹط³ط§ط¹ط¯ظƒ ط­ط§ظ„ظ‹ط§.";
-const MORE_IMAGES_EMPTY_REPLY = "ظ…ظپظٹط´ طµظˆط± ط£ظ„ظˆط§ظ† ط£ظƒطھط± ظˆط§ط¶ط­ط© ط¹ظ†ط¯ظٹ ط¯ظ„ظˆظ‚طھظٹطŒ طھط­ط¨ طھط¨ط¹طھظ„ظٹ طµظˆط±ط© ظ„ظ„ظ…ظˆط¯ظٹظ„طں";
-const VISUAL_NO_STRONG_MATCH_REPLY = "ظ…ط´ ظ„ط§ظ‚ظٹ ظ†ظپط³ ط§ظ„ظ…ظˆط¯ظٹظ„ ط¨ط§ظ„ط¸ط¨ط·\nط¨ط³ ط¯ظٹ ط£ظ‚ط±ط¨ ظ…ظˆط¯ظٹظ„ط§طھ ط´ط¨ظ‡ظ‡.";
-const HOT_LEAD_INSIGHT = "ط¹ظ…ظٹظ„ ظ‚ط±ظٹط¨ ط¬ط¯ظ‹ط§ ظ…ظ† ط§ظ„ط´ط±ط§ط،";
+const META_COMMERCE_ACTIONS = ["المقاسات", "صور أكتر", "متاح كاش/فيزا؟", "اكمل الطلب", "أقرب بديل", "اتكلم مع حد من الفريق"];
+const META_COMMERCE_ACTION_FALLBACK = "تحب أشوفلك المقاسات أو صور أكتر أو بديل قريب أو أكمل الطلب أو أوصلك بحد من الفريق؟";
+const ORDER_DRAFT_REPLY = "تمام، جهزتلك الطلب. ابعتلي الاسم ورقم الموبايل والعنوان للتأكيد.";
+const CHECKOUT_INFO_REPLY = "ابعتلي الاسم ورقم الموبايل والعنوان عشان أجهز الطلب.";
+const HUMAN_HANDOFF_REPLY = "تمام، هحوّلك لحد من الفريق يساعدك حالًا.";
+const MORE_IMAGES_EMPTY_REPLY = "مفيش صور ألوان أكتر واضحة عندي دلوقتي، تحب تبعتلي صورة للموديل؟";
+const VISUAL_NO_STRONG_MATCH_REPLY = "مش لاقي نفس الموديل بالظبط\nبس دي أقرب موديلات شبهه.";
+const HOT_LEAD_INSIGHT = "عميل قريب جدًا من الشراء";
 const CHECKOUT_INFO_COLLECTION_REPLY = "\u062a\u0645\u0627\u0645  \u0647\u062c\u0647\u0632\u0644\u0643 \u0627\u0644\u0637\u0644\u0628.\n\u0627\u0628\u0639\u062a\u0644\u064a \u0627\u0644\u0627\u0633\u0645 \u0648\u0631\u0642\u0645 \u0627\u0644\u0645\u0648\u0628\u0627\u064a\u0644 \u0648\u0627\u0644\u0639\u0646\u0648\u0627\u0646.";
 const VISUAL_CLARIFICATION_REPLY = "\u0627\u0644\u0635\u0648\u0631\u0629 \u0645\u0634 \u0648\u0627\u0636\u062d\u0629 \u0643\u0641\u0627\u064a\u0629 \u0639\u0646\u062f\u064a\u060c \u0645\u0645\u0643\u0646 \u062a\u0628\u0639\u062a \u0635\u0648\u0631\u0629 \u0623\u0648\u0636\u062d \u0623\u0648 \u0627\u0633\u0645 \u0627\u0644\u0645\u0648\u062f\u064a\u0644\u061f";
 const VISUAL_CLOSE_MATCH_REPLY = "\u0645\u0634 \u0646\u0641\u0633 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0628\u0627\u0644\u0638\u0628\u0637\u060c \u0628\u0633 \u062f\u064a \u0623\u0642\u0631\u0628 \u062d\u0627\u062c\u0629 \u0634\u0628\u0647\u0647 \u0639\u0646\u062f\u0646\u0627.";
@@ -117,11 +117,11 @@ const hasTerm = (message = "", terms = []) => {
 const hasAnyArabicCommerceTerm = (message = "", terms = []) => hasTerm(message, terms);
 
 const detectHumanHandoff = (message = "") =>
-  hasTerm(message, ["ظ…ظˆط¸ظپ", "ط®ط¯ظ…ط© ط¹ظ…ظ„ط§ط،", "ط­ط¯ ظٹظƒظ„ظ…ظ†ظٹ", "ظ…ط´ ظپط§ظ‡ظ…", "ظƒظ„ظ…ظˆظ†ظٹ"]);
+  hasTerm(message, ["موظف", "خدمة عملاء", "حد يكلمني", "مش فاهم", "كلموني"]);
 
 const detectMoreImagesRequest = (message = "") =>
   hasAnyArabicCommerceTerm(message, ["\u0635\u0648\u0631\u0629", "\u0635\u0648\u0631", "\u0635\u0648\u0631 \u0623\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0627\u0643\u062a\u0631", "\u0635\u0648\u0631 \u0625\u0636\u0627\u0641\u064a\u0629", "\u0635\u0648\u0631 \u0627\u0636\u0627\u0641\u064a\u0629", "\u0627\u0628\u0639\u062a\u0644\u064a \u0635\u0648\u0631\u0629", "\u0627\u0628\u0639\u062a \u0635\u0648\u0631", "\u0648\u0631\u064a\u0646\u064a \u0635\u0648\u0631", "\u0635\u0648\u0631\u0629 \u062a\u0627\u0646\u064a\u0629", "\u0635\u0648\u0631 \u062a\u0627\u0646\u064a\u0629", "photo", "photos", "image", "images", "more photos", "more images"]) ||
-  hasTerm(message, ["طµظˆط± ط£ظƒطھط±", "طµظˆط± ط§ظƒطھط±", "طµظˆط±ط©", "طµظˆط±", "طµظˆط±ط© طھط§ظ†ظٹط©"]);
+  hasTerm(message, ["صور أكتر", "صور اكتر", "صورة", "صور", "صورة تانية"]);
 
 const detectProductLinkRequest = (message = "") =>
   Boolean(hasTerm(message, [
@@ -149,7 +149,7 @@ const detectGreetingMessage = (message = "") => {
       normalized.includes("\u0635\u0628\u0627\u062d \u0627\u0644\u062e\u064a\u0631") ||
       normalized.includes("\u0645\u0633\u0627\u0621 \u0627\u0644\u062e\u064a\u0631") ||
       normalized.includes("\u0627\u0647\u0644\u0627") ||
-      hasTerm(message, ["ط·آ§ط¸â€‍ط·آ³ط¸â€‍ط·آ§ط¸â€¦ ط·آ¹ط¸â€‍ط¸ظ¹ط¸ئ’ط¸â€¦", "ط·آ³ط¸â€‍ط·آ§ط¸â€¦", "ط·آ£ط¸â€،ط¸â€‍ط·آ§", "ط·آ§ط¸â€،ط¸â€‍ط·آ§", "hello"])
+      hasTerm(message, ["طآ§لطآ³لطآ§م طآ¹ليظئ’م", "طآ³لطآ§م", "طآ£هلطآ§", "طآ§هلطآ§", "hello"])
   );
 };
 
@@ -166,7 +166,7 @@ const detectNorthFaceCorrection = (message = "") => {
 const detectNegativeCommerceIntent = (message = "") => {
   const raw = text(message).toLowerCase().replace(/\s+/g, " ");
   return Boolean(
-    /^(no|nah|ظ„ط§|ظ„ط£|ظ„ط§ط،)\b/.test(raw) ||
+    /^(no|nah|لا|لأ|لاء)\b/.test(raw) ||
       raw.includes("\u0644\u0627 \u0639\u0627\u064a\u0632") ||
       raw.includes("\u0644\u0623 \u0639\u0627\u064a\u0632") ||
       raw.includes("\u0645\u0634 \u0639\u0627\u064a\u0632") ||
@@ -189,7 +189,7 @@ const detectNegativeCommerceIntent = (message = "") => {
 
 const detectSizesRequest = (message = "") =>
   hasAnyArabicCommerceTerm(message, ["\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a", "\u0645\u0642\u0627\u0633\u0627\u062a", "\u0641\u064a\u0647 \u0645\u0642\u0627\u0633", "\u0645\u062a\u0627\u062d \u0645\u0642\u0627\u0633", "\u0645\u0642\u0627\u0633\u0627\u062a\u0647", "sizes", "size"]) ||
-  hasTerm(message, ["ط§ظ„ظ…ظ‚ط§ط³ط§طھ", "ظ…ظ‚ط§ط³ط§طھ", "ظپظٹظ‡ ظ…ظ‚ط§ط³", "ظ…طھط§ط­ ظ…ظ‚ط§ط³", "ظ…ظ‚ط§ط³ط§طھظ‡"]);
+  hasTerm(message, ["المقاسات", "مقاسات", "فيه مقاس", "متاح مقاس", "مقاساته"]);
 
 const detectExplicitCheckoutIntent = (message = "") =>
   Boolean(hasAnyArabicCommerceTerm(message, [
@@ -219,7 +219,7 @@ const detectBuyingIntent = (message = "") =>
   detectExplicitCheckoutIntent(message);
 
 const detectShippingQuestion = (message = "") =>
-  hasTerm(message, ["طھظˆطµظٹظ„", "ط´ط­ظ†", "ط§ظ„ط´ط­ظ†", "ط§ظ„طھظˆطµظٹظ„"]);
+  hasTerm(message, ["توصيل", "شحن", "الشحن", "التوصيل"]);
 
 const detectProductDetailQuestion = (message = "") =>
   Boolean(
@@ -261,8 +261,8 @@ const resolveExactModelAlias = (message = "") => {
   const input = text(message);
   const normalized = input.toLowerCase().replace(/\s+/g, " ").trim();
   const aliases = [
-    { alias: "\u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631", pattern: /\u062c\u0648\u0631\u062f[ظ†\u0646ط§\u0627]\s*\u0641\u0648\u0631/i },
-    { alias: "\u062c\u0648\u0631\u062f\u0646 4", pattern: /\u062c\u0648\u0631\u062f[ظ†\u0646ط§\u0627]\s*(?:4|\u0664)/i },
+    { alias: "\u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631", pattern: /\u062c\u0648\u0631\u062f[ن\u0646ا\u0627]\s*\u0641\u0648\u0631/i },
+    { alias: "\u062c\u0648\u0631\u062f\u0646 4", pattern: /\u062c\u0648\u0631\u062f[ن\u0646ا\u0627]\s*(?:4|\u0664)/i },
     { alias: "Jordan Four", pattern: /\bjordan\s+four\b/i },
     { alias: "Jordan 4", pattern: /\bjordan\s*4\b/i },
     { alias: "AJ4", pattern: /\baj\s*4\b/i },
@@ -404,16 +404,16 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
   const models = distinctTextArray([aliasMatch.canonical_model, ...detectedCustomerModels(messageText), ...(contextEntities.model ? [contextEntities.model] : [])], 8);
   const productName = aliasMatch.canonical_model || contextEntities.productName || detectedCustomerProductName(messageText);
   const categories = detectedCustomerCategories(messageText);
-  const orderNumber = text((messageText.match(/(?:#|order|ط§ظˆط±ط¯ط±|ط£ظˆط±ط¯ط±|ط·ظ„ط¨|ط±ظ‚ظ…)\s*([A-Z0-9-]{3,})/i) || [])[1] || "");
-  const color = text((messageText.match(/(ط§ط³ظˆط¯|ط£ط³ظˆط¯|ط§ط¨ظٹط¶|ط£ط¨ظٹط¶|ط¬ط±ط§ظٹ|ط±ظ…ط§ط¯ظٹ|ط§ط­ظ…ط±|ط£ط­ظ…ط±|ط§ط®ط¶ط±|ط£ط®ط¶ط±|ط§ط²ط±ظ‚|ط£ط²ط±ظ‚|ط¨ظٹط¬|black|white|grey|gray|red|green|blue|beige)/i) || [])[1] || "");
+  const orderNumber = text((messageText.match(/(?:#|order|اوردر|أوردر|طلب|رقم)\s*([A-Z0-9-]{3,})/i) || [])[1] || "");
+  const color = text((messageText.match(/(اسود|أسود|ابيض|أبيض|جراي|رمادي|احمر|أحمر|اخضر|أخضر|ازرق|أزرق|بيج|black|white|grey|gray|red|green|blue|beige)/i) || [])[1] || "");
   const stage = normalizeCheckoutStage(memory.buyingStage || memory.checkoutStage || memory.conversationStage || memory.currentConversationStage || "");
   const hasProductEntity = Boolean(brands.length || models.length || productName);
   const hasSizeCheckSignal = Boolean(
     size ||
       /\bsize\b/i.test(messageText) ||
-      /ظ…ظ‚ط§ط³/i.test(messageText) ||
+      /مقاس/i.test(messageText) ||
       /\bavailable\s+in\s+(2[0-9]|3[0-9]|4[0-8])\b/i.test(messageText) ||
-      /\b(2[0-9]|3[0-9]|4[0-8])\s+(?:ظ…ظˆط¬ظˆط¯|ظ…طھط§ط­|available|in\s*stock)\b/i.test(messageText)
+      /\b(2[0-9]|3[0-9]|4[0-8])\s+(?:موجود|متاح|available|in\s*stock)\b/i.test(messageText)
   );
   const affirmativeFollowup = detectShortAffirmativeReply(messageText) ? resolveShortAffirmativeFollowup({ messageText, memory }) : null;
   const entities = {
@@ -456,7 +456,7 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     intent = AI_INTENTS.COMPLAINT;
     confidence = 0.76;
     reason = "negative_or_objection";
-  } else if (hasAnyArabicCommerceTerm(messageText, ["ط§ظ„ط£ظˆط±ط¯ط± ظˆطµظ„", "ط§ظ„ط§ظˆط±ط¯ط± ظˆطµظ„", "ط·ظ„ط¨ظٹ ظپظٹظ†", "ط§ظˆط±ط¯ط± ظپظٹظ†", "ط§ظ„ط£ظˆط±ط¯ط± ظپظٹظ†", "ظˆطµظ„ ظ„ظپظٹظ†", "طھطھط¨ط¹", "tracking", "order status"])) {
+  } else if (hasAnyArabicCommerceTerm(messageText, ["الأوردر وصل", "الاوردر وصل", "طلبي فين", "اوردر فين", "الأوردر فين", "وصل لفين", "تتبع", "tracking", "order status"])) {
     intent = AI_INTENTS.ORDER_STATUS;
     confidence = 0.91;
     reason = "order_status_keyword";
@@ -528,7 +528,7 @@ export const classifyMetaConversationIntent = ({ message = {}, memory = {} } = {
     intent = checkoutStageAtLeast(stage, "checkout_collecting") ? AI_INTENTS.CHECKOUT : AI_INTENTS.BUYING_INTENT;
     confidence = 0.86;
     reason = "buying_keyword";
-  } else if (hasAnyArabicCommerceTerm(messageText, ["ظƒط§ظ…", "ط¨ظƒط§ظ…", "ط§ظ„ط³ط¹ط±", "price"])) {
+  } else if (hasAnyArabicCommerceTerm(messageText, ["كام", "بكام", "السعر", "price"])) {
     intent = AI_INTENTS.PRICE_CHECK;
     confidence = 0.86;
     reason = "price_keyword";
@@ -657,7 +657,7 @@ const salesDesignerProductIntro = ({ card = {}, sizes = [] } = {}) => {
   traceAiPriceSource({ ...priceInfo, card_price: card.price || card.final_price || card.sale_price || card.product_price || "" });
   const rawPrice = text(priceInfo.selected_display_price || "");
   const priceLine = rawPrice
-    ? `\u0627\u0644\u0633\u0639\u0631: ${rawPrice}${/\u062c\u0646\u064a\u0647|egp|ط¬ظ†ظٹظ‡/i.test(rawPrice) ? "" : " \u062c\u0646\u064a\u0647"}`
+    ? `\u0627\u0644\u0633\u0639\u0631: ${rawPrice}${/\u062c\u0646\u064a\u0647|egp|جنيه/i.test(rawPrice) ? "" : " \u062c\u0646\u064a\u0647"}`
     : "";
   return [
     "\u0623\u064a\u0648\u0647 \u0645\u062a\u0627\u062d \u2705",
@@ -864,7 +864,7 @@ const isOnlyShoeSizeMessage = (message = "", size = "") => {
   const messageDigits = sizeDigits(message);
   const selectedDigits = sizeDigits(size);
   if (!messageDigits || !selectedDigits || messageDigits !== selectedDigits) return false;
-  return !text(message).replace(/[\d\u0660-\u0669\u06f0-\u06f9\s.,طŒ:;!طں?()-]/g, "");
+  return !text(message).replace(/[\d\u0660-\u0669\u06f0-\u06f9\s.,،:;!؟?()-]/g, "");
 };
 
 const normalizeEgyptPhone = (value = "") => {
@@ -879,7 +879,7 @@ const parseCheckoutCustomerDetails = (messageText = "") => {
   const raw = text(messageText);
   const phone = normalizeEgyptPhone(raw);
   const lines = raw
-    .split(/\r?\n|طŒ|,/)
+    .split(/\r?\n|،|,/)
     .map((line) => text(line))
     .filter(Boolean);
   const phoneLineIndex = lines.findIndex((line) => normalizeEgyptPhone(line));
@@ -888,7 +888,7 @@ const parseCheckoutCustomerDetails = (messageText = "") => {
   const nameCandidate = withoutPhone(
     phoneLineIndex > 0
       ? lines.slice(0, phoneLineIndex).join(" ")
-      : lines.find((line) => !normalizeEgyptPhone(line) && line.length <= 80 && !/(ط´ط§ط±ط¹|ط¨ط¬ظˆط§ط±|ظ…ظ†ط·ظ‚ط©|ظ…ط­ط§ظپط¸ط©|ظ…ط¯ظٹظ†ط©|ط¹ظ…ط§ط±ط©|ط¯ظˆط±|ط´ظ‚ط©|address|street)/i.test(line)) || ""
+      : lines.find((line) => !normalizeEgyptPhone(line) && line.length <= 80 && !/(شارع|بجوار|منطقة|محافظة|مدينة|عمارة|دور|شقة|address|street)/i.test(line)) || ""
   );
   const addressCandidate = withoutPhone(
     phoneLineIndex >= 0
@@ -989,7 +989,7 @@ const normalizeCheckoutGuardText = (value = "") =>
     .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
     .replace(/[\u0623\u0625\u0622]/g, "\u0627")
     .replace(/\u0649/g, "\u064a")
-    .replace(/\u0629/g, "ظ‡")
+    .replace(/\u0629/g, "ه")
     .replace(/[^\p{L}\p{N}\s]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -997,7 +997,7 @@ const normalizeCheckoutGuardText = (value = "") =>
 const checkoutConfirmationOnly = (message = "") => {
   const normalized = normalizeCheckoutGuardText(message);
   if (!normalized) return false;
-  return /^(?:طھظ…ط§ظ…|ط§ظˆظƒظٹ|ط§ظˆظƒ|ط§ظٹظˆظ‡|ط§ظٹظˆط§|ظ…ط§ط´ظٹ|ط§ط­ط¬ط²ظ‡|ط§ط­ط¬ط²ظ‡ط§|ط§ط­ط¬ط²ظ‡ظˆظ„ظٹ|ط§ط­ط¬ط²ظ‡ظˆظ„ظٹ|ظ‡ط§طھظ‡|ظ‡ط§طھظ‡ط§|ظ‡ط§طھ|ط§ظƒظ…ظ„|ظƒظ…ظ„|yes|ok|okay|continue|book it|reserve it)(?:\s+(?:طھظ…ط§ظ…|ط§ظˆظƒظٹ|ط§ظˆظƒ|ط§ظٹظˆظ‡|ط§ظٹظˆط§|ظ…ط§ط´ظٹ|ط§ط­ط¬ط²ظ‡|ط§ط­ط¬ط²ظ‡ط§|ط§ط­ط¬ط²ظ‡ظˆظ„ظٹ|ظ‡ط§طھظ‡|ظ‡ط§طھظ‡ط§|ظ‡ط§طھ|ط§ظƒظ…ظ„|ظƒظ…ظ„|please|ط¨ظ„ظٹط²|ظ„ظˆ ط³ظ…ط­طھ))*$/.test(normalized);
+  return /^(?:تمام|اوكي|اوك|ايوه|ايوا|ماشي|احجزه|احجزها|احجزهولي|احجزهولي|هاته|هاتها|هات|اكمل|كمل|yes|ok|okay|continue|book it|reserve it)(?:\s+(?:تمام|اوكي|اوك|ايوه|ايوا|ماشي|احجزه|احجزها|احجزهولي|هاته|هاتها|هات|اكمل|كمل|please|بليز|لو سمحت))*$/.test(normalized);
 };
 
 const QUESTION_TYPES = Object.freeze({
@@ -1018,7 +1018,7 @@ const resolveCustomerQuestion = ({ message = {}, memory = {} } = {}) => {
   const normalized = normalizeCheckoutGuardText(messageText);
   const hasImage = typeof message === "object" && imageAttachments(message.attachments || []).length > 0;
   const explicitSize = extractShoeSize(messageText) || "";
-  const hasSizeKeyword = /\bsize\b/i.test(messageText) || hasTerm(messageText, ["ظ…ظ‚ط§ط³", "ظ…ظ‚ط§ط³ط§طھ"]);
+  const hasSizeKeyword = /\bsize\b/i.test(messageText) || hasTerm(messageText, ["مقاس", "مقاسات"]);
   const topicEntities = detectContextTopicEntities(messageText);
   let intent = QUESTION_TYPES.GENERAL_PRODUCT_QUESTION;
   let reason = "general_product_question";
@@ -1055,19 +1055,19 @@ const resolveCustomerQuestion = ({ message = {}, memory = {} } = {}) => {
   } else if (detectAlternativesRequest(messageText)) {
     intent = QUESTION_TYPES.ALTERNATIVES_QUESTION;
     reason = "alternatives_request";
-  } else if (/ظ„ظٹظ†ظƒ|ط§ظ„ظ„ظٹظ†ظƒ|ط±ط§ط¨ط·|ط§ظ„ط±ط§ط¨ط·|link|url/i.test(messageText)) {
+  } else if (/لينك|اللينك|رابط|الرابط|link|url/i.test(messageText)) {
     intent = QUESTION_TYPES.LINK_QUESTION;
     reason = "link_request";
   } else if (explicitSize || (hasSizeKeyword && !topicEntities.topic)) {
     intent = QUESTION_TYPES.SIZE_QUESTION;
     reason = explicitSize ? "explicit_size_question" : "size_keyword_question";
-  } else if (/ظƒط§ظ…|ط¨ظƒط§ظ…|ط§ظ„ط³ط¹ط±|ط³ط¹ط±ظ‡|price|how much/i.test(messageText)) {
+  } else if (/كام|بكام|السعر|سعره|price|how much/i.test(messageText)) {
     intent = QUESTION_TYPES.PRICE_QUESTION;
     reason = "price_question";
   } else if (checkoutConfirmationOnly(messageText) || detectBuyingIntent(messageText)) {
     intent = QUESTION_TYPES.BUYING_INTENT;
     reason = "buying_or_checkout_confirmation";
-  } else if (hasImage || topicEntities.topic || /ظپظٹظ‡|ظ…ظˆط¬ظˆط¯|ظ…طھط§ط­|available|ط¹ظ†ط¯ظƒ/i.test(normalized)) {
+  } else if (hasImage || topicEntities.topic || /فيه|موجود|متاح|available|عندك/i.test(normalized)) {
     intent = QUESTION_TYPES.AVAILABILITY_QUESTION;
     reason = hasImage ? "image_availability_question" : topicEntities.topic ? "product_availability_question" : "availability_keyword";
   }
@@ -1511,9 +1511,9 @@ const imageAttachments = (attachments = []) =>
 
 const detectFaqIntent = (message = "") => {
   const normalized = text(message).toLowerCase();
-  if (hasTerm(normalized, ["ظƒط§ط´", "ظپظٹط²ط§", "ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…", "ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…", "cod"])) return "payment";
-  if (hasTerm(normalized, ["طھظˆطµظٹظ„ ظƒط§ظ…", "ط§ظ„ط´ط­ظ† ظƒط§ظ…", "ط´ط­ظ† ظƒط§ظ…", "ط§ظ„طھظˆطµظٹظ„ ظƒط§ظ…", "طھظƒظ„ظپط© ط§ظ„ط´ط­ظ†"])) return "delivery";
-  if (hasTerm(normalized, ["ط¨ظٹط±ط¬ط¹", "ط§ط³طھط¨ط¯ط§ظ„", "ط§ط³طھط±ط¬ط§ط¹", "ظٹظ†ظپط¹ ط§ط±ط¬ط¹", "ظٹظ†ظپط¹ ط£ط±ط¬ط¹"])) return "exchange";
+  if (hasTerm(normalized, ["كاش", "فيزا", "دفع عند الاستلام", "الدفع عند الاستلام", "cod"])) return "payment";
+  if (hasTerm(normalized, ["توصيل كام", "الشحن كام", "شحن كام", "التوصيل كام", "تكلفة الشحن"])) return "delivery";
+  if (hasTerm(normalized, ["بيرجع", "استبدال", "استرجاع", "ينفع ارجع", "ينفع أرجع"])) return "exchange";
   return "";
 };
 
@@ -6288,38 +6288,38 @@ const inboundReplyToMessageId = (message = {}) =>
   );
 
 const colorAliases = [
-  ["black", ["black", "ط§ط³ظˆط¯", "ط£ط³ظˆط¯", "ط³ظˆط¯ط§", "ط³ظˆط¯ط§ط،", "ط§ظ„ط§ط³ظˆط¯", "ط§ظ„ط£ط³ظˆط¯"]],
-  ["green", ["green", "ط§ط®ط¶ط±", "ط£ط®ط¶ط±", "ط§ظ„ط§ط®ط¶ط±", "ط§ظ„ط£ط®ط¶ط±"]],
-  ["white", ["white", "ط§ط¨ظٹط¶", "ط£ط¨ظٹط¶", "ط§ظ„ط§ط¨ظٹط¶", "ط§ظ„ط£ط¨ظٹط¶"]],
-  ["red", ["red", "ط§ط­ظ…ط±", "ط£ط­ظ…ط±", "ط§ظ„ط§ط­ظ…ط±", "ط§ظ„ط£ط­ظ…ط±"]],
-  ["blue", ["blue", "ط§ط²ط±ظ‚", "ط£ط²ط±ظ‚", "ط§ظ„ط§ط²ط±ظ‚", "ط§ظ„ط£ط²ط±ظ‚"]],
-  ["grey", ["grey", "gray", "ط¬ط±ط§ظٹ", "ط±ظ…ط§ط¯ظٹ", "ط±طµط§طµظٹ"]],
-  ["beige", ["beige", "ط¨ظٹط¬"]],
-  ["brown", ["brown", "ط¨ظ†ظٹ"]],
+  ["black", ["black", "اسود", "أسود", "سودا", "سوداء", "الاسود", "الأسود"]],
+  ["green", ["green", "اخضر", "أخضر", "الاخضر", "الأخضر"]],
+  ["white", ["white", "ابيض", "أبيض", "الابيض", "الأبيض"]],
+  ["red", ["red", "احمر", "أحمر", "الاحمر", "الأحمر"]],
+  ["blue", ["blue", "ازرق", "أزرق", "الازرق", "الأزرق"]],
+  ["grey", ["grey", "gray", "جراي", "رمادي", "رصاصي"]],
+  ["beige", ["beige", "بيج"]],
+  ["brown", ["brown", "بني"]],
 ];
 
 const canonicalColor = (value = "") => {
   const raw = text(value).toLowerCase();
   if (!raw) return "";
-  const normalized = raw.replace(/[\u064b-\u065f\u0670\u0640]/g, "").replace(/[ط£ط¥ط¢]/g, "ط§");
-  const matched = colorAliases.find(([, aliases]) => aliases.some((alias) => normalized.includes(alias.toLowerCase().replace(/[ط£ط¥ط¢]/g, "ط§"))));
+  const normalized = raw.replace(/[\u064b-\u065f\u0670\u0640]/g, "").replace(/[أإآ]/g, "ا");
+  const matched = colorAliases.find(([, aliases]) => aliases.some((alias) => normalized.includes(alias.toLowerCase().replace(/[أإآ]/g, "ا"))));
   return matched?.[0] || normalized;
 };
 
 const colorDisplayAr = (value = "") => ({
-  black: "ط§ظ„ط£ط³ظˆط¯",
-  green: "ط§ظ„ط£ط®ط¶ط±",
-  white: "ط§ظ„ط£ط¨ظٹط¶",
-  red: "ط§ظ„ط£ط­ظ…ط±",
-  blue: "ط§ظ„ط£ط²ط±ظ‚",
-  grey: "ط§ظ„ط¬ط±ط§ظٹ",
-  beige: "ط§ظ„ط¨ظٹط¬",
-  brown: "ط§ظ„ط¨ظ†ظٹ",
+  black: "الأسود",
+  green: "الأخضر",
+  white: "الأبيض",
+  red: "الأحمر",
+  blue: "الأزرق",
+  grey: "الجراي",
+  beige: "البيج",
+  brown: "البني",
 }[canonicalColor(value)] || text(value));
 
 const detectExplicitColor = (message = "") => {
   const raw = text(message);
-  return colorAliases.find(([, aliases]) => aliases.some((alias) => new RegExp(`(^|\\s)${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$|[طں?.,طŒ])`, "i").test(raw)))?.[0] || "";
+  return colorAliases.find(([, aliases]) => aliases.some((alias) => new RegExp(`(^|\\s)${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$|[؟?.,،])`, "i").test(raw)))?.[0] || "";
 };
 
 const cardMatchesColor = (card = {}, color = "") => {
@@ -6337,7 +6337,7 @@ const selectionColorAliases = [
 ];
 
 const normalizeReadableArabic = (value = "") =>
-  text(value).toLowerCase().replace(/[\u064b-\u065f\u0670\u0640]/g, "").replace(/[ط£ط¥ط¢]/g, "ط§");
+  text(value).toLowerCase().replace(/[\u064b-\u065f\u0670\u0640]/g, "").replace(/[أإآ]/g, "ا");
 
 const detectSelectionColor = (message = "") => {
   const normalized = normalizeReadableArabic(message);
@@ -7302,14 +7302,14 @@ const logReplyOwner = ({ handler = "", intent = "", message = {}, replyText = ""
 };
 
 const staleProductPresentationPatterns = [
-  /ظ„ظ‚ظٹطھظ‡\s+ط¹ظ†ط¯ظٹ/i,
-  /ظ‡ط±ط§ط¬ط¹ظ‡ظ…ظˆظ„ظƒ/i,
-  /ط§ظ„ظ…ظ‚ط§ط³ط§طھ\s*:\s*ظ‡ط±ط§ط¬ط¹/i,
-  /ط§ظ„ط³ط¹ط±\s+1750(?:\s+ط¬ظ†ظٹظ‡)?/i,
-  /ط¸â€‍ط¸â€ڑط¸ظ¹ط·ع¾ط¸â€،\s+ط·آ¹ط¸â€ ط·آ¯ط¸ظ¹/i,
-  /ط¸â€،ط·آ±ط·آ§ط·آ¬ط·آ¹ط¸â€،ط¸â€¦ط¸ث†ط¸â€‍ط¸ئ’/i,
-  /ط·آ§ط¸â€‍ط¸â€¦ط¸â€ڑط·آ§ط·آ³ط·آ§ط·ع¾\s*:\s*ط¸â€،ط·آ±ط·آ§ط·آ¬ط·آ¹/i,
-  /ط·آ§ط¸â€‍ط·آ³ط·آ¹ط·آ±\s+1750/i,
+  /لقيته\s+عندي/i,
+  /هراجعهمولك/i,
+  /المقاسات\s*:\s*هراجع/i,
+  /السعر\s+1750(?:\s+جنيه)?/i,
+  /لقيته\s+طآ¹نطآ¯ي/i,
+  /هطآ±طآ§طآ¬طآ¹همظث†لظئ’/i,
+  /طآ§لمقطآ§طآ³طآ§ت\s*:\s*هطآ±طآ§طآ¬طآ¹/i,
+  /طآ§لطآ³طآ¹طآ±\s+1750/i,
 ];
 
 const detectStaleProductPresentationReply = (reply = "") => {
@@ -7360,11 +7360,11 @@ const visualQueryTokens = (query = "") => {
   const normalized = normalizedSearchText(query);
   return {
     normalized,
-    hasJordan: /\bjordan\b|ط¬ظˆط±ط¯ظ†/.test(normalized),
-    hasJordan4: /\bjordan\s*4\b|\bair\s+jordan\s*4\b|\bretro\s*4\b|ط¬ظˆط±ط¯ظ†\s*4/.test(normalized),
-    hasNike: /\bnike\b|ظ†ط§ظٹظƒ/.test(normalized),
-    hasNorthFace: /\bnorth\s*face\b|\bnorthface\b|ظ†ظˆط±ط«\s*ظپظٹط³|ظ†ظˆط±ط«ظپظٹط³/.test(normalized),
-    hasAdidas: /\badidas\b|ط§ط¯ظٹط¯ط§ط³/.test(normalized),
+    hasJordan: /\bjordan\b|جوردن/.test(normalized),
+    hasJordan4: /\bjordan\s*4\b|\bair\s+jordan\s*4\b|\bretro\s*4\b|جوردن\s*4/.test(normalized),
+    hasNike: /\bnike\b|نايك/.test(normalized),
+    hasNorthFace: /\bnorth\s*face\b|\bnorthface\b|نورث\s*فيس|نورثفيس/.test(normalized),
+    hasAdidas: /\badidas\b|اديداس/.test(normalized),
     hasLowTop: /\blow\b|\blowtop\b|\blow top\b|\blow profile\b|\bslim sole\b|\bflat sole\b/.test(normalized),
     hasCasualSkate: /\bcasual\b|\bskate\b|\bdunk\b|\bcourt\b|\bstreetwear\b|\blifestyle\b/.test(normalized),
     hasGraphicPattern: /\bgraphic\b|\bpattern\b|\bprinted\b|\bside panel\b|\bpanel\b|\bcartoon\b|\bcomic\b|\billustration\b|\bside graphic\b|\bprinted side\b/.test(normalized),
@@ -7798,18 +7798,18 @@ const productSalesSignals = async ({ tenantId, productId, variant = null } = {})
 };
 
 const closerLineForProduct = (signals = {}) => {
-  if (signals.low_stock) return "ط¨ظٹط®ظ„طµ ط¨ط³ط±ط¹ط© ط¨طµط±ط§ط­ط©.";
-  if (signals.high_demand) return "ط§ظ„ظ…ظˆط¯ظٹظ„ ط¯ظ‡ ط¹ظ„ظٹظ‡ ط·ظ„ط¨ ط¹ط§ظ„ظٹ ط§ظ„ظٹظˆظ…ظٹظ† ط¯ظˆظ„.";
-  return "ط®ط§ظ…طھظ‡ ظ…ظ…طھط§ط²ط© ط¬ط¯ظ‹ط§ ظˆظ…ط±ظٹط­ ظپظٹ ط§ظ„ظ„ط¨ط³.";
+  if (signals.low_stock) return "بيخلص بسرعة بصراحة.";
+  if (signals.high_demand) return "الموديل ده عليه طلب عالي اليومين دول.";
+  return "خامته ممتازة جدًا ومريح في اللبس.";
 };
 
 const searchVisualInventory = async ({ tenantId, query = "", metadata = {}, conversationId = "", wantsAllImages = false } = {}) => {
   const queryInfo = visualQueryTokens(query);
   const fallbackQueries = [
     query,
-    queryInfo.hasNorthFace ? "north face northface ظ†ظˆط±ط« ظپظٹط³ sneaker shoe" : "",
-    queryInfo.hasAdidas ? "adidas ط§ط¯ظٹط¯ط§ط³ sneaker shoe" : "",
-    queryInfo.hasNike ? "nike ظ†ط§ظٹظƒ sneaker shoe" : "",
+    queryInfo.hasNorthFace ? "north face northface نورث فيس sneaker shoe" : "",
+    queryInfo.hasAdidas ? "adidas اديداس sneaker shoe" : "",
+    queryInfo.hasNike ? "nike نايك sneaker shoe" : "",
     queryInfo.hasGraphicPattern ? "black white low sneaker graphic side printed side pattern casual skate" : "",
     queryInfo.hasLowTop || queryInfo.hasCasualSkate ? "low casual skate sneaker dunk style black white" : "",
     queryInfo.hasJordan4 ? "air jordan 4 jordan 4 retro 4" : "",
@@ -7831,9 +7831,9 @@ const searchVisualInventory = async ({ tenantId, query = "", metadata = {}, conv
           ...(Array.isArray(metadata.keywords) ? metadata.keywords : []),
           ...(queryInfo.hasJordan4 ? ["air jordan 4", "jordan 4", "retro 4"] : []),
           ...(queryInfo.hasJordan ? ["jordan"] : []),
-          ...(queryInfo.hasNorthFace ? ["north face", "northface", "ظ†ظˆط±ط« ظپظٹط³"] : []),
-          ...(queryInfo.hasNike ? ["nike", "ظ†ط§ظٹظƒ"] : []),
-          ...(queryInfo.hasAdidas ? ["adidas", "ط§ط¯ظٹط¯ط§ط³"] : []),
+          ...(queryInfo.hasNorthFace ? ["north face", "northface", "نورث فيس"] : []),
+          ...(queryInfo.hasNike ? ["nike", "نايك"] : []),
+          ...(queryInfo.hasAdidas ? ["adidas", "اديداس"] : []),
           ...(queryInfo.hasGraphicPattern ? ["graphic side", "printed side", "pattern", "cartoon", "comic", "black white panel"] : []),
           ...(queryInfo.hasLowTop || queryInfo.hasCasualSkate ? ["low", "casual", "skate", "dunk style", "low sneaker", "black white"] : []),
         ],
@@ -8230,7 +8230,7 @@ const buildMoreImageCards = async ({ tenantId, conversationId, product = {}, bas
     selected.push({
       product_id: product.id || baseCard.product_id || baseCard.id || null,
       variant_id: candidate.variant_id || baseCard.variant_id || null,
-      name: product.name || baseCard.name || "ط§ظ„ظ…ظ†طھط¬",
+      name: product.name || baseCard.name || "المنتج",
       price: baseCard.price || product.product_price || "",
       available_sizes: availableSizesForProduct(product, baseCard),
       color: candidate.color || baseCard.color || "",
@@ -8424,17 +8424,17 @@ const isColorQuestionMessage = (message = "") => {
   const raw = text(message).toLowerCase();
   const normalized = raw
     .replace(/[\u064B-\u065F]/g, "")
-    .replace(/[ط£ط¥ط¢]/g, "ط§")
-    .replace(/ظ‰/g, "ظٹ")
-    .replace(/ط©/g, "ظ‡")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
     .replace(/\s+/g, " ")
     .trim();
   return Boolean(
     detectOtherColorsRequest(raw) ||
       detectAllColorsRequest(raw) ||
       hasTerm(raw, ["\u0627\u0644\u0648\u0627\u0646\u0647", "\u0623\u0644\u0648\u0627\u0646\u0647", "\u0627\u0644\u0648\u0627\u0646", "\u0623\u0644\u0648\u0627\u0646", "\u0644\u0648\u0646", "\u0644\u0648\u0646 \u062a\u0627\u0646\u064a", "\u0627\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "\u0623\u0644\u0648\u0627\u0646 \u062a\u0627\u0646\u064a\u0629", "available colors", "colors"]) ||
-      /(?:ظپظٹظ‡|ظپظٹ|ط¹ظ†ط¯ظƒ)?\s*(?:ط§ظ„ظˆط§ظ†|ط£ظ„ظˆط§ظ†)\s*(?:طھط§ظ†ظٹظ‡|طھط§ظ†ظٹ|طھط§ظ†ظ‰|ط§ط®ط±ظٹ|ط§ط®ط±ظ‰)/i.test(normalized) ||
-      /(?:ظ„ظˆظ†)\s*(?:طھط§ظ†ظٹظ‡|طھط§ظ†ظٹ|طھط§ظ†ظ‰|ط§ط®ط±|ط¢ط®ط±)/i.test(normalized) ||
+      /(?:فيه|في|عندك)?\s*(?:الوان|ألوان)\s*(?:تانيه|تاني|تانى|اخري|اخرى)/i.test(normalized) ||
+      /(?:لون)\s*(?:تانيه|تاني|تانى|اخر|آخر)/i.test(normalized) ||
       /\b(?:colors|other colors|available colors|colours|another color)\b/i.test(raw)
   );
 };
@@ -8488,10 +8488,10 @@ const explicitProductCardRequest = (message = "") =>
     detectMoreImagesRequest(message) ||
       detectAllColorsRequest(message) ||
       detectOtherColorsRequest(message) ||
-      /(?:ط§ط¨ط¹طھ|ط§ط¨ط¹طھظٹ|ظ‡ط§طھ|ط§ظپطھط­|ظˆط±ظٹ|ظˆط±ظٹظ†ظٹ).{0,18}(?:ط§ظ„ظ…ظ†طھط¬|ط§ظ„ظƒط§ط±طھ|ط§ظ„ظƒط§ط±ط¯|ط§ظ„طµظˆط±ط©|طµظˆط±)|product card|send product|open product/i.test(text(message))
+      /(?:ابعت|ابعتي|هات|افتح|وري|وريني).{0,18}(?:المنتج|الكارت|الكارد|الصورة|صور)|product card|send product|open product/i.test(text(message))
   );
 
-const explicitPriceRequest = (message = "") => /ظƒط§ظ…|ط¨ظƒط§ظ…|ط§ظ„ط³ط¹ط±|ط³ط¹ط±ظ‡|price|how much/i.test(text(message));
+const explicitPriceRequest = (message = "") => /كام|بكام|السعر|سعره|price|how much/i.test(text(message));
 
 const compactReplyTextForConversation = ({ conversationId = "", message = {}, replyText = "", productCards = [], detectedIntent = "", metadata = {} } = {}) => {
   const memory = getConversationMemory(conversationId) || {};
@@ -8507,18 +8507,18 @@ const compactReplyTextForConversation = ({ conversationId = "", message = {}, re
   const asksPrice = resolved.intent === QUESTION_TYPES.PRICE_QUESTION || explicitPriceRequest(message.message_text || "");
   const asksSize = resolved.intent === QUESTION_TYPES.SIZE_QUESTION || Boolean(extractShoeSize(message.message_text || ""));
   const requestedSize = extractShoeSize(message.message_text || "") || text(metadata.selected_size || metadata.selectedSize || "");
-  const sizeAvailable = !/unavailable|out_of_stock|ط؛ظٹط± ظ…طھط§ط­|ظ…ط´ ظ…طھظˆظپط±/i.test(nextText) && metadata.available !== false;
+  const sizeAvailable = !/unavailable|out_of_stock|غير متاح|مش متوفر/i.test(nextText) && metadata.available !== false;
   const currentPrice = text(resolveCustomerFacingPrice(card, metadata.product || {}, metadata.variant || {}).selected_display_price || metadata.price || "");
   const priceChanged = Boolean(state.price && currentPrice && text(state.price) !== currentPrice);
 
   if (asksSize && state.shownSizes && requestedSize) {
-    nextText = sizeAvailable ? `${requestedSize} ظ…طھظˆظپط± âœ…` : "ط§ظ„ظ…ظ‚ط§ط³ ط¯ظ‡ ط؛ظٹط± ظ…طھط§ط­.";
+    nextText = sizeAvailable ? `${requestedSize} متوفر ✅` : "المقاس ده غير متاح.";
     suppressedFields.push("price", "sizes", "productCard", "checkoutPrompt");
     reason = "size_answer_after_sizes_shown";
   } else if (checkoutLocked && !asksPrice && !asksSize && resolved.intent !== QUESTION_TYPES.COLOR_QUESTION && resolved.intent !== QUESTION_TYPES.MORE_IMAGES && resolved.intent !== QUESTION_TYPES.LINK_QUESTION) {
     nextText = nextText
       .split(/\n+/)
-      .filter((line) => !/(ط§ظ„ط³ط¹ط±|ط§ظ„ظ…طھط§ط­|ط§ظ„ظ…ظ‚ط§ط³ط§طھ|ظ…ظˆط¬ظˆط¯|ظ…طھط§ط­|طھط­ط¨ ط£?ط­ط¬ط²|ط£ط¬ظ‡ط²ظ‡ظˆظ„ظƒ|ظ†ظƒظ…ظ„ ط§ظ„ط·ظ„ط¨|ط§ط­ط¬ط²)/i.test(line))
+      .filter((line) => !/(السعر|المتاح|المقاسات|موجود|متاح|تحب أ?حجز|أجهزهولك|نكمل الطلب|احجز)/i.test(line))
       .join("\n")
       .trim() || nextText;
     suppressedFields.push("price", "sizes", "availability", "productPresentation", "checkoutPrompt");
@@ -8526,17 +8526,17 @@ const compactReplyTextForConversation = ({ conversationId = "", message = {}, re
   } else {
     if (state.shownPrice && !asksPrice && !priceChanged) {
       const before = nextText;
-      nextText = nextText.split(/\n+/).filter((line) => !/ط§ظ„ط³ط¹ط±|ط¨ظƒط§ظ…|price/i.test(line)).join("\n").trim();
+      nextText = nextText.split(/\n+/).filter((line) => !/السعر|بكام|price/i.test(line)).join("\n").trim();
       if (nextText !== before) suppressedFields.push("price");
     }
     if (state.shownSizes && !asksSize) {
       const before = nextText;
-      nextText = nextText.split(/\n+/).filter((line) => !/ط§ظ„ظ…طھط§ط­|ط§ظ„ظ…ظ‚ط§ط³ط§طھ|sizes/i.test(line)).join("\n").trim();
+      nextText = nextText.split(/\n+/).filter((line) => !/المتاح|المقاسات|sizes/i.test(line)).join("\n").trim();
       if (nextText !== before) suppressedFields.push("sizes");
     }
     if (state.shownCheckoutPrompt) {
       const before = nextText;
-      nextText = nextText.split(/\n+/).filter((line) => !/طھط­ط¨ ط£?ط­ط¬ط²|ط£ط¬ظ‡ط²ظ‡ظˆظ„ظƒ|ظ†ظƒظ…ظ„ ط§ظ„ط·ظ„ط¨/i.test(line)).join("\n").trim();
+      nextText = nextText.split(/\n+/).filter((line) => !/تحب أ?حجز|أجهزهولك|نكمل الطلب/i.test(line)).join("\n").trim();
       if (nextText !== before) suppressedFields.push("checkoutPrompt");
     }
     if (suppressedFields.length) reason = "previously_shown_product_fields";
@@ -8605,7 +8605,7 @@ const cardPresentedSnapshot = (card = {}) => ({
   colors: normalizedValueList([card.color, card.matched_variant_color, card.selectedColor].filter(Boolean)),
 });
 const explicitPresentationRepeatRequest = (message = "") =>
-  /(?:ط£ظƒط¯|ط§طھط£ظƒط¯|ظ„ط³ظ‡|طھط§ظ†ظٹ|طھط§ظ†ظ‰|again|repeat|available again|price again|sizes again)/i.test(text(message));
+  /(?:أكد|اتأكد|لسه|تاني|تانى|again|repeat|available again|price again|sizes again)/i.test(text(message));
 
 const evaluateResponseDeduplication = ({ conversationId = "", productCards = [], replyCategory = "", detectedIntent = "", message = {} } = {}) => {
   const memory = getConversationMemory(conversationId) || {};
@@ -9254,23 +9254,23 @@ const detectVisualCorrectionText = (message = "") => {
   const raw = text(message);
   const normalized = normalizedSearchText(raw);
   const corrections = [];
-  if (/\bthe\s+north\s+face\b|\bnorth\s*face\b|\bnorthface\b|ظ†ظˆط±ط«\s*ظپظٹط³|ظ†ظˆط±ط«ظپظٹط³/.test(normalized)) {
-    corrections.push({ brand: "North Face", query: "North Face ظ†ظˆط±ط« ظپظٹط³", keywords: ["north face", "northface", "ظ†ظˆط±ط« ظپظٹط³"] });
+  if (/\bthe\s+north\s+face\b|\bnorth\s*face\b|\bnorthface\b|نورث\s*فيس|نورثفيس/.test(normalized)) {
+    corrections.push({ brand: "North Face", query: "North Face نورث فيس", keywords: ["north face", "northface", "نورث فيس"] });
   }
-  if (/\bjordan\b|ط¬ظˆط±ط¯ظ†|ط¬ظˆط±ط¯ط§ظ†|ع†ظˆط±ط¯ظ†/.test(normalized)) {
-    corrections.push({ brand: "Jordan", query: "Jordan ط¬ظˆط±ط¯ظ†", keywords: ["jordan", "air jordan", "ط¬ظˆط±ط¯ظ†"] });
+  if (/\bjordan\b|جوردن|جوردان|چوردن/.test(normalized)) {
+    corrections.push({ brand: "Jordan", query: "Jordan جوردن", keywords: ["jordan", "air jordan", "جوردن"] });
   }
-  if (/\bnike\b|ظ†ط§ظٹظƒ|ظ†ط§ظٹظƒظٹ/.test(normalized)) {
-    corrections.push({ brand: "Nike", query: "Nike ظ†ط§ظٹظƒ", keywords: ["nike", "ظ†ط§ظٹظƒ"] });
+  if (/\bnike\b|نايك|نايكي/.test(normalized)) {
+    corrections.push({ brand: "Nike", query: "Nike نايك", keywords: ["nike", "نايك"] });
   }
-  if (/\badidas\b|ط§ط¯ظٹط¯ط§ط³|ط£ط¯ظٹط¯ط§ط³/.test(normalized)) {
-    corrections.push({ brand: "Adidas", query: "Adidas ط§ط¯ظٹط¯ط§ط³", keywords: ["adidas", "ط§ط¯ظٹط¯ط§ط³"] });
+  if (/\badidas\b|اديداس|أديداس/.test(normalized)) {
+    corrections.push({ brand: "Adidas", query: "Adidas اديداس", keywords: ["adidas", "اديداس"] });
   }
-  if (/\bair\s*force\b|ط§ظٹط±\s*ظپظˆط±ط³/.test(normalized)) {
-    corrections.push({ model: "Air Force", query: "Air Force ط§ظٹط± ظپظˆط±ط³", keywords: ["air force", "ط§ظٹط± ظپظˆط±ط³"] });
+  if (/\bair\s*force\b|اير\s*فورس/.test(normalized)) {
+    corrections.push({ model: "Air Force", query: "Air Force اير فورس", keywords: ["air force", "اير فورس"] });
   }
-  if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|ط¬ظˆط±ط¯[ظ†ط§]\s*(?:ظپظˆط±|4|ظ¤)|ط¨ظ„ط§ظƒ\s*ظƒط§طھ/.test(normalized)) {
-    corrections.push({ brand: "Jordan", model: "Jordan 4", query: "Jordan 4 ط¬ظˆط±ط¯ظ† ظپظˆط±", keywords: ["air jordan 4", "jordan 4", "aj4", "j4", "ط¬ظˆط±ط¯ظ† ظپظˆط±"] });
+  if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|جورد[نا]\s*(?:فور|4|٤)|بلاك\s*كات/.test(normalized)) {
+    corrections.push({ brand: "Jordan", model: "Jordan 4", query: "Jordan 4 جوردن فور", keywords: ["air jordan 4", "jordan 4", "aj4", "j4", "جوردن فور"] });
   }
   const correction = corrections.at(-1) || null;
   return correction
@@ -9293,7 +9293,7 @@ const detectVisualCorrectionTextV3 = (message = "") => {
     .replace(/\u0629/g, "\u0647")
     .replace(/[\u0664\u06f4]/g, "4");
   const corrections = correction ? [correction] : [];
-  if (/\bthe\s+north\s+face\b|\bnorth\s*face\b|\bnorthface\b|\u0646\u0648\u0631[ط«طھ]\s*\u0641\u064a\u0633|\u0646\u0648\u0631[ط«طھ]\u0641\u064a\u0633/.test(normalized)) {
+  if (/\bthe\s+north\s+face\b|\bnorth\s*face\b|\bnorthface\b|\u0646\u0648\u0631[ثت]\s*\u0641\u064a\u0633|\u0646\u0648\u0631[ثت]\u0641\u064a\u0633/.test(normalized)) {
     corrections.push({ brand: "North Face", query: "North Face \u0646\u0648\u0631\u062b \u0641\u064a\u0633", keywords: ["north face", "the north face", "northface", "\u0646\u0648\u0631\u062b \u0641\u064a\u0633", "\u0646\u0648\u0631\u062a \u0641\u064a\u0633"] });
   }
   if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|\u062c\u0648\u0631\u062f\u0646\s*(?:\u0641\u0648\u0631|4)/.test(normalized)) {
@@ -9345,7 +9345,7 @@ const handleBrandCorrectionIfMatched = async ({ config, message } = {}) => {
   });
   const products = await searchAiOrderProducts({
     tenantId: config.tenant_id,
-    message: "North Face ظ†ظˆط±ط« ظپظٹط³",
+    message: "North Face نورث فيس",
     metadata: { keywords: ["north face", "northface", "\u0646\u0648\u0631\u062b \u0641\u064a\u0633"] },
   }).catch(() => []);
   const northFaceProducts = products.filter(productLooksLikeNorthFace);
@@ -9392,14 +9392,14 @@ const productSearchKeywordsForClassification = (classification = {}) => {
   if (/jordan\s*four|aj\s*4|j\s*4|\u062c\u0648\u0631\u062f[\u0646\u0627]\s*(\u0641\u0648\u0631|4|\u0664)/i.test(joinedKeywords)) {
     keywords.push("air jordan 4", "jordan 4", "jordan four", "aj4", "j4", "\u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631");
   }
-  if (/jordan\s*4|ط¬ظˆط±ط¯[ظ†ط§]\s*(ظپظˆط±|4|ظ¤)/i.test(keywords.join(" "))) {
-    keywords.push("air jordan 4", "jordan 4", "aj4", "j4", "ط¬ظˆط±ط¯ظ† ظپظˆط±");
+  if (/jordan\s*4|جورد[نا]\s*(فور|4|٤)/i.test(keywords.join(" "))) {
+    keywords.push("air jordan 4", "jordan 4", "aj4", "j4", "جوردن فور");
   }
-  if (/north\s*face|ظ†ظˆط±ط«\s*ظپظٹط³/i.test(keywords.join(" "))) {
-    keywords.push("north face", "northface", "ظ†ظˆط±ط« ظپظٹط³");
+  if (/north\s*face|نورث\s*فيس/i.test(keywords.join(" "))) {
+    keywords.push("north face", "northface", "نورث فيس");
   }
-  if (/super\s*star|superstar|ط³ظˆط¨ط±\s*ط³طھط§ط±/i.test(keywords.join(" "))) {
-    keywords.push("adidas superstar", "superstar", "ط³ظˆط¨ط± ط³طھط§ط±");
+  if (/super\s*star|superstar|سوبر\s*ستار/i.test(keywords.join(" "))) {
+    keywords.push("adidas superstar", "superstar", "سوبر ستار");
   }
   return distinctTextArray(keywords, 12);
 };
@@ -9513,7 +9513,7 @@ const handleProductSearchIfMatched = async ({ config, message } = {}) => {
         });
         const recoveredIntro = salesDesignerProductIntro({ card: firstRecoveredCard, sizes: recoveredSizes }) || [
           "\u0623\u064a\u0648\u0647 \u0645\u062a\u0627\u062d \u2705",
-          recoveredPrice ? `\u0627\u0644\u0633\u0639\u0631: ${recoveredPrice}${/\u062c\u0646\u064a\u0647|egp|ط¬ظ†ظٹظ‡/i.test(recoveredPrice) ? "" : " \u062c\u0646\u064a\u0647"}` : "",
+          recoveredPrice ? `\u0627\u0644\u0633\u0639\u0631: ${recoveredPrice}${/\u062c\u0646\u064a\u0647|egp|جنيه/i.test(recoveredPrice) ? "" : " \u062c\u0646\u064a\u0647"}` : "",
           recoveredSizes.length ? `\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0627\u0644\u0645\u062a\u0627\u062d\u0629: ${formatSalesDesignerSizes(recoveredSizes)}` : "",
           "",
           "\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646\u061f",
@@ -9587,12 +9587,12 @@ const handleProductSearchIfMatched = async ({ config, message } = {}) => {
     : modelNameProductSearch
     ? [
         "\u0623\u064a\u0648\u0647 \u0645\u062a\u0627\u062d \u2705",
-        firstCardPrice ? `\u0627\u0644\u0633\u0639\u0631: ${firstCardPrice}${/\u062c\u0646\u064a\u0647|egp|ط¬ظ†ظٹظ‡/i.test(firstCardPrice) ? "" : " \u062c\u0646\u064a\u0647"}` : "",
+        firstCardPrice ? `\u0627\u0644\u0633\u0639\u0631: ${firstCardPrice}${/\u062c\u0646\u064a\u0647|egp|جنيه/i.test(firstCardPrice) ? "" : " \u062c\u0646\u064a\u0647"}` : "",
         firstCardSizes.length ? `\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0627\u0644\u0645\u062a\u0627\u062d\u0629: ${formatSalesDesignerSizes(firstCardSizes)}` : "",
         "",
         "\u062a\u062d\u0628 \u0623\u0634\u0648\u0641\u0644\u0643 \u0645\u0642\u0627\u0633 \u0645\u0639\u064a\u0646\u061f",
       ].filter((line) => line !== "").join("\n")
-    : "ط£ظٹظˆظ‡طŒ ط¯ظٹ ط£ظ‚ط±ط¨ ظ†طھظٹط¬ط© ط¹ظ†ط¯ظٹ ظ„ظ„ظ…ظˆط¯ظٹظ„ ط¯ظ‡:";
+    : "أيوه، دي أقرب نتيجة عندي للموديل ده:";
   const productSearchIntro = modelNameProductSearch
     ? salesDesignerProductIntro({ card: firstCard, sizes: firstCardSizes }) || legacyProductSearchIntro
     : legacyProductSearchIntro;
@@ -9660,7 +9660,7 @@ const handleNegativeIntentIfMatched = async ({ config, message } = {}) => {
     reason: "negative_intent",
     product_id: memory.selectedProductId || memory.lastProductCard?.product_id || null,
   });
-  const priceObjection = /ط؛ط§ظ„ظٹ|ط؛ط§ظ„ظٹط©|ط§ظ„ط³ط¹ط± ط¹ط§ظ„ظٹ|expensive/i.test(message.message_text || "");
+  const priceObjection = /غالي|غالية|السعر عالي|expensive/i.test(message.message_text || "");
   const orchestrated = priceObjection
     ? buildOrchestratedReply({ message, intent: "PRICE_OBJECTION" })
     : null;
@@ -9701,7 +9701,7 @@ const explicitlyAskedForProductCards = (message = "") =>
   );
 
 const detectAlternativesRequest = (message = "") =>
-  hasTerm(message, ["ط¨ط¯ط§ط¦ظ„", "ط¨ط¯ظٹظ„", "ط´ط¨ظ‡ظ‡", "ط´ط¨ظ‡ظ‡ط§", "similar", "alternative", "alternatives"]);
+  hasTerm(message, ["بدائل", "بديل", "شبهه", "شبهها", "similar", "alternative", "alternatives"]);
 
 const detectModelNameSearch = (message = "") => {
   const normalized = normalizedSearchText(message);
@@ -9713,8 +9713,39 @@ const detectModelNameSearch = (message = "") => {
   ) return true;
   return Boolean(
     /\bjordan\s*4\b|\bj4\b|\baj4\b|\bair\s*jordan\b|\bjordan\b|\bshox\b|\bair\s*force\b|\bdunk\b|\bcampus\b|\bsamba\b|\byeezy\b/.test(normalized) ||
-    /ط¬ظˆط±ط¯ظ†|ط¬ظˆط±ط¯ط§ظ†|ظپظˆط±|ط´ظˆظƒ|ط´ظˆظƒط³|ط§ظٹط±\s*ظپظˆط±ط³|ط¯ط§ظ†ظƒ|ظƒط§ظ…ط¨ط³|ط³ط§ظ…ط¨ط§|ظٹظٹط²ظٹ|ط§ط¯ظٹط¯ط§ط³|ظ†ط§ظٹظƒ/.test(normalized)
+    /جوردن|جوردان|فور|شوك|شوكس|اير\s*فورس|دانك|كامبس|سامبا|ييزي|اديداس|نايك/.test(normalized)
   );
+};
+
+const canonicalModelFamilyLabel = (value = "") => {
+  const raw = text(value).toLowerCase().replace(/\s+/g, " ").trim();
+  const normalized = normalizedSearchText(value);
+  if (
+    /\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|\bretro\s*4\b/.test(raw) ||
+    /جورد[نا]\s*(?:4|٤|فور|four)\b/.test(normalized) ||
+    /\bjordan\s*4\b|\bair\s*jordan\s*4\b|\baj4\b|\bj4\b/.test(normalized)
+  ) return "Jordan 4";
+  if (
+    /\b(?:air\s*)?jordan\s*(?:1|i|one)\b|\baj1\b|\bj1\b|\bretro\s*1\b/.test(raw) ||
+    /جورد[نا]\s*(?:1|١|ون|one)\b/.test(normalized) ||
+    /\bjordan\s*1\b|\bair\s*jordan\s*1\b|\baj1\b|\bj1\b/.test(normalized)
+  ) return "Jordan 1";
+  if (
+    /\b(?:air\s*)?jordan\s*(?:3|iii|three)\b|\baj3\b|\bj3\b|\bretro\s*3\b/.test(raw) ||
+    /جورد[نا]\s*(?:3|٣|ثري|three)\b/.test(normalized) ||
+    /\bjordan\s*3\b|\bair\s*jordan\s*3\b|\baj3\b|\bj3\b/.test(normalized)
+  ) return "Jordan 3";
+  if (
+    /\b(?:air\s*)?jordan\s*(?:5|v|five)\b|\baj5\b|\bj5\b|\bretro\s*5\b/.test(raw) ||
+    /جورد[نا]\s*(?:5|٥|فايف|five)\b/.test(normalized) ||
+    /\bjordan\s*5\b|\bair\s*jordan\s*5\b|\baj5\b|\bj5\b/.test(normalized)
+  ) return "Jordan 5";
+  if (
+    (/\bjordan\b|\bair\s*jordan\b|\baj\b|\bj\d+\b/.test(normalized) || /جورد[نا]/.test(normalized)) &&
+    (/\blow\b|\blow\s*top\b|\blow\s*profile\b|\blowcut\b|\blower\b/.test(raw) || /لو|لاو|low/.test(normalized))
+  ) return "Jordan Low";
+  if (/\bjordan\b|\bair\s*jordan\b|\baj\b/.test(normalized) || /جورد[نا]/.test(normalized)) return "Jordan";
+  return text(value).trim();
 };
 
 const modelColorLimitIntro = "\u0639\u0646\u062f\u064a \u0645\u0646\u0647 \u0643\u0630\u0627 \u0644\u0648\u0646. \u0623\u0628\u062f\u0623\u0644\u0643 \u0628\u0623\u0642\u0631\u0628 \u0644\u0648\u0646\u064a\u0646\u060c \u0648\u0644\u0648 \u062a\u062d\u0628 \u0623\u0628\u0639\u062a\u0647\u0645\u0644\u0643 \u0643\u0644\u0647\u0645.";
@@ -9731,14 +9762,14 @@ const answerFaqIfMatched = async ({ config, message } = {}) => {
     return {};
   });
   const answers = {
-    payment: readableArabicSetting(settings.cod_availability_text) || "ط£ظٹظˆظ‡طŒ ظ…طھط§ط­ ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ… ط­ط³ط¨ ط§ظ„ظ…ظ†ط·ظ‚ط© ظˆط´ط±ظƒط© ط§ظ„ط´ط­ظ†.",
-    delivery: readableArabicSetting(settings.delivery_policy_text) || "ط§ظ„ط´ط­ظ† ط­ط³ط¨ ط§ظ„ظ…ط­ط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط©. ط§ط¨ط¹طھظ„ظٹ ط¹ظ†ظˆط§ظ†ظƒ ط£ط£ظƒط¯ظ„ظƒ ط§ظ„طھظƒظ„ظپط©.",
-    exchange: readableArabicSetting(settings.exchange_return_policy_text) || "ظٹظ†ظپط¹ ط§ظ„ط§ط³طھط¨ط¯ط§ظ„ ط­ط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ظ…طھط¬ط± ظˆط­ط§ظ„ط© ط§ظ„ظ…ظ†طھط¬.",
+    payment: readableArabicSetting(settings.cod_availability_text) || "أيوه، متاح الدفع عند الاستلام حسب المنطقة وشركة الشحن.",
+    delivery: readableArabicSetting(settings.delivery_policy_text) || "الشحن حسب المحافظة والمنطقة. ابعتلي عنوانك أأكدلك التكلفة.",
+    exchange: readableArabicSetting(settings.exchange_return_policy_text) || "ينفع الاستبدال حسب سياسة المتجر وحالة المنتج.",
   };
   const missingSettings = !answers[faqIntent] || answers[faqIntent] === {
-    payment: "ط£ظٹظˆظ‡طŒ ظ…طھط§ط­ ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ… ط­ط³ط¨ ط§ظ„ظ…ظ†ط·ظ‚ط© ظˆط´ط±ظƒط© ط§ظ„ط´ط­ظ†.",
-    delivery: "ط§ظ„ط´ط­ظ† ط­ط³ط¨ ط§ظ„ظ…ط­ط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط©. ط§ط¨ط¹طھظ„ظٹ ط¹ظ†ظˆط§ظ†ظƒ ط£ط£ظƒط¯ظ„ظƒ ط§ظ„طھظƒظ„ظپط©.",
-    exchange: "ظٹظ†ظپط¹ ط§ظ„ط§ط³طھط¨ط¯ط§ظ„ ط­ط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ظ…طھط¬ط± ظˆط­ط§ظ„ط© ط§ظ„ظ…ظ†طھط¬.",
+    payment: "أيوه، متاح الدفع عند الاستلام حسب المنطقة وشركة الشحن.",
+    delivery: "الشحن حسب المحافظة والمنطقة. ابعتلي عنوانك أأكدلك التكلفة.",
+    exchange: "ينفع الاستبدال حسب سياسة المتجر وحالة المنتج.",
   }[faqIntent];
   console.log("ai_inbox_faq_answered", {
     tenant_id: config.tenant_id,
@@ -10529,7 +10560,7 @@ const handleVisualSearchIfMatched = async ({ config, message } = {}) => {
     query: searchQuery,
     wantsAllImages: Boolean(
       detectAllColorsRequest(message.message_text) ||
-        /(?:all\s+images|all\s+colors|show\s+all|more\s+colors|ظƒظ„\s+ط§ظ„طµظˆط±|ظƒظ„\s+ط§ظ„ط£ظ„ظˆط§ظ†|ظƒظ„\s+ط§ظ„ط§ظ„ظˆط§ظ†)/i.test(text(message.message_text))
+        /(?:all\s+images|all\s+colors|show\s+all|more\s+colors|كل\s+الصور|كل\s+الألوان|كل\s+الالوان)/i.test(text(message.message_text))
     ),
     metadata: {
       visual_search: true,
@@ -10788,6 +10819,8 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         /(?:all\s+images|all\s+colors|show\s+all|more\s+colors|كل\s+الصور|كل\s+الألوان|كل\s+الالوان)/i.test(text(messageText))
     );
     const modelNameSearch = Boolean(detectModelNameSearch(messageText) || modelFamily);
+    const requestedModelFamily = canonicalModelFamilyLabel(messageText || activeTopic || modelFamily || baseCard?.name || "");
+    const activeModelFamily = canonicalModelFamilyLabel(baseCard?.model_family || baseCard?.family || memory.last_model_family || activeTopic || modelFamily || "");
     let familyCards = [];
     if (modelNameSearch) {
       const familyQuery = text(activeTopic || modelFamily || baseCard?.name || messageText);
@@ -10807,7 +10840,31 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         });
         return [];
       });
-      familyCards = normalizeProductCards(familyProducts, { limit: wantsAllImages ? 12 : 8 });
+      const filteredFamilyProducts = [];
+      for (const candidate of familyProducts) {
+        const candidateFamily = canonicalModelFamilyLabel(
+          candidate?.model_family || candidate?.family || candidate?.model || candidate?.matched_model || candidate?.product_family || candidate?.name || candidate?.title || ""
+        );
+        const shouldInclude = !requestedModelFamily
+          ? true
+          : requestedModelFamily === "Jordan"
+            ? candidateFamily.startsWith("Jordan")
+            : candidateFamily === requestedModelFamily;
+        console.log("[MODEL_FAMILY_EXPANSION_AUDIT]", {
+          requested_model: requestedModelFamily || "",
+          active_model_family: activeModelFamily || "",
+          candidate_product: candidate?.name || candidate?.title || candidate?.product_name || "",
+          candidate_family: candidateFamily || "",
+          included_or_rejected: shouldInclude ? "included" : "rejected",
+          rejection_reason: shouldInclude
+            ? ""
+            : candidateFamily
+              ? `family_mismatch:${candidateFamily}`
+              : "candidate_family_unresolved",
+        });
+        if (shouldInclude) filteredFamilyProducts.push(candidate);
+      }
+      familyCards = normalizeProductCards(filteredFamilyProducts, { limit: wantsAllImages ? 12 : 8 });
       console.log("[more-images-family-search]", {
         tenant_id: config.tenant_id,
         conversation_id: message.external_conversation_id,
@@ -11556,7 +11613,7 @@ const handleProductLinkIfMatched = async ({ config, message } = {}) => {
     await sendAndLogMetaText({
       config,
       message,
-      text: "ظ„ظٹظ†ظƒ ظ„ط£ظ†ظ‡ظٹ ظ…ظˆط¯ظٹظ„طں ط§ط¨ط¹طھظ„ظٹ ط§ط³ظ…ظ‡ ط£ظˆ طµظˆط±طھظ‡.",
+      text: "لينك لأنهي موديل؟ ابعتلي اسمه أو صورته.",
       detectedIntent: "product_link_missing_context",
       metadata: { resolvedQuestionType: resolved.intent, replyDecisionReason: "missing_product_context" },
     });
@@ -11574,7 +11631,7 @@ const handleProductLinkIfMatched = async ({ config, message } = {}) => {
   await sendAndLogMetaText({
     config,
     message,
-    text: url ? `ط§طھظپط¶ظ„\n${url}` : "ط§ظ„ظ„ظٹظ†ظƒ ظ…ط´ ط¬ط§ظ‡ط² ط¹ظ†ط¯ظٹ ط­ط§ظ„ظ‹ط§طŒ ط§ط¨ط¹طھظ„ظٹ ط§ط³ظ… ط§ظ„ظ…ظˆط¯ظٹظ„ ظˆط£ط¬ظٹط¨ظ‡ظˆظ„ظƒ.",
+    text: url ? `اتفضل\n${url}` : "اللينك مش جاهز عندي حالًا، ابعتلي اسم الموديل وأجيبهولك.",
     detectedIntent: "product_link_request",
     metadata: {
       preserveReplyText: true,
@@ -11999,7 +12056,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     product_id: textPriceInfo.product_id || baseCard.product_id || product?.id || null,
     variant_id: textPriceInfo.variant_id || selectedVariantForSize?.id || baseCard.variant_id || null,
     raw_price_used_in_text: selectedVariantForSize?.price || product?.product_price || baseCard.price || baseCard.final_price || baseCard.sale_price || null,
-    text_template: "ط£ظٹظˆظ‡ ${requestedSize} ظ…طھظˆظپط± ظپظٹ ${colorPhrase} âœ… / ط§ظ„ط³ط¹ط±",
+    text_template: "أيوه ${requestedSize} متوفر في ${colorPhrase} ✅ / السعر",
     function_name: "checkRequestedSizeAvailabilityReply",
     file_name: "server/services/metaIntegrationService.js",
   });
@@ -12013,7 +12070,7 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
     });
   }
   const lowStockLine = hasSize && selectedVariantForSize && Number(selectedVariantForSize.stock || 0) > 0 && Number(selectedVariantForSize.stock || 0) <= LOW_STOCK_THRESHOLD
-    ? "ط§ظ„ظ…ظ‚ط§ط³ ط¯ظ‡ ط§ظ„ظƒظ…ظٹط© ظ…ظ†ظ‡ ظ…ط­ط¯ظˆط¯ط©."
+    ? "المقاس ده الكمية منه محدودة."
     : "";
   const customerFirstName = text(memoryForSize.customerContext?.firstName || splitFirstName(memoryForSize.knownName || ""));
   console.log("stock_consistency_check", {
@@ -12028,18 +12085,18 @@ const handleContextualSizeCheckIfMatched = async ({ config, message } = {}) => {
   const usedPreferredSize = false;
   let replyText = hasSize
     ? [
-      customerFirstName ? `طھظ…ط§ظ… ظٹط§ ${customerFirstName}.` : "",
-      usedPreferredSize ? `ظ‡ط´ظˆظپظ‡ظˆظ„ظƒ ط¹ظ„ظ‰ ظ…ظ‚ط§ط³ظƒ ${requestedSize}.` : "",
-      `ط£ظٹظˆظ‡ ${requestedSize} ظ…طھظˆظپط± ظپظٹ ${colorPhrase} âœ…`,
-      priceText ? `ط§ظ„ط³ط¹ط± ${priceText}.` : "",
+      customerFirstName ? `تمام يا ${customerFirstName}.` : "",
+      usedPreferredSize ? `هشوفهولك على مقاسك ${requestedSize}.` : "",
+      `أيوه ${requestedSize} متوفر في ${colorPhrase} ✅`,
+      priceText ? `السعر ${priceText}.` : "",
       lowStockLine,
       "",
-      "طھط­ط¨ ط£ط­ط¬ط²ظ‡ظˆظ„ظƒطں",
-      "ط§ط¨ط¹طھظ„ظٹ:",
-      "â€¢ ط§ظ„ط§ط³ظ…",
-      "â€¢ ط±ظ‚ظ… ط§ظ„طھظ„ظٹظپظˆظ†",
-      "â€¢ ط§ظ„ظ…ط­ط§ظپط¸ط©",
-      "â€¢ ط§ظ„ظ…ظ†ط·ظ‚ط©",
+      "تحب أحجزهولك؟",
+      "ابعتلي:",
+      "• الاسم",
+      "• رقم التليفون",
+      "• المحافظة",
+      "• المنطقة",
     ].filter((line) => line !== "").join("\n")
     : sizes.length
       ? `\u0644\u0644\u0623\u0633\u0641 ${requestedSize} \u0645\u0634 \u0645\u062a\u0648\u0641\u0631 \u0641\u064a ${colorPhrase}\u060c \u0627\u0644\u0645\u062a\u0627\u062d: ${formatSalesDesignerSizes(sizes)}`
@@ -12396,7 +12453,7 @@ const checkoutMissingPrompt = (missing = []) => {
 const formatSalesPrice = (value = null) => {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0) return "";
-  return `${Math.round(amount)} ط¬ظ†ظٹظ‡`;
+  return `${Math.round(amount)} جنيه`;
 };
 
 const toPriceNumber = (value = null) => {
@@ -12430,91 +12487,91 @@ const traceAiPriceSource = (payload = {}) => {
 
 const salesBrainBuyingIntentSignal = (message = "") =>
   hasAnyArabicCommerceTerm(message, [
-    "ظ‡ط·ظ„ط¨",
-    "ط§ط­ط¬ط²",
-    "ط¹ط§ظٹط²ظ‡",
-    "ط¹ط§ظٹط²ط©",
-    "ط¹ط§ظٹط² ط¯ظ‡",
-    "ظ…ظ†ط§ط³ط¨",
-    "طھظ…ط§ظ…",
-    "ط®ط¯طھظ‡",
-    "ظ…طھط§ط­",
-    "ظƒط§ظ…",
-    "ط§ط¨ط¹طھظ‡",
-    "ط§ط¨ط¹طھظˆ",
-    "ط§ط¨ط¹طھظˆظ‡",
-    "ظ…ط§ط´ظٹ",
+    "هطلب",
+    "احجز",
+    "عايزه",
+    "عايزة",
+    "عايز ده",
+    "مناسب",
+    "تمام",
+    "خدته",
+    "متاح",
+    "كام",
+    "ابعته",
+    "ابعتو",
+    "ابعتوه",
+    "ماشي",
   ]) || Boolean(extractShoeSize(message));
 
 const detectPriceObjection = (message = "") =>
   Boolean(hasAnyArabicCommerceTerm(message, [
-    "ط؛ط§ظ„ظٹ",
-    "ط؛ط§ظ„ظٹط©",
-    "ظƒطھظٹط±",
-    "ط§ظ„ط³ط¹ط± ط¹ط§ظ„ظٹ",
-    "ط§ظ„ط³ط¹ط± ط؛ط§ظ„ظٹ",
-    "ط¹ط§ظ„ظٹ",
+    "غالي",
+    "غالية",
+    "كتير",
+    "السعر عالي",
+    "السعر غالي",
+    "عالي",
   ]));
 
 const detectSalesFinalConfirmation = (message = "") =>
   Boolean(hasAnyArabicCommerceTerm(message, [
-    "ط§ظƒط¯",
-    "ط£ظƒط¯",
-    "ط§ظƒط¯ ط§ظ„ط·ظ„ط¨",
-    "ط£ظƒط¯ ط§ظ„ط·ظ„ط¨",
-    "طھظ…ط§ظ… ط§ظƒط¯",
-    "طھظ…ط§ظ… ط£ظƒط¯",
-    "ط§ظ‡ ط§ظƒط¯",
-    "ط§ظٹظˆظ‡ ط§ظƒط¯",
-    "ظ…ط§ط´ظٹ ط§ظƒط¯",
-    "طھظ…ط§ظ…",
-    "ظ…ط§ط´ظٹ",
-    "ط§ظٹظˆظ‡",
-    "ط£ظٹظˆظ‡",
-    "ط§ظ‡",
+    "اكد",
+    "أكد",
+    "اكد الطلب",
+    "أكد الطلب",
+    "تمام اكد",
+    "تمام أكد",
+    "اه اكد",
+    "ايوه اكد",
+    "ماشي اكد",
+    "تمام",
+    "ماشي",
+    "ايوه",
+    "أيوه",
+    "اه",
   ]));
 
 const detectSalesCheckoutStart = (message = "", memory = {}) =>
   Boolean(hasAnyArabicCommerceTerm(message, [
-    "طھظ…ط§ظ…",
-    "ظ…ط§ط´ظٹ",
-    "ط§ط­ط¬ط²",
-    "ط§ط­ط¬ط²ظ‡",
-    "ط§ط­ط¬ط²ظ‡ظˆظ„ظٹ",
-    "ط¹ط§ظٹط²ظ‡",
-    "ط¹ط§ظٹط²ط©",
-    "ظ‡ط·ظ„ط¨",
-    "ط§ط¨ط¹طھظ‡",
+    "تمام",
+    "ماشي",
+    "احجز",
+    "احجزه",
+    "احجزهولي",
+    "عايزه",
+    "عايزة",
+    "هطلب",
+    "ابعته",
   ])) && Boolean(memory?.activeProductId || memory?.selectedProductId || memory?.lastProductCard?.product_id);
 
 const EGYPT_GOVERNORATE_KEYWORDS = [
-  "ط§ظ„ظ‚ط§ظ‡ط±ط©", "ط§ظ„ظ‚ط§ظ‡ط±ظ‡", "cairo",
-  "ط§ظ„ط¬ظٹط²ط©", "ط§ظ„ط¬ظٹط²ظ‡", "giza",
-  "ط§ظ„ط¥ط³ظƒظ†ط¯ط±ظٹط©", "ط§ظ„ط§ط³ظƒظ†ط¯ط±ظٹط©", "ط§ط³ظƒظ†ط¯ط±ظٹط©", "alexandria",
-  "ط¯ظ…ظٹط§ط·", "damietta",
-  "ط§ظ„ط¯ظ‚ظ‡ظ„ظٹط©", "ط§ظ„ط¯ظ‚ظ‡ظ„ظٹظ‡", "dakahlia",
-  "ط§ظ„ط¨ط­ط± ط§ظ„ط£ط­ظ…ط±", "ط§ظ„ط¨ط­ط± ط§ظ„ط§ط­ظ…ط±", "red sea",
-  "ط§ظ„ط¨ط­ظٹط±ط©", "ط§ظ„ط¨ط­ظٹط±ظ‡", "beheira",
-  "ط§ظ„ظپظٹظˆظ…", "fayoum",
-  "ط§ظ„ط؛ط±ط¨ظٹط©", "ط§ظ„ط؛ط±ط¨ظٹظ‡", "gharbia",
-  "ط§ظ„ط¥ط³ظ…ط§ط¹ظٹظ„ظٹط©", "ط§ظ„ط§ط³ظ…ط§ط¹ظٹظ„ظٹط©", "ismailia",
-  "ط§ظ„ظ…ظ†ظˆظپظٹط©", "ط§ظ„ظ…ظ†ظˆظپظٹظ‡", "menofia",
-  "ط§ظ„ظ…ظ†ظٹط§", "minya",
-  "ط§ظ„ظ‚ظ„ظٹظˆط¨ظٹط©", "ط§ظ„ظ‚ظ„ظٹظˆط¨ظٹظ‡", "qalyubia",
-  "ط§ظ„ظˆط§ط¯ظٹ ط§ظ„ط¬ط¯ظٹط¯", "new valley",
-  "ط§ظ„ط³ظˆظٹط³", "suez",
-  "ط£ط³ظˆط§ظ†", "ط§ط³ظˆط§ظ†", "aswan",
-  "ط£ط³ظٹظˆط·", "ط§ط³ظٹظˆط·", "assiut",
-  "ط¨ظ†ظٹ ط³ظˆظٹظپ", "beni suef",
-  "ط¨ظˆط±ط³ط¹ظٹط¯", "port said",
-  "ط§ظ„ط´ط±ظ‚ظٹط©", "ط§ظ„ط´ط±ظ‚ظٹظ‡", "sharqia",
-  "ط¬ظ†ظˆط¨ ط³ظٹظ†ط§ط،", "south sinai",
-  "ظƒظپط± ط§ظ„ط´ظٹط®", "kafr el sheikh",
-  "ظ…ط·ط±ظˆط­", "matrouh",
-  "ط§ظ„ط£ظ‚طµط±", "ط§ظ„ط§ظ‚طµط±", "luxor",
-  "ظ‚ظ†ط§", "qena",
-  "ط´ظ…ط§ظ„ ط³ظٹظ†ط§ط،", "north sinai",
-  "ط³ظˆظ‡ط§ط¬", "sohag",
+  "القاهرة", "القاهره", "cairo",
+  "الجيزة", "الجيزه", "giza",
+  "الإسكندرية", "الاسكندرية", "اسكندرية", "alexandria",
+  "دمياط", "damietta",
+  "الدقهلية", "الدقهليه", "dakahlia",
+  "البحر الأحمر", "البحر الاحمر", "red sea",
+  "البحيرة", "البحيره", "beheira",
+  "الفيوم", "fayoum",
+  "الغربية", "الغربيه", "gharbia",
+  "الإسماعيلية", "الاسماعيلية", "ismailia",
+  "المنوفية", "المنوفيه", "menofia",
+  "المنيا", "minya",
+  "القليوبية", "القليوبيه", "qalyubia",
+  "الوادي الجديد", "new valley",
+  "السويس", "suez",
+  "أسوان", "اسوان", "aswan",
+  "أسيوط", "اسيوط", "assiut",
+  "بني سويف", "beni suef",
+  "بورسعيد", "port said",
+  "الشرقية", "الشرقيه", "sharqia",
+  "جنوب سيناء", "south sinai",
+  "كفر الشيخ", "kafr el sheikh",
+  "مطروح", "matrouh",
+  "الأقصر", "الاقصر", "luxor",
+  "قنا", "qena",
+  "شمال سيناء", "north sinai",
+  "سوهاج", "sohag",
 ];
 
 const extractSalesGovernorate = (value = "") => {
@@ -12525,7 +12582,7 @@ const extractSalesGovernorate = (value = "") => {
 const splitFirstName = (name = "") => text(name).split(/\s+/).filter(Boolean)[0] || "";
 
 const isSalesControlWordName = (value = "") =>
-  ["طھظ…ط§ظ…", "ظ…ط§ط´ظٹ", "ط§ط­ط¬ط²", "ط§ط­ط¬ط²ظ‡", "ط¹ط§ظٹط²ظ‡", "ط¹ط§ظٹط²ط©", "ظ‡ط·ظ„ط¨", "ط§ظƒط¯", "ط£ظƒط¯"].includes(text(value).toLowerCase());
+  ["تمام", "ماشي", "احجز", "احجزه", "عايزه", "عايزة", "هطلب", "اكد", "أكد"].includes(text(value).toLowerCase());
 
 const mergeSalesCustomerInfo = ({ known = {}, parsed = {}, messageText = "" } = {}) => {
   const address = parsed.customer_address || known.customerAddress || known.customer_address || "";
@@ -12552,12 +12609,12 @@ const missingSalesCheckoutFields = (info = {}) => {
 
 const salesMissingPrompt = (missing = []) => {
   const labels = [];
-  if (missing.includes("first_name")) labels.push("ط§ظ„ط§ط³ظ… ط§ظ„ط£ظˆظ„");
-  if (missing.includes("phone")) labels.push("ط±ظ‚ظ… ط§ظ„طھظ„ظٹظپظˆظ†");
-  if (missing.includes("governorate")) labels.push("ط§ظ„ظ…ط­ط§ظپط¸ط©");
-  if (missing.includes("address")) labels.push("ط§ظ„ظ…ظ†ط·ظ‚ط©/ط§ظ„ط¹ظ†ظˆط§ظ†");
+  if (missing.includes("first_name")) labels.push("الاسم الأول");
+  if (missing.includes("phone")) labels.push("رقم التليفون");
+  if (missing.includes("governorate")) labels.push("المحافظة");
+  if (missing.includes("address")) labels.push("المنطقة/العنوان");
   return labels.length
-    ? `طھظ…ط§ظ…طŒ ط§ط¨ط¹طھظ„ظٹ ${labels.join(" ظˆ ")}.`
+    ? `تمام، ابعتلي ${labels.join(" و ")}.`
     : "";
 };
 
@@ -12599,15 +12656,15 @@ const loadKnownSalesCustomerInfo = async ({ tenantId, channel = "", conversation
 
 const buildSalesOrderSummary = ({ productName = "", size = "", price = "", address = "" } = {}) =>
   [
-    "طھظ…ط§ظ…",
+    "تمام",
     "",
-    `ط§ظ„ظ…ظ†طھط¬: ${productName || "ط§ظ„ظ…ظˆط¯ظٹظ„ ط§ظ„ظ…ط®طھط§ط±"}`,
-    size ? `ط§ظ„ظ…ظ‚ط§ط³: ${size}` : "",
-    price ? `ط§ظ„ط³ط¹ط±: ${price}` : "",
+    `المنتج: ${productName || "الموديل المختار"}`,
+    size ? `المقاس: ${size}` : "",
+    price ? `السعر: ${price}` : "",
     "",
-    `ط§ظ„ط´ط­ظ† ط¥ظ„ظ‰: ${address || "ط§ظ„ط¹ظ†ظˆط§ظ† ط§ظ„ظ„ظٹ ط¨ط¹طھظ‘ظ‡"}`,
+    `الشحن إلى: ${address || "العنوان اللي بعتّه"}`,
     "",
-    "ط£ط£ظƒط¯ ط§ظ„ط·ظ„ط¨طں",
+    "أأكد الطلب؟",
   ].filter((line) => line !== "").join("\n");
 
 const distinctTextArray = (items = [], limit = 12) =>
@@ -12629,62 +12686,62 @@ const parseJsonArray = (value) => {
 const detectedCustomerBrands = (message = "") => {
   const raw = text(message).toLowerCase().replace(/\s+/g, " ");
   const brands = [];
-  if (/\bjordan\b|ط¬ظˆط±ط¯ظ†|ع†ظˆط±ط¯ظ†/.test(raw)) brands.push("Jordan");
-  if (/\bnike\b|ظ†ط§ظٹظƒ|ظ†ط§ظٹظƒظٹ/.test(raw)) brands.push("Nike");
-  if (/\badidas\b|ط§ط¯ظٹط¯ط§ط³|ط£ط¯ظٹط¯ط§ط³/.test(raw)) brands.push("Adidas");
-  if (/\bnorth\s*face\b|\bnorthface\b|ظ†ظˆط±ط« ظپظٹط³|ظ†ظˆط±ط«ظپظٹط³/.test(raw)) brands.push("North Face");
-  if (/\bcrocs\b|ظƒط±ظˆظƒط³/.test(raw)) brands.push("Crocs");
+  if (/\bjordan\b|جوردن|چوردن/.test(raw)) brands.push("Jordan");
+  if (/\bnike\b|نايك|نايكي/.test(raw)) brands.push("Nike");
+  if (/\badidas\b|اديداس|أديداس/.test(raw)) brands.push("Adidas");
+  if (/\bnorth\s*face\b|\bnorthface\b|نورث فيس|نورثفيس/.test(raw)) brands.push("North Face");
+  if (/\bcrocs\b|كروكس/.test(raw)) brands.push("Crocs");
   return distinctTextArray(brands, 8);
 };
 
 const detectedCustomerModels = (message = "") => {
   const raw = text(message).toLowerCase().replace(/\s+/g, " ");
   const models = [];
-  if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|ط¬ظˆط±ط¯[ظ†ط§]\s*(?:ظپظˆط±|4|ظ¤)|ط¨ظ„ط§ظƒ\s*ظƒط§طھ/.test(raw)) models.push("Jordan 4");
-  if (/\bair\s*force\b|ط§ظٹط±\s*ظپظˆط±ط³/.test(raw)) models.push("Air Force");
-  if (/\bshox\b|ط´ظˆظƒ[ط³x]?|ط´ظˆظƒط³ط§طھ/.test(raw)) models.push("Shox");
-  if (/\bsamba\b|ط³ط§ظ…ط¨ط§/.test(raw)) models.push("Samba");
-  if (/\bcampus\b|ظƒط§ظ…ط¨ط³/.test(raw)) models.push("Campus");
-  if (/\bdunk\b|ط¯ط§ظ†ظƒ/.test(raw)) models.push("Dunk");
-  if (/\byezy\b|yeezy|ظٹظٹط²ظٹ/.test(raw)) models.push("Yeezy");
+  if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|جورد[نا]\s*(?:فور|4|٤)|بلاك\s*كات/.test(raw)) models.push("Jordan 4");
+  if (/\bair\s*force\b|اير\s*فورس/.test(raw)) models.push("Air Force");
+  if (/\bshox\b|شوك[سx]?|شوكسات/.test(raw)) models.push("Shox");
+  if (/\bsamba\b|سامبا/.test(raw)) models.push("Samba");
+  if (/\bcampus\b|كامبس/.test(raw)) models.push("Campus");
+  if (/\bdunk\b|دانك/.test(raw)) models.push("Dunk");
+  if (/\byezy\b|yeezy|ييزي/.test(raw)) models.push("Yeezy");
   return distinctTextArray(models, 8);
 };
 
 const detectedCustomerProductName = (message = "") => {
   const raw = text(message).toLowerCase().replace(/\s+/g, " ");
-  if (/\bnorth\s*face\b|\bnorthface\b|ظ†ظˆط±ط«\s*ظپظٹط³|ظ†ظˆط±ط«ظپظٹط³/.test(raw)) return "North Face";
-  if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|ط¬ظˆط±ط¯[ظ†ط§]\s*(?:ظپظˆط±|4|ظ¤)|ط¨ظ„ط§ظƒ\s*ظƒط§طھ/.test(raw)) return "Jordan 4";
+  if (/\bnorth\s*face\b|\bnorthface\b|نورث\s*فيس|نورثفيس/.test(raw)) return "North Face";
+  if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|جورد[نا]\s*(?:فور|4|٤)|بلاك\s*كات/.test(raw)) return "Jordan 4";
   return "";
 };
 
 const detectedCustomerCategories = (message = "") => {
   const raw = text(message).toLowerCase();
   const categories = [];
-  if (raw.includes("ظƒظˆطھط´ظٹ") || raw.includes("ط³ظ†ظٹظƒط±") || raw.includes("sneaker") || raw.includes("shoe")) categories.push("sneakers");
-  if (raw.includes("ظƒط±ظˆظƒط³") || raw.includes("crocs")) categories.push("crocs");
-  if (raw.includes("ط´ظ†ط·ط©") || raw.includes("bag")) categories.push("bags");
+  if (raw.includes("كوتشي") || raw.includes("سنيكر") || raw.includes("sneaker") || raw.includes("shoe")) categories.push("sneakers");
+  if (raw.includes("كروكس") || raw.includes("crocs")) categories.push("crocs");
+  if (raw.includes("شنطة") || raw.includes("bag")) categories.push("bags");
   return distinctTextArray(categories, 8);
 };
 
 const detectContextTopicEntities = (message = "") => {
   const raw = text(message).toLowerCase().replace(/\s+/g, " ");
   const entity = { brand: "", model: "", productName: "", category: "" };
-  if (/\bsuper\s*star\b|\bsuperstar\b|ط³ظˆط¨ط±\s*ط³طھط§ط±|ط³ظˆط¨ط±ط³طھط§ط±/.test(raw)) {
+  if (/\bsuper\s*star\b|\bsuperstar\b|سوبر\s*ستار|سوبرستار/.test(raw)) {
     entity.brand = "Adidas";
     entity.model = "Superstar";
     entity.productName = "Adidas Superstar";
-  } else if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|ط¬ظˆط±ط¯ظ†\s*(?:4|ظ¤|ظپظˆط±)/.test(raw)) {
+  } else if (/\b(?:air\s*)?jordan\s*(?:4|iv|four)\b|\baj4\b|\bj4\b|جوردن\s*(?:4|٤|فور)/.test(raw)) {
     entity.brand = "Jordan";
     entity.model = "Jordan 4";
     entity.productName = "Jordan 4";
-  } else if (/\bair\s*force\b|ط§ظٹط±\s*ظپظˆط±ط³|ط¥ظٹط±\s*ظپظˆط±ط³/.test(raw)) {
+  } else if (/\bair\s*force\b|اير\s*فورس|إير\s*فورس/.test(raw)) {
     entity.brand = "Nike";
     entity.model = "Air Force";
     entity.productName = "Air Force";
-  } else if (/\bnorth\s*face\b|\bnorthface\b|ظ†ظˆط±ط«\s*ظپظٹط³|ظ†ظˆط±ط«ظپظٹط³/.test(raw)) {
+  } else if (/\bnorth\s*face\b|\bnorthface\b|نورث\s*فيس|نورثفيس/.test(raw)) {
     entity.brand = "North Face";
     entity.productName = "North Face";
-  } else if (/\bskechers\b|skecher|ط³ظƒطھط´ط±|ط³ظƒطھط´ط±ط²|ط³ظƒظٹطھط´ط±|ط³ظƒظٹطھط´ط±ط²/.test(raw)) {
+  } else if (/\bskechers\b|skecher|سكتشر|سكتشرز|سكيتشر|سكيتشرز/.test(raw)) {
     entity.brand = "Skechers";
     entity.productName = "Skechers";
   }
@@ -13913,7 +13970,7 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
   const priceText = formatSalesPrice(priceInfo.selected_display_price);
 
   if (!shouldCollect && !shouldFinalize) {
-    const priceQuestion = hasAnyArabicCommerceTerm(message.message_text, ["ظƒط§ظ…", "ط§ظ„ط³ط¹ط±", "ط¨ظƒط§ظ…", "price"]);
+    const priceQuestion = hasAnyArabicCommerceTerm(message.message_text, ["كام", "السعر", "بكام", "price"]);
     if (!buyingSignal || !priceQuestion) return null;
     logReplyGoalAudit({
       message,
@@ -13957,8 +14014,8 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
       config,
       message,
       text: [
-        priceText ? `ط§ظ„ط³ط¹ط± ${priceText}.` : "ط§ظ„ط³ط¹ط± ظ…ط­طھط§ط¬ ط£ط±ط§ط¬ط¹ظ‡ظˆظ„ظƒ ط­ط§ظ„ظ‹ط§.",
-        selectedSize ? "طھط­ط¨ ط£ط­ط¬ط²ظ‡ظˆظ„ظƒطں" : "طھط­ط¨ ظ…ظ‚ط§ط³ ظƒط§ظ…طں",
+        priceText ? `السعر ${priceText}.` : "السعر محتاج أراجعهولك حالًا.",
+        selectedSize ? "تحب أحجزهولك؟" : "تحب مقاس كام؟",
       ].join("\n"),
       detectedIntent: "sales_price_question",
       metadata: { buying_stage: "interested", product_id: product.id || null, variant_id: variant?.id || null },
@@ -14056,7 +14113,7 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
       await sendAndLogMetaText({
         config,
         message,
-        text: `طھظ…ط§ظ… ظٹط§ ${known.customerFirstName || "ظپظ†ط¯ظ…"}\nط¹ظ…ظ„طھظ„ظƒ ظ…ط³ظˆط¯ط© ط§ظ„ط·ظ„ط¨ âœ…\nظ‡ظ†طھظˆط§طµظ„ ظ…ط¹ط§ظƒ ظ„ظ„طھط£ظƒظٹط¯ ط§ظ„ظ†ظ‡ط§ط¦ظٹ.`,
+        text: `تمام يا ${known.customerFirstName || "فندم"}\nعملتلك مسودة الطلب ✅\nهنتواصل معاك للتأكيد النهائي.`,
         detectedIntent: "sales_draft_order_created",
         metadata: { order_id: draft?.order?.id || null, buying_stage: "order_created" },
       });
@@ -14082,7 +14139,7 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
         await sendAndLogMetaText({
           config,
           message,
-          text: "ط§ط³طھظ„ظ…طھ ط¨ظٹط§ظ†ط§طھظƒ âœ…\nط¨ط³ ط¸ظ‡ط± طھط¹ط§ط±ط¶ ظپظٹ ط§ظ„ظ…ط®ط²ظˆظ† ظ„ظ„ظ…ظ‚ط§ط³ ط¯ظ‡.\nظ‡ط±ط§ط¬ط¹ ط§ظ„ط·ظ„ط¨ ظˆط£ط±ط¬ط¹ظ„ظƒ ط­ط§ظ„ط§ظ‹.",
+          text: "استلمت بياناتك ✅\nبس ظهر تعارض في المخزون للمقاس ده.\nهراجع الطلب وأرجعلك حالاً.",
           detectedIntent: "sales_stock_conflict",
           metadata: { buying_stage: "stock_conflict", code: error?.code || "" },
         });
@@ -14174,7 +14231,7 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
     await sendAndLogMetaText({
       config,
       message,
-      text: `طھظ…ط§ظ…${merged.customerFirstName ? ` ظٹط§ ${merged.customerFirstName}` : ""}.\nظ†ظپط³ ط¹ظ†ظˆط§ظ† ${merged.customerAddress} ظˆظ„ط§ ط¹ظ†ظˆط§ظ† ط¬ط¯ظٹط¯طں`,
+      text: `تمام${merged.customerFirstName ? ` يا ${merged.customerFirstName}` : ""}.\nنفس عنوان ${merged.customerAddress} ولا عنوان جديد؟`,
       detectedIntent: "sales_checkout_reuse_confirm",
       metadata: { buying_stage: "checkout_collecting", reused_checkout_fields: true },
     });
@@ -14538,7 +14595,7 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     await sendAndLogMetaText({
       config,
       message,
-    text: effectiveSize ? `ظ…ظ‚ط§ط³ ${effectiveSize} ظ…ط´ ط¸ط§ظ‡ط± ظ…طھط§ط­ ط¹ظ†ط¯ظٹ ط¯ظ„ظˆظ‚طھظٹ. طھط­ط¨ ط£ط·ظ„ط¹ظ„ظƒ ط£ظ‚ط±ط¨ ظ…ظ‚ط§ط³طں` : "ط§ظ„ظ…ظ‚ط§ط³ ط¯ظ‡ ظ…ط´ ط¸ط§ظ‡ط± ظ…طھط§ط­ ط¹ظ†ط¯ظٹ ط¯ظ„ظˆظ‚طھظٹ.",
+    text: effectiveSize ? `مقاس ${effectiveSize} مش ظاهر متاح عندي دلوقتي. تحب أطلعلك أقرب مقاس؟` : "المقاس ده مش ظاهر متاح عندي دلوقتي.",
       detectedIntent: "selected_size_unavailable",
       metadata: { requested_size: effectiveSize, checkout_stage: "buying_intent" },
     });
@@ -14686,7 +14743,7 @@ const handleOrderStatusIfMatched = async ({ config, message } = {}) => {
     await sendAndLogMetaText({
       config,
       message,
-      text: "ط§ط¨ط¹طھظ„ظٹ ط±ظ‚ظ… ط§ظ„ط£ظˆط±ط¯ط± ط£ظˆ ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ط§ظ„ظ„ظٹ ط§طھط¹ظ…ظ„ ط¨ظٹظ‡ ط§ظ„ط·ظ„ط¨طŒ ظˆط£ظ‚ظˆظ„ظƒ ظˆطµظ„ ظ„ظپظٹظ†.",
+      text: "ابعتلي رقم الأوردر أو رقم الموبايل اللي اتعمل بيه الطلب، وأقولك وصل لفين.",
       detectedIntent: "order_status_missing_reference",
       metadata: { orchestrator_intent: classification.intent || AI_INTENTS.ORDER_STATUS },
     });
@@ -14714,7 +14771,7 @@ const handleOrderStatusIfMatched = async ({ config, message } = {}) => {
     await sendAndLogMetaText({
       config,
       message,
-      text: "ظ…ط´ ظ„ط§ظ‚ظٹ ط§ظ„ط·ظ„ط¨ ط¨ط§ظ„ط¨ظٹط§ظ†ط§طھ ط¯ظٹ. ط§ط¨ط¹طھظ„ظٹ ط±ظ‚ظ… ط§ظ„ط£ظˆط±ط¯ط± ط£ظˆ ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ طھط§ظ†ظٹ.",
+      text: "مش لاقي الطلب بالبيانات دي. ابعتلي رقم الأوردر أو رقم الموبايل تاني.",
       detectedIntent: "order_status_not_found",
       metadata: { order_number: orderNumber, has_phone: Boolean(phone) },
     });
@@ -14726,9 +14783,9 @@ const handleOrderStatusIfMatched = async ({ config, message } = {}) => {
     config,
     message,
     text: [
-      `ط·ظ„ط¨ظƒ ${order.invoice_number || `#${order.id}`} ط­ط§ظ„طھظ‡: ${statusLine || "ظ‚ظٹط¯ ط§ظ„ظ…طھط§ط¨ط¹ط©"}.`,
-      tracking ? `ط±ظ‚ظ… ط§ظ„طھطھط¨ط¹: ${tracking}` : "",
-      "ظ„ظˆ ظ…ط­طھط§ط¬ طھظپط§طµظٹظ„ ط£ظƒطھط± ظ‡ط®ظ„ظٹ ط­ط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚ ظٹط±ط§ط¬ط¹ظ‡ط§ ظ…ط¹ط§ظƒ.",
+      `طلبك ${order.invoice_number || `#${order.id}`} حالته: ${statusLine || "قيد المتابعة"}.`,
+      tracking ? `رقم التتبع: ${tracking}` : "",
+      "لو محتاج تفاصيل أكتر هخلي حد من الفريق يراجعها معاك.",
     ].filter(Boolean).join("\n"),
     detectedIntent: "order_status_answered",
     metadata: { order_id: order.id, order_number: orderNumber, shipping_status: order.shipping_status || "", orchestrator_intent: AI_INTENTS.ORDER_STATUS },
@@ -14751,7 +14808,7 @@ const handleOrchestratorClarificationIfNeeded = async ({ config, message } = {})
   await sendAndLogMetaText({
     config,
     message,
-    text: "ط§ط¨ط¹طھظ„ظٹ ط§ط³ظ… ط§ظ„ظ…ظˆط¯ظٹظ„ ط£ظˆ طµظˆط±ط© ط£ظˆط¶ط­ ظˆط£ظ†ط§ ط£ط¬ظٹط¨ظ‡ظˆظ„ظƒ.",
+    text: "ابعتلي اسم الموديل أو صورة أوضح وأنا أجيبهولك.",
     detectedIntent: "orchestrator_low_confidence_clarification",
     metadata: { orchestrator_intent: classification.intent, confidence: classification.confidence },
   });
@@ -16401,7 +16458,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         : null;
       const requestedSize = extractShoeSize(message.message_text || "");
       const compressedRepeatedReply = requestedSize
-        ? `${requestedSize} ظ…طھظˆظپط± âœ…`
+        ? `${requestedSize} متوفر ✅`
         : prompt || repeatedProductFallbackText;
       console.log("[conversation-compression]", {
         compressionApplied: true,
