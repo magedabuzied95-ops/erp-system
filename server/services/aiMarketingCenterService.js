@@ -315,15 +315,15 @@ const selectTrendingAudioForVideo = ({
     audio = audioLibraryItem("last-piece-fast-beat");
   } else if (/(offer|sale|discount|blast|limited)/i.test(text)) {
     audio = audioLibraryItem("arabic-remix-popular-reel");
-  } else if (/(sneaker|sport|shoe|trainer|streetwear|hype|ظƒظˆطھط´ظٹ|ط­ط°ط§ط،|ط¬ط²ظ…ط©)/i.test(text)) {
+  } else if (/(sneaker|sport|shoe|trainer|streetwear|hype|كوتشي|حذاء|جزمة)/i.test(text)) {
     audio = audioLibraryItem(text.includes("mahraganat") ? "mahraganat-light-fashion" : "arabic-energetic-sneakers-beat");
-  } else if (/(luxury|premium|female|women|woman|dress|bag|soft|reveal|ط­ط±ظٹظ…ظٹ|ظ†ط³ط§ط،|ظپط³طھط§ظ†|ط´ظ†ط·ط©|ظپط§ط®ط±|ط¨ط±ظٹظ…ظٹظˆظ…)/i.test(text)) {
+  } else if (/(luxury|premium|female|women|woman|dress|bag|soft|reveal|حريمي|نساء|فستان|شنطة|فاخر|بريميوم)/i.test(text)) {
     audio = audioLibraryItem("soft-luxury-arabic");
-  } else if (/(kids|children|child|boy|girl|ط·ظپظ„|ط§ط·ظپط§ظ„|ط£ط·ظپط§ظ„|ظˆظ„ط§ط¯ظٹ|ط¨ظ†ط§طھظٹ)/i.test(text)) {
+  } else if (/(kids|children|child|boy|girl|طفل|اطفال|أطفال|ولادي|بناتي)/i.test(text)) {
     audio = audioLibraryItem("kids-playful-arabic-trend");
-  } else if (/(ramadan|eid|ط±ظ…ط¶ط§ظ†|ط¹ظٹط¯)/i.test(text)) {
+  } else if (/(ramadan|eid|رمضان|عيد)/i.test(text)) {
     audio = audioLibraryItem("ramadan-eid-seasonal");
-  } else if (/(khaliji|ط®ظ„ظٹط¬ظٹ)/i.test(text)) {
+  } else if (/(khaliji|خليجي)/i.test(text)) {
     audio = audioLibraryItem("khaliji-trend-polished");
   } else {
     audio = audioLibraryItem("arabic-remix-popular-reel");

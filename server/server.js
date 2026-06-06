@@ -386,6 +386,20 @@ io.on("connection", async (socket) => {
         });
       });
     }
+    socket.on("warehouse-pick-alert", (payload = {}) => {
+      const alertPayload = {
+        productId: payload.productId ?? payload.product_id ?? null,
+        productName: String(payload.productName || payload.product_name || "Product").trim() || "Product",
+        productImage: String(payload.productImage || payload.product_image || "").trim(),
+        color: String(payload.color || "").trim(),
+        size: String(payload.size || "").trim(),
+        stock: Number(payload.stock || 0),
+        sellerName: String(payload.sellerName || payload.seller_name || payload.salespersonName || "").trim() || "POS",
+        branchId: payload.branchId ?? payload.branch_id ?? branchId || null,
+        timestamp: String(payload.timestamp || new Date().toISOString()),
+      };
+      io.emit("warehouse-pick-alert", alertPayload);
+    });
     socket.emit("realtime:ready", { user_id: userId, branch_id: branchId || null, role, at: new Date().toISOString() });
   } catch (error) {
     console.warn("[socket] authentication failed", error?.message || error);
@@ -494,7 +508,7 @@ const { ensureAiSalesAgentSchema } = await import("./services/aiSalesAgentServic
 const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
-const { ensureMetaIntegrationSchema } = await import("./services/metaIntegrationService.js");
+const { ensureMetaIntegrationSchema, repairCorruptedArabicText } = await import("./services/metaIntegrationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 
 const collectRouterEndpoints = (router, prefix = "") => {
@@ -1166,6 +1180,7 @@ const bootstrapStartup = async () => {
     console.log("[server] AI agent order schema ensured");
     await ensureMetaIntegrationSchema(db);
     console.log("[server] meta integration schema ensured");
+    await repairCorruptedArabicText(db);
     await warmDashboardMetadataCache();
     console.log("[server] dashboard metadata cache warmed");
     await syncEvolutionWebhookOnStartup().catch((error) => {

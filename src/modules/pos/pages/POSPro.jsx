@@ -35,6 +35,7 @@ import { api } from "../../../shared/api/api";
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import { useRealtimeFeedback } from "../../../hooks/useRealtimeFeedback";
 import { getCurrentTenant, getCurrentUser, hasPermission, isAdminUser } from "../../../shared/auth/authStorage";
+import { socket } from "../../../socket";
 import { displayPublicOrderNumber } from "../../../shared/utils/publicOrderNumber";
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
 import {
@@ -140,6 +141,36 @@ const writeLastSalespersonId = (salespersonId) => {
     // This is a cashier convenience only; checkout must continue.
   }
 };
+
+const resolveWarehouseAlertImage = (product = {}, variant = {}) =>
+  resolvePosImageUrl(
+    variant.product_image_url ||
+    variant.variant_image_url ||
+    variant.image_url ||
+    product.product_image_url ||
+    product.image_url ||
+    product.cover_image ||
+    product.thumbnail ||
+    ""
+  );
+
+const buildWarehousePickAlertPayload = ({
+  product = {},
+  variant = {},
+  liveStock = 0,
+  sellerName = "",
+  branchId = "",
+}) => ({
+  productId: product.product_id ?? product.id ?? null,
+  productName: product.name || product.product_name || "Product",
+  productImage: resolveWarehouseAlertImage(product, variant),
+  color: variant.color || variant.variant_color || variant.selected_color || "",
+  size: variant.size || variant.variant_size || variant.selected_size || product.fixed_size_label || "",
+  stock: Number(liveStock || variant.stock_quantity || variant.stock || 0),
+  sellerName: String(sellerName || "").trim() || "POS",
+  branchId: branchId || null,
+  timestamp: new Date().toISOString(),
+});
 
 const getActiveFullscreenElement = () => {
   if (typeof document === "undefined") return null;
@@ -2854,6 +2885,26 @@ function POSPro() {
       variant_size: variant.variant_size || variant.size || null,
       variant_color: variant.variant_color || variant.color || null,
     });
+
+    const resolvedBranchId = activePosShift?.branch_id || posShiftBranch?.id || currentUser?.branch_id || "";
+    const selectedSeller = salesEmployees.find((employee) => String(employee.id) === String(selectedSalespersonId));
+    const resolvedSellerName =
+      selectedSeller?.name ||
+      selectedSeller?.full_name ||
+      selectedSeller?.pos_alias ||
+      currentUser?.name ||
+      currentUser?.email ||
+      "POS";
+    socket.emit(
+      "warehouse-pick-alert",
+      buildWarehousePickAlertPayload({
+        product,
+        variant,
+        liveStock,
+        sellerName: resolvedSellerName,
+        branchId: resolvedBranchId,
+      })
+    );
 
     setCart((prev) => {
       const existing = prev.find((item) => item.key === key);

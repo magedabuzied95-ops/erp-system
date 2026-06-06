@@ -325,7 +325,7 @@ const leadChannel = (lead = {}) => portalText(lead.channel || lead.platform || l
 const leadPreview = (lead = {}) => portalText(lead.last_message || lead.last_message_preview || lead.ai_insight || "لا توجد رسالة أخيرة");
 
 const Badge = ({ children, className = "" }) => (
-  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-black ${className}`}>{children}</span>
+  <span className={`inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-700 ${className}`}>{children}</span>
 );
 
 const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false }) => (
@@ -335,7 +335,7 @@ const Card = ({ title, subtitle, icon: Icon, children, action, className = "", b
         <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{subtitle}</div>
         <h2 className="mt-1 text-base font-black text-slate-950">{title}</h2>
       </div>
-      {Icon ? <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2 text-slate-700"><Icon className="h-4 w-4" /></div> : null}
+      {Icon ? <div className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-700"><Icon className="h-4 w-4" /></div> : null}
     </div>
     {action ? <div className="mt-3">{action}</div> : null}
     <div className={`mt-3 ${bodyClassName}`}>{children}</div>
@@ -359,7 +359,7 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
           <div className="mt-1 text-[1.9rem] font-black leading-none tracking-tight text-slate-950 sm:text-[2.05rem]">{value || formatNumber(0)}</div>
           {sub ? <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">{sub}</div> : null}
         </div>
-        {Icon ? <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-800 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
+        {Icon ? <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
       </div>
     </div>
   );
@@ -371,12 +371,12 @@ const Toggle = ({ label, checked, onChange }) => (
     onClick={() => onChange(!checked)}
     className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-right transition ${
       checked
-        ? "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+        ? "border-emerald-200 bg-white text-emerald-900 shadow-sm dark:border-emerald-400/20 dark:bg-white/[0.03] dark:text-emerald-100"
         : "border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200"
     }`}
   >
     <span className="text-sm font-black">{label}</span>
-    <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${checked ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200"}`}>
+    <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${checked ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700 dark:bg-white dark:text-slate-950"}`}>
       {checked ? "On" : "Off"}
     </span>
   </button>
@@ -384,17 +384,17 @@ const Toggle = ({ label, checked, onChange }) => (
 
 const StatusPill = ({ value, tone = "slate" }) => {
   const tones = {
-    slate: "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-200",
-    green: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200",
-    amber: "bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-200",
-    red: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-200",
-    blue: "bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-200",
+    slate: "border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200",
+    green: "border-emerald-200 bg-white text-emerald-700 dark:border-emerald-400/20 dark:bg-white/[0.03] dark:text-emerald-200",
+    amber: "border-amber-200 bg-white text-amber-800 dark:border-amber-400/20 dark:bg-white/[0.03] dark:text-amber-200",
+    red: "border-rose-200 bg-white text-rose-700 dark:border-rose-400/20 dark:bg-white/[0.03] dark:text-rose-200",
+    blue: "border-sky-200 bg-white text-sky-700 dark:border-sky-400/20 dark:bg-white/[0.03] dark:text-sky-200",
   };
-  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${tones[tone] || tones.slate}`}>{value}</span>;
+  return <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${tones[tone] || tones.slate}`}>{value}</span>;
 };
 
 const EmptyState = ({ title, body, compact = false }) => (
-  <div className={`rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-right font-semibold leading-6 text-slate-500 ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
+  <div className={`rounded-2xl border border-dashed border-slate-300 bg-white text-right font-semibold leading-6 text-slate-500 shadow-sm ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
     <div className="font-black text-slate-800">{title}</div>
     <div className="mt-1">{body}</div>
   </div>
@@ -1213,7 +1213,7 @@ export default function ManagerPortal() {
           <div>المرفقات: {formatNumber(task.attachments_count || 0)}</div>
         </div>
         {proofUrl ? (
-          <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]">
             {["image", "photo", "img"].some((type) => String(task.latest_attachment_type || "").toLowerCase().includes(type)) ? (
               <a href={proofUrl} target="_blank" rel="noreferrer" className="block">
                 <img src={proofUrl} alt={portalText(taskProofLabel(task) || task.title || "Task proof")} className="h-44 w-full object-cover" />
@@ -1231,7 +1231,7 @@ export default function ManagerPortal() {
             <CheckCircle2 className="h-4 w-4" />
             اعتماد
           </button>
-          <button type="button" data-testid={`task-reject-${task.id}`} onClick={() => void sendTaskAction(task.id, "reject", { note })} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-black text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+          <button type="button" data-testid={`task-reject-${task.id}`} onClick={() => void sendTaskAction(task.id, "reject", { note })} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-white px-4 py-3 text-sm font-black text-amber-800 shadow-sm">
             <X className="h-4 w-4" />
             رفض / إعادة
           </button>
@@ -1361,7 +1361,7 @@ export default function ManagerPortal() {
           {showInstallCard ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 shadow-sm">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm">
                   <Smartphone className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -1489,7 +1489,7 @@ export default function ManagerPortal() {
                             key={item.id}
                             className={`overflow-hidden rounded-3xl border p-4 shadow-sm transition ${
                               unread
-                                ? "border-sky-200 bg-white ring-1 ring-sky-100 dark:border-cyan-300/25 dark:bg-white/[0.03] dark:ring-cyan-300/10"
+                              ? "border-sky-200 bg-white ring-1 ring-sky-100 dark:border-sky-400/20 dark:bg-white/[0.03] dark:ring-sky-400/10"
                                 : "border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.02]"
                             }`}
                           >
@@ -1498,7 +1498,7 @@ export default function ManagerPortal() {
                               onClick={() => void openNotification(item)}
                               className="flex w-full items-start gap-3 text-right"
                             >
-                              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ${unread ? "bg-sky-50 text-sky-700 ring-sky-100 dark:bg-cyan-300/10 dark:text-cyan-100 dark:ring-cyan-300/20" : "bg-slate-100 text-slate-600 ring-slate-200 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10"}`}>
+                              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ${unread ? "bg-white text-sky-700 ring-sky-100 dark:bg-white/[0.03] dark:text-sky-200 dark:ring-sky-400/20" : "bg-white text-slate-600 ring-slate-200 dark:bg-white/[0.03] dark:text-slate-200 dark:ring-white/10"}`}>
                                 <Icon className="h-5 w-5" />
                               </div>
                               <div className="min-w-0 flex-1">
@@ -1509,7 +1509,7 @@ export default function ManagerPortal() {
                                       {item.message || item.body || "لا توجد تفاصيل إضافية."}
                                     </p>
                                   </div>
-                                  {unread ? <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500 shadow-[0_0_12px_rgba(14,165,233,0.65)] dark:bg-cyan-300" /> : null}
+                                  {unread ? <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500 shadow-[0_0_12px_rgba(14,165,233,0.65)] dark:bg-sky-300" /> : null}
                                 </div>
                                 <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400">
                                   <span>{notificationTypeLabel(item)}</span>
@@ -1527,7 +1527,7 @@ export default function ManagerPortal() {
                                 <button
                                   type="button"
                                   onClick={() => void openNotification(item)}
-                                  className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
+                                  className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                                 >
                                   <ArrowUpRight className="h-3.5 w-3.5" />
                                   فتح
@@ -1550,7 +1550,7 @@ export default function ManagerPortal() {
                     </div>
                   ) : (
                     <div className="flex min-h-[28rem] flex-col items-center justify-center rounded-[2rem] border border-dashed border-slate-300 bg-white p-8 text-center dark:border-white/10 dark:bg-white/[0.03]">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-500 ring-1 ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-slate-500 ring-1 ring-slate-200 dark:bg-white/[0.03] dark:text-slate-300 dark:ring-white/10">
                         <Bell className="h-8 w-8" />
                       </div>
                       <h3 className="mt-5 text-lg font-black text-slate-950 dark:text-white">لا توجد إشعارات</h3>
@@ -1596,7 +1596,7 @@ export default function ManagerPortal() {
                           <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">{event.detail || "لا توجد تفاصيل إضافية"}</div>
                         </div>
                         <div className="shrink-0 text-right">
-                          {event.kind ? <div className="mb-1 flex justify-end"><span className={`rounded-full border px-2 py-1 text-[10px] font-black ${event.kind === "invoice" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : event.tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-800" : event.tone === "red" ? "border-rose-200 bg-rose-50 text-rose-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>{event.kind === "invoice" ? "فاتورة" : event.kind === "lead" ? "عميل" : event.kind === "task" ? "مهمة" : "حدث"}</span></div> : null}
+                          {event.kind ? <div className="mb-1 flex justify-end"><span className={`rounded-full border px-2 py-1 text-[10px] font-black ${event.kind === "invoice" ? "border-emerald-200 bg-white text-emerald-700" : event.tone === "amber" ? "border-amber-200 bg-white text-amber-800" : event.tone === "red" ? "border-rose-200 bg-white text-rose-700" : "border-slate-200 bg-white text-slate-700"}`}>{event.kind === "invoice" ? "فاتورة" : event.kind === "lead" ? "عميل" : event.kind === "task" ? "مهمة" : "حدث"}</span></div> : null}
                           <StatusPill tone={event.tone || "slate"} value={formatDateTime(event.timestamp)} />
                         </div>
                       </button>
@@ -1916,7 +1916,7 @@ export default function ManagerPortal() {
                           <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
                           <div className="mt-2 text-lg font-black text-slate-950">{item.today}</div>
                           <div className="mt-1 text-xs font-bold text-slate-500">أمس: {item.yesterday}</div>
-                          <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ${positive ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+                          <div className={`mt-2 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-black ${positive ? "border-emerald-200 bg-white text-emerald-700" : "border-rose-200 bg-white text-rose-700"}`}>
                             {positive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                             {delta >= 0 ? "+" : ""}
                             {formatPercent(delta)}
@@ -2166,7 +2166,7 @@ export default function ManagerPortal() {
                       ["المبيعات", "sales"],
                       ["Chat", "chat"],
                     ].map(([label, tab]) => (
-                      <button key={tab} type="button" onClick={() => setActiveTab(tab)} className="inline-flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-3 text-right text-sm font-black text-slate-800 transition hover:border-sky-300 hover:bg-sky-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:hover:border-sky-500/30 dark:hover:bg-sky-500/10">
+                      <button key={tab} type="button" onClick={() => setActiveTab(tab)} className="inline-flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-3 text-right text-sm font-black text-slate-800 transition hover:border-slate-300 hover:bg-slate-100">
                         <span>{label}</span>
                         <ChevronRight className="h-4 w-4" />
                       </button>
@@ -2218,16 +2218,16 @@ export default function ManagerPortal() {
               <Card title="إشعارات Push" subtitle="Real mobile web push" icon={Smartphone}>
                 <div className="space-y-3">
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Badge className={`${pushState.supported ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
+                    <Badge className={`${pushState.supported ? "border-emerald-200 text-emerald-700" : "border-rose-200 text-rose-700"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
                       {pushState.supported ? "Supported" : "Not supported"}
                     </Badge>
                     <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
                       Permission: {portalText(pushState.permission)}
                     </Badge>
-                    <Badge className={`${pushState.subscribed ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
+                    <Badge className={`${pushState.subscribed ? "border-emerald-200 text-emerald-700" : "border-slate-200 text-slate-700"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
                       Subscription: {pushState.subscribed ? "active" : "inactive"}
                     </Badge>
-                    <Badge className={`${standalone ? "border-sky-200 bg-sky-50 text-sky-800" : "border-amber-200 bg-amber-50 text-amber-800"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
+                    <Badge className={`${standalone ? "border-sky-200 text-sky-700" : "border-amber-200 text-amber-800"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
                       {standalone ? "Installed PWA" : "Browser tab"}
                     </Badge>
                   </div>
@@ -2241,7 +2241,7 @@ export default function ManagerPortal() {
                   ) : null}
                   {pushState.message ? <div className="text-xs font-bold text-slate-500 dark:text-slate-300">{pushState.message}</div> : null}
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={enablePushNotifications} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-cyan-300 dark:text-slate-950">
+                  <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={enablePushNotifications} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">
                       {pushState.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
                       {pushState.subscribed ? "تحديث Push Notifications" : "Enable Push Notifications"}
                     </button>
@@ -2281,7 +2281,7 @@ export default function ManagerPortal() {
                 const isEmployeeMessage = categoryFromNotification(item) === "employee_chat";
                 const isInvoiceNotification = categoryFromNotification(item) === "sales" && (item.metadata?.invoice_id || item.metadata?.order_id || item.entity_id);
                 return (
-                <div key={item.id} data-testid={`notification-${item.id}`} className={`w-full rounded-2xl border px-3 py-2.5 text-right transition ${item.is_read ? "border-slate-200 bg-white text-slate-600" : "border-slate-300 bg-slate-50 text-slate-950 shadow-sm"}`}>
+                <div key={item.id} data-testid={`notification-${item.id}`} className={`w-full rounded-2xl border px-3 py-2.5 text-right transition ${item.is_read ? "border-slate-200 bg-white text-slate-600" : "border-slate-300 bg-white text-slate-950 shadow-sm ring-1 ring-sky-100"}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black text-slate-950">{portalText(isEmployeeMessage ? item.metadata?.employee_name || item.title || "رسالة موظف" : item.title || notificationTypeLabel(item))}</div>
@@ -2386,15 +2386,15 @@ export default function ManagerPortal() {
       </nav>
 
       {invoiceSheet.open ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/55 backdrop-blur-sm sm:items-center">
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/55 sm:items-center">
           <button type="button" aria-label="إغلاق تفاصيل الفاتورة" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="absolute inset-0" />
-          <section className="relative max-h-[92dvh] w-full max-w-3xl overflow-hidden rounded-t-[2rem] border border-white/70 bg-white shadow-2xl dark:border-white/10 dark:bg-[#07111f] sm:rounded-[2rem]" dir="rtl">
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 dark:border-white/10">
+          <section className="relative max-h-[92dvh] w-full max-w-3xl overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:rounded-[2rem]" dir="rtl">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-950 px-4 py-4 text-white">
               <div>
-                <div className="text-xs font-black text-emerald-600 dark:text-emerald-300">تفاصيل الفاتورة</div>
-                <h2 className="mt-1 text-xl font-black text-slate-950 dark:text-white">{invoiceSheet.invoice?.invoice_number || "فاتورة"}</h2>
+                <div className="text-xs font-black text-slate-300">تفاصيل الفاتورة</div>
+                <h2 className="mt-1 text-xl font-black text-white">{invoiceSheet.invoice?.invoice_number || "فاتورة"}</h2>
               </div>
-              <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-white">
+              <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -2441,16 +2441,16 @@ export default function ManagerPortal() {
                           ["إثبات الدفع", invoiceSheet.invoice.transfer_proof_status || "-"],
                           ["الخزينة / الحساب", invoiceSheet.invoice.treasury_name || "-"],
                         ].map(([label, value]) => (
-                          <div key={label} className="rounded-2xl border border-slate-200 px-3 py-2 text-xs font-bold dark:border-white/10">
-                            <div className="text-slate-400">{label}</div>
-                            <div className="mt-1 text-slate-950 dark:text-white">{value}</div>
+                          <div key={label} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold shadow-sm">
+                            <div className="text-slate-500">{label}</div>
+                            <div className="mt-1 text-slate-950">{value}</div>
                           </div>
                         ))}
                       </div>
                       {Array.isArray(invoiceSheet.invoice.payment_breakdown) && invoiceSheet.invoice.payment_breakdown.length ? invoiceSheet.invoice.payment_breakdown.map((row, index) => (
-                        <div key={`${row.method || row.payment_method || index}`} className="flex items-center justify-between rounded-2xl border border-slate-200 px-3 py-2 text-sm font-bold dark:border-white/10">
-                          <span>{paymentMethodLabel(row.method || row.payment_method)}</span>
-                          <span>{formatCurrency(row.amount || row.total || 0)}</span>
+                        <div key={`${row.method || row.payment_method || index}`} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold shadow-sm">
+                          <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-slate-900" />{paymentMethodLabel(row.method || row.payment_method)}</span>
+                          <span className="text-slate-950">{formatCurrency(row.amount || row.total || 0)}</span>
                         </div>
                       )) : null}
                     </div>
@@ -2459,19 +2459,19 @@ export default function ManagerPortal() {
                   <Card title="المنتجات" subtitle="قائمة المنتجات" icon={Package} compact>
                     <div className="space-y-2">
                       {(invoiceSheet.invoice.items || []).length ? invoiceSheet.invoice.items.map((item) => (
-                        <div key={item.id || `${item.product_name}-${item.variant_id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <div key={item.id || `${item.product_name}-${item.variant_id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm shadow-sm">
                           <div className="flex items-start justify-between gap-3">
                             {item.image_url ? (
-                              <img src={item.image_url} alt="" className="h-14 w-14 shrink-0 rounded-2xl border border-slate-200 object-cover dark:border-white/10" loading="lazy" />
+                              <img src={item.image_url} alt="" className="h-14 w-14 shrink-0 rounded-2xl border border-slate-200 object-cover" loading="lazy" />
                             ) : null}
                             <div className="min-w-0 flex-1">
-                              <div className="font-black text-slate-950 dark:text-white"><InlineName>{portalText(item.product_name || "منتج")}</InlineName></div>
-                              <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{portalText(item.color || "-")} · {portalText(item.size || "-")} · {formatNumber(item.quantity || 0)} قطعة</div>
-                              <div className="mt-1 text-[11px] font-bold text-slate-400">{[item.sku ? `SKU ${item.sku}` : "", item.barcode ? `Barcode ${item.barcode}` : ""].filter(Boolean).join(" · ") || "-"}</div>
+                              <div className="font-black text-slate-950"><InlineName>{portalText(item.product_name || "منتج")}</InlineName></div>
+                              <div className="mt-1 text-xs font-bold text-slate-500">{portalText(item.color || "-")} · {portalText(item.size || "-")} · {formatNumber(item.quantity || 0)} قطعة</div>
+                              <div className="mt-1 text-[11px] font-bold text-slate-500">{[item.sku ? `SKU ${item.sku}` : "", item.barcode ? `Barcode ${item.barcode}` : ""].filter(Boolean).join(" · ") || "-"}</div>
                             </div>
                             <div className="shrink-0 text-left">
-                              <div className="font-black text-slate-950 dark:text-white">{formatCurrency(item.line_total || 0)}</div>
-                              <div className="text-xs font-bold text-slate-500 dark:text-slate-400">{formatCurrency(item.price || 0)}</div>
+                              <div className="font-black text-slate-950">{formatCurrency(item.line_total || 0)}</div>
+                              <div className="text-xs font-bold text-slate-500">{formatCurrency(item.price || 0)}</div>
                               {Number(item.discount_amount || 0) ? <div className="text-[11px] font-bold text-rose-500">-{formatCurrency(item.discount_amount)}</div> : null}
                             </div>
                           </div>
@@ -2494,15 +2494,15 @@ export default function ManagerPortal() {
                         ["الربح", formatCurrency(invoiceSheet.invoice.profit || 0)],
                       ] : []),
                     ].map(([label, value]) => (
-                      <div key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold dark:border-white/10 dark:bg-white/[0.03]">
-                        <span className="text-slate-500 dark:text-slate-300">{label}</span>
-                        <span className="text-slate-950 dark:text-white">{value}</span>
+                      <div key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold shadow-sm">
+                        <span className="text-slate-500">{label}</span>
+                        <span className="text-slate-950">{value}</span>
                       </div>
                     ))}
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-5">
-                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => window.open(invoiceSheet.invoice.public_invoice_url, "_blank", "noopener,noreferrer")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:opacity-45 dark:bg-cyan-300 dark:text-slate-950">
+                    <button type="button" disabled={!invoiceSheet.invoice.public_invoice_url} onClick={() => window.open(invoiceSheet.invoice.public_invoice_url, "_blank", "noopener,noreferrer")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">
                       <ExternalLink className="h-4 w-4" />
                       عرض الفاتورة العامة
                     </button>
@@ -2514,11 +2514,11 @@ export default function ManagerPortal() {
                       <Printer className="h-4 w-4" />
                       طباعة
                     </button>
-                    <button type="button" disabled={!invoiceSheet.invoice.customer_phone} onClick={() => openWhatsappShare(invoiceSheet.invoice)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-black text-emerald-900 disabled:opacity-45 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100">
+                    <button type="button" disabled={!invoiceSheet.invoice.customer_phone} onClick={() => openWhatsappShare(invoiceSheet.invoice)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-white px-3 text-sm font-black text-emerald-700 disabled:opacity-45">
                       <MessageSquare className="h-4 w-4" />
                       مشاركة واتساب
                     </button>
-                    <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                    <button type="button" onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-800">
                       <X className="h-4 w-4" />
                       إغلاق
                     </button>

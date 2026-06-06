@@ -120,7 +120,7 @@ export function ensureProductLinkInReply(reply = "", productContext = null) {
   const lines = safeReply.split("\n").map(text).filter(Boolean);
   const lastLine = lines.at(-1) || "";
   const linkLines = ["شوفه من هنا:", productUrl];
-  if (/[?؟]$|طں$/.test(lastLine) && lines.length > 1) {
+  if (/[?؟]$|؟$/.test(lastLine) && lines.length > 1) {
     return [...lines.slice(0, -1), ...linkLines, lastLine].join("\n");
   }
   return [...lines, ...linkLines].join("\n");

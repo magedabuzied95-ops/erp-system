@@ -12,6 +12,7 @@ export const managerPortalApi = {
   stockAlerts: (token) => api.get(`${tokenPath(token)}/stock-alerts`),
   pushPublicKey: (token) => api.get(`${tokenPath(token)}/push/public-key`),
   subscribePush: (token, payload) => api.post(`${tokenPath(token)}/push/subscribe`, payload),
+  testPush: (token, payload = {}) => api.post(`${tokenPath(token)}/push/test`, payload),
   unsubscribePush: (token, payload = {}) => api.post(`${tokenPath(token)}/push/unsubscribe`, payload),
   notifications: (token, params = {}) => api.get(`${tokenPath(token)}/notifications`, { params }),
   markNotificationRead: (token, id) => api.post(`${tokenPath(token)}/notifications/${encodeURIComponent(id)}/read`),

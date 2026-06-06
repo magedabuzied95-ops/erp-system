@@ -543,7 +543,7 @@ const hasFollowUpContextSignal = (message = "", metadata = {}) => {
     metadata?.detected_intent,
     metadata?.message_type,
   ].filter(Boolean).join(" "));
-  return /(?:ط§ظ„ظ„ظˆظ†|ظ„ظˆظ†|color|طµظˆط±|image|photo|طµظˆط± ط£ظƒطھط±|more images|ط§ظ„ظ…ظ‚ط§ط³|مقاس|size|غالي|السعر|price|بدائل|بديل|alternatives?)/i.test(blob);
+  return /(?:اللون|لون|color|صور|image|photo|صور أكتر|more images|المقاس|مقاس|size|غالي|السعر|price|بدائل|بديل|alternatives?)/i.test(blob);
 };
 
 export const resolveActiveProductContext = ({

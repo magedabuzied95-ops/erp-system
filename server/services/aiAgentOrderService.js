@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import db from "../database/db.js";
 import { getAiAgentSettings } from "./aiSalesAgentService.js";
 import { adjustVariantStock } from "./inventoryService.js";
+import { sendManagerInvoiceCreatedPush } from "./managerPortalPushService.js";
 import {
   compactAliasText,
   expandSearchAliasTerms,
@@ -958,8 +959,13 @@ export const confirmAiOrder = async (payload = {}) => {
       [order.id]
     );
     await client.query("COMMIT");
+    const confirmedOrder = attachPublicOrderNumber(updated.rows[0], order.channel || order.source || "web_chat");
+    sendManagerInvoiceCreatedPush({ order: confirmedOrder, source: "ai_agent" }).catch((error) => console.warn("[manager-push:invoice-created] ai skipped", {
+      order_id: order.id,
+      message: error?.message || String(error),
+    }));
     console.log("[ai-agent:orders] confirmed", { tenantId, order_id: order.id, conversation_id: order.ai_agent_conversation_id });
-    return { order: attachPublicOrderNumber(updated.rows[0], order.channel || order.source || "web_chat"), items: items.rows };
+    return { order: confirmedOrder, items: items.rows };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("[ai-agent:orders] confirm failed", { tenantId, orderId, conversationId, message: error?.message, code: error?.code });

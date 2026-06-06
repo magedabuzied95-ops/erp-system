@@ -1007,8 +1007,8 @@ const IMAGE_VARIANT_EXACT_MATCH_ANSWER = "أيوه، الموديل ده متا�
 const IMAGE_VARIANT_REQUEST_UNAVAILABLE_ANSWER = "الموديل موجود عندنا، لكن المقاس أو اللون المطلوب مش متاح في نفس الفاريانت حاليا. النتيجة المعروضة هي نفس الموديل مع حالة التوفر الحالية.";
 const IMAGE_EXACT_VARIANT_RENDERED_ANSWER = "أيوه، الموديل ده متاح عندنا، ونفس اللون/النسخة المطابقة للصورة ظاهر في النتيجة.";
 const IMAGE_EXACT_MATCH_ANSWER = "أيوه، الموديل ده متاح عندنا  ودي أقرب نتيجة مطابقة للصورة.";
-const IMAGE_NO_EXACT_MATCH_ANSWER = "مش لاقيين نفس الموديل بالظبط، لكن دي أقرب المنتجات المتاحة.";
-const IMAGE_NO_PRODUCTS_ANSWER = "مش لاقيين نفس الموديل بالظبط، قولّي المقاس أو اللون ونطلعلك شبهه.";
+const IMAGE_NO_EXACT_MATCH_ANSWER = "مش لاقيين نفس الموديل بالظبء لكن دي أقرب المنتجات المتاحة.";
+const IMAGE_NO_PRODUCTS_ANSWER = "مش لاقيين نفس الموديل بالظبء قولّي المقاس أو اللون ونطلعلك شبهه.";
 
 const normalizeVisualMatchText = (value = "") =>
   toText(value)
@@ -1644,7 +1644,7 @@ const AI_KB_DEFAULTS = Object.freeze({
   human_support_message: "",
   brand_tone_instructions: "",
   personality_settings: "Egyptian Arabic professional sales agent for Tiger Store. Friendly, confident, respectful, concise, and human.",
-  allowed_phrases: "تمام، تحت أمرك، بص، مظبوط، خليني أظبطهولك، المقاس ده بيتحرك بسرعة",
+  allowed_phrases: "تمام، تحت أمرك، بص، مظبوء خليني أظبطهولك، المقاس ده بيتحرك بسرعة",
   forbidden_phrases: "أنا مساعد ذكي، يسعدني مساعدتك، برجاء المحاولة لاحقا، لا أملك معلومات كافية",
   sales_scripts: "افهم احتياج العميل الأول، رشح من المنتجات المتاحة، اذكر السعر والتوفر، وضح القيمة، ثم اسأل سؤال واحد مناسب.",
   objection_replies: [

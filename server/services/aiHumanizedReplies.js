@@ -17,7 +17,7 @@ const appendProductLink = (reply = "", productContext = null) => {
   const lines = cleanLines(reply).split("\n").filter(Boolean);
   const lastLine = lines.at(-1) || "";
   const linkLines = ["شوفه من هنا:", productUrl];
-  if (/[?؟]$|طں$/.test(lastLine) && lines.length > 1) {
+  if (/[?؟]$|؟$/.test(lastLine) && lines.length > 1) {
     return cleanLines([...lines.slice(0, -1), ...linkLines, lastLine].join("\n"));
   }
   return cleanLines([...lines, ...linkLines].join("\n"));

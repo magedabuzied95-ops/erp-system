@@ -582,7 +582,7 @@ const storyAssetBrandName = (story = {}, design = {}) =>
   trimString(story.store_name || story.storeName || story.brand_name || design.store_name || design.storeName || design.brand_name || process.env.STORY_BRAND_NAME || "M1 STORE");
 
 const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitle = "", brandName = "M1 STORE" }) => {
-  const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*â€¢\s*/g, " \u2022 ");
+  const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*•\s*/g, " \u2022 ");
   const titleLines = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 });
   const sizesLines = storyAssetTextLines(cleanSizes, { maxChars: 40, maxLines: 1 });
   const priceLines = storyAssetTextLines(price || "Available now", { maxChars: 20, maxLines: 1 });

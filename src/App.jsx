@@ -57,6 +57,7 @@ const InventoryAdjustments = lazy(() => import("./modules/inventory/pages/StockA
 const InventoryHistory = lazy(() => import("./modules/inventory/pages/InventoryHistory"));
 
 const SmartWarehouse = lazy(() => import("./modules/smartWarehouse/pages/SmartWarehouse"));
+const WarehouseLivePicks = lazy(() => import("./modules/warehouse/pages/WarehouseLivePicks"));
 
 /* ======================================================
    WAREHOUSES
@@ -338,6 +339,15 @@ function App() {
       <Route
         path="/employee-app/:token"
         element={<EmployeeAppShell />}
+      />
+
+      <Route
+        path="/warehouse/live-picks"
+        element={
+          <ProtectedRoute>
+            <WarehouseLivePicks />
+          </ProtectedRoute>
+        }
       />
 
       <Route

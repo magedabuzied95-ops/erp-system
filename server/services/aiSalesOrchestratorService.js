@@ -6,7 +6,7 @@ const number = (value, fallback = 0) => {
 };
 
 export const NO_RANDOM_PRODUCT_FALLBACK =
-  "ما لقيتش نفس الموديل بالضبط، لكن أقدر أطلعلك أقرب اختيارات من نفس الستايل أو سعر قريب.";
+  "ما لقيتش نفس الموديل بالضبء لكن أقدر أطلعلك أقرب اختيارات من نفس الستايل أو سعر قريب.";
 
 const normalizeArabicDigits = (value = "") =>
   text(value)

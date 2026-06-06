@@ -712,7 +712,7 @@ export const composeAiSalesReply = async ({
     decision = hasCloseAlternatives ? "unavailable_close_alternatives" : "unavailable_no_close_alternatives";
     output = withAnswer(stripProductPayload(response), hasCloseAlternatives
       ? "لقيت أقرب بدائل شبهه جدًا. تحب أبعتهم؟"
-      : "ما لقيتش نفس الموديل بالضبط، لكن أقدر أدورلك على أقرب اختيار من نفس الستايل أو سعر قريب.");
+      : "ما لقيتش نفس الموديل بالضبء لكن أقدر أدورلك على أقرب اختيار من نفس الستايل أو سعر قريب.");
   } else if (/adidas|اديداس/i.test(message) && !/(running|رننج|جري|casual|كاجوال)/i.test(message) && products.length > 1) {
     decision = "ambiguous_adidas";
     const question = await buildDynamicClarificationQuestion(["gender", "product_type"]);

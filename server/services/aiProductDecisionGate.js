@@ -87,7 +87,7 @@ const productMatchesModel = (product = {}, modelIntent = null) => {
 };
 
 const NO_RANDOM_BLOCK_MESSAGE =
-  "ما لقيتش نفس الموديل بالضبط، لكن أقدر أطلعلك أقرب اختيارات من نفس الستايل أو سعر قريب.";
+  "ما لقيتش نفس الموديل بالضبء لكن أقدر أطلعلك أقرب اختيارات من نفس الستايل أو سعر قريب.";
 
 const detectContextFlags = (blob = "") => ({
   lowCasualSkate: /\b(low|lowtop|low top|low profile|flat sole|slim sole|casual|skate|dunk|court|lifestyle)\b|كاجوال|دانك/.test(blob),

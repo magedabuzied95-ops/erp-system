@@ -14,6 +14,7 @@ import { ensureWalletSchema, recordWalletTransaction } from "../services/walletS
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
 import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
+import { sendManagerInvoiceCreatedPush } from "../services/managerPortalPushService.js";
 import { getSetting } from "../services/settingsService.js";
 import { sendInvoiceWhatsapp } from "../services/whatsappOrderConfirmationService.js";
 import { ensureWhatsappShippingSchema, sendShipmentNotificationForStatus } from "../services/whatsappShippingService.js";
@@ -2115,6 +2116,20 @@ const runPostOrderSideEffects = async ({
     },
     async () => {
       await logActivity(db, req.user?.id || null, "CREATE_ORDER", "ORDER", orderId);
+    },
+    async () => {
+      await sendManagerInvoiceCreatedPush({
+        order: {
+          ...(order || {}),
+          id: orderId,
+          tenant_id: tenantId,
+          branch_id: resolvedBranchId || order?.branch_id || null,
+          total_amount: computedTotal,
+          payment_method,
+          payment_status: paymentStatus,
+        },
+        source: channel || "pos",
+      });
     },
     async () => {
       await postSaleEntry(db, {

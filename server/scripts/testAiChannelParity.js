@@ -499,7 +499,7 @@ const scenarios = [
   "كلم بني آدم",
 ];
 const parityScenarios = [
-  { id: "product_search_jordan", message: "ط¹ظ†ط¯ظƒ ط¬ظˆط±ط¯ظ† 4طں", test_case_id: "product_inquiry" },
+  { id: "product_search_jordan", message: "عندك جوردن 4؟", test_case_id: "product_inquiry" },
   {
     id: "rich_cards_jordan4",
     message: "متاح جوردن فور؟",
@@ -508,16 +508,16 @@ const parityScenarios = [
       rich_product_cards: true,
     },
   },
-  { id: "more_images", message: "طµظˆط± ط£ظƒطھط±", test_case_id: "more_images" },
+  { id: "more_images", message: "صور أكتر", test_case_id: "more_images" },
   { id: "price_objection", message: "غالي شوية", test_case_id: "price_objection" },
-  { id: "size_only", message: "ط¹ط§ظٹط² ظ…ظ‚ط§ط³ 42", test_case_id: "size_availability" },
-  { id: "alternatives", message: "ظ…ط´ ط¹ط§ط¬ط¨ظ†ظٹ ظˆط±ظٹظ†ظٹ ط¨ط¯ط§ط¦ظ„" },
-  { id: "buying_intent_generic", message: "ط¹ط§ظٹط² ط£ط´طھط±ظٹ", test_case_id: "buying_intent" },
-  { id: "human_takeover", message: "ظƒظ„ظ… ط¨ظ†ظٹ ط¢ط¯ظ…", test_case_id: "human_takeover" },
-  { id: "buying_missing_size", message: "ط¹ط§ظٹط² ط£ط´طھط±ظٹ", test_case_id: "buying_missing_size" },
-  { id: "buying_size_no_phone", message: "ط¹ط§ظٹط² ط£ط´طھط±ظٹ ظ…ظ‚ط§ط³ 42", test_case_id: "buying_size_no_phone" },
-  { id: "phone_address_provided", message: "ط¹ط§ظٹط² ط£ط´طھط±ظٹ", test_case_id: "phone_address_provided" },
-  { id: "complete_draft_ready", message: "ط£ط£ظƒط¯ ط§ظ„ط·ظ„ط¨", test_case_id: "complete_draft_ready" },
+  { id: "size_only", message: "عايز مقاس 42", test_case_id: "size_availability" },
+  { id: "alternatives", message: "مش عاجبني وريني بدائل" },
+  { id: "buying_intent_generic", message: "عايز أشتري", test_case_id: "buying_intent" },
+  { id: "human_takeover", message: "كلم بني آدم", test_case_id: "human_takeover" },
+  { id: "buying_missing_size", message: "عايز أشتري", test_case_id: "buying_missing_size" },
+  { id: "buying_size_no_phone", message: "عايز أشتري مقاس 42", test_case_id: "buying_size_no_phone" },
+  { id: "phone_address_provided", message: "عايز أشتري", test_case_id: "phone_address_provided" },
+  { id: "complete_draft_ready", message: "أأكد الطلب", test_case_id: "complete_draft_ready" },
 ];
 
 parityScenarios.push(

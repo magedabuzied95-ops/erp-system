@@ -350,6 +350,18 @@ const request = async (
     throw error;
   }
 
+  if (data && typeof data === "object") {
+    try {
+      Object.defineProperty(data, "__status", {
+        value: response.status,
+        enumerable: false,
+        configurable: true,
+      });
+    } catch {
+      data.__status = response.status;
+    }
+  }
+
   return data;
 };
 

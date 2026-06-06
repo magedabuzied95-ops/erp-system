@@ -3013,7 +3013,7 @@ const buildMissingInfoReply = ({ products = [], profile = {} } = {}) => {
   const product = products.find((item) => stockCount(item) > 0) || products[0] || null;
   if (!product) return "ممكن تبعتلي اسم الموديل أو صورة المنتج اللي تقصده، ومعاه المقاس واللون المطلوب؟";
   const missingSize = !text(profile.preferred_size);
-  if (missingSize) return `تمام، ${productLineAr(product)}. تحب أنهي مقاس عشان أراجع المتاح بالظبط؟`;
+  if (missingSize) return `تمام، ${productLineAr(product)}. تحب أنهي مقاس عشان أراجع المتاح بالظبؿ`;
   return `تمام، ${productLineAr(product)}. تحب أنهي لون أو فاريانت عشان نأكد المتاح قبل التسجيل؟`;
 };
 

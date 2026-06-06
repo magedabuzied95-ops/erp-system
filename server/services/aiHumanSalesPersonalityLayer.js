@@ -710,7 +710,7 @@ const buildReasoningReplyEngine = ({
     productColors.length === 1 ? `لون ${productColors[0]}` : "",
   ].filter(Boolean);
 
-  const askProduct = "تمام يا باشا، تقصد أنهي موديل بالظبط؟";
+  const askProduct = "تمام يا باشا، تقصد أنهي موديل بالظبؿ";
   const askSize = `تمام يا باشا، ${selectedProduct && selectedProduct !== "الموديل ده" ? selectedProduct : "الموديل"} محتاج المقاس بس. كام؟`;
   const askColor = productColors.length > 1
     ? `تمام يا باشا، تحب أنهي لون من ${productColors.slice(0, 3).join("، ")}؟`

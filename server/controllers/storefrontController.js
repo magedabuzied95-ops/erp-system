@@ -5,6 +5,7 @@ import sharp from "sharp";
 import db from "../database/db.js";
 import { adjustVariantStock } from "../services/inventoryService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
+import { sendManagerInvoiceCreatedPush } from "../services/managerPortalPushService.js";
 import {
   attachGroupedColorImages,
   attachVariantImages,
@@ -2391,8 +2392,8 @@ export const visualSearchProducts = async (req, res) => {
       products,
       keywords,
       message: products.length
-        ? (Number(candidates[0]?.finalScore || candidates[0]?.score || 0) >= 0.82 ? "أيوه، ده أقرب موديل عندنا" : "مش لاقي نفس الموديل بالظبط، بس دي أقرب اختيارات شبهه.")
-        : "مش لاقي نفس الموديل بالظبط، بس دي أقرب اختيارات شبهه.",
+        ? (Number(candidates[0]?.finalScore || candidates[0]?.score || 0) >= 0.82 ? "أيوه، ده أقرب موديل عندنا" : "مش لاقي نفس الموديل بالظبء بس دي أقرب اختيارات شبهه.")
+        : "مش لاقي نفس الموديل بالظبء بس دي أقرب اختيارات شبهه.",
       source: aiSource,
       visual_confidence: understanding?.confidence || 0,
       visual_attributes: proSearch.attributes || null,
@@ -3545,6 +3546,19 @@ export const createWebsiteOrder = async (req, res) => {
     }
     await client.query("COMMIT");
     invalidateStorefrontTenantCache(tenantId);
+    sendManagerInvoiceCreatedPush({
+      order: {
+        ...order,
+        tenant_id: tenantId,
+        branch_id: order.branch_id || null,
+        customer_name: checkout.full_name,
+        total_amount: total,
+      },
+      source: "storefront",
+    }).catch((error) => console.warn("[manager-push:invoice-created] storefront skipped", {
+      orderId: order?.id,
+      message: error?.message || String(error),
+    }));
     sendOrderConfirmation({ ...order, items: normalizedItems }).catch((error) => {
       console.warn("[whatsapp:order-confirmation-send-skipped]", {
         orderId: order?.id,
