@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BellRing, Clock3, Package2, SquareStack, Speaker, Warehouse } from "lucide-react";
+import { BellRing, Clock3, Package2, Speaker, SquareStack, Warehouse } from "lucide-react";
 
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
@@ -63,6 +63,7 @@ function WarehouseLivePicks() {
 
   const [alerts, setAlerts] = useState([]);
   const [flash, setFlash] = useState(false);
+  const [highlightedAlertId, setHighlightedAlertId] = useState("");
   const [lastReceivedAt, setLastReceivedAt] = useState("");
   const [soundUnlocked, setSoundUnlocked] = useState(false);
   const [soundBusy, setSoundBusy] = useState(false);
@@ -74,6 +75,7 @@ function WarehouseLivePicks() {
   const activeTimersRef = useRef(new Set());
   const activeNodesRef = useRef(new Set());
   const flashTimerRef = useRef(null);
+  const highlightTimerRef = useRef(null);
   const fallbackStopRef = useRef(null);
   const unlockAttemptedRef = useRef(false);
   const soundBusyRef = useRef(false);
@@ -150,16 +152,18 @@ function WarehouseLivePicks() {
     console.info("[warehouse-live-picks:alert-sound-end]", details);
   }, []);
 
-  const stopCurrentSound = useCallback((reason = "stopped", sequenceId = currentSequenceIdRef.current) => {
-    const shouldLog = hasActiveSequenceRef.current || reason === "failed" || reason === "complete" || reason === "restart";
-
-    cleanupAudioGraph();
-    hasActiveSequenceRef.current = false;
-    if (soundBusyRef.current) setBusy(false);
-    if (shouldLog) {
-      logSoundEnd({ sequenceId, reason });
-    }
-  }, [cleanupAudioGraph, logSoundEnd]);
+  const stopCurrentSound = useCallback(
+    (reason = "stopped", sequenceId = currentSequenceIdRef.current) => {
+      const shouldLog = hasActiveSequenceRef.current || reason === "failed" || reason === "complete" || reason === "restart";
+      cleanupAudioGraph();
+      hasActiveSequenceRef.current = false;
+      if (soundBusyRef.current) setBusy(false);
+      if (shouldLog) {
+        logSoundEnd({ sequenceId, reason });
+      }
+    },
+    [cleanupAudioGraph, logSoundEnd]
+  );
 
   const playBeep = useCallback((context, startTime, frequency, durationMs, gainValue = 0.35) => {
     const oscillator = context.createOscillator();
@@ -191,33 +195,36 @@ function WarehouseLivePicks() {
     };
   }, []);
 
-  const runWebAudioPattern = useCallback(async (sequenceId, durationMs) => {
-    const context = await ensureAudioContext();
-    if (!context || currentSequenceIdRef.current !== sequenceId) return false;
+  const runWebAudioPattern = useCallback(
+    async (sequenceId, durationMs) => {
+      const context = await ensureAudioContext();
+      if (!context || currentSequenceIdRef.current !== sequenceId) return false;
 
-    const startAt = context.currentTime + 0.02;
-    const groupGap = 0.42;
-    const intraGap = 0.14;
-    const beepDuration = 0.16;
-    const cycleDuration = 3 * (beepDuration + intraGap) + groupGap;
-    const cycleCount = Math.ceil(durationMs / (cycleDuration * 1000));
+      const startAt = context.currentTime + 0.02;
+      const groupGap = 0.42;
+      const intraGap = 0.14;
+      const beepDuration = 0.16;
+      const cycleDuration = 3 * (beepDuration + intraGap) + groupGap;
+      const cycleCount = Math.ceil(durationMs / (cycleDuration * 1000));
 
-    for (let cycle = 0; cycle < cycleCount; cycle += 1) {
-      const cycleStartSeconds = startAt + cycle * cycleDuration;
-      for (let index = 0; index < 3; index += 1) {
-        const when = cycleStartSeconds + index * (beepDuration + intraGap);
-        const tone = index === 1 ? 1040 : 880;
-        try {
-          playBeep(context, when, tone, beepDuration, 0.38);
-        } catch (error) {
-          console.warn("[warehouse-live-picks] beep schedule failed", error);
-          return false;
+      for (let cycle = 0; cycle < cycleCount; cycle += 1) {
+        const cycleStartSeconds = startAt + cycle * cycleDuration;
+        for (let index = 0; index < 3; index += 1) {
+          const when = cycleStartSeconds + index * (beepDuration + intraGap);
+          const tone = index === 1 ? 1040 : 880;
+          try {
+            playBeep(context, when, tone, beepDuration, 0.38);
+          } catch (error) {
+            console.warn("[warehouse-live-picks] beep schedule failed", error);
+            return false;
+          }
         }
       }
-    }
 
-    return true;
-  }, [ensureAudioContext, playBeep]);
+      return true;
+    },
+    [ensureAudioContext, playBeep]
+  );
 
   const runMp3Loop = useCallback(async (sequenceId, durationMs) => {
     const audio = audioRef.current;
@@ -248,18 +255,19 @@ function WarehouseLivePicks() {
     }
   }, []);
 
-  const startAlertSoundSequence = useCallback(async ({ source = "alert" } = {}) => {
-    const sequenceId = currentSequenceIdRef.current + 1;
-    const previousSequenceId = currentSequenceIdRef.current;
-    if (previousSequenceId > 0) {
-      stopCurrentSound("restart", previousSequenceId);
-    } else {
-      cleanupAudioGraph();
-    }
+  const startAlertSoundSequence = useCallback(
+    async ({ source = "alert" } = {}) => {
+      const sequenceId = currentSequenceIdRef.current + 1;
+      const previousSequenceId = currentSequenceIdRef.current;
+      if (previousSequenceId > 0) {
+        stopCurrentSound("restart", previousSequenceId);
+      } else {
+        cleanupAudioGraph();
+      }
 
-    currentSequenceIdRef.current = sequenceId;
-    hasActiveSequenceRef.current = true;
-    setBusy(true);
+      currentSequenceIdRef.current = sequenceId;
+      hasActiveSequenceRef.current = true;
+      setBusy(true);
 
       console.info("[warehouse-live-picks:alert-sound-start]", {
         sequenceId,
@@ -267,64 +275,69 @@ function WarehouseLivePicks() {
         durationMs: ALERT_SOUND_DURATION_MS,
       });
 
-    try {
-      const [mp3Started, webAudioStarted] = await Promise.all([
-        runMp3Loop(sequenceId, ALERT_SOUND_DURATION_MS),
-        runWebAudioPattern(sequenceId, ALERT_SOUND_DURATION_MS),
-      ]);
+      try {
+        const [mp3Started, webAudioStarted] = await Promise.all([
+          runMp3Loop(sequenceId, ALERT_SOUND_DURATION_MS),
+          runWebAudioPattern(sequenceId, ALERT_SOUND_DURATION_MS),
+        ]);
 
-      if (!mp3Started && !webAudioStarted) {
-        throw new Error("Unable to start warehouse alert audio");
-      }
-
-      const endTimer = window.setTimeout(() => {
-        if (currentSequenceIdRef.current !== sequenceId) return;
-        currentSequenceIdRef.current = 0;
-        stopCurrentSound("complete", sequenceId);
-      }, ALERT_SOUND_DURATION_MS);
-
-      activeTimersRef.current.add(endTimer);
-      return true;
-    } catch (error) {
-      console.error("[warehouse-live-picks:alert-sound-failed]", {
-        sequenceId,
-        source,
-        message: error?.message || String(error),
-      });
-      currentSequenceIdRef.current = 0;
-      stopCurrentSound("failed", sequenceId);
-      return false;
-    }
-  }, [cleanupAudioGraph, runMp3Loop, runWebAudioPattern, stopCurrentSound]);
-
-  const unlockSound = useCallback(async () => {
-    if (unlockAttemptedRef.current) return;
-    unlockAttemptedRef.current = true;
-
-    try {
-      const context = await ensureAudioContext();
-      const audio = audioRef.current;
-      if (audio) {
-        audio.volume = 1;
-        audio.muted = true;
-        audio.loop = false;
-        try {
-          await audio.play();
-        } catch {
-          // Autoplay still may fail, but the gesture can unlock Web Audio.
+        if (!mp3Started && !webAudioStarted) {
+          throw new Error("Unable to start warehouse alert audio");
         }
-        audio.pause();
-        audio.currentTime = 0;
-        audio.muted = false;
+
+        const endTimer = window.setTimeout(() => {
+          if (currentSequenceIdRef.current !== sequenceId) return;
+          currentSequenceIdRef.current = 0;
+          stopCurrentSound("complete", sequenceId);
+        }, ALERT_SOUND_DURATION_MS);
+
+        activeTimersRef.current.add(endTimer);
+        return true;
+      } catch (error) {
+        console.error("[warehouse-live-picks:alert-sound-failed]", {
+          sequenceId,
+          source,
+          message: error?.message || String(error),
+        });
+        currentSequenceIdRef.current = 0;
+        stopCurrentSound("failed", sequenceId);
+        return false;
       }
-      if (context && context.state === "running") {
-        setSoundUnlocked(true);
-        console.info("[warehouse-live-picks:sound-unlocked]");
+    },
+    [cleanupAudioGraph, runMp3Loop, runWebAudioPattern, stopCurrentSound]
+  );
+
+  const unlockSound = useCallback(
+    async () => {
+      if (unlockAttemptedRef.current) return;
+      unlockAttemptedRef.current = true;
+
+      try {
+        const context = await ensureAudioContext();
+        const audio = audioRef.current;
+        if (audio) {
+          audio.volume = 1;
+          audio.muted = true;
+          audio.loop = false;
+          try {
+            await audio.play();
+          } catch {
+            // Autoplay still may fail, but the gesture can unlock Web Audio.
+          }
+          audio.pause();
+          audio.currentTime = 0;
+          audio.muted = false;
+        }
+        if (context && context.state === "running") {
+          setSoundUnlocked(true);
+          console.info("[warehouse-live-picks:sound-unlocked]");
+        }
+      } catch (error) {
+        console.warn("[warehouse-live-picks] sound unlock failed", error);
       }
-    } catch (error) {
-      console.warn("[warehouse-live-picks] sound unlock failed", error);
-    }
-  }, [ensureAudioContext]);
+    },
+    [ensureAudioContext]
+  );
 
   useEffect(() => {
     const handleAlert = (payload = {}) => {
@@ -338,9 +351,7 @@ function WarehouseLivePicks() {
 
       setAlerts((current) => {
         const next = [...current];
-        const existingIndex = next.findIndex(
-          (item) => alertKey(item) === alertKey(incoming) && alertAgeMs(item, now) <= MERGE_WINDOW_MS
-        );
+        const existingIndex = next.findIndex((item) => alertKey(item) === alertKey(incoming) && alertAgeMs(item, now) <= MERGE_WINDOW_MS);
         if (existingIndex >= 0) {
           const merged = {
             ...next[existingIndex],
@@ -351,8 +362,14 @@ function WarehouseLivePicks() {
           };
           next.splice(existingIndex, 1);
           next.unshift(merged);
+          setHighlightedAlertId(alertKey(merged));
+          window.clearTimeout(highlightTimerRef.current);
+          highlightTimerRef.current = window.setTimeout(() => setHighlightedAlertId(""), 18000);
           return next.slice(0, MAX_ALERTS);
         }
+        setHighlightedAlertId(alertKey(incoming));
+        window.clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = window.setTimeout(() => setHighlightedAlertId(""), 18000);
         return [incoming, ...next].slice(0, MAX_ALERTS);
       });
 
@@ -377,6 +394,7 @@ function WarehouseLivePicks() {
   useEffect(() => {
     return () => {
       window.clearTimeout(flashTimerRef.current);
+      window.clearTimeout(highlightTimerRef.current);
       window.clearTimeout(fallbackStopRef.current);
       stopCurrentSound("unmount");
       const context = audioContextRef.current;
@@ -410,89 +428,96 @@ function WarehouseLivePicks() {
       </div>
 
       <main className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-3 px-3 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-6">
-        <section className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5 sm:py-3">
+        <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:px-4">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100 sm:px-3">
-                <BellRing className="h-3.5 w-3.5" />
-                تنبيهات المخزن
-              </div>
-              <h1 className="mt-1 text-lg font-black leading-tight text-white sm:text-2xl">التقاط المخزن المباشر</h1>
+              <h1 className="truncate text-base font-black leading-tight text-white sm:text-xl">التقاط المخزن المباشر</h1>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={handleTestSound}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-2 text-sm font-black text-amber-50 transition hover:bg-amber-400/15"
+                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-50 transition hover:bg-amber-400/15"
               >
                 <Speaker className="h-4 w-4" />
                 اختبار الصوت
               </button>
-
-              <div className="flex flex-col items-end gap-1 text-[11px] font-bold text-zinc-400">
-                <div className="inline-flex items-center gap-2">
-                  <span className={`h-2.5 w-2.5 rounded-full ${soundBusy ? "bg-amber-400" : soundUnlocked ? "bg-emerald-400" : "bg-rose-400"}`} />
-                  <span>{soundBusy ? "الصوت يعمل" : soundUnlocked ? "الصوت مفعّل" : "الصوت مقفل"}</span>
-                </div>
-                <div className="inline-flex items-center gap-2">
-                  <span>{realtime.connected ? "مباشر" : realtime.connecting ? "جاري الاتصال" : "غير متصل"}</span>
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/25" />
-                  <span>{String(totalAlerts).padStart(2, "0")} تنبيه</span>
-                </div>
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] font-bold text-zinc-300">
+                <span className={`h-2.5 w-2.5 rounded-full ${soundBusy ? "bg-amber-400" : soundUnlocked ? "bg-emerald-400" : "bg-rose-400"}`} />
+                <span>{soundBusy ? "الصوت يعمل" : soundUnlocked ? "الصوت مفعّل" : "الصوت مقفل"}</span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] font-bold text-zinc-300">
+                <span>{realtime.connected ? "مباشر" : realtime.connecting ? "جاري الاتصال" : "غير متصل"}</span>
               </div>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 px-4 py-2 text-[11px] font-bold text-zinc-400 sm:px-5">
-            <Warehouse className="h-4 w-4 text-amber-300" />
-            <span>آخر استقبال: {lastReceivedAt ? dateTimeFormatter.format(new Date(lastReceivedAt)) : "بانتظار التنبيه الأول"}</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-3 py-2 text-[11px] font-bold text-zinc-400 sm:px-4">
+            <div className="inline-flex items-center gap-2">
+              <Warehouse className="h-4 w-4 text-amber-300" />
+              <span>آخر استقبال: {lastReceivedAt ? dateTimeFormatter.format(new Date(lastReceivedAt)) : "بانتظار التنبيه الأول"}</span>
+            </div>
+            <div className="inline-flex items-center gap-2">
+              <span>{String(totalAlerts).padStart(2, "0")} تنبيه</span>
+            </div>
           </div>
         </section>
 
-        <section className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-3">{latestAlert ? <LatestPickCard item={latestAlert} /> : <EmptyState />}</div>
+        <section className="grid gap-3 lg:grid-cols-[0.78fr_1.22fr]">
+          <aside className="order-2 space-y-3 lg:order-1">
+            <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-3 sm:p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-black text-white">
+                <Clock3 className="h-4 w-4 text-cyan-300" />
+                آخر 20 تنبيه
+              </div>
 
-          <aside className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-3 sm:p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-black text-white">
-              <Clock3 className="h-4 w-4 text-cyan-300" />
-              آخر 20 تنبيه
-            </div>
-
-            <div className="space-y-2.5">
-              {alerts.length ? (
-                alerts.map((item) => <AlertRow key={`${alertKey(item)}-${item.timestamp}`} item={item} />)
-              ) : (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
-                  لا توجد تنبيهات بعد.
-                </div>
-              )}
+              <div className="space-y-2.5">
+                {alerts.length ? (
+                  alerts.map((item, index) => (
+                    <AlertRow
+                      key={`${alertKey(item)}-${item.timestamp}`}
+                      item={item}
+                      active={index === 0 && alertKey(item) === highlightedAlertId}
+                      faded={index > 0}
+                    />
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
+                    لا توجد تنبيهات بعد.
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
+
+          <div className="order-1 space-y-3 lg:order-2">
+            {latestAlert ? <LatestPickCard item={latestAlert} active={alertKey(latestAlert) === highlightedAlertId} /> : <EmptyState />}
+          </div>
         </section>
       </main>
     </div>
   );
 }
 
-function LatestPickCard({ item }) {
+function LatestPickCard({ item, active = false }) {
   return (
-    <article className="overflow-hidden rounded-[2rem] border border-amber-300/20 bg-[linear-gradient(135deg,rgba(251,191,36,0.16),rgba(255,255,255,0.04))] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:p-4">
+    <article
+      className={`overflow-hidden rounded-[2rem] border p-3 sm:p-4 ${
+        active
+          ? "border-emerald-300/30 bg-[linear-gradient(135deg,rgba(34,197,94,0.18),rgba(251,191,36,0.12),rgba(255,255,255,0.04))] shadow-[0_0_0_1px_rgba(34,197,94,0.14),0_24px_60px_rgba(16,185,129,0.16)]"
+          : "border-amber-300/20 bg-[linear-gradient(135deg,rgba(251,191,36,0.16),rgba(255,255,255,0.04))] shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
+      }`}
+    >
       <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-amber-100">
         <SquareStack className="h-3.5 w-3.5" />
         التنبيه الحالي
       </div>
 
-      <div className="mt-3 grid gap-4 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+      <div className="mt-3 grid gap-4 xl:grid-cols-[1.08fr_0.92fr] xl:items-center">
         <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-black/30">
           <div className="aspect-[4/3] w-full bg-black/30">
             {item.productImage ? (
-              <img
-                src={item.productImage}
-                alt={item.productName || "product"}
-                className="h-full w-full object-contain p-4"
-                loading="eager"
-              />
+              <img src={item.productImage} alt={item.productName || "product"} className="h-full w-full object-contain p-3 sm:p-4" loading="eager" />
             ) : (
               <div className="flex h-full w-full items-center justify-center">
                 <Package2 className="h-20 w-20 text-zinc-600" />
@@ -502,17 +527,17 @@ function LatestPickCard({ item }) {
         </div>
 
         <div className="space-y-3">
-          <div className="space-y-1">
-            {item.productName ? <div className="truncate text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-400">{item.productName}</div> : null}
-            <div className="text-3xl font-black leading-none text-white sm:text-5xl">
-              {item.size} × {item.quantity}
-            </div>
+          {item.productName ? <div className="truncate text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-400">{item.productName}</div> : null}
+
+          <div className="flex items-end gap-2 text-white">
+            <div className="text-[clamp(2.6rem,7vw,5.6rem)] font-black leading-none tracking-tight">{item.size}</div>
+            <div className="pb-1 text-[clamp(1.4rem,3.3vw,2.2rem)] font-black leading-none text-amber-100">× {item.quantity}</div>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <MetaChip label="اللون" value={item.color} />
-            {item.articleCode ? <MetaChip label="كود الأرتكل" value={item.articleCode} /> : null}
-            {item.manufacturerName ? <MetaChip label="اسم المصنع" value={item.manufacturerName} /> : null}
+            {item.articleCode ? <MetaChip label="كود الأرتكل" value={item.articleCode} big /> : null}
+            {item.manufacturerName ? <MetaChip label="اسم المصنع" value={item.manufacturerName} big /> : null}
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">
@@ -539,24 +564,30 @@ function EmptyState() {
   );
 }
 
-function AlertRow({ item }) {
+function AlertRow({ item, active = false, faded = false }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-2.5">
-      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+    <div className={`flex items-center gap-3 rounded-[1.3rem] border p-3 ${active ? "border-emerald-300/30 bg-emerald-400/10 shadow-[0_0_0_1px_rgba(34,197,94,0.1)]" : "border-white/10 bg-black/20"} ${faded ? "opacity-90" : ""}`}>
+      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5 sm:h-18 sm:w-18">
         {item.productImage ? (
           <img src={item.productImage} alt={item.productName || "product"} className="h-full w-full object-cover" loading="lazy" />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            <Package2 className="h-7 w-7 text-zinc-600" />
+            <Package2 className="h-8 w-8 text-zinc-600" />
           </div>
         )}
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">{item.productName || "منتج"}</div>
-        <div className="mt-1 text-lg font-black leading-none text-white">
-          {item.size} × {item.quantity}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">{item.productName || "منتج"}</div>
+            <div className="mt-1 text-[1.15rem] font-black leading-none text-white">
+              <span className="text-[1.45rem]">{item.quantity}</span> × {item.size}
+            </div>
+          </div>
+          <div className="shrink-0 text-[11px] font-black text-amber-100">{active ? "جديد" : ""}</div>
         </div>
+
         <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-bold text-zinc-400">
           <span>اللون: {item.color}</span>
           {item.articleCode ? <span>كود الأرتكل: {item.articleCode}</span> : null}
@@ -570,10 +601,10 @@ function AlertRow({ item }) {
   );
 }
 
-function MetaChip({ label, value }) {
+function MetaChip({ label, value, big = false }) {
   if (!value) return null;
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[11px] font-black text-white">
+    <div className={`inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 ${big ? "px-3.5 py-2 text-[12px] sm:text-sm" : "px-3 py-1.5 text-[11px]"} font-black text-white`}>
       <span className="text-white/45">{label}</span>
       <span className="truncate">{value}</span>
     </div>
