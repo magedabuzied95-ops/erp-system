@@ -104,127 +104,17 @@ const formatShortDay = (value) => {
   }).format(date);
 };
 const formatNumber = (value) => new Intl.NumberFormat("ar-EG").format(Number(value || 0));
-const ARABIC_LETTER_RE = /[\u0600-\u06FF]/g;
-const HAS_ARABIC_LETTER_RE = /[\u0600-\u06FF]/;
-const MOJIBAKE_HINT_RE = /[ØÙÃÂÐ�]|Ã|Â|Ø|Ù/;
-const MOJIBAKE_SEQUENCE_RE = /(ط[اأإآء-ي]|ظ[اأإآء-ي]|Ø.|Ù.|Ã.|Â.|Ð.){2,}/;
-const BACKEND_TEXT_FIELD_KEYS = new Set([
-  "title",
-  "message",
-  "body",
-  "text",
-  "description",
-  "note",
-  "name",
-  "full_name",
-  "employee_name",
-  "branch_name",
-  "customer_name",
-  "product_name",
-  "ai_insight",
-  "seller_name",
-  "department",
-  "job_title",
-  "label",
-  "display_name",
-  "summary",
-  "reason",
-  "content",
-  "last_message",
-  "attachment_name",
-  "latest_attachment_name",
-  "color_name",
-  "replacement_size",
-]);
-const BACKEND_TEXT_FIELD_HINT_RE = /(?:_?(?:title|message|body|text|description|note|name|label|summary|reason|content))$/i;
-const BACKEND_TEXT_FIELD_EXCLUDE_RE = /(?:^|_)(?:category|type|status|route|url|action_url|branch_scope|permission|tag|code|id|token)$/i;
-const latin1BytesToText = (value, encoding = "utf-8") => {
-  if (typeof TextDecoder === "undefined") return value;
-  try {
-    const bytes = Uint8Array.from(String(value), (char) => char.charCodeAt(0) & 0xff);
-    return new TextDecoder(encoding, { fatal: false }).decode(bytes);
-  } catch {
-    return value;
-  }
-};
-const escapeDecodeText = (value) => {
-  try {
-    return decodeURIComponent(escape(String(value)));
-  } catch {
-    return value;
-  }
-};
-const scoreMojibakeCandidate = (value) => {
-  const text = String(value || "");
-  const arabic = (text.match(ARABIC_LETTER_RE) || []).length;
-  const latin = (text.match(/[A-Za-z]/g) || []).length;
-  const mojibake = (text.match(MOJIBAKE_HINT_RE) || []).length;
-  const replacement = (text.match(/�/g) || []).length;
-  const mixedSequence = (text.match(MOJIBAKE_SEQUENCE_RE) || []).length;
-  return arabic * 5 - latin * 3 - mojibake * 7 - replacement * 8 - mixedSequence * 5;
-};
-const safeDecodeMojibake = (value) => {
-  if (typeof value !== "string" || !value) return value;
-  const hasHint = MOJIBAKE_HINT_RE.test(value);
-  const hasSequence = MOJIBAKE_SEQUENCE_RE.test(value);
-  if (!hasHint && !hasSequence) return value;
-
-  const candidates = new Set([value]);
-  const queue = [value];
-  const transforms = [
-    (input) => latin1BytesToText(input, "utf-8"),
-    (input) => latin1BytesToText(input, "windows-1256"),
-    (input) => escapeDecodeText(input),
-  ];
-
-  for (let depth = 0; depth < 2; depth += 1) {
-    const frontier = queue.splice(0, queue.length);
-    for (const current of frontier) {
-      for (const transform of transforms) {
-        const next = transform(current);
-        if (typeof next !== "string" || !next || next === current || candidates.has(next)) continue;
-        candidates.add(next);
-        queue.push(next);
-      }
-    }
-  }
-
-  let best = value;
-  let bestScore = scoreMojibakeCandidate(value);
-  for (const candidate of candidates) {
-    const nextScore = scoreMojibakeCandidate(candidate);
-    const candidateArabic = (candidate.match(ARABIC_LETTER_RE) || []).length;
-    const currentArabic = (best.match(ARABIC_LETTER_RE) || []).length;
-    const clearlyBetter = nextScore >= bestScore + 4 && candidateArabic >= currentArabic && !MOJIBAKE_HINT_RE.test(candidate) && !MOJIBAKE_SEQUENCE_RE.test(candidate);
-    if (clearlyBetter) {
-      best = candidate;
-      bestScore = nextScore;
-    }
-  }
-
-  return best;
-};
-const shouldDecodeBackendField = (key) => {
-  if (!key || typeof key !== "string") return false;
-  if (BACKEND_TEXT_FIELD_EXCLUDE_RE.test(key)) return false;
-  if (BACKEND_TEXT_FIELD_KEYS.has(key)) return true;
-  return BACKEND_TEXT_FIELD_HINT_RE.test(key) || key.endsWith("_name") || key.endsWith("_title") || key.endsWith("_message");
-};
-const normalizeManagerPortalValue = (value, key = "") => {
-  if (typeof value === "string") return shouldDecodeBackendField(String(key)) ? safeDecodeMojibake(value) : value;
-  if (Array.isArray(value)) return value.map((item) => normalizeManagerPortalValue(item, key));
+const normalizeManagerPortalValue = (value) => {
+  if (Array.isArray(value)) return value.map((item) => normalizeManagerPortalValue(item));
   if (value && typeof value === "object") {
     if (value instanceof Date) return value;
-    return Object.fromEntries(Object.entries(value).map(([childKey, item]) => [childKey, normalizeManagerPortalValue(item, childKey)]));
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeManagerPortalValue(item)]));
   }
   return value;
 };
 const collectSuspiciousManagerPortalStrings = (value, path = "", results = [], seen = new WeakSet()) => {
   if (typeof value === "string") {
-    if (MOJIBAKE_HINT_RE.test(value) || MOJIBAKE_SEQUENCE_RE.test(value)) {
-      const decoded = safeDecodeMojibake(value);
-      results.push({ path, value, decoded, fixed: decoded !== value });
-    }
+    if (/[\u00D8\u00D9\u00C3\u00C2\u00D0\uFFFD]/.test(value) || /(?:\u0637[\u0621-\u064A]|\u0638[\u0621-\u064A]){2,}/.test(value)) results.push({ path, value });
     return results;
   }
   if (!value || typeof value !== "object") return results;
@@ -260,19 +150,6 @@ const normalizeManagerPortalPayload = (label, value) => {
   warnSuspiciousManagerPortalPayload(label, normalized);
   return normalized;
 };
-if (import.meta.env.DEV) {
-  const decoderCases = [
-    ["مرحباً بك", "مرحباً بك"],
-    ["مبيعات اليوم", "مبيعات اليوم"],
-    ["إعدادات التنبيه", "إعدادات التنبيه"],
-    ["Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª", "المبيعات"],
-    ["ط§ظ„ظ…ط¨ظٹط¹ط§طھ", "المبيعات"],
-  ];
-  for (const [input, expected] of decoderCases) {
-    const actual = safeDecodeMojibake(input);
-    console.assert(actual === expected, "[manager-portal:decoder]", { input, expected, actual });
-  }
-}
 const MANAGER_NOTIFICATION_CATEGORIES = [
   { key: "all", label: "All", icon: Bell },
   { key: "employee_chat", label: "Employee chat", icon: MessageSquare },
@@ -634,14 +511,14 @@ export default function ManagerPortal() {
   const categoryEnabled = (category, key) => Boolean(settings?.[category]?.[key]);
 
   const notifyClient = async (notification) => {
-  const category = categoryFromNotification(notification);
-  const enabled = settingsRef.current?.[category] || DEFAULT_NOTIFICATION_SETTINGS[category] || DEFAULT_NOTIFICATION_SETTINGS.messages;
-    const title = safeDecodeMojibake(notification.title || "Notification");
-    const message = safeDecodeMojibake(notification.message || notification.body || "");
+    const category = categoryFromNotification(notification);
+    const enabled = settingsRef.current?.[category] || DEFAULT_NOTIFICATION_SETTINGS[category] || DEFAULT_NOTIFICATION_SETTINGS.messages;
+    const title = notification.title || "Notification";
+    const message = notification.message || notification.body || "";
     const priority = String(notification.priority || "medium");
     const tone = priority === "critical" || priority === "high" ? "high" : "normal";
     if (enabled.toast !== false) {
-      const body = message ? `${title} آ· ${message}` : title;
+    const body = message ? `${title} · ${message}` : title;
       if (priority === "critical" || priority === "high") toast.success(body, { id: `manager-${notification.id}` });
       else toast(body, { id: `manager-${notification.id}` });
     }
@@ -705,7 +582,7 @@ export default function ManagerPortal() {
         setChatMessages(normalizeManagerPortalPayload("chatMessages", dedupeChatMessages(Array.isArray(chatRes.messages) ? chatRes.messages : [], chatRes.thread)));
       }
     } catch (loadError) {
-      setError(loadError?.responseBody?.message || loadError?.message || "طھط¹ط°ط± طھط­ظ…ظٹظ„ ط¨ظˆط§ط¨ط© ط§ظ„ظ…ط¯ظٹط±.");
+      setError(loadError?.responseBody?.message || loadError?.message || "تعذر تحميل بوابة المدير.");
     } finally {
       if (!silent) setLoading(false);
       setRefreshing(false);
@@ -842,7 +719,7 @@ export default function ManagerPortal() {
         }
       }
     } catch (reloadError) {
-      toast.error(reloadError?.responseBody?.message || reloadError?.message || "طھط¹ط°ط± طھط­ط¯ظٹط« ط§ظ„ط¨ظٹط§ظ†ط§طھ");
+      toast.error(reloadError?.responseBody?.message || reloadError?.message || "تعذر تحديث البيانات");
     }
   };
 
@@ -863,7 +740,7 @@ export default function ManagerPortal() {
       }
     } catch (readError) {
       setNotifications(previous);
-      toast.error(readError?.responseBody?.message || readError?.message || "طھط¹ط°ط± طھط­ط¯ظٹط« ط§ظ„ط¥ط´ط¹ط§ط±");
+      toast.error(readError?.responseBody?.message || readError?.message || "تعذر تحديث الإشعار");
     }
   };
 
@@ -878,7 +755,7 @@ export default function ManagerPortal() {
       await reloadTabData("today");
     } catch (readError) {
       setNotifications(previous);
-      toast.error(readError?.responseBody?.message || readError?.message || "طھط¹ط°ط± طھط­ط¯ظٹط« ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ");
+      toast.error(readError?.responseBody?.message || readError?.message || "تعذر تحديث الإشعارات");
     }
   };
 
@@ -894,9 +771,9 @@ export default function ManagerPortal() {
     try {
       const response = await managerPortalApi.updateSettings(token, { notification_settings: nextSettings });
       if (response?.notification_settings) setSettings(response.notification_settings.notifications || nextSettings);
-      toast.success("طھظ… ط­ظپط¸ ط§ظ„ط¥ط¹ط¯ط§ط¯ط§طھ");
+      toast.success("تم حفظ الإعدادات");
     } catch (saveError) {
-      toast.error(saveError?.responseBody?.message || saveError?.message || "طھط¹ط°ط± ط­ظپط¸ ط§ظ„ط¥ط¹ط¯ط§ط¯ط§طھ");
+      toast.error(saveError?.responseBody?.message || saveError?.message || "تعذر حفظ الإعدادات");
     }
   };
 
@@ -910,14 +787,14 @@ export default function ManagerPortal() {
     void unlockRealtimeFeedbackAudio().catch(() => {
       // The browser may block audio bootstrap in some environments.
     });
-    toast.success("طھظ… طھظپط¹ظٹظ„ ط§ظ„طµظˆطھ");
+    toast.success("تم تفعيل الصوت");
   };
 
   const enableBrowserNotifications = async () => {
     const permission = await requestBrowserNotificationPermission();
     setBrowserNotificationPermission(permission);
-    if (permission === "granted") toast.success("طھظ… طھظپط¹ظٹظ„ ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ظ…طھطµظپط­");
-    else toast.error("ظ„ظ… ظٹطھظ… طھظپط¹ظٹظ„ ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ظ…طھطµظپط­");
+    if (permission === "granted") toast.success("تم تفعيل إشعارات المتصفح");
+    else toast.error("لم يتم تفعيل إشعارات المتصفح");
   };
 
   const selectThread = async (threadId) => {
@@ -929,7 +806,7 @@ export default function ManagerPortal() {
       setChatThreads((current) => normalizeManagerPortalPayload("chatThreadsSelect", mergeChatThreads(current, [response?.thread || current.find((item) => String(item.id) === String(threadId))].filter(Boolean))));
       await managerPortalApi.markChatRead(token, threadId);
     } catch (chatError) {
-      toast.error(chatError?.responseBody?.message || chatError?.message || "طھط¹ط°ط± ظپطھط­ ط§ظ„ظ…ط­ط§ط¯ط«ط©");
+      toast.error(chatError?.responseBody?.message || chatError?.message || "تعذر فتح المحادثة");
     }
   };
 
@@ -946,7 +823,7 @@ export default function ManagerPortal() {
       if (response?.message) setChatMessages((current) => mergeChatMessages(current, [response.message], response?.thread || chatThreadRef.current || null));
       await reloadTabData("chat");
     } catch (sendError) {
-      toast.error(sendError?.responseBody?.message || sendError?.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط§ظ„ط±ط³ط§ظ„ط©");
+      toast.error(sendError?.responseBody?.message || sendError?.message || "تعذر إرسال الرسالة");
     }
   };
 
@@ -957,15 +834,15 @@ export default function ManagerPortal() {
       else if (action === "reopen") await managerPortalApi.reopenTask(token, id, payload);
       else if (action === "note") await managerPortalApi.noteTask(token, id, payload);
       await reloadTabData("tasks");
-      toast.success("طھظ… طھط­ط¯ظٹط« ط§ظ„ظ…ظ‡ظ…ط©");
+      toast.success("تم تحديث المهمة");
     } catch (taskError) {
-      toast.error(taskError?.responseBody?.message || taskError?.message || "طھط¹ط°ط± طھط­ط¯ظٹط« ط§ظ„ظ…ظ‡ظ…ط©");
+      toast.error(taskError?.responseBody?.message || taskError?.message || "تعذر تحديث المهمة");
     }
   };
 
   const createTask = async () => {
     if (!taskDraft.title.trim()) {
-      toast.error("ط£ط¯ط®ظ„ ط¹ظ†ظˆط§ظ† ط§ظ„ظ…ظ‡ظ…ط©");
+      toast.error("أدخل عنوان المهمة");
       return;
     }
     try {
@@ -977,9 +854,9 @@ export default function ManagerPortal() {
       });
       setTaskDraft({ title: "", description: "", assigned_employee_id: "", priority: "medium" });
       await reloadTabData("tasks");
-      toast.success("طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ظ…ظ‡ظ…ط©");
+      toast.success("تم إنشاء المهمة");
     } catch (taskError) {
-      toast.error(taskError?.responseBody?.message || taskError?.message || "طھط¹ط°ط± ط¥ظ†ط´ط§ط، ط§ظ„ظ…ظ‡ظ…ط©");
+      toast.error(taskError?.responseBody?.message || taskError?.message || "تعذر إنشاء المهمة");
     }
   };
 
@@ -996,12 +873,12 @@ export default function ManagerPortal() {
           {task.branch_name ? <StatusPill tone="slate" value={portalText(task.branch_name)} /> : null}
         </div>
         <div className="mt-3 grid gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 sm:grid-cols-2">
-          <div>ط§ظ„ظ…ظˆط¸ظپ: {task.assignee_name || task.employee_name || "-"}</div>
-          <div>ط§ظ„ظپط±ط¹: {task.branch_name || "-"}</div>
-          <div>ط§ظ„ط¥ظ†ط´ط§ط،: {formatDateTime(task.created_at)}</div>
-          <div>ط§ظ„ط§ط³طھط­ظ‚ط§ظ‚: {formatDateTime(task.due_at)}</div>
-          <div>ط§ظ„ط¨ط¯ط،/ط§ظ„ط¥ظ†ظ‡ط§ط،: {formatDateTime(task.started_at)} / {formatDateTime(task.completed_at)}</div>
-          <div>ط§ظ„ظ…ط±ظپظ‚ط§طھ: {formatNumber(task.attachments_count || 0)}</div>
+          <div>الموظف: {task.assignee_name || task.employee_name || "-"}</div>
+          <div>الفرع: {task.branch_name || "-"}</div>
+          <div>الإنشاء: {formatDateTime(task.created_at)}</div>
+          <div>الاستحقاق: {formatDateTime(task.due_at)}</div>
+          <div>البدء/الإنهاء: {formatDateTime(task.started_at)} / {formatDateTime(task.completed_at)}</div>
+          <div>المرفقات: {formatNumber(task.attachments_count || 0)}</div>
         </div>
         {proofUrl ? (
           <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.03]">
@@ -1020,24 +897,24 @@ export default function ManagerPortal() {
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <button type="button" data-testid={`task-approve-${task.id}`} onClick={() => void sendTaskAction(task.id, "approve", { note })} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white">
             <CheckCircle2 className="h-4 w-4" />
-            ط§ط¹طھظ…ط§ط¯
+            اعتماد
           </button>
           <button type="button" data-testid={`task-reject-${task.id}`} onClick={() => void sendTaskAction(task.id, "reject", { note })} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-black text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
             <X className="h-4 w-4" />
-            ط±ظپط¶ / ط¥ط¹ط§ط¯ط©
+            رفض / إعادة
           </button>
         </div>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <button type="button" data-testid={`task-reopen-${task.id}`} onClick={() => void sendTaskAction(task.id, "reopen", { note })} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
             <ArrowLeftRight className="h-4 w-4" />
-            ط¥ط¹ط§ط¯ط© ظپطھط­
+            إعادة فتح
           </button>
           <button type="button" data-testid={`task-note-${task.id}`} onClick={() => void sendTaskAction(task.id, "note", { note })} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
             <SquarePen className="h-4 w-4" />
-            ط¥ط¶ط§ظپط© ظ…ظ„ط§ط­ط¸ط©
+            إضافة ملاحظة
           </button>
         </div>
-        <textarea value={note} onChange={(event) => setTaskNotes((current) => ({ ...current, [task.id]: event.target.value }))} placeholder="ظ…ظ„ط§ط­ط¸ط© ط§ظ„ظ…ط¯ظٹط±" rows={2} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
+        <textarea value={note} onChange={(event) => setTaskNotes((current) => ({ ...current, [task.id]: event.target.value }))} placeholder="ملاحظة المدير" rows={2} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
       </Card>
     );
   };
@@ -1057,11 +934,11 @@ export default function ManagerPortal() {
       <main dir="rtl" className="min-h-[100dvh] bg-slate-100 px-4 py-6 text-slate-950 dark:bg-slate-950 dark:text-white">
         <div className="mx-auto max-w-2xl rounded-3xl border border-amber-200 bg-white p-5 shadow-sm dark:border-amber-500/20 dark:bg-white/[0.04]">
           <AlertTriangle className="h-8 w-8 text-amber-600" />
-          <h1 className="mt-4 text-2xl font-black">ط¨ظˆط§ط¨ط© ط§ظ„ظ…ط¯ظٹط± ط؛ظٹط± ظ…طھط§ط­ط©</h1>
+          <h1 className="mt-4 text-2xl font-black">بوابة المدير غير متاحة</h1>
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">{error}</p>
           <button type="button" onClick={() => loadAll()} className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
             <RefreshCw className="h-4 w-4" />
-            ط¥ط¹ط§ط¯ط© ط§ظ„ظ…ط­ط§ظˆظ„ط©
+            إعادة المحاولة
           </button>
         </div>
       </main>
@@ -1083,12 +960,12 @@ export default function ManagerPortal() {
           </div>
           <div className="mt-4 space-y-3">
             <div className="rounded-3xl bg-slate-950 p-4 text-white">
-              <div className="text-xs font-black text-white/60">ط§ظ„ظٹظˆظ…</div>
+              <div className="text-xs font-black text-white/60">اليوم</div>
               <div className="mt-2 text-3xl font-black">{formatCurrency(dashboard?.today_sales_total || 0)}</div>
-              <div className="mt-2 text-sm font-semibold text-white/70">{formatNumber(dashboard?.invoice_count || 0)} ظپط§طھظˆط±ط© ط§ظ„ظٹظˆظ…</div>
+              <div className="mt-2 text-sm font-semibold text-white/70">{formatNumber(dashboard?.invoice_count || 0)} فاتورة اليوم</div>
             </div>
             <button type="button" data-testid="refresh-button-mobile" onClick={() => void loadAll({ silent: true })} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-              <span>طھط­ط¯ظٹط« ظ…ط¨ط§ط´ط±</span>
+              <span>تحديث مباشر</span>
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             </button>
           </div>
@@ -1114,7 +991,7 @@ export default function ManagerPortal() {
           <header className="rounded-[2rem] border border-white/60 bg-white/90 p-4 shadow-xl shadow-slate-200/60 backdrop-blur dark:border-white/10 dark:bg-slate-900/70">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-600/70">ط¨ظˆط§ط¨ط© ط§ظ„ظ…ط¯ظٹط±</div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-600/70">بوابة المدير</div>
                 <h1 className="mt-1 text-2xl font-black leading-8 text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || "Manager")}</h1>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-300">
                   <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {portalText(me?.branch_name || "All branches")}</span>
@@ -1142,7 +1019,7 @@ export default function ManagerPortal() {
                   </button>
                   <button type="button" data-testid="refresh-button" onClick={() => void loadAll({ silent: true })} className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-3 py-2 text-sm font-black text-white dark:bg-white dark:text-slate-950">
                     <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                    طھط­ط¯ظٹط«
+                    تحديث
                   </button>
                 </div>
               </div>
@@ -1372,7 +1249,7 @@ export default function ManagerPortal() {
               </Card>
 
               <div className="grid gap-3 xl:grid-cols-2">
-                <Card title="طھظˆط²ظٹط¹ ط§ظ„ط¯ظپط¹" subtitle="Payment breakdown" icon={ArrowLeftRight}>
+                <Card title="توزيع الدفع" subtitle="Payment breakdown" icon={ArrowLeftRight}>
                 {paymentBreakdown.length ? (
                     <div className="space-y-2">
                       {paymentBreakdown.map((row) => (
@@ -1386,7 +1263,7 @@ export default function ManagerPortal() {
                     <EmptyState compact title="No payment data" body="Payments will appear once today has completed invoices." />
                   )}
                 </Card>
-                <Card title="طھظ†ط¨ظٹظ‡ط§طھ ط§ظ„ط³ط­ط¨ / ط§ظ„ط¹ط±ط¶" subtitle="Stock alerts" icon={Package}>
+                <Card title="تنبيهات السحب / العرض" subtitle="Stock alerts" icon={Package}>
                   {lowStock.length || refillAlerts.length ? (
                     <div className="space-y-2">
                       {refillAlerts.slice(0, 3).map((alert) => (
@@ -1398,7 +1275,7 @@ export default function ManagerPortal() {
                       {lowStock.slice(0, 3).map((item) => (
                         <div key={`low-${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
                           <div className="font-black">{portalText(item.name || "Unknown item")}</div>
-                          <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{formatNumber(item.stock || 0)} ظ…طھط¨ظ‚ظٹ</div>
+                          <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{formatNumber(item.stock || 0)} متبقي</div>
                         </div>
                       ))}
                     </div>
@@ -1454,33 +1331,33 @@ export default function ManagerPortal() {
 
           {activeTab === "tasks" ? (
             <div className="space-y-4">
-              <Card title="ط¥ظ†ط´ط§ط، ظ…ظ‡ظ…ط©" subtitle="Create task" icon={Plus}>
+              <Card title="إنشاء مهمة" subtitle="Create task" icon={Plus}>
                 <div className="grid gap-2 md:grid-cols-2">
-                  <input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder="ط¹ظ†ظˆط§ظ† ط§ظ„ظ…ظ‡ظ…ط©" className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
+                  <input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} placeholder="عنوان المهمة" className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
                   <select value={taskDraft.assigned_employee_id} onChange={(event) => setTaskDraft((current) => ({ ...current, assigned_employee_id: event.target.value }))} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
-                    <option value="">ط¥ط³ظ†ط§ط¯ ط§ط®طھظٹط§ط±ظٹ</option>
+                    <option value="">إسناد اختياري</option>
                     {staffList.map((employee) => <option key={employee.employee_id} value={employee.employee_id}>{portalText(employee.employee_name)}</option>)}
                   </select>
                   <select value={taskDraft.priority} onChange={(event) => setTaskDraft((current) => ({ ...current, priority: event.target.value }))} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]">
-                    <option value="low">ظ…ظ†ط®ظپط¶ط©</option>
-                    <option value="medium">ظ…طھظˆط³ط·ط©</option>
-                    <option value="high">ط¹ط§ظ„ظٹط©</option>
-                    <option value="critical">ط­ط±ط¬ط©</option>
+                    <option value="low">منخفضة</option>
+                    <option value="medium">متوسطة</option>
+                    <option value="high">عالية</option>
+                    <option value="critical">حرجة</option>
                   </select>
                   <button type="button" data-testid="create-task-button" onClick={createTask} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
                     <Plus className="h-4 w-4" />
-                    ط¥ظ†ط´ط§ط،
+                    إنشاء
                   </button>
                 </div>
-                <textarea value={taskDraft.description} onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))} placeholder="ط§ظ„ظˆطµظپ" rows={3} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
+                <textarea value={taskDraft.description} onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))} placeholder="الوصف" rows={3} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
               </Card>
 
-              <Card title="ط§ظ„ظ…ط±ط´ط­ط§طھ" subtitle="Filters" icon={Search}>
+              <Card title="المرشحات" subtitle="Filters" icon={Search}>
                 <div className="grid gap-2 md:grid-cols-4">
                   <input
                     value={taskFilters.query}
                     onChange={(event) => setTaskFilters((current) => ({ ...current, query: event.target.value }))}
-                    placeholder="ط§ط¨ط­ط« ظپظٹ ط§ظ„ط¹ظ†ظˆط§ظ† ط£ظˆ ط§ظ„ظ…ظˆط¸ظپ"
+                    placeholder="ابحث في العنوان أو الموظف"
                     className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]"
                   />
                   <select
@@ -1521,15 +1398,15 @@ export default function ManagerPortal() {
               </div>
 
               <Card title="Open tasks list" subtitle="Operational queue" icon={ClipboardList}>
-                {openTasks.length ? <div className="space-y-3">{openTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ظ…ظ‡ط§ظ… ظ…ظپطھظˆط­ط©" body="ظ„ط§ طھظˆط¬ط¯ ظ…ظ‡ط§ظ… ظ…ط·ط§ط¨ظ‚ط© ظ„ظ„ظ…ط±ط´ط­ط§طھ ط§ظ„ط­ط§ظ„ظٹط©." />}
+                {openTasks.length ? <div className="space-y-3">{openTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="لا توجد مهام مفتوحة" body="لا توجد مهام مطابقة للمرشحات الحالية." />}
               </Card>
 
               <Card title="Completed tasks list" subtitle="Proof ready" icon={CheckCheck}>
-                {completedTasks.length ? <div className="space-y-3">{completedTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ظ…ظ‡ط§ظ… ظ…ظƒطھظ…ظ„ط©" body="ط§ظ„ظ…ظ‡ط§ظ… ط§ظ„ظ…ظƒطھظ…ظ„ط© ط³طھط¸ظ‡ط± ظ‡ظ†ط§ ظ…ط¹ ظ…ط¹ط§ظٹظ†ط© ط§ظ„ط¥ط«ط¨ط§طھ." />}
+                {completedTasks.length ? <div className="space-y-3">{completedTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="لا توجد مهام مكتملة" body="المهام المكتملة ستظهر هنا مع معاينة الإثبات." />}
               </Card>
 
               <Card title="Overdue tasks list" subtitle="Needs attention" icon={AlertTriangle}>
-                {overdueTasks.length ? <div className="space-y-3">{overdueTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ظ…ظ‡ط§ظ… ظ…طھط£ط®ط±ط©" body="ط§ظ„ظ…ظ‡ط§ظ… ط§ظ„ظ…طھط£ط®ط±ط© ط£ظˆ ط§ظ„ظ…ط³طھط­ظ‚ط© ط³طھط¸ظ‡ط± ظ‡ظ†ط§." />}
+                {overdueTasks.length ? <div className="space-y-3">{overdueTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="لا توجد مهام متأخرة" body="المهام المتأخرة أو المستحقة ستظهر هنا." />}
               </Card>
             </div>
           ) : null}
@@ -1539,7 +1416,7 @@ export default function ManagerPortal() {
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Card title={formatCurrency(sales?.overview?.today?.sales || dashboard?.today_sales_total || 0)} subtitle="Today sales" icon={ShoppingCart} />
                 <Card title={formatNumber(sales?.overview?.today?.orders || dashboard?.invoice_count || 0)} subtitle="Invoices" icon={ClipboardList} />
-                {canViewProfit ? <Card title={formatCurrency(sales?.overview?.today?.profit || 0)} subtitle="Profit" icon={SunMedium} /> : <Card title="â€”" subtitle="Profit hidden" icon={SunMedium} />}
+                {canViewProfit ? <Card title={formatCurrency(sales?.overview?.today?.profit || 0)} subtitle="Profit" icon={SunMedium} /> : <Card title="—" subtitle="Profit hidden" icon={SunMedium} />}
                 <Card title={formatCurrency(sales?.overview?.today?.averageOrderValue || 0)} subtitle="Average order" icon={ArrowLeftRight} />
               </div>
               <div className="grid gap-4 xl:grid-cols-2">
