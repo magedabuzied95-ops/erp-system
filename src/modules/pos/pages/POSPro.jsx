@@ -1265,6 +1265,17 @@ function POSPro() {
   }, [barcodeShopProduct, isVariantModalOpen]);
 
   useEffect(() => {
+    if (!selectedProduct) return;
+    console.log("[real-variant-component-open]", {
+      selectedProductId: selectedProduct?.product_id || selectedProduct?.id || null,
+      selectedColor,
+      selectedSize,
+      activeVariantPrice: activeVariant?.price,
+      activeVariantStock: activeVariant ? normalizeStockQuantity(activeVariant.stock_quantity ?? activeVariant.stock) : null,
+    });
+  }, [activeVariant, selectedColor, selectedProduct, selectedSize]);
+
+  useEffect(() => {
     writePosCart(cart);
     if (activePosShift?.id && shiftSessionRecoveredRef.current) {
       writePosSession({
@@ -5566,7 +5577,7 @@ function POSPro() {
           </div>
         </div>
 
-        {!isVariantModalOpen ? (
+        {!isVariantModalOpen && !selectedProduct ? (
           <StickyMobileActionBar>
             <button
               type="button"
@@ -5896,6 +5907,22 @@ function POSPro() {
                         <div className="truncate">{t("pos.labels.barcode")}: {activeVariant?.barcode || t("common.notAvailable")}</div>
                       </div>
                     </details>
+                    <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300 sm:hidden">
+                      REAL_VARIANT_COMPONENT_DEBUG
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeVariant) addVariantToCart(activeProduct, activeVariant);
+                        setSelectedProduct(null);
+                      }}
+                      disabled={!activeVariant || normalizeStockQuantity(activeVariant.stock_quantity ?? activeVariant.stock) <= 0}
+                      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-3xl bg-emerald-500 px-4 py-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:hidden"
+                    >
+                      <span className="truncate">
+                        {t("pos.labels.addToInvoiceArabic", "إضافة للفاتورة")}
+                      </span>
+                    </button>
                   </div>
 
                   <button
@@ -5922,25 +5949,7 @@ function POSPro() {
                   </div>
                 </div>
               </div>
-              <div className="fixed inset-x-2 bottom-2 z-[55] rounded-2xl border border-emerald-300/20 bg-zinc-950/95 p-2 shadow-2xl shadow-black/50 backdrop-blur sm:hidden">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (activeVariant) addVariantToCart(activeProduct, activeVariant);
-                    setSelectedProduct(null);
-                  }}
-                  disabled={!activeVariant || normalizeStockQuantity(activeVariant.stock_quantity ?? activeVariant.stock) <= 0}
-                  className="inline-flex min-h-11 w-full items-center justify-between gap-2 rounded-xl bg-emerald-500 px-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span className="truncate">
-                    {t("pos.labels.addToCart", "Add to cart")} / {formatCurrency(activeVariant?.price || 0)}
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    {activeVariant?.size || t("pos.labels.oneSize")}
-                    <ChevronRight className="h-4 w-4" />
-                  </span>
-                </button>
-              </div>
+              <div className="hidden sm:hidden" />
             </div>
           </div>
         ) : null}
