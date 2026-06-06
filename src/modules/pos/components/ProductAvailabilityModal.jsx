@@ -68,11 +68,6 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
   const selectedVariant = isSimpleMode ? simpleVariant : selectedSize;
   const selectedStock = Number(selectedVariant?.stock_quantity ?? selectedVariant?.stock ?? 0);
   const selectedPrice = Number(selectedVariant?.sale_price ?? selectedVariant?.price ?? 0);
-  const selectedLabel = isSimpleMode
-    ? product?.fixed_size_label || t("pos.labels.oneSize")
-    : isColorOnlyMode
-      ? activeColor?.color || t("pos.labels.default")
-      : selectedSize?.size || t("common.notAvailable");
   const hasSelectedColor = isSimpleMode ? true : Boolean(activeColor?.color || selectedColor);
   const hasSelectedVariant = isSimpleMode ? true : isColorOnlyMode ? Boolean(activeColor) : Boolean(selectedSize?.variant_id);
   const canAddSelected = hasSelectedColor && hasSelectedVariant && selectedStock > 0;
@@ -270,6 +265,19 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                   <div className="truncate">{t("pos.labels.barcode")}: {selectedSize?.barcode || t("common.notAvailable")}</div>
                 </div>
               </details>
+              <div className="mt-3 sm:hidden">
+                <button
+                  type="button"
+                  onClick={handleAdd}
+                  disabled={!canAddSelected}
+                  className="inline-flex min-h-12 w-full flex-col items-center justify-center gap-1 rounded-2xl bg-emerald-500 px-4 py-3 text-center text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-zinc-400"
+                >
+                  <span className="text-base leading-none">{isOutOfStock ? t("pos.variantSelector.outOfStock", "Out of stock") : t("pos.labels.addToInvoiceArabic", "إضافة للفاتورة")}</span>
+                  <span className="text-[11px] font-bold leading-none text-black/75">
+                    {formatCurrency(selectedPrice)} • {selectedStock > 0 ? `${t("pos.labels.stock", "Stock")} ${selectedStock}` : t("pos.variantSelector.outOfStock", "Out of stock")}
+                  </span>
+                </button>
+              </div>
             </div>
 
             <div className="hidden flex-col-reverse gap-3 sm:flex sm:flex-row sm:justify-end">
@@ -290,37 +298,6 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                 {t("pos.labels.addToCart", "Add to cart")}
               </button>
             </div>
-          </div>
-        </div>
-        <div className="fixed inset-x-2 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[100001] sm:hidden">
-          <div className="rounded-2xl border border-emerald-300/20 bg-zinc-950/95 p-2 shadow-2xl shadow-black/50 backdrop-blur pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
-            <div className="mb-2 flex items-center justify-between gap-3 px-1 text-[11px] font-semibold text-zinc-300">
-              <span className="truncate">{selectedLabel}</span>
-              <span className="shrink-0 text-emerald-300">{formatCurrency(selectedPrice)}</span>
-            </div>
-            <div className="mb-2 flex items-center justify-between gap-3 px-1 text-[11px] text-zinc-400">
-              <span>{t("pos.labels.stock", "Stock")}</span>
-              <span className={selectedStock > 0 ? "text-zinc-200" : "text-red-300"}>
-                {selectedStock > 0 ? selectedStock : t("pos.variantSelector.outOfStock", "Out of stock")}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleAdd}
-              disabled={!canAddSelected}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-zinc-400"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              {isOutOfStock
-                ? t("pos.variantSelector.outOfStock", "Out of stock")
-                : (
-                  <>
-                    <span className="ltr:mr-1 rtl:ml-1">Add to Cart</span>
-                    <span className="text-[11px] font-bold opacity-90">/</span>
-                    <span>{t("pos.labels.addToInvoiceArabic", "إضافة للفاتورة")}</span>
-                  </>
-                )}
-            </button>
           </div>
         </div>
       </div>
