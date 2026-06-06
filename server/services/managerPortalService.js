@@ -53,12 +53,12 @@ const isManagerPortalAccessEnabled = (row = {}) => {
 };
 
 const DEFAULT_MANAGER_NOTIFICATION_SETTINGS = {
-  messages: { sound: true, toast: true },
-  tasks: { sound: true, toast: true },
-  attendance: { sound: true, toast: true },
-  sales: { sound: true, toast: true },
-  stock: { sound: true, toast: true },
-  ai_leads: { sound: true, toast: true },
+  messages: { sound: true, toast: true, push: true },
+  tasks: { sound: true, toast: true, push: true },
+  attendance: { sound: true, toast: true, push: true },
+  sales: { sound: true, toast: true, push: true },
+  stock: { sound: true, toast: true, push: true },
+  ai_leads: { sound: true, toast: true, push: true },
 };
 
 const defaultManagerPermissions = [
@@ -172,6 +172,7 @@ const mergeManagerNotificationSettings = (stored = {}) => {
     next[category] = {
       sound: current.sound !== undefined ? Boolean(current.sound) : Boolean(defaults.sound),
       toast: current.toast !== undefined ? Boolean(current.toast) : Boolean(defaults.toast),
+      push: current.push !== undefined ? Boolean(current.push) : Boolean(defaults.push),
     };
   }
   return {
@@ -463,6 +464,183 @@ const canViewProfitForManager = (manager = {}) =>
   manager.permissions.some((permission) =>
     ["treasury.dashboard.view", "accounting.view", "accounting.reports", "reports.view", "money_accounts.view"].includes(permission)
   );
+
+const publicInvoiceUrlForOrder = (order = {}) => {
+  const origin = getPublicAppUrl() || clean(process.env.PUBLIC_APP_URL) || DEFAULT_MANAGER_PORTAL_APP_URL;
+  const normalizedOrigin = clean(origin).replace(/\/+$/, "");
+  const identifier = clean(order.invoice_number || order.public_order_number || order.display_order_number || order.public_token || order.id);
+  return normalizedOrigin && identifier ? `${normalizedOrigin}/invoice/${encodeURIComponent(identifier)}` : "";
+};
+
+export const getManagerPortalInvoiceDetail = async ({ manager = {}, invoiceId } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  const branchId = branchFilterValue(manager);
+  const orderId = numberOrNull(invoiceId);
+  if (!orderId) {
+    const error = new Error("Invoice is required");
+    error.status = 400;
+    throw error;
+  }
+  if (!(await tableExists("orders"))) {
+    const error = new Error("Invoice not found");
+    error.status = 404;
+    throw error;
+  }
+
+  const hasBranches = await tableExists("branches");
+  const hasCustomers = await tableExists("customers");
+  const params = [orderId];
+  const tenantClause = tenantId ? (params.push(tenantId), ` AND (o.tenant_id = $${params.length}::bigint OR o.tenant_id IS NULL)`) : "";
+  const branchClause = branchId ? (params.push(branchId), ` AND o.branch_id = $${params.length}::bigint`) : "";
+  const orderRows = await safeQuery(
+    `
+    SELECT
+      o.*,
+      ${hasBranches ? "COALESCE(b.name, '')" : "''"} AS branch_name,
+      ${hasCustomers ? "COALESCE(c.name, '')" : "''"} AS customer_record_name,
+      ${hasCustomers ? "COALESCE(c.phone, '')" : "''"} AS customer_record_phone
+    FROM orders o
+    ${hasBranches ? "LEFT JOIN branches b ON b.id = o.branch_id" : ""}
+    ${hasCustomers ? "LEFT JOIN customers c ON c.id = o.customer_id" : ""}
+    WHERE o.id = $1
+      ${tenantClause}
+      ${branchClause}
+    LIMIT 1
+    `,
+    params,
+    []
+  );
+  const order = orderRows[0] || null;
+  if (!order) {
+    const error = new Error("Invoice not found");
+    error.status = 404;
+    throw error;
+  }
+
+  const [
+    hasOrderItemColor,
+    hasOrderItemSize,
+    hasOrderItemSku,
+    hasOrderItemBarcode,
+    hasOrderItemImageUrl,
+    hasOrderItemProductImage,
+    hasOrderItemVariantImage,
+    hasOrderItemTaxAmount,
+    hasProductSku,
+    hasProductBarcode,
+    hasProductImageUrl,
+    hasVariantSku,
+    hasVariantBarcode,
+    hasVariantImageUrl,
+  ] = await Promise.all([
+    columnExists("order_items", "color").catch(() => false),
+    columnExists("order_items", "size").catch(() => false),
+    columnExists("order_items", "sku").catch(() => false),
+    columnExists("order_items", "barcode").catch(() => false),
+    columnExists("order_items", "image_url").catch(() => false),
+    columnExists("order_items", "product_image").catch(() => false),
+    columnExists("order_items", "variant_image").catch(() => false),
+    columnExists("order_items", "tax_amount").catch(() => false),
+    columnExists("products", "sku").catch(() => false),
+    columnExists("products", "barcode").catch(() => false),
+    columnExists("products", "image_url").catch(() => false),
+    columnExists("product_variants", "sku").catch(() => false),
+    columnExists("product_variants", "barcode").catch(() => false),
+    columnExists("product_variants", "image_url").catch(() => false),
+  ]);
+  const itemColorExpr = hasOrderItemColor ? "NULLIF(oi.color, '')" : "NULL";
+  const itemSizeExpr = hasOrderItemSize ? "NULLIF(oi.size, '')" : "NULL";
+  const itemSkuExpr = hasOrderItemSku ? "NULLIF(oi.sku, '')" : "NULL";
+  const itemBarcodeExpr = hasOrderItemBarcode ? "NULLIF(oi.barcode, '')" : "NULL";
+  const itemImageExpr = hasOrderItemImageUrl ? "NULLIF(oi.image_url, '')" : "NULL";
+  const itemProductImageExpr = hasOrderItemProductImage ? "NULLIF(oi.product_image, '')" : "NULL";
+  const itemVariantImageExpr = hasOrderItemVariantImage ? "NULLIF(oi.variant_image, '')" : "NULL";
+  const productSkuExpr = hasProductSku ? "NULLIF(p.sku, '')" : "NULL";
+  const productBarcodeExpr = hasProductBarcode ? "NULLIF(p.barcode, '')" : "NULL";
+  const productImageExpr = hasProductImageUrl ? "NULLIF(p.image_url, '')" : "NULL";
+  const variantSkuExpr = hasVariantSku ? "NULLIF(pv.sku, '')" : "NULL";
+  const variantBarcodeExpr = hasVariantBarcode ? "NULLIF(pv.barcode, '')" : "NULL";
+  const variantImageExpr = hasVariantImageUrl ? "NULLIF(pv.image_url, '')" : "NULL";
+
+  const items = (await tableExists("order_items"))
+    ? await safeQuery(
+        `
+        SELECT
+          oi.id,
+          oi.order_id,
+          oi.product_id,
+          oi.variant_id,
+          COALESCE(NULLIF(oi.product_name, ''), p.name, 'منتج') AS product_name,
+          COALESCE(${itemColorExpr}, NULLIF(pv.color, ''), '') AS color,
+          COALESCE(${itemSizeExpr}, NULLIF(pv.size, ''), '') AS size,
+          COALESCE(${itemSkuExpr}, ${variantSkuExpr}, ${productSkuExpr}, '') AS sku,
+          COALESCE(${itemBarcodeExpr}, ${variantBarcodeExpr}, ${productBarcodeExpr}, '') AS barcode,
+          COALESCE(${itemImageExpr}, ${itemProductImageExpr}, ${itemVariantImageExpr}, ${variantImageExpr}, ${productImageExpr}, '') AS image_url,
+          COALESCE(oi.quantity, 0)::numeric AS quantity,
+          COALESCE(oi.sale_price, 0)::numeric AS price,
+          0::numeric AS discount_amount,
+          ${hasOrderItemTaxAmount ? "COALESCE(oi.tax_amount, 0)::numeric" : "0::numeric"} AS tax_amount,
+          COALESCE(oi.total_amount, COALESCE(oi.sale_price, 0) * COALESCE(oi.quantity, 0), 0)::numeric AS line_total
+        FROM order_items oi
+        LEFT JOIN products p ON p.id = oi.product_id
+        LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+        WHERE oi.order_id = $1
+        ORDER BY oi.id ASC
+        `,
+        [order.id],
+        []
+      )
+    : [];
+
+  const subtotal = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
+  const total = Number(order.total_amount ?? order.total ?? subtotal);
+  const discount = Number(order.discount_amount ?? order.invoice_discount_amount ?? order.coupon_discount_amount ?? 0);
+  const shipping = Number(order.shipping_fee ?? order.delivery_fee ?? order.shipping_cost ?? order.service_fee ?? 0);
+  const tax = Number(order.tax_amount ?? order.vat_amount ?? order.total_tax ?? 0);
+  const paid = Number(order.paid_amount ?? order.amount_paid ?? order.total_paid ?? 0);
+  const profitAllowed = canViewProfitForManager(manager);
+  const profit = profitAllowed ? Number(order.profit ?? order.gross_profit ?? order.net_profit ?? 0) : null;
+  const cost = profitAllowed ? Number(order.cost_amount ?? order.cogs_amount ?? order.total_cost ?? 0) : null;
+
+  return {
+    id: order.id,
+    order_id: order.id,
+    invoice_number: order.invoice_number || `INV-${order.id}`,
+    public_order_number: order.public_order_number || order.display_order_number || "",
+    status: order.status || "",
+    created_at: order.created_at,
+    updated_at: order.updated_at,
+    branch_id: order.branch_id || null,
+    customer_name: order.customer_name || order.customer_record_name || "عميل نقدي",
+    customer_phone: order.customer_phone || order.phone || order.customer_record_phone || "",
+    customer_address: order.customer_address || order.shipping_address_line || order.detailed_address || order.address || "",
+    customer_type: order.customer_type || (order.customer_id ? "registered" : "walk_in"),
+    seller_name: order.seller_name || order.sales_employee_name || order.salesperson_name || order.cashier_name || "",
+    cashier_name: order.cashier_name || "",
+    branch_name: order.branch_name || "",
+    payment_method: order.payment_method || "",
+    payment_type: order.payment_type || order.payment_method || "",
+    payment_status: order.payment_status || "",
+    payment_breakdown: Array.isArray(order.payment_breakdown) ? order.payment_breakdown : [],
+    treasury_name: order.treasury_name || order.cash_drawer_name || order.money_account_name || "",
+    transfer_proof_status: order.transfer_proof_status || order.shipping_proof_status || "",
+    cod_amount: Number(order.cod_amount || 0),
+    subtotal,
+    discount,
+    shipping,
+    tax,
+    total,
+    paid_amount: paid,
+    remaining_amount: Math.max(0, total - paid),
+    profit,
+    cost,
+    permissions: {
+      can_view_profit: profitAllowed,
+    },
+    public_invoice_url: order.public_invoice_url || order.invoice_public_url || order.public_invoice_short_url || order.short_invoice_url || publicInvoiceUrlForOrder(order),
+    items,
+  };
+};
 
 export const getManagerPortalDashboard = async ({ manager = {}, filters = {} } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
