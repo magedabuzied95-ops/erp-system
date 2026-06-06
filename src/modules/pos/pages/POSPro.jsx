@@ -1258,24 +1258,6 @@ function POSPro() {
   }, [canOverrideSeller, currentUser?.id, salesEmployees]);
 
   useEffect(() => {
-    console.log("[pos-mobile-variant-modal-open]", {
-      isVariantModalOpen,
-      selectedProductId: barcodeShopProduct?.product_id || barcodeShopProduct?.id || null,
-    });
-  }, [barcodeShopProduct, isVariantModalOpen]);
-
-  useEffect(() => {
-    if (!selectedProduct) return;
-    console.log("[real-variant-component-open]", {
-      selectedProductId: selectedProduct?.product_id || selectedProduct?.id || null,
-      selectedColor,
-      selectedSize,
-      activeVariantPrice: activeVariant?.price,
-      activeVariantStock: activeVariant ? normalizeStockQuantity(activeVariant.stock_quantity ?? activeVariant.stock) : null,
-    });
-  }, [activeVariant, selectedColor, selectedProduct, selectedSize]);
-
-  useEffect(() => {
     writePosCart(cart);
     if (activePosShift?.id && shiftSessionRecoveredRef.current) {
       writePosSession({
@@ -2308,6 +2290,24 @@ function POSPro() {
       activeProduct.image_url
     );
   }, [activeProduct, activeVariant, selectedColor]);
+
+  useEffect(() => {
+    console.log("[pos-mobile-variant-modal-open]", {
+      isVariantModalOpen,
+      selectedProductId: barcodeShopProduct?.product_id || barcodeShopProduct?.id || null,
+    });
+  }, [barcodeShopProduct, isVariantModalOpen]);
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+    console.log("[real-variant-component-open]", {
+      selectedProductId: selectedProduct?.product_id || selectedProduct?.id || null,
+      selectedColor,
+      selectedSize,
+      activeVariantPrice: activeVariant?.price,
+      activeVariantStock: activeVariant ? normalizeStockQuantity(activeVariant.stock_quantity ?? activeVariant.stock) : null,
+    });
+  }, [activeVariant, selectedColor, selectedProduct, selectedSize]);
 
   const liveBarcodeShopProduct = useMemo(() => {
     if (!barcodeShopProduct) return null;
