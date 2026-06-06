@@ -31,7 +31,7 @@ const statements = [
     phone VARCHAR(50),
     address TEXT,
     manager VARCHAR(255),
-    default_warehouse_id BIGINT NULL REFERENCES warehouses(id) ON DELETE SET NULL,
+    default_warehouse_id BIGINT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     latitude NUMERIC,
     longitude NUMERIC,
@@ -677,6 +677,27 @@ const statements = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_shift_opening_assignments_attendance_unique ON shift_opening_assignments (attendance_log_id) WHERE attendance_log_id IS NOT NULL;`,
 ];
 
+const ensureBranchDefaultWarehouseForeignKey = async (client) => {
+  await client.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.warehouses') IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1
+           FROM pg_constraint
+           WHERE conname = 'branches_default_warehouse_id_fkey'
+             AND conrelid = to_regclass('public.branches')
+         ) THEN
+        ALTER TABLE branches
+          ADD CONSTRAINT branches_default_warehouse_id_fkey
+          FOREIGN KEY (default_warehouse_id)
+          REFERENCES warehouses(id)
+          ON DELETE SET NULL;
+      END IF;
+    END $$;
+  `);
+};
+
 const ensureAttendanceForeignKeys = async (client) => {
   await ensureForeignKeyConstraint(
     client,
@@ -711,6 +732,7 @@ export const ensureAttendanceSchema = async () => {
         for (const statement of statements) {
           await client.query(statement);
         }
+        await ensureBranchDefaultWarehouseForeignKey(client);
         await ensureAttendanceForeignKeys(client);
         await ensureSingleBranchMode(client);
         await client.query("COMMIT");

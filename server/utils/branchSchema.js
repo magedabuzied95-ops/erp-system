@@ -24,7 +24,7 @@ const statements = [
     address TEXT,
     manager VARCHAR(255),
     notes TEXT,
-    default_warehouse_id BIGINT NULL REFERENCES warehouses(id) ON DELETE SET NULL,
+    default_warehouse_id BIGINT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     latitude NUMERIC,
     longitude NUMERIC,
@@ -41,7 +41,7 @@ const statements = [
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS address TEXT;`,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS manager VARCHAR(255);`,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS notes TEXT;`,
-  `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS default_warehouse_id BIGINT NULL REFERENCES warehouses(id) ON DELETE SET NULL;`,
+  `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS default_warehouse_id BIGINT NULL;`,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;`,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS latitude NUMERIC;`,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS longitude NUMERIC;`,
@@ -84,6 +84,27 @@ const statements = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_branches_tenant_code_unique ON branches (tenant_id, code) WHERE code IS NOT NULL AND code <> '';`,
 ];
 
+const ensureBranchDefaultWarehouseForeignKey = async (client) => {
+  await client.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.warehouses') IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1
+           FROM pg_constraint
+           WHERE conname = 'branches_default_warehouse_id_fkey'
+             AND conrelid = to_regclass('public.branches')
+         ) THEN
+        ALTER TABLE branches
+          ADD CONSTRAINT branches_default_warehouse_id_fkey
+          FOREIGN KEY (default_warehouse_id)
+          REFERENCES warehouses(id)
+          ON DELETE SET NULL;
+      END IF;
+    END $$;
+  `);
+};
+
 const ensureBranchForeignKeys = async (client) => {
   await ensureForeignKeyConstraint(
     client,
@@ -119,6 +140,7 @@ export const ensureBranchSchema = async () => {
         for (const statement of statements) {
           await client.query(statement);
         }
+        await ensureBranchDefaultWarehouseForeignKey(client);
         await ensureBranchForeignKeys(client);
         console.log("[single-branch-mode:startup]");
         try {
