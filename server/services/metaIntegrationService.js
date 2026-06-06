@@ -11045,15 +11045,32 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
       replyType: "more_images",
     });
     const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
-    const imageOnlyCards = moreImageCards.map((card) => ({
+    const richMoreImageCards = moreImageCards.map((card) => ({
       ...card,
-      card_reply_mode: "image_only",
+      // Keep captions available for MORE_IMAGES so the outbound payload still includes
+      // product name, color, price, sizes, and product link alongside the image.
+      card_reply_mode: card.card_reply_mode === "image_only" ? "" : (card.card_reply_mode || "more_images"),
     }));
+    console.log("[MORE_IMAGES_CARD_CONTENT_AUDIT]", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      product_cards_count: richMoreImageCards.length,
+      image_cards_count: richMoreImageCards.filter((card) => Boolean(card?.image_url)).length,
+      first_card: richMoreImageCards[0]
+        ? {
+            product_name: richMoreImageCards[0].name || richMoreImageCards[0].title || "",
+            color: richMoreImageCards[0].color || "",
+            price: richMoreImageCards[0].price || "",
+            available_sizes: richMoreImageCards[0].available_sizes || richMoreImageCards[0].sizes || [],
+            product_url: richMoreImageCards[0].product_url || richMoreImageCards[0].url || "",
+          }
+        : null,
+    });
     console.log("[more-images-router]", {
       message: message.message_text || "",
       resolvedQuestionType: message.resolvedQuestion?.intent || QUESTION_TYPES.MORE_IMAGES,
       blockedPresentation: true,
-      imageCount: imageOnlyCards.length,
+      imageCount: richMoreImageCards.length,
       family_cards_used: Boolean(familyCards.length),
     });
     logMoreImagesRoutingAudit({
@@ -11063,13 +11080,13 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
       activeProductId,
       activeVariantId,
       baseCard,
-      cards: imageOnlyCards,
+      cards: richMoreImageCards,
       reason: "more_images_sent",
       handledReason: "more_images_sent",
     });
     evaluateResponseDeduplication({
       conversationId: message.external_conversation_id,
-      productCards: imageOnlyCards,
+      productCards: richMoreImageCards,
       replyCategory: "MORE_IMAGES",
       detectedIntent: "more_images",
       message,
@@ -11077,7 +11094,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     await sendAndLogMetaText({
       config,
       message,
-      text: "\u0623\u0643\u064a\u062f ",
+        text: "\u0623\u0643\u064a\u062f ",
       detectedIntent: "more_images_intro",
       metadata: {
         preserveReplyText: true,
@@ -11095,8 +11112,8 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         channel: message.channel,
         recipientId: message.external_customer_id,
         conversationId: message.external_conversation_id,
-        productCards: imageOnlyCards,
-        productCardLimit: imageOnlyCards.length,
+        productCards: richMoreImageCards,
+        productCardLimit: richMoreImageCards.length,
         suggestedActions: [],
         facebookPageId: config.facebook_page_id,
         instagramBusinessAccountId: config.instagram_business_account_id,
@@ -11120,8 +11137,8 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         activeTopic,
         modelFamily,
         resolvedBaseCard: baseCard,
-        productCards: imageOnlyCards,
-        imageCards: imageOnlyCards,
+        productCards: richMoreImageCards,
+        imageCards: richMoreImageCards,
         sentCardsCount: 0,
         fallbackReason: error?.message || "more_images_send_failed",
       });
@@ -11131,14 +11148,14 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
       tenantId: config.tenant_id,
       channel: message.channel,
       conversationId: message.external_conversation_id,
-      productCards: imageOnlyCards,
+      productCards: richMoreImageCards,
       sentMessages: result?.product_card_messages || [],
       messageText: message.message_text || "",
       lastIntent: "more_images",
     });
     rememberConversationCompression({
       conversationId: message.external_conversation_id,
-      productCards: imageOnlyCards,
+      productCards: richMoreImageCards,
       fields: ["shownProductCard"],
       reason: "more_images_sent",
     });
@@ -11171,8 +11188,8 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
       activeTopic,
       modelFamily,
       resolvedBaseCard: baseCard,
-      productCards: imageOnlyCards,
-      imageCards: imageOnlyCards,
+      productCards: richMoreImageCards,
+      imageCards: richMoreImageCards,
       sentCardsCount: Array.isArray(result?.product_card_messages) ? result.product_card_messages.length : 0,
       fallbackReason: "",
     });
