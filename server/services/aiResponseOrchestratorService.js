@@ -388,7 +388,16 @@ export const orchestrateAiResponse = ({
     customerName: customerProfile?.firstName || customerProfile?.name || "",
   });
   const confirmationGuard = productConfirmationGuard({ selectedProduct, productContext, price });
-  if (["PRODUCT_PRESENTATION", "ASK_SIZE", "SIZE_AVAILABLE"].includes(replyCategory) && !confirmationGuard.confirmed) {
+  const presentationPriorityIntent = ["PRODUCT_SEARCH", "VISUAL_SEARCH"].includes(text(intent).toUpperCase());
+  const hasPresentationContext = Boolean(
+    selectedProduct?.product_id ||
+    selectedProduct?.id ||
+    productContext.productId ||
+    productContext.productName ||
+    selectedProduct?.title ||
+    selectedProduct?.name
+  );
+  if (["PRODUCT_PRESENTATION", "ASK_SIZE", "SIZE_AVAILABLE"].includes(replyCategory) && !confirmationGuard.confirmed && !(presentationPriorityIntent && hasPresentationContext)) {
     const safeReplyText = productContext.weakVisualMatch ? "\u0644\u0642\u064a\u062a \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0634\u0628\u0647\u0647 " : "\u062f\u0647 \u0623\u0642\u0631\u0628 \u0627\u062e\u062a\u064a\u0627\u0631 \u0639\u0646\u062f\u064a ";
     return {
       replyText: safeReplyText,

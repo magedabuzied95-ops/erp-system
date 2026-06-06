@@ -8941,6 +8941,16 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     };
   }
   const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
+  console.log("[PRODUCT_PRESENTATION_AUDIT]", {
+    activeProductId: text(message.activeProductId || message.selectedProductId || getConversationMemory(message.external_conversation_id)?.activeProductId || getConversationMemory(message.external_conversation_id)?.selectedProductId || ""),
+    activeVariantId: text(message.activeVariantId || message.selectedVariantId || getConversationMemory(message.external_conversation_id)?.activeVariantId || getConversationMemory(message.external_conversation_id)?.selectedVariantId || ""),
+    product_cards_count: guardedCards.length,
+    image_cards_count: guardedCards.filter((card) => Boolean(card?.image_url || card?.imageUrl || card?.selected_card_image_url)).length,
+    selected_stage: finalCardMetadata.nextConversationStage || finalCardMetadata.conversationStage || "",
+    selected_reply_type: finalCardMetadata.replyCategory || "",
+    replyDecisionReason: text(metadata.replyDecisionReason || message.resolvedQuestion?.reason || ""),
+    replyDecisionReasonSource: text(metadata.handler || metadata.replySource || detectedIntent || ""),
+  });
   const signature = outboundSignature({ messageText: finalCardIntroText, productCards: guardedCards, trigger: detectedIntent || metadata?.trigger || "" });
   const dedupe = await checkAndStoreOutboundSignature({
     tenantId: config.tenant_id,
