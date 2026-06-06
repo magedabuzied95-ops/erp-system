@@ -104,6 +104,35 @@ const formatShortDay = (value) => {
   }).format(date);
 };
 const formatNumber = (value) => new Intl.NumberFormat("ar-EG").format(Number(value || 0));
+const ARABIC_LETTER_RE = /[\u0600-\u06FF]/g;
+const MOJIBAKE_HINT_RE = /[ØÙÃÂ]|ط|ظ/;
+const latin1BytesToUtf8 = (value) => {
+  if (typeof TextDecoder === "undefined") return value;
+  const bytes = Uint8Array.from(String(value), (char) => char.charCodeAt(0) & 0xff);
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+};
+const maybeDecodeArabicMojibake = (value) => {
+  if (typeof value !== "string" || !value) return value;
+  if (!MOJIBAKE_HINT_RE.test(value)) return value;
+  const decoded = latin1BytesToUtf8(value);
+  if (!decoded || decoded === value) return value;
+  const originalArabicCount = (value.match(ARABIC_LETTER_RE) || []).length;
+  const decodedArabicCount = (decoded.match(ARABIC_LETTER_RE) || []).length;
+  const originalLength = value.length;
+  const decodedLength = decoded.length;
+  const improvedArabic = decodedArabicCount > 0 && decodedArabicCount >= originalArabicCount;
+  const improvedLength = decodedLength + 1 < originalLength;
+  return improvedArabic && improvedLength ? decoded : value;
+};
+const normalizeManagerPortalValue = (value) => {
+  if (typeof value === "string") return maybeDecodeArabicMojibake(value);
+  if (Array.isArray(value)) return value.map((item) => normalizeManagerPortalValue(item));
+  if (value && typeof value === "object") {
+    if (value instanceof Date) return value;
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeManagerPortalValue(item)]));
+  }
+  return value;
+};
 const MANAGER_NOTIFICATION_CATEGORIES = [
   { key: "all", label: "All", icon: Bell },
   { key: "employee_chat", label: "Employee chat", icon: MessageSquare },
@@ -168,8 +197,8 @@ const Badge = ({ children, className = "" }) => (
   <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-black ${className}`}>{children}</span>
 );
 
-const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "" }) => (
-  <section className={`rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-950/80 ${className}`}>
+const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false }) => (
+  <section className={`rounded-3xl border border-slate-200 bg-white/90 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-950/80 ${compact ? "p-3" : "p-4"} ${className}`}>
     <div className="flex items-start justify-between gap-3">
       <div>
         <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{subtitle}</div>
@@ -210,8 +239,8 @@ const StatusPill = ({ value, tone = "slate" }) => {
   return <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${tones[tone] || tones.slate}`}>{value}</span>;
 };
 
-const EmptyState = ({ title, body }) => (
-  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-right text-sm font-semibold leading-6 text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300">
+const EmptyState = ({ title, body, compact = false }) => (
+  <div className={`rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-right font-semibold leading-6 text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300 ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
     <div className="font-black text-slate-800 dark:text-white">{title}</div>
     <div className="mt-1">{body}</div>
   </div>
@@ -245,6 +274,9 @@ export default function ManagerPortal() {
   const [browserNotificationPermission, setBrowserNotificationPermission] = useState(() => (isBrowser() && "Notification" in window ? window.Notification.permission : "unsupported"));
   const [soundUnlocked, setSoundUnlocked] = useState(false);
   const [showMoreNotifications, setShowMoreNotifications] = useState(false);
+  const [showMoreAiInsights, setShowMoreAiInsights] = useState(false);
+  const [showMoreLeads, setShowMoreLeads] = useState(false);
+  const [showMoreLowStock, setShowMoreLowStock] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationCategory, setNotificationCategory] = useState("all");
   const socketRef = useRef(null);
@@ -352,6 +384,62 @@ export default function ManagerPortal() {
     Number(conversionIndicators.online_orders || 0) > 0 ||
     Number(conversionIndicators.ai_sessions || 0) > 0 ||
     Number(conversionIndicators.ai_confirmed_orders || 0) > 0;
+  const operationalEvents = useMemo(() => {
+    const events = [];
+    const pushEvent = (event) => {
+      if (!event?.timestamp) return;
+      events.push(event);
+    };
+    for (const row of Array.isArray(dashboard?.task_history) ? dashboard.task_history : []) {
+      const action = normalizeText(row.action || "");
+      const toStatus = normalizeText(row.to_status || "");
+      const fromStatus = normalizeText(row.from_status || "");
+      const title =
+        action.includes("assign") ? "Task assigned" :
+        action.includes("reassign") ? "Task reassigned" :
+        action.includes("complete") || toStatus === "completed" ? "Task completed" :
+        action.includes("approve") ? "Task approved" :
+        toStatus === "overdue" || fromStatus === "overdue" || action.includes("overdue") ? "Task overdue" :
+        "Task updated";
+      pushEvent({
+        key: `task-${row.id || `${row.task_id || "task"}-${row.created_at || ""}`}`,
+        timestamp: row.created_at || row.updated_at || null,
+        title,
+        detail: [row.actor_name || "System", row.employee_name || row.to_employee_name || "", row.note || ""].filter(Boolean).join(" · "),
+        tone: toStatus === "completed" || action.includes("complete") ? "green" : toStatus === "overdue" || action.includes("overdue") ? "red" : "blue",
+      });
+    }
+    for (const row of Array.isArray(dashboard?.overview?.recentInvoices) ? dashboard.overview.recentInvoices : []) {
+      pushEvent({
+        key: `invoice-${row.id || row.invoice_number || row.created_at || ""}`,
+        timestamp: row.created_at || null,
+        title: `Invoice ${row.invoice_number || row.id || ""}`.trim(),
+        detail: [row.customer_name || "Walk-in", formatCurrency(row.total || 0)].filter(Boolean).join(" · "),
+        tone: "green",
+      });
+    }
+    for (const row of Array.isArray(refillAlerts) ? refillAlerts : []) {
+      pushEvent({
+        key: `refill-${row.id || row.created_at || ""}`,
+        timestamp: row.created_at || null,
+        title: "Display refill",
+        detail: [row.product_name || "Refill alert", [row.color_name || row.color || "", row.replacement_size || ""].filter(Boolean).join(" · ")].filter(Boolean).join(" · "),
+        tone: "amber",
+      });
+    }
+    for (const row of Array.isArray(dashboard?.new_leads) ? dashboard.new_leads : []) {
+      pushEvent({
+        key: `lead-${row.session_id || row.id || row.updated_at || ""}`,
+        timestamp: row.updated_at || row.created_at || null,
+        title: "AI lead",
+        detail: [row.ai_insight || row.session_id || "Lead", `Score ${formatNumber(row.lead_score || 0)}`].filter(Boolean).join(" · "),
+        tone: "red",
+      });
+    }
+    return events
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 5);
+  }, [dashboard, refillAlerts]);
   const managerNotifications = useMemo(() => notifications.map((item) => ({ ...item, manager_category: categoryFromNotification(item) })), [notifications]);
   const filteredManagerNotifications = useMemo(() => (
     notificationCategory === "all"
@@ -367,6 +455,12 @@ export default function ManagerPortal() {
   }, [managerNotifications]);
   const visibleNotifications = showMoreNotifications ? filteredManagerNotifications : filteredManagerNotifications.slice(0, 5);
   const hasMoreNotifications = filteredManagerNotifications.length > visibleNotifications.length;
+  const visibleAiInsights = showMoreAiInsights ? aiInsights : aiInsights.slice(0, 3);
+  const hasMoreAiInsights = aiInsights.length > visibleAiInsights.length;
+  const visibleLeads = showMoreLeads ? (dashboard?.new_leads || []) : (dashboard?.new_leads || []).slice(0, 3);
+  const hasMoreLeads = (dashboard?.new_leads || []).length > visibleLeads.length;
+  const visibleLowStock = showMoreLowStock ? lowStock : lowStock.slice(0, 3);
+  const hasMoreLowStock = lowStock.length > visibleLowStock.length;
   const selectedChatThread = useMemo(() => {
     if (chatThread?.id) return chatThread;
     return chatThreads.find((thread) => String(thread.id) === String(selectedThreadId)) || null;
@@ -402,8 +496,8 @@ export default function ManagerPortal() {
   const notifyClient = async (notification) => {
     const category = categoryFromNotification(notification);
     const enabled = settingsRef.current?.[category] || DEFAULT_NOTIFICATION_SETTINGS[category] || DEFAULT_NOTIFICATION_SETTINGS.messages;
-    const title = notification.title || "طھظ†ط¨ظٹظ‡";
-    const message = notification.message || notification.body || "";
+    const title = maybeDecodeArabicMojibake(notification.title || "طھظ†ط¨ظٹظ‡");
+    const message = maybeDecodeArabicMojibake(notification.message || notification.body || "");
     const priority = String(notification.priority || "medium");
     const tone = priority === "critical" || priority === "high" ? "high" : "normal";
     if (enabled.toast !== false) {
@@ -429,10 +523,11 @@ export default function ManagerPortal() {
 
   const upsertNotification = (next) => {
     if (!next?.id) return;
+    const normalizedNext = normalizeManagerPortalValue(next);
     setNotifications((current) => {
-      const exists = current.some((item) => String(item.id) === String(next.id));
-      if (!exists && !next.is_read) setUnreadCount((count) => count + 1);
-      return [next, ...current.filter((item) => String(item.id) !== String(next.id))].slice(0, 50);
+      const exists = current.some((item) => String(item.id) === String(normalizedNext.id));
+      if (!exists && !normalizedNext.is_read) setUnreadCount((count) => count + 1);
+      return [normalizedNext, ...current.filter((item) => String(item.id) !== String(normalizedNext.id))].slice(0, 50);
     });
   };
 
@@ -451,23 +546,23 @@ export default function ManagerPortal() {
         managerPortalApi.notifications(token, { limit: 40 }),
         managerPortalApi.chat(token),
       ]);
-      setMe(meRes?.manager || meRes?.data?.manager || null);
-      setDashboard(dashboardRes?.dashboard || null);
-      setStaff(staffRes?.staff || null);
-      setTasks(tasksRes?.tasks || null);
-      setSales(salesRes?.sales || null);
-      setStockAlerts(stockRes?.stockAlerts || null);
-      setNotifications(Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []);
+      setMe(normalizeManagerPortalValue(meRes?.manager || meRes?.data?.manager || null));
+      setDashboard(normalizeManagerPortalValue(dashboardRes?.dashboard || null));
+      setStaff(normalizeManagerPortalValue(staffRes?.staff || null));
+      setTasks(normalizeManagerPortalValue(tasksRes?.tasks || null));
+      setSales(normalizeManagerPortalValue(salesRes?.sales || null));
+      setStockAlerts(normalizeManagerPortalValue(stockRes?.stockAlerts || null));
+      setNotifications(normalizeManagerPortalValue(Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []));
       setUnreadCount(Number(notificationsRes?.unread_count || 0));
-      setSettings(mergeSettings(notificationsRes?.settings || meRes?.notification_settings || {}));
-      setChatThreads(dedupeChatThreads(Array.isArray(chatRes?.threads) ? chatRes.threads : []));
+      setSettings(mergeSettings(normalizeManagerPortalValue(notificationsRes?.settings || meRes?.notification_settings || {})));
+      setChatThreads(normalizeManagerPortalValue(dedupeChatThreads(Array.isArray(chatRes?.threads) ? chatRes.threads : [])));
       if (!selectedThreadRef.current && Array.isArray(chatRes?.threads) && chatRes.threads[0]?.id) {
         setSelectedThreadId(String(chatRes.threads[0].id));
       }
       if (!selectedThreadRef.current && chatRes?.thread?.id) {
         setSelectedThreadId(String(chatRes.thread.id));
-        setChatThread(chatRes.thread);
-        setChatMessages(dedupeChatMessages(Array.isArray(chatRes.messages) ? chatRes.messages : [], chatRes.thread));
+        setChatThread(normalizeManagerPortalValue(chatRes.thread));
+        setChatMessages(normalizeManagerPortalValue(dedupeChatMessages(Array.isArray(chatRes.messages) ? chatRes.messages : [], chatRes.thread)));
       }
     } catch (loadError) {
       setError(loadError?.responseBody?.message || loadError?.message || "طھط¹ط°ط± طھط­ظ…ظٹظ„ ط¨ظˆط§ط¨ط© ط§ظ„ظ…ط¯ظٹط±.");
@@ -522,33 +617,33 @@ export default function ManagerPortal() {
     });
     socket.on("notification:count:refresh", () => {
       managerPortalApi.notifications(token, { limit: 40 }).then((response) => {
-        setNotifications(Array.isArray(response?.notifications) ? response.notifications : []);
+        setNotifications(normalizeManagerPortalValue(Array.isArray(response?.notifications) ? response.notifications : []));
         setUnreadCount(Number(response?.unread_count || 0));
       }).catch(() => null);
     });
     socket.on("employee-chat:new-message", (payload) => {
       const threadId = String(payload?.thread?.id || payload?.thread_id || "");
       if (!threadId) return;
-      setChatThreads((current) => mergeChatThreads(current, payload.thread ? [payload.thread] : []));
+      setChatThreads((current) => normalizeManagerPortalValue(mergeChatThreads(current, payload.thread ? [payload.thread] : [])));
       if (payload?.message) {
-        setChatMessages((current) => mergeChatMessages(current, [payload.message], payload.thread || chatThreadRef.current || null));
+        setChatMessages((current) => normalizeManagerPortalValue(mergeChatMessages(current, [payload.message], payload.thread || chatThreadRef.current || null)));
       }
       if (selectedThreadRef.current && String(selectedThreadRef.current) === threadId) {
-        if (payload.thread) setChatThread((current) => (current ? { ...current, ...payload.thread } : payload.thread));
+        if (payload.thread) setChatThread((current) => normalizeManagerPortalValue(current ? { ...current, ...payload.thread } : payload.thread));
         managerPortalApi.chatThread(token, threadId).then((response) => {
           if (response?.thread) {
-            setChatThread((current) => (current ? { ...current, ...response.thread } : response.thread));
+            setChatThread((current) => normalizeManagerPortalValue(current ? { ...current, ...response.thread } : response.thread));
           }
-          setChatMessages((current) => mergeChatMessages(current, Array.isArray(response?.messages) ? response.messages : [], response?.thread || payload?.thread || chatThreadRef.current || null));
+          setChatMessages((current) => normalizeManagerPortalValue(mergeChatMessages(current, Array.isArray(response?.messages) ? response.messages : [], response?.thread || payload?.thread || chatThreadRef.current || null)));
         }).catch(() => null);
       }
     });
     socket.on("employee-chat:thread-updated", (payload) => {
       const nextThread = payload?.thread;
       if (!nextThread?.id) return;
-      setChatThreads((current) => mergeChatThreads(current, [nextThread]));
+      setChatThreads((current) => normalizeManagerPortalValue(mergeChatThreads(current, [nextThread])));
       if (selectedThreadRef.current && String(selectedThreadRef.current) === String(nextThread.id)) {
-        setChatThread((current) => (current ? { ...current, ...nextThread } : nextThread));
+        setChatThread((current) => normalizeManagerPortalValue(current ? { ...current, ...nextThread } : nextThread));
       }
     });
     socket.on("employee-chat:read", (payload) => {
@@ -557,9 +652,9 @@ export default function ManagerPortal() {
       if (selectedThreadRef.current && String(selectedThreadRef.current) === threadId) {
         managerPortalApi.chatThread(token, threadId).then((response) => {
           if (response?.thread) {
-            setChatThread((current) => (current ? { ...current, ...response.thread } : response.thread));
+            setChatThread((current) => normalizeManagerPortalValue(current ? { ...current, ...response.thread } : response.thread));
           }
-          setChatMessages((current) => mergeChatMessages(current, Array.isArray(response?.messages) ? response.messages : [], response?.thread || chatThreadRef.current || null));
+          setChatMessages((current) => normalizeManagerPortalValue(mergeChatMessages(current, Array.isArray(response?.messages) ? response.messages : [], response?.thread || chatThreadRef.current || null)));
         }).catch(() => null);
       }
     });
@@ -580,30 +675,30 @@ export default function ManagerPortal() {
           managerPortalApi.notifications(token, { limit: 40 }),
           managerPortalApi.stockAlerts(token),
         ]);
-        setDashboard(dashboardRes?.dashboard || null);
-        setNotifications(Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []);
+        setDashboard(normalizeManagerPortalValue(dashboardRes?.dashboard || null));
+        setNotifications(normalizeManagerPortalValue(Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []));
         setUnreadCount(Number(notificationsRes?.unread_count || 0));
-        setSettings(mergeSettings(notificationsRes?.settings || me?.notification_settings || {}));
-        setStockAlerts(stockRes?.stockAlerts || null);
+        setSettings(mergeSettings(normalizeManagerPortalValue(notificationsRes?.settings || me?.notification_settings || {})));
+        setStockAlerts(normalizeManagerPortalValue(stockRes?.stockAlerts || null));
       }
       if (tab === "staff") {
         const response = await managerPortalApi.staff(token);
-        setStaff(response?.staff || null);
+        setStaff(normalizeManagerPortalValue(response?.staff || null));
       }
       if (tab === "tasks") {
         const response = await managerPortalApi.tasks(token);
-        setTasks(response?.tasks || null);
+        setTasks(normalizeManagerPortalValue(response?.tasks || null));
       }
       if (tab === "sales") {
         const response = await managerPortalApi.sales(token);
-        setSales(response?.sales || null);
+        setSales(normalizeManagerPortalValue(response?.sales || null));
       }
       if (tab === "chat") {
         const response = await managerPortalApi.chat(token, selectedThreadId || null);
-        setChatThreads((current) => mergeChatThreads(current, Array.isArray(response?.threads) ? response.threads : []));
+        setChatThreads((current) => normalizeManagerPortalValue(mergeChatThreads(current, Array.isArray(response?.threads) ? response.threads : [])));
         if (response?.thread) {
-          setChatThread((current) => (current ? { ...current, ...response.thread } : response.thread));
-          setChatMessages((current) => mergeChatMessages(current, Array.isArray(response.messages) ? response.messages : [], response.thread || chatThreadRef.current || null));
+          setChatThread((current) => normalizeManagerPortalValue(current ? { ...current, ...response.thread } : response.thread));
+          setChatMessages((current) => normalizeManagerPortalValue(mergeChatMessages(current, Array.isArray(response.messages) ? response.messages : [], response.thread || chatThreadRef.current || null)));
         }
       }
     } catch (reloadError) {
@@ -689,9 +784,9 @@ export default function ManagerPortal() {
     setSelectedThreadId(String(threadId));
     try {
       const response = await managerPortalApi.chatThread(token, threadId);
-      setChatThread(response?.thread || null);
-      setChatMessages(dedupeChatMessages(Array.isArray(response?.messages) ? response.messages : [], response?.thread));
-      setChatThreads((current) => mergeChatThreads(current, [response?.thread || current.find((item) => String(item.id) === String(threadId))].filter(Boolean)));
+      setChatThread(normalizeManagerPortalValue(response?.thread || null));
+      setChatMessages(normalizeManagerPortalValue(dedupeChatMessages(Array.isArray(response?.messages) ? response.messages : [], response?.thread)));
+      setChatThreads((current) => normalizeManagerPortalValue(mergeChatThreads(current, [response?.thread || current.find((item) => String(item.id) === String(threadId))].filter(Boolean))));
       await managerPortalApi.markChatRead(token, threadId);
     } catch (chatError) {
       toast.error(chatError?.responseBody?.message || chatError?.message || "طھط¹ط°ط± ظپطھط­ ط§ظ„ظ…ط­ط§ط¯ط«ط©");
@@ -1098,18 +1193,43 @@ export default function ManagerPortal() {
 
           {activeTab === "today" ? (
             <div data-testid="more-panel" className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 {[
-                  { label: "ط¥ط¬ظ…ط§ظ„ظٹ ظ…ط¨ظٹط¹ط§طھ ط§ظ„ظٹظˆظ…", value: formatCurrency(dashboard?.today_sales_total || 0), icon: ShoppingCart, tone: "green" },
-                  { label: "ط¹ط¯ط¯ ط§ظ„ظپظˆط§طھظٹط±", value: formatNumber(dashboard?.invoice_count || 0), icon: ClipboardList, tone: "blue" },
-                  { label: "ط§ظ„ظ…ظˆط¬ظˆط¯ظˆظ† ط§ظ„ط¢ظ†", value: formatNumber(dashboard?.active_employees_now || 0), icon: Users, tone: "green" },
-                  { label: "ظ…طھط£ط®ط± / ط؛ط§ط¦ط¨", value: `${formatNumber(dashboard?.late_employees || 0)} / ${formatNumber(dashboard?.absent_employees || 0)}`, icon: Clock3, tone: "amber" },
-                  { label: "ط§ظ„ظ…ظ‡ط§ظ… ط§ظ„ظ…ظپطھظˆط­ط©", value: formatNumber(dashboard?.pending_tasks || 0), icon: ClipboardList, tone: "blue" },
-                  { label: "ط§ظ„ظ…ظ‡ط§ظ… ط§ظ„ظ…طھط£ط®ط±ط©", value: formatNumber(dashboard?.overdue_tasks || 0), icon: AlertTriangle, tone: "red" },
+                  { label: "Present now", value: formatNumber(dashboard?.active_employees_now || 0), icon: Users, tone: "green" },
+                  { label: "Absent", value: formatNumber(dashboard?.absent_employees || 0), icon: X, tone: "slate" },
+                  { label: "Late", value: formatNumber(dashboard?.late_employees || 0), icon: Clock3, tone: "amber" },
+                  { label: "Open tasks", value: formatNumber(dashboard?.pending_tasks || 0), icon: ClipboardList, tone: "blue" },
+                  { label: "Overdue tasks", value: formatNumber(dashboard?.overdue_tasks || 0), icon: AlertTriangle, tone: "red" },
                 ].map((card) => (
                   <Card key={card.label} subtitle={card.label} title={card.value} icon={card.icon} className={`border-white/80 ${card.tone === "green" ? "shadow-emerald-100/60" : ""}`} />
                 ))}
               </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Card title={formatCurrency(dashboard?.today_sales_total || 0)} subtitle="Today sales" icon={ShoppingCart} />
+                <Card title={formatNumber(dashboard?.invoice_count || 0)} subtitle="Invoices" icon={ClipboardList} />
+                <Card title={formatCurrency(dashboard?.overview?.today?.averageOrderValue || 0)} subtitle="Average order value" icon={ArrowLeftRight} />
+              </div>
+
+              <Card title="Operational events" subtitle="Latest 5 actions" icon={Bell}>
+                {operationalEvents.length ? (
+                  <div className="space-y-2">
+                    {operationalEvents.map((event) => (
+                      <div key={event.key} className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+                        <div className="min-w-0">
+                          <div className="text-sm font-black text-slate-950 dark:text-white">{event.title}</div>
+                          <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-300">{event.detail || "No additional details"}</div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <StatusPill tone={event.tone || "slate"} value={formatDateTime(event.timestamp)} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState compact title="No events yet" body="Task changes, invoices, leads, and refill alerts will appear here as they happen." />
+                )}
+              </Card>
 
               <div className="grid gap-3 xl:grid-cols-2">
                 <Card title="طھظˆط²ظٹط¹ ط§ظ„ط¯ظپط¹" subtitle="Payment breakdown" icon={ArrowLeftRight}>
@@ -1123,7 +1243,7 @@ export default function ManagerPortal() {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط¨ظٹط§ظ†ط§طھ ط¯ظپط¹" body="ظ„ظ† ظ†ط¹ط±ط¶ ط£ط±ظ‚ط§ظ…ظ‹ط§ ظˆظ‡ظ…ظٹط© ط¥ط°ط§ ظ„ظ… ظٹظƒظ† ظ‡ظ†ط§ظƒ ظ…طµط¯ط± ط¨ظٹط§ظ†ط§طھ ظ…طھط§ط­." />
+                    <EmptyState compact title="No payment data" body="Payments will appear once today has completed invoices." />
                   )}
                 </Card>
                 <Card title="طھظ†ط¨ظٹظ‡ط§طھ ط§ظ„ط³ط­ط¨ / ط§ظ„ط¹ط±ط¶" subtitle="Stock alerts" icon={Package}>
@@ -1143,7 +1263,7 @@ export default function ManagerPortal() {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState title="ظ„ط§ طھظˆط¬ط¯ طھظ†ط¨ظٹظ‡ط§طھ ظ…ط®ط²ظˆظ†" body="ظ„ظ† ظٹطھظ… ط§ط®طھظ„ط§ظ‚ طھظ†ط¨ظٹظ‡ط§طھ ظپظٹ ط­ط§ظ„ط© ط¹ط¯ظ… طھظˆظپط± ط¨ظٹط§ظ†ط§طھ ظپط¹ظ„ظٹط©." />
+                    <EmptyState compact title="No stock alerts" body="Low stock and refill alerts will show up when the system detects them." />
                   )}
                 </Card>
               </div>
@@ -1158,9 +1278,9 @@ export default function ManagerPortal() {
                         <div className="mt-1">{item.body || "-"}</div>
                       </div>
                     ))}
-                  </div>
+                </div>
                 ) : (
-                  <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط±ط¤ظ‰ ط­ط§ظ„ظٹط©" body="ط¥ط°ط§ ظ„ظ… طھظˆط¬ط¯ ط¨ظٹط§ظ†ط§طھ ط­ظ‚ظٹظ‚ظٹط©طŒ ط³ظ†ط¹ط±ط¶ ط­ط§ظ„ط© ظپط§ط±ط؛ط© ط¨ط¯ظ„ ط£ط±ظ‚ط§ظ… ظˆظ‡ظ…ظٹط©." />
+                  <EmptyState compact title="No live insights" body="Useful signals will appear here once there is enough operational data." />
                 )}
               </Card>
             </div>
@@ -1505,7 +1625,7 @@ export default function ManagerPortal() {
           ) : null}
 
           {activeTab === "chat" ? (
-            <div className="grid min-h-0 gap-4 xl:h-[calc(100dvh-13rem)] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
+            <div className="grid min-h-0 gap-4 xl:h-[calc(100dvh-13rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
               <Card
                 title="المحادثات"
                 subtitle="Conversations"
@@ -1794,16 +1914,16 @@ export default function ManagerPortal() {
           ) : null}
         </section>
 
-        <aside className="space-y-4">
-          <Card title="ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ" subtitle="Live feed" icon={Bell} className="min-h-[18rem]">
+        <aside className="space-y-3">
+          <Card title="ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ" subtitle="Live feed" icon={Bell} className="min-h-0" compact bodyClassName="space-y-2">
             <div data-testid="notifications-panel" />
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {visibleNotifications.length ? visibleNotifications.map((item) => (
-                <button key={item.id} type="button" data-testid={`notification-${item.id}`} onClick={() => void markNotificationRead(item.id)} className={`w-full rounded-2xl border px-3 py-3 text-right transition ${item.is_read ? "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300" : "border-sky-200 bg-sky-50 text-slate-950 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-white"}`}>
+                <button key={item.id} type="button" data-testid={`notification-${item.id}`} onClick={() => void markNotificationRead(item.id)} className={`w-full rounded-2xl border px-3 py-2.5 text-right transition ${item.is_read ? "border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300" : "border-sky-200 bg-sky-50 text-slate-950 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-white"}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black">{item.title || item.type || "Notification"}</div>
-                      <div className="mt-1 line-clamp-2 text-xs font-semibold opacity-80">{item.message || item.body || ""}</div>
+                      <div className="mt-1 line-clamp-1 text-xs font-semibold opacity-80">{item.message || item.body || ""}</div>
                     </div>
                     <StatusPill tone={item.is_read ? "slate" : "blue"} value={item.category || "system"} />
                   </div>
@@ -1811,45 +1931,60 @@ export default function ManagerPortal() {
               )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط¥ط´ط¹ط§ط±ط§طھ" body="ط³طھط¸ظ‡ط± ظ‡ظ†ط§ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ط­ظٹط© ط¹ظ†ط¯ ظˆطµظˆظ„ظ‡ط§." />}
             </div>
             {hasMoreNotifications ? (
-              <button type="button" onClick={() => setShowMoreNotifications((current) => !current)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+              <button type="button" onClick={() => setShowMoreNotifications((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                 {showMoreNotifications ? "Show less" : "Show more"}
               </button>
             ) : null}
           </Card>
 
-          <Card title="AI + alerts" subtitle="Right rail" icon={Bot}>
-            <div className="space-y-2">
-              {aiInsights.slice(0, 4).map((insight, index) => (
-                <div key={`${insight.title || index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold leading-6 text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
+          <Card title="AI + alerts" subtitle="Right rail" icon={Bot} compact bodyClassName="space-y-2">
+            <div className="space-y-1.5">
+              {visibleAiInsights.map((insight, index) => (
+                <div key={`${insight.title || index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-2.5 text-sm font-semibold leading-5 text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
                   <div className="text-xs font-black uppercase tracking-[0.12em] text-sky-600/70">{insight.type || "insight"}</div>
-                  <div className="mt-1 font-black text-slate-950 dark:text-white">{insight.title || "-"}</div>
-                  <div className="mt-1">{insight.body || "-"}</div>
+                  <div className="mt-1 truncate font-black text-slate-950 dark:text-white">{insight.title || "-"}</div>
+                  <div className="mt-1 line-clamp-2">{insight.body || "-"}</div>
                 </div>
               ))}
               {!aiInsights.length ? <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط±ط¤ظ‰" body="ط¥ط°ط§ ظ„ظ… طھظˆط¬ط¯ ط¨ظٹط§ظ†ط§طھ ط­ظ‚ظٹظ‚ظٹط© ظپظ„ظ† ظ†ط¶ظٹظپ ط§ظپطھط±ط§ط¶ط§طھ." /> : null}
             </div>
+            {hasMoreAiInsights ? (
+              <button type="button" onClick={() => setShowMoreAiInsights((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                {showMoreAiInsights ? "Show less" : "Show more"}
+              </button>
+            ) : null}
           </Card>
 
-          <Card title="AI leads" subtitle="Hot leads" icon={Store}>
-            <div className="space-y-2">
-              {dashboard?.new_leads?.length ? dashboard.new_leads.map((lead) => (
-                <div key={lead.session_id} className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold leading-6 text-rose-900 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
+          <Card title="AI leads" subtitle="Hot leads" icon={Store} compact bodyClassName="space-y-2">
+            <div className="space-y-1.5">
+              {visibleLeads.length ? visibleLeads.map((lead) => (
+                <div key={lead.session_id} className="rounded-2xl border border-rose-200 bg-rose-50 p-2.5 text-sm font-semibold leading-5 text-rose-900 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
                   <div className="font-black">{lead.ai_insight || lead.session_id}</div>
                   <div className="mt-1 text-xs font-bold opacity-80">Score {formatNumber(lead.lead_score || 0)}</div>
                 </div>
               )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ leads ط³ط§ط®ظ†ط©" body="ط³ظٹط¸ظ‡ط± ظ‡ظ†ط§ ط§ظ„ظ…طµط¯ط± ط§ظ„ط­ظ‚ظٹظ‚ظٹ ط¹ظ†ط¯ طھظˆظپط±ظ‡." />}
             </div>
+            {hasMoreLeads ? (
+              <button type="button" onClick={() => setShowMoreLeads((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                {showMoreLeads ? "Show less" : "Show more"}
+              </button>
+            ) : null}
           </Card>
 
-          <Card title="ط§ظ„ظ…ط®ط²ظˆظ† ط§ظ„ط³ط±ظٹط¹" subtitle="Low stock" icon={Package}>
-            <div className="space-y-2">
-              {lowStock.length ? lowStock.slice(0, 5).map((item) => (
-                <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
+          <Card title="ط§ظ„ظ…ط®ط²ظˆظ† ط§ظ„ط³ط±ظٹط¹" subtitle="Low stock" icon={Package} compact bodyClassName="space-y-2">
+            <div className="space-y-1.5">
+              {visibleLowStock.length ? visibleLowStock.map((item) => (
+                <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
                   <div className="font-black">{item.name || "-"}</div>
                   <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{item.color || item.size || ""} آ· {formatNumber(item.stock || 0)}</div>
                 </div>
-              )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط¹ظ†ط§طµط± ظ…ظ†ط®ظپط¶ط©" body="ظ„ظ† ظ†ط¹ط±ط¶ ظ…ط®ط²ظˆظ†ظ‹ط§ ظ…ظ†ط®ظپط¶ظ‹ط§ ط؛ظٹط± ظ…ظˆط¬ظˆط¯ ظپظٹ ط§ظ„ظ…طµط¯ط±." />}
+              )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط¹ظ†ط§طµط± ظ…ظ†ط®ظپط¶ط©" body="ظ„ظ† ظ†ط¹ط±ط¶ ظ…ط®ط²ظˆظ†ظ‹ط§ ظ…ظ†ط®ظپظ¶ظ‹ط§ ط؛ظٹط± ظ…ظˆط¬ظˆط¯ ظپظٹ ط§ظ„ظ…طµط¯ط±." />}
             </div>
+            {hasMoreLowStock ? (
+              <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                {showMoreLowStock ? "Show less" : "Show more"}
+              </button>
+            ) : null}
           </Card>
         </aside>
       </div>
@@ -1884,4 +2019,6 @@ function SendIconFallback() {
 function ChevronLeftIcon() {
   return <ChevronRight className="h-4 w-4 rotate-180" />;
 }
+
+
 

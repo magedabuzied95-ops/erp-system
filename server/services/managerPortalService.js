@@ -560,6 +560,8 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {} } =
     refill_alerts: refillAlerts,
     new_leads: leads,
     ai_insights: aiInsights || [],
+    recent_tasks: staffDashboard?.recentTasks || [],
+    task_history: staffDashboard?.history || [],
     overview,
     task_summary: staffDashboard?.summary || {},
   };
