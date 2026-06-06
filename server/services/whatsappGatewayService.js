@@ -523,6 +523,18 @@ const rejectOwnerTarget = (target = null, ownerJids = [], candidateJid = "") => 
   return true;
 };
 
+const logLidResolutionAttempt = (payload = {}) => {
+  console.info("[lid-resolution-attempt]", payload);
+};
+
+const logLidResolutionSuccess = (payload = {}) => {
+  console.info("[lid-resolution-success]", payload);
+};
+
+const logLidResolutionFailed = (payload = {}) => {
+  console.info("[lid-resolution-failed]", payload);
+};
+
 const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJid = "", fromMe = null } = {}) => {
   const message = data?.message || data?.messages?.[0]?.message || {};
   const contextInfo =
@@ -569,6 +581,64 @@ const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJ
       resolvedJid: "",
       resolvedNumber: "",
       reason: "from_me",
+    };
+  }
+  if (isLid) {
+    logLidResolutionAttempt({
+      remoteJid: base.remoteJid,
+      sender,
+      participant,
+      fromMe: base.fromMe,
+      ownerJid: base.ownerJid,
+      configuredBotNumber,
+      sources: ["key.participant", "data.participant", "data.sender", "contextInfo.participant", "embedded_jid_fields", "stored_conversation_mapping", "previous_resolved_customer"],
+    });
+    const lidCandidates = [
+      { label: "key.participant", value: keyParticipant },
+      { label: "data.participant", value: data?.participant },
+      { label: "data.sender", value: data?.sender },
+      { label: "contextInfo.participant", value: contextParticipant },
+      ...collectStrings(payload).filter(isWhatsappPhoneJid).map((value) => ({ label: "embedded_jid_fields", value })),
+    ];
+    const seenLidCandidates = new Set();
+    for (const candidate of lidCandidates) {
+      const candidateValue = text(candidate.value);
+      if (!candidateValue || seenLidCandidates.has(candidateValue)) continue;
+      seenLidCandidates.add(candidateValue);
+      const target = replyTargetFromValue(candidateValue);
+      if (!target) continue;
+      if (targetEqualsOwner(target, ownerJids)) {
+        logReplyTargetCandidateRejected({
+          candidateJid: candidateValue,
+          candidateNumber: target.number,
+          reason: "owner_number",
+        });
+        continue;
+      }
+      const resolved = {
+        ...base,
+        resolvedJid: target.jid,
+        resolvedNumber: target.number,
+        reason: `lid_${candidate.label}`,
+      };
+      logLidResolutionSuccess({
+        remoteJid: base.remoteJid,
+        sender,
+        participant,
+        fromMe: base.fromMe,
+        ownerJid: base.ownerJid,
+        configuredBotNumber,
+        resolvedJid: resolved.resolvedJid,
+        resolvedNumber: resolved.resolvedNumber,
+        reason: resolved.reason,
+      });
+      return resolved;
+    }
+    return {
+      ...base,
+      resolvedJid: "",
+      resolvedNumber: "",
+      reason: "lid_unresolved",
     };
   }
   if (remoteTarget && !isGroup && !isLid) {
@@ -673,6 +743,119 @@ const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJ
     resolvedNumber: "",
     reason: rejectedOwnerCandidate ? "owner_target" : isLid ? "lid_unresolved" : isGroup ? "group_reply_target_unresolved" : "no_reply_target",
   };
+};
+
+const resolveStoredLidReplyTarget = async ({ tenantId, remoteJid = "", ownerJids = [], base = {} } = {}) => {
+  const safeRemoteJid = text(remoteJid);
+  if (!tenantId || !isLidJid(safeRemoteJid)) return null;
+  const buildTarget = (value = "") => {
+    const target = replyTargetFromValue(value);
+    if (!target || targetEqualsOwner(target, ownerJids)) return null;
+    return target;
+  };
+  try {
+    const messageRows = await db.query(
+      `
+      SELECT resolved_reply_jid, resolved_phone, session_id, created_at
+      FROM ai_support_messages
+      WHERE tenant_id = $1
+        AND channel = 'whatsapp'
+        AND remote_jid = $2
+        AND COALESCE(resolved_phone, '') <> ''
+      ORDER BY created_at DESC
+      LIMIT 10
+      `,
+      [tenantId, safeRemoteJid]
+    );
+    for (const row of messageRows.rows || []) {
+      const target = buildTarget(row.resolved_reply_jid) || buildTarget(row.resolved_phone);
+      if (!target) continue;
+      const resolved = {
+        ...base,
+        resolvedJid: target.jid,
+        resolvedNumber: target.number,
+        reason: "lid_previous_resolved_message",
+      };
+      logLidResolutionSuccess({
+        remoteJid: safeRemoteJid,
+        sender: base.sender || "",
+        participant: base.participant || "",
+        fromMe: base.fromMe === true,
+        ownerJid: base.ownerJid || base.connectedOwnerJid || "",
+        configuredBotNumber: base.configuredBotNumber || "",
+        resolvedJid: resolved.resolvedJid,
+        resolvedNumber: resolved.resolvedNumber,
+        reason: resolved.reason,
+      });
+      return resolved;
+    }
+
+    const conversationRows = await db.query(
+      `
+      SELECT external_customer_id, external_conversation_id, metadata, updated_at
+      FROM ai_channel_conversations
+      WHERE tenant_id = $1
+        AND channel = 'whatsapp'
+        AND (
+          external_conversation_id = $2
+          OR external_customer_id = $3
+          OR metadata->>'remote_jid' = $3
+          OR metadata->>'lid_jid' = $3
+          OR metadata->>'sender_lid' = $3
+        )
+      ORDER BY updated_at DESC
+      LIMIT 10
+      `,
+      [tenantId, `whatsapp:${safeRemoteJid}`, safeRemoteJid]
+    );
+    for (const row of conversationRows.rows || []) {
+      const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
+      const target =
+        buildTarget(metadata.resolved_reply_jid) ||
+        buildTarget(metadata.resolved_phone) ||
+        buildTarget(metadata.customer_phone) ||
+        buildTarget(metadata.phone) ||
+        buildTarget(row.external_customer_id) ||
+        buildTarget(row.external_conversation_id?.replace(/^whatsapp:/i, ""));
+      if (!target) continue;
+      const resolved = {
+        ...base,
+        resolvedJid: target.jid,
+        resolvedNumber: target.number,
+        reason: "lid_stored_conversation_mapping",
+      };
+      logLidResolutionSuccess({
+        remoteJid: safeRemoteJid,
+        sender: base.sender || "",
+        participant: base.participant || "",
+        fromMe: base.fromMe === true,
+        ownerJid: base.ownerJid || base.connectedOwnerJid || "",
+        configuredBotNumber: base.configuredBotNumber || "",
+        resolvedJid: resolved.resolvedJid,
+        resolvedNumber: resolved.resolvedNumber,
+        reason: resolved.reason,
+      });
+      return resolved;
+    }
+  } catch (error) {
+    console.warn("[lid-resolution-lookup-error]", {
+      remoteJid: safeRemoteJid,
+      tenantId,
+      message: error?.message || String(error),
+      code: error?.code || "",
+    });
+  }
+  logLidResolutionFailed({
+    remoteJid: safeRemoteJid,
+    sender: base.sender || "",
+    participant: base.participant || "",
+    fromMe: base.fromMe === true,
+    ownerJid: base.ownerJid || base.connectedOwnerJid || "",
+    configuredBotNumber: base.configuredBotNumber || "",
+    resolvedJid: "",
+    reason: "lid_unresolved",
+  });
+  return null;
 };
 
 const resolveOutboundWhatsappReplyTarget = (message = {}) => {
@@ -1414,7 +1597,7 @@ const extractWhatsappWebhookEnvelope = (payload = {}) => {
   };
 };
 
-const extractIncomingWhatsapp = (payload = {}) => {
+const extractIncomingWhatsapp = async (payload = {}) => {
   const data = payload?.data || payload?.body?.data || payload;
   const key = data?.key || payload?.key || {};
   const eventCandidates = [
@@ -1446,7 +1629,16 @@ const extractIncomingWhatsapp = (payload = {}) => {
     findFirstString(payload, ["remoteJid", "remote_jid", "from", "sender", "number", "phone"])
   );
   const fromMe = boolValue(key?.fromMe ?? data?.fromMe ?? data?.from_me ?? payload?.fromMe);
-  const replyTarget = resolveWhatsappReplyTarget({ payload, data, key, remoteJid, fromMe });
+  let replyTarget = resolveWhatsappReplyTarget({ payload, data, key, remoteJid, fromMe });
+  if (fromMe === false && isLidJid(remoteJid) && !replyTarget.resolvedNumber) {
+    const storedReplyTarget = await resolveStoredLidReplyTarget({
+      tenantId: tenantIdForWhatsapp(payload),
+      remoteJid,
+      ownerJids: ownerJidsFromPayload({ payload, data, fromMe }),
+      base: replyTarget,
+    });
+    if (storedReplyTarget) replyTarget = storedReplyTarget;
+  }
   const phone = replyTarget.resolvedNumber || (isLidJid(remoteJid) ? remoteJid : normalizeEgyptPhone(jidNumber(remoteJid)));
   console.info("[whatsapp:reply-target-resolution]", {
     remoteJid,
@@ -2094,7 +2286,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
       inbox: { saved: false, reason: "from_me" },
     };
   }
-  const normalized = extractIncomingWhatsapp(payload);
+  const normalized = await extractIncomingWhatsapp(payload);
   const traceTenantId = tenantIdForWhatsapp(normalized.raw || {});
   let trace = null;
   console.info("[whatsapp:inbox-received]", {
@@ -2183,6 +2375,10 @@ export const handleIncomingWebhook = async (payload = {}) => {
 };
 
 export const triggerWhatsappAiAutoReply = async (message = {}) => {
+  if (String(process.env.WHATSAPP_AI_AUTO_REPLY).toLowerCase() === "false") {
+    console.log("[whatsapp:ai-auto-reply-disabled]");
+    return { triggered: false, sent: false, reason: "ai_auto_reply_disabled" };
+  }
   const inboundText = text(message?.text || message?.message_text || message?.body || "");
   if (message?.fromMe === true) {
     const ownerJids = outboundOwnerJidsForMessage(message);
