@@ -1,5 +1,7 @@
 ﻿import crypto from "node:crypto";
 
+import iconv from "iconv-lite";
+
 import db from "../database/db.js";
 import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
@@ -10,7 +12,7 @@ import {
   getAiSupportConversationState,
   markAiSupportConversationEscalated,
 } from "./aiSupportLogService.js";
-import { createNotification } from "./notificationsService.js";
+import { createNotification, ensureNotificationsSchema } from "./notificationsService.js";
 import {
   AI_AGENT_CHANNELS,
   extractMetaWebhookMessages,
@@ -92,6 +94,80 @@ const numberOrNull = (value) => {
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const nowIso = () => new Date().toISOString();
 const minutesFromNow = (minutes) => new Date(Date.now() + minutes * 60 * 1000).toISOString();
+const CORRUPTED_ARABIC_REPAIR_KEY = "repair_corrupted_arabic_text_v1";
+const CORRUPTED_ARABIC_MARKERS = [
+  "\u00d8",
+  "\u00d9",
+  "\u00c3",
+  "\u00c2",
+  "\u00e2",
+  "\u0637\u00a7",
+  "\u0638\u201e",
+  "\u0638\u0679",
+  "\u0638\u2026",
+];
+const SOURCE_REPAIR_RANGES = [
+  [0x0600, 0x06ff],
+  [0x0750, 0x077f],
+  [0x08a0, 0x08ff],
+  [0x2000, 0x27bf],
+  [0x1f300, 0x1faff],
+];
+let corruptedArabicRepairPattern = null;
+let corruptedArabicRepairMap = null;
+
+const escapeRegExp = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const hasCorruptedArabicMarker = (value = "") => {
+  const next = String(value ?? "");
+  return CORRUPTED_ARABIC_MARKERS.some((marker) => next.includes(marker));
+};
+const getCorruptedArabicRepairPattern = () => {
+  if (corruptedArabicRepairPattern) return corruptedArabicRepairPattern;
+  const map = new Map();
+  for (const [start, end] of SOURCE_REPAIR_RANGES) {
+    for (let cp = start; cp <= end; cp += 1) {
+      const char = String.fromCodePoint(cp);
+      const bytes = Buffer.from(char, "utf8");
+      for (const encoding of ["windows-1256", "windows-1252"]) {
+        const mojibake = iconv.decode(bytes, encoding);
+        if (mojibake && mojibake !== char && mojibake.length > 1) {
+          map.set(mojibake, char);
+        }
+      }
+    }
+  }
+  corruptedArabicRepairMap = map;
+  const keys = [...map.keys()]
+    .filter((key) => CORRUPTED_ARABIC_MARKERS.some((marker) => key.includes(marker)) || /[\u00e2\u064b\u06ba]/.test(key))
+    .sort((a, b) => b.length - a.length);
+  corruptedArabicRepairPattern = new RegExp(keys.map(escapeRegExp).join("|"), "g");
+  return corruptedArabicRepairPattern;
+};
+const repairCorruptedArabicValue = (value = "") => {
+  const original = String(value ?? "");
+  if (!hasCorruptedArabicMarker(original)) return original;
+  const pattern = getCorruptedArabicRepairPattern();
+  let next = original;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const repaired = next.replace(pattern, (match) => corruptedArabicRepairMap.get(match) || match);
+    if (repaired === next) break;
+    next = repaired;
+  }
+  return next;
+};
+const corruptedArabicWhereClause = (columns = [], startIndex = 1) => {
+  let index = startIndex;
+  const clauses = [];
+  const params = [];
+  for (const column of columns) {
+    for (const marker of CORRUPTED_ARABIC_MARKERS) {
+      clauses.push(`${column} LIKE $${index}`);
+      params.push(`%${marker}%`);
+      index += 1;
+    }
+  }
+  return { clause: clauses.join(" OR "), params };
+};
 const META_COMMERCE_ACTIONS = ["المقاسات", "صور أكتر", "متاح كاش/فيزا؟", "اكمل الطلب", "أقرب بديل", "اتكلم مع حد من الفريق"];
 const META_COMMERCE_ACTION_FALLBACK = "تحب أشوفلك المقاسات أو صور أكتر أو بديل قريب أو أكمل الطلب أو أوصلك بحد من الفريق؟";
 const ORDER_DRAFT_REPLY = "تمام، جهزتلك الطلب. ابعتلي الاسم ورقم الموبايل والعنوان للتأكيد.";
@@ -149,7 +225,7 @@ const detectGreetingMessage = (message = "") => {
       normalized.includes("\u0635\u0628\u0627\u062d \u0627\u0644\u062e\u064a\u0631") ||
       normalized.includes("\u0645\u0633\u0627\u0621 \u0627\u0644\u062e\u064a\u0631") ||
       normalized.includes("\u0627\u0647\u0644\u0627") ||
-      hasTerm(message, ["طآ§لطآ³لطآ§م طآ¹ليظئ’م", "طآ³لطآ§م", "طآ£هلطآ§", "طآ§هلطآ§", "hello"])
+      hasTerm(message, ["السلام عليكم", "سلام", "أهلا", "اهلا", "hello"])
   );
 };
 
@@ -5999,6 +6075,107 @@ const ensureCommerceConversationSchema = async () => {
   return commerceSchemaReadyPromise;
 };
 
+export const repairCorruptedArabicText = async (clientOrPool = db) => {
+  await ensureCommerceConversationSchema();
+  await ensureNotificationsSchema(clientOrPool);
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS startup_repairs (
+      repair_key TEXT PRIMARY KEY,
+      repaired_rows_count INTEGER NOT NULL DEFAULT 0,
+      result JSONB NOT NULL DEFAULT '{}'::jsonb,
+      completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const markerResult = await clientOrPool.query(
+    `SELECT repair_key FROM startup_repairs WHERE repair_key = $1 LIMIT 1`,
+    [CORRUPTED_ARABIC_REPAIR_KEY]
+  );
+
+  const aiWhere = corruptedArabicWhereClause(["ai_insight"]);
+  const notificationWhere = corruptedArabicWhereClause(["title", "message"]);
+  const [aiCandidateCount, notificationCandidateCount] = await Promise.all([
+    clientOrPool.query(`SELECT COUNT(*)::int AS count FROM ai_support_sessions WHERE ${aiWhere.clause}`, aiWhere.params),
+    clientOrPool.query(`SELECT COUNT(*)::int AS count FROM notifications WHERE ${notificationWhere.clause}`, notificationWhere.params),
+  ]);
+  const candidates =
+    Number(aiCandidateCount.rows[0]?.count || 0) +
+    Number(notificationCandidateCount.rows[0]?.count || 0);
+
+  if (markerResult.rows.length && candidates === 0) {
+    const result = {
+      repaired_rows_count: 0,
+      skipped: true,
+      reason: "already_completed",
+      ai_support_sessions_ai_insight: 0,
+      notifications: 0,
+    };
+    console.log("[corrupted-arabic-repair]", result);
+    return result;
+  }
+
+  const repaired = {
+    ai_support_sessions_ai_insight: 0,
+    notification_title: 0,
+    notification_message: 0,
+    notifications: 0,
+  };
+
+  const aiRows = await clientOrPool.query(
+    `SELECT id, ai_insight FROM ai_support_sessions WHERE ${aiWhere.clause}`,
+    aiWhere.params
+  );
+  for (const row of aiRows.rows) {
+    const nextInsight = repairCorruptedArabicValue(row.ai_insight);
+    if (nextInsight !== String(row.ai_insight ?? "")) {
+      await clientOrPool.query(
+        `UPDATE ai_support_sessions SET ai_insight = $2, updated_at = NOW() WHERE id = $1`,
+        [row.id, nextInsight]
+      );
+      repaired.ai_support_sessions_ai_insight += 1;
+    }
+  }
+
+  const notificationRows = await clientOrPool.query(
+    `SELECT id, title, message FROM notifications WHERE ${notificationWhere.clause}`,
+    notificationWhere.params
+  );
+  for (const row of notificationRows.rows) {
+    const nextTitle = repairCorruptedArabicValue(row.title);
+    const nextMessage = repairCorruptedArabicValue(row.message);
+    const titleChanged = nextTitle !== String(row.title ?? "");
+    const messageChanged = nextMessage !== String(row.message ?? "");
+    if (titleChanged || messageChanged) {
+      await clientOrPool.query(
+        `UPDATE notifications SET title = $2, message = $3, updated_at = NOW() WHERE id = $1`,
+        [row.id, nextTitle, nextMessage]
+      );
+      repaired.notifications += 1;
+      if (titleChanged) repaired.notification_title += 1;
+      if (messageChanged) repaired.notification_message += 1;
+    }
+  }
+
+  const repairedRowsCount = repaired.ai_support_sessions_ai_insight + repaired.notifications;
+  const result = {
+    repaired_rows_count: repairedRowsCount,
+    ...repaired,
+  };
+  await clientOrPool.query(
+    `
+    INSERT INTO startup_repairs (repair_key, repaired_rows_count, result, completed_at)
+    VALUES ($1, $2, $3::jsonb, NOW())
+    ON CONFLICT (repair_key) DO UPDATE SET
+      repaired_rows_count = EXCLUDED.repaired_rows_count,
+      result = EXCLUDED.result,
+      completed_at = NOW()
+    `,
+    [CORRUPTED_ARABIC_REPAIR_KEY, repairedRowsCount, JSON.stringify(result)]
+  );
+  console.log("[corrupted-arabic-repair]", result);
+  return result;
+};
+
 const updateHotLeadState = async ({ tenantId, conversationId, score = 0, reason = "", insight = HOT_LEAD_INSIGHT } = {}) => {
   if (!tenantId || !conversationId) return null;
   await ensureCommerceConversationSchema();
@@ -7306,10 +7483,10 @@ const staleProductPresentationPatterns = [
   /هراجعهمولك/i,
   /المقاسات\s*:\s*هراجع/i,
   /السعر\s+1750(?:\s+جنيه)?/i,
-  /لقيته\s+طآ¹نطآ¯ي/i,
-  /هطآ±طآ§طآ¬طآ¹همظث†لظئ’/i,
-  /طآ§لمقطآ§طآ³طآ§ت\s*:\s*هطآ±طآ§طآ¬طآ¹/i,
-  /طآ§لطآ³طآ¹طآ±\s+1750/i,
+  /لقيته\s+عندي/i,
+  /هراجعهمولك/i,
+  /المقاسات\s*:\s*هراجع/i,
+  /السعر\s+1750/i,
 ];
 
 const detectStaleProductPresentationReply = (reply = "") => {
@@ -9679,6 +9856,10 @@ const repeatedProductCards = ({ conversationId, productCards = [] } = {}) => {
   const previousCards = Array.isArray(memory.lastProductCards) ? memory.lastProductCards : [];
   const cards = normalizeProductCards(productCards, { limit: 6 });
   if (!previousCards.length || !cards.length) return false;
+  const lastReplyContext = [memory.lastReplyCategory || "", memory.lastIntent || "", memory.replyDecisionReason || "", memory.resolvedQuestion?.reason || ""].join(" ");
+  if (/MORE[_\s]?IMAGES|image_only/i.test(lastReplyContext)) {
+    return false;
+  }
   const previousByKey = new Map(
     previousCards
       .map((card) => [`${card.product_id || card.id || ""}:${imageIdentity(card.image_url)}`, card])
@@ -9747,6 +9928,19 @@ const canonicalModelFamilyLabel = (value = "") => {
   if (/\bjordan\b|\bair\s*jordan\b|\baj\b/.test(normalized) || /جورد[نا]/.test(normalized)) return "Jordan";
   return text(value).trim();
 };
+
+const familyLabelForCard = (card = {}) =>
+  canonicalModelFamilyLabel(
+    card?.model_family ||
+      card?.family ||
+      card?.model ||
+      card?.matched_model ||
+      card?.product_family ||
+      card?.name ||
+      card?.title ||
+      card?.product_name ||
+      ""
+  );
 
 const modelColorLimitIntro = "\u0639\u0646\u062f\u064a \u0645\u0646\u0647 \u0643\u0630\u0627 \u0644\u0648\u0646. \u0623\u0628\u062f\u0623\u0644\u0643 \u0628\u0623\u0642\u0631\u0628 \u0644\u0648\u0646\u064a\u0646\u060c \u0648\u0644\u0648 \u062a\u062d\u0628 \u0623\u0628\u0639\u062a\u0647\u0645\u0644\u0643 \u0643\u0644\u0647\u0645.";
 
@@ -10796,6 +10990,16 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     const keyword = detectMoreImagesRequest(messageText);
     if (!keyword || isColorQuestionMessage(messageText)) return null;
     const memory = getConversationMemory(message.external_conversation_id) || {};
+    let activeProductId = text(memory.activeProductId || memory.selectedProductId || memory.lastProductCard?.product_id || memory.lastProductCard?.id || "");
+    let activeVariantId = text(memory.activeVariantId || memory.selectedVariantId || memory.lastProductCard?.variant_id || "");
+    let activeModelFamily = canonicalModelFamilyLabel(memory.activeTopic || memory.last_model_family || memory.lastProductQuery || memory.lastProductCard?.model_family || memory.lastProductCard?.family || memory.lastProductCard?.name || "");
+    const requestedModelFamily = canonicalModelFamilyLabel(messageText || activeModelFamily || memory.lastProductCard?.name || "");
+    let handlerError = "";
+    let duplicateReason = "";
+    let familyCardsBeforeFilter = [];
+    let familyCardsAfterFilter = [];
+    let includedProducts = [];
+    let rejectedProducts = [];
     let context = resolveContextProductCard({ message, allowAmbiguous: true });
     let baseCard = context.card;
     if (!baseCard) {
@@ -10810,8 +11014,8 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         context = { ...context, card: baseCard, source: "active_memory_reconstructed", ambiguous: false };
       }
     }
-    const activeProductId = baseCard?.product_id || baseCard?.id || memory.selectedProductId || memory.activeProductId || "";
-    const activeVariantId = baseCard?.variant_id || memory.selectedVariantId || memory.activeVariantId || "";
+    activeProductId = baseCard?.product_id || baseCard?.id || activeProductId || "";
+    activeVariantId = baseCard?.variant_id || activeVariantId || "";
     const activeTopic = text(memory.activeTopic || memory.last_model_family || memory.lastProductQuery || baseCard?.model_family || baseCard?.family || baseCard?.name || "");
     const modelFamily = text(baseCard?.model_family || baseCard?.family || memory.last_model_family || activeTopic || "");
     const wantsAllImages = Boolean(
@@ -10819,8 +11023,6 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         /(?:all\s+images|all\s+colors|show\s+all|more\s+colors|كل\s+الصور|كل\s+الألوان|كل\s+الالوان)/i.test(text(messageText))
     );
     const modelNameSearch = Boolean(detectModelNameSearch(messageText) || modelFamily);
-    const requestedModelFamily = canonicalModelFamilyLabel(messageText || activeTopic || modelFamily || baseCard?.name || "");
-    const activeModelFamily = canonicalModelFamilyLabel(baseCard?.model_family || baseCard?.family || memory.last_model_family || activeTopic || modelFamily || "");
     let familyCards = [];
     if (modelNameSearch) {
       const familyQuery = text(activeTopic || modelFamily || baseCard?.name || messageText);
@@ -10840,8 +11042,9 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         });
         return [];
       });
+      familyCardsBeforeFilter = normalizeProductCards(familyProducts, { limit: wantsAllImages ? 12 : 8 });
       const filteredFamilyProducts = [];
-      for (const candidate of familyProducts) {
+      for (const candidate of familyCardsBeforeFilter) {
         const candidateFamily = canonicalModelFamilyLabel(
           candidate?.model_family || candidate?.family || candidate?.model || candidate?.matched_model || candidate?.product_family || candidate?.name || candidate?.title || ""
         );
@@ -10865,6 +11068,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         if (shouldInclude) filteredFamilyProducts.push(candidate);
       }
       familyCards = normalizeProductCards(filteredFamilyProducts, { limit: wantsAllImages ? 12 : 8 });
+      familyCardsAfterFilter = familyCards;
       console.log("[more-images-family-search]", {
         tenant_id: config.tenant_id,
         conversation_id: message.external_conversation_id,
@@ -10873,6 +11077,18 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         wants_all_images: wantsAllImages,
       });
     }
+    console.log("[LIVE_MORE_IMAGES_TRACE]", {
+      message: messageText,
+      activeProductId,
+      activeVariantId,
+      activeModelFamily,
+      familyCards_before_filter: familyCardsBeforeFilter.length,
+      familyCards_after_filter: familyCardsAfterFilter.length || familyCards.length,
+      included_products: includedProducts,
+      rejected_products: rejectedProducts,
+      handler_error: handlerError,
+      duplicate_reason: duplicateReason,
+    });
     const includeOtherColors = wantsAllImages;
     console.log("ai_action_images_requested", {
       tenant_id: config.tenant_id,
@@ -11187,6 +11403,19 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         resolvedQuestionType: (getConversationMemory(message.external_conversation_id) || {}).resolvedQuestionType || "",
       });
     } catch (error) {
+      handlerError = error?.message || "more_images_send_failed";
+      console.log("[LIVE_MORE_IMAGES_TRACE]", {
+        message: messageText,
+        activeProductId,
+        activeVariantId,
+        activeModelFamily,
+        familyCards_before_filter: familyCardsBeforeFilter.length,
+        familyCards_after_filter: familyCardsAfterFilter.length || familyCards.length,
+        included_products: includedProducts,
+        rejected_products: rejectedProducts,
+        handler_error: handlerError,
+        duplicate_reason: duplicateReason,
+      });
       logMoreImagesLiveAudit({
         message,
         activeProductId,
@@ -11274,18 +11503,31 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
     }).catch(() => {});
     return { handled: true, reason: "more_images_sent" };
   } catch (error) {
+    handlerError = handlerError || error?.message || "more_images_handler_error";
     console.error("[more-images-router:error]", {
       tenant_id: config?.tenant_id,
       conversation_id: message?.external_conversation_id || "",
       message: error?.message || "more images handling failed",
       code: error?.code || "",
     });
+    console.log("[LIVE_MORE_IMAGES_TRACE]", {
+      message: message?.message_text || "",
+      activeProductId,
+      activeVariantId,
+      activeModelFamily,
+      familyCards_before_filter: familyCardsBeforeFilter.length,
+      familyCards_after_filter: familyCardsAfterFilter.length || familyCards.length,
+      included_products: includedProducts,
+      rejected_products: rejectedProducts,
+      handler_error: handlerError,
+      duplicate_reason: duplicateReason,
+    });
     logMoreImagesLiveAudit({
       message,
-      activeProductId: message?.activeProductId || "",
-      activeVariantId: message?.activeVariantId || "",
-      activeTopic: "",
-      modelFamily: "",
+      activeProductId,
+      activeVariantId,
+      activeTopic: activeModelFamily || "",
+      modelFamily: activeModelFamily || "",
       resolvedBaseCard: null,
       productCards: [],
       imageCards: [],
