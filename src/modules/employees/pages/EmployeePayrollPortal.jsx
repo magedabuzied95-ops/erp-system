@@ -19,13 +19,10 @@ import {
   Home,
   Loader2,
   MessageCircle,
-  Mic,
-  Paperclip,
   Play,
   QrCode,
   RefreshCw,
   ReceiptText,
-  Send,
   ShieldCheck,
   Smartphone,
   Star,
@@ -41,10 +38,9 @@ import { API_ORIGIN, SOCKET_URL } from "../../../shared/constants/app";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
-import ChatImageAttachment from "../components/ChatImageAttachment";
-import WhatsAppRecordingBar from "../components/WhatsAppRecordingBar";
-import WhatsAppVoiceMessage from "../components/WhatsAppVoiceMessage";
-import { logResolvedChatImageUrl, messageAttachmentDuration, normalizeChatAttachmentUrl } from "../lib/chatAttachments";
+import PortalChatComposer from "../../../shared/chat/PortalChatComposer";
+import PortalChatMessageList from "../../../shared/chat/PortalChatMessageList";
+import { allowedPortalChatAttachment } from "../../../shared/chat/portalChatUtils";
 
 const labels = {
   ar: {
@@ -461,33 +457,6 @@ const money = (value) => {
 };
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
-const chatAttachmentUrl = (value = "") => {
-  return normalizeChatAttachmentUrl(value);
-};
-const formatFileSize = (value = 0) => {
-  const bytes = Number(value || 0);
-  if (!Number.isFinite(bytes) || bytes <= 0) return "";
-  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
-const allowedChatAttachment = (file) => {
-  if (!file) return true;
-  return new Set([
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "audio/webm",
-    "audio/mp4",
-    "audio/mpeg",
-    "audio/wav",
-    "audio/x-wav",
-  ]).has(file.type);
-};
 
 const safeNow = () => {
   try {
@@ -987,61 +956,6 @@ function TimelineItem({ item, text, language }) {
         {credit ? "+" : "-"} {money(item.amount)}
       </div>
     </div>
-  );
-}
-
-function chatMessagePreview(message = {}, text = {}) {
-  const body = String(message.body || message.reply_body || "").trim();
-  if (body) return body.length > 80 ? `${body.slice(0, 77)}...` : body;
-  const type = message.attachment_type || message.reply_attachment_type;
-  if (type === "image") return text.imageAttachment || "صورة";
-  if (type === "audio") return "رسالة صوتية";
-  if (message.attachment_url || message.reply_attachment_name) return text.fileAttachment || "ملف";
-  return "رسالة";
-}
-
-function ChatAttachment({ message, text, compact = false, outgoing = false, timeText = "", showChecks = false, read = false, onImageClick }) {
-  if (!message?.attachment_url) return null;
-  const href = chatAttachmentUrl(message.attachment_url);
-  const isImage = message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
-  const isAudio = message.attachment_type === "audio" || String(message.attachment_mime || "").startsWith("audio/");
-  const name = message.attachment_name || (isImage ? text.imageAttachment : text.fileAttachment);
-  if (isImage) {
-    logResolvedChatImageUrl("[chat-image-employee-src]", message, message.attachment_url, href);
-    return (
-      <ChatImageAttachment
-        src={href}
-        alt={name}
-        compact={compact}
-        onClick={onImageClick}
-        originalUrl={message.attachment_url}
-        messageId={message.id}
-      />
-    );
-  }
-  if (isAudio) {
-    return (
-      <WhatsAppVoiceMessage
-        src={href}
-        outgoing={outgoing}
-        label={text.voiceAttachment || "Voice message"}
-        timeText={timeText}
-        showChecks={showChecks}
-        read={read}
-        duration={messageAttachmentDuration(message)}
-      />
-    );
-  }
-  return (
-    <a href={href} target="_blank" rel="noreferrer" download className="mb-2 flex items-center gap-3 rounded-2xl border border-black/10 bg-black/5 p-3 text-inherit no-underline">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/70 text-slate-700">
-        <FileText className="h-5 w-5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-black" dir="auto">{name}</span>
-        <span className="mt-0.5 block text-[10px] font-bold opacity-70" dir="ltr">{message.attachment_mime || text.fileAttachment} {formatFileSize(message.attachment_size)}</span>
-      </span>
-    </a>
   );
 }
 
@@ -1999,7 +1913,7 @@ export default function EmployeePayrollPortal() {
       setChatAttachmentDuration(0);
       return;
     }
-    if (!allowedChatAttachment(file) || file.size > 10 * 1024 * 1024) {
+    if (!allowedPortalChatAttachment(file) || file.size > 10 * 1024 * 1024) {
       setChatError(ui("unsupportedAttachment"));
       event.target.value = "";
       setChatAttachment(null);
@@ -3240,141 +3154,67 @@ export default function EmployeePayrollPortal() {
               </div>
               {chatError ? <div className="mx-4 my-2 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
             </div>
-            <div
-              ref={chatMessagesRef}
-              className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain scroll-smooth px-3 py-2"
-              style={chatMessagesStyle}
+            <PortalChatMessageList
+              messages={chatMessages}
+              loading={chatLoading}
+              labels={{
+                ...text,
+                today: "اليوم",
+                loading: text.loading,
+                empty: ui("noChatMessages"),
+                unread: "رسائل غير مقروءة",
+                image: text.imageAttachment || "صورة",
+                voice: text.voiceAttachment || "رسالة صوتية",
+                file: text.fileAttachment || "ملف",
+              }}
+              outgoingSenderType="employee"
+              outgoingLabel={ui("you")}
+              incomingLabel={ui("management")}
+              timeFormatter={(value) => formatTimeLocal(value, language)}
+              messagesRef={chatMessagesRef}
               onScroll={handleChatScroll}
-            >
-              <div className="mx-auto mb-3 w-fit rounded-full bg-[#182229]/90 px-3 py-1 text-[11px] font-black text-slate-300">اليوم</div>
-              {chatLoading ? (
-                <div className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-3 py-5 text-sm font-bold text-slate-200">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {text.loading}
-                </div>
-              ) : chatMessages.length ? (
-                chatMessages.map((message) => {
-                  const employeeMessage = message.sender_type === "employee";
-                  const isAudioMessage = message.attachment_type === "audio" || String(message.attachment_mime || "").startsWith("audio/");
-                  const hasMessageBody = Boolean(String(message.body || "").trim());
-                  const voiceMessage = isAudioMessage && !hasMessageBody;
-                  return (
-                    <div id={`employee-chat-message-${message.id}`} key={message.id} className={`flex rounded-2xl transition-shadow duration-300 ${employeeMessage ? "justify-end" : "justify-start"}`}>
-                      <div
-                        onTouchStart={(event) => beginChatSwipe(event, message)}
-                        onTouchMove={(event) => moveChatSwipe(event, message)}
-                        onTouchEnd={endChatSwipe}
-                        onTouchCancel={endChatSwipe}
-                        className={`relative touch-pan-y select-none break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${voiceMessage ? "w-[min(78vw,18.5rem)] px-2 py-1" : "w-fit max-w-[78%] px-3 py-2"} ${employeeMessage ? "rounded-br-[0.25rem] bg-[#005c4b] text-white after:absolute after:bottom-0 after:-right-1 after:h-2.5 after:w-2.5 after:bg-[#005c4b] after:[clip-path:polygon(0_0,100%_100%,0_100%)]" : "rounded-bl-[0.25rem] bg-[#202c33] text-slate-50 after:absolute after:bottom-0 after:-left-1 after:h-2.5 after:w-2.5 after:bg-[#202c33] after:[clip-path:polygon(100%_0,100%_100%,0_100%)]"}`}
-                      >
-                        {message.reply_to_message_id ? (
-                          <button type="button" onClick={() => scrollToChatMessage(message.reply_to_message_id)} className="mb-1.5 w-full rounded-xl border-r-2 border-emerald-300 bg-black/10 px-2 py-1 text-start text-[11px] leading-4 text-slate-200/80">
-                            <div className="font-black">{message.reply_sender_type === "employee" ? ui("you") : ui("management")}</div>
-                            <div className="truncate">{chatMessagePreview({ body: message.reply_body, attachment_type: message.reply_attachment_type, attachment_name: message.reply_attachment_name }, text)}</div>
-                          </button>
-                        ) : null}
-                        <ChatAttachment
-                          message={message}
-                          text={text}
-                          compact
-                          outgoing={employeeMessage}
-                          timeText={formatTimeLocal(message.created_at, language)}
-                          showChecks={employeeMessage}
-                          read={Boolean(message.read_at)}
-                          onImageClick={setChatImagePreview}
-                        />
-                        {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
-                        {!voiceMessage ? (
-                          <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] font-medium leading-4 text-slate-300/65" dir="ltr">
-                            <DateSafe>{formatTimeLocal(message.created_at, language)}</DateSafe>
-                            {employeeMessage ? <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? "text-sky-300" : "text-slate-300/70"}`} /> : null}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="rounded-3xl border border-dashed border-white/15 bg-white/5 px-4 py-8 text-center text-sm font-bold text-slate-300">
-                  <MessageCircle className="mx-auto h-8 w-8" />
-                  <div className="mt-2">{ui("noChatMessages")}</div>
-                </div>
-              )}
-              {chatTyping ? <div className="w-fit rounded-2xl bg-[#202c33] px-3 py-1.5 text-[12px] font-bold text-emerald-200">الإدارة تكتب الآن...</div> : null}
-              {showChatJump ? (
-                <button type="button" onClick={scrollChatToBottom} className="sticky bottom-3 z-10 ms-auto flex h-9 w-9 items-center justify-center rounded-full bg-[#202c33] text-white shadow-lg">
-                  <ArrowDownCircle className="h-5 w-5" />
-                </button>
-              ) : null}
-            </div>
-            <form onSubmit={submitChatMessage} className="relative z-30 flex-none border-t border-white/10 bg-[#1f2c33] px-2 pb-1 pt-1">
-              {recordingState.active ? (
-                <WhatsAppRecordingBar
-                  stream={recordingStream}
-                  seconds={recordingState.seconds}
-                  paused={recordingState.paused}
-                  sending={chatSaving}
-                  onDelete={cancelVoiceRecording}
-                  onPauseResume={toggleVoiceRecordingPause}
-                  onSend={sendVoiceRecording}
-                />
-              ) : (
-                <>
-              {replyToChat ? (
-                <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-white/10 px-2.5 py-1.5 text-[11px] font-bold leading-4 text-white">
-                  <button type="button" onClick={() => scrollToChatMessage(replyToChat.id)} className="min-w-0 flex-1 border-r-2 border-emerald-300 pr-2 text-start">
-                    <div className="text-emerald-200">{replyToChat.sender_type === "employee" ? ui("you") : ui("management")}</div>
-                    <div className="truncate opacity-80">{chatMessagePreview(replyToChat, text)}</div>
-                  </button>
-                  <button type="button" onClick={() => setReplyToChat(null)} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-red-200"><X className="h-3.5 w-3.5" /></button>
-                </div>
-              ) : null}
-              {chatAttachment ? (
-                <div className="mb-1.5 flex items-center justify-between gap-2 rounded-xl bg-white/10 px-2.5 py-1.5 text-[11px] font-bold text-white">
-                  <span className="min-w-0 truncate" dir="auto">{chatAttachment.name}</span>
-                  <button type="button" onClick={() => { setChatAttachment(null); setChatAttachmentDuration(0); if (chatFileInputRef.current) chatFileInputRef.current.value = ""; }} className="font-black text-red-200">
-                    {ui("removeAttachment")}
-                  </button>
-                </div>
-              ) : null}
-              <div className="flex h-[44px] items-center gap-1.5">
-                <input
-                  ref={chatFileInputRef}
-                  type="file"
-                  className="hidden"
-                  accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.webm,.m4a,.mp4,.mp3,.wav,image/jpeg,image/png,image/webp,audio/webm,audio/mp4,audio/mpeg,audio/wav,audio/x-wav,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  onChange={chooseChatAttachment}
-                />
-                <button type="button" onClick={() => chatFileInputRef.current?.click()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label={ui("attachFile")}>
-                  <Paperclip className="h-4 w-4" />
-                </button>
-                {recordingState.supported ? (
-                  <button type="button" onClick={startVoiceRecording} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100" aria-label="تسجيل صوتي">
-                    <Mic className="h-4 w-4" />
-                  </button>
-                ) : null}
-                <input
-                  ref={chatInputRef}
-                  type="text"
-                  value={chatBody}
-                  onChange={(event) => { setChatBody(event.target.value); emitChatTyping(); }}
-                  placeholder={ui("chatPlaceholder")}
-                  inputMode="text"
-                  enterKeyHint="send"
-                  autoCorrect="on"
-                  autoComplete="off"
-                  autoCapitalize="sentences"
-                  spellCheck="true"
-                  className="h-[42px] min-h-[42px] min-w-0 flex-1 rounded-[22px] border border-white/10 bg-white/10 px-3 py-0 !text-[16px] font-bold leading-5 text-white outline-none [transform:none] [zoom:1] placeholder:text-slate-400 focus:border-emerald-400"
-                  dir="auto"
-                />
-                <button type="submit" disabled={chatSaving || (!chatBody.trim() && !chatAttachment)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-emerald-950 disabled:opacity-50">
-                  {chatSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </button>
-              </div>
-                </>
-              )}
-            </form>
+              showJump={showChatJump}
+              onJumpToBottom={scrollChatToBottom}
+              typingLabel={chatTyping ? "الإدارة تكتب الآن..." : ""}
+              onImageClick={setChatImagePreview}
+              onBeginSwipe={beginChatSwipe}
+              onMoveSwipe={moveChatSwipe}
+              onEndSwipe={endChatSwipe}
+              messageIdPrefix="employee-chat-message"
+              style={chatMessagesStyle}
+            />
+            <PortalChatComposer
+              onSubmit={submitChatMessage}
+              body={chatBody}
+              setBody={setChatBody}
+              sending={chatSaving}
+              attachment={chatAttachment}
+              setAttachment={setChatAttachment}
+              setAttachmentDuration={setChatAttachmentDuration}
+              replyTo={replyToChat}
+              setReplyTo={setReplyToChat}
+              labels={{
+                ...text,
+                outgoingSenderType: "employee",
+                you: ui("you"),
+                management: ui("management"),
+                placeholder: ui("chatPlaceholder"),
+                attachFile: ui("attachFile"),
+                removeAttachment: ui("removeAttachment"),
+                recordVoice: "تسجيل صوتي",
+              }}
+              fileInputRef={chatFileInputRef}
+              inputRef={chatInputRef}
+              chooseAttachment={chooseChatAttachment}
+              emitTyping={emitChatTyping}
+              recordingState={recordingState}
+              recordingStream={recordingStream}
+              onCancelRecording={cancelVoiceRecording}
+              onToggleRecordingPause={toggleVoiceRecordingPause}
+              onSendRecording={sendVoiceRecording}
+              onStartRecording={startVoiceRecording}
+              onScrollToReply={scrollToChatMessage}
+            />
           </section>
         </div>
       ) : null}

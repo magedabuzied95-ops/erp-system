@@ -19,7 +19,6 @@ import {
   Megaphone,
   Medal,
   Package,
-  Phone,
   Plus,
   RefreshCw,
   Search,
@@ -38,8 +37,8 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+import SharedPortalChat from "../../../shared/chat/SharedPortalChat";
 import { formatCurrency } from "../../../shared/lib/currency";
-import { dedupeChatMessages, dedupeChatThreads, mergeChatMessages, mergeChatThreads } from "../../../shared/lib/chatState";
 import { SOCKET_URL } from "../../../shared/constants/app";
 import { playRealtimeSound, requestBrowserNotificationPermission, unlockRealtimeFeedbackAudio } from "../../../services/realtimeFeedbackService";
 import { managerPortalApi } from "../services/managerPortalApi";
@@ -278,15 +277,11 @@ export default function ManagerPortal() {
   const [stockAlerts, setStockAlerts] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [chatThreads, setChatThreads] = useState([]);
-  const [chatThread, setChatThread] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [selectedThreadId, setSelectedThreadId] = useState("");
+  const [managerChatState, setManagerChatState] = useState({ employee: null, thread: null, messages: [] });
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [taskDraft, setTaskDraft] = useState({ title: "", description: "", assigned_employee_id: "", priority: "medium" });
   const [taskNotes, setTaskNotes] = useState({});
   const [taskFilters, setTaskFilters] = useState({ status: "all", employee: "", query: "" });
-  const [chatBody, setChatBody] = useState("");
   const [settings, setSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS);
   const [browserNotificationPermission, setBrowserNotificationPermission] = useState(() => (isBrowser() && "Notification" in window ? window.Notification.permission : "unsupported"));
   const [soundUnlocked, setSoundUnlocked] = useState(false);
@@ -299,23 +294,13 @@ export default function ManagerPortal() {
   const socketRef = useRef(null);
   const notificationPanelRef = useRef(null);
   const notificationButtonRef = useRef(null);
-  const selectedThreadRef = useRef("");
   const selectedTabRef = useRef(activeTab);
-  const chatThreadRef = useRef(null);
   const settingsRef = useRef(settings);
   const browserNotificationPermissionRef = useRef(browserNotificationPermission);
 
   useEffect(() => {
-    selectedThreadRef.current = selectedThreadId;
-  }, [selectedThreadId]);
-
-  useEffect(() => {
     selectedTabRef.current = activeTab;
   }, [activeTab]);
-
-  useEffect(() => {
-    chatThreadRef.current = chatThread;
-  }, [chatThread]);
 
   useEffect(() => {
     if (!isBrowser()) return;
@@ -356,6 +341,14 @@ export default function ManagerPortal() {
     ].includes(permission));
   }, [me]);
   const staffList = staff?.staff || [];
+  const managerChatApiAdapter = useMemo(() => ({
+    listThreads: () => managerPortalApi.chat(token),
+    getThread: (threadId) => managerPortalApi.chatThread(token, threadId),
+    sendMessage: (threadId, formData) => managerPortalApi.sendChatMessage(token, threadId, formData),
+    markRead: (threadId) => managerPortalApi.markChatRead(token, threadId),
+    emitTyping: (payload) => socketRef.current?.emit?.("employee-chat:typing", payload),
+    emitStopTyping: (payload) => socketRef.current?.emit?.("employee-chat:stop-typing", payload),
+  }), [token]);
   const taskList = tasks?.tasks || [];
   const taskCounts = useMemo(() => ({
     open: taskList.filter((task) => ["pending", "in_progress", "manager_review", "reassigned"].includes(normalizeText(task.status)) || Boolean(task.is_overdue && normalizeText(task.status) !== "completed")).length,
@@ -478,14 +471,12 @@ export default function ManagerPortal() {
   const hasMoreLeads = (dashboard?.new_leads || []).length > visibleLeads.length;
   const visibleLowStock = showMoreLowStock ? lowStock : lowStock.slice(0, 3);
   const hasMoreLowStock = lowStock.length > visibleLowStock.length;
-  const selectedChatThread = useMemo(() => {
-    if (chatThread?.id) return chatThread;
-    return chatThreads.find((thread) => String(thread.id) === String(selectedThreadId)) || null;
-  }, [chatThread, chatThreads, selectedThreadId]);
+  const selectedChatThread = managerChatState.thread || null;
   const selectedChatEmployee = useMemo(() => {
-    const threadEmployeeId = selectedChatThread?.employee_id ? String(selectedChatThread.employee_id) : "";
-    if (!threadEmployeeId) return null;
-    const staffEmployee = staffList.find((employee) => String(employee.employee_id) === threadEmployeeId) || null;
+    if (managerChatState.employee) return managerChatState.employee;
+    const chatEmployeeId = selectedChatThread?.employee_id ? String(selectedChatThread.employee_id) : "";
+    if (!chatEmployeeId) return null;
+    const staffEmployee = staffList.find((employee) => String(employee.employee_id || employee.id) === chatEmployeeId) || null;
     return staffEmployee
       ? {
         ...selectedChatThread,
@@ -495,7 +486,7 @@ export default function ManagerPortal() {
         branch_name: portalText(selectedChatThread?.branch_name || staffEmployee.branch_name || ""),
       }
       : selectedChatThread;
-  }, [selectedChatThread, staffList]);
+  }, [managerChatState.employee, selectedChatThread, staffList]);
   const selectedChatLastActivity = selectedChatEmployee?.last_activity || selectedChatThread?.last_message_created_at || selectedChatThread?.updated_at || selectedChatThread?.last_message_at || null;
   const selectedChatAttendanceStatus = selectedChatEmployee?.attendance_status || "absent";
   const selectedChatAttendanceTone = selectedChatAttendanceStatus === "checked_in" ? "green" : selectedChatAttendanceStatus === "online" ? "blue" : selectedChatAttendanceStatus === "late" ? "amber" : "slate";
@@ -553,7 +544,7 @@ export default function ManagerPortal() {
       if (!silent) setLoading(true);
       setRefreshing(Boolean(silent));
       setError("");
-      const [meRes, dashboardRes, staffRes, tasksRes, salesRes, stockRes, notificationsRes, chatRes] = await Promise.all([
+      const [meRes, dashboardRes, staffRes, tasksRes, salesRes, stockRes, notificationsRes] = await Promise.all([
         managerPortalApi.me(token),
         managerPortalApi.dashboard(token),
         managerPortalApi.staff(token),
@@ -561,7 +552,6 @@ export default function ManagerPortal() {
         managerPortalApi.sales(token),
         managerPortalApi.stockAlerts(token),
         managerPortalApi.notifications(token, { limit: 40 }),
-        managerPortalApi.chat(token),
       ]);
       setMe(normalizeManagerPortalPayload("me", meRes?.manager || meRes?.data?.manager || null));
       setDashboard(normalizeManagerPortalPayload("dashboard", dashboardRes?.dashboard || null));
@@ -572,15 +562,6 @@ export default function ManagerPortal() {
       setNotifications(normalizeManagerPortalPayload("notifications", Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []));
       setUnreadCount(Number(notificationsRes?.unread_count || 0));
       setSettings(mergeSettings(normalizeManagerPortalPayload("settings", notificationsRes?.settings || meRes?.notification_settings || {})));
-      setChatThreads(normalizeManagerPortalPayload("chatThreads", dedupeChatThreads(Array.isArray(chatRes?.threads) ? chatRes.threads : [])));
-      if (!selectedThreadRef.current && Array.isArray(chatRes?.threads) && chatRes.threads[0]?.id) {
-        setSelectedThreadId(String(chatRes.threads[0].id));
-      }
-      if (!selectedThreadRef.current && chatRes?.thread?.id) {
-        setSelectedThreadId(String(chatRes.thread.id));
-        setChatThread(normalizeManagerPortalPayload("chatThread", chatRes.thread));
-        setChatMessages(normalizeManagerPortalPayload("chatMessages", dedupeChatMessages(Array.isArray(chatRes.messages) ? chatRes.messages : [], chatRes.thread)));
-      }
     } catch (loadError) {
       setError(loadError?.responseBody?.message || loadError?.message || "تعذر تحميل بوابة المدير.");
     } finally {
@@ -609,24 +590,6 @@ export default function ManagerPortal() {
     });
     socketRef.current = socket;
 
-    const refreshChat = () => {
-      if (selectedTabRef.current !== "chat") return;
-      const threadId = String(selectedThreadRef.current || "");
-      if (!threadId) {
-        managerPortalApi.chat(token).then((response) => {
-          setChatThreads(dedupeChatThreads(Array.isArray(response?.threads) ? response.threads : []));
-        }).catch(() => null);
-        return;
-      }
-      managerPortalApi.chatThread(token, threadId).then((response) => {
-        setChatThread(response?.thread || null);
-        setChatMessages(dedupeChatMessages(Array.isArray(response?.messages) ? response.messages : [], response?.thread || chatThreadRef.current));
-        setChatThreads((current) => mergeChatThreads(current, [response?.thread].filter(Boolean)));
-      }).catch(() => null);
-    };
-
-    socket.on("connect", refreshChat);
-    socket.io.on("reconnect", refreshChat);
     socket.on("notification:new", (payload) => {
       const next = payload || {};
       upsertNotification(next);
@@ -638,47 +601,8 @@ export default function ManagerPortal() {
         setUnreadCount(Number(response?.unread_count || 0));
       }).catch(() => null);
     });
-    socket.on("employee-chat:new-message", (payload) => {
-      const threadId = String(payload?.thread?.id || payload?.thread_id || "");
-      if (!threadId) return;
-      setChatThreads((current) => normalizeManagerPortalPayload("socketChatThreads", mergeChatThreads(current, payload.thread ? [payload.thread] : [])));
-      if (payload?.message) {
-        setChatMessages((current) => normalizeManagerPortalPayload("socketChatMessages", mergeChatMessages(current, [payload.message], payload.thread || chatThreadRef.current || null)));
-      }
-      if (selectedThreadRef.current && String(selectedThreadRef.current) === threadId) {
-        if (payload.thread) setChatThread((current) => normalizeManagerPortalPayload("socketChatThread", current ? { ...current, ...payload.thread } : payload.thread));
-        managerPortalApi.chatThread(token, threadId).then((response) => {
-          if (response?.thread) {
-            setChatThread((current) => normalizeManagerPortalPayload("socketChatThreadReload", current ? { ...current, ...response.thread } : response.thread));
-          }
-          setChatMessages((current) => normalizeManagerPortalPayload("socketChatMessagesReload", mergeChatMessages(current, Array.isArray(response?.messages) ? response.messages : [], response?.thread || payload?.thread || chatThreadRef.current || null)));
-        }).catch(() => null);
-      }
-    });
-    socket.on("employee-chat:thread-updated", (payload) => {
-      const nextThread = payload?.thread;
-      if (!nextThread?.id) return;
-      setChatThreads((current) => normalizeManagerPortalPayload("socketThreadUpdated", mergeChatThreads(current, [nextThread])));
-      if (selectedThreadRef.current && String(selectedThreadRef.current) === String(nextThread.id)) {
-        setChatThread((current) => normalizeManagerPortalPayload("socketThreadUpdatedCurrent", current ? { ...current, ...nextThread } : nextThread));
-      }
-    });
-    socket.on("employee-chat:read", (payload) => {
-      const threadId = String(payload?.thread_id || "");
-      if (!threadId) return;
-      if (selectedThreadRef.current && String(selectedThreadRef.current) === threadId) {
-        managerPortalApi.chatThread(token, threadId).then((response) => {
-          if (response?.thread) {
-            setChatThread((current) => normalizeManagerPortalPayload("socketThreadRead", current ? { ...current, ...response.thread } : response.thread));
-          }
-          setChatMessages((current) => normalizeManagerPortalPayload("socketThreadReadMessages", mergeChatMessages(current, Array.isArray(response?.messages) ? response.messages : [], response?.thread || chatThreadRef.current || null)));
-        }).catch(() => null);
-      }
-    });
 
     return () => {
-      socket.off("connect", refreshChat);
-      socket.io.off("reconnect", refreshChat);
       socket.disconnect();
       socketRef.current = null;
     };
@@ -709,14 +633,6 @@ export default function ManagerPortal() {
       if (tab === "sales") {
         const response = await managerPortalApi.sales(token);
         setSales(normalizeManagerPortalPayload("salesReload", response?.sales || null));
-      }
-      if (tab === "chat") {
-        const response = await managerPortalApi.chat(token, selectedThreadId || null);
-        setChatThreads((current) => normalizeManagerPortalPayload("chatThreadsReload", mergeChatThreads(current, Array.isArray(response?.threads) ? response.threads : [])));
-        if (response?.thread) {
-          setChatThread((current) => normalizeManagerPortalPayload("chatThreadReload", current ? { ...current, ...response.thread } : response.thread));
-          setChatMessages((current) => normalizeManagerPortalPayload("chatMessagesReload", mergeChatMessages(current, Array.isArray(response.messages) ? response.messages : [], response.thread || chatThreadRef.current || null)));
-        }
       }
     } catch (reloadError) {
       toast.error(reloadError?.responseBody?.message || reloadError?.message || "تعذر تحديث البيانات");
@@ -795,36 +711,6 @@ export default function ManagerPortal() {
     setBrowserNotificationPermission(permission);
     if (permission === "granted") toast.success("تم تفعيل إشعارات المتصفح");
     else toast.error("لم يتم تفعيل إشعارات المتصفح");
-  };
-
-  const selectThread = async (threadId) => {
-    setSelectedThreadId(String(threadId));
-    try {
-      const response = await managerPortalApi.chatThread(token, threadId);
-      setChatThread(normalizeManagerPortalPayload("chatThreadSelect", response?.thread || null));
-      setChatMessages(normalizeManagerPortalPayload("chatMessagesSelect", dedupeChatMessages(Array.isArray(response?.messages) ? response.messages : [], response?.thread)));
-      setChatThreads((current) => normalizeManagerPortalPayload("chatThreadsSelect", mergeChatThreads(current, [response?.thread || current.find((item) => String(item.id) === String(threadId))].filter(Boolean))));
-      await managerPortalApi.markChatRead(token, threadId);
-    } catch (chatError) {
-      toast.error(chatError?.responseBody?.message || chatError?.message || "تعذر فتح المحادثة");
-    }
-  };
-
-  const sendChat = async () => {
-    if (!selectedThreadId) return;
-    const body = chatBody.trim();
-    if (!body) return;
-    const formData = new FormData();
-    formData.append("body", body);
-    try {
-      setChatBody("");
-      const response = await managerPortalApi.sendChatMessage(token, selectedThreadId, formData);
-      if (response?.thread) setChatThread((current) => (current ? { ...current, ...response.thread } : response.thread));
-      if (response?.message) setChatMessages((current) => mergeChatMessages(current, [response.message], response?.thread || chatThreadRef.current || null));
-      await reloadTabData("chat");
-    } catch (sendError) {
-      toast.error(sendError?.responseBody?.message || sendError?.message || "تعذر إرسال الرسالة");
-    }
   };
 
   const sendTaskAction = async (id, action, payload = {}) => {
@@ -1642,135 +1528,23 @@ export default function ManagerPortal() {
           ) : null}
 
           {activeTab === "chat" ? (
-            <div className="grid min-h-0 gap-4 xl:h-[calc(100dvh-13rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
-              <Card
-                title={portalText("Conversations")}
-                subtitle="Conversations"
-                icon={MessageSquare}
-                className="flex min-h-0 flex-col overflow-hidden xl:h-full"
-                bodyClassName="flex-1 min-h-0"
-              >
-                <div className="flex h-full min-h-0 flex-col gap-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-300">
-                    WhatsApp style inbox
-                  </div>
-                  <div className="flex-1 min-h-0 space-y-2 overflow-auto pr-1">
-                    {chatThreads.length ? chatThreads.map((thread) => {
-                      const active = String(thread.id) === String(selectedThreadId);
-                      const lastMessageTime = thread.last_message_created_at || thread.last_message_at || thread.updated_at || thread.created_at;
-                      return (
-                        <button
-                          key={thread.id || thread.employee_id || thread.employee_code}
-                          type="button"
-                          data-testid={`chat-thread-${thread.id || thread.employee_id || thread.employee_code}`}
-                          onClick={() => void selectThread(thread.id)}
-                          className={`w-full rounded-[1.4rem] border px-3 py-3 text-right transition ${active ? "border-emerald-300 bg-emerald-50 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10" : "border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/60 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-sky-500/30 dark:hover:bg-sky-500/10"}`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                      <div className="truncate text-sm font-black text-slate-950 dark:text-white">{portalText(thread.employee_name || thread.employee_code || "Employee")}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                        <span className="truncate">{portalText(thread.branch_name || "No branch")}</span>
-                                <span>•</span>
-                                <span dir="ltr">{formatDateTime(lastMessageTime)}</span>
-                              </div>
-                            </div>
-                            <div className="flex shrink-0 flex-col items-end gap-2">
-                              <Badge className={`border ${active ? "border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-500/20 dark:bg-emerald-500/15 dark:text-emerald-100" : "border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200"}`}>
-                                {formatNumber(thread.unread_count || 0)}
-                              </Badge>
-                              {thread.last_sender_type ? <StatusPill tone={thread.last_sender_type === "admin" ? "blue" : "green"} value={thread.last_sender_type === "admin" ? "Admin" : "Employee"} /> : null}
-                            </div>
-                          </div>
-                          <div className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">{portalText(thread.last_message || "No message yet.")}</div>
-                        </button>
-                      );
-                    }) : (
-                      <EmptyState title="لا توجد محادثات" body="ستظهر المحادثات الحقيقية هنا عند وجودها." />
-                    )}
-                  </div>
-                </div>
-              </Card>
-
-              <Card
-                title={portalText(selectedChatThread?.employee_name || "اختر محادثة")}
-                subtitle="Messages"
-                icon={Phone}
-                className="flex min-h-0 flex-col overflow-hidden xl:h-full"
-                bodyClassName="flex-1 min-h-0"
-                action={
-                  selectedChatThread ? (
-                    <div className="flex flex-wrap items-center gap-2 text-xs font-black text-slate-500 dark:text-slate-300">
-                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatThread.branch_name || "No branch")}</Badge>
-                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{selectedChatUnread} unread</Badge>
-                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee?.department || selectedChatEmployee?.job_title || "Staff")}</Badge>
-                    </div>
-                  ) : null
-                }
-              >
-                {selectedChatThread ? (
-                  <div className="flex h-full min-h-0 flex-col gap-3">
-                    <div className="rounded-[1.5rem] border border-emerald-200/70 bg-[linear-gradient(180deg,rgba(236,253,245,0.96),rgba(255,255,255,0.92))] p-3 dark:border-emerald-500/20 dark:bg-[linear-gradient(180deg,rgba(6,78,59,0.28),rgba(2,6,23,0.6))]">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700/80 dark:text-emerald-200/80">Conversation window</div>
-                          <div className="mt-1 truncate text-sm font-black text-slate-950 dark:text-white">{portalText(selectedChatEmployee?.employee_name || selectedChatThread.employee_name || "Employee")}</div>
-                          <div className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-300">{portalText(selectedChatEmployee?.employee_code || selectedChatThread.employee_code || "-")}</div>
-                        </div>
-                        <div className="shrink-0">
-                          <StatusPill tone={selectedChatAttendanceTone} value={selectedChatAttendanceStatus} />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex-1 min-h-0 space-y-2 overflow-auto rounded-[1.7rem] border border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.92),rgba(255,255,255,0.98))] p-3 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(2,6,23,0.92))]">
-                      {(chatMessages || []).length ? chatMessages.map((message) => {
-                        const outgoing = String(message.sender_type) === "admin";
-                        return (
-                          <div
-                            key={message.id || `${message.sender_type || "sender"}-${message.body || message.attachment_name || ""}-${message.created_at || ""}-${selectedChatThread?.employee_id || ""}`}
-                            className={`flex ${outgoing ? "justify-start" : "justify-end"}`}
-                          >
-                            <div className={`max-w-[92%] rounded-[1.4rem] px-3 py-2 text-sm font-semibold leading-6 shadow-sm ${outgoing ? "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950" : "bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100"}`}>
-                              <div className="flex items-center justify-between gap-3 text-[11px] font-black uppercase tracking-[0.12em] opacity-75">
-                                <span>{outgoing ? "الإدارة" : portalText(selectedChatEmployee?.employee_name || "Employee")}</span>
-                                <span dir="ltr">{formatDateTime(message.created_at)}</span>
-                              </div>
-                              <div className="mt-1 whitespace-pre-wrap">{portalText(message.body || message.attachment_name || "Attachment")}</div>
-                            </div>
-                          </div>
-                        );
-                      }) : <EmptyState title="لا توجد رسائل" body="افتح أي محادثة لعرض الرسائل الحقيقية." />}
-                    </div>
-
-                    <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                      <textarea data-testid="chat-message-input" value={chatBody} onChange={(event) => setChatBody(event.target.value)} rows={3} placeholder="اكتب رسالة..." className="w-full rounded-[1.2rem] border border-slate-200 bg-white px-3 py-3 text-sm font-semibold outline-none dark:border-white/10 dark:bg-white/[0.03]" />
-                      <button type="button" data-testid="chat-send-button" onClick={() => void sendChat()} className="inline-flex items-center justify-center gap-2 rounded-[1.2rem] bg-emerald-600 px-4 py-3 text-sm font-black text-white dark:bg-emerald-500 dark:text-slate-950">
-                        <SendIconFallback />
-                        إرسال
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <EmptyState title="اختر محادثة" body="ستظهر هنا المحادثة الحالية مع الموظف المحدد." />
-                )}
-              </Card>
-
-              <Card
-                title="ملف الموظف"
-                subtitle="Profile summary"
-                icon={Building2}
-                className="flex min-h-0 flex-col overflow-hidden xl:h-full"
-                bodyClassName="flex-1 min-h-0"
-              >
-                {selectedChatEmployee ? (
-                  <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto pr-1">
+            <SharedPortalChat
+              apiAdapter={managerChatApiAdapter}
+              employees={staffList}
+              onThreadChange={setManagerChatState}
+              headerTitle="محادثات الموظفين"
+              headerKicker="بوابة المدير / الشات"
+              secureNotice="هذه المحادثة خاصة بين الموظف والإدارة"
+              className="xl:h-[calc(100dvh-13rem)]"
+              managerPanel={() => (
+                selectedChatEmployee ? (
+                  <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto pr-1" dir="rtl">
                     <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                       <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Employee</div>
-                      <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{portalText(selectedChatEmployee.employee_name || selectedChatThread.employee_name || "Employee")}</div>
+                      <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{portalText(selectedChatEmployee.employee_name || selectedChatEmployee.full_name || selectedChatThread?.employee_name || "Employee")}</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <StatusPill tone={selectedChatAttendanceTone} value={selectedChatAttendanceStatus} />
-                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee.branch_name || selectedChatThread.branch_name || "No branch")}</Badge>
+                        <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee.branch_name || selectedChatThread?.branch_name || "No branch")}</Badge>
                         <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">{portalText(selectedChatEmployee.employee_code || "No code")}</Badge>
                       </div>
                     </div>
@@ -1834,9 +1608,10 @@ export default function ManagerPortal() {
                   </div>
                 ) : (
                   <EmptyState title="لا يوجد ملف موظف" body="اختر محادثة لعرض ملخص الموظف هنا." />
-                )}
-              </Card>
-            </div>
+                )
+              )}
+              useTextareaComposer
+            />
           ) : null}
 
           {activeTab === "more" ? (
@@ -2028,14 +1803,3 @@ export default function ManagerPortal() {
     </main>
   );
 }
-
-function SendIconFallback() {
-  return <ChevronLeftIcon />;
-}
-
-function ChevronLeftIcon() {
-  return <ChevronRight className="h-4 w-4 rotate-180" />;
-}
-
-
-
