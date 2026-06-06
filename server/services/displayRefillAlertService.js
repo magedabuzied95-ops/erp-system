@@ -3,7 +3,9 @@ import { createEmployeePortalNotification } from "./employeePayrollPortalService
 import { emitToRooms } from "../utils/socket.js";
 import { createNotification } from "./notificationsService.js";
 
+
 const clean = (value = "") => String(value ?? "").trim();
+const repairText = (value = "") => repairCorruptedArabicValue(clean(value));
 const textOrNull = (value) => {
   const next = clean(value);
   return next || null;
@@ -235,9 +237,9 @@ const normalizeAlert = (row = {}) => ({
   product_id: row.product_id,
   variant_id: row.variant_id,
   branch_id: row.branch_id,
-  product_name: row.product_name || "",
-  color_name: row.color_name || "",
-  sold_size: row.sold_size || "",
+  product_name: repairText(row.product_name || ""),
+  color_name: repairText(row.color_name || ""),
+  sold_size: repairText(row.sold_size || ""),
   replacement_size: row.replacement_size || null,
   remaining_stock: stockNumber(row.remaining_stock),
   image_url: row.image_url || "",
@@ -486,10 +488,10 @@ const insertAlert = async (alert = {}) => {
         clean(alert.invoice_number),
         numberOrNull(alert.product_id),
         numberOrNull(alert.variant_id),
-        clean(alert.product_name),
-        clean(alert.color_name),
-        clean(alert.sold_size),
-        alert.replacement_size ? clean(alert.replacement_size) : null,
+        repairText(alert.product_name),
+        repairText(alert.color_name),
+        repairText(alert.sold_size),
+        alert.replacement_size ? repairText(alert.replacement_size) : null,
         stockNumber(alert.remaining_stock),
         clean(alert.image_url) || null,
         numberOrNull(alert.branch_id),
@@ -503,8 +505,8 @@ const insertAlert = async (alert = {}) => {
       product_id: numberOrNull(alert.product_id),
       variant_id: numberOrNull(alert.variant_id),
       branch_id: numberOrNull(alert.branch_id),
-      color: clean(alert.color_name),
-      size: clean(alert.replacement_size || alert.sold_size),
+      color: repairText(alert.color_name),
+      size: repairText(alert.replacement_size || alert.sold_size),
       message: error?.message || String(error),
       code: error?.code || "",
       detail: error?.detail || "",
@@ -536,8 +538,8 @@ const updatePendingAlertReplacement = async ({ alertId, alert = {} } = {}) => {
       numberOrNull(alert.order_id),
       clean(alert.invoice_number),
       numberOrNull(alert.variant_id),
-      clean(alert.product_name),
-      clean(alert.replacement_size),
+      repairText(alert.product_name),
+      repairText(alert.replacement_size),
       stockNumber(alert.remaining_stock),
       clean(alert.image_url),
     ]
@@ -565,7 +567,7 @@ const refreshPendingAlertMetadata = async ({ alertId, alert = {} } = {}) => {
       numberOrNull(alert.order_id),
       clean(alert.invoice_number),
       numberOrNull(alert.variant_id),
-      clean(alert.product_name),
+      repairText(alert.product_name),
       stockNumber(alert.remaining_stock),
       clean(alert.image_url),
     ]
@@ -586,7 +588,7 @@ const notifyDisplayRefillAlert = async ({
   replacementSize,
   imageUrl,
 } = {}) => {
-  const body = `ط§ط¹ط±ط¶ ${replacementSize} ط¨ط¯ظ„ ${soldSize} ظ…ظ† ${clean(alert?.product_name)} - ${colorName}`;
+  const body = `اعرض ${replacementSize} بدل ${soldSize} من ${clean(alert?.product_name)} - ${colorName}`;
   const notificationTargetIds = await loadBranchEmployeeNotificationTargets({
     tenantId,
     branchId,
@@ -614,9 +616,9 @@ const notifyDisplayRefillAlert = async ({
         tab: "display-refill",
         display_refill_alert_id: alert?.id,
         product_id: productId,
-        color_name: colorName,
-        sold_size: soldSize,
-        replacement_size: replacementSize,
+        color_name: repairText(colorName),
+        sold_size: repairText(soldSize),
+        replacement_size: repairText(replacementSize),
         image_url: imageUrl,
       },
     }).catch((error) => console.warn("[display-refill-alert:notification-skipped]", {
@@ -642,9 +644,9 @@ const notifyDisplayRefillAlert = async ({
     metadata: {
       display_refill_alert_id: alert?.id || null,
       product_id: productId,
-      color_name: colorName,
-      sold_size: soldSize,
-      replacement_size: replacementSize,
+      color_name: repairText(colorName),
+      sold_size: repairText(soldSize),
+      replacement_size: repairText(replacementSize),
       image_url: imageUrl,
       branch_id: branchId || null,
     },
@@ -949,7 +951,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
             order_id: safeOrderId,
             invoice_number: invoiceNumber,
             variant_id: soldVariantId || item.variant_id || null,
-            product_name: item.product_name,
+            product_name: repairText(item.product_name),
             remaining_stock: soldSizeRemainingQty ?? soldVariantStockAfter ?? 0,
             image_url: imageUrl,
           },
@@ -971,7 +973,7 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
           order_id: safeOrderId,
           invoice_number: invoiceNumber,
           variant_id: soldVariantId || item.variant_id || null,
-          product_name: item.product_name,
+          product_name: repairText(item.product_name),
           replacement_size: nextDisplaySize,
           remaining_stock: soldSizeRemainingQty ?? soldVariantStockAfter ?? 0,
           image_url: imageUrl,
@@ -1027,9 +1029,9 @@ export const createDisplayRefillAlertsForOrder = async ({ orderId, sellerEmploye
       product_id: productId,
       variant_id: soldVariantId || item.variant_id || null,
       branch_id: branchId,
-      product_name: item.product_name,
-      color_name: colorName,
-      sold_size: soldSize,
+      product_name: repairText(item.product_name),
+      color_name: repairText(colorName),
+      sold_size: repairText(soldSize),
       replacement_size: nextDisplaySize,
       remaining_stock: soldSizeRemainingQty ?? soldVariantStockAfter ?? 0,
       image_url: imageUrl,
@@ -1263,7 +1265,7 @@ export const resolveDisplayRefillAlert = async ({ employeeId, tenantId = null, b
       category: "stock",
       priority: "medium",
       title: "Display refill alert resolved",
-      message: `${alert.product_name || "Alert"} ${alert.color_name || ""} ${alert.sold_size || ""}`.trim(),
+      message: `${repairText(alert.product_name) || "Alert"} ${repairText(alert.color_name) || ""} ${repairText(alert.sold_size) || ""}`.trim(),
       action_url: "/inventory/display-refill-alerts",
       action_label: "Review alerts",
       entity_type: "display_refill_alert",
@@ -1271,9 +1273,9 @@ export const resolveDisplayRefillAlert = async ({ employeeId, tenantId = null, b
       metadata: {
         alert_id: alert.id,
         status: alert.status,
-        product_name: alert.product_name || "",
-        color_name: alert.color_name || "",
-        sold_size: alert.sold_size || "",
+        product_name: repairText(alert.product_name || ""),
+        color_name: repairText(alert.color_name || ""),
+        sold_size: repairText(alert.sold_size || ""),
         replacement_size: alert.replacement_size || null,
         branch_id: alert.branch_id || null,
       },
@@ -1282,3 +1284,4 @@ export const resolveDisplayRefillAlert = async ({ employeeId, tenantId = null, b
   return alert;
 };
 
+import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";

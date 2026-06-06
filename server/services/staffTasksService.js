@@ -2,6 +2,7 @@ import db from "../database/db.js";
 import crypto from "node:crypto";
 import { emitStaffTaskEvent } from "../utils/socket.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
 import { createNotification } from "./notificationsService.js";
 import { sendOverdueEmployeePortalTaskPushes, sendTaskAssignedPush, sendTaskOverduePush, sendTaskUpdatedPush } from "./employeePortalPushService.js";
 import { enqueueStaffTaskEmail, processStaffTaskEmailQueue } from "./staffTaskEmailNotificationService.js";
@@ -821,7 +822,7 @@ const logTaskHistory = async (client, payload) => {
       payload.toStatus || null,
       payload.fromEmployeeId || null,
       payload.toEmployeeId || null,
-      payload.note || "",
+      repairCorruptedArabicValue(payload.note || ""),
       JSON.stringify(jsonObject(payload.metadata)),
     ]
   );

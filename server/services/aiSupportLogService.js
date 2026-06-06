@@ -1,8 +1,10 @@
 import db from "../database/db.js";
+import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
 
 let schemaReadyPromise = null;
 
 const toText = (value, fallback = "") => String(value ?? fallback).trim();
+const repairText = (value, fallback = "") => repairCorruptedArabicValue(toText(value, fallback));
 
 const jsonValue = (value) => JSON.stringify(value === undefined ? null : value);
 
@@ -455,7 +457,7 @@ export const appendManualAiSupportReply = async ({
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
-  const safeMessage = toText(message);
+  const safeMessage = repairText(message);
   if (!safeTenantId || !safeSessionId || !safeMessage) {
     throw Object.assign(new Error("Reply message is required"), { status: 400 });
   }
@@ -525,13 +527,13 @@ export const appendManualAiSupportReply = async ({
       safeTenantId,
       numberOrNull(staffUserId),
       safeSessionId,
-      safeMessage,
-      toText(staffUserName),
+      repairText(safeMessage),
+      repairText(staffUserName),
       toText(channel),
       toText(deliveryStatus),
       toText(deliveryError),
       toText(externalMessageId),
-      toText(source, "manual_admin"),
+      repairText(source, "manual_admin"),
     ]
   );
   console.info("[ai-support-insert]", {
@@ -548,7 +550,7 @@ export const appendManualAiSupportReply = async ({
         updated_at = NOW()
     WHERE tenant_id = $1 AND session_id = $2
     `,
-    [safeTenantId, safeSessionId, safeMessage, toText(channel)]
+    [safeTenantId, safeSessionId, repairText(safeMessage), repairText(channel)]
   ).catch(() => {});
 
   return result.rows[0] || null;
@@ -572,7 +574,7 @@ export const appendAiGeneratedSupportReply = async ({
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
-  const safeAnswer = toText(answer);
+  const safeAnswer = repairText(answer);
   if (!safeTenantId || !safeSessionId || !safeAnswer) {
     throw Object.assign(new Error("AI reply text is required"), { status: 400 });
   }
@@ -629,14 +631,14 @@ export const appendAiGeneratedSupportReply = async ({
       jsonValue(Array.isArray(suggestedProducts) ? suggestedProducts : []),
       jsonValue(Array.isArray(visualAttachments) ? visualAttachments : []),
       jsonValue(Array.isArray(suggestedActions) ? suggestedActions : []),
-      toText(detectedIntent),
-      toText(channel),
-      toText(deliveryStatus),
-      toText(deliveryError),
-      toText(externalMessageId),
-      toText("retry_worker"),
-      toText(sourcePath, "retry_worker"),
-      toText(insertSource),
+      repairText(detectedIntent),
+      repairText(channel),
+      repairText(deliveryStatus),
+      repairText(deliveryError),
+      repairText(externalMessageId),
+      repairText("retry_worker"),
+      repairText(sourcePath, "retry_worker"),
+      repairText(insertSource),
     ]
   );
   await db.query(
@@ -646,7 +648,7 @@ export const appendAiGeneratedSupportReply = async ({
       updated_at = NOW()
     WHERE tenant_id = $1 AND session_id = $2
     `,
-    [safeTenantId, safeSessionId, safeAnswer]
+    [safeTenantId, safeSessionId, repairText(safeAnswer)]
   ).catch(() => {});
   return result.rows[0] || null;
 };
@@ -665,7 +667,7 @@ export const logAiSupportMessage = async ({
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
-  const safeMessage = toText(customerMessage);
+  const safeMessage = repairText(customerMessage);
   if (!safeTenantId || !safeSessionId || !safeMessage) return null;
 
   await ensureAiSupportLogSchema();
@@ -683,7 +685,7 @@ export const logAiSupportMessage = async ({
       updated_at = CURRENT_TIMESTAMP
     RETURNING id
     `,
-    [safeTenantId, numberOrNull(userId), safeSessionId, toText(source, "admin_console")]
+    [safeTenantId, numberOrNull(userId), safeSessionId, repairText(source, "admin_console")]
   );
 
   const sessionRefId = sessionResult.rows[0]?.id || null;
@@ -724,22 +726,22 @@ export const logAiSupportMessage = async ({
       safeTenantId,
       numberOrNull(userId),
       safeSessionId,
-      safeMessage,
-      toText(response.answer),
+      repairText(safeMessage),
+      repairText(response.answer),
       Math.max(0, Math.min(1, Number(response.confidence || 0))),
       response.needs_human_support !== false,
       jsonValue(Array.isArray(response.sources_used) ? response.sources_used : []),
       jsonValue(Array.isArray(response.suggested_products) ? response.suggested_products : []),
       jsonValue(Array.isArray(response.visual_attachments) ? response.visual_attachments : []),
       jsonValue(Array.isArray(response.suggested_actions) ? response.suggested_actions : []),
-      toText(detectedIntent),
-      toText(fallbackReason),
+      repairText(detectedIntent),
+      repairText(fallbackReason),
       jsonValue(requestedProductTerms),
       jsonValue(requestedSizes),
       jsonValue(requestedColors),
-      toText(source, "manual_admin"),
-      toText(sourcePath, "manual_admin"),
-      toText(insertSource),
+      repairText(source, "manual_admin"),
+      repairText(sourcePath, "manual_admin"),
+      repairText(insertSource),
     ]
   );
   console.info("[ai-support-insert]", {

@@ -94,7 +94,7 @@ const numberOrNull = (value) => {
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const nowIso = () => new Date().toISOString();
 const minutesFromNow = (minutes) => new Date(Date.now() + minutes * 60 * 1000).toISOString();
-const CORRUPTED_ARABIC_REPAIR_KEY = "repair_corrupted_arabic_text_v1";
+const CORRUPTED_ARABIC_REPAIR_KEY = "repair_corrupted_arabic_text_v2";
 const CORRUPTED_ARABIC_MARKERS = [
   "\u00d8",
   "\u00d9",
@@ -140,7 +140,10 @@ const getCorruptedArabicRepairPattern = () => {
   }
   corruptedArabicRepairMap = map;
   const keys = [...map.keys()]
-    .filter((key) => CORRUPTED_ARABIC_MARKERS.some((marker) => key.includes(marker)) || /[\u00e2\u064b\u06ba]/.test(key))
+    .filter((key) =>
+      CORRUPTED_ARABIC_MARKERS.some((marker) => key.includes(marker)) ||
+      /[\u00e2\u064b\u06ba\u0637\u0638]/.test(key)
+    )
     .sort((a, b) => b.length - a.length);
   corruptedArabicRepairPattern = new RegExp(keys.map(escapeRegExp).join("|"), "g");
   return corruptedArabicRepairPattern;
@@ -6084,6 +6087,26 @@ const ensureCommerceConversationSchema = async () => {
   return commerceSchemaReadyPromise;
 };
 
+const quoteIdentifier = (value = "") => `"${String(value).replace(/"/g, '""')}"`;
+const tableExists = async (clientOrPool, tableName) => {
+  const result = await clientOrPool.query(`SELECT to_regclass($1) AS regclass`, [`public.${tableName}`]);
+  return Boolean(result.rows[0]?.regclass);
+};
+const columnExists = async (clientOrPool, tableName, columnName) => {
+  const result = await clientOrPool.query(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = $1
+      AND column_name = $2
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+  return result.rows.length > 0;
+};
+
 export const repairCorruptedArabicText = async (clientOrPool = db) => {
   await ensureCommerceConversationSchema();
   await ensureNotificationsSchema(clientOrPool);
@@ -6096,76 +6119,107 @@ export const repairCorruptedArabicText = async (clientOrPool = db) => {
     )
   `);
 
+  const repairKey = CORRUPTED_ARABIC_REPAIR_KEY;
   const markerResult = await clientOrPool.query(
     `SELECT repair_key FROM startup_repairs WHERE repair_key = $1 LIMIT 1`,
-    [CORRUPTED_ARABIC_REPAIR_KEY]
+    [repairKey]
   );
 
-  const aiWhere = corruptedArabicWhereClause(["ai_insight"]);
-  const notificationWhere = corruptedArabicWhereClause(["title", "message", "action_label"]);
-  const [aiCandidateCount, notificationCandidateCount] = await Promise.all([
-    clientOrPool.query(`SELECT COUNT(*)::int AS count FROM ai_support_sessions WHERE ${aiWhere.clause}`, aiWhere.params),
-    clientOrPool.query(`SELECT COUNT(*)::int AS count FROM notifications WHERE ${notificationWhere.clause}`, notificationWhere.params),
-  ]);
-  const candidates =
-    Number(aiCandidateCount.rows[0]?.count || 0) +
-    Number(notificationCandidateCount.rows[0]?.count || 0);
+  const repairSpecs = [
+    { table: "ai_support_sessions", columns: ["ai_insight", "summary", "last_message", "customer_name", "assigned_user_name"] },
+    { table: "notifications", columns: ["title", "message", "action_label"] },
+    { table: "staff_task_history", columns: ["title", "message", "action_label", "note"] },
+    { table: "employee_display_refill_alerts", columns: ["product_name", "color_name", "sold_size", "replacement_size"] },
+    { table: "ai_support_messages", columns: ["message_text", "customer_message", "ai_answer", "last_message", "customer_name", "staff_message", "staff_user_name"] },
+  ];
 
-  if (markerResult.rows.length && candidates === 0) {
+  const preparedSpecs = [];
+  for (const spec of repairSpecs) {
+    const tablePresent = await tableExists(clientOrPool, spec.table).catch(() => false);
+    if (!tablePresent) continue;
+    const existingColumns = [];
+    for (const column of spec.columns) {
+      if (await columnExists(clientOrPool, spec.table, column).catch(() => false)) {
+        existingColumns.push(column);
+      }
+    }
+    if (!existingColumns.length) continue;
+    const { clause, params } = corruptedArabicWhereClause(existingColumns);
+    if (!clause) continue;
+    const candidateResult = await clientOrPool.query(
+      `SELECT COUNT(*)::int AS count FROM ${quoteIdentifier(spec.table)} WHERE ${clause}`,
+      params
+    );
+    preparedSpecs.push({
+      table: spec.table,
+      columns: existingColumns,
+      clause,
+      params,
+      candidateCount: Number(candidateResult.rows[0]?.count || 0),
+    });
+  }
+
+  const totalCandidates = preparedSpecs.reduce((sum, spec) => sum + spec.candidateCount, 0);
+  if (markerResult.rows.length && totalCandidates === 0) {
     const result = {
       repaired_rows_count: 0,
       skipped: true,
       reason: "already_completed",
-      ai_support_sessions_ai_insight: 0,
-      notifications: 0,
+      tables: [],
     };
     console.log("[corrupted-arabic-repair]", result);
     return result;
   }
 
   const repaired = {
-    ai_support_sessions_ai_insight: 0,
-    notification_title: 0,
-    notification_message: 0,
-    notification_action_label: 0,
-    notifications: 0,
+    tables: {},
+    repaired_rows_count: 0,
   };
 
-  const aiRows = await clientOrPool.query(
-    `SELECT id, ai_insight FROM ai_support_sessions WHERE ${aiWhere.clause}`,
-    aiWhere.params
-  );
-  for (const row of aiRows.rows) {
-    const nextInsight = repairCorruptedArabicValue(row.ai_insight);
-    if (nextInsight !== String(row.ai_insight ?? "")) {
-      await clientOrPool.query(
-        `UPDATE ai_support_sessions SET ai_insight = $2, updated_at = NOW() WHERE id = $1`,
-        [row.id, nextInsight]
-      );
-      repaired.ai_support_sessions_ai_insight += 1;
-    }
-  }
+  for (const spec of preparedSpecs) {
+    const hasUpdatedAt = await columnExists(clientOrPool, spec.table, "updated_at").catch(() => false);
+    const selectColumns = ["id", ...spec.columns].map(quoteIdentifier).join(", ");
+    const rows = await clientOrPool.query(
+      `SELECT ${selectColumns} FROM ${quoteIdentifier(spec.table)} WHERE ${spec.clause}`,
+      spec.params
+    );
+    const columnCounts = Object.fromEntries(spec.columns.map((column) => [column, 0]));
+    let tableCount = 0;
 
-  const notificationRows = await clientOrPool.query(
-    `SELECT id, title, message, action_label FROM notifications WHERE ${notificationWhere.clause}`,
-    notificationWhere.params
-  );
-  for (const row of notificationRows.rows) {
-    const nextTitle = repairCorruptedArabicValue(row.title);
-    const nextMessage = repairCorruptedArabicValue(row.message);
-    const nextActionLabel = row.action_label === null ? null : repairCorruptedArabicValue(row.action_label);
-    const titleChanged = nextTitle !== String(row.title ?? "");
-    const messageChanged = nextMessage !== String(row.message ?? "");
-    const actionLabelChanged = nextActionLabel !== row.action_label;
-    if (titleChanged || messageChanged || actionLabelChanged) {
+    for (const row of rows.rows) {
+      const updates = {};
+      for (const column of spec.columns) {
+        const current = row[column];
+        if (current === null || current === undefined) continue;
+        const next = repairCorruptedArabicValue(current);
+        if (next !== String(current ?? "")) {
+          updates[column] = next;
+          columnCounts[column] += 1;
+        }
+      }
+      if (!Object.keys(updates).length) continue;
+
+      const updateColumns = Object.keys(updates);
+      const setParts = updateColumns.map((column, index) => `${quoteIdentifier(column)} = $${index + 2}`);
+      if (hasUpdatedAt) setParts.push("updated_at = NOW()");
       await clientOrPool.query(
-        `UPDATE notifications SET title = $2, message = $3, action_label = $4, updated_at = NOW() WHERE id = $1`,
-        [row.id, nextTitle, nextMessage, nextActionLabel]
+        `UPDATE ${quoteIdentifier(spec.table)} SET ${setParts.join(", ")} WHERE id = $1`,
+        [row.id, ...updateColumns.map((column) => updates[column])]
       );
-      repaired.notifications += 1;
-      if (titleChanged) repaired.notification_title += 1;
-      if (messageChanged) repaired.notification_message += 1;
-      if (actionLabelChanged) repaired.notification_action_label += 1;
+      tableCount += 1;
+      repaired.repaired_rows_count += 1;
+    }
+
+    repaired.tables[spec.table] = {
+      repaired_rows_count: tableCount,
+      columns: columnCounts,
+    };
+    for (const [column, repairedCount] of Object.entries(columnCounts)) {
+      console.log("[corrupted-arabic-repair]", {
+        table: spec.table,
+        column,
+        repaired_count: repairedCount,
+      });
     }
   }
 
@@ -6186,6 +6240,7 @@ export const repairCorruptedArabicText = async (clientOrPool = db) => {
       )
     `
   );
+  let employeeChatRepaired = 0;
   for (const row of employeeChatRows.rows) {
     const nextTitle = "رسالة جديدة من موظف";
     const nextMessage = repairEmployeeChatNotificationMessage(row.message);
@@ -6198,17 +6253,20 @@ export const repairCorruptedArabicText = async (clientOrPool = db) => {
         `UPDATE notifications SET title = $2, message = $3, action_label = $4, updated_at = NOW() WHERE id = $1`,
         [row.id, nextTitle, nextMessage, nextActionLabel]
       );
-      repaired.notifications += 1;
-      if (titleChanged) repaired.notification_title += 1;
-      if (messageChanged) repaired.notification_message += 1;
-      if (actionLabelChanged) repaired.notification_action_label += 1;
+      employeeChatRepaired += 1;
+      repaired.repaired_rows_count += 1;
+      repaired.tables.notifications = repaired.tables.notifications || { repaired_rows_count: 0, columns: { title: 0, message: 0, action_label: 0 } };
+      repaired.tables.notifications.repaired_rows_count += 1;
+      if (titleChanged) repaired.tables.notifications.columns.title += 1;
+      if (messageChanged) repaired.tables.notifications.columns.message += 1;
+      if (actionLabelChanged) repaired.tables.notifications.columns.action_label += 1;
     }
   }
 
-  const repairedRowsCount = repaired.ai_support_sessions_ai_insight + repaired.notifications;
   const result = {
-    repaired_rows_count: repairedRowsCount,
-    ...repaired,
+    repaired_rows_count: repaired.repaired_rows_count,
+    tables: repaired.tables,
+    employee_chat_notifications_repaired: employeeChatRepaired,
   };
   await clientOrPool.query(
     `
@@ -6219,7 +6277,7 @@ export const repairCorruptedArabicText = async (clientOrPool = db) => {
       result = EXCLUDED.result,
       completed_at = NOW()
     `,
-    [CORRUPTED_ARABIC_REPAIR_KEY, repairedRowsCount, JSON.stringify(result)]
+    [repairKey, repaired.repaired_rows_count, JSON.stringify(result)]
   );
   console.log("[corrupted-arabic-repair]", result);
   return result;
@@ -6229,6 +6287,8 @@ const updateHotLeadState = async ({ tenantId, conversationId, score = 0, reason 
   if (!tenantId || !conversationId) return null;
   await ensureCommerceConversationSchema();
   const hotLead = Number(score || 0) >= HOT_LEAD_THRESHOLD;
+  const cleanInsight = repairCorruptedArabicValue(insight || HOT_LEAD_INSIGHT);
+  const cleanReason = repairCorruptedArabicValue(reason);
   const result = await db.query(
     `
     UPDATE ai_support_sessions
@@ -6240,7 +6300,7 @@ const updateHotLeadState = async ({ tenantId, conversationId, score = 0, reason 
     WHERE tenant_id = $1::bigint AND session_id = $2::text
     RETURNING hot_lead, lead_score, ai_insight
     `,
-    [tenantId, conversationId, hotLead, Math.max(0, Math.min(100, Math.round(Number(score || 0)))), insight]
+    [tenantId, conversationId, hotLead, Math.max(0, Math.min(100, Math.round(Number(score || 0)))), cleanInsight]
   ).catch((error) => {
     console.warn("ai_inbox_hot_lead_update_failed", {
       tenant_id: tenantId,
@@ -6254,15 +6314,15 @@ const updateHotLeadState = async ({ tenantId, conversationId, score = 0, reason 
       tenant_id: tenantId,
       conversation_id: conversationId,
       score,
-      reason,
-      insight,
+      reason: cleanReason,
+      insight: cleanInsight,
     });
     emitAiInboxEvent(tenantId, "ai_inbox:hot_lead", {
       sessionId: conversationId,
       hot_lead: true,
       lead_score: score,
-      insight,
-      reason,
+      insight: cleanInsight,
+      reason: cleanReason,
     });
     await createNotification({
       tenant_id: tenantId,
@@ -6271,7 +6331,7 @@ const updateHotLeadState = async ({ tenantId, conversationId, score = 0, reason 
       category: "ai_leads",
       priority: "high",
       title: "AI hot lead detected",
-      message: insight || reason || "A hot lead was detected in AI support.",
+      message: cleanInsight || cleanReason || "A hot lead was detected in AI support.",
       action_url: "/ai/inbox",
       action_label: "Open AI inbox",
       entity_type: "ai_support_session",
@@ -6280,8 +6340,8 @@ const updateHotLeadState = async ({ tenantId, conversationId, score = 0, reason 
         session_id: conversationId,
         hot_lead: true,
         lead_score: score,
-        insight,
-        reason,
+        insight: cleanInsight,
+        reason: cleanReason,
       },
     }).catch((error) => console.warn("[ai-hot-lead-notification-skipped]", {
       tenant_id: tenantId,

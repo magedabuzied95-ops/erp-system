@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { io } from "../utils/socket.js";
+import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
 
 const PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 const DEFAULT_LIMIT = 30;
@@ -89,10 +90,10 @@ const normalizeNotification = (data = {}) => ({
   type: text(data.type || "system"),
   category: text(data.category || "system"),
   priority: PRIORITIES.has(text(data.priority).toLowerCase()) ? text(data.priority).toLowerCase() : "medium",
-  title: text(data.title || "Notification"),
-  message: text(data.message),
+  title: repairCorruptedArabicValue(text(data.title || "Notification")),
+  message: repairCorruptedArabicValue(text(data.message)),
   action_url: nullableText(data.action_url ?? data.actionUrl),
-  action_label: nullableText(data.action_label ?? data.actionLabel),
+  action_label: nullableText(repairCorruptedArabicValue(data.action_label ?? data.actionLabel)),
   entity_type: nullableText(data.entity_type ?? data.entityType),
   entity_id: nullableText(data.entity_id ?? data.entityId),
   metadata: jsonObject(data.metadata),
