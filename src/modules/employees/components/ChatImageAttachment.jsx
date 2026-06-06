@@ -57,12 +57,21 @@ export default function ChatImageAttachment({ src, alt = "Image", compact = fals
     setFailed(false);
   }, [safeSrc]);
 
-  if (!safeSrc || failed) {
+  if (!safeSrc) {
     return (
       <div className="mb-1 inline-flex min-h-9 max-w-full items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-2 py-1.5 text-[11px] font-bold leading-4 text-slate-200/80">
         <ImageOff className="h-3.5 w-3.5 shrink-0" />
         <span className="min-w-0 truncate" dir="auto">Image unavailable</span>
       </div>
+    );
+  }
+
+  if (failed) {
+    return (
+      <a href={safeSrc} target="_blank" rel="noreferrer" className="mb-1 inline-flex min-h-9 max-w-full items-center gap-2 rounded-xl border border-white/10 bg-black/10 px-2 py-1.5 text-[11px] font-bold leading-4 text-slate-200/80 no-underline">
+        <ImageOff className="h-3.5 w-3.5 shrink-0" />
+        <span className="min-w-0 truncate" dir="auto">Open image</span>
+      </a>
     );
   }
 

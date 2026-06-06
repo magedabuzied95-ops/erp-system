@@ -1,3 +1,5 @@
+import { API_ORIGIN } from "../constants/app";
+
 export const CHAT_ATTACHMENT_ACCEPT = [
   ".jpg",
   ".jpeg",
@@ -44,6 +46,166 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
   "audio/x-wav",
 ]);
 
+const cleanText = (value = "") => String(value ?? "").trim();
+const trimSlashes = (value = "") => cleanText(value).replace(/^\/+|\/+$/g, "");
+const assetBase = () => cleanText(API_ORIGIN).replace(/\/+$/g, "");
+
+const firstText = (...values) => {
+  for (const value of values) {
+    const text = cleanText(value);
+    if (text) return text;
+  }
+  return "";
+};
+
+const attachmentObject = (message = {}) => {
+  const value = message?.attachment;
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+};
+
+const joinAssetUrl = (path = "") => {
+  const base = assetBase();
+  const safePath = trimSlashes(path);
+  if (!base || !safePath) return "";
+  return `${base}/${safePath}`;
+};
+
+const fileNameFromUrl = (value = "") => {
+  const text = cleanText(value);
+  if (!text) return "";
+  try {
+    const url = new URL(text, "https://example.invalid");
+    return decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "");
+  } catch {
+    const last = text.split("?")[0].split("#")[0].split("/").filter(Boolean).pop() || "";
+    try {
+      return decodeURIComponent(last);
+    } catch {
+      return last;
+    }
+  }
+};
+
+export const portalChatAttachmentRawUrl = (message = {}) => {
+  const attachment = attachmentObject(message);
+  return firstText(
+    message.attachment_url,
+    message.attachmentUrl,
+    message.attachment_path,
+    message.attachmentPath,
+    message.file_url,
+    message.fileUrl,
+    message.file_path,
+    message.filePath,
+    message.media_url,
+    message.mediaUrl,
+    message.public_url,
+    message.publicUrl,
+    message.url,
+    attachment.attachment_url,
+    attachment.url,
+    attachment.path,
+    attachment.file_url,
+    attachment.file_path,
+    attachment.media_url,
+    attachment.public_url
+  );
+};
+
+export const resolvePortalChatAttachmentUrl = (value = "") => {
+  const text = cleanText(value);
+  if (!text) return "";
+  if (/^(data|blob):/i.test(text)) return text;
+  if (/^https?:\/\//i.test(text)) return text;
+  if (/^\/\//.test(text)) return `https:${text}`;
+  if (/^(res\.cloudinary\.com|cloudinary\.com)\//i.test(text)) return `https://${text}`;
+
+  const withoutApiPrefix = text.replace(/^\/?api\/uploads(?=\/|$)/i, "uploads");
+  if (withoutApiPrefix.startsWith("/uploads/") || withoutApiPrefix.startsWith("uploads/")) return joinAssetUrl(withoutApiPrefix);
+  if (withoutApiPrefix.startsWith("/products/")) return joinAssetUrl(`/uploads${withoutApiPrefix}`);
+  if (withoutApiPrefix.startsWith("products/")) return joinAssetUrl(`/uploads/${withoutApiPrefix}`);
+  if (withoutApiPrefix.startsWith("/product-images/") || withoutApiPrefix.startsWith("product-images/")) return joinAssetUrl(withoutApiPrefix);
+  if (withoutApiPrefix.startsWith("/images/products/") || withoutApiPrefix.startsWith("images/products/")) return joinAssetUrl(withoutApiPrefix);
+  if (withoutApiPrefix.startsWith("/")) return joinAssetUrl(withoutApiPrefix);
+  return joinAssetUrl(`/uploads/employee-chat/${withoutApiPrefix}`);
+};
+
+export const portalChatAttachmentUrl = (message = {}) =>
+  resolvePortalChatAttachmentUrl(portalChatAttachmentRawUrl(message));
+
+export const portalChatAttachmentMime = (message = {}) => {
+  const attachment = attachmentObject(message);
+  return firstText(
+    message.attachment_mime,
+    message.attachment_mime_type,
+    message.attachmentMime,
+    message.attachmentMimeType,
+    message.mime_type,
+    message.mimeType,
+    message.file_mime,
+    message.fileMime,
+    attachment.attachment_mime,
+    attachment.attachment_mime_type,
+    attachment.mime,
+    attachment.mime_type,
+    attachment.type
+  );
+};
+
+export const portalChatAttachmentName = (message = {}) => {
+  const attachment = attachmentObject(message);
+  const rawUrl = portalChatAttachmentRawUrl(message);
+  return firstText(
+    message.attachment_name,
+    message.attachmentName,
+    message.file_name,
+    message.fileName,
+    message.name,
+    attachment.attachment_name,
+    attachment.file_name,
+    attachment.name,
+    fileNameFromUrl(rawUrl)
+  );
+};
+
+const attachmentExtension = (message = {}) => {
+  const source = cleanText(portalChatAttachmentName(message) || portalChatAttachmentRawUrl(message))
+    .split("?")[0]
+    .split("#")[0]
+    .toLowerCase();
+  return source.match(/\.([a-z0-9]+)$/i)?.[1] || "";
+};
+
+export const portalChatAttachmentType = (message = {}) => {
+  const attachment = attachmentObject(message);
+  const explicit = firstText(
+    message.attachment_type,
+    message.attachmentType,
+    message.file_type,
+    message.fileType,
+    message.media_type,
+    message.mediaType,
+    attachment.attachment_type,
+    attachment.file_type,
+    attachment.media_type
+  ).toLowerCase();
+  if (["image", "audio", "voice", "file"].includes(explicit)) return explicit === "voice" ? "audio" : explicit;
+
+  const mime = portalChatAttachmentMime(message).toLowerCase();
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("audio/")) return "audio";
+
+  const extension = attachmentExtension(message);
+  if (["jpg", "jpeg", "png", "webp", "gif", "avif"].includes(extension)) return "image";
+  if (["webm", "m4a", "mp4", "mp3", "wav", "ogg", "oga"].includes(extension)) return "audio";
+  return portalChatAttachmentRawUrl(message) ? "file" : "";
+};
+
+export const portalChatAttachmentSize = (message = {}) => {
+  const attachment = attachmentObject(message);
+  return message.attachment_size ?? message.attachmentSize ?? message.file_size ?? message.fileSize ?? attachment.attachment_size ?? attachment.file_size ?? 0;
+};
+
 export const allowedPortalChatAttachment = (file) => {
   if (!file) return true;
   return ALLOWED_ATTACHMENT_TYPES.has(file.type);
@@ -59,15 +221,15 @@ export const formatPortalChatFileSize = (value = 0) => {
 export const portalChatMessagePreview = (message = {}, labels = {}) => {
   const body = String(message.body || message.reply_body || message.last_message || "").trim();
   if (body) return body.length > 80 ? `${body.slice(0, 77)}...` : body;
-  const type = message.attachment_type || message.reply_attachment_type;
+  const type = message.reply_attachment_type || portalChatAttachmentType(message);
   if (type === "image") return labels.image || "صورة";
   if (type === "audio") return labels.voice || "رسالة صوتية";
-  if (message.attachment_url || message.reply_attachment_name || message.attachment_name) return labels.file || "ملف";
+  if (portalChatAttachmentRawUrl(message) || message.reply_attachment_name || portalChatAttachmentName(message)) return labels.file || "ملف";
   return labels.message || "رسالة";
 };
 
 export const isPortalChatAudioMessage = (message = {}) =>
-  message.attachment_type === "audio" || String(message.attachment_mime || "").startsWith("audio/");
+  portalChatAttachmentType(message) === "audio";
 
 export const isPortalChatImageMessage = (message = {}) =>
-  message.attachment_type === "image" || String(message.attachment_mime || "").startsWith("image/");
+  portalChatAttachmentType(message) === "image";

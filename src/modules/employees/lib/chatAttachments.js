@@ -1,6 +1,5 @@
 import { API_BASE_URL, API_ORIGIN } from "../../../shared/constants/app";
-
-const trimSlashes = (value = "") => String(value || "").replace(/^\/+|\/+$/g, "");
+import { resolvePortalChatAttachmentUrl } from "../../../shared/chat/portalChatUtils";
 
 const assetBase = () => String(API_ORIGIN || "").trim().replace(/\/+$/g, "");
 
@@ -20,27 +19,8 @@ const currentProtocol = () => {
   }
 };
 
-const joinAssetUrl = (path = "") => {
-  const base = assetBase();
-  if (!base) return "";
-  return `${base}/${trimSlashes(path)}`;
-};
-
 export const normalizeChatAttachmentUrl = (value = "") => {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (/^(data|blob):/i.test(text)) return text;
-  if (/^https?:\/\//i.test(text)) return text;
-  if (/^\/\//.test(text)) return `https:${text}`;
-  if (/^(res\.cloudinary\.com|cloudinary\.com)\//i.test(text)) return `https://${text}`;
-
-  if (text.startsWith("/uploads/") || text.startsWith("uploads/")) return joinAssetUrl(text);
-  if (text.startsWith("/products/")) return joinAssetUrl(`/uploads${text}`);
-  if (text.startsWith("products/")) return joinAssetUrl(`/uploads/${text}`);
-  if (text.startsWith("/product-images/") || text.startsWith("product-images/")) return joinAssetUrl(text);
-  if (text.startsWith("/images/products/") || text.startsWith("images/products/")) return joinAssetUrl(text);
-  if (text.startsWith("/")) return joinAssetUrl(text);
-  return joinAssetUrl(`/uploads/employee-chat/${text}`);
+  return resolvePortalChatAttachmentUrl(value);
 };
 
 export const resolveEmployeeChatAttachmentUrl = normalizeChatAttachmentUrl;
