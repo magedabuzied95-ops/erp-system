@@ -172,6 +172,43 @@ const getPosCustomerModalRuntime = () => {
   };
 };
 
+const POS_PHONE_INPUT_PATTERN = /^[+\d\s\-()]+$/;
+const POS_PHONE_FIELDS = ["phone", "mobile", "whatsapp", "customer_phone", "primary_phone"];
+
+const getPosPhoneExactVariants = (value = "") => {
+  const raw = normalizePhone(value);
+  if (!raw || !POS_PHONE_INPUT_PATTERN.test(String(value || "").trim())) return [];
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 10) return [];
+
+  const variants = new Set([digits]);
+  if (digits.startsWith("20") && digits.length > 2) {
+    const local = digits.slice(2);
+    variants.add(local);
+    variants.add(`0${local}`);
+  }
+  if (digits.startsWith("0") && digits.length > 1) {
+    const withoutZero = digits.slice(1);
+    variants.add(withoutZero);
+    variants.add(`20${withoutZero}`);
+  }
+  if (digits.startsWith("1")) {
+    variants.add(`0${digits}`);
+    variants.add(`20${digits}`);
+  }
+  return Array.from(variants).filter(Boolean);
+};
+
+const isPosPhoneLikeSearch = (value = "") => getPosPhoneExactVariants(value).length > 0;
+
+const customerMatchesPhoneVariants = (customer = {}, inputVariants = []) => {
+  if (!inputVariants.length) return false;
+  const querySet = new Set(inputVariants);
+  return POS_PHONE_FIELDS.some((field) =>
+    getPosPhoneExactVariants(customer?.[field] || "").some((variant) => querySet.has(variant))
+  );
+};
+
 const WALK_IN_CUSTOMER = {
   id: null,
   name: "Walk-in Customer",
@@ -1921,7 +1958,7 @@ function POSPro() {
 
   const isShiftActive = Boolean(activePosShift?.id && activePosShift?.status === "open");
 
-  const handleSelectCustomer = (item) => {
+  const handleSelectCustomer = useCallback((item) => {
     const selected = normalizePosCustomer(item);
     const customerId = selected?.id || selected?.customer_id;
     if (!customerId) {
@@ -1938,7 +1975,35 @@ function POSPro() {
     setSelectedCustomerId(customerId);
     setCustomerSearch(selected.name || selected.phone || "");
     setLoyaltyRedeemPoints(0);
-  };
+  }, []);
+
+  const customerPhoneAutoSelectMatch = useMemo(() => {
+    if (selectedCustomerId) return null;
+    const input = String(customerSearch || "").trim();
+    if (!isPosPhoneLikeSearch(input)) return null;
+    const inputVariants = getPosPhoneExactVariants(input);
+    const matchesById = new Map();
+    (Array.isArray(customers) ? customers : []).forEach((item) => {
+      const itemId = item?.id || item?.customer_id;
+      if (!itemId || !customerMatchesPhoneVariants(item, inputVariants)) return;
+      matchesById.set(String(itemId), item);
+    });
+    return matchesById.size === 1 ? Array.from(matchesById.values())[0] : null;
+  }, [customerSearch, customers, selectedCustomerId]);
+
+  useEffect(() => {
+    if (!customerPhoneAutoSelectMatch) return;
+    const customerId = customerPhoneAutoSelectMatch.id || customerPhoneAutoSelectMatch.customer_id;
+    if (!customerId || String(customerId) === String(selectedCustomerId || "")) return;
+    const normalizedInputPhone = getPosPhoneExactVariants(customerSearch)[0] || normalizePhone(customerSearch).replace(/\D/g, "");
+    console.log("[pos-customer-auto-select-by-phone]", {
+      input: customerSearch,
+      normalized_phone: normalizedInputPhone,
+      customer_id: customerId,
+      customer_name: customerPhoneAutoSelectMatch.name || "",
+    });
+    handleSelectCustomer(customerPhoneAutoSelectMatch);
+  }, [customerPhoneAutoSelectMatch, customerSearch, handleSelectCustomer, selectedCustomerId]);
 
   const handleClearSelectedCustomer = () => {
     setSelectedCustomerId(null);
