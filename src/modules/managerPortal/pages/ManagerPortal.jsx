@@ -1255,7 +1255,7 @@ export default function ManagerPortal() {
                       {paymentBreakdown.map((row) => (
                         <div key={row.method} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700 dark:bg-white/[0.03] dark:text-slate-200">
                           <span>{portalText(row.method)}</span>
-                          <span>{formatCurrency(row.total || 0)} آ· {formatNumber(row.count || 0)}</span>
+                          <span>{formatCurrency(row.total || 0)} · {formatNumber(row.count || 0)}</span>
                         </div>
                       ))}
                     </div>
@@ -1324,7 +1324,7 @@ export default function ManagerPortal() {
                   </div>
                 </Card>
               )) : (
-                <EmptyState title="ظ„ط§ ظٹظˆط¬ط¯ ظ…ظˆط¸ظپظˆظ† ظ„ظ‡ط°ط§ ط§ظ„ظ†ط·ط§ظ‚" body="ط¥ط°ط§ ظ„ظ… ظٹظƒظ† ظ‡ظ†ط§ظƒ ظ…طµط¯ط± ط¨ظٹط§ظ†ط§طھ ط£ظˆ ظ„ظ… طھظƒظ† ظ‡ظ†ط§ظƒ طµظ„ط§ط­ظٹط©طŒ ط³ظ†ط¹ط±ط¶ ط­ط§ظ„ط© ظپط§ط±ط؛ط©." />
+                <EmptyState title="لا يوجد موظفون لهذا النطاق" body="إذا لم يكن هناك مصدر بيانات أو لم تكن هناك صلاحية، سنعرض حالة فارغة." />
               )}
             </div>
           ) : null}
@@ -1620,9 +1620,9 @@ export default function ManagerPortal() {
                 {topProducts.length ? topProducts.map((item) => (
                   <div key={item.name} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:bg-white/[0.03] dark:text-slate-200">
                     <span>{portalText(item.name)}</span>
-                    <span>{formatNumber(item.quantity || 0)} آ· {formatCurrency(item.revenue || 0)}</span>
+                    <span>{formatNumber(item.quantity || 0)} · {formatCurrency(item.revenue || 0)}</span>
                   </div>
-                )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ظ…ظ†طھط¬ط§طھ ظ…ط¨ظٹط¹ط©" body="ط³ظٹط¸ظ‡ط± ظ‡ظ†ط§ ط£ظپط¶ظ„ ط§ظ„ط¨ط§ط¦ط¹ظٹظ† ط¹ظ†ط¯ طھظˆظپط± ط¨ظٹط§ظ†ط§طھ ظپط¹ظ„ظٹط©." />}
+                )) : <EmptyState title="لا توجد منتجات مبيعة" body="سيظهر هنا أفضل البائعين عند توفر بيانات فعلية." />}
               </Card>
               <Card title={portalText("Hourly trend")} subtitle="Hourly trend" icon={Clock3}>
                 {Array.isArray(sales?.hourly) && sales.hourly.length ? (
@@ -1635,7 +1635,7 @@ export default function ManagerPortal() {
                     ))}
                   </div>
                 ) : (
-                  <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط¨ظٹط§ظ†ط§طھ ط³ط§ط¹ظٹط©" body="ط¥ط°ط§ ظ„ظ… طھطھظˆظپط± ظپظˆط§طھظٹط± ط§ظ„ظٹظˆظ…طŒ ط³ظ†ط¨ظ‚ظٹ ط§ظ„ظ„ظˆط­ط© ظپط§ط±ط؛ط©." />
+                  <EmptyState title="لا توجد بيانات ساعية" body="إذا لم تتوفر فواتير اليوم، سنبقي اللوحة فارغة." />
                 )}
               </Card>
             </div>
@@ -1842,7 +1842,7 @@ export default function ManagerPortal() {
           {activeTab === "more" ? (
             <div className="space-y-4">
               <div className="grid gap-4 xl:grid-cols-2">
-                <Card title="ط§ظ„ظ…ظ„ظپ ط§ظ„ط´ط®طµظٹ" subtitle="Manager profile" icon={Building2}>
+                <Card title="الملف الشخصي" subtitle="Manager profile" icon={Building2}>
                   <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
                     <div className="font-black text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || "Manager")}</div>
                     <div>{portalText(me?.role || "manager")} · {portalText(me?.department || "—")}</div>
@@ -1850,7 +1850,7 @@ export default function ManagerPortal() {
                     <div>{formatNumber(me?.permissions?.length || 0)} permissions</div>
                   </div>
                 </Card>
-                <Card title="ط¨ظٹط§ظ†ط§طھ ط§ظ„ظپط±ط¹" subtitle="Branch info" icon={Store}>
+                <Card title="بيانات الفرع" subtitle="Branch info" icon={Store}>
                   <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
                     <div className="font-black text-slate-950 dark:text-white">{portalText(me?.branch_name || "All branches")}</div>
                     <div>Scope: {portalText(me?.branch_scope || "all")}</div>
@@ -1858,7 +1858,7 @@ export default function ManagerPortal() {
                     <div>Unread: {formatNumber(unreadCount || notificationsUnread)}</div>
                   </div>
                 </Card>
-                <Card title="ط±ظˆط§ط¨ط· ط³ط±ظٹط¹ط©" subtitle="Quick links" icon={ChevronRight}>
+                <Card title="روابط سريعة" subtitle="Quick links" icon={ChevronRight}>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {[
                       ["Today", "today"],
@@ -1874,7 +1874,7 @@ export default function ManagerPortal() {
                     ))}
                   </div>
                 </Card>
-                <Card title="ط³ط¬ظ„ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ" subtitle="Notification history" icon={Bell}>
+                <Card title="سجل الإشعارات" subtitle="Notification history" icon={Bell}>
                   <div className="space-y-2">
                     {notifications.slice(0, 3).length ? notifications.slice(0, 3).map((item) => (
                       <div key={`history-${item.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
@@ -1882,12 +1882,12 @@ export default function ManagerPortal() {
                         <div className="mt-1 line-clamp-2 text-xs opacity-80">{portalText(item.message || item.body || "")}</div>
                         <div className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{formatDateTime(item.created_at)}</div>
                       </div>
-                    )) : <EmptyState title="ظ„ط§ ظٹظˆط¬ط¯ ط³ط¬ظ„ ط­ط¯ظٹط«" body="ط³طھط¸ظ‡ط± ط¢ط®ط± ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ظ‡ظ†ط§ ط¹ظ†ط¯ظ…ط§ طھطھظˆظپط±." />}
+                    )) : <EmptyState title="لا يوجد سجل حديث" body="ستظهر آخر الإشعارات هنا عندما تتوفر." />}
                   </div>
                 </Card>
               </div>
 
-              <Card title="ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„طھظ†ط¨ظٹظ‡" subtitle="Notifications settings" icon={Bell}>
+              <Card title="إعدادات التنبيه" subtitle="Notifications settings" icon={Bell}>
                 <div className="grid gap-3 md:grid-cols-2">
                   {Object.entries(settings).map(([category, config]) => (
                     <div key={category} className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
@@ -1895,35 +1895,35 @@ export default function ManagerPortal() {
                       <div className="text-sm font-black text-slate-900 dark:text-white">{portalText(category)}</div>
                         <StatusPill tone="slate" value={portalText(category)} />
                       </div>
-                      <Toggle label="طµظˆطھ" checked={Boolean(config.sound)} onChange={(value) => onCategoryToggle(category, "sound", value)} />
+                      <Toggle label="صوت" checked={Boolean(config.sound)} onChange={(value) => onCategoryToggle(category, "sound", value)} />
                       <Toggle label="Toast" checked={Boolean(config.toast)} onChange={(value) => onCategoryToggle(category, "toast", value)} />
                     </div>
                   ))}
                 </div>
               </Card>
 
-              <Card title="ط§ظ„طµظˆطھ ظˆط§ظ„ط¥ط´ط¹ط§ط±ط§طھ" subtitle="Browser control" icon={Volume2}>
+              <Card title="الصوت والإشعارات" subtitle="Browser control" icon={Volume2}>
                 <div className="grid gap-2 md:grid-cols-2">
                   <button type="button" data-testid="sound-unlock-button" data-state={soundUnlocked ? "enabled" : "disabled"} onClick={enableSound} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
                     {soundUnlocked ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                    {soundUnlocked ? "ط§ظ„طµظˆطھ ظ…ظپط¹ظ„" : "طھظپط¹ظٹظ„ ط§ظ„طµظˆطھ"}
+                    {soundUnlocked ? "الصوت مفعل" : "تفعيل الصوت"}
                   </button>
                   <button type="button" data-testid="browser-notification-button" data-state={browserNotificationPermission} onClick={enableBrowserNotifications} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     <Bell className="h-4 w-4" />
-                    {browserNotificationPermission === "granted" ? "ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ظ…طھطµظپط­ ظ…ظپط¹ظ„ط©" : "طھظپط¹ظٹظ„ ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ظ…طھطµظپط­"}
+                    {browserNotificationPermission === "granted" ? "إشعارات المتصفح مفعلة" : "تفعيل إشعارات المتصفح"}
                   </button>
                 </div>
               </Card>
 
-              <Card title="ظ…ظ„ط®طµ ط³ط±ظٹط¹" subtitle="Quick stats" icon={Megaphone}>
+              <Card title="ملخص سريع" subtitle="Quick stats" icon={Megaphone}>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div className="rounded-2xl bg-slate-950 p-4 text-white">
-                    <div className="text-xs font-black text-white/60">ط¥ط´ط¹ط§ط±ط§طھ ط؛ظٹط± ظ…ظ‚ط±ظˆط،ط©</div>
+                    <div className="text-xs font-black text-white/60">إشعارات غير مقروءة</div>
                     <div className="mt-1 text-3xl font-black">{formatNumber(unreadCount || notificationsUnread)}</div>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-4 text-slate-900 dark:bg-white/[0.03] dark:text-white">
-                    <div className="text-xs font-black text-slate-400">طµظ„ط§ط­ظٹط§طھ</div>
-                    <div className="mt-1 text-sm font-semibold leading-6">{(me?.permissions || []).length ? `${formatNumber(me.permissions.length)} permission(s)` : "ظ„ط§ طھظˆط¬ط¯ طµظ„ط§ط­ظٹط§طھ ط¸ط§ظ‡ط±ط©"}</div>
+                    <div className="text-xs font-black text-slate-400">صلاحيات</div>
+                    <div className="mt-1 text-sm font-semibold leading-6">{(me?.permissions || []).length ? `${formatNumber(me.permissions.length)} permission(s)` : "لا توجد صلاحيات ظاهرة"}</div>
                   </div>
                 </div>
               </Card>
@@ -1932,7 +1932,7 @@ export default function ManagerPortal() {
         </section>
 
         <aside className="space-y-3">
-              <Card title="ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ" subtitle="Live feed" icon={Bell} className="min-h-0" compact bodyClassName="space-y-2">
+              <Card title="الإشعارات" subtitle="Live feed" icon={Bell} className="min-h-0" compact bodyClassName="space-y-2">
             <div data-testid="notifications-panel" />
             <div className="space-y-1.5">
               {visibleNotifications.length ? visibleNotifications.map((item) => (
@@ -1945,7 +1945,7 @@ export default function ManagerPortal() {
                     <StatusPill tone={item.is_read ? "slate" : "blue"} value={portalText(item.category || "system")} />
                   </div>
                 </button>
-              )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط¥ط´ط¹ط§ط±ط§طھ" body="ط³طھط¸ظ‡ط± ظ‡ظ†ط§ ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ ط§ظ„ط­ظٹط© ط¹ظ†ط¯ ظˆطµظˆظ„ظ‡ط§." />}
+              )) : <EmptyState title="لا توجد إشعارات" body="ستظهر هنا الإشعارات الحية عند وصولها." />}
             </div>
             {hasMoreNotifications ? (
               <button type="button" onClick={() => setShowMoreNotifications((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
@@ -1963,7 +1963,7 @@ export default function ManagerPortal() {
                   <div className="mt-1 line-clamp-2">{portalText(insight.body || "-")}</div>
                 </div>
               ))}
-              {!aiInsights.length ? <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط±ط¤ظ‰" body="ط¥ط°ط§ ظ„ظ… طھظˆط¬ط¯ ط¨ظٹط§ظ†ط§طھ ط­ظ‚ظٹظ‚ظٹط© ظپظ„ظ† ظ†ط¶ظٹظپ ط§ظپطھط±ط§ط¶ط§طھ." /> : null}
+              {!aiInsights.length ? <EmptyState title="لا توجد رؤى" body="إذا لم توجد بيانات حقيقية فلن نضيف افتراضات." /> : null}
             </div>
             {hasMoreAiInsights ? (
               <button type="button" onClick={() => setShowMoreAiInsights((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
@@ -1979,7 +1979,7 @@ export default function ManagerPortal() {
                   <div className="font-black">{portalText(lead.ai_insight || lead.session_id)}</div>
                   <div className="mt-1 text-xs font-bold opacity-80">Score {formatNumber(lead.lead_score || 0)}</div>
                 </div>
-              )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ leads ط³ط§ط®ظ†ط©" body="ط³ظٹط¸ظ‡ط± ظ‡ظ†ط§ ط§ظ„ظ…طµط¯ط± ط§ظ„ط­ظ‚ظٹظ‚ظٹ ط¹ظ†ط¯ طھظˆظپط±ظ‡." />}
+              )) : <EmptyState title="لا توجد عملاء محتملون ساخنون" body="سيظهر هنا المصدر الحقيقي عند توفره." />}
             </div>
             {hasMoreLeads ? (
               <button type="button" onClick={() => setShowMoreLeads((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
@@ -1988,14 +1988,14 @@ export default function ManagerPortal() {
             ) : null}
           </Card>
 
-          <Card title="ط§ظ„ظ…ط®ط²ظˆظ† ط§ظ„ط³ط±ظٹط¹" subtitle="Low stock" icon={Package} compact bodyClassName="space-y-2">
+          <Card title="المخزون السريع" subtitle="Low stock" icon={Package} compact bodyClassName="space-y-2">
             <div className="space-y-1.5">
               {visibleLowStock.length ? visibleLowStock.map((item) => (
                 <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
                   <div className="font-black">{portalText(item.name || "-")}</div>
                   <div className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">{portalText(item.color || item.size || "")} · {formatNumber(item.stock || 0)}</div>
                 </div>
-              )) : <EmptyState title="ظ„ط§ طھظˆط¬ط¯ ط¹ظ†ط§طµط± ظ…ظ†ط®ظپط¶ط©" body="ظ„ظ† ظ†ط¹ط±ط¶ ظ…ط®ط²ظˆظ†ظ‹ط§ ظ…ظ†ط®ظپظ¶ظ‹ط§ ط؛ظٹط± ظ…ظˆط¬ظˆط¯ ظپظٹ ط§ظ„ظ…طµط¯ط±." />}
+              )) : <EmptyState title="لا توجد عناصر منخفضة" body="لن نعرض مخزونًا منخفضًا غير موجود في المصدر." />}
             </div>
             {hasMoreLowStock ? (
               <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
@@ -2010,7 +2010,7 @@ export default function ManagerPortal() {
         <div className="grid grid-cols-6 gap-1">
           {TABS.map((tab) => {
             const active = activeTab === tab;
-            const label = tab === "today" ? "ط§ظ„ظٹظˆظ…" : tab === "staff" ? "ط§ظ„ط·ط§ظ‚ظ…" : tab === "tasks" ? "ط§ظ„ظ…ظ‡ط§ظ…" : tab === "sales" ? "ط§ظ„ظ…ط¨ظٹط¹ط§طھ" : tab === "chat" ? "ط§ظ„ط´ط§طھ" : "ط§ظ„ظ…ط²ظٹط¯";
+            const label = tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : "المزيد";
             const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : Bell;
             const Icon = icon;
             return (
