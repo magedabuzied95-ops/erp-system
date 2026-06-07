@@ -3402,6 +3402,7 @@ function Header({ cart, wishlist, onCart, addToCart }) {
     [t("storefront.nav.women", "Women"), "/shop/products?q=حريمي"],
     [t("storefront.nav.kids", "Kids"), "/shop/products?q=أطفال"],
   ];
+  console.log("[ADD_TO_CART_REFERENCE_AUDIT]", { typeofAddToCart: typeof addToCart });
 
   useEffect(() => {
     const updateCompact = () => setIsCompact(!compactDisabled && window.scrollY > 72);
@@ -4768,6 +4769,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
     },
   }[tone] || {};
   const sectionTone = toneConfig.shell || "bg-transparent";
+  console.log("[ADD_TO_CART_REFERENCE_AUDIT]", { typeofAddToCart: typeof addToCart });
   if (!loading && !visibleProducts.length) return null;
 
   return (
@@ -5460,6 +5462,7 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
   const visibleProducts = hasProducts ? orderedProducts.slice(0, 5) : [];
   const skeletonItems = Array.from({ length: 5 });
   const cardDensity = railType === "new" || railType === "similar" ? "compact" : "standard";
+  console.log("[ADD_TO_CART_REFERENCE_AUDIT]", { typeofAddToCart: typeof addToCart });
   if (!loading && !hasProducts) return null;
   return (
     <section className="sf-reveal mx-auto max-w-[1200px] px-4 py-2 md:py-4">
@@ -5528,6 +5531,7 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
       sizeLimit={6}
     />
   ), [addToCart, toggleWishlist, wishlist]);
+  console.log("[ADD_TO_CART_REFERENCE_AUDIT]", { typeofAddToCart: typeof addToCart });
 
   if (loading) return <ProductSkeleton count={8} />;
 
@@ -5596,6 +5600,7 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
   } = useProducts({ limit: 160, gender: selectedGender, product_type: selectedProductType, sale: "", q: "", category: "", grade: "" });
   const filterBasePath = sale ? "/shop/sale" : "/shop/products";
   const activeFilterCount = [gender, size, inStock, quality, productType, grade, saleQuery ? "sale" : "", lastSizes ? "lastSizes" : ""].filter(Boolean).length;
+  console.log("[ADD_TO_CART_REFERENCE_AUDIT]", { typeofAddToCart: typeof addToCart });
 
   useEffect(() => {
     if (!params.has("style")) return;
@@ -6493,6 +6498,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     },
   };
   const densityClasses = cardDensityClasses[density] || cardDensityClasses.standard;
+  console.log("[ADD_TO_CART_REFERENCE_AUDIT]", { typeofAddToCart: typeof addToCart });
 
   return (
     <article style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onClick={openDetails} className={`group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(250,248,244,0.94)_48%,rgba(245,241,234,0.82))] shadow-[0_14px_34px_rgba(39,20,75,0.08),inset_0_1px_0_rgba(255,255,255,0.86)] ring-1 ring-stone-200/60 transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out hover:-translate-y-2 hover:border-[#a78bfa]/45 hover:ring-[#7c3aed]/35 hover:shadow-[0_24px_66px_rgba(39,20,75,0.18),0_0_0_1px_rgba(124,58,237,0.10)_inset] md:rounded-[1.55rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.95),rgba(11,16,32,0.93)_52%,rgba(8,13,25,0.98))] dark:ring-white/[0.05] dark:shadow-[0_18px_50px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.055)] dark:hover:border-[#a78bfa]/35 dark:hover:shadow-[0_28px_72px_rgba(0,0,0,0.38),0_0_38px_rgba(124,58,237,0.14)] ${featured ? "md:shadow-[0_24px_70px_rgba(109,40,217,0.17)]" : ""}`}>
@@ -7045,6 +7051,7 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
   const buyFromStickyBar = () => {
     requestMobilePurchase("buy");
   };
+  console.log("[ADD_TO_CART_REFERENCE_AUDIT]", { typeofAddToCart: typeof addToCart });
   const shareProduct = async () => {
     const url = typeof window !== "undefined" ? window.location.href : "";
     try {
@@ -8856,6 +8863,7 @@ function AccountPage({ profile, setProfile, wishlist, recent, addToCart }) {
   const addresses = account?.addresses || [];
   const backendWishlist = account?.wishlist_products || [];
   const backendRecent = account?.recent_products || [];
+  console.log("[ADD_TO_CART_REFERENCE_AUDIT]", { typeofAddToCart: typeof addToCart });
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-5 md:py-8">
@@ -8926,6 +8934,7 @@ function CustomerOrderDetails({ data, phone, onReorder }) {
 
 function WishlistPage({ wishlist, toggleWishlist, addToCart }) {
   const wishlistCount = Array.isArray(wishlist) ? wishlist.length : 0;
+  console.log("[ADD_TO_CART_REFERENCE_AUDIT]", { typeofAddToCart: typeof addToCart });
   return (
     <section className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4 md:px-6 md:py-10">
       <div className="rounded-[2rem] border border-white/[0.08] bg-[linear-gradient(145deg,rgba(15,23,42,0.82),rgba(3,7,18,0.94))] p-4 shadow-[0_28px_90px_rgba(0,0,0,0.34)] backdrop-blur-xl md:p-6">
@@ -9845,6 +9854,7 @@ function SmallProductGrid({ items, action, addToCart }) {
       toast.error(sfText("storefront.toasts.addFailed", "We cannot add the item to cart right now."));
     }
   };
+  console.log("[ADD_TO_CART_REFERENCE_AUDIT]", { typeofAddToCart: typeof addToCart });
 
   return (
     <div className="mt-6 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -9916,6 +9926,7 @@ function Reviews() {
 function MobileBuyBar({ product, variant, visible, addToCart, buyNow }) {
   const disabled = !variant || Number(variant.stock || 0) <= 0;
   if (!visible) return null;
+  console.log("[ADD_TO_CART_REFERENCE_AUDIT]", { typeofAddToCart: typeof addToCart });
   return (
     <div
       dir="rtl"
