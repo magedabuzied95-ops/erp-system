@@ -6919,7 +6919,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                       <div className="checkout-payment-amount">
                         <div className="text-sm font-black text-white/66">{storefrontPaymentSettings.shippingConfirmation.label || sfText("storefront.checkout.transfer.amountDueNowAr", "رسوم تأكيد الطلب")}</div>
                         <div className="mt-2 flex items-end justify-between gap-3">
-                          <div className="text-3xl font-black tracking-tight text-white">{money(storefrontPaymentSettings.shippingConfirmation.amount || deliveryFee)}</div>
+                          <div className="text-3xl font-black tracking-tight text-white">{money(storefrontPaymentSettings.shippingConfirmation.amount)}</div>
                           <div className="text-xs font-semibold leading-5 text-white/54">{sfText("storefront.checkout.transfer.amountHelperAr", "ادفع رسوم الشحن فقط لتأكيد طلبك")}</div>
                         </div>
                       </div>
@@ -8108,11 +8108,12 @@ function InfoLine({ icon, text }) {
   );
 }
 
-function PaymentMethodTab({ method, active, onClick }) {
+function PaymentMethodTab({ method, active, onClick, label, helperText, logoUrl }) {
   const isVodafone = method === "vodafone_cash";
-  const subtitle = isVodafone
+  const subtitle = helperText || (isVodafone
     ? sfText("storefront.checkout.transfer.vodafoneWallet", "Vodafone wallet")
-    : sfText("storefront.checkout.transfer.instantBankTransfer", "Instant bank transfer");
+    : sfText("storefront.checkout.transfer.instantBankTransfer", "Instant bank transfer"));
+  const methodLabel = label || (isVodafone ? "Vodafone Cash" : "InstaPay");
   return (
     <button
       type="button"
@@ -8127,9 +8128,9 @@ function PaymentMethodTab({ method, active, onClick }) {
     >
       <span className={`absolute inset-0 opacity-0 transition duration-300 group-hover:opacity-100 ${isVodafone ? "bg-[radial-gradient(circle_at_top_left,rgba(230,0,0,0.22),transparent_42%)]" : "bg-[radial-gradient(circle_at_top_left,rgba(196,181,253,0.22),transparent_42%)]"}`} />
       <span className="relative flex items-center gap-3">
-        <PaymentBrandLogo method={method} size="tab" active={active} />
+        <PaymentBrandLogo method={method} size="tab" active={active} label={methodLabel} logoUrl={logoUrl} />
         <span className="min-w-0">
-          <span className="block text-sm font-black">{paymentBrandLabels[method]}</span>
+          <span className="block text-sm font-black">{methodLabel}</span>
           <span className={`mt-0.5 block text-[11px] font-bold ${active ? "text-white/74" : "text-white/42"}`}>
             {subtitle}
           </span>
@@ -8142,10 +8143,10 @@ function PaymentMethodTab({ method, active, onClick }) {
   );
 }
 
-function PaymentBrandLogo({ method, size = "tab", active = false }) {
+function PaymentBrandLogo({ method, size = "tab", active = false, label, logoUrl }) {
   const [failed, setFailed] = useState(false);
-  const label = paymentBrandLabels[method] || "Payment";
   const logo = paymentBrandLogos[method] || {};
+  const fallbackLabel = label || (method === "vodafone_cash" ? "Vodafone Cash" : method === "instapay" ? "InstaPay" : "Payment");
   const isCopy = size === "copy";
   const containerClass = isCopy
     ? "grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white shadow-[0_14px_30px_rgba(0,0,0,0.20)] sm:h-14 sm:w-14"
@@ -8160,16 +8161,29 @@ function PaymentBrandLogo({ method, size = "tab", active = false }) {
         </span>
       ) : (
         <picture>
-          {logo.webp ? <source srcSet={logo.webp} type="image/webp" /> : null}
-          <img
-            src={logo.png}
-            alt={label}
-            className={imageClass}
-            decoding="async"
-            width="32"
-            height="32"
-            onError={() => setFailed(true)}
-          />
+          {logoUrl ? null : logo.webp ? <source srcSet={logo.webp} type="image/webp" /> : null}
+          {logoUrl ? null : logo.png ? <source srcSet={logo.png} type="image/png" /> : null}
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={fallbackLabel}
+              className={imageClass}
+              decoding="async"
+              width="32"
+              height="32"
+              onError={() => setFailed(true)}
+            />
+          ) : (
+            <img
+              src={logo.png}
+              alt={fallbackLabel}
+              className={imageClass}
+              decoding="async"
+              width="32"
+              height="32"
+              onError={() => setFailed(true)}
+            />
+          )}
         </picture>
       )}
     </span>
@@ -8188,7 +8202,7 @@ function PaymentCopyLine({ method, label, value, amount, deepLink }) {
   return (
     <div className={`sf-checkout-payment-copy rounded-[1.55rem] border p-4 shadow-[0_22px_54px_rgba(0,0,0,0.26)] ${isVodafone ? "border-red-300/18 bg-[linear-gradient(145deg,rgba(230,0,0,0.16),rgba(255,255,255,0.055))]" : "border-[#a78bfa]/18 bg-[linear-gradient(145deg,rgba(124,58,237,0.18),rgba(255,255,255,0.055))]"}`}>
       <div className="flex min-w-0 items-start gap-3">
-        <PaymentBrandLogo method={method} size="copy" />
+        <PaymentBrandLogo method={method} size="copy" label={label} />
         <div className="min-w-0 flex-1">
           <div className="text-xs font-black text-white/48">{sfText("storefront.checkout.transfer.transferDetailsVia", "Transfer details via {{label}}", { label })}</div>
           <div className="sf-checkout-payment-value mt-2 rounded-2xl border border-white/10 bg-black/24 px-3 py-3 font-mono text-xl font-black tracking-wide text-white shadow-inner shadow-black/20" dir="ltr">{value}</div>

@@ -50,7 +50,7 @@ import { useTranslation } from "react-i18next";
 
 import { api } from "../../../shared/api/api";
 import { getCurrentUser } from "../../../shared/auth/authStorage";
-import { normalizeSettingsCategory, settingsCategories, settingsByCategory } from "../../../../shared/settingsRegistry.js";
+import { normalizeSettingsCategory, settingsCategories, settingsByCategory, settingsByKey } from "../../../../shared/settingsRegistry.js";
 import { defaultEgyptShippingLocations } from "../../../../shared/egyptShippingLocations.js";
 import { BARCODE_PRINT_DEFAULTS, BARCODE_PRINT_SETTING_KEYS, barcodePrintSettingsToValues } from "../../../../shared/barcodePrintSettings.js";
 
@@ -231,6 +231,22 @@ const sectionMap = {
   ],
 };
 
+const storefrontPaymentSettingKeys = new Set([
+  "storefront.payment_methods.vodafone_cash_enabled",
+  "storefront.payment_methods.vodafone_cash_display_name",
+  "storefront.payment_methods.vodafone_cash_number",
+  "storefront.payment_methods.vodafone_cash_logo_url",
+  "storefront.payment_methods.vodafone_cash_helper_text",
+  "storefront.payment_methods.instapay_enabled",
+  "storefront.payment_methods.instapay_display_name",
+  "storefront.payment_methods.instapay_handle",
+  "storefront.payment_methods.instapay_logo_url",
+  "storefront.payment_methods.instapay_helper_text",
+  "storefront.payment_methods.shipping_confirmation_enabled",
+  "storefront.payment_methods.shipping_confirmation_amount",
+  "storefront.payment_methods.shipping_confirmation_label",
+]);
+
 const visualStorefrontSections = [
   "storefront",
   "identity",
@@ -399,26 +415,49 @@ function SettingsCenterContent({ debugMode = false }) {
     .map((setting) => setting.key), [definitions, originalValues, values]);
   const isDirty = dirtyKeys.length > 0;
 
-  const applyPayload = useCallback((payload, category = activeCategory) => {
+  const applyPayload = useCallback((payload, category = activeCategory, extraValues = {}) => {
     const incoming = Array.isArray(payload?.settings) ? payload.settings : [];
     setRecords(incoming);
     const next = {};
     incoming.forEach((setting) => {
       next[setting.key] = stringifyValue(setting, setting.isSecret ? "" : setting.value);
     });
+    Object.entries(extraValues || {}).forEach(([key, value]) => {
+      if (key in next) return;
+      const definition = settingsByKey[key] || definitionMap.get(key);
+      if (!definition) return;
+      next[key] = stringifyValue(definition, value);
+    });
     (settingsByCategory[category] || []).forEach((definition) => {
       if (!(definition.key in next)) next[definition.key] = stringifyValue(definition, definition.defaultValue);
     });
     setValues(next);
     setOriginalValues(next);
-  }, [activeCategory]);
+  }, [activeCategory, definitionMap]);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const payload = await api.get(`/settings/${activeCategory}`, { perfComponent: "SettingsCenterV2.load" });
-      applyPayload(payload, activeCategory);
+      const extraValues = {};
+      if (activeCategory === "storefront") {
+        try {
+          const paymentsPayload = await api.get("/settings/payments", { perfComponent: "SettingsCenterV2.loadPayments" });
+          (paymentsPayload.settings || []).forEach((setting) => {
+            const mappedKey =
+              setting.key === "payments.instapay_enabled" ? "storefront.payment_methods.instapay_enabled" :
+              setting.key === "payments.instapay_handle" ? "storefront.payment_methods.instapay_handle" :
+              setting.key === "payments.vodafone_cash_enabled" ? "storefront.payment_methods.vodafone_cash_enabled" :
+              setting.key === "payments.vodafone_cash_number" ? "storefront.payment_methods.vodafone_cash_number" :
+              "";
+            if (mappedKey && !(mappedKey in extraValues)) extraValues[mappedKey] = setting.value;
+          });
+        } catch {
+          // Ignore legacy payment settings fallback failures.
+        }
+      }
+      applyPayload(payload, activeCategory, extraValues);
     } catch (loadError) {
       const message = loadError?.responseBody?.message || loadError?.message || ui.loadFailed;
       setError(message === "Request Failed" ? ui.loadFailed : message);
@@ -484,6 +523,12 @@ function SettingsCenterContent({ debugMode = false }) {
     setSaving(true);
     try {
       const response = await api.put(`/settings/${activeCategory}`, { settings: payload }, { perfComponent: "SettingsCenterV2.save" });
+      if (activeCategory === "storefront") {
+        const paymentKeys = Object.keys(payload).filter((key) => storefrontPaymentSettingKeys.has(key));
+        if (paymentKeys.length) {
+          console.debug("[payment-settings:saved]", { category: activeCategory, keys: paymentKeys });
+        }
+      }
       const merged = mapByKey(records);
       (response.settings || []).forEach((setting) => merged.set(setting.key, setting));
       const nextRecords = Array.from(merged.values());
@@ -908,6 +953,68 @@ function StorefrontSettings(props) {
             {value("storefront.seo_description") ? <p className={`mt-1 max-w-2xl text-sm ${bodyText}`}>{value("storefront.seo_description")}</p> : null}
           </div>
         ) : null}
+      </VisualSection>
+
+      <VisualSection icon={CreditCard} title="Payment Methods / طرق الدفع" description="عدّل أسماء وسائل الدفع والأرقام والشعارات ومبلغ تأكيد الشحن الظاهر في صفحة الدفع.">
+        <div className="grid gap-4 xl:grid-cols-2">
+          <article className={`rounded-2xl p-4 ${fieldSurface}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className={`text-base font-black ${headingText}`}>Vodafone Cash / فودافون كاش</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>تحكم في الاسم الظاهر، الرقم، الشعار، والنص المساعد الذي يظهر للعميل.</p>
+              </div>
+              <TogglePill label="مفعّل" checked={Boolean(value("storefront.payment_methods.vodafone_cash_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.vodafone_cash_enabled", checked)} />
+            </div>
+            <div className="mt-4 grid gap-3">
+              <PremiumInput label="اسم العرض" value={value("storefront.payment_methods.vodafone_cash_display_name")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_display_name", next)} />
+              <PremiumInput label="رقم المحفظة" value={value("storefront.payment_methods.vodafone_cash_number")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_number", next)} />
+              <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>نص مساعد</span>
+                <textarea rows={3} value={value("storefront.payment_methods.vodafone_cash_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.vodafone_cash_helper_text", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
+              </label>
+              <VisualUpload title="Logo / الشعار" value={value("storefront.payment_methods.vodafone_cash_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
+            </div>
+          </article>
+
+          <article className={`rounded-2xl p-4 ${fieldSurface}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className={`text-base font-black ${headingText}`}>InstaPay / إنستاباي</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>عدّل الاسم الظاهر، الحساب أو الهاتف، الشعار، والنص المساعد.</p>
+              </div>
+              <TogglePill label="مفعّل" checked={Boolean(value("storefront.payment_methods.instapay_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.instapay_enabled", checked)} />
+            </div>
+            <div className="mt-4 grid gap-3">
+              <PremiumInput label="اسم العرض" value={value("storefront.payment_methods.instapay_display_name")} onChange={(next) => updateValue("storefront.payment_methods.instapay_display_name", next)} />
+              <PremiumInput label="الحساب أو الهاتف" value={value("storefront.payment_methods.instapay_handle")} onChange={(next) => updateValue("storefront.payment_methods.instapay_handle", next)} />
+              <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>نص مساعد</span>
+                <textarea rows={3} value={value("storefront.payment_methods.instapay_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.instapay_helper_text", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
+              </label>
+              <VisualUpload title="Logo / الشعار" value={value("storefront.payment_methods.instapay_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.instapay_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
+            </div>
+          </article>
+
+          <article className={`rounded-2xl p-4 xl:col-span-2 ${fieldSurface}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className={`text-base font-black ${headingText}`}>Shipping confirmation / رسوم تأكيد الشحن</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>اضبط العنوان والمبلغ الظاهرين في خطوة الدفع داخل صفحة إتمام الطلب.</p>
+              </div>
+              <TogglePill label="مفعّل" checked={Boolean(value("storefront.payment_methods.shipping_confirmation_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.shipping_confirmation_enabled", checked)} />
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>نص العنوان</span>
+                <input value={value("storefront.payment_methods.shipping_confirmation_label")} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_label", event.target.value)} className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
+              </label>
+              <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>المبلغ</span>
+                <input type="number" min="0" value={Number(value("storefront.payment_methods.shipping_confirmation_amount") || 0)} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_amount", Number(event.target.value))} className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
+              </label>
+            </div>
+          </article>
+        </div>
       </VisualSection>
 
       <VisualSection icon={Layers3} title="Marketing" description="Tracking IDs used by campaigns and catalog integrations.">
