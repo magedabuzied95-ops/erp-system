@@ -535,7 +535,7 @@ export const buildBarcodePrintHtml = ({
   const barcodeHeight = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
     ? Math.max(134, Number(normalizedSettings.barcodeHeight || 88))
     : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
-      ? Math.max(132, Number(normalizedSettings.barcodeHeight || 88))
+      ? Math.max(146, Number(normalizedSettings.barcodeHeight || 88))
     : Number(normalizedSettings.barcodeHeight || 88);
 
   const buildLabelMarkup = (item) => {
@@ -816,17 +816,18 @@ export const buildBarcodePrintHtml = ({
             min-height: 0;
           }
           .premium-header {
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
             border: 1px solid #e2e8f0;
             border-radius: 4px;
             background: #f8fafc;
             padding: 1.2mm 1.6mm;
-            font-size: 11px;
-            line-height: 1;
+            font-size: clamp(10px, 2.4vw, 12px);
+            line-height: 1.05;
             font-weight: 900;
             color: #111827;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
           }
           .premium-details {
             display: grid;
@@ -888,8 +889,15 @@ export const buildBarcodePrintHtml = ({
             color: #cbd5e1;
           }
           .premium-price strong {
-            font-size: 15px;
+            font-size: 18px;
             color: #ffffff;
+          }
+          .premium-pill:nth-child(3) strong {
+            font-size: 20px;
+          }
+          .premium-pill:nth-child(4) strong {
+            font-size: 12px;
+            text-transform: uppercase;
           }
           .premium-barcode {
             display: flex;
@@ -906,7 +914,7 @@ export const buildBarcodePrintHtml = ({
           .premium-barcode-svg {
             width: 95%;
             max-width: 95%;
-            min-height: 18.5mm;
+            min-height: 19.5mm;
           }
           .premium-barcode-svg svg {
             width: 100%;
@@ -915,7 +923,7 @@ export const buildBarcodePrintHtml = ({
           }
           .premium-sku {
             text-align: center;
-            font-size: 8.5px;
+            font-size: 9.5px;
             line-height: 1;
             font-weight: 900;
             color: #111827;

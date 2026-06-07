@@ -1130,7 +1130,7 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
   const colorValue = safeText(item.color, t("products.barcodeLabels.default"));
   const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
     width: Math.round(650 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
-    height: Math.max(132, Number(printSettings.barcodeHeight || 88)),
+    height: Math.max(146, Number(printSettings.barcodeHeight || 88)),
     displayText: item.barcode,
   });
   const previewScale = preview && !print ? 1.72 : 1;
@@ -1147,26 +1147,26 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
           </div>
           <div className="grid min-h-0 grid-rows-[auto_auto_1fr_1fr] gap-[1mm]">
             <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-50 px-[1.6mm] py-[1.2mm]">
-              <h3 className="truncate text-[11px] font-black leading-none text-zinc-950">{productName}</h3>
+              <h3 className="line-clamp-2 text-[clamp(10px,1.25vw,12px)] font-black leading-[1.05] text-zinc-950">{productName}</h3>
             </div>
             <div className="rounded-[9px] border border-zinc-200 bg-zinc-950 px-[1.4mm] py-[1.4mm] text-white">
               <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
-              <div className="mt-[0.7mm] truncate text-[15px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
+              <div className="mt-[0.7mm] truncate text-[18px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
             </div>
             <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1.4mm] py-[1.3mm] text-zinc-950">
               <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
-              <div className="mt-[0.7mm] truncate text-[14px] font-black leading-none">{sizeValue}</div>
+              <div className="mt-[0.7mm] truncate text-[20px] font-black leading-none">{sizeValue}</div>
             </div>
             <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1.4mm] py-[1.3mm] text-zinc-950">
               <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
-              <div className="mt-[0.7mm] truncate text-[12px] font-black leading-none">{colorValue}</div>
+              <div className="mt-[0.7mm] truncate text-[12px] font-black uppercase leading-none">{colorValue}</div>
             </div>
           </div>
         </div>
 
         <div className="flex min-h-0 flex-col items-center justify-center rounded-[10px] border border-zinc-200 bg-white px-[1mm] pb-[1.2mm] pt-[1.4mm]">
-          <div className="w-[95%] max-w-full" style={{ minHeight: "18.5mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
-          <div className="mt-[0.8mm] text-center text-[8.5px] font-black leading-none text-zinc-800">{item.sku}</div>
+          <div className="w-[95%] max-w-full" style={{ minHeight: "19.5mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+          <div className="mt-[0.8mm] text-center text-[9.5px] font-black leading-none text-zinc-800">{item.sku}</div>
         </div>
       </div>
     </article>
