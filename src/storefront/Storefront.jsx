@@ -3112,16 +3112,6 @@ function Storefront() {
     setCustomerCaptureOpen(false);
   }, [commitCartItem, customerCaptureReason, pendingCartItem]);
 
-  useEffect(() => {
-    if (location.pathname !== "/shop/checkout") {
-      checkoutCapturePromptedRef.current = false;
-      return;
-    }
-    if (!cart.length || customerSessionRef.current || customerCaptureOpen || checkoutCapturePromptedRef.current) return;
-    checkoutCapturePromptedRef.current = true;
-    openCustomerCapture(null, "checkout");
-  }, [cart.length, customerCaptureOpen, location.pathname, openCustomerCapture]);
-
   const addToCart = useCallback((product, variant, quantity = 1) => {
     if (!variant || Number(variant.stock || 0) <= 0) {
       toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
@@ -3139,6 +3129,16 @@ function Storefront() {
     commitCartItem(cartItem);
     return "added";
   }, [buildCartItem, commitCartItem, openCustomerCapture]);
+
+  useEffect(() => {
+    if (location.pathname !== "/shop/checkout") {
+      checkoutCapturePromptedRef.current = false;
+      return;
+    }
+    if (!cart.length || customerSessionRef.current || customerCaptureOpen || checkoutCapturePromptedRef.current) return;
+    checkoutCapturePromptedRef.current = true;
+    openCustomerCapture(null, "checkout");
+  }, [cart.length, customerCaptureOpen, location.pathname, openCustomerCapture]);
 
   const updateCart = useCallback((lineId, quantity) => {
     setCart((items) => {
