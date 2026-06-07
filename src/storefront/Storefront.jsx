@@ -346,6 +346,7 @@ const DEFAULT_STOREFRONT_PAYMENT_SETTINGS = {
   instapay: {
     enabled: true,
     displayName: "InstaPay",
+    paymentUrl: "https://ipn.eg/S/maged.helal/instapay/5BEvfH",
     handle: "01000000000@instapay",
     logoUrl: "",
     helperText: "",
@@ -398,7 +399,14 @@ const normalizeStorefrontPaymentSettings = (settings = {}) => {
     instapay: {
       enabled: bool(settings["storefront.payment_methods.instapay_enabled"], settings["payments.instapay_enabled"] ?? true),
       displayName: text(settings["storefront.payment_methods.instapay_display_name"], settings["payments.instapay_display_name"] || "InstaPay"),
-      handle: text(settings["storefront.payment_methods.instapay_handle"], settings["payments.instapay_handle"] || import.meta.env.VITE_INSTAPAY_HANDLE || "01000000000@instapay"),
+      paymentUrl: text(
+        settings.storefront?.payment_methods?.instapay?.payment_url,
+        settings["storefront.payment_methods.instapay.payment_url"] || settings["payments.instapay_payment_url"] || DEFAULT_STOREFRONT_PAYMENT_SETTINGS.instapay.paymentUrl || ""
+      ),
+      handle: text(
+        settings.storefront?.payment_methods?.instapay?.handle,
+        settings["storefront.payment_methods.instapay.handle"] || settings["storefront.payment_methods.instapay_handle"] || settings["payments.instapay_handle"] || import.meta.env.VITE_INSTAPAY_HANDLE || "01000000000@instapay"
+      ),
       logoUrl: text(settings["storefront.payment_methods.instapay_logo_url"], settings["payments.instapay_logo_url"] || ""),
       helperText: text(settings["storefront.payment_methods.instapay_helper_text"], settings["payments.instapay_helper_text"] || ""),
     },
@@ -5900,7 +5908,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       enabled: storefrontPaymentSettings.instapay.enabled,
       label: storefrontPaymentSettings.instapay.displayName || "InstaPay",
       helperText: storefrontPaymentSettings.instapay.helperText,
-      value: storefrontPaymentSettings.instapay.handle,
+      paymentUrl: storefrontPaymentSettings.instapay.paymentUrl,
+      legacyHandle: storefrontPaymentSettings.instapay.handle,
+      value: storefrontPaymentSettings.instapay.paymentUrl || storefrontPaymentSettings.instapay.handle,
       logoUrl: storefrontPaymentSettings.instapay.logoUrl,
       qrUrl: INSTA_PAY_QR_URL,
       deepLink: "instapay://",
@@ -5916,11 +5926,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       deepLink: "tel:*9%23",
     },
   ]), [storefrontPaymentSettings]);
-  const visibleTransferMethods = paymentTransferMethods.filter((method) => method.enabled);
-  const activeTransferMethod = visibleTransferMethods.find((method) => method.id === shippingTransferMethod) || visibleTransferMethods[0] || paymentTransferMethods[0];
+  const visibleTransferMethods = paymentTransferMethods.filter((method) => method.enabled && (method.id !== "instapay" || method.paymentUrl || method.legacyHandle));
+  const activeTransferMethod = visibleTransferMethods.find((method) => method.id === shippingTransferMethod) || visibleTransferMethods[0] || null;
   const activeTransferValue = activeTransferMethod?.value || "";
-  const activePaymentDeepLink = activeTransferMethod?.deepLink || "tel:*9%23";
-  const activePaymentQrUrl = activeTransferMethod?.qrUrl || "";
+  const activeTransferPaymentUrl = activeTransferMethod?.paymentUrl || "";
   const checkoutSummaryHelpers = useMemo(() => ({
     displayCartItemComparePrice,
     fallbackProductImage,
@@ -5968,6 +5977,15 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       shipping_confirmation_enabled: storefrontPaymentSettings.shippingConfirmation.enabled,
       shipping_confirmation_amount: storefrontPaymentSettings.shippingConfirmation.amount,
     });
+    if (storefrontPaymentSettings.instapay.paymentUrl) {
+      console.debug("[checkout:instapay-payment-link-applied]", {
+        payment_url: storefrontPaymentSettings.instapay.paymentUrl,
+      });
+    } else if (storefrontPaymentSettings.instapay.handle) {
+      console.debug("[checkout:instapay-legacy-handle-fallback]", {
+        handle: storefrontPaymentSettings.instapay.handle,
+      });
+    }
   }, [storefrontPaymentSettings]);
 
   useEffect(() => {
@@ -6956,21 +6974,43 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
                     <div className="checkout-payment-details">
                       <div className="text-sm font-black text-white/80">{sfText("storefront.checkout.transfer.paymentDetailsAr", "بيانات التحويل")}</div>
-                      <div className="checkout-payment-copy-row mt-3">
-                        <div className="min-w-0 flex-1 rounded-[1rem] border border-white/10 bg-black/14 px-3 py-2.5 font-mono text-base font-black tracking-wide text-white" dir="ltr">
-                          {activeTransferValue}
+                      {activeTransferMethod?.id === "instapay" && activeTransferPaymentUrl ? (
+                        <div className="mt-3 grid gap-3">
+                          <div className="rounded-[1rem] border border-[#a78bfa]/12 bg-white/[0.045] px-3 py-2.5 text-sm font-black text-white/80">
+                            {sfText("storefront.checkout.transfer.directPaymentAvailableAr", "رابط دفع مباشر متاح")}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => window.open(activeTransferPaymentUrl, "_blank", "noopener,noreferrer")}
+                            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.98),rgba(17,24,39,0.98))] px-4 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(124,58,237,0.24)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/36 hover:bg-[#6d28d9]"
+                          >
+                            {sfText("storefront.checkout.transfer.openInstapayLinkAr", "ادفع عبر InstaPay")}
+                          </button>
+                          <p className="text-xs font-semibold leading-6 text-white/56">
+                            {sfText("storefront.checkout.transfer.instantPayHelperAr", "اضغط على الزر للتحويل مباشرة، ثم ارفع إيصال التحويل لتأكيد الطلب.")}
+                          </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await navigator.clipboard?.writeText(activeTransferValue);
-                            toast.success(sfText("storefront.toasts.copied", "Copied."));
-                          }}
-                        className="checkout-payment-copy-button"
-                      >
-                        {sfText("storefront.checkout.transfer.copyShortAr", "نسخ")}
-                      </button>
-                      </div>
+                      ) : activeTransferMethod ? (
+                        <div className="checkout-payment-copy-row mt-3">
+                          <div className="min-w-0 flex-1 rounded-[1rem] border border-white/10 bg-black/14 px-3 py-2.5 font-mono text-base font-black tracking-wide text-white" dir="ltr">
+                            {activeTransferValue}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await navigator.clipboard?.writeText(activeTransferValue);
+                              toast.success(sfText("storefront.toasts.copied", "Copied."));
+                            }}
+                            className="checkout-payment-copy-button"
+                          >
+                            {sfText("storefront.checkout.transfer.copyShortAr", "نسخ")}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-[1rem] border border-white/10 bg-white/[0.045] px-3 py-2.5 text-sm font-semibold text-white/54">
+                          {sfText("storefront.checkout.transfer.noPaymentMethodAr", "لا توجد طريقة دفع متاحة حالياً.")}
+                        </div>
+                      )}
                     </div>
 
                     <div

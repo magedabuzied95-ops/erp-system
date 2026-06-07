@@ -1,4 +1,4 @@
-import { Component, useCallback, useEffect, useMemo, useState } from "react";
+﻿import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -239,6 +239,7 @@ const storefrontPaymentSettingKeys = new Set([
   "storefront.payment_methods.vodafone_cash_helper_text",
   "storefront.payment_methods.instapay_enabled",
   "storefront.payment_methods.instapay_display_name",
+  "storefront.payment_methods.instapay.payment_url",
   "storefront.payment_methods.instapay_handle",
   "storefront.payment_methods.instapay_logo_url",
   "storefront.payment_methods.instapay_helper_text",
@@ -272,6 +273,8 @@ const localized = (value, language = "en") => {
 };
 
 const sameValue = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+const isHttpOrHttpsUrl = (value = "") => /^https?:\/\/\S+/i.test(String(value || "").trim());
 
 const safeParseJson = (value, fallback) => {
   if (value && typeof value === "object") return value;
@@ -447,6 +450,8 @@ function SettingsCenterContent({ debugMode = false }) {
           (paymentsPayload.settings || []).forEach((setting) => {
             const mappedKey =
               setting.key === "payments.instapay_enabled" ? "storefront.payment_methods.instapay_enabled" :
+              setting.key === "payments.instapay_payment_url" ? "storefront.payment_methods.instapay.payment_url" :
+              setting.key === "payments.instapay_url" ? "storefront.payment_methods.instapay.payment_url" :
               setting.key === "payments.instapay_handle" ? "storefront.payment_methods.instapay_handle" :
               setting.key === "payments.vodafone_cash_enabled" ? "storefront.payment_methods.vodafone_cash_enabled" :
               setting.key === "payments.vodafone_cash_number" ? "storefront.payment_methods.vodafone_cash_number" :
@@ -500,7 +505,7 @@ function SettingsCenterContent({ debugMode = false }) {
   const resetBarcodePrintDefaults = () => {
     const nextDefaults = barcodePrintSettingsToValues(BARCODE_PRINT_DEFAULTS);
     setValues((current) => ({ ...current, ...nextDefaults }));
-    toast.success(language === "ar" ? "تمت إعادة إعدادات طباعة الباركود للوضع الافتراضي" : "Barcode print settings reset to defaults");
+    toast.success(language === "ar" ? "طھظ…طھ ط¥ط¹ط§ط¯ط© ط¥ط¹ط¯ط§ط¯ط§طھ ط·ط¨ط§ط¹ط© ط§ظ„ط¨ط§ط±ظƒظˆط¯ ظ„ظ„ظˆط¶ط¹ ط§ظ„ط§ظپطھط±ط§ط¶ظٹ" : "Barcode print settings reset to defaults");
   };
   const updateHero = (patch) => {
     const current = safeParseJson(values["storefront.homepage_hero"], {});
@@ -513,6 +518,12 @@ function SettingsCenterContent({ debugMode = false }) {
   };
 
   const save = async () => {
+    if (activeCategory === "storefront") {
+      if (!instapayPaymentUrlSaveAllowed) {
+        toast.error("رابط InstaPay غير صحيح. يجب أن يبدأ بـ https:// أو http://");
+        return;
+      }
+    }
     const payload = {};
     for (const setting of definitions) {
       if (!dirtyKeys.includes(setting.key)) continue;
@@ -583,6 +594,14 @@ function SettingsCenterContent({ debugMode = false }) {
 
   const setting = (key) => recordMap.get(key) || definitionMap.get(key) || { key, label: { en: key }, type: "text" };
   const value = (key, fallback = "") => values[key] ?? fallback;
+  const instapayPaymentUrlValue = String(value("storefront.payment_methods.instapay.payment_url") || "").trim();
+  const instapayLegacyHandleValue = String(value("storefront.payment_methods.instapay_handle") || "").trim();
+  const instapayPaymentUrlValid = Boolean(instapayPaymentUrlValue) ? isHttpOrHttpsUrl(instapayPaymentUrlValue) : Boolean(instapayLegacyHandleValue);
+  const instapayPaymentUrlSaveAllowed = instapayPaymentUrlValid;
+  const instapayPaymentUrlTestAllowed = Boolean(instapayPaymentUrlValue) && instapayPaymentUrlValid;
+  const instapayPaymentUrlHelperText = !instapayPaymentUrlValue && instapayLegacyHandleValue
+    ? "يستخدم الحساب القديم كبديل عند الحاجة."
+    : "اضغط على الزر للتحويل مباشرة، ثم ارفع إيصال التحويل لتأكيد الطلب.";
   const hero = safeParseJson(value("storefront.homepage_hero"), {});
   const featuredCollections = Array.isArray(value("storefront.featured_collections")) ? value("storefront.featured_collections") : [];
   const storeUrl = value("storefront.public_url") || "";
@@ -839,7 +858,7 @@ function SettingsCenterContent({ debugMode = false }) {
                           className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
                         >
                           <RefreshCw className="h-4 w-4" />
-                          {language === "ar" ? "إعادة الافتراضي" : "Reset defaults"}
+                          {language === "ar" ? "ط¥ط¹ط§ط¯ط© ط§ظ„ط§ظپطھط±ط§ط¶ظٹ" : "Reset defaults"}
                         </button>
                       ) : null}
                     </div>
@@ -955,61 +974,98 @@ function StorefrontSettings(props) {
         ) : null}
       </VisualSection>
 
-      <VisualSection icon={CreditCard} title="Payment Methods / طرق الدفع" description="عدّل أسماء وسائل الدفع والأرقام والشعارات ومبلغ تأكيد الشحن الظاهر في صفحة الدفع.">
+      <VisualSection icon={CreditCard} title="Payment Methods / ط·ط±ظ‚ ط§ظ„ط¯ظپط¹" description="ط¹ط¯ظ‘ظ„ ط£ط³ظ…ط§ط، ظˆط³ط§ط¦ظ„ ط§ظ„ط¯ظپط¹ ظˆط§ظ„ط£ط±ظ‚ط§ظ… ظˆط§ظ„ط´ط¹ط§ط±ط§طھ ظˆظ…ط¨ظ„ط؛ طھط£ظƒظٹط¯ ط§ظ„ط´ط­ظ† ط§ظ„ط¸ط§ظ‡ط± ظپظٹ طµظپط­ط© ط§ظ„ط¯ظپط¹.">
         <div className="grid gap-4 xl:grid-cols-2">
           <article className={`rounded-2xl p-4 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`text-base font-black ${headingText}`}>Vodafone Cash / فودافون كاش</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>تحكم في الاسم الظاهر، الرقم، الشعار، والنص المساعد الذي يظهر للعميل.</p>
+                <h3 className={`text-base font-black ${headingText}`}>Vodafone Cash / ظپظˆط¯ط§ظپظˆظ† ظƒط§ط´</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>طھط­ظƒظ… ظپظٹ ط§ظ„ط§ط³ظ… ط§ظ„ط¸ط§ظ‡ط±طŒ ط§ظ„ط±ظ‚ظ…طŒ ط§ظ„ط´ط¹ط§ط±طŒ ظˆط§ظ„ظ†طµ ط§ظ„ظ…ط³ط§ط¹ط¯ ط§ظ„ط°ظٹ ظٹط¸ظ‡ط± ظ„ظ„ط¹ظ…ظٹظ„.</p>
               </div>
-              <TogglePill label="مفعّل" checked={Boolean(value("storefront.payment_methods.vodafone_cash_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.vodafone_cash_enabled", checked)} />
+              <TogglePill label="ظ…ظپط¹ظ‘ظ„" checked={Boolean(value("storefront.payment_methods.vodafone_cash_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.vodafone_cash_enabled", checked)} />
             </div>
             <div className="mt-4 grid gap-3">
-              <PremiumInput label="اسم العرض" value={value("storefront.payment_methods.vodafone_cash_display_name")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_display_name", next)} />
-              <PremiumInput label="رقم المحفظة" value={value("storefront.payment_methods.vodafone_cash_number")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_number", next)} />
+              <PremiumInput label="ط§ط³ظ… ط§ظ„ط¹ط±ط¶" value={value("storefront.payment_methods.vodafone_cash_display_name")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_display_name", next)} />
+              <PremiumInput label="ط±ظ‚ظ… ط§ظ„ظ…ط­ظپط¸ط©" value={value("storefront.payment_methods.vodafone_cash_number")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_number", next)} />
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-                <span className={`mb-2 block text-sm font-black ${headingText}`}>نص مساعد</span>
-                <textarea rows={3} value={value("storefront.payment_methods.vodafone_cash_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.vodafone_cash_helper_text", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>ظ†طµ ظ…ط³ط§ط¹ط¯</span>
+                <textarea rows={3} value={value("storefront.payment_methods.vodafone_cash_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.vodafone_cash_helper_text", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="ظ†طµ ط¥ط±ط´ط§ط¯ظٹ ظ‚طµظٹط±" />
               </label>
-              <VisualUpload title="Logo / الشعار" value={value("storefront.payment_methods.vodafone_cash_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
+              <VisualUpload title="Logo / ط§ظ„ط´ط¹ط§ط±" value={value("storefront.payment_methods.vodafone_cash_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
             </div>
           </article>
 
-          <article className={`rounded-2xl p-4 ${fieldSurface}`}>
+                    <article className={`rounded-2xl p-4 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`text-base font-black ${headingText}`}>InstaPay / إنستاباي</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>عدّل الاسم الظاهر، الحساب أو الهاتف، الشعار، والنص المساعد.</p>
+                <h3 className={`text-base font-black ${headingText}`}>InstaPay / ط¥ظ†ط³طھط§ط¨ط§ظٹ</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>ط¹ط¯ظ‘ظ„ ط§ظ„ط§ط³ظ… ط§ظ„ط¸ط§ظ‡ط±طŒ ط§ظ„ط­ط³ط§ط¨ ط£ظˆ ط§ظ„ظ‡ط§طھظپطŒ ط§ظ„ط´ط¹ط§ط±طŒ ظˆط§ظ„ظ†طµ ط§ظ„ظ…ط³ط§ط¹ط¯.</p>
               </div>
-              <TogglePill label="مفعّل" checked={Boolean(value("storefront.payment_methods.instapay_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.instapay_enabled", checked)} />
+              <TogglePill label="ظ…ظپط¹ظ‘ظ„" checked={Boolean(value("storefront.payment_methods.instapay_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.instapay_enabled", checked)} />
             </div>
-            <div className="mt-4 grid gap-3">
+            <div className={`mt-4 rounded-2xl border p-4 ${fieldSurface}`}>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div className="min-w-0">
+                  <label className={`block text-sm font-black ${headingText}`}>رابط الدفع InstaPay</label>
+                  <p className={`mt-1 text-xs leading-5 ${bodyText}`}>ضع رابط الدفع المباشر من تطبيق InstaPay</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={!instapayPaymentUrlTestAllowed}
+                  onClick={() => {
+                    if (!instapayPaymentUrlTestAllowed) return;
+                    window.open(instapayPaymentUrlValue, "_blank", "noopener,noreferrer");
+                  }}
+                  className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-[#a78bfa]/18 bg-[#7c3aed] px-4 text-xs font-black text-white transition hover:-translate-y-0.5 hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:translate-y-0 disabled:border-slate-300/40 disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:border-white/10 dark:disabled:bg-white/10 dark:disabled:text-white/35"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  فتح رابط الدفع
+                </button>
+              </div>
+              <div className="mt-3">
+                <input
+                  value={instapayPaymentUrlValue}
+                  onChange={(event) => updateValue("storefront.payment_methods.instapay.payment_url", event.target.value)}
+                  placeholder="https://ipn.eg/S/yourname/instapay/xxxxx"
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
+                />
+                <div className={`mt-2 text-xs font-medium ${instapayPaymentUrlValid ? bodyText : "text-rose-600 dark:text-rose-300"}`}>
+                  {instapayPaymentUrlValid ? instapayPaymentUrlHelperText : "رابط InstaPay غير صحيح. يجب أن يبدأ بـ https:// أو http://"}
+                </div>
+              </div>
+            </div>
+            <details className="mt-3 rounded-2xl border border-dashed border-slate-200 p-4 dark:border-white/10">
+              <summary className={`cursor-pointer select-none text-sm font-black ${headingText}`}>الحساب القديم (للتوافق)</summary>
+              <p className={`mt-1 text-xs leading-5 ${bodyText}`}>يستخدم فقط كبديل قديم عند الحاجة.</p>
+              <div className="mt-3">
+                <PremiumInput label="الحساب أو الهاتف" value={instapayLegacyHandleValue} onChange={(next) => updateValue("storefront.payment_methods.instapay_handle", next)} />
+              </div>
+            </details>
+            <div className="mt-3 grid gap-3">
               <PremiumInput label="اسم العرض" value={value("storefront.payment_methods.instapay_display_name")} onChange={(next) => updateValue("storefront.payment_methods.instapay_display_name", next)} />
-              <PremiumInput label="الحساب أو الهاتف" value={value("storefront.payment_methods.instapay_handle")} onChange={(next) => updateValue("storefront.payment_methods.instapay_handle", next)} />
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
                 <span className={`mb-2 block text-sm font-black ${headingText}`}>نص مساعد</span>
                 <textarea rows={3} value={value("storefront.payment_methods.instapay_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.instapay_helper_text", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
               </label>
-              <VisualUpload title="Logo / الشعار" value={value("storefront.payment_methods.instapay_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.instapay_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
+              <VisualUpload title="Logo / ط§ظ„ط´ط¹ط§ط±" value={value("storefront.payment_methods.instapay_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.instapay_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
             </div>
           </article>
 
           <article className={`rounded-2xl p-4 xl:col-span-2 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`text-base font-black ${headingText}`}>Shipping confirmation / رسوم تأكيد الشحن</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>اضبط العنوان والمبلغ الظاهرين في خطوة الدفع داخل صفحة إتمام الطلب.</p>
+                <h3 className={`text-base font-black ${headingText}`}>Shipping confirmation / ط±ط³ظˆظ… طھط£ظƒظٹط¯ ط§ظ„ط´ط­ظ†</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>ط§ط¶ط¨ط· ط§ظ„ط¹ظ†ظˆط§ظ† ظˆط§ظ„ظ…ط¨ظ„ط؛ ط§ظ„ط¸ط§ظ‡ط±ظٹظ† ظپظٹ ط®ط·ظˆط© ط§ظ„ط¯ظپط¹ ط¯ط§ط®ظ„ طµظپط­ط© ط¥طھظ…ط§ظ… ط§ظ„ط·ظ„ط¨.</p>
               </div>
-              <TogglePill label="مفعّل" checked={Boolean(value("storefront.payment_methods.shipping_confirmation_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.shipping_confirmation_enabled", checked)} />
+              <TogglePill label="ظ…ظپط¹ظ‘ظ„" checked={Boolean(value("storefront.payment_methods.shipping_confirmation_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.shipping_confirmation_enabled", checked)} />
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-                <span className={`mb-2 block text-sm font-black ${headingText}`}>نص العنوان</span>
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>ظ†طµ ط§ظ„ط¹ظ†ظˆط§ظ†</span>
                 <input value={value("storefront.payment_methods.shipping_confirmation_label")} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_label", event.target.value)} className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
               </label>
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-                <span className={`mb-2 block text-sm font-black ${headingText}`}>المبلغ</span>
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>ط§ظ„ظ…ط¨ظ„ط؛</span>
                 <input type="number" min="0" value={Number(value("storefront.payment_methods.shipping_confirmation_amount") || 0)} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_amount", Number(event.target.value))} className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
               </label>
             </div>
@@ -1660,77 +1716,77 @@ const shippingUi = {
     headers: ["Governorate", "City / Markaz", "Area / District", "Price", "COD", "Proof", "ETA", "Provider", "Free over", "Min COD", "Active", ""],
   },
   ar: {
-    defaultPrice: "سعر الشحن الافتراضي",
-    activeZones: "المناطق المفعلة",
-    codZones: "الدفع عند الاستلام",
-    proofZones: "مطلوب إثبات",
-    freeRules: "قواعد الشحن المجاني",
-    overviewTitle: "ملخص الشحن",
-    overviewDescription: "سعر احتياطي وقواعد تشغيل يستخدمها الدفع في المتجر.",
-    zonesTitle: "مناطق الشحن",
-    zonesDescription: "تطابق المنطقة أولا، ثم المدينة/المركز، ثم المحافظة، ثم السعر الافتراضي.",
-    codTitle: "قواعد الدفع عند الاستلام",
-    codDescription: "إعداد عام للدفع عند الاستلام مع استثناءات لكل منطقة.",
-    codBody: "الإعداد العام موجود في المدفوعات. الاستثناءات حسب المنطقة تظهر مباشرة داخل جدول الشحن.",
-    proofTitle: "قواعد إثبات دفع الشحن",
-    proofDescription: "استخدم مفتاح الإثبات لكل منطقة لتحديد هل مطلوب صورة تحويل أم لا.",
-    proofBody: "قواعد الإثبات داخل مناطق الشحن لتبقى استثناءات دمياط والمدن والمناطق واضحة بجانب السعر.",
-    providersTitle: "شركات الشحن",
-    providersDescription: "شركة الشحن الافتراضية وبيانات التكامل لإنشاء الشحنات لاحقا.",
-    search: "بحث بالمحافظة أو المدينة أو المنطقة أو الشركة",
-    allGovernorates: "إضافة كل محافظات مصر",
-    addZone: "إضافة منطقة",
-    import: "استيراد",
-    export: "تصدير",
-    bulk: "تحديث جماعي",
-    governorateFilter: "المحافظة",
-    all: "الكل",
-    selected: "محدد",
-    quickTitle: "إضافة سريعة",
-    createGovernorate: "محافظة فقط",
-    createCity: "محافظة + مدينة",
-    createArea: "محافظة + مدينة + منطقة",
-    bulkPrice: "تحديد سعر المختار",
-    bulkEstimate: "تحديد مدة التوصيل",
-    enableCod: "تفعيل COD",
-    disableCod: "إيقاف COD",
-    requireProof: "طلب إثبات",
-    skipProof: "بدون إثبات",
-    deleteSelected: "حذف المختار",
-    empty: "لا توجد مناطق شحن مطابقة للفلاتر الحالية.",
-    seeded: "تمت إضافة محافظات مصر",
-    headers: ["المحافظة", "المدينة / المركز", "المنطقة / الحي", "السعر", "COD", "إثبات", "المدة", "الشركة", "مجاني بعد", "حد COD", "مفعل", ""],
+    defaultPrice: "ط³ط¹ط± ط§ظ„ط´ط­ظ† ط§ظ„ط§ظپطھط±ط§ط¶ظٹ",
+    activeZones: "ط§ظ„ظ…ظ†ط§ط·ظ‚ ط§ظ„ظ…ظپط¹ظ„ط©",
+    codZones: "ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…",
+    proofZones: "ظ…ط·ظ„ظˆط¨ ط¥ط«ط¨ط§طھ",
+    freeRules: "ظ‚ظˆط§ط¹ط¯ ط§ظ„ط´ط­ظ† ط§ظ„ظ…ط¬ط§ظ†ظٹ",
+    overviewTitle: "ظ…ظ„ط®طµ ط§ظ„ط´ط­ظ†",
+    overviewDescription: "ط³ط¹ط± ط§ط­طھظٹط§ط·ظٹ ظˆظ‚ظˆط§ط¹ط¯ طھط´ط؛ظٹظ„ ظٹط³طھط®ط¯ظ…ظ‡ط§ ط§ظ„ط¯ظپط¹ ظپظٹ ط§ظ„ظ…طھط¬ط±.",
+    zonesTitle: "ظ…ظ†ط§ط·ظ‚ ط§ظ„ط´ط­ظ†",
+    zonesDescription: "طھط·ط§ط¨ظ‚ ط§ظ„ظ…ظ†ط·ظ‚ط© ط£ظˆظ„ط§طŒ ط«ظ… ط§ظ„ظ…ط¯ظٹظ†ط©/ط§ظ„ظ…ط±ظƒط²طŒ ط«ظ… ط§ظ„ظ…ط­ط§ظپط¸ط©طŒ ط«ظ… ط§ظ„ط³ط¹ط± ط§ظ„ط§ظپطھط±ط§ط¶ظٹ.",
+    codTitle: "ظ‚ظˆط§ط¹ط¯ ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…",
+    codDescription: "ط¥ط¹ط¯ط§ط¯ ط¹ط§ظ… ظ„ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ… ظ…ط¹ ط§ط³طھط«ظ†ط§ط،ط§طھ ظ„ظƒظ„ ظ…ظ†ط·ظ‚ط©.",
+    codBody: "ط§ظ„ط¥ط¹ط¯ط§ط¯ ط§ظ„ط¹ط§ظ… ظ…ظˆط¬ظˆط¯ ظپظٹ ط§ظ„ظ…ط¯ظپظˆط¹ط§طھ. ط§ظ„ط§ط³طھط«ظ†ط§ط،ط§طھ ط­ط³ط¨ ط§ظ„ظ…ظ†ط·ظ‚ط© طھط¸ظ‡ط± ظ…ط¨ط§ط´ط±ط© ط¯ط§ط®ظ„ ط¬ط¯ظˆظ„ ط§ظ„ط´ط­ظ†.",
+    proofTitle: "ظ‚ظˆط§ط¹ط¯ ط¥ط«ط¨ط§طھ ط¯ظپط¹ ط§ظ„ط´ط­ظ†",
+    proofDescription: "ط§ط³طھط®ط¯ظ… ظ…ظپطھط§ط­ ط§ظ„ط¥ط«ط¨ط§طھ ظ„ظƒظ„ ظ…ظ†ط·ظ‚ط© ظ„طھط­ط¯ظٹط¯ ظ‡ظ„ ظ…ط·ظ„ظˆط¨ طµظˆط±ط© طھط­ظˆظٹظ„ ط£ظ… ظ„ط§.",
+    proofBody: "ظ‚ظˆط§ط¹ط¯ ط§ظ„ط¥ط«ط¨ط§طھ ط¯ط§ط®ظ„ ظ…ظ†ط§ط·ظ‚ ط§ظ„ط´ط­ظ† ظ„طھط¨ظ‚ظ‰ ط§ط³طھط«ظ†ط§ط،ط§طھ ط¯ظ…ظٹط§ط· ظˆط§ظ„ظ…ط¯ظ† ظˆط§ظ„ظ…ظ†ط§ط·ظ‚ ظˆط§ط¶ط­ط© ط¨ط¬ط§ظ†ط¨ ط§ظ„ط³ط¹ط±.",
+    providersTitle: "ط´ط±ظƒط§طھ ط§ظ„ط´ط­ظ†",
+    providersDescription: "ط´ط±ظƒط© ط§ظ„ط´ط­ظ† ط§ظ„ط§ظپطھط±ط§ط¶ظٹط© ظˆط¨ظٹط§ظ†ط§طھ ط§ظ„طھظƒط§ظ…ظ„ ظ„ط¥ظ†ط´ط§ط، ط§ظ„ط´ط­ظ†ط§طھ ظ„ط§ط­ظ‚ط§.",
+    search: "ط¨ط­ط« ط¨ط§ظ„ظ…ط­ط§ظپط¸ط© ط£ظˆ ط§ظ„ظ…ط¯ظٹظ†ط© ط£ظˆ ط§ظ„ظ…ظ†ط·ظ‚ط© ط£ظˆ ط§ظ„ط´ط±ظƒط©",
+    allGovernorates: "ط¥ط¶ط§ظپط© ظƒظ„ ظ…ط­ط§ظپط¸ط§طھ ظ…طµط±",
+    addZone: "ط¥ط¶ط§ظپط© ظ…ظ†ط·ظ‚ط©",
+    import: "ط§ط³طھظٹط±ط§ط¯",
+    export: "طھطµط¯ظٹط±",
+    bulk: "طھط­ط¯ظٹط« ط¬ظ…ط§ط¹ظٹ",
+    governorateFilter: "ط§ظ„ظ…ط­ط§ظپط¸ط©",
+    all: "ط§ظ„ظƒظ„",
+    selected: "ظ…ط­ط¯ط¯",
+    quickTitle: "ط¥ط¶ط§ظپط© ط³ط±ظٹط¹ط©",
+    createGovernorate: "ظ…ط­ط§ظپط¸ط© ظپظ‚ط·",
+    createCity: "ظ…ط­ط§ظپط¸ط© + ظ…ط¯ظٹظ†ط©",
+    createArea: "ظ…ط­ط§ظپط¸ط© + ظ…ط¯ظٹظ†ط© + ظ…ظ†ط·ظ‚ط©",
+    bulkPrice: "طھط­ط¯ظٹط¯ ط³ط¹ط± ط§ظ„ظ…ط®طھط§ط±",
+    bulkEstimate: "طھط­ط¯ظٹط¯ ظ…ط¯ط© ط§ظ„طھظˆطµظٹظ„",
+    enableCod: "طھظپط¹ظٹظ„ COD",
+    disableCod: "ط¥ظٹظ‚ط§ظپ COD",
+    requireProof: "ط·ظ„ط¨ ط¥ط«ط¨ط§طھ",
+    skipProof: "ط¨ط¯ظˆظ† ط¥ط«ط¨ط§طھ",
+    deleteSelected: "ط­ط°ظپ ط§ظ„ظ…ط®طھط§ط±",
+    empty: "ظ„ط§ طھظˆط¬ط¯ ظ…ظ†ط§ط·ظ‚ ط´ط­ظ† ظ…ط·ط§ط¨ظ‚ط© ظ„ظ„ظپظ„ط§طھط± ط§ظ„ط­ط§ظ„ظٹط©.",
+    seeded: "طھظ…طھ ط¥ط¶ط§ظپط© ظ…ط­ط§ظپط¸ط§طھ ظ…طµط±",
+    headers: ["ط§ظ„ظ…ط­ط§ظپط¸ط©", "ط§ظ„ظ…ط¯ظٹظ†ط© / ط§ظ„ظ…ط±ظƒط²", "ط§ظ„ظ…ظ†ط·ظ‚ط© / ط§ظ„ط­ظٹ", "ط§ظ„ط³ط¹ط±", "COD", "ط¥ط«ط¨ط§طھ", "ط§ظ„ظ…ط¯ط©", "ط§ظ„ط´ط±ظƒط©", "ظ…ط¬ط§ظ†ظٹ ط¨ط¹ط¯", "ط­ط¯ COD", "ظ…ظپط¹ظ„", ""],
   },
 };
 
 const egyptGovernorates = [
-  ["cairo", "Cairo", "القاهرة", 70, false, true, "2-4 business days"],
-  ["giza", "Giza", "الجيزة", 70, false, true, "2-4 business days"],
-  ["alexandria", "Alexandria", "الإسكندرية", 75, false, true, "2-5 business days"],
-  ["dakahlia", "Dakahlia", "الدقهلية", 75, false, true, "2-5 business days"],
-  ["red-sea", "Red Sea", "البحر الأحمر", 90, false, true, "3-6 business days"],
-  ["beheira", "Beheira", "البحيرة", 75, false, true, "2-5 business days"],
-  ["fayoum", "Fayoum", "الفيوم", 80, false, true, "2-5 business days"],
-  ["gharbia", "Gharbia", "الغربية", 75, false, true, "2-5 business days"],
-  ["ismailia", "Ismailia", "الإسماعيلية", 75, false, true, "2-5 business days"],
-  ["menofia", "Menofia", "المنوفية", 75, false, true, "2-5 business days"],
-  ["minya", "Minya", "المنيا", 85, false, true, "3-6 business days"],
-  ["qalyubia", "Qalyubia", "القليوبية", 70, false, true, "2-4 business days"],
-  ["new-valley", "New Valley", "الوادي الجديد", 95, false, true, "4-7 business days"],
-  ["suez", "Suez", "السويس", 75, false, true, "2-5 business days"],
-  ["aswan", "Aswan", "أسوان", 90, false, true, "3-6 business days"],
-  ["assiut", "Assiut", "أسيوط", 85, false, true, "3-6 business days"],
-  ["beni-suef", "Beni Suef", "بني سويف", 80, false, true, "2-5 business days"],
-  ["port-said", "Port Said", "بورسعيد", 75, false, true, "2-5 business days"],
-  ["damietta", "Damietta", "دمياط", 45, true, false, "1-2 business days"],
-  ["sharqia", "Sharqia", "الشرقية", 75, false, true, "2-5 business days"],
-  ["south-sinai", "South Sinai", "جنوب سيناء", 95, false, true, "4-7 business days"],
-  ["kafr-el-sheikh", "Kafr El Sheikh", "كفر الشيخ", 75, false, true, "2-5 business days"],
-  ["matrouh", "Matrouh", "مطروح", 90, false, true, "3-6 business days"],
-  ["luxor", "Luxor", "الأقصر", 90, false, true, "3-6 business days"],
-  ["qena", "Qena", "قنا", 90, false, true, "3-6 business days"],
-  ["north-sinai", "North Sinai", "شمال سيناء", 95, false, true, "4-7 business days"],
-  ["sohag", "Sohag", "سوهاج", 90, false, true, "3-6 business days"],
+  ["cairo", "Cairo", "ط§ظ„ظ‚ط§ظ‡ط±ط©", 70, false, true, "2-4 business days"],
+  ["giza", "Giza", "ط§ظ„ط¬ظٹط²ط©", 70, false, true, "2-4 business days"],
+  ["alexandria", "Alexandria", "ط§ظ„ط¥ط³ظƒظ†ط¯ط±ظٹط©", 75, false, true, "2-5 business days"],
+  ["dakahlia", "Dakahlia", "ط§ظ„ط¯ظ‚ظ‡ظ„ظٹط©", 75, false, true, "2-5 business days"],
+  ["red-sea", "Red Sea", "ط§ظ„ط¨ط­ط± ط§ظ„ط£ط­ظ…ط±", 90, false, true, "3-6 business days"],
+  ["beheira", "Beheira", "ط§ظ„ط¨ط­ظٹط±ط©", 75, false, true, "2-5 business days"],
+  ["fayoum", "Fayoum", "ط§ظ„ظپظٹظˆظ…", 80, false, true, "2-5 business days"],
+  ["gharbia", "Gharbia", "ط§ظ„ط؛ط±ط¨ظٹط©", 75, false, true, "2-5 business days"],
+  ["ismailia", "Ismailia", "ط§ظ„ط¥ط³ظ…ط§ط¹ظٹظ„ظٹط©", 75, false, true, "2-5 business days"],
+  ["menofia", "Menofia", "ط§ظ„ظ…ظ†ظˆظپظٹط©", 75, false, true, "2-5 business days"],
+  ["minya", "Minya", "ط§ظ„ظ…ظ†ظٹط§", 85, false, true, "3-6 business days"],
+  ["qalyubia", "Qalyubia", "ط§ظ„ظ‚ظ„ظٹظˆط¨ظٹط©", 70, false, true, "2-4 business days"],
+  ["new-valley", "New Valley", "ط§ظ„ظˆط§ط¯ظٹ ط§ظ„ط¬ط¯ظٹط¯", 95, false, true, "4-7 business days"],
+  ["suez", "Suez", "ط§ظ„ط³ظˆظٹط³", 75, false, true, "2-5 business days"],
+  ["aswan", "Aswan", "ط£ط³ظˆط§ظ†", 90, false, true, "3-6 business days"],
+  ["assiut", "Assiut", "ط£ط³ظٹظˆط·", 85, false, true, "3-6 business days"],
+  ["beni-suef", "Beni Suef", "ط¨ظ†ظٹ ط³ظˆظٹظپ", 80, false, true, "2-5 business days"],
+  ["port-said", "Port Said", "ط¨ظˆط±ط³ط¹ظٹط¯", 75, false, true, "2-5 business days"],
+  ["damietta", "Damietta", "ط¯ظ…ظٹط§ط·", 45, true, false, "1-2 business days"],
+  ["sharqia", "Sharqia", "ط§ظ„ط´ط±ظ‚ظٹط©", 75, false, true, "2-5 business days"],
+  ["south-sinai", "South Sinai", "ط¬ظ†ظˆط¨ ط³ظٹظ†ط§ط،", 95, false, true, "4-7 business days"],
+  ["kafr-el-sheikh", "Kafr El Sheikh", "ظƒظپط± ط§ظ„ط´ظٹط®", 75, false, true, "2-5 business days"],
+  ["matrouh", "Matrouh", "ظ…ط·ط±ظˆط­", 90, false, true, "3-6 business days"],
+  ["luxor", "Luxor", "ط§ظ„ط£ظ‚طµط±", 90, false, true, "3-6 business days"],
+  ["qena", "Qena", "ظ‚ظ†ط§", 90, false, true, "3-6 business days"],
+  ["north-sinai", "North Sinai", "ط´ظ…ط§ظ„ ط³ظٹظ†ط§ط،", 95, false, true, "4-7 business days"],
+  ["sohag", "Sohag", "ط³ظˆظ‡ط§ط¬", 90, false, true, "3-6 business days"],
 ];
 
 const shippingZonePresets = [
@@ -1750,7 +1806,7 @@ const shippingZonePresets = [
     minimum_order_for_cod: 0,
     active: true,
   })),
-  { id: "new-damietta", governorate: "Damietta", arabic_alias: "دمياط الجديدة", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "in_store_delivery", provider_id: "in_store_delivery", free_shipping_threshold: 0, minimum_order_for_cod: 0, active: true },
+  { id: "new-damietta", governorate: "Damietta", arabic_alias: "ط¯ظ…ظٹط§ط· ط§ظ„ط¬ط¯ظٹط¯ط©", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "in_store_delivery", provider_id: "in_store_delivery", free_shipping_threshold: 0, minimum_order_for_cod: 0, active: true },
 ];
 
 const normalizeZoneKey = (value = "") => String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -3121,3 +3177,4 @@ function SkeletonGrid() {
     </div>
   );
 }
+
