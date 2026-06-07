@@ -1133,7 +1133,7 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
     height: Math.max(170, Number(printSettings.barcodeHeight || 88)),
     displayText: item.barcode,
   });
-  const previewScale = preview && !print ? 1.72 : 1;
+  const previewScale = preview && !print ? 2.0 : 1;
 
   const labelMarkup = (
     <article
@@ -1175,7 +1175,7 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
   if (preview && !print) {
     return (
       <div
-        className="flex h-full w-full items-start justify-center"
+        className="flex h-full w-full items-center justify-center"
         style={{
           width: `calc(${printSettings.labelWidthMm}mm * ${previewScale})`,
           minHeight: `calc(${printSettings.labelHeightMm}mm * ${previewScale})`,
@@ -1186,7 +1186,7 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
             width: `${printSettings.labelWidthMm}mm`,
             minHeight: `${printSettings.labelHeightMm}mm`,
             transform: `scale(${previewScale})`,
-            transformOrigin: "top center",
+            transformOrigin: "center center",
           }}
         >
           {labelMarkup}
