@@ -136,8 +136,7 @@ const buildLookupSelection = (products = [], query = {}) => {
 
     const matchedVariant = (Array.isArray(product.variants) ? product.variants : []).find(
       (variant) =>
-        (barcode && clean(variant.barcode) === barcode) ||
-        (article && clean(variant.article_code) === article)
+        (barcode && clean(variant.barcode) === barcode)
     );
 
     if (matchedVariant) {
@@ -180,13 +179,11 @@ export const loadEmployeePortalProducts = async ({ employee = null, query = {} }
         SELECT 1
         FROM product_variants pv
         WHERE pv.product_id = p.id
-          AND (
+        AND (
             COALESCE(pv.color, '') ILIKE ${token}
             OR COALESCE(pv.size, '') ILIKE ${token}
             OR COALESCE(pv.sku, '') ILIKE ${token}
             OR COALESCE(pv.barcode, '') ILIKE ${token}
-            OR COALESCE(pv.article_code, '') ILIKE ${token}
-            OR COALESCE(pv.manufacturer_name, '') ILIKE ${token}
           )
       )
     )`);
@@ -261,12 +258,6 @@ export const loadEmployeePortalProducts = async ({ employee = null, query = {} }
     const token = `$${values.length}`;
     conditions.push(`(
       COALESCE(p.article_code, '') = ${token}
-      OR EXISTS (
-        SELECT 1
-        FROM product_variants pv
-        WHERE pv.product_id = p.id
-          AND COALESCE(pv.article_code, '') = ${token}
-      )
     )`);
   }
 
@@ -304,7 +295,7 @@ export const loadEmployeePortalProducts = async ({ employee = null, query = {} }
         v.id AS variant_id,
         v.product_id,
         vm.name AS variant_manufacturer_name,
-        COALESCE(vm.name, v.manufacturer_name, p.manufacturer_name, '') AS manufacturer_name,
+        COALESCE(vm.name, p.manufacturer_name, '') AS manufacturer_name,
         COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS variant_image_url
       FROM product_variants v
       LEFT JOIN products p ON p.id = v.product_id

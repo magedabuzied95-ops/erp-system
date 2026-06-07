@@ -2394,14 +2394,16 @@ export default function EmployeePayrollPortal() {
                 statusClassName={employeeStatusDotClassName}
               />
               <div className="min-w-0 self-center">
-                <div className="truncate text-sm font-black leading-5 text-slate-950 md:text-base" dir="auto">{profile.name}</div>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-black text-slate-500">
-                  <span className={`h-2 w-2 rounded-full ${employeeStatusDotClassName}`} />
-                  <span className="truncate">{employeeStatus}</span>
-                  {profile.branch ? <span className="text-slate-300">•</span> : null}
-                  {profile.branch ? <span className="truncate">{profile.branch}</span> : null}
+                <div className="max-w-full whitespace-normal break-words text-[15px] font-black leading-5 text-slate-950 sm:text-base md:text-[1.05rem]" dir="auto">
+                  {profile.name}
                 </div>
-                {profile.code ? <div className="mt-1 truncate text-[11px] font-bold text-slate-400">{profile.code}</div> : null}
+                <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-black text-slate-500">
+                  <span className={`h-2 w-2 rounded-full ${employeeStatusDotClassName}`} />
+                  <span className="whitespace-nowrap">{employeeStatus}</span>
+                  {profile.branch ? <span className="text-slate-300">•</span> : null}
+                  {profile.branch ? <span className="min-w-0 max-w-full whitespace-normal break-words">{profile.branch}</span> : null}
+                </div>
+                {profile.code ? <div className="mt-1 max-w-full whitespace-normal break-words text-[11px] font-bold text-slate-400">{profile.code}</div> : null}
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
                 <button
