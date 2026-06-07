@@ -500,7 +500,7 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
     <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
       <div className="space-y-3">
         {cart.map((item) => (
-          <div key={item.lineId} className="flex gap-3 rounded-3xl border border-stone-200 bg-white p-3">
+        <div key={item.lineId} className="sf-order-item-row flex gap-3 rounded-3xl border border-stone-200 bg-white p-3">
             <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-24 w-24 rounded-2xl object-cover" loading="lazy" decoding="async" width="96" height="96" />
             <div className="min-w-0 flex-1">
               <div className="font-black">{item.name}</div>
@@ -519,7 +519,7 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
           </div>
         ))}
       </div>
-      <aside className="h-max rounded-3xl border border-stone-200 bg-white p-5">
+      <aside className="sf-storefront-card h-max rounded-3xl border border-stone-200 bg-white p-5">
         <h2 className="text-xl font-black">{sfText("storefront.checkout.orderSummary", "Order summary")}</h2>
         <SummaryRow label={sfText("storefront.checkout.products", "Products")} value={money(subtotal)} />
         <SummaryRow label={sfText("storefront.checkout.estimatedShipping", "Estimated shipping")} value={money(0)} />

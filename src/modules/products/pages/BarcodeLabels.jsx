@@ -43,6 +43,11 @@ const LABEL_TEMPLATE_STANDARD = "standard";
 const LABEL_TEMPLATE_THERMAL_PORTRAIT = "thermal_portrait";
 const LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100 = "thermal_landscape_50x100";
 const LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 = "premium_retail_50x100";
+const PREMIUM_RETAIL_LABEL_WIDTH_MM = 50;
+const PREMIUM_RETAIL_LABEL_HEIGHT_MM = 100;
+const PREMIUM_RETAIL_BARCODE_WIDTH = 680;
+const PREMIUM_RETAIL_BARCODE_HEIGHT = 360;
+const PREMIUM_RETAIL_GRID_ROWS = "33mm 12mm 11mm 11mm 26mm 7mm";
 
 const resolveTemplatePrintContext = (template, settings, sheetMode) => {
   const normalized = normalizeBarcodePrintSettings({ ...settings, paperSize: sheetMode });
@@ -1237,8 +1242,8 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
   const sizeValue = safeText(item.size, t("products.barcodeLabels.oneSize"));
   const colorValue = safeText(item.color, t("products.barcodeLabels.default"));
   const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
-    width: Math.round(680 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
-    height: 220,
+    width: Math.round(PREMIUM_RETAIL_BARCODE_WIDTH * (Number(printSettings.barcodeWidthScale || 100) / 100)),
+    height: PREMIUM_RETAIL_BARCODE_HEIGHT,
     displayText: item.barcode,
   });
   useEffect(() => {
@@ -1265,18 +1270,18 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
   }, [item.barcodeValue, item.color, item.productName, item.salePrice, item.size, item.sku, printSettings.barcodeWidthScale, safeImage]);
 
   return (
-    <div className="flex h-full w-full items-start justify-center" style={{ width: "50mm", minHeight: "100mm" }}>
-      <article
-        className={`grid overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "shadow-none" : "shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}
-        data-premium-label-root="true"
-        style={{
-          width: "50mm",
-          height: "100mm",
-          gridTemplateRows: "30% auto 12% 10% 30% auto",
-          pageBreakInside: "avoid",
-          breakInside: "avoid",
-        }}
-      >
+    <article
+      className={`grid overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "shadow-none" : "shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}
+      data-premium-label-root="true"
+      style={{
+        boxSizing: "border-box",
+        width: `${PREMIUM_RETAIL_LABEL_WIDTH_MM}mm`,
+        height: `${PREMIUM_RETAIL_LABEL_HEIGHT_MM}mm`,
+        gridTemplateRows: PREMIUM_RETAIL_GRID_ROWS,
+        pageBreakInside: "avoid",
+        breakInside: "avoid",
+      }}
+    >
         <div className="relative min-h-0 overflow-hidden border border-zinc-200 bg-zinc-50" data-premium-label-part="image">
           <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[0.8mm]" iconClassName="text-zinc-400" />
         </div>
@@ -1304,7 +1309,6 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
           {item.sku}
         </div>
       </article>
-    </div>
   );
 }
 

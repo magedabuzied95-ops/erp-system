@@ -4,11 +4,17 @@ export function MobileBottomSheet({ open, title, children, footer, onClose, clas
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100000] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+    <div
+      className="fixed inset-0 z-[100000] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose?.();
+      }}
+    >
       <section
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}
+        onClick={(event) => event.stopPropagation()}
         className={`flex max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_12px)] w-full max-w-3xl flex-col overflow-hidden rounded-t-[1.5rem] border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60 sm:max-h-[88dvh] sm:rounded-[1.5rem] ${className}`}
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 py-3">

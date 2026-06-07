@@ -46,11 +46,13 @@ import {
   Smartphone,
   Tag,
   RefreshCcw,
+  Moon,
   Trash2,
   Truck,
   Upload,
   User,
   Users,
+  Sun,
   X,
 } from "lucide-react";
 import { api } from "../shared/api/api";
@@ -59,11 +61,13 @@ import { resolveProductImageUrl } from "../shared/lib/imageUrls";
 import { formatCurrency, getCurrency } from "../shared/lib/currency";
 import { useProductClassifications } from "../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../modules/products/lib/productClassifications";
+import useDismissableLayer from "../shared/hooks/useDismissableLayer";
 import { isMirrorProduct, mirrorProductTitle } from "../shared/lib/mirrorProduct";
 import { applyProductSocialMeta, productToSocialMeta } from "../shared/lib/socialMeta";
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
-import { VirtualGrid } from "../shared/components/VirtualList";
+import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
+import { MobileBottomSheet } from "../shared/components/mobile/ResponsiveMobile";
 import instaPayLogo from "../assets/payments/instapay.png";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import vodafoneCashLogo from "../assets/payments/vodafone-cash.png";
@@ -244,6 +248,34 @@ const uniqueCheckoutLocations = (locations, key, filter = () => true) => {
     return true;
   });
 };
+const normalizeCheckoutPickerText = (value = "") =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u0625\u0623\u0622\u0627]/g, "\u0627")
+    .replace(/[\u0629]/g, "\u0647")
+    .replace(/[\u0649]/g, "\u064a")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+const buildBostaPickerOption = (item = {}, scope = "city", lang = "ar") => {
+  const nameAr = String(item.name_ar || item.governorate_name_ar || item.city_name_ar || item.area_name_ar || "").trim();
+  const nameEn = String(item.name_en || item.governorate_name_en || item.city_name_en || item.area_name_en || "").trim();
+  const label = normalizeLanguage(lang) === "ar" ? (nameAr || nameEn) : (nameEn || nameAr);
+  const secondary = [nameAr && nameAr !== label ? nameAr : "", nameEn && nameEn !== label ? nameEn : ""].filter(Boolean).join(" · ");
+  const id = String(item.id || "").trim();
+  const searchText = normalizeCheckoutPickerText([nameAr, nameEn, item.provider_city_id, item.provider_zone_id, item.provider_district_id, item.code, item.zone_code, item.governorate_name_en, item.governorate_name_ar].filter(Boolean).join(" "));
+  return {
+    id,
+    label: label || id,
+    secondary,
+    searchText,
+    scope,
+    raw: item,
+  };
+};
+const buildBostaPickerOptions = (items = [], scope = "city", lang = "ar") => items.map((item) => buildBostaPickerOption(item, scope, lang)).filter((option) => option.id || option.label);
 const getPaymentMethods = () => [
   {
     id: "cod",
@@ -617,6 +649,11 @@ const readThemeMode = () => {
 };
 
 const getSystemTheme = () => (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+
+const isStorefrontDarkMode = () => {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark");
+};
 
 const sanitizeStorageValue = (key, value, compact = false) => {
   const limit = compact ? Math.max(5, Math.floor((STORAGE_ARRAY_LIMITS[key] || 20) / 2)) : STORAGE_ARRAY_LIMITS[key];
@@ -2055,7 +2092,7 @@ function Storefront() {
   const [wishlist, setWishlist] = useState(() => sanitizeWishlist(readJson(WISHLIST_KEY, [])));
   const [recent, setRecent] = useState(() => sanitizeRecent(readJson(RECENT_KEY, [])));
   const [profile, setProfile] = useState(() => sanitizeProfile(readJson(PROFILE_KEY, {})));
-  const [themeMode] = useState(() => readThemeMode());
+  const [themeMode, setThemeMode] = useState(() => readThemeMode());
   const [systemTheme, setSystemTheme] = useState(() => getSystemTheme());
   const [cartOpen, setCartOpen] = useState(false);
   const [customerSession, setCustomerSession] = useState(() => readJson("storefront.customer_session_public", null));
@@ -2182,6 +2219,13 @@ function Storefront() {
     document.body.classList.toggle("storefront-dark", effectiveTheme === "dark");
     document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
   }, [effectiveTheme]);
+
+  const toggleThemeMode = useCallback(() => {
+    setThemeMode((current) => {
+      const resolved = current === "auto" ? systemTheme : current;
+      return resolved === "dark" ? "light" : "dark";
+    });
+  }, [systemTheme]);
 
   useEffect(() => {
     writeJson(WISHLIST_KEY, wishlist);
@@ -2464,8 +2508,8 @@ function Storefront() {
     whatsappPhone,
   }), []);
   const homePageElement = useMemo(
-    () => <HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />,
-    [handleStorefrontAddToCart, toggleWishlist, wishlist]
+    () => <HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} themeMode={effectiveTheme} />,
+    [effectiveTheme, handleStorefrontAddToCart, toggleWishlist, wishlist]
   );
   const productsPageElement = useMemo(
     () => (
@@ -2506,8 +2550,8 @@ function Storefront() {
     [asyncRouteComponents, asyncRouteHelpers, cart, removeFromCart, updateCart]
   );
   const checkoutPageElement = useMemo(
-    () => <CheckoutPage cart={cart} clearCart={clearCart} profile={profile} setProfile={setProfile} />,
-    [cart, clearCart, profile]
+    () => <CheckoutPage cart={cart} clearCart={clearCart} profile={profile} setProfile={setProfile} themeMode={effectiveTheme} />,
+    [cart, clearCart, effectiveTheme, profile]
   );
   const successPageElement = useMemo(() => <OrderSuccess profile={profile} />, [profile]);
   const accountPageElement = useMemo(
@@ -2559,7 +2603,14 @@ function Storefront() {
 
   return (
     <div dir={dir} data-language={language} data-theme={effectiveTheme} className={`storefront-shell min-h-dvh ${location.pathname === "/shop/checkout" ? "storefront-shell--checkout" : ""} ${isProductDetailsRoute ? "storefront-shell--product-detail" : ""} ${effectiveTheme === "dark" ? "dark storefront-dark bg-[#070b16] text-stone-100" : "bg-[#f7f4ee] text-stone-950"}`}>
-      <Header cartCount={cartCount} wishlistCount={wishlistCount} onCart={openCart} onAddToCart={handleStorefrontAddToCart} />
+      <Header
+        cartCount={cartCount}
+        wishlistCount={wishlistCount}
+        onCart={openCart}
+        onAddToCart={handleStorefrontAddToCart}
+        effectiveTheme={effectiveTheme}
+        onToggleTheme={toggleThemeMode}
+      />
       <main className="sf-storefront-main">
         <Routes>
           <Route index element={homePageElement} />
@@ -2702,7 +2753,7 @@ function CustomerCaptureSheet({ open, reason = "add_to_cart", initialName = "", 
   );
 }
 
-const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToCart }) {
+const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme, onToggleTheme }) {
   const { i18n: storefrontI18n, t } = useTranslation();
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -2751,6 +2802,10 @@ const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToC
     [t("storefront.nav.women", "Women"), "/shop/products?q=حريمي"],
     [t("storefront.nav.kids", "Kids"), "/shop/products?q=أطفال"],
   ];
+  const themeIsDark = effectiveTheme === "dark";
+  const themeToggleLabel = themeIsDark
+    ? t("storefront.header.lightMode", "Switch to light mode")
+    : t("storefront.header.darkMode", "Switch to dark mode");
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     let frameId = 0;
@@ -3081,6 +3136,15 @@ const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToC
           className="hidden md:block"
         />
         <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            className="sf-header-action"
+            aria-label={themeToggleLabel}
+            title={themeToggleLabel}
+          >
+            {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
           <HeaderAction to="/shop/wishlist" label={t("storefront.header.wishlist", "Wishlist")} count={wishlistCount} icon={<Heart className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
           <HeaderAction to="/shop/account" label={t("storefront.header.account", "Account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
           <div className="sf-secondary-action relative hidden md:block">
@@ -5559,9 +5623,10 @@ function RecentProductsSection({ currentId, recent = [] }) {
   );
 }
 
-function CheckoutPage({ cart, clearCart, profile, setProfile }) {
+function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const checkoutLanguage = normalizeLanguage(i18n.language);
   const [form, setForm] = useState({
     full_name: profile.full_name || "",
     primary_phone: profile.primary_phone || "",
@@ -5605,7 +5670,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
   const [latestAddressApplied, setLatestAddressApplied] = useState(false);
   const [shippingQuote, setShippingQuote] = useState(normalizeShippingQuote());
   const [shippingLocations, setShippingLocations] = useState(() => normalizeCheckoutLocations());
-  const [bostaLocations, setBostaLocations] = useState({ cities: [], zones: [], districts: [], loading: false });
+  const [bostaLocations, setBostaLocations] = useState({ cities: [], zones: [], districts: [], loadingCities: false, loadingZones: false, loadingDistricts: false });
   const editedCheckoutFieldsRef = useRef(new Set());
   const latestAddressLookupsRef = useRef(new Set());
   const pricedCart = useMemo(() => cart.map((item) => ({ ...item, price: displayCartItemPrice(item) })), [cart]);
@@ -5641,7 +5706,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
   const locationGovernorates = useMemo(() => uniqueCheckoutLocations(shippingLocations, "governorate_id"), [shippingLocations]);
   const locationCities = useMemo(() => uniqueCheckoutLocations(shippingLocations, "city_id", (item) => !form.governorate_id || item.governorate_id === form.governorate_id), [shippingLocations, form.governorate_id]);
   const locationAreas = useMemo(() => uniqueCheckoutLocations(shippingLocations, "area_id", (item) => !form.city_id || item.city_id === form.city_id), [shippingLocations, form.city_id]);
-  const bostaMode = bostaLocations.cities.length > 0;
+  const bostaMode = bostaLocations.loadingCities || bostaLocations.cities.length > 0;
+  const bostaCityOptions = useMemo(() => buildBostaPickerOptions(bostaLocations.cities, "city", checkoutLanguage), [bostaLocations.cities, checkoutLanguage]);
+  const bostaZoneOptions = useMemo(() => buildBostaPickerOptions(bostaLocations.zones, "zone", checkoutLanguage), [bostaLocations.zones, checkoutLanguage]);
+  const bostaDistrictOptions = useMemo(() => buildBostaPickerOptions(bostaLocations.districts, "district", checkoutLanguage), [bostaLocations.districts, checkoutLanguage]);
   const cityAreaOptions = governorateCityAreas[form.governorate] || [];
   const activeTransferValue = shippingTransferMethod === "instapay" ? INSTA_PAY_HANDLE : VODAFONE_CASH_NUMBER;
   const activePaymentDeepLink = shippingTransferMethod === "instapay" ? "instapay://" : "tel:*9%23";
@@ -5680,13 +5748,13 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
 
   useEffect(() => {
     let cancelled = false;
-    setBostaLocations((prev) => ({ ...prev, loading: true }));
+    setBostaLocations((prev) => ({ ...prev, loadingCities: true }));
     api.get("/shipping/cities?provider=bosta&dropoff=1", { suppressErrorStatuses: [404, 500] })
       .then((data) => {
-        if (!cancelled) setBostaLocations((prev) => ({ ...prev, cities: Array.isArray(data.cities) ? data.cities : [], loading: false }));
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, cities: Array.isArray(data.cities) ? data.cities : [], loadingCities: false }));
       })
       .catch(() => {
-        if (!cancelled) setBostaLocations((prev) => ({ ...prev, cities: [], loading: false }));
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, cities: [], loadingCities: false }));
       });
     return () => {
       cancelled = true;
@@ -5695,16 +5763,17 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
 
   useEffect(() => {
     if (!bostaMode || !form.shipping_city_id) {
-      setBostaLocations((prev) => ({ ...prev, zones: [], districts: [] }));
+      setBostaLocations((prev) => ({ ...prev, zones: [], districts: [], loadingZones: false, loadingDistricts: false }));
       return undefined;
     }
     let cancelled = false;
+    setBostaLocations((prev) => ({ ...prev, zones: [], districts: [], loadingZones: true, loadingDistricts: false }));
     api.get(`/shipping/zones?provider=bosta&dropoff=1&cityId=${encodeURIComponent(form.shipping_city_id)}`, { suppressErrorStatuses: [404, 500] })
       .then((data) => {
-        if (!cancelled) setBostaLocations((prev) => ({ ...prev, zones: Array.isArray(data.zones) ? data.zones : [], districts: [] }));
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, zones: Array.isArray(data.zones) ? data.zones : [], districts: [], loadingZones: false }));
       })
       .catch(() => {
-        if (!cancelled) setBostaLocations((prev) => ({ ...prev, zones: [], districts: [] }));
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, zones: [], districts: [], loadingZones: false }));
       });
     return () => {
       cancelled = true;
@@ -5713,16 +5782,17 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
 
   useEffect(() => {
     if (!bostaMode || !form.shipping_zone_id) {
-      setBostaLocations((prev) => ({ ...prev, districts: [] }));
+      setBostaLocations((prev) => ({ ...prev, districts: [], loadingDistricts: false }));
       return undefined;
     }
     let cancelled = false;
+    setBostaLocations((prev) => ({ ...prev, districts: [], loadingDistricts: true }));
     api.get(`/shipping/districts?provider=bosta&dropoff=1&zoneId=${encodeURIComponent(form.shipping_zone_id)}`, { suppressErrorStatuses: [404, 500] })
       .then((data) => {
-        if (!cancelled) setBostaLocations((prev) => ({ ...prev, districts: Array.isArray(data.districts) ? data.districts : [] }));
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, districts: Array.isArray(data.districts) ? data.districts : [], loadingDistricts: false }));
       })
       .catch(() => {
-        if (!cancelled) setBostaLocations((prev) => ({ ...prev, districts: [] }));
+        if (!cancelled) setBostaLocations((prev) => ({ ...prev, districts: [], loadingDistricts: false }));
       });
     return () => {
       cancelled = true;
@@ -5855,7 +5925,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
     setField("city_area", value);
   };
 
-  const setBostaCity = (value) => {
+  const setBostaCity = useCallback((value) => {
     editedCheckoutFieldsRef.current.add("governorate");
     editedCheckoutFieldsRef.current.add("city_area");
     const selected = bostaLocations.cities.find((city) => String(city.id) === String(value));
@@ -5877,9 +5947,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       shipping_district_id: "",
     }));
     setErrors((prev) => ({ ...prev, governorate: "", city_area: "" }));
-  };
+  }, [bostaLocations.cities]);
 
-  const setBostaZone = (value) => {
+  const setBostaZone = useCallback((value) => {
     const selected = bostaLocations.zones.find((zone) => String(zone.id) === String(value));
     setForm((prev) => ({
       ...prev,
@@ -5893,9 +5963,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       shipping_district_id: "",
     }));
     setErrors((prev) => ({ ...prev, city_area: "" }));
-  };
+  }, [bostaLocations.zones]);
 
-  const setBostaDistrict = (value) => {
+  const setBostaDistrict = useCallback((value) => {
     const selected = bostaLocations.districts.find((district) => String(district.id) === String(value));
     setForm((prev) => ({
       ...prev,
@@ -5907,7 +5977,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
       shipping_district_id: selected?.id ? String(selected.id) : "",
     }));
     setErrors((prev) => ({ ...prev, city_area: "" }));
-  };
+  }, [bostaLocations.districts]);
 
   useEffect(() => {
     const phone = form.primary_phone.replace(/\s/g, "");
@@ -6316,12 +6386,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
   if (!cart.length) return <EmptyState title={sfText("storefront.checkout.emptyCartTitle", "Your cart is empty")} text={sfText("storefront.checkout.emptyCartText", "Choose a product first, then continue checkout")} />;
 
   return (
-    <section className="sf-checkout-page mx-auto max-w-7xl overflow-x-hidden px-4 pt-4 md:pt-7">
+    <section className="sf-checkout-page mx-auto max-w-7xl overflow-x-hidden px-4 pt-4 md:pt-7" data-theme={themeMode}>
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-black text-[#c4b5fd]">{sfText("storefront.checkout.eyebrow", "Checkout")}</p>
-          <h1 className="text-3xl font-black text-white md:text-4xl">{sfText("storefront.checkout.title", "Complete order")}</h1>
-          <p className="mt-2 text-sm font-bold text-white/62">{sfText("storefront.checkout.subtitle", "Clear details, fast confirmation, and your order moves straight to preparation.")}</p>
+          <p className="sf-checkout-eyebrow text-sm font-black text-[#c4b5fd]">{sfText("storefront.checkout.eyebrow", "Checkout")}</p>
+          <h1 className="sf-checkout-title text-3xl font-black text-white md:text-4xl">{sfText("storefront.checkout.title", "Complete order")}</h1>
+          <p className="sf-checkout-subtitle mt-2 text-sm font-bold text-white/62">{sfText("storefront.checkout.subtitle", "Clear details, fast confirmation, and your order moves straight to preparation.")}</p>
         </div>
         <TrustPills compact />
       </div>
@@ -6344,9 +6414,51 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
             <div className="grid gap-2.5 md:grid-cols-2">
               {bostaMode ? (
                 <>
-                  <SelectField label={sfText("storefront.checkout.governorate", "City / Governorate")} value={form.shipping_city_id || ""} onChange={setBostaCity} options={bostaLocations.cities.map((item) => String(item.id))} labels={Object.fromEntries(bostaLocations.cities.map((item) => [String(item.id), i18n.language === "ar" ? (item.name_ar || item.name_en) : (item.name_en || item.name_ar)]))} required error={errors.governorate} />
-                  <SelectField label={sfText("storefront.checkout.zone", "Zone")} value={form.shipping_zone_id || ""} onChange={setBostaZone} options={bostaLocations.zones.map((item) => String(item.id))} labels={Object.fromEntries(bostaLocations.zones.map((item) => [String(item.id), i18n.language === "ar" ? (item.name_ar || item.name_en) : (item.name_en || item.name_ar)]))} required error={!form.shipping_zone_id && errors.city_area ? errors.city_area : ""} />
-                  <SelectField label={sfText("storefront.checkout.area", "District")} value={form.shipping_district_id || ""} onChange={setBostaDistrict} options={bostaLocations.districts.map((item) => String(item.id))} labels={Object.fromEntries(bostaLocations.districts.map((item) => [String(item.id), i18n.language === "ar" ? (item.name_ar || item.name_en) : (item.name_en || item.name_ar)]))} required error={!form.shipping_district_id ? errors.city_area : ""} />
+                  <CheckoutLocationPicker
+                    label={sfText("storefront.checkout.governorate", "City / Governorate")}
+                    mobileTitle={sfText("storefront.checkout.governorate", "City / Governorate")}
+                    value={form.shipping_city_id || ""}
+                    onChange={setBostaCity}
+                    options={bostaCityOptions}
+                    loading={bostaLocations.loadingCities}
+                    required
+                    error={errors.governorate}
+                    placeholder={sfText("storefront.checkout.chooseGovernorate", "Choose city / governorate")}
+                    searchPlaceholder={sfText("storefront.checkout.searchGovernorate", "Search governorate")}
+                    loadingText={sfText("storefront.checkout.loadingGovernorates", "Loading governorates...")}
+                  />
+                  <CheckoutLocationPicker
+                    label={sfText("storefront.checkout.zone", "Zone")}
+                    mobileTitle={sfText("storefront.checkout.zone", "Zone")}
+                    value={form.shipping_zone_id || ""}
+                    onChange={setBostaZone}
+                    options={bostaZoneOptions}
+                    loading={bostaLocations.loadingZones}
+                    required
+                    disabled={!form.shipping_city_id}
+                    error={!form.shipping_zone_id && errors.city_area ? errors.city_area : ""}
+                    placeholder={form.shipping_city_id ? sfText("storefront.checkout.chooseZone", "Choose zone") : sfText("storefront.checkout.chooseGovernorateFirst", "Choose governorate first")}
+                    searchPlaceholder={sfText("storefront.checkout.searchZone", "Search zone")}
+                    loadingText={sfText("storefront.checkout.loadingZones", "Loading zones...")}
+                    helperText={form.shipping_city_id ? sfText("storefront.checkout.zoneSearchHint", "Search zones inside the selected governorate.") : ""}
+                    emptyText="لا توجد نتائج"
+                  />
+                  <CheckoutLocationPicker
+                    label={sfText("storefront.checkout.area", "District")}
+                    mobileTitle={sfText("storefront.checkout.area", "District")}
+                    value={form.shipping_district_id || ""}
+                    onChange={setBostaDistrict}
+                    options={bostaDistrictOptions}
+                    loading={bostaLocations.loadingDistricts}
+                    required
+                    disabled={!form.shipping_zone_id}
+                    error={!form.shipping_district_id ? errors.city_area : ""}
+                    placeholder={form.shipping_zone_id ? sfText("storefront.checkout.chooseDistrict", "Choose district") : sfText("storefront.checkout.chooseZoneFirst", "Choose zone first")}
+                    searchPlaceholder={sfText("storefront.checkout.searchDistrict", "Search district")}
+                    loadingText={sfText("storefront.checkout.loadingDistricts", "Loading districts...")}
+                    helperText={form.shipping_zone_id ? sfText("storefront.checkout.districtSearchHint", "Search districts inside the selected zone.") : ""}
+                    emptyText="لا توجد نتائج"
+                  />
                 </>
               ) : (
                 <>
@@ -6498,11 +6610,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
                               {sfText("storefront.checkout.transfer.readyToSend", "Ready to send")}
                             </div>
                           </div>
-                          <label className="shrink-0 cursor-pointer rounded-full border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-black text-white transition hover:bg-white/[0.09]">
+                          <label className="sf-checkout-replace-button shrink-0 cursor-pointer rounded-full border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-black text-white transition hover:bg-white/[0.09]">
                             {sfText("storefront.checkout.transfer.replace", "Replace")}
                             <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handlePaymentProofChange(event.target.files?.[0])} className="sr-only" />
                           </label>
-                          <button type="button" onClick={removePaymentProof} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-100 transition hover:bg-rose-500/18" aria-label={sfText("storefront.checkout.transfer.removeProof", "Remove payment proof")}>
+                          <button type="button" onClick={removePaymentProof} className="sf-checkout-remove-proof grid h-9 w-9 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-100 transition hover:bg-rose-500/18" aria-label={sfText("storefront.checkout.transfer.removeProof", "Remove payment proof")}>
                             <X className="h-4 w-4" />
                           </button>
                         </div>
@@ -6947,7 +7059,7 @@ function CheckoutProgress({ currentStep = 1, onStepChange }) {
             type="button"
             disabled={index === 3 || index + 1 > currentStep}
             onClick={() => index < 3 && onStepChange?.(index + 1)}
-            className={`flex min-h-10 items-center justify-center rounded-2xl px-1 transition disabled:cursor-default ${index + 1 < activeIndex ? "border border-[#a78bfa]/20 bg-[#7c3aed]/18 text-[#ddd6fe]" : index + 1 === activeIndex ? "border border-[#a78bfa]/35 bg-[#7c3aed] text-white shadow-[0_10px_24px_rgba(124,58,237,0.24)]" : "border border-white/8 bg-white/[0.035] text-white/38"}`}
+            className={`sf-checkout-progress-step flex min-h-10 items-center justify-center rounded-2xl px-1 transition disabled:cursor-default ${index + 1 < activeIndex ? "sf-checkout-progress-step--done border border-[#a78bfa]/20 bg-[#7c3aed]/18 text-[#ddd6fe]" : index + 1 === activeIndex ? "sf-checkout-progress-step--active border border-[#a78bfa]/35 bg-[#7c3aed] text-white shadow-[0_10px_24px_rgba(124,58,237,0.24)]" : "sf-checkout-progress-step--pending border border-white/8 bg-white/[0.035] text-white/38"}`}
           >
             <span className="truncate">{step}</span>
           </button>
@@ -6965,9 +7077,9 @@ function TrustPills({ compact = false }) {
     [sfText("storefront.checkout.trust.whatsapp", "WhatsApp support"), <MessageCircle className="h-4 w-4" />],
   ];
   return (
-    <div className={`grid grid-cols-2 gap-2 text-xs font-black text-white/70 ${compact ? "sm:grid-cols-4" : "sm:grid-cols-2"}`}>
+    <div className={`sf-checkout-trust-pills grid grid-cols-2 gap-2 text-xs font-black text-white/70 ${compact ? "sm:grid-cols-4" : "sm:grid-cols-2"}`}>
       {items.map(([label, icon]) => (
-        <span key={label} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.055] px-3 py-2 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-xl">
+        <span key={label} className="sf-checkout-trust-pill inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.055] px-3 py-2 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-xl">
           <span className="text-[#c4b5fd]">{icon}</span>
           <span className="truncate">{label}</span>
         </span>
@@ -6993,12 +7105,12 @@ function SubmitButton({ submitting, compact = false, paymentMethod = "cod", disa
 
 function CheckoutSection({ number, title, note, children }) {
   return (
-    <section className="sf-reveal rounded-[1.6rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035)_42%,rgba(7,10,20,0.86))] p-4 text-white shadow-[0_22px_60px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:p-5">
+    <section className="sf-reveal sf-checkout-section rounded-[1.6rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035)_42%,rgba(7,10,20,0.86))] p-4 text-white shadow-[0_22px_60px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:p-5">
       <div className="mb-3 flex items-start gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[#a78bfa]/25 bg-[#7c3aed]/24 text-sm font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.20)]">{number}</span>
+        <span className="sf-checkout-step-badge grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[#a78bfa]/25 bg-[#7c3aed]/24 text-sm font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.20)]">{number}</span>
         <div>
           <h2 className="text-lg font-black text-white md:text-xl">{title}</h2>
-          {note ? <p className="mt-1 text-xs font-bold text-white/56">{note}</p> : null}
+          {note ? <p className="sf-checkout-note mt-1 text-xs font-bold text-white/56">{note}</p> : null}
         </div>
       </div>
       {children}
@@ -7024,9 +7136,9 @@ function SuccessTimeline() {
 
 function Field({ label, value, onChange, required, error, inputMode, placeholder }) {
   return (
-    <label className="sf-field block">
+    <label className="sf-field sf-checkout-field block">
       <span className="sf-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <input required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
+      <input required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
@@ -7034,9 +7146,9 @@ function Field({ label, value, onChange, required, error, inputMode, placeholder
 
 function TextField({ label, value, onChange, required, error, compact, placeholder }) {
   return (
-    <label className="block md:col-span-2">
+    <label className="sf-checkout-field block md:col-span-2">
       <span className="mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`w-full rounded-2xl border bg-white/[0.055] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
+      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input w-full rounded-2xl border bg-white/[0.055] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
@@ -7047,12 +7159,13 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
     ...options.map((option) => ({ value: option, label: option })),
     { value: MANUAL_CITY_AREA, label: MANUAL_CITY_AREA },
   ];
+  const darkMode = isStorefrontDarkMode();
   const selectedOption = manual
     ? selectOptions[selectOptions.length - 1]
     : selectOptions.find((option) => option.value === value) || null;
 
   return (
-    <div className="block">
+    <div className="sf-checkout-field block">
       <span className="mb-1.5 block text-sm font-black text-white/82">المدينة / المنطقة{required ? " *" : ""}</span>
       <Suspense fallback={<CityAreaNativeSelect governorate={governorate} options={selectOptions} value={manual ? MANUAL_CITY_AREA : value} onChange={onChange} required={required} error={error} />}>
         <Select
@@ -7076,26 +7189,44 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
               ...base,
               minHeight: 56,
               borderRadius: 16,
-              backgroundColor: state.isFocused ? "rgba(255,255,255,0.075)" : "rgba(255,255,255,0.055)",
-              borderColor: error ? "rgba(253,164,175,0.78)" : state.isFocused ? "#a78bfa" : "rgba(255,255,255,0.12)",
-              boxShadow: state.isFocused ? "0 0 0 4px rgba(167,139,250,0.16),0 18px 38px rgba(124,58,237,0.16)" : "0 12px 28px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04)",
+              backgroundColor: darkMode
+                ? state.isFocused
+                  ? "rgba(255,255,255,0.075)"
+                  : "rgba(255,255,255,0.055)"
+                : state.isFocused
+                  ? "rgba(124,58,237,0.04)"
+                  : "rgba(255,255,255,0.95)",
+              borderColor: error
+                ? "rgba(253,164,175,0.78)"
+                : state.isFocused
+                  ? "#a78bfa"
+                  : darkMode
+                    ? "rgba(255,255,255,0.12)"
+                    : "rgba(148,163,184,0.28)",
+              boxShadow: state.isFocused
+                ? "0 0 0 4px rgba(167,139,250,0.16),0 18px 38px rgba(124,58,237,0.16)"
+                : darkMode
+                  ? "0 12px 28px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04)"
+                  : "0 12px 28px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.9)",
               direction: "rtl",
               paddingInline: 4,
               transition: "all 200ms ease",
               "&:hover": { borderColor: error ? "#fb7185" : "#a78bfa" },
             }),
             valueContainer: (base) => ({ ...base, paddingInline: 10 }),
-            input: (base) => ({ ...base, color: "#ffffff", fontSize: 15, fontWeight: 700 }),
-            singleValue: (base) => ({ ...base, color: "#ffffff", fontSize: 15, fontWeight: 700 }),
-            placeholder: (base) => ({ ...base, color: "rgba(255,255,255,0.38)", fontSize: 15, fontWeight: 700 }),
-            dropdownIndicator: (base) => ({ ...base, color: "rgba(255,255,255,0.58)" }),
-            indicatorSeparator: (base) => ({ ...base, backgroundColor: "rgba(255,255,255,0.12)" }),
-            menu: (base) => ({ ...base, zIndex: 80, borderRadius: 16, overflow: "hidden", direction: "rtl", backgroundColor: "#0b1020", border: "1px solid rgba(255,255,255,0.10)", boxShadow: "0 24px 60px rgba(0,0,0,0.42)" }),
+            input: (base) => ({ ...base, color: darkMode ? "#ffffff" : "#0f172a", fontSize: 15, fontWeight: 700 }),
+            singleValue: (base) => ({ ...base, color: darkMode ? "#ffffff" : "#0f172a", fontSize: 15, fontWeight: 700 }),
+            placeholder: (base) => ({ ...base, color: darkMode ? "rgba(255,255,255,0.38)" : "rgba(100,116,139,0.78)", fontSize: 15, fontWeight: 700 }),
+            dropdownIndicator: (base) => ({ ...base, color: darkMode ? "rgba(255,255,255,0.58)" : "rgba(71,85,105,0.82)" }),
+            indicatorSeparator: (base) => ({ ...base, backgroundColor: darkMode ? "rgba(255,255,255,0.12)" : "rgba(148,163,184,0.28)" }),
+            menu: (base) => ({ ...base, zIndex: 80, borderRadius: 16, overflow: "hidden", direction: "rtl", backgroundColor: darkMode ? "#0b1020" : "#ffffff", border: darkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(226,232,240,0.92)", boxShadow: darkMode ? "0 24px 60px rgba(0,0,0,0.42)" : "0 24px 60px rgba(15,23,42,0.16)" }),
             menuPortal: (base) => ({ ...base, zIndex: 9999 }),
             option: (base, state) => ({
               ...base,
-              backgroundColor: state.isSelected ? "#7c3aed" : state.isFocused ? "rgba(124,58,237,0.18)" : "#0b1020",
-              color: "#ffffff",
+              backgroundColor: darkMode
+                ? (state.isSelected ? "#7c3aed" : state.isFocused ? "rgba(124,58,237,0.18)" : "#0b1020")
+                : (state.isSelected ? "#7c3aed" : state.isFocused ? "rgba(124,58,237,0.08)" : "#ffffff"),
+              color: darkMode ? "#ffffff" : (state.isSelected ? "#ffffff" : "#0f172a"),
               cursor: "pointer",
               fontSize: 15,
               fontWeight: 800,
@@ -7111,7 +7242,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
           placeholder={sfText("storefront.checkout.cityAreaManualPlaceholder", "Write city or area")}
           value={value}
           onChange={(event) => onManualChange(event.target.value)}
-          className={`mt-2 min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`}
+          className={`sf-field-input sf-checkout-field-input mt-2 min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`}
         />
       ) : null}
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
@@ -7120,19 +7251,20 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
 }
 
 function CityAreaNativeSelect({ governorate, options, value, onChange, required, error }) {
+  const darkMode = isStorefrontDarkMode();
   return (
     <select
       required={required}
       disabled={!governorate}
       value={value || ""}
       onChange={(event) => onChange(event.target.value)}
-      className={`min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] disabled:opacity-60 ${error ? "border-rose-300/70 focus:border-rose-300" : "border-white/12"}`}
+      className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] disabled:opacity-60 ${darkMode ? "bg-white/[0.055] text-white placeholder:text-white/34 border-white/12 focus:bg-white/[0.075]" : "bg-white text-stone-950 placeholder:text-stone-400 border-stone-200 focus:bg-white"} ${error ? "border-rose-300/70 focus:border-rose-300" : ""}`}
     >
-      <option value="" className="bg-[#0b1020] text-white">
+      <option value="" className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>
         {governorate ? sfText("storefront.checkout.cityAreaPlaceholder", "Choose or search city / area") : sfText("storefront.checkout.chooseGovernorateFirst", "Choose governorate first")}
       </option>
       {options.map((option) => (
-        <option key={option.value} value={option.value} className="bg-[#0b1020] text-white">
+        <option key={option.value} value={option.value} className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>
           {option.label}
         </option>
       ))}
@@ -7141,17 +7273,194 @@ function CityAreaNativeSelect({ governorate, options, value, onChange, required,
 }
 
 function SelectField({ label, value, onChange, options, labels = {}, required, error }) {
+  const darkMode = isStorefrontDarkMode();
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300" : "border-white/12"}`}>
-        <option value="" className="bg-[#0b1020] text-white">{sfText("storefront.common.choose", "Choose")}</option>
-        {options.map((option) => <option key={option} value={option} className="bg-[#0b1020] text-white">{labels[option] || option}</option>)}
+      <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${darkMode ? "bg-white/[0.055] text-white placeholder:text-white/34 border-white/12 focus:bg-white/[0.075]" : "bg-white text-stone-950 placeholder:text-stone-400 border-stone-200 focus:bg-white"} ${error ? "border-rose-300/70 focus:border-rose-300" : ""}`}>
+        <option value="" className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>{sfText("storefront.common.choose", "Choose")}</option>
+        {options.map((option) => <option key={option} value={option} className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>{labels[option] || option}</option>)}
       </select>
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
 }
+
+function useIsMobileViewport() {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+    return window.matchMedia("(max-width: 767px)").matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", update);
+      return () => media.removeEventListener("change", update);
+    }
+    media.addListener(update);
+    return () => media.removeListener(update);
+  }, []);
+
+  return isMobile;
+}
+
+const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
+  label,
+  mobileTitle,
+  value,
+  onChange,
+  options = [],
+  loading = false,
+  required = false,
+  disabled = false,
+  error = "",
+  placeholder = "",
+  searchPlaceholder = "",
+  emptyText = "لا توجد نتائج",
+  loadingText = "جارٍ التحميل...",
+  helperText = "",
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef(null);
+  const inputRef = useRef(null);
+  const isMobile = useIsMobileViewport();
+  const selectedOption = useMemo(() => options.find((option) => String(option.id) === String(value)) || null, [options, value]);
+  const deferredQuery = useDeferredValue(query);
+  const filteredOptions = useMemo(() => {
+    const search = normalizeCheckoutPickerText(deferredQuery);
+    if (!search) return options;
+    return options.filter((option) => option.searchText.includes(search));
+  }, [deferredQuery, options]);
+
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !inputRef.current) return;
+    window.requestAnimationFrame(() => {
+      inputRef.current?.focus({ preventScroll: true });
+    });
+  }, [open, isMobile]);
+
+  useDismissableLayer({
+    enabled: open && !isMobile,
+    refs: [containerRef],
+    onDismiss: () => setOpen(false),
+  });
+
+  const close = () => setOpen(false);
+  const chooseOption = (option) => {
+    if (!option || disabled) return;
+    onChange(option.id);
+    close();
+  };
+  const triggerLabel = selectedOption?.label || (loading ? loadingText : placeholder || sfText("storefront.common.choose", "Choose"));
+  const isBlocked = disabled;
+  const panelTitle = mobileTitle || label;
+  const searchHint = searchPlaceholder || sfText("storefront.checkout.searchLocations", "Search");
+
+  const panelBody = (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.045] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+        <label className="flex items-center gap-2 rounded-[1rem] border border-white/10 bg-[#050816] px-3 py-3 text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] focus-within:border-[#a78bfa] focus-within:ring-4 focus-within:ring-[#7c3aed]/18">
+          <Search className="h-4 w-4 shrink-0 text-white/45" />
+          <input
+            ref={inputRef}
+            dir="auto"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={searchHint}
+            className="min-w-0 flex-1 bg-transparent text-[15px] font-bold text-white outline-none placeholder:text-white/34"
+          />
+          {query ? (
+            <button type="button" onClick={() => setQuery("")} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.05] text-white/55 transition hover:bg-white/[0.09] hover:text-white" aria-label={sfText("storefront.common.clear", "Clear")}>
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </label>
+      </div>
+
+      {loading ? (
+        <div className="flex min-h-36 items-center justify-center rounded-[1.25rem] border border-white/10 bg-white/[0.035] px-4 text-sm font-bold text-white/62">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#c4b5fd]" />
+          {loadingText}
+        </div>
+      ) : filteredOptions.length ? (
+        <VirtualList
+          items={filteredOptions}
+          estimateSize={72}
+          className="max-h-[min(28rem,calc(100dvh-18rem))] min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"
+          itemKey={(option) => option.id}
+          renderItem={(option) => {
+            const selected = String(option.id) === String(value);
+            return (
+              <button
+                type="button"
+                onClick={() => chooseOption(option)}
+                className={`group mb-2 flex w-full items-start gap-3 rounded-[1.2rem] border px-4 py-3.5 text-right transition duration-200 ${
+                  selected
+                    ? "border-[#a78bfa]/45 bg-[#7c3aed]/18 shadow-[0_14px_34px_rgba(124,58,237,0.16)]"
+                    : "border-white/10 bg-white/[0.03] hover:border-[#a78bfa]/35 hover:bg-white/[0.06]"
+                }`}
+              >
+                <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border transition ${selected ? "border-[#c4b5fd] bg-[#7c3aed] text-white" : "border-white/14 bg-white/[0.04] text-transparent group-hover:border-[#a78bfa]/55"}`}>
+                  <Check className="h-3.5 w-3.5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-black text-white">{option.label}</span>
+                  {option.secondary ? <span className="mt-0.5 block truncate text-xs font-semibold leading-5 text-white/50">{option.secondary}</span> : null}
+                </span>
+              </button>
+            );
+          }}
+        />
+      ) : (
+        <div className="flex min-h-36 items-center justify-center rounded-[1.25rem] border border-white/10 bg-white/[0.035] px-4 text-sm font-black text-white/62">
+          {emptyText}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div ref={containerRef} className="relative block">
+      <span className="mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
+      <button
+        type="button"
+        onClick={() => !isBlocked && setOpen((current) => !current)}
+        disabled={isBlocked}
+        className={`flex min-h-14 w-full items-center gap-3 rounded-2xl border bg-white/[0.055] px-4 text-right text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] disabled:cursor-not-allowed disabled:opacity-65 ${error ? "border-rose-300/70 focus:border-rose-300" : "border-white/12"}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <span className="min-w-0 flex-1 truncate text-start">{triggerLabel}</span>
+        {loading ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#c4b5fd]" /> : <ChevronLeft className={`h-4 w-4 shrink-0 text-white/60 transition ${open ? "rotate-[-90deg]" : ""}`} />}
+      </button>
+      {helperText ? <p className="mt-1.5 text-xs font-bold text-white/46">{helperText}</p> : null}
+      {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
+
+      {open ? (
+        isMobile ? (
+          <MobileBottomSheet open={open} title={panelTitle} onClose={close} className="bg-[#050816] text-white">
+            {panelBody}
+          </MobileBottomSheet>
+        ) : (
+          <div className="absolute left-0 right-0 top-full z-40 mt-2">
+            <div className="rounded-[1.45rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.98))] p-3 text-white shadow-[0_30px_90px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
+              {panelBody}
+            </div>
+          </div>
+        )
+      ) : null}
+    </div>
+  );
+});
 
 function ProductSkeleton({ count }) {
   return Array.from({ length: count }).map((_, index) => <div key={index} className="h-72 animate-pulse rounded-[1.75rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)]" />);
@@ -7221,7 +7530,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
   return (
     <div className="fixed inset-0 z-50">
       <button className="absolute inset-0 bg-black/55 backdrop-blur-[3px]" onClick={onClose} aria-label={sfText("storefront.common.close", "Close")} />
-      <aside className="absolute inset-x-0 bottom-0 flex max-h-[94dvh] min-h-[72dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,18,33,0.98),rgba(7,10,20,0.98))] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:inset-y-0 md:end-0 md:start-auto md:max-h-none md:min-h-0 md:w-[28rem] md:rounded-s-[2rem] md:rounded-tr-none">
+      <aside className="sf-cart-drawer absolute inset-x-0 bottom-0 flex max-h-[94dvh] min-h-[72dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,18,33,0.98),rgba(7,10,20,0.98))] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:inset-y-0 md:end-0 md:start-auto md:max-h-none md:min-h-0 md:w-[28rem] md:rounded-s-[2rem] md:rounded-tr-none">
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-white/[0.035] px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-5">
           <div className="min-w-0">
             <p className="text-xs font-black text-[#c4b5fd]">{cart.length ? sfText("storefront.products.productCount", "{{count}} product", { count: cart.length }) : sfText("storefront.cart.readyToShop", "Ready to shop")}</p>
@@ -7261,7 +7570,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
 
 function MobileCartRow({ item, updateCart, removeFromCart }) {
   return (
-    <article className="w-full min-w-0 rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-3 text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
+    <article className="sf-cart-row w-full min-w-0 rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-3 text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
       <div className="flex min-w-0 items-start gap-3">
         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-white/[0.065] ring-1 ring-white/10">
           <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" width="80" height="80" />
@@ -7287,7 +7596,7 @@ function MobileCartRow({ item, updateCart, removeFromCart }) {
 
 function QuantityStepper({ quantity, onMinus, onPlus }) {
   return (
-    <div className="inline-flex h-11 shrink-0 items-center gap-1 rounded-full border border-white/10 bg-black/20 p-1 shadow-inner shadow-black/30">
+    <div className="sf-quantity-stepper inline-flex h-11 shrink-0 items-center gap-1 rounded-full border border-white/10 bg-black/20 p-1 shadow-inner shadow-black/30">
       <button onClick={onMinus} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.065] text-white/78 shadow-sm transition hover:bg-white/[0.10] hover:text-white active:scale-95" aria-label={sfText("storefront.cart.decreaseQuantity", "Decrease quantity")}>
         <Minus className="h-4 w-4" />
       </button>
@@ -7394,14 +7703,14 @@ function MobileBottomNav({ count }) {
 
 function SummaryRow({ label, value, strong, dark = false }) {
   if (dark) {
-    return <div className={`flex items-center justify-between gap-3 ${strong ? "mt-3 border-t border-white/10 pt-3 text-xl font-black text-white" : "mt-2 text-sm font-bold text-white/58"}`}><span>{label}</span><span className={strong ? "rounded-full border border-[#a78bfa]/20 bg-[#7c3aed]/18 px-3 py-1 text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)]" : "font-black text-white"}>{value}</span></div>;
+    return <div className={`sf-summary-row flex items-center justify-between gap-3 ${strong ? "mt-3 border-t border-white/10 pt-3 text-xl font-black text-white" : "mt-2 text-sm font-bold text-white/58"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-[#a78bfa]/20 bg-[#7c3aed]/18 px-3 py-1 text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)]" : "font-black text-white"}`}>{value}</span></div>;
   }
-  return <div className={`flex items-center justify-between gap-3 ${strong ? "mt-3 border-t border-stone-200 pt-3 text-xl font-black text-stone-950" : "mt-2 text-sm font-bold text-stone-600"}`}><span>{label}</span><span className={strong ? "rounded-full bg-white px-3 py-1 shadow-sm" : "font-black text-stone-800"}>{value}</span></div>;
+  return <div className={`sf-summary-row flex items-center justify-between gap-3 ${strong ? "mt-3 border-t border-stone-200 pt-3 text-xl font-black text-stone-950" : "mt-2 text-sm font-bold text-stone-600"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full bg-white px-3 py-1 shadow-sm" : "font-black text-stone-800"}`}>{value}</span></div>;
 }
 
 function InfoLine({ icon, text }) {
   return (
-    <div className="flex min-h-14 items-center gap-2 rounded-[1rem] border border-white/[0.08] bg-white/[0.055] p-3 text-white/74 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur transition hover:border-white/16 hover:bg-white/[0.075]">
+    <div className="sf-checkout-info-line flex min-h-14 items-center gap-2 rounded-[1rem] border border-white/[0.08] bg-white/[0.055] p-3 text-white/74 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur transition hover:border-white/16 hover:bg-white/[0.075]">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/[0.07] text-[#c4b5fd]">{icon}</span>
       <span>{text}</span>
     </div>
@@ -7417,7 +7726,7 @@ function PaymentMethodTab({ method, active, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`group relative overflow-hidden rounded-[1.2rem] px-3 py-3 text-right transition duration-300 active:scale-[0.985] ${
+      className={`sf-checkout-payment-tab ${active ? "sf-checkout-payment-tab--active" : "sf-checkout-payment-tab--inactive"} ${isVodafone ? "sf-checkout-payment-tab--vodafone" : "sf-checkout-payment-tab--instapay"} group relative overflow-hidden rounded-[1.2rem] px-3 py-3 text-right transition duration-300 active:scale-[0.985] ${
         active
           ? isVodafone
             ? "border border-red-300/35 bg-[linear-gradient(135deg,rgba(230,0,0,0.28),rgba(255,255,255,0.08))] text-white shadow-[0_18px_42px_rgba(230,0,0,0.20)] ring-2 ring-red-400/12"
@@ -7486,12 +7795,12 @@ function PaymentCopyLine({ method, label, value, amount, deepLink }) {
     window.setTimeout(() => setCopied(false), 1600);
   };
   return (
-    <div className={`rounded-[1.55rem] border p-4 shadow-[0_22px_54px_rgba(0,0,0,0.26)] ${isVodafone ? "border-red-300/18 bg-[linear-gradient(145deg,rgba(230,0,0,0.16),rgba(255,255,255,0.055))]" : "border-[#a78bfa]/18 bg-[linear-gradient(145deg,rgba(124,58,237,0.18),rgba(255,255,255,0.055))]"}`}>
+    <div className={`sf-checkout-payment-copy rounded-[1.55rem] border p-4 shadow-[0_22px_54px_rgba(0,0,0,0.26)] ${isVodafone ? "border-red-300/18 bg-[linear-gradient(145deg,rgba(230,0,0,0.16),rgba(255,255,255,0.055))]" : "border-[#a78bfa]/18 bg-[linear-gradient(145deg,rgba(124,58,237,0.18),rgba(255,255,255,0.055))]"}`}>
       <div className="flex min-w-0 items-start gap-3">
         <PaymentBrandLogo method={method} size="copy" />
         <div className="min-w-0 flex-1">
           <div className="text-xs font-black text-white/48">{sfText("storefront.checkout.transfer.transferDetailsVia", "Transfer details via {{label}}", { label })}</div>
-          <div className="mt-2 rounded-2xl border border-white/10 bg-black/24 px-3 py-3 font-mono text-xl font-black tracking-wide text-white shadow-inner shadow-black/20" dir="ltr">{value}</div>
+          <div className="sf-checkout-payment-value mt-2 rounded-2xl border border-white/10 bg-black/24 px-3 py-3 font-mono text-xl font-black tracking-wide text-white shadow-inner shadow-black/20" dir="ltr">{value}</div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-white/54">
             <span className="rounded-full border border-white/10 bg-white/[0.055] px-3 py-1">{sfText("storefront.checkout.transfer.amount", "Amount")}: {money(amount)}</span>
             <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-emerald-100">{sfText("storefront.checkout.transfer.noCardSharing", "No card details shared")}</span>
@@ -7503,7 +7812,7 @@ function PaymentCopyLine({ method, label, value, amount, deepLink }) {
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           {copied ? sfText("storefront.toasts.copied", "Copied.") : sfText("storefront.checkout.transfer.copyPaymentDetails", "Copy payment details")}
         </button>
-        <button type="button" onClick={() => { window.location.href = deepLink; }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white/[0.09] md:hidden">
+        <button type="button" onClick={() => { window.location.href = deepLink; }} className="sf-checkout-copy-link inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white/[0.09] md:hidden">
           <Smartphone className="h-4 w-4" />
           {sfText("storefront.checkout.transfer.openApp", "Open app")}
         </button>
@@ -7513,11 +7822,11 @@ function PaymentCopyLine({ method, label, value, amount, deepLink }) {
 }
 
 function InfoBox({ label, value }) {
-  return <div className="sf-info-box mt-3 rounded-2xl bg-stone-50 p-4"><div className="sf-info-label text-xs font-bold text-stone-500">{label}</div><div className="sf-info-value mt-1 font-black">{value}</div></div>;
+  return <div className="sf-info-box sf-checkout-info-box mt-3 rounded-2xl bg-stone-50 p-4"><div className="sf-info-label text-xs font-bold text-stone-500">{label}</div><div className="sf-info-value mt-1 font-black">{value}</div></div>;
 }
 
 function Panel({ title, children }) {
-  return <div className="sf-panel rounded-3xl border border-stone-200 bg-white p-5"><h2 className="sf-section-heading mb-3 text-xl font-black">{title}</h2><div className="grid gap-2">{children}</div></div>;
+  return <div className="sf-panel sf-checkout-panel rounded-3xl border border-stone-200 bg-white p-5"><h2 className="sf-section-heading mb-3 text-xl font-black">{title}</h2><div className="grid gap-2">{children}</div></div>;
 }
 
 function SmallProductList({ items, empty = "لا توجد منتجات." }) {
@@ -7526,7 +7835,7 @@ function SmallProductList({ items, empty = "لا توجد منتجات." }) {
   return safeItems.slice(0, 6).map((item) => {
     const product = normalizeWishlistProduct(item);
     return (
-      <Link key={product.id || product.slug} to={`/shop/product/${product.slug || product.id}`} className="sf-small-product-row flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
+      <Link key={product.id || product.slug} to={`/shop/product/${product.slug || product.id}`} className="sf-small-product-row sf-storefront-card flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
         <img src={imageFor(product.image_url)} onError={fallbackProductImage} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" loading="lazy" decoding="async" width="48" height="48" />
         <span className="sf-small-product-name truncate font-black">{product.name || sfText("storefront.products.savedProduct", "Saved product")}</span>
       </Link>
@@ -7555,7 +7864,7 @@ function SmallProductGrid({ items, action, onAddToCart }) {
   return (
     <div className="mt-6 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {normalizedItems.map((item) => (
-        <div key={item.id} className={`group min-w-0 overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[linear-gradient(160deg,rgba(15,23,42,0.86),rgba(3,7,18,0.94))] shadow-[0_20px_58px_rgba(0,0,0,0.34)] ring-1 ring-white/[0.025] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#a78bfa]/25 hover:shadow-[0_28px_74px_rgba(0,0,0,0.42)] ${item.unavailable ? "flex min-h-[430px] flex-col p-4" : "flex min-h-[460px] flex-col p-3.5"}`}>
+        <div key={item.id} className={`sf-storefront-card sf-small-product-card group min-w-0 overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[linear-gradient(160deg,rgba(15,23,42,0.86),rgba(3,7,18,0.94))] shadow-[0_20px_58px_rgba(0,0,0,0.34)] ring-1 ring-white/[0.025] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#a78bfa]/25 hover:shadow-[0_28px_74px_rgba(0,0,0,0.42)] ${item.unavailable ? "flex min-h-[430px] flex-col p-4" : "flex min-h-[460px] flex-col p-3.5"}`}>
           {item.unavailable ? (
             <div className="flex flex-1 flex-col justify-center rounded-[1.25rem] border border-rose-300/15 bg-gradient-to-br from-rose-500/10 to-white/[0.04] p-4 text-center">
               <span className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-rose-300/20 bg-rose-400/10 text-rose-300 shadow-[0_12px_30px_rgba(244,63,94,0.12)]">

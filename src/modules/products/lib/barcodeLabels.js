@@ -9,7 +9,8 @@ const LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 = "premium_retail_50x100";
 const PREMIUM_RETAIL_LABEL_WIDTH_MM = 50;
 const PREMIUM_RETAIL_LABEL_HEIGHT_MM = 100;
 const PREMIUM_RETAIL_BARCODE_WIDTH = 680;
-const PREMIUM_RETAIL_BARCODE_HEIGHT = 220;
+const PREMIUM_RETAIL_BARCODE_HEIGHT = 360;
+const PREMIUM_RETAIL_GRID_ROWS = "33mm 12mm 11mm 11mm 26mm 7mm";
 
 const EAN13_L = [
   "0001101",
@@ -709,6 +710,7 @@ export const buildBarcodePrintHtml = ({
             padding: 0;
             gap: 0;
             overflow: hidden;
+            box-sizing: border-box;
             grid-template-columns: minmax(0, 1fr);
             grid-auto-rows: 1fr;
           }
@@ -815,7 +817,7 @@ export const buildBarcodePrintHtml = ({
           }
           .premium-retail {
             display: grid;
-            grid-template-rows: 30% auto 12% 10% 30% auto;
+            grid-template-rows: ${PREMIUM_RETAIL_GRID_ROWS};
             gap: 0;
             padding: 0;
             border-radius: 0;
@@ -824,6 +826,7 @@ export const buildBarcodePrintHtml = ({
             border: 1px solid #e2e8f0;
             background: #ffffff;
             overflow: hidden;
+            box-sizing: border-box;
             page-break-inside: avoid;
             break-inside: avoid;
           }
@@ -866,7 +869,7 @@ export const buildBarcodePrintHtml = ({
             border-radius: 0;
             background: #f8fafc;
             padding: 0.55mm 0.8mm;
-            font-size: clamp(9px, 1.45vw, 12px);
+            font-size: 11px;
             line-height: 1.04;
             font-weight: 900;
             color: #111827;
@@ -885,7 +888,7 @@ export const buildBarcodePrintHtml = ({
           }
           .premium-pill span {
             display: block;
-            font-size: 5.5px;
+            font-size: 5px;
             line-height: 1;
             font-weight: 900;
             letter-spacing: 0.18em;
@@ -898,7 +901,7 @@ export const buildBarcodePrintHtml = ({
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
-            font-size: 11px;
+            font-size: 10px;
             line-height: 1;
             font-weight: 900;
             color: #111827;
@@ -911,7 +914,7 @@ export const buildBarcodePrintHtml = ({
             color: #cbd5e1;
           }
           .premium-price strong {
-            font-size: 16px;
+            font-size: 15px;
             color: #ffffff;
           }
           .premium-meta-row {
@@ -921,7 +924,7 @@ export const buildBarcodePrintHtml = ({
             min-width: 0;
           }
           .premium-meta-row .premium-pill:first-child strong {
-            font-size: 18px;
+            font-size: 16px;
           }
           .premium-meta-row .premium-pill:last-child strong {
             font-size: 10px;
@@ -938,7 +941,7 @@ export const buildBarcodePrintHtml = ({
             border: 1px solid #e2e8f0;
             border-radius: 0;
             background: #ffffff;
-            padding: 0.35mm 0.35mm 0.1mm;
+            padding: 0.45mm 0.45mm 0.15mm;
           }
           .premium-barcode-svg {
             width: 95%;
@@ -952,8 +955,8 @@ export const buildBarcodePrintHtml = ({
           }
           .premium-sku {
             text-align: center;
-            padding: 0.3mm 0.5mm 0;
-            font-size: 9px;
+            padding: 0.25mm 0.5mm 0;
+            font-size: 8px;
             line-height: 1;
             font-weight: 900;
             color: #111827;

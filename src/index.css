@@ -1304,6 +1304,311 @@
     color: var(--sf-dark-muted) !important;
   }
 
+  .storefront-shell:not(.storefront-dark) {
+    --sf-light-text: #0f172a;
+    --sf-light-muted: #64748b;
+    --sf-light-border: rgba(148, 163, 184, 0.22);
+    --sf-light-border-strong: rgba(148, 163, 184, 0.32);
+    --sf-light-surface: rgba(255, 255, 255, 0.96);
+    --sf-light-surface-strong: rgba(255, 255, 255, 0.99);
+    --sf-light-surface-soft: rgba(248, 250, 252, 0.96);
+    --sf-light-surface-tint: rgba(124, 58, 237, 0.06);
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-page {
+    color: var(--sf-light-text) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-eyebrow {
+    color: #7c3aed !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-title,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-subtitle {
+    color: var(--sf-light-text) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-trust-pills {
+    color: var(--sf-light-text) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-progress-step {
+    border-color: var(--sf-light-border) !important;
+    box-shadow:
+      0 10px 24px rgba(15, 23, 42, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-progress-step--pending {
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: var(--sf-light-muted) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-progress-step--done {
+    background: rgba(124, 58, 237, 0.1) !important;
+    color: #5b21b6 !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-progress-step--active {
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(109, 40, 217, 0.95)) !important;
+    color: #ffffff !important;
+    box-shadow:
+      0 14px 34px rgba(124, 58, 237, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-step-badge {
+    border-color: rgba(124, 58, 237, 0.24) !important;
+    background: rgba(124, 58, 237, 0.12) !important;
+    color: #6d28d9 !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-note {
+    color: var(--sf-light-muted) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer,
+  .storefront-shell:not(.storefront-dark) .sf-cart-row,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-payment-copy,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-info-line,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-info-box,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-panel,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary-item,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary-totals,
+  .storefront-shell:not(.storefront-dark) .sf-order-item-row,
+  .storefront-shell:not(.storefront-dark) .sf-empty-state {
+    border-color: var(--sf-light-border) !important;
+    color: var(--sf-light-text) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer {
+    background:
+      radial-gradient(circle at 18% 0%, rgba(124, 58, 237, 0.06), transparent 32%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.98)) !important;
+    box-shadow:
+      0 18px 52px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section h1,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section h2,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary h2,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary h3,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer h2,
+  .storefront-shell:not(.storefront-dark) .sf-section-heading,
+  .storefront-shell:not(.storefront-dark) .sf-order-item-name,
+  .storefront-shell:not(.storefront-dark) .sf-order-item-price,
+  .storefront-shell:not(.storefront-dark) .sf-small-product-name,
+  .storefront-shell:not(.storefront-dark) .sf-info-value {
+    color: var(--sf-light-text) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .sf-field-label,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .sf-info-label,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .sf-order-item-meta,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .sf-muted-empty,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .sf-order-step-label,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .sf-muted-empty,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .sf-order-item-meta,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .sf-info-label,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer .text-white\/54,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer .text-white\/46,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer .text-white\/42,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer .text-white\/38,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer .text-white\/34,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer .text-white\/60,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer .text-white\/58,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer .text-white\/52 {
+    color: var(--sf-light-muted) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-field-input,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-field-input {
+    border-color: var(--sf-light-border) !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    color: var(--sf-light-text) !important;
+    box-shadow:
+      0 12px 30px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+    -webkit-text-fill-color: var(--sf-light-text) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-field-input::placeholder,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-field-input::placeholder {
+    color: rgba(100, 116, 139, 0.78) !important;
+    -webkit-text-fill-color: rgba(100, 116, 139, 0.78) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-info-line,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-info-box,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-panel,
+  .storefront-shell:not(.storefront-dark) .sf-order-item-row,
+  .storefront-shell:not(.storefront-dark) .sf-small-product-card {
+    background: var(--sf-light-surface) !important;
+    box-shadow:
+      0 14px 36px rgba(15, 23, 42, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.88) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-payment-tab {
+    border-color: var(--sf-light-border) !important;
+    background: var(--sf-light-surface) !important;
+    color: var(--sf-light-text) !important;
+    box-shadow:
+      0 14px 34px rgba(15, 23, 42, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.88) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-payment-tab.sf-checkout-payment-tab--active {
+    color: #ffffff !important;
+    box-shadow:
+      0 18px 46px rgba(124, 58, 237, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-payment-tab.sf-checkout-payment-tab--vodafone.sf-checkout-payment-tab--active {
+    border-color: rgba(239, 68, 68, 0.28) !important;
+    background: linear-gradient(135deg, rgba(230, 0, 0, 0.2), rgba(255, 255, 255, 0.9)) !important;
+    box-shadow:
+      0 18px 46px rgba(230, 0, 0, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-payment-tab.sf-checkout-payment-tab--instapay.sf-checkout-payment-tab--active {
+    border-color: rgba(124, 58, 237, 0.26) !important;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.24), rgba(255, 255, 255, 0.94)) !important;
+    box-shadow:
+      0 18px 46px rgba(124, 58, 237, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-payment-tab .text-white\/74,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-payment-tab .text-white\/42,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-payment-copy .text-white\/48,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-payment-copy .text-white\/54,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/54,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/46,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer .text-white\/54,
+  .storefront-shell:not(.storefront-dark) .sf-cart-drawer .text-white\/46 {
+    color: var(--sf-light-muted) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-payment-copy {
+    border-color: var(--sf-light-border) !important;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96)) !important;
+    color: var(--sf-light-text) !important;
+    box-shadow:
+      0 14px 36px rgba(15, 23, 42, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.88) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-copy-link,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-replace-button {
+    border-color: var(--sf-light-border) !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    color: var(--sf-light-text) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-remove-proof {
+    border-color: rgba(244, 63, 94, 0.22) !important;
+    background: rgba(244, 63, 94, 0.08) !important;
+    color: #be123c !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-payment-value {
+    border-color: var(--sf-light-border) !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    color: var(--sf-light-text) !important;
+    box-shadow:
+      0 10px 24px rgba(15, 23, 42, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-trust-pill {
+    border-color: var(--sf-light-border) !important;
+    background: rgba(255, 255, 255, 0.94) !important;
+    color: var(--sf-light-text) !important;
+    box-shadow:
+      0 10px 24px rgba(15, 23, 42, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary-totals,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary-notes {
+    border-color: var(--sf-light-border) !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    box-shadow:
+      0 14px 36px rgba(15, 23, 42, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.88) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-summary-row {
+    color: var(--sf-light-text) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-summary-row .sf-summary-row-label,
+  .storefront-shell:not(.storefront-dark) .sf-summary-row .sf-summary-row-value {
+    color: inherit !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-summary-row .sf-summary-row-value {
+    color: var(--sf-light-text) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary-item {
+    border-color: var(--sf-light-border) !important;
+    background: rgba(248, 250, 252, 0.95) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-cart-row {
+    border-color: var(--sf-light-border) !important;
+    background: var(--sf-light-surface-strong) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-quantity-stepper {
+    border-color: var(--sf-light-border) !important;
+    background: rgba(248, 250, 252, 0.98) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 10px 24px rgba(15, 23, 42, 0.05) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-empty-state {
+    background:
+      radial-gradient(circle at 18% 0%, rgba(124, 58, 237, 0.06), transparent 34%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
+    color: var(--sf-light-text) !important;
+    border-color: rgba(124, 58, 237, 0.12) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-empty-state h2,
+  .storefront-shell:not(.storefront-dark) .sf-empty-state p {
+    color: var(--sf-light-text) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-sticky-actions {
+    border-top-color: rgba(148, 163, 184, 0.22);
+    background:
+      radial-gradient(circle at 18% 0%, rgba(124, 58, 237, 0.08), transparent 38%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.98));
+    box-shadow:
+      0 -18px 52px rgba(15, 23, 42, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-sticky-actions .sf-checkout-total-chip {
+    border-color: var(--sf-light-border-strong);
+    background: rgba(255, 255, 255, 0.96);
+    color: var(--sf-light-text);
+    box-shadow:
+      0 14px 34px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
   .sf-hero-glow {
     background:
       radial-gradient(circle at 20% 22%, rgba(216, 180, 254, 0.26), transparent 30%),
