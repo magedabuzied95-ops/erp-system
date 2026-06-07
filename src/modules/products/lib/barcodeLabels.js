@@ -837,6 +837,9 @@ export const buildBarcodePrintHtml = ({
             border-radius: 0;
             background: #f8fafc;
             min-height: 0;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
           }
           .premium-image,
           .premium-header,
@@ -857,9 +860,9 @@ export const buildBarcodePrintHtml = ({
             width: 100%;
             height: 100%;
             object-fit: contain;
-            object-position: center;
+            object-position: center top;
             display: block;
-            padding: 0.8mm;
+            padding: 0.25mm 0.8mm 0.1mm;
             position: relative;
             z-index: 1;
             background: #ffffff;
@@ -1128,18 +1131,17 @@ export const buildBarcodePrintHtml = ({
               const logPremiumLabelHeight = () => {
                 const wrapper = document.querySelector('[data-premium-label-root="true"]');
                 if (!wrapper) return;
+                const rootRect = wrapper.getBoundingClientRect();
                 const getHeight = (selector) => {
                   const node = wrapper.querySelector(selector);
                   return node ? pxToMm(node.getBoundingClientRect().height) : 0;
                 };
-                console.log("[premium-label-height]", {
-                  wrapperHeight: pxToMm(wrapper.getBoundingClientRect().height),
-                  imageHeight: getHeight('[data-premium-label-part="image"]'),
-                  titleHeight: getHeight('[data-premium-label-part="title"]'),
-                  priceHeight: getHeight('[data-premium-label-part="price"]'),
-                  sizeColorHeight: getHeight('[data-premium-label-part="size-color"]'),
-                  barcodeHeight: getHeight('[data-premium-label-part="barcode"]'),
-                  skuHeight: getHeight('[data-premium-label-part="sku"]'),
+                const imageNode = wrapper.querySelector('[data-premium-label-part="image"]');
+                const imageRect = imageNode ? imageNode.getBoundingClientRect() : null;
+                console.log("[premium-layout-heights]", {
+                  imageSectionHeight: getHeight('[data-premium-label-part="image"]'),
+                  imageTopOffset: imageRect ? pxToMm(imageRect.top - rootRect.top) : 0,
+                  totalLabelHeight: pxToMm(rootRect.height),
                 });
               };
               const run = () => requestAnimationFrame(() => requestAnimationFrame(logPremiumLabelHeight));

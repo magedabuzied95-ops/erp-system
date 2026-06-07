@@ -1258,18 +1258,17 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
       const root = document.querySelector('[data-premium-label-root="true"]');
       if (!root) return;
       const pxToMm = (px) => Number(((Number(px) || 0) * 25.4 / 96).toFixed(2));
+      const rootRect = root.getBoundingClientRect();
       const getHeight = (selector) => {
         const node = root.querySelector(selector);
         return node ? pxToMm(node.getBoundingClientRect().height) : 0;
       };
-      console.log("[premium-label-height]", {
-        wrapperHeight: pxToMm(root.getBoundingClientRect().height),
-        imageHeight: getHeight('[data-premium-label-part="image"]'),
-        titleHeight: getHeight('[data-premium-label-part="title"]'),
-        priceHeight: getHeight('[data-premium-label-part="price"]'),
-        sizeColorHeight: getHeight('[data-premium-label-part="size-color"]'),
-        barcodeHeight: getHeight('[data-premium-label-part="barcode"]'),
-        skuHeight: getHeight('[data-premium-label-part="sku"]'),
+      const imageNode = root.querySelector('[data-premium-label-part="image"]');
+      const imageRect = imageNode?.getBoundingClientRect?.();
+      console.log("[premium-layout-heights]", {
+        imageSectionHeight: getHeight('[data-premium-label-part="image"]'),
+        imageTopOffset: imageRect ? pxToMm(imageRect.top - rootRect.top) : 0,
+        totalLabelHeight: pxToMm(rootRect.height),
       });
     };
     const timer = window.setTimeout(measure, 0);
@@ -1289,17 +1288,23 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
         breakInside: "avoid",
       }}
     >
-        <div className="relative min-h-0 overflow-hidden border border-zinc-200 bg-zinc-50" data-premium-label-part="image">
-          <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[0.8mm]" iconClassName="text-zinc-400" />
-        </div>
-        <div className="min-h-0 overflow-hidden border border-zinc-200 bg-zinc-50 px-[0.8mm] py-[0.55mm]" data-premium-label-part="title">
+      <div className="relative min-h-0 overflow-hidden border border-zinc-200 bg-zinc-50" data-premium-label-part="image">
+        <ImageWithFallback
+          src={safeImage}
+          alt={productName}
+          containerClassName="relative flex h-full w-full items-start justify-center"
+          imageClassName="p-[0.35mm] pt-0 object-top"
+          iconClassName="text-zinc-400"
+        />
+      </div>
+      <div className="min-h-0 overflow-hidden border border-zinc-200 bg-zinc-50 px-[0.8mm] py-[0.55mm]" data-premium-label-part="title">
           <h3 className="line-clamp-2 text-[11px] font-black leading-[1.04] text-zinc-950">{productName}</h3>
-        </div>
-        <div className="min-h-0 overflow-hidden border border-zinc-200 bg-zinc-950 px-[0.75mm] py-[0.5mm] text-white" data-premium-label-part="price">
+      </div>
+      <div className="min-h-0 overflow-hidden border border-zinc-200 bg-zinc-950 px-[0.75mm] py-[0.5mm] text-white" data-premium-label-part="price">
           <div className="text-[5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
           <div className="mt-[0.25mm] truncate text-[15px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
-        </div>
-        <div className="grid min-h-0 grid-cols-2 gap-0 overflow-hidden" data-premium-label-part="size-color">
+      </div>
+      <div className="grid min-h-0 grid-cols-2 gap-0 overflow-hidden" data-premium-label-part="size-color">
           <div className="border border-zinc-200 bg-zinc-100 px-[0.75mm] py-[0.5mm] text-zinc-950">
             <div className="text-[5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
             <div className="mt-[0.25mm] truncate text-[16px] font-black leading-none">{sizeValue}</div>
@@ -1308,14 +1313,14 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
             <div className="text-[5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
             <div className="mt-[0.25mm] truncate text-[10px] font-black uppercase leading-none">{colorValue}</div>
           </div>
-        </div>
-        <div className="flex min-h-0 flex-col items-center justify-center overflow-hidden border border-zinc-200 bg-white px-[0.35mm] pb-[0.1mm] pt-[0.35mm]" data-premium-label-part="barcode">
+      </div>
+      <div className="flex min-h-0 flex-col items-center justify-center overflow-hidden border border-zinc-200 bg-white px-[0.35mm] pb-[0.1mm] pt-[0.35mm]" data-premium-label-part="barcode">
           <div className="w-[95%] max-w-full" dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
-        </div>
-        <div className="min-h-0 overflow-hidden px-[0.5mm] pt-[0.3mm] text-center text-[8px] font-black leading-none text-zinc-800" data-premium-label-part="sku">
+      </div>
+      <div className="min-h-0 overflow-hidden px-[0.5mm] pt-[0.3mm] text-center text-[8px] font-black leading-none text-zinc-800" data-premium-label-part="sku">
           {item.sku}
-        </div>
-      </article>
+      </div>
+    </article>
   );
 }
 
@@ -1480,9 +1485,10 @@ function ImageWithFallback({
   alt,
   imageClassName = "",
   iconClassName = "text-zinc-500",
+  containerClassName = "relative flex h-full w-full items-center justify-center",
 }) {
   return (
-    <div className="relative flex h-full w-full items-center justify-center">
+    <div className={containerClassName}>
       <Package2 className={`absolute ${iconClassName}`} size={24} />
       {src ? (
         <img
