@@ -2398,7 +2398,7 @@ function AiSupportChatWidget() {
     setOpen(false);
   }, [aiSupportContext.selected_color, aiSupportContext.selected_color_key, aiSupportContext.selected_size, navigate, pushAiSupportContext, sessionId, tenantId]);
 
-  function addToCart(product, variant, quantity = 1) {
+  function handleStorefrontAddToCart(product, variant, quantity = 1) {
     if (!variant || Number(variant.stock || 0) <= 0) {
       toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
       return "unavailable";
@@ -2599,15 +2599,7 @@ function AiSupportChatWidget() {
         selected_color_key: variantColorKey(resolvedVariant),
         last_action: key,
       });
-      const result =
-        typeof addToCart === "function"
-          ? addToCart(resolvedProduct, resolvedVariant, 1)
-          : null;
-      console.error("[ADD_TO_CART_RUNTIME_DIAGNOSTIC]", {
-        typeofAddToCart: typeof addToCart,
-        resolvedProduct,
-        resolvedVariant,
-      });
+      const result = handleStorefrontAddToCart(resolvedProduct, resolvedVariant, 1);
       if (result === "capture_required") {
         logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "customer_capture_required" });
         await submitQuestion("لازم أولًا أراجع بياناتك قبل ما أكمل الإضافة للسلة.", {
@@ -3215,19 +3207,19 @@ function Storefront() {
 
   return (
     <div dir={dir} data-language={language} data-theme={effectiveTheme} className={`storefront-shell min-h-dvh ${location.pathname === "/shop/checkout" ? "storefront-shell--checkout" : ""} ${isProductDetailsRoute ? "storefront-shell--product-detail" : ""} ${effectiveTheme === "dark" ? "dark storefront-dark bg-[#070b16] text-stone-100" : "bg-[#f7f4ee] text-stone-950"}`}>
-      <Header cart={cart} wishlist={wishlist} onCart={openCart} addToCart={addToCart} />
+      <Header cart={cart} wishlist={wishlist} onCart={openCart} onAddToCart={handleStorefrontAddToCart} />
       <main className="sf-storefront-main">
         <Routes>
-          <Route index element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} />} />
-          <Route path="products" element={<ProductsPage wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} />} />
-          <Route path="sale" element={<ProductsPage sale wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} />} />
-          <Route path="product/:identifier" element={<ProductDetails addToCart={addToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} rememberProduct={rememberProduct} recent={recent} profile={profile} />} />
+          <Route index element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />} />
+          <Route path="products" element={<ProductsPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />} />
+          <Route path="sale" element={<ProductsPage sale wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />} />
+          <Route path="product/:identifier" element={<ProductDetails onAddToCart={handleStorefrontAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} rememberProduct={rememberProduct} recent={recent} profile={profile} />} />
           <Route path="cart" element={<CartPage cart={cart} updateCart={updateCart} removeFromCart={removeFromCart} />} />
           <Route path="checkout" element={<CheckoutPage cart={cart} clearCart={clearCart} profile={profile} setProfile={setProfile} />} />
           <Route path="success/:orderNumber" element={<OrderSuccess profile={profile} />} />
           <Route path="track" element={<TrackOrder />} />
-          <Route path="account" element={<AccountPage profile={profile} setProfile={setProfile} wishlist={wishlist} recent={recent} addToCart={addToCart} />} />
-          <Route path="wishlist" element={<WishlistPage wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} />} />
+          <Route path="account" element={<AccountPage profile={profile} setProfile={setProfile} wishlist={wishlist} recent={recent} onAddToCart={handleStorefrontAddToCart} />} />
+          <Route path="wishlist" element={<WishlistPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />} />
           <Route path="recently-viewed" element={<RecentPage recent={recent} />} />
           <Route path="faq" element={<FaqPage />} />
           <Route path="contact" element={<ContactPage />} />
@@ -3362,7 +3354,7 @@ function CustomerCaptureSheet({ open, reason = "add_to_cart", initialName = "", 
   );
 }
 
-function Header({ cart, wishlist, onCart, addToCart }) {
+function Header({ cart, wishlist, onCart, onAddToCart }) {
   const { i18n: storefrontI18n, t } = useTranslation();
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -3736,7 +3728,7 @@ function Header({ cart, wishlist, onCart, addToCart }) {
           onPickProduct={pickProduct}
           onQuickAdd={(...args) => {
             closeSearch();
-            addToCart(...args);
+            onAddToCart(...args);
           }}
           onVoice={handleVoiceSearch}
           onImage={handleImageSearch}
@@ -3798,10 +3790,10 @@ function Header({ cart, wishlist, onCart, addToCart }) {
         setActiveIndex={setActiveSearchIndex}
         onPickTerm={pickSearchTerm}
         onPickProduct={pickProduct}
-        onQuickAdd={(...args) => {
-          closeSearch();
-          addToCart(...args);
-        }}
+          onQuickAdd={(...args) => {
+            closeSearch();
+            onAddToCart(...args);
+          }}
         onVoice={handleVoiceSearch}
         onImage={handleImageSearch}
         mobileOnly
@@ -4730,7 +4722,7 @@ function ShopByMainCategories({ products = [], lang = "ar" }) {
   );
 }
 
-function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, addToCart }) {
+function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, onAddToCart }) {
   const isRtl = normalizeLanguage(i18n.language) === "ar";
   const visibleProducts = useMemo(
     () => sortStorefrontColorCardsByModel(uniqueProductsByIdentity(products).filter((product) => product?.id && product?.name && isAvailableProduct(product)).slice(0, 8)),
@@ -4800,7 +4792,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
           </div>
         )) : visibleProducts.map((product, index) => (
           <div key={productCardKey(product, index)} className="w-[82vw] max-w-[22rem] shrink-0 snap-start sm:w-[43vw] md:w-auto md:max-w-none">
-            <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} railType={railType} rank={index + 1} density="compact" eagerImage eagerImagePriority={index < 4} />
+            <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} railType={railType} rank={index + 1} density="compact" eagerImage eagerImagePriority={index < 4} />
           </div>
         ))}
         {!loading && !visibleProducts.length ? (
@@ -5461,7 +5453,7 @@ function LastPieceEmpty({ text }) {
   );
 }
 
-const ProductRail = memo(function ProductRail({ title, subtitle, products, loading, wishlist, toggleWishlist, addToCart, railType = "default", featuredFirst = false }) {
+const ProductRail = memo(function ProductRail({ title, subtitle, products, loading, wishlist, toggleWishlist, onAddToCart, railType = "default", featuredFirst = false }) {
   const { t } = useTranslation();
   const orderedProducts = useMemo(() => sortStorefrontColorCardsByModel(products), [products]);
   const hasProducts = orderedProducts.length > 0;
@@ -5489,7 +5481,7 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
           </div>
         )) : visibleProducts.map((product, index) => (
           <div key={productCardKey(product, index)} className={`w-[82vw] max-w-[22rem] shrink-0 snap-start sm:w-[43vw] md:w-auto md:max-w-none md:basis-[calc((100%_-_2rem)/3)] xl:basis-[calc((100%_-_4rem)/5)] ${index >= 3 ? "md:hidden xl:block" : ""}`}>
-            <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} addToCart={addToCart} railType={railType} rank={index + 1} featured={featuredFirst && index === 0} density={cardDensity} />
+            <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} railType={railType} rank={index + 1} featured={featuredFirst && index === 0} density={cardDensity} />
           </div>
         ))}
       </div>
@@ -5524,7 +5516,7 @@ function useStorefrontProductGridColumns() {
   return width >= 768 ? 4 : 2;
 }
 
-const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, addToCart }) {
+const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart }) {
   const columns = useStorefrontProductGridColumns();
   const renderProduct = useCallback((product, index, key) => (
     <ProductCard
@@ -5532,10 +5524,10 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
       product={product}
       wishlist={wishlist}
       toggleWishlist={toggleWishlist}
-      addToCart={addToCart}
+      onAddToCart={onAddToCart}
       sizeLimit={6}
     />
-  ), [addToCart, toggleWishlist, wishlist]);
+  ), [onAddToCart, toggleWishlist, wishlist]);
 
   if (loading) return <ProductSkeleton count={8} />;
 
@@ -5560,7 +5552,7 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
   );
 });
 
-function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
+function ProductsPage({ sale = false, wishlist, toggleWishlist, onAddToCart }) {
   const { i18n, t } = useTranslation();
   const lang = i18n.language || "ar";
   const navigate = useNavigate();
@@ -5867,7 +5859,7 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
             loading={gridProductsLoading}
             wishlist={wishlist}
             toggleWishlist={toggleWishlist}
-            addToCart={addToCart}
+            onAddToCart={onAddToCart}
           />
           {!gridProductsLoading && selectedProductType && !orderedFilteredProducts.length ? (
             <EmptyState title={t("storefront.products.noProductsForSize", "No products for this size right now. Try another size.")} text={selectedSize ? t("storefront.products.pickDifferentSize", "Pick a different size above") : t("storefront.products.tryDifferentProductType", "Try another product type")} />
@@ -5914,7 +5906,7 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, addToCart }) {
         loading={loading}
         wishlist={wishlist}
         toggleWishlist={toggleWishlist}
-        addToCart={addToCart}
+        onAddToCart={onAddToCart}
       />
       {!loading && !displayedProducts.length ? (
         <EmptyState
@@ -6347,7 +6339,7 @@ const swatchColorStyle = (label = "") => {
   return { background: color };
 };
 
-const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, addToCart, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, eagerImagePriority = false }) {
+const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, eagerImagePriority = false }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const product = groupedProduct || rawProduct || {};
@@ -6422,7 +6414,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [activeSizes, selectedVariant?.size, selectedVariantId]);
 
   const canQuickAdd = availableVariant && variantHasStock(availableVariant);
-  const handleQuickAdd = useCallback(() => addToCart(product, availableVariant), [addToCart, availableVariant, product]);
+  const handleQuickAdd = useCallback(() => onAddToCart(product, availableVariant), [availableVariant, onAddToCart, product]);
   const directAddVariant = useMemo(() => {
     const colors = new Set(sellableVariants.map((variant) => variantColorKey(variant)).filter(Boolean));
     const sizes = new Set(sellableVariants.map((variant) => String(variant.size || "").trim() || "one-size"));
@@ -6441,11 +6433,11 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     event.preventDefault();
     event.stopPropagation();
     if (directAddVariant && variantHasStock(directAddVariant)) {
-      addToCart(product, directAddVariant, 1);
+      onAddToCart(product, directAddVariant, 1);
       return;
     }
     openVariantSheet();
-  }, [addToCart, directAddVariant, openVariantSheet, product]);
+  }, [directAddVariant, onAddToCart, openVariantSheet, product]);
   const openDetails = useCallback((event) => {
     if (event.defaultPrevented) return;
     if (event.target?.closest?.("button,a,input,select,textarea")) return;
@@ -6625,7 +6617,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             onQuantityChange={setSheetQty}
             onClose={() => setVariantSheetOpen(false)}
             onAdd={(variant, quantity) => {
-              addToCart(product, variant, quantity);
+              onAddToCart(product, variant, quantity);
               setVariantSheetOpen(false);
             }}
           />
@@ -6645,7 +6637,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     prev.availableSizes === next.availableSizes &&
     wasInWishlist === isInWishlist &&
     prev.toggleWishlist === next.toggleWishlist &&
-    prev.addToCart === next.addToCart &&
+    prev.onAddToCart === next.onAddToCart &&
     prev.railType === next.railType &&
     prev.rank === next.rank &&
     prev.featured === next.featured &&
@@ -6760,7 +6752,7 @@ function ProductCardVariantSheet({
   );
 }
 
-function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, recent, profile }) {
+function ProductDetails({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, profile }) {
   const { identifier } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -7026,7 +7018,7 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
   };
   const submitVariant = (candidate = variant, quantity = qty, action = "cart") => {
     if (!product || !candidate || Number(candidate.stock || 0) <= 0) return;
-    const result = addToCart(product, candidate, quantity);
+    const result = onAddToCart(product, candidate, quantity);
     if (result === "capture_required") return;
     setVariantSheetAction("");
     if (action === "buy") navigate("/shop/checkout");
@@ -7159,7 +7151,7 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
             <button onClick={() => setQty(Math.min(Number(variant?.stock || 1), qty + 1))} className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.055] text-white/80 transition hover:border-white/25 hover:bg-white/[0.09]">+</button>
           </div>
           <div ref={mainCtaRef} className="mt-5 hidden grid-cols-2 gap-3 md:grid">
-            <button onClick={() => addToCart(product, variant, qty)} disabled={!variant || Number(variant.stock || 0) <= 0} className="rounded-full border border-white/14 bg-white/[0.045] px-5 py-4 font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.035] disabled:text-white/30 disabled:shadow-none">{sfText("storefront.cart.addToCart", "Add to cart")}</button>
+            <button onClick={() => onAddToCart(product, variant, qty)} disabled={!variant || Number(variant.stock || 0) <= 0} className="rounded-full border border-white/14 bg-white/[0.045] px-5 py-4 font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.035] disabled:text-white/30 disabled:shadow-none">{sfText("storefront.cart.addToCart", "Add to cart")}</button>
             <button onClick={buyNow} disabled={!variant || Number(variant.stock || 0) <= 0} className="rounded-full bg-white px-5 py-4 font-black text-stone-950 shadow-[0_18px_38px_rgba(255,255,255,0.16)] transition hover:-translate-y-0.5 hover:bg-[#f5f3ff] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none">{sfText("storefront.cart.buyNow", "Buy now")}</button>
           </div>
           <a href="https://wa.me/" className="mt-4 inline-flex items-center gap-2 text-sm font-black text-white/62 transition hover:text-white"><Phone className="h-4 w-4" /> {sfText("storefront.support.sizeHelp", "Need help with sizing?")}</a>
@@ -7170,10 +7162,10 @@ function ProductDetails({ addToCart, toggleWishlist, wishlist, rememberProduct, 
             <InfoLine icon={<Sparkles className="h-4 w-4" />} text={sfText("storefront.products.premiumMaterial", "Premium material")} />
           </div>
         </div>
-        <RelatedProducts currentId={product.id} addToCart={addToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} recent={recent} />
+        <RelatedProducts currentId={product.id} onAddToCart={onAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} recent={recent} />
         <RecentProductsSection currentId={product.id} recent={recent} />
       </div>
-      <MobileBuyBar product={product} variant={variant} visible={showMobileBuyBar} addToCart={addFromStickyBar} buyNow={buyFromStickyBar} />
+      <MobileBuyBar product={product} variant={variant} visible={showMobileBuyBar} onAddToCart={addFromStickyBar} buyNow={buyFromStickyBar} />
       {variantSheetAction ? (
         <Suspense fallback={null}>
           <LazyProductDetailsVariantSheet
@@ -8513,7 +8505,7 @@ function OrderSuccess({ profile }) {
       </div>
       {products.length ? (
         <div className="mt-6">
-          <ProductRail title={t("storefront.nav.new", "New")} subtitle={t("storefront.success.recommendedProducts", "Products you may like")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} addToCart={() => undefined} />
+          <ProductRail title={t("storefront.nav.new", "New")} subtitle={t("storefront.success.recommendedProducts", "Products you may like")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} onAddToCart={() => undefined} />
         </div>
       ) : null}
     </section>
@@ -8792,7 +8784,7 @@ const AccountOrderRow = memo(function AccountOrderRow({ order, phone, onOpen, on
   );
 });
 
-function AccountPage({ profile, setProfile, wishlist, recent, addToCart }) {
+function AccountPage({ profile, setProfile, wishlist, recent, onAddToCart }) {
   const [phone, setPhone] = useState(profile.primary_phone || "");
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -8850,7 +8842,7 @@ function AccountPage({ profile, setProfile, wishlist, recent, addToCart }) {
           skipped += 1;
           continue;
         }
-        addToCart(product, variant, Math.min(Number(item.quantity || 1), Number(variant.stock || 1)));
+        onAddToCart(product, variant, Math.min(Number(item.quantity || 1), Number(variant.stock || 1)));
         added += 1;
       } catch {
         skipped += 1;
@@ -8932,7 +8924,7 @@ function CustomerOrderDetails({ data, phone, onReorder }) {
   );
 }
 
-function WishlistPage({ wishlist, toggleWishlist, addToCart }) {
+function WishlistPage({ wishlist, toggleWishlist, onAddToCart }) {
   const wishlistCount = Array.isArray(wishlist) ? wishlist.length : 0;
   return (
     <section className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4 md:px-6 md:py-10">
@@ -8949,7 +8941,7 @@ function WishlistPage({ wishlist, toggleWishlist, addToCart }) {
 
         {wishlistCount ? (
           <>
-          <SmallProductGrid items={wishlist} action={toggleWishlist} addToCart={addToCart} />
+          <SmallProductGrid items={wishlist} action={toggleWishlist} onAddToCart={onAddToCart} />
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="flex items-start gap-4 rounded-[1.5rem] border border-white/[0.08] bg-white/[0.055] p-5 text-start shadow-[0_18px_50px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.025] backdrop-blur-xl">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[#a78bfa]/20 bg-[#7c3aed]/15 text-[#c4b5fd]">
@@ -9836,10 +9828,10 @@ function SmallProductList({ items, empty = "لا توجد منتجات." }) {
   });
 }
 
-function SmallProductGrid({ items, action, addToCart }) {
+function SmallProductGrid({ items, action, onAddToCart }) {
   const normalizedItems = (Array.isArray(items) ? items : []).map(normalizeWishlistProduct).filter((item) => item.id);
   const addWishlistItemToCart = async (item) => {
-    if (!addToCart) return;
+    if (!onAddToCart) return;
     try {
       const data = await api.get(`/storefront/products/${item.id}`);
       const product = productFromDetailsResponse(data);
@@ -9848,7 +9840,7 @@ function SmallProductGrid({ items, action, addToCart }) {
         toast.error(sfText("storefront.toasts.sizeUnavailable", "This size is currently unavailable."));
         return;
       }
-      addToCart(product, variant, 1);
+      onAddToCart(product, variant, 1);
     } catch {
       toast.error(sfText("storefront.toasts.addFailed", "We cannot add the item to cart right now."));
     }
@@ -9879,7 +9871,7 @@ function SmallProductGrid({ items, action, addToCart }) {
             </Link>
           )}
           <div className="mt-3 grid gap-2">
-            {addToCart && !item.unavailable ? <button type="button" onClick={() => addWishlistItemToCart(item)} className="min-h-12 rounded-full bg-gradient-to-l from-[#4c1d95] via-[#6d28d9] to-[#111827] px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(109,40,217,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(109,40,217,0.38)]">{sfText("storefront.cart.addToCart", "Add to cart")}</button> : null}
+            {onAddToCart && !item.unavailable ? <button type="button" onClick={() => addWishlistItemToCart(item)} className="min-h-12 rounded-full bg-gradient-to-l from-[#4c1d95] via-[#6d28d9] to-[#111827] px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(109,40,217,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(109,40,217,0.38)]">{sfText("storefront.cart.addToCart", "Add to cart")}</button> : null}
             {action ? <button type="button" onClick={() => action(item)} className="min-h-11 rounded-full border border-white/[0.1] bg-white/[0.045] px-4 py-2 text-sm font-black text-rose-200 transition hover:border-rose-400/70 hover:bg-rose-500 hover:text-white">{item.unavailable ? sfText("storefront.wishlist.removeFromWishlist", "إزالة من المفضلة") : sfText("storefront.common.remove", "Remove")}</button> : null}
           </div>
         </div>
@@ -9921,7 +9913,7 @@ function Reviews() {
   );
 }
 
-function MobileBuyBar({ product, variant, visible, addToCart, buyNow }) {
+function MobileBuyBar({ product, variant, visible, onAddToCart, buyNow }) {
   const disabled = !variant || Number(variant.stock || 0) <= 0;
   if (!visible) return null;
   return (
@@ -9934,7 +9926,7 @@ function MobileBuyBar({ product, variant, visible, addToCart, buyNow }) {
           <div className="truncate text-xs font-black text-white">{cleanDisplayText(product.name)}</div>
           <div className="text-sm font-black text-white/86">{money(displaySellingPrice(product, variant))}</div>
         </div>
-        <button onClick={addToCart} disabled={disabled} className="rounded-full bg-white px-3 py-2.5 text-xs font-black text-stone-950 shadow-[0_10px_24px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none">{sfText("storefront.cart.addToCart", "Add to cart")}</button>
+        <button onClick={onAddToCart} disabled={disabled} className="rounded-full bg-white px-3 py-2.5 text-xs font-black text-stone-950 shadow-[0_10px_24px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none">{sfText("storefront.cart.addToCart", "Add to cart")}</button>
         <button onClick={buyNow} disabled={disabled} className="rounded-full border border-white/14 bg-white/[0.055] px-3 py-2.5 text-xs font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.035] disabled:text-white/30">{sfText("storefront.cart.buyNow", "Buy now")}</button>
       </div>
     </div>
