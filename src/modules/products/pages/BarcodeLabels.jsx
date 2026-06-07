@@ -191,7 +191,7 @@ function BarcodeLabels() {
       const [baseProducts, variantRows, generalSettingsPayload] = await Promise.all([
         getProducts(),
         getProductsWithVariants(),
-        api.get("/settings/general").catch(() => null),
+        api.get("/settings/barcode_printing").catch(() => null),
       ]);
       const nextPrintSettings = generalSettingsPayload?.settings?.length
         ? readBarcodePrintSettings(generalSettingsPayload.settings)

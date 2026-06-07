@@ -17,6 +17,7 @@ export const settingsCategories = [
   { key: "employees", label: label("Employees", "الموظفون"), description: label("Attendance, payroll, commissions, and employee wallet settings.", "إعدادات الحضور والمرتبات والعمولات ومحفظة الموظف.") },
   { key: "notifications", label: label("Notifications", "الإشعارات"), description: label("Alert types and delivery channels.", "أنواع التنبيهات وقنوات الإرسال.") },
   { key: "security", label: label("Security & Users", "الأمان والمستخدمون"), description: label("Session, password, audit, permissions shortcuts, and future API tokens.", "الجلسات وكلمات المرور والتدقيق واختصارات الصلاحيات ومفاتيح API القادمة.") },
+  { key: "barcode_printing", label: label("Barcode Printing", "إعدادات طباعة الباركود"), description: label("Paper presets, label layout, barcode sizing, and print label visibility.", "إعدادات الورق وتخطيط الملصقات وحجم الباركود والعناصر الظاهرة أثناء الطباعة.") },
 ];
 
 const option = (value, en, ar) => ({ value, label: label(en, ar) });
@@ -232,7 +233,7 @@ const definitions = [
 
 export const settingsRegistry = definitions.map(([key, category, type, defaultValue, en, ar, descriptionEn, descriptionAr, extra = {}]) => ({
   key,
-  category,
+  category: String(key || "").startsWith("general.barcode_print_") ? "barcode_printing" : category,
   label: label(en, ar),
   description: label(descriptionEn, descriptionAr),
   type,
@@ -282,6 +283,9 @@ export const normalizeSettingsCategory = (category) => {
     users: "security",
     permissions: "security",
     roles: "security",
+    barcode: "barcode_printing",
+    barcode_print: "barcode_printing",
+    barcode_printing_settings: "barcode_printing",
   };
   if (aliases[value]) return aliases[value];
   return settingsCategories.some((item) => item.key === value) ? value : "";

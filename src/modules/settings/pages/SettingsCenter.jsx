@@ -152,6 +152,7 @@ const iconMap = {
   ai_channels: Bot,
   notifications: Sparkles,
   security: ShieldCheck,
+  barcode_printing: Package,
 };
 
 const navDescriptions = {
@@ -167,6 +168,7 @@ const navDescriptions = {
   ai_channels: "AI and marketing automation",
   notifications: "Alerts and channels",
   security: "Access and protection",
+  barcode_printing: "Paper, labels, and print layout",
 };
 
 const sectionMap = {
@@ -178,6 +180,8 @@ const sectionMap = {
     ["Timezone", ["general.timezone"]],
     ["Date & Number Formats", ["general.date_format", "general.time_format", "general.number_format"]],
     ["Preferences", ["general.default_branch_id", "general.default_warehouse_id", "general.default_pos_treasury_account_id", "general.business_working_days", "general.business_hours"]],
+  ],
+  barcode_printing: [
     ["Barcode Printing", BARCODE_PRINT_SETTING_KEYS],
   ],
   storefront: [
@@ -783,7 +787,7 @@ function SettingsCenterContent({ debugMode = false }) {
                   <section key={section.title} className={`rounded-[1.75rem] p-5 ${shellCard}`}>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <h2 className={`text-lg font-black ${headingText}`}>{section.title}</h2>
-                      {activeCategory === "general" && section.settings.some((item) => BARCODE_PRINT_SETTING_KEYS.includes(item.key)) ? (
+                      {activeCategory === "barcode_printing" && section.settings.some((item) => BARCODE_PRINT_SETTING_KEYS.includes(item.key)) ? (
                         <button
                           type="button"
                           onClick={resetBarcodePrintDefaults}
