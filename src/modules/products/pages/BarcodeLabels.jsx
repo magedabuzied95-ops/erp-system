@@ -39,6 +39,73 @@ import {
   getProductsWithVariants,
 } from "../services/productsApi";
 
+const LABEL_TEMPLATE_STANDARD = "standard";
+const LABEL_TEMPLATE_THERMAL_PORTRAIT = "thermal_portrait";
+const LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100 = "thermal_landscape_50x100";
+
+const resolveTemplatePrintContext = (template, settings, sheetMode) => {
+  const normalized = normalizeBarcodePrintSettings({ ...settings, paperSize: sheetMode });
+  if (template === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100) {
+    const landscapeSettings = normalizeBarcodePrintSettings({
+      ...normalized,
+      paperSize: "custom",
+      customPaperWidthMm: 100,
+      customPaperHeightMm: 50,
+      labelWidthMm: 100,
+      labelHeightMm: 50,
+      labelsPerRow: 1,
+      labelsPerPage: 1,
+      gapMm: 0,
+      marginTopMm: 1.5,
+      marginRightMm: 1.5,
+      marginBottomMm: 1.5,
+      marginLeftMm: 1.5,
+      barcodeWidthScale: 100,
+      barcodeHeight: Math.max(100, Number(normalized.barcodeHeight || 88)),
+    });
+    return {
+      template,
+      printSettings: landscapeSettings,
+      paper: {
+        paperWidthMm: 100,
+        paperHeightMm: 50,
+        pageCss: "100mm 50mm",
+      },
+    };
+  }
+  if (template === LABEL_TEMPLATE_THERMAL_PORTRAIT) {
+    const portraitSettings = normalizeBarcodePrintSettings({
+      ...normalized,
+      paperSize: "custom",
+      customPaperWidthMm: 50,
+      customPaperHeightMm: 100,
+      labelWidthMm: 50,
+      labelHeightMm: 100,
+      labelsPerRow: 1,
+      labelsPerPage: 1,
+      gapMm: 0,
+      marginTopMm: 1.5,
+      marginRightMm: 1.5,
+      marginBottomMm: 1.5,
+      marginLeftMm: 1.5,
+    });
+    return {
+      template,
+      printSettings: portraitSettings,
+      paper: {
+        paperWidthMm: 50,
+        paperHeightMm: 100,
+        pageCss: "50mm 100mm",
+      },
+    };
+  }
+  return {
+    template,
+    printSettings: normalized,
+    paper: resolveBarcodePrintPaper(normalized),
+  };
+};
+
 const safeText = (value, fallback = "") => {
   if (value === null || value === undefined) return fallback;
   if (typeof value === "string" || typeof value === "number") return String(value);
@@ -163,6 +230,7 @@ function BarcodeLabels() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [sheetMode, setSheetMode] = useState("a4");
+  const [labelTemplate, setLabelTemplate] = useState(LABEL_TEMPLATE_STANDARD);
   const [barcodePrintSettings, setBarcodePrintSettings] = useState(() => normalizeBarcodePrintSettings(BARCODE_PRINT_DEFAULTS));
   const [selectedQuantities, setSelectedQuantities] = useState({});
   const [activeProduct, setActiveProduct] = useState(null);
@@ -181,6 +249,14 @@ function BarcodeLabels() {
       { value: "custom", label: "مخصص" },
     ],
     [t]
+  );
+  const labelTemplates = useMemo(
+    () => [
+      { value: LABEL_TEMPLATE_STANDARD, label: language === "ar" ? "قياسي" : "Standard" },
+      { value: LABEL_TEMPLATE_THERMAL_PORTRAIT, label: language === "ar" ? "حراري طولي" : "Thermal Portrait" },
+      { value: LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100, label: language === "ar" ? "حراري أفقي 50×100" : "Thermal Landscape 50x100" },
+    ],
+    [language]
   );
 
   const loadData = async () => {
@@ -350,14 +426,18 @@ function BarcodeLabels() {
   console.log("[barcode-shop] selectedProductVariants", selectedProductVariants);
 
   const expandedLabels = useMemo(() => expandLabelCopies(selectedItems), [selectedItems]);
-  const activePrintSettings = useMemo(
-    () => normalizeBarcodePrintSettings({ ...barcodePrintSettings, paperSize: sheetMode }),
-    [barcodePrintSettings, sheetMode]
+  const templateContext = useMemo(
+    () => resolveTemplatePrintContext(labelTemplate, barcodePrintSettings, sheetMode),
+    [barcodePrintSettings, labelTemplate, sheetMode]
   );
-  const activePaper = useMemo(() => resolveBarcodePrintPaper(activePrintSettings), [activePrintSettings]);
+  const activePrintSettings = templateContext.printSettings;
+  const activePaper = templateContext.paper;
   const activeSheetLabel = useMemo(
-    () => sheetModes.find((item) => item.value === sheetMode)?.label || sheetMode.toUpperCase(),
-    [sheetMode, sheetModes]
+    () =>
+      labelTemplates.find((item) => item.value === labelTemplate)?.label ||
+      sheetModes.find((item) => item.value === sheetMode)?.label ||
+      sheetMode.toUpperCase(),
+    [labelTemplate, labelTemplates, sheetMode, sheetModes]
   );
   const previewPages = useMemo(
     () => paginateBarcodeLabels(expandedLabels, activePrintSettings.labelsPerPage),
@@ -431,6 +511,7 @@ function BarcodeLabels() {
     const popup = openBarcodePrintWindow({
       labels: expandedLabels,
       sheetMode,
+      template: labelTemplate,
       printSettings: activePrintSettings,
       copy: {
         title: t("print.barcodeLabels.title"),
@@ -622,6 +703,21 @@ function BarcodeLabels() {
                   ))}
                 </div>
 
+                <div className="grid grid-cols-1 gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 sm:grid-cols-3">
+                  {labelTemplates.map((template) => (
+                    <button
+                      key={template.value}
+                      type="button"
+                      onClick={() => setLabelTemplate(template.value)}
+                      className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                        labelTemplate === template.value ? "bg-emerald-500 text-black" : "text-zinc-300 hover:bg-white/10"
+                      }`}
+                    >
+                      {template.label}
+                    </button>
+                  ))}
+                </div>
+
                 <button
                   type="button"
                   onClick={clearSelections}
@@ -736,6 +832,7 @@ function BarcodeLabels() {
                               key={getLabelRenderKey(item, index + pageIndex * Math.max(1, activePrintSettings.labelsPerPage || pageLabels.length))}
                               item={item}
                               printSettings={activePrintSettings}
+                              template={labelTemplate}
                             />
                           ))}
                         </div>
@@ -778,6 +875,7 @@ function BarcodeLabels() {
                         key={getLabelRenderKey(item, index + pageIndex * Math.max(1, activePrintSettings.labelsPerPage || pageLabels.length), "print")}
                         item={item}
                         printSettings={activePrintSettings}
+                        template={labelTemplate}
                       />
                     ))}
                   </div>
@@ -915,7 +1013,10 @@ function VariantRow({ product, variant, imageUrl, quantity, onQuantityChange, sh
   );
 }
 
-function LabelCard({ item, printSettings }) {
+function LabelCard({ item, printSettings, template = LABEL_TEMPLATE_STANDARD }) {
+  if (template === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100) {
+    return <ThermalLandscapeLabel item={item} printSettings={printSettings} />;
+  }
   const { t } = useTranslation();
   const imageUrl = item.imageUrl || item.resolvedImage;
   const safeImage = getSafeLabelImage(imageUrl, item);
@@ -965,7 +1066,63 @@ function LabelCard({ item, printSettings }) {
   );
 }
 
-function PrintLabel({ item, printSettings }) {
+function ThermalLandscapeLabel({ item, printSettings, print = false }) {
+  const { t } = useTranslation();
+  const imageUrl = item.imageUrl || item.resolvedImage;
+  const safeImage = getSafeLabelImage(imageUrl, item);
+  const productName = safeText(item.productName, t("products.barcodeLabels.product"));
+  const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
+    width: Math.round(520 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
+    height: Math.max(108, Number(printSettings.barcodeHeight || 88)),
+    displayText: item.barcode,
+  });
+
+  return (
+    <article
+      className={`overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "rounded-[14px] p-[1.5mm] shadow-none" : "rounded-[20px] p-[2mm] shadow-[0_12px_30px_rgba(15,23,42,0.06)]"}`}
+      style={{ width: `${printSettings.labelWidthMm}mm`, minHeight: `${printSettings.labelHeightMm}mm` }}
+    >
+      <div className="grid h-full grid-rows-[1fr_auto] gap-[1.5mm]">
+        <div
+          className="grid min-h-0 gap-[1.5mm]"
+          style={{ gridTemplateColumns: printSettings.showProductImage ? "35% 65%" : "minmax(0,1fr)" }}
+        >
+          {printSettings.showProductImage ? (
+            <div className="overflow-hidden rounded-[10px] border border-zinc-200 bg-zinc-50">
+              <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[1.5mm]" iconClassName="text-zinc-400" />
+            </div>
+          ) : null}
+          <div className="flex min-w-0 flex-col justify-between gap-1 overflow-hidden">
+            {printSettings.showProductName ? (
+              <h3 className="line-clamp-2 text-[13px] font-black leading-[1.1] text-zinc-950">{productName}</h3>
+            ) : null}
+            {printSettings.showPrice ? (
+              <div className="text-[15px] font-black leading-none text-zinc-950">{formatCurrency(item.salePrice)}</div>
+            ) : null}
+            {printSettings.showSizeColor ? (
+              <div className="text-[10px] font-black leading-[1.15] text-zinc-800">
+                {[safeText(item.size), safeText(item.color)].filter(Boolean).join(" / ")}
+              </div>
+            ) : null}
+            {printSettings.showSkuArticle ? (
+              <div className="truncate text-[8px] font-semibold leading-none text-zinc-500">{item.sku}</div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-col items-center justify-end rounded-[10px] border border-zinc-200 bg-white px-[2mm] pb-[1mm] pt-[1mm]">
+          <div className="w-[90%] max-w-full" style={{ minHeight: "21mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+          <div className="mt-[0.6mm] text-center text-[8px] font-semibold leading-none text-zinc-700">{item.sku}</div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function PrintLabel({ item, printSettings, template = LABEL_TEMPLATE_STANDARD }) {
+  if (template === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100) {
+    return <ThermalLandscapeLabel item={item} printSettings={printSettings} print />;
+  }
   const { t } = useTranslation();
   const imageUrl = item.imageUrl || item.resolvedImage;
   const safeImage = getSafeLabelImage(imageUrl, item);

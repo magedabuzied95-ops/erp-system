@@ -2,6 +2,10 @@ import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { normalizeBarcodePrintSettings, paginateBarcodeLabels, resolveBarcodePrintPaper } from "../../../../shared/barcodePrintSettings.js";
 
+const LABEL_TEMPLATE_STANDARD = "standard";
+const LABEL_TEMPLATE_THERMAL_PORTRAIT = "thermal_portrait";
+const LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100 = "thermal_landscape_50x100";
+
 const EAN13_L = [
   "0001101",
   "0011001",
@@ -443,6 +447,7 @@ export const getBarcodeSvg = (value, { width = 360, height = 92, displayText = "
 export const buildBarcodePrintHtml = ({
   labels = [],
   sheetMode = "a4",
+  template = LABEL_TEMPLATE_STANDARD,
   printSettings = {},
   copy = {},
 } = {}) => {
@@ -454,8 +459,48 @@ export const buildBarcodePrintHtml = ({
     price: "",
     ...copy,
   };
-  const normalizedSettings = normalizeBarcodePrintSettings({ ...printSettings, paperSize: sheetMode });
-  const paper = resolveBarcodePrintPaper(normalizedSettings);
+  const resolvedTemplate = String(template || LABEL_TEMPLATE_STANDARD).trim().toLowerCase();
+  const baseSettings = normalizeBarcodePrintSettings({ ...printSettings, paperSize: sheetMode });
+  const normalizedSettings = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
+    ? normalizeBarcodePrintSettings({
+        ...baseSettings,
+        paperSize: "custom",
+        customPaperWidthMm: 100,
+        customPaperHeightMm: 50,
+        labelWidthMm: 100,
+        labelHeightMm: 50,
+        labelsPerRow: 1,
+        labelsPerPage: 1,
+        gapMm: 0,
+        marginTopMm: 1.5,
+        marginRightMm: 1.5,
+        marginBottomMm: 1.5,
+        marginLeftMm: 1.5,
+        barcodeWidthScale: 100,
+        barcodeHeight: Math.max(100, Number(baseSettings.barcodeHeight || 88)),
+      })
+    : resolvedTemplate === LABEL_TEMPLATE_THERMAL_PORTRAIT
+      ? normalizeBarcodePrintSettings({
+          ...baseSettings,
+          paperSize: "custom",
+          customPaperWidthMm: 50,
+          customPaperHeightMm: 100,
+          labelWidthMm: 50,
+          labelHeightMm: 100,
+          labelsPerRow: 1,
+          labelsPerPage: 1,
+          gapMm: 0,
+          marginTopMm: 1.5,
+          marginRightMm: 1.5,
+          marginBottomMm: 1.5,
+          marginLeftMm: 1.5,
+        })
+      : baseSettings;
+  const paper = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
+    ? { paperWidthMm: 100, paperHeightMm: 50, pageCss: "100mm 50mm" }
+    : resolvedTemplate === LABEL_TEMPLATE_THERMAL_PORTRAIT
+      ? { paperWidthMm: 50, paperHeightMm: 100, pageCss: "50mm 100mm" }
+      : resolveBarcodePrintPaper(normalizedSettings);
   const labelsPerRow = Math.max(1, Number(normalizedSettings.labelsPerRow || 1));
   const pages = paginateBarcodeLabels(labels, normalizedSettings.labelsPerPage);
   const contentWidthMm = Math.max(20, paper.paperWidthMm - normalizedSettings.marginLeftMm - normalizedSettings.marginRightMm);
@@ -471,6 +516,36 @@ export const buildBarcodePrintHtml = ({
         height: barcodeHeight,
         displayText: item.barcode,
       });
+      if (resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100) {
+        return `
+          <article class="label thermal-landscape">
+            <div class="thermal-top ${normalizedSettings.showProductImage ? "" : "no-image"}">
+              ${normalizedSettings.showProductImage ? `
+                <div class="thermal-image">
+                  <div class="image-fallback" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                      <path d="M3.27 6.96 12 12.01l8.73-5.05"/>
+                      <path d="M12 22.08V12"/>
+                    </svg>
+                  </div>
+                  ${safeImage ? `<img src="${safeImage}" alt="${item.productName}" onerror="this.style.display='none'" />` : ""}
+                </div>
+              ` : ""}
+              <div class="thermal-details">
+                ${normalizedSettings.showProductName ? `<h2>${item.productName}</h2>` : ""}
+                ${normalizedSettings.showPrice ? `<div class="thermal-price">$${Number(item.salePrice || 0).toFixed(2)}</div>` : ""}
+                ${normalizedSettings.showSizeColor ? `<div class="thermal-size-color">${item.size} / ${item.color}</div>` : ""}
+                ${normalizedSettings.showSkuArticle ? `<div class="thermal-sku-top">${item.sku}</div>` : ""}
+              </div>
+            </div>
+            <div class="thermal-barcode">
+              <div class="thermal-barcode-svg">${barcodeSvg}</div>
+              <div class="thermal-sku-bottom">${item.sku}</div>
+            </div>
+          </article>
+        `;
+      }
       const metaRows = [];
       if (normalizedSettings.showSizeColor) {
         metaRows.push(`
@@ -570,6 +645,96 @@ export const buildBarcodePrintHtml = ({
             page-break-inside: avoid;
             width: ${normalizedSettings.labelWidthMm}mm;
             min-height: ${normalizedSettings.labelHeightMm}mm;
+          }
+          .thermal-landscape {
+            display: grid;
+            grid-template-rows: 1fr auto;
+            gap: 1.5mm;
+            padding: 1.5mm;
+            border-radius: 6px;
+          }
+          .thermal-top {
+            display: grid;
+            grid-template-columns: 35% 65%;
+            gap: 1.5mm;
+            min-height: 0;
+          }
+          .thermal-top.no-image {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .thermal-image {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: #f8fafc;
+          }
+          .thermal-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center;
+            display: block;
+            padding: 1.5mm;
+            position: relative;
+            z-index: 1;
+            background: #ffffff;
+          }
+          .thermal-details {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 0.5mm;
+          }
+          .thermal-details h2 {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.08;
+            font-weight: 900;
+            color: #111827;
+            letter-spacing: 0;
+          }
+          .thermal-price {
+            font-size: 15px;
+            line-height: 1;
+            font-weight: 900;
+            color: #111827;
+          }
+          .thermal-size-color {
+            font-size: 10px;
+            line-height: 1.15;
+            font-weight: 800;
+            color: #1f2937;
+          }
+          .thermal-sku-top,
+          .thermal-sku-bottom {
+            font-size: 8px;
+            line-height: 1;
+            font-weight: 700;
+            color: #475569;
+          }
+          .thermal-barcode {
+            display: flex;
+            min-height: 0;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.6mm;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 1mm 2mm;
+            background: #ffffff;
+          }
+          .thermal-barcode-svg {
+            width: 90%;
+            max-width: 90%;
+            min-height: 21mm;
+          }
+          .thermal-barcode-svg svg {
+            width: 100%;
+            height: auto;
+            display: block;
           }
           .body {
             display: grid;
@@ -692,6 +857,7 @@ export const buildBarcodePrintHtml = ({
 export const openBarcodePrintWindow = ({
   labels = [],
   sheetMode = "a4",
+  template = LABEL_TEMPLATE_STANDARD,
   printSettings = {},
   companyName = APP_NAME,
   companyLogo = "LOGO",
@@ -707,6 +873,7 @@ export const openBarcodePrintWindow = ({
     buildBarcodePrintHtml({
       labels,
       sheetMode,
+      template,
       printSettings,
       companyName,
       companyLogo,
