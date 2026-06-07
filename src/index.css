@@ -72,6 +72,17 @@
     padding-bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
   }
 
+  .employee-portal-min-screen {
+    min-height: 100dvh;
+  }
+
+  @media (max-width: 767px) {
+    .employee-portal-safe-top {
+      padding-top: 12px;
+      padding-top: max(env(safe-area-inset-top), 12px);
+    }
+  }
+
   .mobile-scroll-tabs {
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;

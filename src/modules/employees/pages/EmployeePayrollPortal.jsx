@@ -2380,9 +2380,9 @@ export default function EmployeePayrollPortal() {
   };
 
   return (
-    <main dir={direction} className="min-h-[100dvh] overflow-x-hidden bg-slate-100 px-3 pb-[calc(128px+env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)] text-slate-950">
+    <main dir={direction} className="employee-portal-min-screen overflow-x-hidden bg-slate-100 px-3 pt-3 pb-[calc(128px+env(safe-area-inset-bottom))] text-slate-950 md:pt-4">
       <div className="mx-auto w-full max-w-md md:max-w-3xl xl:max-w-5xl">
-        <header className="flex items-center justify-between gap-3 py-0.5">
+        <header className="employee-portal-safe-top flex items-center justify-between gap-3 py-0.5">
           <div className="flex items-center gap-2 text-sm font-black text-slate-700">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
             <span>{ui("employeeDashboard")}</span>
@@ -3188,7 +3188,7 @@ export default function EmployeePayrollPortal() {
       {chatOpen ? (
         <div className="fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950/70 p-0">
           <section className="mx-auto flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:max-w-md" style={chatPanelStyle} dir={direction}>
-            <div className="sticky top-0 z-30 flex-none bg-[#0b141a] pt-[env(safe-area-inset-top)]">
+            <div className="employee-portal-safe-top sticky top-0 z-30 flex-none bg-[#0b141a]">
               <header className="flex min-h-14 items-center justify-between gap-2 border-b border-white/10 bg-[#1f2c33] px-3 py-2">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
                   <UserRound className="h-4 w-4" />

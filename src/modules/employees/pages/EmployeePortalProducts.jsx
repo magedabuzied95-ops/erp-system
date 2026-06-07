@@ -1,8 +1,11 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
-import { Filter, Loader2, Minus, Package2, Plus, Search, Store, X } from "lucide-react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Camera, Filter, Loader2, Minus, Package2, Plus, Search, Store, X } from "lucide-react";
 import toast from "react-hot-toast";
 
+import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
+import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import { getEmployeePortalProducts, requestEmployeeWarehousePick } from "../services/employeePortalProductsApi";
 import ProductGrid from "../../pos/components/ProductGrid";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
@@ -224,6 +227,8 @@ function ProductPickerSheet({
   selectedColor,
   selectedSize,
   quantity,
+  onBack,
+  onHome,
   onClose,
   onSelectColor,
   onSelectSize,
@@ -246,6 +251,7 @@ function ProductPickerSheet({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-2 py-2 sm:items-center sm:px-4 sm:py-6">
       <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-zinc-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)]">
+        <EmployeePortalNavControls onBack={onBack} onHome={onHome} tone="dark" className="mb-0 px-3 pt-3 sm:px-4" />
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
           <div className="min-w-0">
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Variant selection</div>
@@ -390,6 +396,8 @@ function ProductPickerSheet({
 
 export default function EmployeePortalProducts() {
   const { token } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const queryKey = searchParams.toString();
 
@@ -425,6 +433,8 @@ export default function EmployeePortalProducts() {
   const [loadingSubmit, setLoadingSubmit] = useState(false);
   const lookupDoneRef = useRef(false);
   const filtersPanelRef = useRef(null);
+  const homePath = useMemo(() => buildEmployeePortalHomePath({ pathname: location.pathname, token }), [location.pathname, token]);
+  const openedFromDeepLink = Boolean(directLookup.productId || directLookup.barcode || directLookup.article);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
@@ -632,32 +642,61 @@ export default function EmployeePortalProducts() {
     }
   };
 
+  const handleGoHome = useCallback(() => {
+    navigate(homePath, { replace: !canNavigateEmployeePortalBack() });
+  }, [homePath, navigate]);
+
+  const handleCatalogBack = useCallback(() => {
+    if (openedFromDeepLink || !canNavigateEmployeePortalBack()) {
+      navigate(homePath, { replace: true });
+      return;
+    }
+    navigate(-1);
+  }, [homePath, navigate, openedFromDeepLink]);
+
+  const handleProductDetailsBack = useCallback(() => {
+    if (openedFromDeepLink) {
+      navigate(homePath, { replace: true });
+      return;
+    }
+    setSheetOpen(false);
+  }, [homePath, navigate, openedFromDeepLink]);
+
   if (loading && !normalizedProducts.length) {
     return (
-      <main dir="rtl" className="flex min-h-[100dvh] items-center justify-center bg-zinc-950 px-4 text-white">
-        <Loader2 className="h-7 w-7 animate-spin text-emerald-400" />
+      <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top flex items-center justify-center bg-zinc-950 px-4 text-white">
+        <div className="w-full max-w-7xl">
+          <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} tone="dark" className="px-0" />
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-7 w-7 animate-spin text-emerald-400" />
+          </div>
+        </div>
       </main>
     );
   }
 
   if (error && !normalizedProducts.length) {
     return (
-      <main dir="rtl" className="min-h-[100dvh] bg-zinc-950 px-4 py-6 text-right text-white">
-        <section className="mx-auto max-w-xl rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.25)]">
-          <div className="flex items-center gap-2 text-amber-300">
-            <Store className="h-5 w-5" />
-            <h1 className="text-xl font-black">Employee Portal Products</h1>
-          </div>
-          <p className="mt-3 text-sm font-semibold leading-6 text-zinc-300">{error}</p>
-        </section>
+      <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top bg-zinc-950 px-4 py-6 text-right text-white">
+        <div className="mx-auto max-w-xl">
+          <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} tone="dark" />
+          <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.25)]">
+            <div className="flex items-center gap-2 text-amber-300">
+              <Store className="h-5 w-5" />
+              <h1 className="text-xl font-black">Employee Portal Products</h1>
+            </div>
+            <p className="mt-3 text-sm font-semibold leading-6 text-zinc-300">{error}</p>
+          </section>
+        </div>
       </main>
     );
   }
 
   return (
-    <main dir="rtl" className="min-h-[100dvh] overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_30%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-3 py-3 text-right text-white sm:px-4 sm:py-4">
+    <main dir="rtl" className="employee-portal-min-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_30%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-3 py-3 text-right text-white sm:px-4 sm:py-4">
       <div className="mx-auto max-w-7xl">
-        <header className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] px-4 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur">
+        {!sheetOpen ? <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} tone="dark" /> : null}
+        <header className="employee-portal-safe-top rounded-[1.5rem] border border-white/10 bg-white/[0.03] px-4 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300">Employee Portal</div>
@@ -743,6 +782,8 @@ export default function EmployeePortalProducts() {
             selectedColor={selectedColor}
             selectedSize={selectedSize}
             quantity={selectedQuantity}
+            onBack={handleProductDetailsBack}
+            onHome={handleGoHome}
             onSelectColor={handleSelectColor}
             onSelectSize={handleSelectSize}
             onChangeQuantity={setSelectedQuantity}

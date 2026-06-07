@@ -473,7 +473,7 @@ export default function EmployeePortal() {
 
   if (loading) {
     return (
-      <main dir="rtl" className="flex min-h-[100dvh] items-center justify-center bg-slate-100 p-5 font-sans text-slate-800">
+      <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top flex items-center justify-center bg-slate-100 p-5 font-sans text-slate-800">
         <Loader2 className="h-6 w-6 animate-spin" />
       </main>
     );
@@ -481,7 +481,7 @@ export default function EmployeePortal() {
 
   if (error) {
     return (
-      <main dir="rtl" className="min-h-[100dvh] bg-slate-100 px-4 py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] font-sans text-slate-950">
+      <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top bg-slate-100 px-4 py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] font-sans text-slate-950">
         <section className="mx-auto max-w-md rounded-3xl border border-amber-200 bg-white p-5 text-right shadow-sm">
           <AlertTriangle className="h-8 w-8 text-amber-600" />
           <h1 className="mt-4 text-2xl font-black">بوابة الموظف غير متاحة</h1>
@@ -496,9 +496,9 @@ export default function EmployeePortal() {
   }
 
   return (
-    <main dir="rtl" className="min-h-[100dvh] bg-slate-100 px-3 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] font-sans text-slate-950">
+    <main dir="rtl" className="employee-portal-min-screen bg-slate-100 px-3 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] font-sans text-slate-950">
       <div className="mx-auto max-w-md">
-        <header className="rounded-3xl bg-slate-950 p-4 text-right text-white shadow-xl shadow-slate-300">
+        <header className="employee-portal-safe-top rounded-3xl bg-slate-950 p-4 text-right text-white shadow-xl shadow-slate-300">
           <div className="text-xs font-black text-slate-300">بوابة الموظف</div>
           <h1 className="mt-2 text-2xl font-black leading-8">{portal?.employee?.name || "مهامي"}</h1>
           <div className="mt-1 text-sm font-semibold leading-6 text-slate-300">{portal?.employee?.branch_name || portal?.employee?.employee_code}</div>
