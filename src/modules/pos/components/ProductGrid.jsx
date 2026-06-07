@@ -69,6 +69,7 @@ function useProductGridColumns() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
+  if (width < 380) return 1;
   if (width < 640) return 2;
   if (width >= 1536) return Math.max(2, Math.floor(width / 170));
   return Math.max(2, Math.floor(width / 156));
@@ -138,9 +139,9 @@ function ProductGrid({
       <VirtualGrid
         items={products}
         columns={columns}
-        estimateRowHeight={190}
-        className="h-[calc(100vh-18rem)] min-h-[30rem] overflow-auto pr-1"
-        gridClassName="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(136px,1fr))] sm:gap-2.5 2xl:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]"
+        estimateRowHeight={196}
+        className="h-[calc(100dvh-18rem)] min-h-[30rem] overflow-auto pr-1 [-webkit-overflow-scrolling:touch]"
+        gridClassName="grid grid-cols-1 gap-2 max-[380px]:grid-cols-1 min-[381px]:grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(136px,1fr))] sm:gap-2.5 2xl:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]"
         itemKey={(product) => String(product.product_id || product.id)}
         renderItem={renderProduct}
       />
@@ -148,7 +149,7 @@ function ProductGrid({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(136px,1fr))] sm:gap-2.5 2xl:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
+    <div className="grid grid-cols-1 gap-2 max-[380px]:grid-cols-1 min-[381px]:grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(136px,1fr))] sm:gap-2.5 2xl:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
       {products.map((product, index) => renderProduct(product, index, String(product.product_id || product.id)))}
     </div>
   );
@@ -184,10 +185,10 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
       style={{ contentVisibility: "auto", containIntrinsicSize: "132px 172px" }}
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-start shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition duration-200 hover:-translate-y-0.5 hover:border-white/20"
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-start shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition duration-200 hover:-translate-y-0.5 hover:border-white/20"
     >
       <div className="relative p-1.5 pb-0">
-        <div className="relative h-20 overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 sm:h-24">
+        <div className="relative h-24 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 max-[380px]:h-28 sm:h-24">
         {cover ? (
           <ProductImage
             src={cover}
@@ -211,18 +212,18 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-1 p-1.5 pt-1.5 sm:p-2">
-        <h3 className="min-w-0 text-center text-[0.7rem] font-semibold leading-tight text-zinc-100 sm:text-[0.76rem]">
-          <span className="line-clamp-2 min-h-[1.75rem] sm:min-h-[1.9rem]">{product.name}</span>
+        <h3 className="min-w-0 text-center text-[0.72rem] font-semibold leading-tight text-zinc-100 sm:text-[0.76rem]">
+          <span className="line-clamp-2 min-h-[2rem] sm:min-h-[1.9rem]">{product.name}</span>
         </h3>
 
-        <div className={`mt-auto rounded-lg border px-2 py-1 text-center shadow-sm ${
+        <div className={`mt-auto rounded-xl border px-2 py-1.5 text-center shadow-sm ${
           hasPrice ? "border-violet-500/20 bg-black/55" : "border-amber-300/30 bg-amber-500/10"
         }`}>
-          <div className={`truncate text-[7px] font-black uppercase tracking-[0.12em] ${hasPrice ? "text-violet-300" : "text-amber-200"}`}>
+          <div className={`truncate text-[8px] font-black uppercase tracking-[0.12em] ${hasPrice ? "text-violet-300" : "text-amber-200"}`}>
             {saleBadge || t("pos.productGrid.price")}
           </div>
           {originalPrice ? <div className="text-[9px] font-bold leading-tight text-zinc-400 line-through decoration-zinc-300/70">{originalPrice}</div> : null}
-          <div className={`truncate text-[0.78rem] font-black leading-tight sm:text-[0.86rem] ${hasPrice ? "text-white" : "text-amber-100"}`}>
+          <div className={`truncate text-[0.82rem] font-black leading-tight sm:text-[0.86rem] ${hasPrice ? "text-white" : "text-amber-100"}`}>
             {formatProductPrice(product, t)}
           </div>
         </div>

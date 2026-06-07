@@ -26,7 +26,11 @@ import {
   ShieldCheck,
   ShoppingBag,
   Package2,
+  Minus,
+  Plus,
+  Store,
   UserCheck,
+  User,
   Warehouse,
   ReceiptText,
 } from "lucide-react";
@@ -103,6 +107,11 @@ const defaultState = {
   serviceFee: 0,
   quickCustomer: { name: "", phone: "", source_key: "" },
 };
+
+const isBrowser = () => typeof window !== "undefined";
+const isMobileViewport = () => isBrowser() && window.matchMedia?.("(max-width: 1023px)")?.matches;
+const isStandaloneDisplayMode = () =>
+  isBrowser() && (window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator?.standalone === true);
 
 const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
 const POS_CHECKOUT_DEBUG = Boolean(
@@ -1287,6 +1296,7 @@ function POSPro() {
   const [barcodeShopProduct, setBarcodeShopProduct] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [mobileProductQuantity, setMobileProductQuantity] = useState(1);
   const [customerCreateOpen, setCustomerCreateOpen] = useState(false);
   const [recentOperationsOpen, setRecentOperationsOpen] = useState(false);
   const [recentOperationsOpenedAt, setRecentOperationsOpenedAt] = useState(0);
@@ -1297,6 +1307,7 @@ function POSPro() {
   const [quickExpense, setQuickExpense] = useState(quickExpenseDefaults);
   const [quickExpenseSaving, setQuickExpenseSaving] = useState(false);
   const isVariantModalOpen = Boolean(barcodeShopProduct);
+  const [viewportIsMobile, setViewportIsMobile] = useState(() => isMobileViewport());
 
   const searchRef = useRef(null);
   const posShellRef = useRef(null);
@@ -1309,7 +1320,37 @@ function POSPro() {
   const paymobPollingRef = useRef({ timer: null, cancelled: false });
   const deferredSearch = useDeferredValue(search);
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
+  const currentTenant = useMemo(() => getCurrentTenant() || {}, []);
   const currentUser = useMemo(() => getCurrentUser() || {}, []);
+  const activeSalesperson = useMemo(
+    () => salesEmployees.find((employee) => String(employee.id || "") === String(selectedSalespersonId || "")) || null,
+    [salesEmployees, selectedSalespersonId]
+  );
+  const storeDisplayName = useMemo(
+    () =>
+      String(
+        posShiftBranch?.name ||
+          activePosShift?.branch_name ||
+          currentTenant?.companyName ||
+          currentTenant?.company_name ||
+          currentTenant?.name ||
+          "POSPro"
+      ).trim() || "POSPro",
+    [activePosShift?.branch_name, currentTenant?.companyName, currentTenant?.company_name, currentTenant?.name, posShiftBranch?.name]
+  );
+  const salespersonDisplayName = useMemo(() => {
+    if (activeSalesperson) {
+      return String(
+        activeSalesperson.full_name ||
+          activeSalesperson.name ||
+          activeSalesperson.employee_name ||
+          activeSalesperson.pos_alias ||
+          activeSalesperson.user_name ||
+          `#${activeSalesperson.id || ""}`
+      ).trim();
+    }
+    return salesSettings.allow_sale_without_salesperson ? "بدون بائع" : "اختر بائع";
+  }, [activeSalesperson, salesSettings.allow_sale_without_salesperson]);
   const canOverrideSeller = useMemo(
     () => sellerOverrideAllowed || isAdminUser(currentUser) || hasPermission("pos.override_seller", currentUser) || hasPermission("orders.edit", currentUser),
     [currentUser, sellerOverrideAllowed]
@@ -1348,6 +1389,22 @@ function POSPro() {
       });
     }
   }, [activePosShift?.id, activePosShift?.branch_id, cardAmount, cart, cashAmount, customerWalletAmount, invoiceDiscount, invoiceDiscountReason, invoiceDiscountType, invoiceDiscountValue, invoiceNumber, paymentMode, posShiftBranch?.id, selectedSalespersonId, serviceFee, vodafoneCashAmount, walletAmount]);
+
+  useEffect(() => {
+    if (!isBrowser()) return undefined;
+    const updateViewport = () => setViewportIsMobile(isMobileViewport());
+    updateViewport();
+    window.addEventListener("resize", updateViewport, { passive: true });
+    window.visualViewport?.addEventListener?.("resize", updateViewport, { passive: true });
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      window.visualViewport?.removeEventListener?.("resize", updateViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedProduct) setMobileProductQuantity(1);
+  }, [selectedProduct]);
 
   useEffect(() => {
     if (!activePosShift?.id || shiftSessionRecoveredRef.current) return;
@@ -1759,6 +1816,10 @@ function POSPro() {
     () =>
       customers.find((item) => String(item?.id || item?.customer_id) === String(selectedCustomerId)) || null,
     [customers, selectedCustomerId]
+  );
+  const mobileSelectedCustomerLabel = useMemo(
+    () => String(customer?.name || customer?.customer_name || customerSearch?.trim() || "عميل غير محدد").trim() || "عميل غير محدد",
+    [customer?.customer_name, customer?.name, customerSearch]
   );
   const customerCreditBalance = useMemo(
     () => Math.max(0, getCustomerCreditBalance(customer, loyaltyProfile)),
@@ -2392,6 +2453,24 @@ function POSPro() {
     );
   }, [activeProduct, activeVariant, selectedColor]);
 
+  const mobileProductStock = useMemo(
+    () => Math.max(0, normalizeStockQuantity(activeVariant?.stock_quantity ?? activeVariant?.stock ?? activeProduct?.total_stock ?? activeProduct?.stock)),
+    [activeProduct?.stock, activeProduct?.total_stock, activeVariant?.stock, activeVariant?.stock_quantity]
+  );
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+    setMobileProductQuantity((current) => Math.min(Math.max(1, Number(current || 1)), mobileProductStock));
+  }, [mobileProductStock, selectedProduct]);
+
+  const handleAddSelectedProductToCart = useCallback(() => {
+    if (!activeProduct || !activeVariant) return;
+    const quantity = Math.min(mobileProductStock, Math.max(1, Math.trunc(Number(mobileProductQuantity || 1) || 1)));
+    addVariantToCart(activeProduct, activeVariant, { quantity });
+    setSelectedProduct(null);
+    setMobileProductQuantity(1);
+  }, [activeProduct, activeVariant, addVariantToCart, mobileProductQuantity, mobileProductStock]);
+
   useEffect(() => {
     console.log("[pos-mobile-variant-modal-open]", {
       isVariantModalOpen,
@@ -2463,6 +2542,7 @@ function POSPro() {
       }),
     [cart, computedInvoiceDiscount, serviceFee, loyaltyValidation, couponValidation]
   );
+  const cartItemCount = useMemo(() => cart.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)), 0), [cart]);
 
   const exchangeCreditAmount = Math.max(0, Number(exchangeState?.creditAmount || 0));
   const appliedExchangeCredit = Math.min(exchangeCreditAmount, Math.max(0, Number(cartTotals.total || 0)));
@@ -2813,7 +2893,9 @@ function POSPro() {
     }
   };
 
-  const addVariantToCart = useCallback((product, variant) => {
+  const addVariantToCart = useCallback((product, variant, options = {}) => {
+    const requestedQuantity = Math.max(1, Math.trunc(Number(options.quantity || 1) || 1));
+    const silent = Boolean(options.silent);
     if (!variant) {
       toast.error(t("pos.toasts.variantNotAvailable"));
       return;
@@ -2864,7 +2946,8 @@ function POSPro() {
     setCart((prev) => {
       const existing = prev.find((item) => item.key === key);
       if (existing) {
-        if (Number(existing.quantity || 0) >= liveStock) {
+        const nextQuantity = Math.min(liveStock, Number(existing.quantity || 0) + requestedQuantity);
+        if (nextQuantity <= Number(existing.quantity || 0)) {
           toast.error(t("pos.toasts.stockLimitReached"));
           return prev;
         }
@@ -2875,7 +2958,7 @@ function POSPro() {
                 ...item,
                 stock: liveStock,
                 stock_quantity: liveStock,
-                quantity: Number(item.quantity || 0) + 1,
+                quantity: nextQuantity,
               }
             : item
         );
@@ -2925,12 +3008,18 @@ function POSPro() {
           variation_mode: product.variation_mode || "",
           fixed_size_label: product.fixed_size_label || "",
           lineDiscount: 0,
-          quantity: 1,
+          quantity: Math.min(requestedQuantity, liveStock),
         },
       ];
     });
 
-    toast.success(t("pos.toasts.addedToCart", { name: product.name || product.product_name }));
+    if (!silent) {
+      toast.success(
+        requestedQuantity > 1
+          ? t("pos.toasts.addedToCart", { name: `${product.name || product.product_name} ×${requestedQuantity}` })
+          : t("pos.toasts.addedToCart", { name: product.name || product.product_name })
+      );
+    }
   }, [products, t]);
 
   const quickAddProduct = (product) => {
@@ -2956,6 +3045,21 @@ function POSPro() {
 
   const handleSelectProduct = (product) => {
     const variants = Array.isArray(product.variants) ? product.variants : [];
+    if (viewportIsMobile) {
+      const firstVariant = variants.find((variant) => normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0) || variants[0] || null;
+      setSelectedColor(firstVariant?.color || "");
+      const firstInStockForColor =
+        variants.find(
+          (variant) =>
+            String(variant.color || "") === String(firstVariant?.color || "") &&
+            normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0
+        ) || firstVariant;
+      setSelectedSize(firstInStockForColor?.size || "");
+      setMobileProductQuantity(1);
+      setSelectedProduct(product);
+      return;
+    }
+
     if (variants.length <= 1) {
       quickAddProduct(product);
       return;
@@ -2970,6 +3074,7 @@ function POSPro() {
           normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0
       ) || firstVariant;
     setSelectedSize(firstInStockForColor?.size || "");
+    setMobileProductQuantity(1);
     setSelectedProduct(product);
   };
 
@@ -5140,7 +5245,7 @@ function POSPro() {
 
   if (!isShiftActive) {
     return (
-      <div className="h-screen w-screen min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white">
+      <div className="min-h-[100dvh] w-full min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white">
         <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-3 overflow-y-auto p-2 sm:p-3 lg:p-4">
           <div className="flex shrink-0 items-center justify-end">
             <button
@@ -5174,10 +5279,44 @@ function POSPro() {
   return (
     <div
       ref={posShellRef}
-      className="h-screen w-screen min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white"
+      className="min-h-[100dvh] w-full min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white"
     >
-      <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-2 overflow-y-auto p-2 pb-24 sm:p-3 sm:pb-28 lg:p-3 xl:pb-3">
-        <div className={`flex shrink-0 items-center justify-between gap-2 overflow-x-auto ${isRtl ? "flex-row-reverse" : ""}`}>
+      <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-2 overflow-y-auto overflow-x-hidden p-2 pb-[calc(10rem+env(safe-area-inset-bottom))] sm:p-3 sm:pb-[calc(8rem+env(safe-area-inset-bottom))] lg:p-3 xl:pb-3">
+        {viewportIsMobile ? (
+          <div className="sticky top-0 z-40 -mx-2 -mt-2 border-b border-white/10 bg-zinc-950/96 px-2 pt-[calc(env(safe-area-inset-top)+0.6rem)] pb-2 shadow-2xl shadow-black/20 backdrop-blur-xl lg:hidden">
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                  <Store className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{storeDisplayName}</span>
+                </div>
+                <div className="mt-1 truncate text-sm font-black text-white">{salespersonDisplayName}</div>
+                <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-400">{mobileSelectedCustomerLabel}</div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMobileCartOpen(true)}
+                  className="inline-flex h-11 max-w-[8.75rem] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 text-left text-[11px] font-black text-white shadow-[0_0_18px_rgba(0,0,0,0.16)]"
+                >
+                  <User className="h-4 w-4 shrink-0 text-emerald-200" />
+                  <span className="truncate">{mobileSelectedCustomerLabel}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileCartOpen(true)}
+                  className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-emerald-500 px-3 text-[11px] font-black text-black shadow-[0_0_18px_rgba(16,185,129,0.18)]"
+                >
+                  <ReceiptText className="h-4 w-4 shrink-0" />
+                  <span className="tabular-nums">{cartItemCount}</span>
+                  <span className="hidden min-[390px]:inline tabular-nums">{formatCurrency(cartTotals.total)}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <div className={`hidden shrink-0 items-center justify-between gap-2 overflow-x-hidden ${isRtl ? "flex-row-reverse" : ""} lg:flex`}>
           <div className="hidden shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 lg:block">
             وردية مفتوحة: {currentUser?.name || currentUser?.email || "User"} | {posShiftBranch?.name || activePosShift?.branch_name || "Branch"} | {activePosShift?.opened_at ? new Date(activePosShift.opened_at).toLocaleString() : ""}
           </div>
@@ -5530,7 +5669,8 @@ function POSPro() {
 
         <div className="grid min-w-0 flex-1 gap-3 xl:min-h-0 xl:grid-cols-[minmax(0,48%)_minmax(0,52%)] 2xl:grid-cols-[minmax(0,48%)_minmax(0,52%)]">
           <section className="min-w-0 space-y-2 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-2 shadow-xl shadow-black/10 backdrop-blur">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className="sticky top-[calc(env(safe-area-inset-top)+4.9rem)] z-30 -mx-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl xl:static xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <div className="relative min-w-0 flex-[1_1_100%] sm:flex-1 2xl:max-w-md">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
                   <input
@@ -5590,6 +5730,7 @@ function POSPro() {
                     <span>مصروف</span>
                   </button>
                 ) : null}
+            </div>
             </div>
 
             <ProductGrid
@@ -5695,17 +5836,38 @@ function POSPro() {
 
         {!isVariantModalOpen && !selectedProduct ? (
           <StickyMobileActionBar>
-            <button
-              type="button"
-              onClick={() => setMobileCartOpen(true)}
-              className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-emerald-500 px-3 text-sm font-black text-black transition hover:bg-emerald-400"
-            >
-              <span className="inline-flex min-w-0 items-center gap-2">
-                <ShoppingBag className="h-4 w-4 shrink-0" />
-                <span className="truncate">{cart.length} {t("pos.cart.items", "items")}</span>
-              </span>
-              <span dir="ltr" className="shrink-0 tabular-nums [unicode-bidi:isolate]">{formatCurrency(cartTotals.total)}</span>
-            </button>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setMobileCartOpen(true)}
+                className="flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.05] px-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
+              >
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <ShoppingBag className="h-4 w-4 shrink-0 text-emerald-200" />
+                  <span className="truncate">{cartItemCount} {t("pos.cart.items", "items")}</span>
+                </span>
+                <span dir="ltr" className="shrink-0 tabular-nums text-emerald-200 [unicode-bidi:isolate]">{formatCurrency(cartTotals.total)}</span>
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMobileCartOpen(true)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
+                >
+                  <ReceiptText className="h-4 w-4" />
+                  فتح الفاتورة
+                </button>
+                <button
+                  type="button"
+                  disabled={checkoutLoading || cart.length === 0}
+                  onClick={handleCheckout}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+                  الدفع
+                </button>
+              </div>
+            </div>
           </StickyMobileActionBar>
         ) : null}
 
@@ -5818,7 +5980,164 @@ function POSPro() {
           </Suspense>
         ) : null}
 
-        {selectedProduct && topSelectionInfo ? (
+        {viewportIsMobile && selectedProduct && topSelectionInfo ? (
+          <MobileBottomSheet
+            open
+            title={activeProduct.name || t("pos.labels.variantSelection", "Variant selection")}
+            onClose={() => {
+              setSelectedProduct(null);
+              setMobileProductQuantity(1);
+            }}
+            className="xl:hidden"
+            footer={
+              <button
+                type="button"
+                onClick={handleAddSelectedProductToCart}
+                disabled={!activeVariant || mobileProductStock <= 0}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {t("pos.labels.addToInvoiceArabic", "إضافة للفاتورة")}
+              </button>
+            }
+          >
+            <div className="space-y-3 pb-2">
+              <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+                  {activeVariantImageUrl ? (
+                    <img
+                      src={activeVariantImageUrl}
+                      alt={activeProduct.name}
+                      loading="eager"
+                      className="h-full w-full object-contain p-1.5"
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <Package2 className="h-9 w-9 text-zinc-600" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">{t("pos.labels.variantSelection")}</div>
+                  <div className="mt-1 line-clamp-2 text-sm font-black leading-tight text-white">{activeProduct.name}</div>
+                  <div className="mt-1 truncate text-xs font-semibold text-zinc-400">{activeProduct.sku || activeProduct.barcode || t("common.notAvailable")}</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-black text-white">
+                      {formatCurrency(activeVariant?.price || activeProduct.sale_price || 0)}
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-black text-white">
+                      {t("pos.labels.stock")}: {mobileProductStock}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("pos.labels.color")}</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {topSelectionInfo.colors.map((color) => (
+                      <button
+                        key={color || "default"}
+                        type="button"
+                        onClick={() => {
+                          setSelectedColor(color);
+                          const firstForColor = (activeProduct.variants || []).find(
+                            (variant) =>
+                              String(variant.color || "") === String(color || "") &&
+                              normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0
+                          ) || (activeProduct.variants || []).find(
+                            (variant) => String(variant.color || "") === String(color || "")
+                          );
+                          setSelectedSize(firstForColor?.size || "");
+                        }}
+                        className={`min-h-10 rounded-full border px-3 py-2 text-xs font-black transition ${
+                          selectedColor === color
+                            ? "border-emerald-400/30 bg-emerald-500 text-black"
+                            : "border-white/10 bg-black/30 text-white hover:bg-white/10"
+                        }`}
+                      >
+                        {color || t("pos.labels.default")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("pos.labels.size")}</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {topSelectionInfo.sizes.map((size) => {
+                      const sizeVariant = (activeProduct.variants || []).find(
+                        (variant) =>
+                          String(variant.color || "") === String(selectedColor || "") &&
+                          String(variant.size || "") === String(size || "")
+                      );
+                      const stock = normalizeStockQuantity(sizeVariant?.stock_quantity ?? sizeVariant?.stock);
+                      const disabled = !sizeVariant || stock <= 0;
+                      return (
+                        <button
+                          key={size || "one-size"}
+                          type="button"
+                          onClick={() => setSelectedSize(size)}
+                          disabled={disabled}
+                          className={`min-h-10 rounded-full border px-3 py-2 text-xs font-black transition ${
+                            selectedSize === size
+                              ? "border-emerald-400/30 bg-emerald-500 text-black"
+                              : disabled
+                                ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600"
+                                : "border-white/10 bg-black/30 text-white hover:bg-white/10"
+                          }`}
+                        >
+                          <span className="block leading-tight">{size || t("pos.labels.oneSize")}</span>
+                          <span className={`block text-[10px] leading-tight ${disabled ? "text-zinc-600" : "text-zinc-300"}`}>
+                            {t("pos.labels.stock")}: {stock}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("pos.labels.quantity", "Quantity")}</div>
+                      <div className="mt-0.5 text-xs font-semibold text-zinc-400">{t("pos.labels.selectQuantity", "Choose how many to add")}</div>
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-2 py-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setMobileProductQuantity((current) => Math.max(1, Number(current || 1) - 1))}
+                        disabled={mobileProductQuantity <= 1}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="Decrease quantity"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="min-w-10 text-center text-base font-black text-white tabular-nums">{mobileProductQuantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => setMobileProductQuantity((current) => Math.min(mobileProductStock || Number.MAX_SAFE_INTEGER, Number(current || 1) + 1))}
+                        disabled={mobileProductStock > 0 && mobileProductQuantity >= mobileProductStock}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="Increase quantity"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black text-zinc-300">
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">{activeVariant?.color || t("pos.labels.default")} / {activeVariant?.size || t("pos.labels.oneSize")}</span>
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">{activeVariant?.sku || activeProduct.sku || t("common.notAvailable")}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </MobileBottomSheet>
+        ) : null}
+
+        {!viewportIsMobile && selectedProduct && topSelectionInfo ? (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-2 py-2 sm:px-4 sm:py-6 lg:items-center">
             <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.25rem] border border-white/10 bg-zinc-950 shadow-2xl shadow-black/50 sm:rounded-[2rem]">
               <div className="flex items-start justify-between gap-3 border-b border-white/10 p-3 sm:gap-4 sm:p-5">
@@ -5831,7 +6150,10 @@ function POSPro() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setSelectedProduct(null)}
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    setMobileProductQuantity(1);
+                  }}
                   className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/10 sm:rounded-2xl sm:text-sm"
                 >
                   {t("common.close")}
@@ -6031,6 +6353,7 @@ function POSPro() {
                       onClick={() => {
                         if (activeVariant) addVariantToCart(activeProduct, activeVariant);
                         setSelectedProduct(null);
+                        setMobileProductQuantity(1);
                       }}
                       disabled={!activeVariant || normalizeStockQuantity(activeVariant.stock_quantity ?? activeVariant.stock) <= 0}
                       className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-3xl bg-emerald-500 px-4 py-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:hidden"
@@ -6046,6 +6369,7 @@ function POSPro() {
                     onClick={() => {
                       if (activeVariant) addVariantToCart(activeProduct, activeVariant);
                       setSelectedProduct(null);
+                      setMobileProductQuantity(1);
                     }}
                     disabled={!activeVariant || normalizeStockQuantity(activeVariant.stock_quantity ?? activeVariant.stock) <= 0}
                     className="hidden w-full items-center justify-center gap-2 rounded-3xl bg-emerald-500 px-4 py-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
