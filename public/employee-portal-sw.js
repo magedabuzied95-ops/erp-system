@@ -11,7 +11,11 @@ const BADGE_DB_NAME = "employee-portal-badges";
 const BADGE_STORE_NAME = "badge-state";
 const BADGE_STATE_KEY = "counts";
 const EMPTY_BADGE_STATE = { unreadChats: 0, pendingNotifications: 0, newTasks: 0 };
+const EMPLOYEE_PORTAL_SCOPE_PREFIXES = ["/employee/portal/", "/employee-portal/", "/employee-app/"];
 let lastBadgeClearAt = 0;
+
+const isEmployeePortalPath = (pathname = "") =>
+  EMPLOYEE_PORTAL_SCOPE_PREFIXES.some((prefix) => String(pathname || "").startsWith(prefix));
 
 const badgeTotal = (state = EMPTY_BADGE_STATE) =>
   Math.max(0, Number(state.unreadChats || 0) + Number(state.pendingNotifications || 0) + Number(state.newTasks || 0));
@@ -105,7 +109,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME && key.startsWith("employee-portal")).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -115,6 +119,7 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (!isEmployeePortalPath(url.pathname)) return;
 
   if (request.mode === "navigate") {
     event.respondWith(

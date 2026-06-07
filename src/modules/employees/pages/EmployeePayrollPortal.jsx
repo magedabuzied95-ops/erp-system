@@ -1114,9 +1114,25 @@ export default function EmployeePayrollPortal() {
 
   useEffect(() => {
     if (!isBrowser() || !("serviceWorker" in navigator)) return undefined;
-    navigator.serviceWorker.register(`/employee-portal-sw.js?v=${EMPLOYEE_PORTAL_PWA_VERSION}`).catch((err) => {
-      console.warn("[employee-payroll-portal] service worker registration failed", err);
-    });
+    const scope = window.location.pathname.startsWith("/employee-app/") ? "/employee-app/" : "/employee-portal/";
+    const scriptUrl = `/employee-portal-sw.js?v=${EMPLOYEE_PORTAL_PWA_VERSION}`;
+    const cleanupOldRegistrations = async () => {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(async (registration) => {
+        const activeScript = registration.active?.scriptURL || registration.waiting?.scriptURL || registration.installing?.scriptURL || "";
+        const isEmployeeWorker = activeScript.includes("/employee-portal-sw.js");
+        const isRootScoped = registration.scope === `${window.location.origin}/`;
+        const isWrongEmployeeScope = registration.scope !== `${window.location.origin}${scope}` && (registration.scope.includes("/employee-app/") || registration.scope.includes("/employee-portal/"));
+        if (isEmployeeWorker && (isRootScoped || isWrongEmployeeScope)) {
+          await registration.unregister().catch(() => null);
+        }
+      }));
+    };
+    cleanupOldRegistrations()
+      .then(() => navigator.serviceWorker.register(scriptUrl, { scope }))
+      .catch((err) => {
+        console.warn("[employee-payroll-portal] service worker registration failed", err);
+      });
     return undefined;
   }, []);
 

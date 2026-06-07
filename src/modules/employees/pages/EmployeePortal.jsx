@@ -311,9 +311,24 @@ export default function EmployeePortal() {
 
   useEffect(() => {
     if (!isBrowser() || !("serviceWorker" in navigator)) return undefined;
-    navigator.serviceWorker.register("/employee-portal-sw.js").catch((err) => {
-      console.warn("[employee-portal] service worker registration failed", err);
-    });
+    const scope = "/employee/portal/";
+    const scriptUrl = "/employee-portal-sw.js";
+    const cleanupOldRegistrations = async () => {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(async (registration) => {
+        const activeScript = registration.active?.scriptURL || registration.waiting?.scriptURL || registration.installing?.scriptURL || "";
+        const isEmployeeWorker = activeScript.includes("/employee-portal-sw.js");
+        const isRootScoped = registration.scope === `${window.location.origin}/`;
+        if (isEmployeeWorker && (isRootScoped || registration.scope !== `${window.location.origin}${scope}`)) {
+          await registration.unregister().catch(() => null);
+        }
+      }));
+    };
+    cleanupOldRegistrations()
+      .then(() => navigator.serviceWorker.register(scriptUrl, { scope }))
+      .catch((err) => {
+        console.warn("[employee-portal] service worker registration failed", err);
+      });
     return undefined;
   }, []);
 
