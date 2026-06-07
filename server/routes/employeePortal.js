@@ -218,6 +218,11 @@ router.get("/:token/products", async (req, res) => {
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
     const payload = await loadEmployeePortalProducts({ employee, query: req.query || {} });
+    console.info("[employee-portal-products:fixed-query]", {
+      requestId: req.id,
+      employeeId: employee.id ?? null,
+      productCount: Array.isArray(payload.products) ? payload.products.length : 0,
+    });
     return res.json({ success: true, ...payload });
   } catch (error) {
     console.error("[employee-payroll-portal] product browser load error", error);
@@ -284,6 +289,14 @@ router.post("/:token/warehouse-request", verifyEmployeePortalToken, async (req, 
     };
 
     emitToRooms([], "warehouse-pick-alert", alertPayload);
+    console.info("[employee-portal-warehouse-request:fixed-query]", {
+      requestId: req.id,
+      employeeId: employee.id ?? null,
+      productId,
+      color,
+      size,
+      quantity,
+    });
 
     return res.status(201).json({
       success: true,

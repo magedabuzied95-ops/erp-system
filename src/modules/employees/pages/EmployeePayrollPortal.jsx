@@ -2385,65 +2385,68 @@ export default function EmployeePayrollPortal() {
           </div>
         ) : (
           <section className="mt-1 space-y-3 pb-4">
-            <div className="sticky top-[calc(env(safe-area-inset-top)+8px)] z-30 grid min-h-[76px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[24px] border border-slate-200 bg-white/95 px-3 py-2.5 shadow-sm backdrop-blur md:min-h-[84px] md:px-4 md:py-3">
-              <EmployeeHeaderAvatar
-                src={profilePhotoUrl}
-                originalSrc={rawProfilePhotoUrl}
-                initials={profile.avatar_initials}
-                alt={profile.name || "Employee avatar"}
-                statusClassName={employeeStatusDotClassName}
-              />
-              <div className="min-w-0 self-center">
-                <div className="max-w-full whitespace-normal break-words text-[15px] font-black leading-5 text-slate-950 sm:text-base md:text-[1.05rem]" dir="auto">
-                  {profile.name}
+            <div className="sticky top-[calc(env(safe-area-inset-top)+8px)] z-30 rounded-[24px] border border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur md:px-4 md:py-4">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0">
+                  <EmployeeHeaderAvatar
+                    src={profilePhotoUrl}
+                    originalSrc={rawProfilePhotoUrl}
+                    initials={profile.avatar_initials}
+                    alt={profile.name || "Employee avatar"}
+                    statusClassName={employeeStatusDotClassName}
+                  />
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-black text-slate-500">
-                  <span className={`h-2 w-2 rounded-full ${employeeStatusDotClassName}`} />
-                  <span className="whitespace-nowrap">{employeeStatus}</span>
-                  {profile.branch ? <span className="text-slate-300">•</span> : null}
-                  {profile.branch ? <span className="min-w-0 max-w-full whitespace-normal break-words">{profile.branch}</span> : null}
+                <div className="min-w-0 flex-1">
+                  <div className="break-words text-[15px] font-black leading-5 text-slate-950 sm:text-base md:text-[1.05rem]" dir="auto">
+                    {profile.name}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-black text-slate-500">
+                    <span className={`h-2 w-2 rounded-full ${employeeStatusDotClassName}`} />
+                    <span className="whitespace-nowrap">{employeeStatus}</span>
+                    {profile.branch ? <span className="text-slate-300">•</span> : null}
+                    {profile.branch ? <span className="break-words">{profile.branch}</span> : null}
+                  </div>
+                  {profile.code ? <div className="mt-1 break-words text-[11px] font-bold text-slate-400">{profile.code}</div> : null}
                 </div>
-                {profile.code ? <div className="mt-1 max-w-full whitespace-normal break-words text-[11px] font-bold text-slate-400">{profile.code}</div> : null}
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
-                <button
-                  type="button"
-                  onClick={() => window.location.assign(`/employee-portal/${encodeURIComponent(token)}/products`)}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-500"
-                >
-                  <Package2 className="h-4 w-4" />
-                  <span>طلب من المخزن</span>
-                </button>
 
-                <div className="flex flex-wrap gap-2 sm:justify-end">
-                  {[
-                    { key: "notifications", count: badgeCounts.unreadNotifications || 0, label: ui("notificationsShort"), Icon: Bell, tone: "emerald" },
-                    { key: "display-refill", count: badgeCounts.displayRefillAlerts || 0, label: ui("displayRefillShort"), Icon: AlertTriangle, tone: "amber" },
-                    { key: "tasks", count: badgeCounts.newTasks || 0, label: ui("tasksShort"), Icon: ClipboardList, tone: "sky" },
-                    { key: "requests", count: badgeCounts.pendingNotifications || 0, label: ui("requestsShort"), Icon: MessageCircle, tone: "orange" },
-                  ].map(({ key, count, label, Icon, tone }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setActiveTab(key)}
-                      className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-black shadow-sm transition ${
-                        tone === "emerald"
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : tone === "amber"
-                            ? "border-amber-200 bg-amber-50 text-amber-700"
-                            : tone === "sky"
-                              ? "border-sky-200 bg-sky-50 text-sky-700"
-                              : "border-orange-200 bg-orange-50 text-orange-700"
-                      }`}
-                    >
-                      <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-white/90 px-1.5 text-[10px] font-black text-slate-950">
-                        {count > 99 ? "99+" : count}
-                      </span>
-                      <Icon className="h-4 w-4" />
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </div>
+              <button
+                type="button"
+                onClick={() => window.location.assign(`/employee-portal/${encodeURIComponent(token)}/products`)}
+                className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-500"
+              >
+                <Package2 className="h-4 w-4" />
+                <span>طلب من المخزن</span>
+              </button>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  { key: "notifications", count: badgeCounts.unreadNotifications || 0, label: ui("notificationsShort"), Icon: Bell, tone: "emerald" },
+                  { key: "display-refill", count: badgeCounts.displayRefillAlerts || 0, label: ui("displayRefillShort"), Icon: AlertTriangle, tone: "amber" },
+                  { key: "tasks", count: badgeCounts.newTasks || 0, label: ui("tasksShort"), Icon: ClipboardList, tone: "sky" },
+                  { key: "requests", count: badgeCounts.pendingNotifications || 0, label: ui("requestsShort"), Icon: MessageCircle, tone: "orange" },
+                ].map(({ key, count, label, Icon, tone }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setActiveTab(key)}
+                    className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-2xl border px-2.5 py-2 text-[11px] font-black shadow-sm transition ${
+                      tone === "emerald"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : tone === "amber"
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : tone === "sky"
+                            ? "border-sky-200 bg-sky-50 text-sky-700"
+                            : "border-orange-200 bg-orange-50 text-orange-700"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{label}</span>
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white/90 px-1 text-[10px] font-black text-slate-950">
+                      {count > 99 ? "99+" : count}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
             <div className="h-6 shrink-0" aria-hidden="true" />
