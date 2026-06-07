@@ -44,6 +44,19 @@ const getProductStock = (product = {}) => {
   );
 };
 
+const uniqueTextValues = (values = [], limit = 3) => {
+  const seen = new Set();
+  const result = [];
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    result.push(text);
+    if (result.length >= limit) break;
+  }
+  return result;
+};
+
 const formatProductPrice = (product, t) => {
   const min = Number(product.min_price ?? product.base_price ?? product.sale_price ?? product.price ?? 0);
   const max = Number(product.max_price ?? min);
@@ -92,6 +105,22 @@ function ProductGrid({
   const { t } = useTranslation();
   const { columns, isDesktop } = useProductGridColumns();
   if (loading) {
+    if (!isDesktop) {
+      return (
+        <div className="grid grid-cols-1 gap-2 max-[380px]:grid-cols-1 min-[381px]:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-[0_8px_20px_rgba(0,0,0,0.22)]">
+              <div className="m-1.5 h-32 animate-pulse rounded-xl bg-white/10" />
+              <div className="space-y-2 p-2 pt-1">
+                <div className="h-3 w-3/4 animate-pulse rounded-full bg-white/10" />
+                <div className="h-8 animate-pulse rounded-xl bg-white/10" />
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     return (
       <div className="flex h-[28rem] items-center justify-center rounded-3xl border border-[var(--border)] bg-[var(--surface)]">
         <div className="text-center">
@@ -104,7 +133,7 @@ function ProductGrid({
 
   if (error) {
     return (
-      <div className="flex h-[28rem] items-center justify-center rounded-3xl border border-red-500/20 bg-red-500/5 p-8 text-center">
+      <div className="flex h-56 items-center justify-center rounded-3xl border border-red-500/20 bg-red-500/5 p-5 text-center lg:h-[28rem] lg:p-8">
         <div>
           <AlertTriangle className="mx-auto h-10 w-10 text-red-300" />
           <h3 className="mt-4 text-lg font-bold text-[var(--text)]">{t("pos.productGrid.feedUnavailable")}</h3>
@@ -117,7 +146,7 @@ function ProductGrid({
   if (!products.length) {
     const hasSearch = Boolean(String(search || "").trim());
     return (
-      <div className="flex h-[28rem] items-center justify-center rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+      <div className="flex h-56 items-center justify-center rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 text-center lg:h-[28rem] lg:p-8">
         <div>
           <PackageSearch className="mx-auto h-12 w-12 text-[var(--muted)]" />
           <h3 className="mt-4 text-xl font-black text-[var(--text)]">
@@ -184,6 +213,9 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
   const originalPrice = formatOriginalPrice(product);
   const saleBadge = product.sale_badge || (product.sale_source === "global" ? t("pos.productGrid.globalSale") : product.sale_source === "product" ? t("pos.productGrid.sale") : "");
   const hasPrice = Number(product.min_price ?? product.base_price ?? product.sale_price ?? product.price ?? 0) > 0;
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const colors = uniqueTextValues(variants.map((variant) => variant.color), 3);
+  const sizes = uniqueTextValues(variants.map((variant) => variant.size), 4);
 
   return (
     <div
@@ -191,11 +223,11 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
       tabIndex={0}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
-      style={{ contentVisibility: "auto", containIntrinsicSize: "132px 172px" }}
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-start shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition duration-200 hover:-translate-y-0.5 hover:border-white/20"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "144px 218px" }}
+      className="group relative flex min-h-[13.5rem] touch-manipulation flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-start shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition duration-150 active:scale-[0.99] hover:border-white/20 lg:min-h-0 lg:duration-200 lg:hover:-translate-y-0.5"
     >
       <div className="relative p-1.5 pb-0">
-        <div className="relative h-24 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 max-[380px]:h-28 sm:h-24">
+        <div className="relative h-32 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 max-[380px]:h-36 sm:h-28 lg:h-24">
         {cover ? (
           <ProductImage
             src={cover}
@@ -218,10 +250,25 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
 
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 p-1.5 pt-1.5 sm:p-2">
-        <h3 className="min-w-0 text-center text-[0.72rem] font-semibold leading-tight text-zinc-100 sm:text-[0.76rem]">
+      <div className="flex flex-1 flex-col gap-1.5 p-1.5 pt-1.5 sm:p-2 lg:gap-1">
+        <h3 className="min-w-0 text-center text-[0.7rem] font-semibold leading-tight text-zinc-100 sm:text-[0.76rem]">
           <span className="line-clamp-2 min-h-[2rem] sm:min-h-[1.9rem]">{product.name}</span>
         </h3>
+
+        {(colors.length || sizes.length) ? (
+          <div className="flex min-h-5 flex-wrap justify-center gap-1 overflow-hidden lg:hidden">
+            {colors.slice(0, 2).map((color) => (
+              <span key={`color-${color}`} className="max-w-[4.5rem] truncate rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[8px] font-black text-zinc-300">
+                {color}
+              </span>
+            ))}
+            {sizes.slice(0, 2).map((size) => (
+              <span key={`size-${size}`} className="rounded-full border border-emerald-300/15 bg-emerald-400/10 px-1.5 py-0.5 text-[8px] font-black text-emerald-100">
+                {size}
+              </span>
+            ))}
+          </div>
+        ) : null}
 
         <div className={`mt-auto rounded-xl border px-2 py-1.5 text-center shadow-sm ${
           hasPrice ? "border-violet-500/20 bg-black/55" : "border-amber-300/30 bg-amber-500/10"
