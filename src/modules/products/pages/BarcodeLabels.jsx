@@ -1130,7 +1130,7 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
   const colorValue = safeText(item.color, t("products.barcodeLabels.default"));
   const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
     width: Math.round(650 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
-    height: Math.max(146, Number(printSettings.barcodeHeight || 88)),
+    height: Math.max(170, Number(printSettings.barcodeHeight || 88)),
     displayText: item.barcode,
   });
   const previewScale = preview && !print ? 1.72 : 1;
@@ -1155,7 +1155,7 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
             </div>
             <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1.4mm] py-[1.3mm] text-zinc-950">
               <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
-              <div className="mt-[0.7mm] truncate text-[20px] font-black leading-none">{sizeValue}</div>
+              <div className="mt-[0.7mm] truncate text-[25px] font-black leading-none">{sizeValue}</div>
             </div>
             <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1.4mm] py-[1.3mm] text-zinc-950">
               <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
@@ -1165,8 +1165,8 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
         </div>
 
         <div className="flex min-h-0 flex-col items-center justify-center rounded-[10px] border border-zinc-200 bg-white px-[1mm] pb-[1.2mm] pt-[1.4mm]">
-          <div className="w-[95%] max-w-full" style={{ minHeight: "19.5mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
-          <div className="mt-[0.8mm] text-center text-[9.5px] font-black leading-none text-zinc-800">{item.sku}</div>
+          <div className="w-[95%] max-w-full" style={{ minHeight: "22.5mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+          <div className="mt-[1.2mm] text-center text-[10.5px] font-black leading-none text-zinc-800">{item.sku}</div>
         </div>
       </div>
     </article>
