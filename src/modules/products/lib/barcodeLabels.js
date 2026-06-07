@@ -661,7 +661,7 @@ export const buildBarcodePrintHtml = ({
 
   const pageMarkup = pages
     .map((pageLabels) => `
-      <section class="sheet ${resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 ? "premium-sheet" : ""}">
+      <section class="sheet ${resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 ? "premium-sheet premium-page" : ""}">
         ${pageLabels.map((item) => buildLabelMarkup(item)).join("")}
       </section>
     `)
@@ -1065,10 +1065,18 @@ export const buildBarcodePrintHtml = ({
           }
           @media print {
             body { background: #ffffff; }
-            .page { padding: 0; background: #ffffff; }
+            .page {
+              padding: 0;
+              margin: 0;
+              background: #ffffff;
+              display: block;
+              gap: 0;
+              min-height: 0;
+            }
             .sheet {
               gap: ${normalizedSettings.gapMm}mm;
               width: ${contentWidthMm}mm;
+              margin: 0;
               box-shadow: none;
             }
             .sheet:last-child {
@@ -1089,11 +1097,14 @@ export const buildBarcodePrintHtml = ({
               overflow: hidden;
               box-shadow: none;
               background: #ffffff;
+              margin: 0;
             }
             .premium-page {
               width: 50mm;
               height: 100mm;
               overflow: hidden;
+              margin: 0;
+              box-sizing: border-box;
               contain: layout paint;
               page-break-inside: avoid;
               break-inside: avoid;
