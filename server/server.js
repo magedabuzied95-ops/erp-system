@@ -127,12 +127,26 @@ const backgroundIntervals = new Set();
 let isShuttingDown = false;
 
 const normalizeOrigin = (value = "") => String(value || "").trim().replace(/\/+$/, "");
+const isProductionEnvironment = String(process.env.NODE_ENV || "").toLowerCase() === "production";
+const localDevCorsOrigins = isProductionEnvironment
+  ? []
+  : [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175",
+      "http://localhost:5176",
+      "http://localhost:5177",
+      "http://localhost:5178",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:5174",
+      "http://127.0.0.1:5175",
+      "http://127.0.0.1:5176",
+      "http://127.0.0.1:5177",
+      "http://127.0.0.1:5178",
+    ];
 const configuredCorsOrigins = [
   "https://erp-system-ten-green.vercel.app",
-  "http://localhost:5173",
-  "http://localhost:5175",
-  "http://127.0.0.1:5173",
-  "http://127.0.0.1:5175",
+  ...localDevCorsOrigins,
   process.env.PUBLIC_APP_URL,
   process.env.FRONTEND_URL,
   process.env.STORE_FRONT_URL,
@@ -186,6 +200,7 @@ const corsOptions = {
   allowedHeaders: corsAllowedHeaders,
   optionsSuccessStatus: 204,
 };
+const isCorsOriginError = (error) => String(error?.message || "").startsWith("CORS origin not allowed:");
 
 /* =========================
    HTTP SERVER
@@ -994,6 +1009,13 @@ app.use((err, req, res, next) => {
 
   console.log("SERVER ERROR:", err);
   void next;
+
+  if (isCorsOriginError(err)) {
+    return res.status(403).json({
+      success: false,
+      message: "CORS origin not allowed",
+    });
+  }
 
   if (err?.type === "entity.too.large") {
     return res.status(413).json({
