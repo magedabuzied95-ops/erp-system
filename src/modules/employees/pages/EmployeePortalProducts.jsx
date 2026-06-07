@@ -22,6 +22,20 @@ const sizeSort = (a, b) => {
   return String(a).localeCompare(String(b), "ar");
 };
 const sortSizes = (sizes = []) => [...sizes].sort(sizeSort);
+const isDevBuild = Boolean(import.meta.env?.DEV);
+
+const extractImageUrl = (value = {}) =>
+  text(
+    value?.image_url ||
+    value?.variant_image_url ||
+    value?.color_image_url ||
+    value?.preview ||
+    value?.url ||
+    value?.src ||
+    value?.image ||
+    value?.photo_url ||
+    value?.thumbnail_url
+  );
 
 const normalizeVariant = (variant = {}) => ({
   id: variant.variant_id ?? variant.id ?? null,
@@ -82,11 +96,17 @@ const normalizeEmployeePosCatalog = (payload) =>
     .map((product) => normalizePosCatalogProduct(product))
     .map(normalizeProduct);
 
+const variantsForColor = (product = {}, color = "") =>
+  (Array.isArray(product.variants) ? product.variants : []).filter((variant) =>
+    text(variant.color) === text(color)
+  );
+
 const firstVariantForColor = (product = {}, color = "") =>
-  (Array.isArray(product.variants) ? product.variants : []).find((variant) => text(variant.color) === text(color)) || null;
+  variantsForColor(product, color)[0] || null;
 
 const findVariant = (product = {}, variantId = null, color = "", size = "") => {
-  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const allVariants = Array.isArray(product.variants) ? product.variants : [];
+  const variants = color ? variantsForColor(product, color) : allVariants;
   if (variantId) {
     const byId = variants.find((variant) => String(variant.variant_id ?? variant.id ?? "") === String(variantId));
     if (byId) return byId;
@@ -122,6 +142,85 @@ const sizeOptionsForProduct = (product = {}, color = "") => {
     .sort((a, b) => sizeSort(a.size, b.size));
 };
 
+const pickVariantForColor = (product = {}, color = "", preferredSize = "") => {
+  const scopedVariants = variantsForColor(product, color);
+  if (!scopedVariants.length) return null;
+
+  const exactSize = preferredSize
+    ? scopedVariants.find((variant) => text(variant.size) === text(preferredSize))
+    : null;
+  if (exactSize) return exactSize;
+
+  return scopedVariants.find((variant) => Number(variant.stock || 0) > 0) || scopedVariants[0] || null;
+};
+
+const resolveColorSelection = (product = {}, color = "", preferredSize = "") => {
+  const nextVariant = pickVariantForColor(product, color, preferredSize);
+  return {
+    activeVariant: nextVariant,
+    selectedSize: nextVariant?.size || "",
+  };
+};
+
+const resolveColorEntryImage = (product = {}, color = "") => {
+  const normalizedColor = lower(color);
+  if (!normalizedColor) return "";
+
+  const collections = [
+    ...(Array.isArray(product.color_images) ? product.color_images : []),
+    ...(Array.isArray(product.images) ? product.images : []),
+  ];
+
+  const matchingEntry = collections.find((entry) => {
+    const entryColor = lower(
+      entry?.color ||
+      entry?.color_name ||
+      entry?.name ||
+      entry?.label ||
+      entry?.title
+    );
+    return entryColor && entryColor === normalizedColor;
+  });
+
+  if (!matchingEntry) return "";
+
+  const nestedImages = Array.isArray(matchingEntry.images)
+    ? matchingEntry.images
+    : Array.isArray(matchingEntry.color_images)
+      ? matchingEntry.color_images
+      : [];
+  const nestedPrimary = nestedImages.find((item) => item?.is_primary) || nestedImages[0] || null;
+
+  return (
+    extractImageUrl(matchingEntry) ||
+    extractImageUrl(nestedPrimary)
+  );
+};
+
+const resolveProductMainImage = (product = {}) =>
+  extractImageUrl({
+    image_url: product.product_image_url || product.image_url,
+    photo_url: product.photo_url,
+    thumbnail_url: product.thumbnail_url,
+    image: product.image,
+  });
+
+const resolveProductPreviewImage = (product = {}, { color = "", size = "", variantId = null } = {}) => {
+  const currentVariant = findVariant(product, variantId, color, size);
+  const scopedVariants = color ? variantsForColor(product, color) : [];
+  const colorVariantWithImage =
+    scopedVariants.find((variant) => Number(variant.stock || 0) > 0 && extractImageUrl(variant)) ||
+    scopedVariants.find((variant) => extractImageUrl(variant)) ||
+    null;
+
+  return (
+    extractImageUrl(currentVariant) ||
+    resolveColorEntryImage(product, color) ||
+    extractImageUrl(colorVariantWithImage) ||
+    resolveProductMainImage(product)
+  );
+};
+
 const buildListParams = ({ search, filters }) => {
   const params = { limit: 120, inStockOnly: 1 };
   const q = text(search);
@@ -145,6 +244,8 @@ const buildLookupParams = (directLookup) => {
 function ProductCard({ product, active, onOpen }) {
   const colors = product.colors.slice(0, 4);
   const sizes = product.sizes.slice(0, 4);
+  const previewColor = firstAvailableColor(product);
+  const previewImageUrl = resolveProductPreviewImage(product, { color: previewColor });
 
   return (
     <button
@@ -157,9 +258,9 @@ function ProductCard({ product, active, onOpen }) {
       }`}
     >
       <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
-        {product.image_url ? (
+        {previewImageUrl ? (
           <img
-            src={product.image_url}
+            src={previewImageUrl}
             alt={product.name}
             className="h-full w-full object-contain p-2"
             loading="lazy"
@@ -242,6 +343,11 @@ function ProductPickerSheet({
   const activeVariant = findVariant(product, null, selectedColor, selectedSize);
   const activeStock = Number(activeVariant?.stock || 0);
   const canSubmit = Boolean(activeVariant && activeStock > 0 && quantity > 0);
+  const previewImageUrl = resolveProductPreviewImage(product, {
+    color: selectedColor,
+    size: selectedSize,
+    variantId: activeVariant?.variant_id ?? activeVariant?.id ?? null,
+  });
 
   const handleQuantityDelta = (delta) => {
     if (!activeStock) return;
@@ -273,9 +379,9 @@ function ProductPickerSheet({
         <div className="grid flex-1 gap-4 overflow-y-auto px-4 py-4 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.03] p-3">
             <div className="flex min-h-[16rem] items-center justify-center overflow-hidden rounded-[1rem] bg-black/25">
-              {product.image_url ? (
+              {previewImageUrl ? (
                 <img
-                  src={product.image_url}
+                  src={previewImageUrl}
                   alt={product.name}
                   className="max-h-[20rem] w-full object-contain p-4"
                   loading="eager"
@@ -394,6 +500,61 @@ function ProductPickerSheet({
   );
 }
 
+function EmployeePortalCameraScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onError }) {
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/80 px-2 py-2 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        className="flex w-full max-w-md min-w-0 flex-col overflow-hidden rounded-t-3xl border border-emerald-400/20 bg-slate-950 shadow-2xl shadow-black/70 sm:rounded-3xl"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="employee-portal-camera-scanner-title"
+        dir="rtl"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">EMPLOYEE SCANNER</div>
+            <h3 id="employee-portal-camera-scanner-title" className="mt-1 text-lg font-black text-white">امسح الباركود أو QR بالكاميرا</h3>
+            <p className="mt-1 text-xs font-semibold text-zinc-500">وجّه الكاميرا نحو الكود وسيتم البحث مباشرة.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08]"
+            aria-label="إغلاق ماسح الكاميرا"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-4">
+          <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/60 p-3">
+            <BarcodeScanner
+              onScan={onScan}
+              onPermissionDenied={onPermissionDenied}
+              onUnsupported={onUnsupported}
+              onError={onError}
+              className="overflow-hidden rounded-[1.35rem] bg-black"
+              scannerClassName="min-h-[320px]"
+            />
+          </div>
+          <div className="mt-3 text-center text-xs font-semibold text-zinc-500">
+            يدعم باركود المنتجات وأكواد QR للبحث السريع داخل الكتالوج.
+          </div>
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
 export default function EmployeePortalProducts() {
   const { token } = useParams();
   const navigate = useNavigate();
@@ -431,8 +592,10 @@ export default function EmployeePortalProducts() {
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
+  const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const lookupDoneRef = useRef(false);
   const filtersPanelRef = useRef(null);
+  const searchInputRef = useRef(null);
   const homePath = useMemo(() => buildEmployeePortalHomePath({ pathname: location.pathname, token }), [location.pathname, token]);
   const openedFromDeepLink = Boolean(directLookup.productId || directLookup.barcode || directLookup.article);
 
@@ -497,12 +660,12 @@ export default function EmployeePortalProducts() {
 
         if (matched) {
           const variant = findVariant(matched, selection.variant_id, selection.color, selection.size);
-          const nextColor = variant?.color || matched.colors[0] || "";
-          const nextSize = variant?.size || matched.sizes[0] || "";
+          const nextColor = variant?.color || firstAvailableColor(matched);
+          const nextSelection = resolveColorSelection(matched, nextColor, variant?.size || selection.size || "");
           setProducts(lookupProducts);
           setSelectedProduct(matched);
           setSelectedColor(nextColor);
-          setSelectedSize(nextSize);
+          setSelectedSize(nextSelection.selectedSize);
           setSelectedQuantity(1);
           setSheetOpen(true);
         }
@@ -598,20 +761,36 @@ export default function EmployeePortalProducts() {
 
   const openProduct = (product) => {
     const nextColor = firstAvailableColor(product);
-    const nextSize = nextColor ? sizeOptionsForProduct(product, nextColor)[0]?.size || "" : product.sizes[0] || "";
+    const nextSelection = resolveColorSelection(product, nextColor);
     setSelectedProduct(product);
     setSelectedColor(nextColor);
-    setSelectedSize(nextSize);
+    setSelectedSize(nextSelection.selectedSize);
     setSelectedQuantity(1);
     setSheetOpen(true);
   };
 
   const handleSelectColor = (color) => {
-    const nextVariant = firstVariantForColor(selectedProduct, color);
-    const nextSize = sizeOptionsForProduct(selectedProduct, color)[0]?.size || nextVariant?.size || "";
+    if (!selectedProduct) return;
+    const previousColor = selectedColor;
+    const nextSelection = resolveColorSelection(selectedProduct, color, selectedSize);
+    const resolvedImageUrl = resolveProductPreviewImage(selectedProduct, {
+      color,
+      size: nextSelection.selectedSize,
+      variantId: nextSelection.activeVariant?.variant_id ?? nextSelection.activeVariant?.id ?? null,
+    });
     setSelectedColor(color);
-    setSelectedSize(nextSize);
+    setSelectedSize(nextSelection.selectedSize);
     setSelectedQuantity(1);
+    if (isDevBuild) {
+      console.debug("[employee-portal:variant-image-switch]", {
+        productId: selectedProduct.id ?? selectedProduct.product_id ?? null,
+        previousColor,
+        nextColor: color,
+        selectedSize: nextSelection.selectedSize,
+        activeVariantId: nextSelection.activeVariant?.variant_id ?? nextSelection.activeVariant?.id ?? null,
+        resolvedImageUrl,
+      });
+    }
   };
 
   const handleSelectSize = (size) => {
@@ -641,6 +820,28 @@ export default function EmployeePortalProducts() {
       setLoadingSubmit(false);
     }
   };
+
+  const handleCameraScannerResult = useCallback((decodedValue) => {
+    const scannedValue = String(decodedValue || "").trim();
+    if (!scannedValue) return;
+    setCameraScannerOpen(false);
+    setSearch(scannedValue);
+    window.setTimeout(() => searchInputRef.current?.focus(), 0);
+  }, []);
+
+  const handleCameraScannerPermissionDenied = useCallback((message = barcodeScannerMessages.permissionDenied) => {
+    setCameraScannerOpen(false);
+    toast.error(message || barcodeScannerMessages.permissionDenied);
+  }, []);
+
+  const handleCameraScannerUnsupported = useCallback((message = barcodeScannerMessages.unsupported) => {
+    setCameraScannerOpen(false);
+    toast.error(message || barcodeScannerMessages.unsupported);
+  }, []);
+
+  const handleCameraScannerError = useCallback((message = barcodeScannerMessages.startFailed) => {
+    toast.error(message || barcodeScannerMessages.startFailed);
+  }, []);
 
   const handleGoHome = useCallback(() => {
     navigate(homePath, { replace: !canNavigateEmployeePortalBack() });
@@ -733,13 +934,23 @@ export default function EmployeePortalProducts() {
         <section className="mt-3 rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.2)] backdrop-blur">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <label className="flex min-h-12 min-w-0 flex-[1_1_100%] items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3 sm:flex-1">
-              <Search className="h-4 w-4 text-zinc-500" />
+              <Search className="h-4 w-4 shrink-0 text-zinc-500" />
               <input
+                ref={searchInputRef}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="ابحث بالاسم أو الموديل أو الباركود أو الكود"
                 className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
+              <button
+                type="button"
+                onClick={() => setCameraScannerOpen(true)}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10"
+                aria-label="فتح ماسح الكاميرا"
+                title="فتح ماسح الكاميرا"
+              >
+                <Camera className="h-4 w-4" />
+              </button>
             </label>
             <button
               type="button"
@@ -790,6 +1001,16 @@ export default function EmployeePortalProducts() {
             onClose={() => setSheetOpen(false)}
             onSubmit={handleSubmit}
             loadingSubmit={loadingSubmit}
+          />
+        ) : null}
+
+        {cameraScannerOpen ? (
+          <EmployeePortalCameraScannerModal
+            onClose={() => setCameraScannerOpen(false)}
+            onScan={handleCameraScannerResult}
+            onPermissionDenied={handleCameraScannerPermissionDenied}
+            onUnsupported={handleCameraScannerUnsupported}
+            onError={handleCameraScannerError}
           />
         ) : null}
 
