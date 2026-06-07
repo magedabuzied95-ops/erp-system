@@ -305,7 +305,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   };
   const submitVariant = (candidate = activeVariant, quantity = qty, action = "cart") => {
     if (!product || !candidate || Number(candidate.stock || 0) <= 0) return;
-    const result = onAddToCart(product, candidate, quantity);
+    const result = onAddToCart(product, candidate, quantity, action === "buy" ? { intent: "buy" } : undefined);
     if (result === "capture_required") return;
     setVariantSheetAction("");
     if (action === "buy") navigate("/shop/checkout");
@@ -488,7 +488,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           onQuantityChange={setQty}
           onSubmit={(candidate, quantity, action) => {
             if (!candidate || !variantHasStock(candidate)) return;
-            const result = onAddToCart(product, candidate, quantity);
+            const result = onAddToCart(product, candidate, quantity, action === "buy" ? { intent: "buy" } : undefined);
             if (result === "capture_required") return;
             setVariantSheetAction("");
             if (action === "buy") navigate("/shop/checkout");

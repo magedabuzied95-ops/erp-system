@@ -2025,7 +2025,7 @@ const useLastPiece = (params = {}, options = {}) => {
 
 function Storefront() {
   const pageStartedAtRef = useRef(performance.now());
-  const handleStorefrontAddToCart = useCallback((product, variant, quantity = 1) => {
+  const handleStorefrontAddToCart = useCallback((product, variant, quantity = 1, options = {}) => {
     if (!variant || Number(variant.stock || 0) <= 0) {
       toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
       return "unavailable";
@@ -2036,10 +2036,11 @@ function Storefront() {
     }
     const cartItem = buildCartItem(product, variant, quantity);
     if (!customerSessionRef.current && !captureSkipActive()) {
-      openCustomerCapture(cartItem, "add_to_cart");
+      openCustomerCapture(cartItem, options.intent === "buy" ? "buy_now" : "add_to_cart");
       return "capture_required";
     }
     commitCartItem(cartItem);
+    if (options.intent === "buy") navigate("/shop/checkout");
     return "added";
   }, []);
   useEffect(() => {
@@ -2048,6 +2049,7 @@ function Storefront() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
+  const navigate = useNavigate();
   const { i18n } = useTranslation();
   const [cart, setCartState] = useState(() => loadCartFromStorage());
   const [wishlist, setWishlist] = useState(() => sanitizeWishlist(readJson(WISHLIST_KEY, [])));
@@ -2293,12 +2295,19 @@ function Storefront() {
     trackStorefrontCaptureEvent("modal_completed", { reason: customerCaptureReason, created: Boolean(data.created) });
     if (pendingCartItem) {
       toast.success(sfText("storefront.toasts.profileSavedAndAdded", "Your details were saved and the item was added to cart."));
-      setCartOpen(true);
+      if (customerCaptureReason === "buy_now") {
+        setCartOpen(false);
+      } else {
+        setCartOpen(true);
+      }
       playSoftClick();
+      if (customerCaptureReason === "buy_now") {
+        navigate("/shop/checkout");
+      }
     } else {
       toast.success(sfText("storefront.toasts.profileSaved", "Your details were saved."));
     }
-  }, [cart, customerCaptureReason, pendingCartItem, setCart, wishlist]);
+  }, [cart, customerCaptureReason, navigate, pendingCartItem, setCart, wishlist]);
 
   const skipCustomerCapture = useCallback(() => {
     markCaptureSkipped();
@@ -2306,7 +2315,11 @@ function Storefront() {
     if (pendingCartItem) commitCartItem(pendingCartItem);
     setPendingCartItem(null);
     setCustomerCaptureOpen(false);
-  }, [commitCartItem, customerCaptureReason, pendingCartItem]);
+    if (customerCaptureReason === "buy_now") {
+      setCartOpen(false);
+      navigate("/shop/checkout");
+    }
+  }, [commitCartItem, customerCaptureReason, navigate, pendingCartItem]);
 
   useEffect(() => {
     if (location.pathname !== "/shop/checkout") {
