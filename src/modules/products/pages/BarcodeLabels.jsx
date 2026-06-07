@@ -290,6 +290,7 @@ function BarcodeLabels() {
   );
   const labelTemplateFieldLabel = language === "ar" ? "قالب الملصق" : "Label Template";
   const isLandscapeTemplate = labelTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100;
+  const isPremiumRetailTemplate = labelTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100;
 
   const loadData = async () => {
     try {
@@ -855,19 +856,25 @@ function BarcodeLabels() {
                           <span>{pageLabels.length} / {expandedLabels.length}</span>
                         </div>
                         <div
-                          className={`grid gap-3 ${isLandscapeTemplate ? "w-full justify-items-stretch" : "mx-auto justify-start"}`}
+                          className={`grid gap-3 ${isLandscapeTemplate ? "w-full justify-items-stretch" : isPremiumRetailTemplate ? "w-full place-items-center" : "mx-auto justify-start"}`}
                           style={{
-                            width: isLandscapeTemplate ? "100%" : `${Math.max(20, activePaper.paperWidthMm - activePrintSettings.marginLeftMm - activePrintSettings.marginRightMm)}mm`,
-                            maxWidth: isLandscapeTemplate ? "100%" : undefined,
+                            width: isLandscapeTemplate || isPremiumRetailTemplate ? "100%" : `${Math.max(20, activePaper.paperWidthMm - activePrintSettings.marginLeftMm - activePrintSettings.marginRightMm)}mm`,
+                            maxWidth: isLandscapeTemplate || isPremiumRetailTemplate ? "100%" : undefined,
                             gridTemplateColumns: isLandscapeTemplate
                               ? "minmax(0, 1fr)"
+                              : isPremiumRetailTemplate
+                                ? "minmax(0, 1fr)"
                               : `repeat(${Math.max(1, activePrintSettings.labelsPerRow)}, minmax(0, ${activePrintSettings.labelWidthMm}mm))`,
                             gap: `${activePrintSettings.gapMm}mm`,
                             paddingTop: `${activePrintSettings.marginTopMm}mm`,
                             paddingRight: `${activePrintSettings.marginRightMm}mm`,
                             paddingBottom: `${activePrintSettings.marginBottomMm}mm`,
                             paddingLeft: `${activePrintSettings.marginLeftMm}mm`,
-                            minHeight: isLandscapeTemplate ? "clamp(260px, 34vw, 430px)" : `${activePaper.paperHeightMm}mm`,
+                            minHeight: isLandscapeTemplate
+                              ? "clamp(260px, 34vw, 430px)"
+                              : isPremiumRetailTemplate
+                                ? "clamp(720px, 82vh, 980px)"
+                                : `${activePaper.paperHeightMm}mm`,
                             background: "#ffffff",
                           }}
                         >
@@ -877,7 +884,7 @@ function BarcodeLabels() {
                               item={item}
                               printSettings={activePrintSettings}
                               template={labelTemplate}
-                              preview={isLandscapeTemplate}
+                              preview={isLandscapeTemplate || isPremiumRetailTemplate}
                             />
                           ))}
                         </div>
@@ -1126,45 +1133,70 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
     height: Math.max(132, Number(printSettings.barcodeHeight || 88)),
     displayText: item.barcode,
   });
-  const width = preview && !print ? "min(100%, 260px)" : `${printSettings.labelWidthMm}mm`;
+  const previewScale = preview && !print ? 2.1 : 1;
 
-  return (
+  const labelMarkup = (
     <article
       className={`overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "rounded-[14px] p-[1.2mm] shadow-none" : "rounded-[20px] p-[1.4mm] shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}
-      style={{ width, minHeight: `${printSettings.labelHeightMm}mm` }}
+      style={{ width: `${printSettings.labelWidthMm}mm`, minHeight: `${printSettings.labelHeightMm}mm` }}
     >
-      <div className="grid h-full grid-rows-[auto_1fr_auto] gap-[1.2mm]">
+      <div className="grid h-full grid-rows-[auto_1.25fr_1fr] gap-[1.2mm]">
         <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-50 px-[2mm] py-[1.4mm]">
           <h3 className="truncate text-[12px] font-black leading-none text-zinc-950">{productName}</h3>
         </div>
 
-        <div className="grid min-h-0 grid-rows-[1fr_auto] gap-[1.2mm]">
-          <div className="relative overflow-hidden rounded-[10px] border border-zinc-200 bg-zinc-50">
+        <div className="grid min-h-0 grid-rows-[1.55fr_0.72fr] gap-[1.2mm]">
+          <div className="relative min-h-0 overflow-hidden rounded-[10px] border border-zinc-200 bg-zinc-50">
             <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[2mm]" iconClassName="text-zinc-400" />
           </div>
           <div className="grid grid-cols-3 gap-[1mm]">
             <div className="rounded-[9px] border border-zinc-200 bg-zinc-950 px-[1mm] py-[1.2mm] text-center text-white">
               <div className="text-[7px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
-              <div className="mt-[0.7mm] truncate text-[13px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
+              <div className="mt-[0.7mm] truncate text-[14px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
             </div>
             <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[1.2mm] text-center text-zinc-950">
               <div className="text-[7px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
-              <div className="mt-[0.7mm] truncate text-[12px] font-black leading-none">{sizeValue}</div>
+              <div className="mt-[0.7mm] truncate text-[13px] font-black leading-none">{sizeValue}</div>
             </div>
             <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[1.2mm] text-center text-zinc-950">
               <div className="text-[7px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
-              <div className="mt-[0.7mm] truncate text-[10px] font-black leading-none">{colorValue}</div>
+              <div className="mt-[0.7mm] truncate text-[11px] font-black leading-none">{colorValue}</div>
             </div>
           </div>
         </div>
 
         <div className="flex min-h-0 flex-col items-center justify-center rounded-[10px] border border-zinc-200 bg-white px-[1mm] pb-[1.2mm] pt-[1.4mm]">
-          <div className="w-[95%] max-w-full" style={{ minHeight: "31mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+          <div className="w-[95%] max-w-full" style={{ minHeight: "35mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
           <div className="mt-[0.8mm] text-center text-[8.5px] font-black leading-none text-zinc-800">{item.sku}</div>
         </div>
       </div>
     </article>
   );
+
+  if (preview && !print) {
+    return (
+      <div
+        className="flex h-full w-full items-start justify-center"
+        style={{
+          width: `calc(${printSettings.labelWidthMm}mm * ${previewScale})`,
+          minHeight: `calc(${printSettings.labelHeightMm}mm * ${previewScale})`,
+        }}
+      >
+        <div
+          style={{
+            width: `${printSettings.labelWidthMm}mm`,
+            minHeight: `${printSettings.labelHeightMm}mm`,
+            transform: `scale(${previewScale})`,
+            transformOrigin: "top center",
+          }}
+        >
+          {labelMarkup}
+        </div>
+      </div>
+    );
+  }
+
+  return labelMarkup;
 }
 
 function ThermalLandscapeLabel({ item, printSettings, print = false, preview = false }) {
