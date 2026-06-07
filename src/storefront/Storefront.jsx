@@ -72,6 +72,8 @@ import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
 const OrderInvoiceCard = lazy(() => import("../shared/components/invoices/OrderInvoiceCard"));
 const Select = lazy(() => import("react-select"));
 const LazyFiltersDrawer = lazy(() => Promise.resolve({ default: MobileFilterDrawer }));
+const LazyStorefrontProductListingPage = lazy(() => import("./pages/StorefrontProductListingPage.jsx").then((module) => ({ default: module.StorefrontProductListingPage })));
+const LazyStorefrontProductDetailPage = lazy(() => import("./pages/StorefrontProductDetailPage.jsx").then((module) => ({ default: module.StorefrontProductDetailPage })));
 const LazyProductCardVariantSheet = lazy(() => Promise.resolve({ default: ProductCardVariantSheet }));
 const LazyProductDetailsVariantSheet = lazy(() => Promise.resolve({ default: ProductDetailsVariantSheet }));
 const LazyStorefrontAiSupportWidget = lazy(() => import("./components/StorefrontAiSupportWidget"));
@@ -1242,27 +1244,27 @@ const customerSessionHeaders = () => {
 };
 const normalizeStorefrontPhone = (value = "") => {
   const digits = String(value || "")
-    .replace(/[٠-٩۰-۹]/g, (digit) => ({
-      "٠": "0",
-      "١": "1",
-      "٢": "2",
-      "٣": "3",
-      "٤": "4",
-      "٥": "5",
-      "٦": "6",
-      "٧": "7",
-      "٨": "8",
-      "٩": "9",
-      "۰": "0",
-      "۱": "1",
-      "۲": "2",
-      "۳": "3",
-      "۴": "4",
-      "۵": "5",
-      "۶": "6",
-      "۷": "7",
-      "۸": "8",
-      "۹": "9",
+    .replace(/[0-9?-?]/g, (digit) => ({
+      "0": "0",
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4",
+      "5": "5",
+      "6": "6",
+      "7": "7",
+      "8": "8",
+      "9": "9",
+      "?": "0",
+      "?": "1",
+      "?": "2",
+      "?": "3",
+      "?": "4",
+      "?": "5",
+      "?": "6",
+      "?": "7",
+      "?": "8",
+      "?": "9",
     }[digit] || digit))
     .replace(/[^\d+]/g, "")
     .replace(/^\+/, "");
@@ -2453,15 +2455,27 @@ function Storefront() {
     [handleStorefrontAddToCart, toggleWishlist, wishlist]
   );
   const productsPageElement = useMemo(
-    () => <ProductsPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />,
+    () => (
+      <Suspense fallback={<StorefrontPageFallback />}>
+        <LazyStorefrontProductListingPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />
+      </Suspense>
+    ),
     [handleStorefrontAddToCart, toggleWishlist, wishlist]
   );
   const salePageElement = useMemo(
-    () => <ProductsPage sale wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />,
+    () => (
+      <Suspense fallback={<StorefrontPageFallback />}>
+        <LazyStorefrontProductListingPage sale wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />
+      </Suspense>
+    ),
     [handleStorefrontAddToCart, toggleWishlist, wishlist]
   );
   const productDetailsElement = useMemo(
-    () => <ProductDetails onAddToCart={handleStorefrontAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} rememberProduct={rememberProduct} recent={recent} profile={profile} />,
+    () => (
+      <Suspense fallback={<StorefrontPageFallback />}>
+        <LazyStorefrontProductDetailPage onAddToCart={handleStorefrontAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} rememberProduct={rememberProduct} recent={recent} profile={profile} />
+      </Suspense>
+    ),
     [handleStorefrontAddToCart, profile, recent, rememberProduct, toggleWishlist, wishlist]
   );
   const cartPageElement = useMemo(
@@ -3015,7 +3029,7 @@ const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToC
         <Link to="/shop" className="group inline-flex items-center gap-2 text-stone-950 transition hover:text-[#6d28d9] dark:text-white">
           <span className="grid h-10 w-10 place-items-center rounded-2xl bg-stone-950 text-sm font-black tracking-[0.18em] text-white shadow-[0_12px_30px_rgba(28,25,23,0.16)] transition group-hover:scale-105 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white">MS</span>
           <span className="hidden leading-none sm:block">
-            <span className="block text-xl font-black tracking-[0.18em]">MONÉ</span>
+            <span className="block text-xl font-black tracking-[0.18em]">MONE</span>
             <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.32em] text-stone-500 dark:text-stone-400">{t("storefront.header.tagline", "Premium Shoes")}</span>
           </span>
         </Link>
@@ -4583,333 +4597,6 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
   );
 });
 
-function ProductsPage({ sale = false, wishlist, toggleWishlist, onAddToCart }) {
-  const { i18n, t } = useTranslation();
-  const lang = i18n.language || "ar";
-  const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const q = params.get("q") || "";
-  const category = params.get("category") || "";
-  const gender = params.get("gender") || "";
-  const size = params.get("size") || "";
-  const inStock = params.get("inStock") || "";
-  const quality = params.get("quality") || "";
-  const productType = params.get("product_type") || "";
-  const grade = params.get("grade") || "";
-  const sort = params.get("sort") || "";
-  const saleQuery = truthyFlag(params.get("sale"));
-  const lastSizes = truthyFlag(params.get("lastSizes") || params.get("last_sizes"));
-  const saleView = sale || saleQuery;
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [selectedGender, setSelectedGender] = useState(gender);
-  const [selectedProductType, setSelectedProductType] = useState(productType);
-  const [selectedSize, setSelectedSize] = useState(size);
-  const [currentStep, setCurrentStep] = useState(gender ? (productType ? "grid" : "productType") : "gender");
-  const productTypeStepRef = useRef(null);
-  const gridStepRef = useRef(null);
-  const [draftFilters, setDraftFilters] = useState({ gender, product_type: productType, grade });
-  useBodyScrollLock(filtersOpen);
-  const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
-  const { options: storefrontGenderOptions } = useStorefrontGenderClassifications();
-  const classificationOptions = useMemo(
-    () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false }),
-    [classificationGroups]
-  );
-  const isGuidedCategoryFlow = !q && !category && !saleView && !lastSizes && !gender && !size && !inStock && !quality && !productType && !grade && !sort;
-  const { products, loading, error } = useProducts({ q, category, sale: saleView ? 1 : "", gender, size, inStock, quality, product_type: productType, grade, sort });
-  const {
-    products: genderProducts,
-    loading: genderProductsLoading,
-  } = useProducts({ limit: 160, gender: selectedGender, sale: "", product_type: "", q: "", category: "", grade: "" });
-  const {
-    products: gridProducts,
-    loading: gridProductsLoading,
-    error: gridProductsError,
-  } = useProducts({ limit: 160, gender: selectedGender, product_type: selectedProductType, sale: "", q: "", category: "", grade: "" });
-  const filterBasePath = sale ? "/shop/sale" : "/shop/products";
-  const activeFilterCount = [gender, size, inStock, quality, productType, grade, saleQuery ? "sale" : "", lastSizes ? "lastSizes" : ""].filter(Boolean).length;
-
-  useEffect(() => {
-    if (!params.has("style")) return;
-    const next = new URLSearchParams(params);
-    next.delete("style");
-    navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`, { replace: true });
-  }, [filterBasePath, navigate, params]);
-
-  const filterSections = useMemo(
-    () => [
-      { key: "gender", label: t("storefront.filters.gender", "Gender"), eyebrow: t("storefront.filters.gender", "Gender"), icon: Users, options: classificationOptions.gender, value: gender },
-      { key: "product_type", label: t("storefront.filters.productType", "Product Type"), eyebrow: t("storefront.filters.type", "Type"), icon: Footprints, options: classificationOptions.productType, value: productType },
-      { key: "grade", label: t("storefront.filters.grade", "Grade"), eyebrow: t("storefront.filters.grade", "Grade"), icon: Gem, options: classificationOptions.grade, value: grade },
-    ],
-    [classificationOptions, gender, grade, productType, t]
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    deferReactState(() => {
-      if (!cancelled) setDraftFilters({ gender, product_type: productType, grade });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [gender, productType, grade]);
-
-  useEffect(() => {
-    let cancelled = false;
-    deferReactState(() => {
-      if (cancelled) return;
-      setSelectedGender(gender);
-      setSelectedProductType(productType);
-      setSelectedSize(size || "");
-      if (isGuidedCategoryFlow) setCurrentStep(gender ? (productType ? "grid" : "productType") : "gender");
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [gender, isGuidedCategoryFlow, productType, size]);
-
-  const buildFilterUrl = (field, value) => {
-    const next = new URLSearchParams(params);
-    if (value && value !== "all") next.set(field, value);
-    else next.delete(field);
-    return `${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`;
-  };
-  const clearClassificationFiltersUrl = () => {
-    const next = new URLSearchParams(params);
-    ["gender", "product_type", "style", "grade", "quality"].forEach((field) => next.delete(field));
-    return `${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`;
-  };
-  const applyDraftFilters = () => {
-    const next = new URLSearchParams(params);
-    ["gender", "product_type", "grade"].forEach((field) => {
-      if (draftFilters[field]) next.set(field, draftFilters[field]);
-      else next.delete(field);
-    });
-    setFiltersOpen(false);
-    navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
-  };
-  const resetDraftFilters = () => {
-    const next = new URLSearchParams(params);
-    ["gender", "product_type", "style", "grade", "quality"].forEach((field) => next.delete(field));
-    setDraftFilters({ gender: "", product_type: "", grade: "" });
-    setFiltersOpen(false);
-    navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
-  };
-
-  const scrollToStep = (step) => {
-    const target = step === "grid" ? gridStepRef.current : step === "productType" ? productTypeStepRef.current : null;
-    if (!target) return;
-    window.setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-  };
-
-  const selectGender = (value) => {
-    setSelectedGender(value);
-    setSelectedProductType("");
-    setSelectedSize("");
-    setCurrentStep("productType");
-    const next = new URLSearchParams();
-    if (value) next.set("gender", value);
-    navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
-    scrollToStep("productType");
-  };
-
-  const selectProductType = (value) => {
-    setSelectedProductType(value);
-    setSelectedSize("");
-    setCurrentStep("grid");
-    const next = new URLSearchParams();
-    if (selectedGender) next.set("gender", selectedGender);
-    if (value) next.set("product_type", value);
-    navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
-    scrollToStep("grid");
-  };
-
-  const changeGender = () => {
-    setSelectedProductType("");
-    setSelectedSize("");
-    setCurrentStep("gender");
-    navigate(filterBasePath);
-  };
-
-  const changeProductType = () => {
-    setSelectedProductType("");
-    setSelectedSize("");
-    setCurrentStep("productType");
-    const next = new URLSearchParams();
-    if (selectedGender) next.set("gender", selectedGender);
-    navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
-    scrollToStep("productType");
-  };
-
-  const genderOptions = useMemo(
-    () => uniqueClassificationOptions((storefrontGenderOptions.length ? storefrontGenderOptions : classificationOptions.gender) || []),
-    [classificationOptions.gender, storefrontGenderOptions]
-  );
-  const productTypeOptions = useMemo(() => {
-    const options = uniqueClassificationOptions(classificationOptions.productType || []);
-    if (!selectedGender || !genderProducts.length) return options;
-    const availableTypeValues = new Set(
-      genderProducts
-        .map((product) => String(product.product_type || product.productType || product.category || "").trim().toLowerCase())
-        .filter(Boolean)
-    );
-    const filtered = options.filter((option) => availableTypeValues.has(String(option.value || "").trim().toLowerCase()));
-    return filtered.length ? filtered : options;
-  }, [classificationOptions.productType, genderProducts, selectedGender]);
-  const filteredProductsBeforeSize = useMemo(() => {
-    const genderValue = normalizeAudienceValue(selectedGender);
-    const typeValue = String(selectedProductType || "").trim().toLowerCase();
-    return (Array.isArray(gridProducts) ? gridProducts : []).filter((product) => {
-      const productTypeValue = String(product.product_type || product.productType || product.category || "").trim().toLowerCase();
-      const genderOk = !genderValue || productAudienceValues(product).includes(genderValue);
-      const typeOk = !typeValue || productTypeValue === typeValue;
-      return genderOk && typeOk;
-    });
-  }, [gridProducts, selectedGender, selectedProductType]);
-  const availableSizes = useMemo(() => buildAvailableSizeOptions(filteredProductsBeforeSize), [filteredProductsBeforeSize]);
-  const filteredProducts = useMemo(
-    () => selectedSize ? filteredProductsBeforeSize.filter((product) => productHasAvailableSize(product, selectedSize)) : filteredProductsBeforeSize,
-    [filteredProductsBeforeSize, selectedSize]
-  );
-  const orderedFilteredProducts = useMemo(
-    () => sortStorefrontColorCardsByModel(filteredProducts),
-    [filteredProducts]
-  );
-  const orderedProducts = useMemo(
-    () => sortStorefrontColorCardsByModel(products),
-    [products]
-  );
-  const displayedProducts = useMemo(
-    () => orderedProducts.filter((product) => productHasAvailableSize(product, size) && (!lastSizes || isLastPieceProduct(product))),
-    [lastSizes, orderedProducts, size]
-  );
-  if (isGuidedCategoryFlow) {
-    const selectedGenderOption = genderOptions.find((option) => String(option.value) === String(selectedGender));
-    const selectedProductTypeOption = productTypeOptions.find((option) => String(option.value) === String(selectedProductType));
-    return (
-      <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-3 md:px-4 md:py-5">
-        <div className="mb-3 flex flex-col gap-2 md:mb-4 md:gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs font-bold text-stone-500 md:text-sm">{t("storefront.products.guidedIntro", "Choose your way")}</p>
-            <h1 className="mt-0.5 text-2xl font-black md:mt-1 md:text-3xl">{t("storefront.nav.categories", "Categories")}</h1>
-          </div>
-          <div className="flex flex-wrap gap-2 text-xs font-black">
-            <StepPill active={currentStep === "gender"} done={Boolean(selectedGender)} label={t("storefront.products.steps.gender", "1. Type")} />
-            <StepPill active={currentStep === "productType"} done={Boolean(selectedProductType)} label={t("storefront.products.steps.product", "2. Product")} />
-            <StepPill active={currentStep === "grid"} done={Boolean(selectedProductType)} label={t("storefront.products.steps.sizes", "3. Sizes")} />
-          </div>
-        </div>
-
-        <GuidedGenderStep
-          options={genderOptions}
-          selectedGender={selectedGender}
-          lang={lang}
-          onSelect={selectGender}
-        />
-
-        <section ref={productTypeStepRef} className={`mt-3 scroll-mt-28 transition md:mt-5 ${currentStep === "gender" && !selectedGender ? "opacity-60" : ""}`}>
-          <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2 md:mb-3 md:gap-3">
-            <SectionIntro eyebrow={t("storefront.filters.productType", "Product Type")} title={t("storefront.products.chooseProductType", "Choose product type")} subtitle={selectedGenderOption ? t("storefront.products.suitableFor", "Suitable choices for {{label}}", { label: classificationLabel(selectedGenderOption, lang) }) : t("storefront.products.chooseGenderFirst", "Choose type first")} compact />
-            {selectedGender ? (
-              <button type="button" onClick={changeGender} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-                {t("storefront.products.changeType", "Change type")}
-              </button>
-            ) : null}
-          </div>
-          <GuidedProductTypeStep
-            options={productTypeOptions}
-            selectedProductType={selectedProductType}
-            lang={lang}
-            disabled={!selectedGender}
-            loading={genderProductsLoading}
-            products={genderProducts}
-            onSelect={selectProductType}
-          />
-        </section>
-
-        <section ref={gridStepRef} className="mt-3 scroll-mt-28 md:mt-6">
-          <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2 md:mb-3 md:gap-3">
-            <SectionIntro
-              eyebrow={t("storefront.products.products", "Products")}
-              title={selectedProductTypeOption ? classificationLabel(selectedProductTypeOption, lang) : t("storefront.products.products", "Products")}
-              subtitle={selectedGenderOption ? `${classificationLabel(selectedGenderOption, lang)}${selectedSize ? ` / ${t("storefront.products.sizeWithValue", "Size {{size}}", { size: selectedSize })}` : ""}` : t("storefront.products.chooseTypeAndProductFirst", "Choose type and product type first")}
-              compact
-            />
-            {selectedProductType ? (
-              <button type="button" onClick={changeProductType} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-                {t("storefront.products.changeProductType", "Change product type")}
-              </button>
-            ) : null}
-          </div>
-          <GuidedSizeFilter sizes={availableSizes} selectedSize={selectedSize} onSelect={setSelectedSize} disabled={!selectedProductType} />
-          {gridProductsError ? <EmptyState title={t("storefront.errors.simpleProblem", "Something went wrong")} text={t("storefront.errors.tryAgainOrWhatsapp", "Try again or contact us on WhatsApp")} /> : null}
-          <ProductGrid
-            products={orderedFilteredProducts}
-            loading={gridProductsLoading}
-            wishlist={wishlist}
-            toggleWishlist={toggleWishlist}
-            onAddToCart={onAddToCart}
-          />
-          {!gridProductsLoading && selectedProductType && !orderedFilteredProducts.length ? (
-            <EmptyState title={t("storefront.products.noProductsForSize", "No products for this size right now. Try another size.")} text={selectedSize ? t("storefront.products.pickDifferentSize", "Pick a different size above") : t("storefront.products.tryDifferentProductType", "Try another product type")} />
-          ) : null}
-        </section>
-      </section>
-    );
-  }
-
-  return (
-    <section className="mx-auto max-w-7xl px-4 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-5 md:py-5">
-      <div className="mb-3 flex flex-col gap-2 md:mb-4 md:gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-bold text-stone-500">{saleView ? t("storefront.products.limitedOffers", "Limited-time offers") : t("storefront.products.shopEasily", "Shop easily")}</p>
-          <h1 className="mt-1 text-3xl font-black">{q ? t("storefront.search.resultsFor", "Search results for \"{{query}}\"", { query: q }) : category || (lastSizes ? t("storefront.home.lastSizes", "Last Sizes") : saleView ? t("storefront.nav.sale", "Sale") : t("storefront.products.allProducts", "All products"))}</h1>
-        </div>
-        <div className="text-sm font-bold text-stone-500">{t("storefront.products.productCount", "{{count}} product", { count: orderedProducts.length })}</div>
-      </div>
-      <PremiumFilterPanel
-        sections={filterSections}
-        lang={lang}
-        buildFilterUrl={buildFilterUrl}
-        clearUrl={clearClassificationFiltersUrl()}
-        activeFilterCount={activeFilterCount}
-      />
-      <MobileFilterTrigger activeFilterCount={activeFilterCount} onOpen={() => setFiltersOpen(true)} />
-      {filtersOpen ? (
-        <Suspense fallback={null}>
-          <LazyFiltersDrawer
-            open={filtersOpen}
-            sections={filterSections}
-            lang={lang}
-            draftFilters={draftFilters}
-            setDraftFilters={setDraftFilters}
-            onClose={() => setFiltersOpen(false)}
-            onApply={applyDraftFilters}
-            onReset={resetDraftFilters}
-          />
-        </Suspense>
-      ) : null}
-      {error ? <EmptyState title={t("storefront.errors.simpleProblem", "Something went wrong")} text={t("storefront.errors.tryAgainOrWhatsapp", "Try again or contact us on WhatsApp")} /> : null}
-      <ProductGrid
-        products={displayedProducts}
-        loading={loading}
-        wishlist={wishlist}
-        toggleWishlist={toggleWishlist}
-        onAddToCart={onAddToCart}
-      />
-      {!loading && !displayedProducts.length ? (
-        <EmptyState
-          title={t("storefront.products.emptyTitle", "No products found")}
-          text={t("storefront.products.emptyText", "Try another search or category")}
-          actionTo={filterBasePath}
-          actionLabel={t("storefront.filters.resetFilters", "Reset filters")}
-        />
-      ) : null}
-    </section>
-  );
-}
-
 const productHasAvailableSize = (product = {}, size = "") => {
   const target = String(size || "").trim().toLowerCase();
   if (!target) return true;
@@ -5757,578 +5444,6 @@ function ProductCardVariantSheet({
         >
           <ShoppingCart className="h-4 w-4" />
           {t("storefront.cart.addToCart", "Add to cart")}
-        </button>
-      </section>
-    </div>,
-    document.body
-  );
-}
-
-function ProductDetails({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, profile }) {
-  const { identifier } = useParams();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const productQueryKey = searchParams.toString();
-  const profilePhone = profile?.primary_phone || profile?.phone || "";
-  const [state, setState] = useState({ loading: true, product: null, error: "" });
-  const [selected, setSelected] = useState({ variantId: "", size: "", colorKey: "", colorName: "", image: "" });
-  const [qty, setQty] = useState(1);
-  const [showMobileBuyBar, setShowMobileBuyBar] = useState(false);
-  const [variantSheetAction, setVariantSheetAction] = useState("");
-  const [touchedOptions, setTouchedOptions] = useState({ color: false, size: false });
-  const mainCtaRef = useRef(null);
-  const recentlyViewedSentRef = useRef("");
-
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    const routeValue = String(identifier || "");
-    const decodedRouteValue = (() => {
-      try {
-        return decodeURIComponent(routeValue);
-      } catch {
-        return routeValue;
-      }
-    })();
-    const unresolvedSearchUrl = `/shop/products?q=${encodeURIComponent(decodedRouteValue.replace(/-/g, " "))}`;
-    if (storefrontDebugEnabled()) console.log("[storefront-product] useParams identifier", { identifier: routeValue });
-    try {
-      sessionStorage.removeItem(`storefront.product.${routeValue}`);
-      localStorage.removeItem(`storefront.product.${routeValue}`);
-    } catch {
-      // Storage can be unavailable in restricted browser contexts.
-    }
-    storefrontApi.getProductDetails(routeValue, { signal: controller.signal }).then((data) => {
-      const product = productFromDetailsResponse(data);
-      if (storefrontDebugEnabled()) console.log("[storefront-product] resolver response", {
-        routeIdentifier: routeValue,
-        resolverStatus: data?.success === true ? "resolved" : "unresolved",
-        resolvable: data?.resolvable,
-        productIdLoaded: product?.id || null,
-        notFoundReason: product ? "" : data?.message || "empty_product_payload",
-      });
-      if (storefrontDebugEnabled()) console.log("[storefront-product] final product object", product);
-      if (!product) {
-        if (!cancelled) {
-          console.warn("[storefront-product] redirecting unresolved product", {
-            routeIdentifier: routeValue,
-            resolverStatus: data?.success === true ? "resolved_without_product" : "not_found",
-            notFoundReason: data?.message || "empty_product_payload",
-            redirectTo: unresolvedSearchUrl,
-          });
-          navigate(unresolvedSearchUrl, { replace: true });
-        }
-        return;
-      }
-      const productVariants = Array.isArray(product?.variants) ? product.variants : [];
-      const routeSearchParams = new URLSearchParams(productQueryKey);
-      const requestedVariantId = routeSearchParams.get("variant") || routeSearchParams.get("variantId") || "";
-      const requestedSize = routeSearchParams.get("size") || "";
-      const requestedColor = routeSearchParams.get("color") || "";
-      const requestedColorKey = String(requestedColor || "").trim().toLowerCase();
-      const requested = productVariants.find((variant) => requestedVariantId && String(variant.id) === String(requestedVariantId) && variantHasStock(variant))
-        || productVariants.find((variant) => requestedVariantId && String(variant.edition_slug || "") === String(requestedVariantId) && variantHasStock(variant))
-        || productVariants.find((variant) => requestedSize && String(variant.size) === requestedSize && (!requestedColor || variantColorKey(variant) === requestedColorKey || variantColorName(variant).toLowerCase() === requestedColorKey) && variantHasStock(variant))
-        || productVariants.find((variant) => requestedSize && String(variant.size) === requestedSize && variantHasStock(variant));
-      const first = requested || firstDisplayVariant(productVariants);
-      if (!cancelled) {
-        setState({ loading: false, product, error: "" });
-        setSelected({
-          variantId: first?.id || "",
-          size: first?.size || "",
-          colorKey: first ? variantColorKey(first) : "",
-          colorName: first ? variantColorName(first) : "",
-          image: variantImage(first) || displayImageForProduct(product, first) || "",
-        });
-        setTouchedOptions({ color: false, size: false });
-        try {
-          rememberProduct(product);
-          const phone = profilePhone;
-          const recentlyViewedKey = `${product.id}:${phone || getSessionId()}`;
-          if (recentlyViewedSentRef.current !== recentlyViewedKey) {
-            recentlyViewedSentRef.current = recentlyViewedKey;
-            api.post("/storefront/recently-viewed", { product_id: product.id, session_id: getSessionId(), phone }).catch(() => undefined);
-          }
-        } catch (sideEffectError) {
-          console.warn("[storefront-product] post-load side effect skipped", sideEffectError);
-        }
-      }
-    }).catch((error) => {
-      if (!cancelled && error?.cause?.name !== "AbortError") {
-        console.warn("[storefront-product] resolver failed", {
-          routeIdentifier: routeValue,
-          resolverUrl: error?.url || "",
-          resolverStatus: error?.status || "network_error",
-          productIdLoaded: null,
-          notFoundReason: error?.responseBody?.message || error.message || "resolver_failed",
-          redirectTo: unresolvedSearchUrl,
-        });
-        if (error?.status === 404) {
-          navigate(unresolvedSearchUrl, { replace: true });
-          return;
-        }
-        setState({ loading: false, product: null, error: error.message });
-      }
-    });
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [identifier, navigate, productQueryKey, profilePhone, rememberProduct]);
-
-  const product = state.product;
-  const variants = useMemo(() => product?.variants || [], [product]);
-  const colorGroups = useMemo(() => {
-    const groups = new Map();
-    variants.forEach((item) => {
-      const color = variantColorName(item);
-      const key = variantColorKey(item);
-      if (!groups.has(key)) {
-        groups.set(key, { key, color, colorName: color, image_url: variantPrimaryImage(item), images: [], variants: [] });
-      }
-      const group = groups.get(key);
-      const images = Array.isArray(item.images) ? item.images : Array.isArray(item.color_images) ? item.color_images : [];
-      const sourceImages = images.length
-        ? images
-        : variantPrimaryImage(item)
-          ? [{ image_url: variantPrimaryImage(item), preview: variantPrimaryImage(item), is_primary: true }]
-          : [];
-      group.images = [...group.images, ...sourceImages].reduce((acc, image) => {
-        const keyImage = String(image?.image_url || image?.preview || "");
-        if (!keyImage || acc.some((entry) => String(entry?.image_url || entry?.preview || "") === keyImage)) return acc;
-        acc.push(image);
-        return acc;
-      }, []);
-      if (!group.image_url) {
-        group.image_url = variantPrimaryImage(item);
-      }
-      group.variants.push(item);
-    });
-    return Array.from(groups.values()).map((group) => ({
-      ...group,
-      primaryImage: group.images.find((image) => image?.is_primary) || group.images[0] || null,
-    }));
-  }, [variants]);
-  const selectedVariant = variants.find((item) => String(item.id) === String(selected.variantId));
-  const selectedColorKey = selected.colorKey || (selectedVariant ? variantColorKey(selectedVariant) : "");
-  const selectedColorGroup = colorGroups.find((group) => String(group.key || "") === String(selectedColorKey)) || colorGroups[0] || null;
-  const variantGroup = selectedColorKey ? variants.filter((item) => variantColorKey(item) === selectedColorKey) : variants;
-  const sizes = [...new Set(variantGroup.map((variant) => variant.size).filter(Boolean))];
-  const colors = colorGroups;
-  const variant = variants.find((item) => String(item.id) === String(selected.variantId))
-    || variants.find((item) => item.size === selected.size && (!selectedColorKey || variantColorKey(item) === selectedColorKey) && variantHasStock(item))
-    || firstDisplayVariant(variants);
-  const colorGalleryImages = (selectedColorGroup?.images || []).filter(Boolean);
-  const thumbnailVariants = [...new Map(
-    variants
-      .filter((item) => variantImage(item))
-      .sort((a, b) => Number(variantHasStock(b)) - Number(variantHasStock(a)))
-      .map((item) => [`${variantImage(item)}:${item.color || ""}`, item])
-  ).values()];
-  const fallbackGalleryImages = !thumbnailVariants.length && product?.image_url ? [product.image_url] : [];
-  const mainImage = selected.image || variantImage(variant) || selectedColorGroup?.primaryImage?.image_url || selectedColorGroup?.primaryImage?.preview || firstVariantImage(variants) || product?.image_url || "";
-  const galleryItems = [
-    ...colorGalleryImages.map((image) => ({
-      image: compactImageValue(image?.image_url || image?.preview || ""),
-      variant: selectedColorGroup?.variants?.find((item) => variantImages(item).includes(compactImageValue(image?.image_url || image?.preview || ""))) || null,
-    })),
-    ...thumbnailVariants.flatMap((item) => variantImages(item).map((image) => ({ image, variant: item }))),
-    ...fallbackGalleryImages.map((image) => ({ image, variant: null })),
-  ].filter((item) => item.image).reduce((acc, item) => (acc.some((entry) => entry.image === item.image) ? acc : [...acc, item]), []);
-  const mirrorProduct = product ? isMirrorProduct(product) : false;
-  const displayTitle = cleanDisplayText(product ? mirrorProductTitle(product, variant) || product.name : "");
-  const selectedPrice = resolveStorefrontPrice(product, variant);
-  const selectedSellingPrice = selectedPrice.activePrice || displaySellingPrice(product, variant);
-  const selectedComparePrice = selectedPrice.comparePrice || displayComparePrice(product, variant);
-  const selectedDiscountPercent = selectedComparePrice > selectedSellingPrice ? Math.max(1, Math.round(((selectedComparePrice - selectedSellingPrice) / selectedComparePrice) * 100)) : 0;
-  const descriptionText = cleanDisplayText(product?.seo_description || product?.description_ar || product?.description_en || product?.description)
-    || "تصميم عملي بخامة Premium مناسب للخروج اليومي وسهل التنسيق مع ستايلات مختلفة.";
-  const inWishlist = product && wishlist.some((item) => String(item.id) === String(product.id));
-  useEffect(() => {
-    if (!product) return;
-    document.title = mirrorProduct ? displayTitle : cleanDisplayText(product.name) || document.title;
-    applyProductSocialMeta(productToSocialMeta(product));
-  }, [product, mirrorProduct, displayTitle]);
-  useEffect(() => {
-    const node = mainCtaRef.current;
-    if (!node || typeof window === "undefined") return undefined;
-    if (!("IntersectionObserver" in window)) {
-      let cancelled = false;
-      deferReactState(() => {
-        if (!cancelled) setShowMobileBuyBar(false);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setShowMobileBuyBar(!entry.isIntersecting);
-      },
-      {
-        threshold: 0.2,
-        rootMargin: "0px 0px -112px 0px",
-      }
-    );
-
-    observer.observe(node);
-    return () => {
-      observer.disconnect();
-      setShowMobileBuyBar(false);
-    };
-  }, [product?.id]);
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-    document.documentElement.style.setProperty("--product-sticky-actions-height", showMobileBuyBar ? "74px" : "0px");
-    return () => {
-      document.documentElement.style.setProperty("--product-sticky-actions-height", "0px");
-    };
-  }, [showMobileBuyBar]);
-  const selectVariant = (candidate, options = {}) => {
-    if (!candidate) return;
-    const candidateColorKey = variantColorKey(candidate);
-    let nextVariant = candidate;
-    if (options.preserveSize && selected.size) {
-      const sameSize = variants.find((item) => variantColorKey(item) === candidateColorKey && String(item.size || "") === String(selected.size) && variantHasStock(item))
-        || variants.find((item) => variantColorKey(item) === candidateColorKey && String(item.size || "") === String(selected.size));
-      if (sameSize) nextVariant = sameSize;
-    }
-    const nextColorGroup = colorGroups.find((group) => group.key === candidateColorKey) || null;
-    const nextImage = options.image || variantImage(nextVariant) || nextColorGroup?.primaryImage?.image_url || nextColorGroup?.primaryImage?.preview || displayImageForProduct(product, nextVariant) || "";
-    setQty(1);
-    setSelected({
-      variantId: nextVariant.id || "",
-      size: nextVariant.size || "",
-      colorKey: variantColorKey(nextVariant),
-      colorName: variantColorName(nextVariant),
-      image: nextImage,
-    });
-  };
-  const selectColor = (group) => {
-    const colorKey = group?.key || "";
-    const candidates = variants.filter((item) => variantColorKey(item) === colorKey);
-    const candidate = candidates.find((item) => item.size === selected.size && variantHasStock(item))
-      || candidates.find(variantHasStock)
-      || candidates[0];
-    if (!candidate) return;
-    setTouchedOptions((prev) => ({ ...prev, color: true }));
-    selectVariant(candidate, { preserveSize: true, image: variantImage(candidate) || group?.primaryImage?.image_url || group?.primaryImage?.preview || "" });
-  };
-  const selectSize = (size) => {
-    const candidates = variants.filter((item) => String(item.size || "") === String(size) && (!selectedColorKey || variantColorKey(item) === selectedColorKey));
-    const candidate = candidates.find(variantHasStock) || candidates[0];
-    setTouchedOptions((prev) => ({ ...prev, size: true }));
-    selectVariant(candidate);
-  };
-  const selectGalleryImage = (item) => {
-    if (item?.variant) {
-      selectVariant(item.variant, { image: item.image });
-      return;
-    }
-    setSelected((prev) => ({ ...prev, image: item?.image || "" }));
-  };
-  const submitVariant = (candidate = variant, quantity = qty, action = "cart") => {
-    if (!product || !candidate || Number(candidate.stock || 0) <= 0) return;
-    const result = onAddToCart(product, candidate, quantity);
-    if (result === "capture_required") return;
-    setVariantSheetAction("");
-    if (action === "buy") navigate("/shop/checkout");
-  };
-  const buyNow = () => {
-    submitVariant(variant, qty, "buy");
-  };
-  const hasMultipleVariantOptions = colors.length > 1 || sizes.length > 1 || variants.length > 1;
-  const colorSelectionReady = colors.length <= 1 || touchedOptions.color;
-  const sizeSelectionReady = sizes.length <= 1 || touchedOptions.size;
-  const canSubmitDirectly = !hasMultipleVariantOptions || (colorSelectionReady && sizeSelectionReady);
-  const requestMobilePurchase = (action) => {
-    if (!product || !variant || Number(variant.stock || 0) <= 0) return;
-    if (hasMultipleVariantOptions && !canSubmitDirectly) {
-      setVariantSheetAction(action);
-      return;
-    }
-    submitVariant(variant, qty, action);
-  };
-  const addFromStickyBar = () => {
-    requestMobilePurchase("cart");
-    setShowMobileBuyBar(false);
-  };
-  const buyFromStickyBar = () => {
-    requestMobilePurchase("buy");
-  };
-  const shareProduct = async () => {
-    const url = typeof window !== "undefined" ? window.location.href : "";
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: displayTitle, text: descriptionText, url });
-        return;
-      }
-      await navigator.clipboard?.writeText(url);
-      toast.success(sfText("storefront.toasts.productLinkCopied", "Product link copied."));
-    } catch {
-      // User cancelled native share.
-    }
-  };
-
-  if (state.loading) return <section className="mx-auto max-w-7xl px-4 py-6"><ProductSkeleton count={2} /></section>;
-  if (!product) return <EmptyState title={sfText("storefront.products.notFoundTitle", "Product not found")} text={sfText("storefront.products.notFoundText", "Go back to products and try another choice")} />;
-
-  return (
-    <section dir="rtl" className="sf-product-details-page mx-auto grid max-w-7xl gap-2 px-3 pb-28 pt-1 md:gap-5 md:px-4 md:pb-36 md:pt-5 lg:grid-cols-[minmax(0,55fr)_minmax(360px,45fr)] lg:items-start lg:pb-8">
-      <Suspense fallback={<ProductGalleryFallback />}>
-        <LazyStorefrontProductGallery
-          mainImage={mainImage}
-          displayTitle={displayTitle}
-          galleryItems={galleryItems}
-          selectedImage={selected.image}
-          onSelectImage={selectGalleryImage}
-          imageFor={imageFor}
-          fallbackProductImage={fallbackProductImage}
-        />
-      </Suspense>
-      <div className="sf-product-info-sticky min-w-0 lg:sticky lg:self-start">
-        <div className="overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[linear-gradient(180deg,#07111f_0%,#050b16_100%)] p-3.5 text-white shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:rounded-[1.45rem] md:p-6">
-          <div className="mb-2 flex items-start justify-between gap-3 md:mb-4">
-            <div className="min-w-0">
-              <div className="mt-1.5 hidden text-[11px] font-black text-[#c4b5fd] md:mt-3 md:block md:text-xs">{sfText("storefront.products.curatedDetails", "Carefully selected product details")}</div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button type="button" onClick={() => toggleWishlist(product)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/75 transition hover:border-rose-300/50 hover:bg-rose-500/10 hover:text-rose-300 md:h-11 md:w-11">
-                <Heart className={`h-5 w-5 ${inWishlist ? "fill-rose-500 text-rose-500" : ""}`} />
-              </button>
-              <button type="button" onClick={shareProduct} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/75 transition hover:border-white/25 hover:bg-white/[0.09] hover:text-white md:h-11 md:w-11">
-                <Share2 className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-          <h1 className="text-[1.45rem] font-black leading-tight tracking-normal text-white md:text-4xl">{displayTitle}</h1>
-          {mirrorProduct && variant?.edition_name ? (
-            <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-xs font-black text-white/65">
-              {cleanDisplayText(variant.edition_name)}
-            </div>
-          ) : null}
-          <div className="mt-2 flex items-center gap-2 text-xs font-bold text-white/60 md:mt-3 md:text-sm">
-            <span className="flex gap-0.5 text-amber-400">{Array.from({ length: 5 }).map((_, index) => <Star key={index} className="h-4 w-4 fill-current" />)}</span>
-            <span className="text-white">4.8</span>
-            <span className="text-white/25">|</span>
-            <span>{sfText("storefront.products.verifiedReviews", "Verified reviews")}</span>
-          </div>
-          <p className="mt-2 text-sm font-semibold leading-6 text-white/65 md:mt-4 md:text-[15px] md:leading-[1.8]">{descriptionText}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-2 md:mt-5 md:items-end md:gap-3">
-            <span className="text-3xl font-black leading-none text-white md:text-3xl">{money(selectedSellingPrice)}</span>
-            {selectedComparePrice ? <span className="text-sm font-bold text-white/35 line-through md:text-base">{money(selectedComparePrice)}</span> : null}
-            {selectedDiscountPercent ? <span className="rounded-full border border-emerald-300/20 bg-emerald-400/12 px-2 py-1 text-[10px] font-black text-emerald-100">{sfText("storefront.products.discountBadge", "-{{percent}}%", { percent: selectedDiscountPercent })}</span> : null}
-          </div>
-          <Selector title={sfText("storefront.products.chooseColor", "Choose color")}>
-            {colors.map((group) => {
-              const hasStock = group.variants.some((item) => variantHasStock(item));
-              return <Choice key={group.key} active={selectedColorKey === group.key} disabled={!hasStock} onClick={() => selectColor(group)}>{group.colorName || group.color}</Choice>;
-            })}
-          </Selector>
-          <Selector
-            title={sfText("storefront.products.chooseSize", "Choose size")}
-            help={
-              <Link
-                to="/shop/size-guide"
-                className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-black text-white/70 transition hover:border-white/25 hover:bg-white/[0.09] hover:text-white"
-              >
-                {sfText("storefront.nav.sizeGuide", "Size guide")}
-              </Link>
-            }
-          >
-            {sizes.map((size) => {
-              const hasStock = variantGroup.some((item) => item.size === size && variantHasStock(item));
-              return <Choice key={size} active={selected.size === size} disabled={!hasStock} onClick={() => selectSize(size)}>{size}</Choice>;
-            })}
-          </Selector>
-          {variant && Number(variant.stock || 0) <= 0 ? <p className="mt-3 text-sm font-bold text-rose-600">{sfText("storefront.products.variantUnavailable", "This size or color is currently unavailable")}</p> : null}
-          {variant && Number(variant.stock || 0) > 0 && Number(variant.stock || 0) <= 3 ? <div className="mt-3 inline-flex rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-xs font-black text-amber-100">{sfText("storefront.products.onlyLeft", "Only {{count}} left", { count: variant.stock })}</div> : null}
-          <div className="mt-4 hidden items-center gap-3 md:flex">
-            <button onClick={() => setQty(Math.max(1, qty - 1))} className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.055] text-white/80 transition hover:border-white/25 hover:bg-white/[0.09]"><Minus className="h-4 w-4" /></button>
-            <span className="grid h-11 min-w-12 place-items-center rounded-full border border-white/10 bg-black/20 px-4 text-center font-black text-white">{qty}</span>
-            <button onClick={() => setQty(Math.min(Number(variant?.stock || 1), qty + 1))} className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.055] text-white/80 transition hover:border-white/25 hover:bg-white/[0.09]">+</button>
-          </div>
-          <div ref={mainCtaRef} className="mt-5 hidden grid-cols-2 gap-3 md:grid">
-            <button onClick={() => onAddToCart(product, variant, qty)} disabled={!variant || Number(variant.stock || 0) <= 0} className="rounded-full border border-white/14 bg-white/[0.045] px-5 py-4 font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.035] disabled:text-white/30 disabled:shadow-none">{sfText("storefront.cart.addToCart", "Add to cart")}</button>
-            <button onClick={buyNow} disabled={!variant || Number(variant.stock || 0) <= 0} className="rounded-full bg-white px-5 py-4 font-black text-stone-950 shadow-[0_18px_38px_rgba(255,255,255,0.16)] transition hover:-translate-y-0.5 hover:bg-[#f5f3ff] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none">{sfText("storefront.cart.buyNow", "Buy now")}</button>
-          </div>
-          <a href="https://wa.me/" className="mt-4 inline-flex items-center gap-2 text-sm font-black text-white/62 transition hover:text-white"><Phone className="h-4 w-4" /> {sfText("storefront.support.sizeHelp", "Need help with sizing?")}</a>
-          <div className="mt-6 grid grid-cols-2 gap-2 text-sm font-bold text-white/75">
-            <InfoLine icon={<Truck className="h-4 w-4" />} text={sfText("storefront.checkout.trust.fastShipping", "Fast shipping")} />
-            <InfoLine icon={<PackageCheck className="h-4 w-4" />} text={sfText("storefront.checkout.trust.exchange", "Exchange within 14 days")} />
-            <InfoLine icon={<ShieldCheck className="h-4 w-4" />} text={sfText("storefront.checkout.trust.safeData", "Secure payment")} />
-            <InfoLine icon={<Sparkles className="h-4 w-4" />} text={sfText("storefront.products.premiumMaterial", "Premium material")} />
-          </div>
-        </div>
-        <RelatedProducts currentId={product.id} onAddToCart={onAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} recent={recent} />
-        <RecentProductsSection currentId={product.id} recent={recent} />
-      </div>
-      <MobileBuyBar product={product} variant={variant} visible={showMobileBuyBar} onAddToCart={addFromStickyBar} buyNow={buyFromStickyBar} />
-      {variantSheetAction ? (
-        <Suspense fallback={null}>
-          <LazyProductDetailsVariantSheet
-            product={product}
-            variant={variant}
-            colors={colors}
-            sizes={sizes}
-            selectedColorKey={selectedColorKey}
-            selectedSize={selected.size}
-            quantity={qty}
-            action={variantSheetAction}
-            onClose={() => setVariantSheetAction("")}
-            onColorSelect={selectColor}
-            onSizeSelect={selectSize}
-            onQuantityChange={setQty}
-            onSubmit={(candidate, quantity) => submitVariant(candidate, quantity, variantSheetAction)}
-          />
-        </Suspense>
-      ) : null}
-    </section>
-  );
-}
-
-function Selector({ title, help, children }) {
-  return (
-    <div className="mt-5 border-t border-white/[0.06] pt-4">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-black text-white">{title}</h3>
-        {help}
-      </div>
-      <div className="flex flex-wrap gap-2">{children}</div>
-    </div>
-  );
-}
-
-function Choice({ active, disabled, onClick, children }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`relative min-w-10 overflow-hidden rounded-full border px-3 py-1.5 text-xs font-black transition md:min-w-12 md:px-4 md:py-2.5 md:text-sm ${
-        active
-          ? "border-white bg-white text-stone-950 shadow-[0_12px_28px_rgba(255,255,255,0.12)]"
-          : disabled
-            ? "cursor-not-allowed border-white/[0.07] bg-white/[0.035] text-white/25 opacity-60"
-            : "border-white/10 bg-white/[0.055] text-white/78 hover:border-white/25 hover:bg-white/[0.09] hover:text-white"
-      }`}
-    >
-      {disabled ? <span className="pointer-events-none absolute left-1/2 top-1/2 h-px w-[120%] -translate-x-1/2 -translate-y-1/2 rotate-[-18deg] bg-white/35" /> : null}
-      <span className="relative z-10">{children}</span>
-    </button>
-  );
-}
-
-function ProductDetailsVariantSheet({
-  product,
-  variant,
-  colors = [],
-  sizes = [],
-  selectedColorKey = "",
-  selectedSize = "",
-  quantity = 1,
-  action = "cart",
-  onClose,
-  onColorSelect,
-  onSizeSelect,
-  onQuantityChange,
-  onSubmit,
-}) {
-  const activeColor = colors.find((group) => String(group.key) === String(selectedColorKey)) || colors[0] || null;
-  const activeVariants = activeColor?.variants || [];
-  const activeVariant = activeVariants.find((item) => String(item.size || "") === String(selectedSize) && variantHasStock(item))
-    || activeVariants.find((item) => String(item.id) === String(variant?.id) && variantHasStock(item))
-    || variant;
-  const maxQty = Math.max(1, Number(activeVariant?.stock || 1));
-  const safeQty = Math.min(Math.max(1, Number(quantity || 1)), maxQty);
-  const price = displaySellingPrice(product, activeVariant);
-  const finalLabel = action === "buy" ? sfText("storefront.cart.buyNow", "Buy now") : sfText("storefront.cart.addToCart", "Add to cart");
-
-  return createPortal(
-    <div className="fixed inset-0 z-[85] md:hidden" role="dialog" aria-modal="true">
-      <button type="button" className="absolute inset-0 bg-stone-950/62 backdrop-blur-sm" onClick={onClose} aria-label={sfText("storefront.common.close", "Close")} />
-      <section className="absolute inset-x-0 bottom-0 rounded-t-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]">
-        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/20" />
-        <div className="flex items-start gap-3">
-          <img src={imageFor(displayImageForProduct(product, activeVariant))} onError={fallbackProductImage} alt="" className="h-16 w-16 shrink-0 rounded-2xl bg-white/8 object-contain p-1.5" loading="lazy" decoding="async" width="64" height="64" />
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#d8b4fe]">{sfText("storefront.products.selectOptions", "Select options")}</p>
-            <h3 className="mt-1 line-clamp-2 text-base font-black leading-5">{cleanDisplayText(product?.name)}</h3>
-            <div className="mt-1 text-lg font-black">{money(price)}</div>
-          </div>
-          <button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75" aria-label={sfText("storefront.common.close", "Close")}>
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {colors.length > 1 ? (
-          <div className="mt-4">
-            <div className="mb-2 text-[11px] font-black text-white/50">{sfText("storefront.products.chooseColor", "Choose color")}</div>
-            <div className="sf-scroll flex gap-2 overflow-x-auto pb-1">
-              {colors.map((group) => {
-                const active = String(group.key) === String(activeColor?.key);
-                const hasStock = group.variants.some((item) => variantHasStock(item));
-                return (
-                  <button
-                    key={group.key}
-                    type="button"
-                    onClick={() => onColorSelect(group)}
-                    disabled={!hasStock}
-                    className={`min-h-9 shrink-0 rounded-full border px-3 py-2 text-xs font-black transition ${active ? "border-[#d8b4fe]/70 bg-[#7c3aed] text-white shadow-[0_12px_28px_rgba(124,58,237,0.32)]" : "border-white/10 bg-white/6 text-white/70"} disabled:cursor-not-allowed disabled:opacity-35`}
-                  >
-                    {group.colorName || group.color}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-4">
-          <div className="mb-2 text-[11px] font-black text-white/50">{sfText("storefront.products.chooseSize", "Choose size")}</div>
-          <div className="flex flex-wrap gap-2">
-            {sizes.map((size) => {
-              const hasStock = activeVariants.some((item) => String(item.size || "") === String(size) && variantHasStock(item));
-              const active = String(selectedSize) === String(size);
-              return (
-                <button
-                  key={size}
-                  type="button"
-                  onClick={() => onSizeSelect(size)}
-                  disabled={!hasStock}
-                  className={`relative min-w-11 overflow-hidden rounded-full border px-3 py-1.5 text-xs font-black transition ${active ? "border-white bg-white text-stone-950" : hasStock ? "border-white/10 bg-white/6 text-white/75" : "cursor-not-allowed border-white/[0.07] bg-white/[0.035] text-white/25 opacity-60"}`}
-                >
-                  {!hasStock ? <span className="pointer-events-none absolute left-1/2 top-1/2 h-px w-[120%] -translate-x-1/2 -translate-y-1/2 rotate-[-18deg] bg-white/35" /> : null}
-                  <span className="relative z-10">{size || sfText("storefront.products.oneSize", "One size")}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {activeVariant && Number(activeVariant.stock || 0) > 0 && Number(activeVariant.stock || 0) <= 3 ? (
-          <div className="mt-3 inline-flex rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-xs font-black text-amber-100">
-            {sfText("storefront.products.onlyLeft", "Only {{count}} left", { count: activeVariant.stock })}
-          </div>
-        ) : null}
-
-        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-2">
-          <button type="button" onClick={() => onQuantityChange(Math.max(1, safeQty - 1))} className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-lg font-black">-</button>
-          <div className="text-center">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">{sfText("storefront.cart.quantity", "Quantity")}</div>
-            <div className="text-lg font-black">{safeQty}</div>
-          </div>
-          <button type="button" onClick={() => onQuantityChange(Math.min(maxQty, safeQty + 1))} className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-lg font-black">+</button>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => activeVariant && onSubmit(activeVariant, safeQty)}
-          disabled={!activeVariant || !variantHasStock(activeVariant)}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.16)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
-        >
-          <ShoppingCart className="h-4 w-4" />
-          {finalLabel}
         </button>
       </section>
     </div>,
@@ -8491,6 +7606,71 @@ const getSessionId = () => {
   return id;
 };
 
+export {
+  LazyFiltersDrawer,
+  LazyProductCardVariantSheet,
+  LazyProductDetailsVariantSheet,
+  LazyStorefrontProductGallery,
+  LazyStorefrontProductListingPage,
+  LazyStorefrontProductDetailPage,
+  EmptyState,
+  GuidedGenderStep,
+  GuidedProductTypeStep,
+  GuidedSizeFilter,
+  MobileBuyBar,
+  MobileFilterDrawer,
+  MobileFilterTrigger,
+  PremiumFilterPanel,
+  ProductCard,
+  ProductGalleryFallback,
+  ProductGrid,
+  ProductSkeleton,
+  RecentProductsSection,
+  RelatedProducts,
+  SectionIntro,
+  StepPill,
+  StorefrontPageFallback,
+  buildAvailableSizeOptions,
+  cleanDisplayText,
+  classificationColor,
+  classificationLabel,
+  deferReactState,
+  displayCartItemComparePrice,
+  displayCartItemPrice,
+  displayComparePrice,
+  displayImageForProduct,
+  displaySellingPrice,
+  fallbackProductImage,
+  firstDisplayVariant,
+  firstVariantImage,
+  getSessionId,
+  imageFor,
+  isLastPieceProduct,
+  isMirrorProduct,
+  money,
+  normalizeAudienceValue,
+  mirrorProductTitle,
+  productAudienceValues,
+  productCardKey,
+  productFromDetailsResponse,
+  productToSocialMeta,
+  productHasAvailableSize,
+  resolveStorefrontPrice,
+  sfText,
+  sortStorefrontColorCardsByModel,
+  storefrontApi,
+  truthyFlag,
+  uniqueClassificationOptions,
+  useBodyScrollLock,
+  useProducts,
+  useStorefrontGenderClassifications,
+  variantColorKey,
+  variantColorName,
+  variantHasStock,
+  variantImage,
+  variantImages,
+};
+
 const playSoftClick = () => {
   try {
     const audio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=");
@@ -8544,6 +7724,7 @@ function StorefrontWithBoundary() {
 }
 
 export default StorefrontWithBoundary;
+
 
 
 

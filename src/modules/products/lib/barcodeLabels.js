@@ -1125,6 +1125,20 @@ export const openBarcodePrintWindow = ({
     copy,
   });
   console.info("[barcode-print:selected-template]", template);
+  console.info("[barcode-print:paper-width]", paper.paperWidthMm);
+  console.info("[barcode-print:paper-height]", paper.paperHeightMm);
+  console.info("[barcode-print:label-width]", normalizedSettings.labelWidthMm);
+  console.info("[barcode-print:label-height]", normalizedSettings.labelHeightMm);
+  console.info(
+    "[barcode-print:preview-orientation]",
+    `${normalizedSettings.labelWidthMm > normalizedSettings.labelHeightMm ? "landscape" : "portrait"}`
+  );
+  console.info(
+    "[barcode-print:print-orientation]",
+    resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
+      ? `page:${paper.paperWidthMm > paper.paperHeightMm ? "landscape" : "portrait"} | label:rotated-landscape`
+      : `${paper.paperWidthMm > paper.paperHeightMm ? "landscape" : "portrait"}`
+  );
   console.info("[barcode-print:labels-count]", Array.isArray(labels) ? labels.length : 0);
   console.info("[barcode-print:html-length]", html.length);
 
