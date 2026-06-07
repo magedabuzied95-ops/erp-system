@@ -260,10 +260,33 @@ const buildBostaPickerOption = (item = {}, scope = "city", lang = "ar") => {
   const nameEn = String(item.name_en || item.governorate_name_en || item.city_name_en || item.area_name_en || "").trim();
   const label = normalizeLanguage(lang) === "ar" ? (nameAr || nameEn) : (nameEn || nameAr);
   const secondary = [nameAr && nameAr !== label ? nameAr : "", nameEn && nameEn !== label ? nameEn : ""].filter(Boolean).join(" · ");
-  const id = String(item.id || "").trim();
-  const searchText = normalizeCheckoutPickerText([nameAr, nameEn, item.provider_city_id, item.provider_zone_id, item.provider_district_id, item.code, item.zone_code, item.governorate_name_en, item.governorate_name_ar].filter(Boolean).join(" "));
+  const id = String(item.id || item.value || item.districtId || item.zoneId || item.cityId || item.governorateId || "").trim();
+  const value = String(item.value || item.id || item.districtId || item.zoneId || item.cityId || item.governorateId || id || "").trim();
+  const districtId = String(item.districtId || item.district_id || item.provider_district_id || item.providerDistrictId || item.district || "").trim();
+  const name = label || id;
+  const searchText = normalizeCheckoutPickerText([
+    nameAr,
+    nameEn,
+    item.provider_city_id,
+    item.provider_zone_id,
+    item.provider_district_id,
+    item.code,
+    item.zone_code,
+    item.governorate_name_en,
+    item.governorate_name_ar,
+    item.name,
+    item.district,
+    item.district_name,
+    item.district_name_ar,
+    item.district_name_en,
+  ].filter(Boolean).join(" "));
   return {
     id,
+    value,
+    districtId,
+    name,
+    nameAr,
+    nameEn,
     label: label || id,
     secondary,
     searchText,
@@ -272,6 +295,53 @@ const buildBostaPickerOption = (item = {}, scope = "city", lang = "ar") => {
   };
 };
 const buildBostaPickerOptions = (items = [], scope = "city", lang = "ar") => items.map((item) => buildBostaPickerOption(item, scope, lang)).filter((option) => option.id || option.label);
+const matchBostaPickerOption = (options = [], source = {}) => {
+  const savedIds = [
+    source.shipping_district_id,
+    source.district_id,
+    source.bosta_district_id,
+    source.provider_district_id,
+    source.id,
+    source.value,
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  const savedNames = [
+    source.district,
+    source.district_name,
+    source.district_name_ar,
+    source.district_name_en,
+    source.area,
+    source.area_name,
+    source.area_name_ar,
+    source.area_name_en,
+    source.city_area,
+  ].map((value) => normalizeCheckoutPickerText(value)).filter(Boolean);
+  return options.find((option) => {
+    const optionIds = [
+      option.id,
+      option.value,
+      option.districtId,
+      option.raw?.district_id,
+      option.raw?.provider_district_id,
+      option.raw?.id,
+    ].map((value) => String(value || "").trim()).filter(Boolean);
+    if (savedIds.some((id) => optionIds.some((optionId) => String(optionId) === String(id)))) return true;
+    if (!savedNames.length) return false;
+    const optionNames = [
+      option.name,
+      option.nameAr,
+      option.nameEn,
+      option.label,
+      option.raw?.name,
+      option.raw?.name_ar,
+      option.raw?.name_en,
+      option.raw?.district,
+      option.raw?.district_name,
+      option.raw?.district_name_ar,
+      option.raw?.district_name_en,
+    ].map((value) => normalizeCheckoutPickerText(value)).filter(Boolean);
+    return savedNames.some((savedName) => optionNames.some((optionName) => optionName === savedName));
+  }) || null;
+};
 const getPaymentMethods = () => [
   {
     id: "cod",
@@ -6037,18 +6107,18 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     if (options.markDirty !== false) {
       editedCheckoutFieldsRef.current.add("city_area");
     }
-    const selected = bostaLocations.districts.find((district) => String(district.id) === String(value));
+    const selected = matchBostaPickerOption(bostaDistrictOptions, { shipping_district_id: value, district_id: value, bosta_district_id: value });
     setForm((prev) => ({
       ...prev,
-      area_id: selected?.provider_district_id || "",
-      area: selected?.name_ar || selected?.name_en || "",
-      district_id: selected?.provider_district_id || "",
-      district: selected?.name_ar || selected?.name_en || "",
-      city_area: selected?.name_ar || selected?.name_en || prev.city_area,
-      shipping_district_id: selected?.id ? String(selected.id) : "",
+      area_id: selected?.districtId || selected?.raw?.provider_district_id || selected?.raw?.district_id || selected?.id || "",
+      area: selected?.nameAr || selected?.nameEn || selected?.name || "",
+      district_id: selected?.districtId || selected?.raw?.provider_district_id || selected?.raw?.district_id || selected?.id || "",
+      district: selected?.nameAr || selected?.nameEn || selected?.name || "",
+      city_area: selected?.nameAr || selected?.nameEn || selected?.name || prev.city_area,
+      shipping_district_id: selected?.id ? String(selected.id) : String(value || ""),
     }));
     setErrors((prev) => ({ ...prev, city_area: "" }));
-  }, [bostaLocations.districts]);
+  }, [bostaDistrictOptions]);
 
   useEffect(() => {
     const phone = form.primary_phone.replace(/\s/g, "");
@@ -6136,10 +6206,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
           city_id: String(address.city_id || "").trim(),
           area_id: String(address.area_id || "").trim(),
           zone_id: String(address.zone_id || "").trim(),
-          district_id: String(address.district_id || "").trim(),
+          district_id: String(address.district_id || address.bosta_district_id || address.shipping_district_id || "").trim(),
           shipping_city_id: String(address.shipping_city_id || "").trim(),
           shipping_zone_id: String(address.shipping_zone_id || "").trim(),
-          shipping_district_id: String(address.shipping_district_id || "").trim(),
+          shipping_district_id: String(address.shipping_district_id || address.bosta_district_id || address.district_id || "").trim(),
         };
 
         setForm((prev) => {
@@ -6238,24 +6308,58 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     const candidate = latestAddressRestore.candidate;
     if (!candidate || latestAddressRestore.status !== "restoring" || latestAddressRestore.stage !== "district") return undefined;
     if (checkoutStep !== 2) return undefined;
-    if (CHECKOUT_ADDRESS_FIELDS.some((key) => editedCheckoutFieldsRef.current.has(key))) {
-      console.info("[checkout:last-address-restore-skipped]", { reason: "manual_edit_detected", token: latestAddressRestore.token });
-      setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "skipped", stage: "idle" } : prev));
-      return undefined;
-    }
-    if (!candidate.shipping_district_id) {
+    const districtSource = {
+      shipping_district_id: candidate.shipping_district_id,
+      bosta_district_id: candidate.bosta_district_id,
+      district_id: candidate.district_id,
+      district: candidate.district,
+      district_name: candidate.district_name,
+      district_name_ar: candidate.district_name_ar,
+      district_name_en: candidate.district_name_en,
+      area: candidate.area,
+      area_name: candidate.area_name,
+      area_name_ar: candidate.area_name_ar,
+      area_name_en: candidate.area_name_en,
+      city_area: candidate.city_area,
+      provider_district_id: candidate.provider_district_id,
+    };
+    console.info("[checkout:last-address-district-source]", {
+      token: latestAddressRestore.token,
+      source: districtSource,
+    });
+    if (!districtSource.shipping_district_id && !districtSource.bosta_district_id && !districtSource.district_id && !districtSource.district && !districtSource.district_name && !districtSource.district_name_ar && !districtSource.district_name_en && !districtSource.area && !districtSource.area_name && !districtSource.area_name_ar && !districtSource.area_name_en && !districtSource.city_area) {
       setLatestAddressApplied(true);
       setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "done", stage: "done" } : prev));
       console.info("[checkout:last-address-restore-success]", { token: latestAddressRestore.token, mode: "bosta-city-zone" });
       return undefined;
     }
-    if (bostaLocations.loadingDistricts) return undefined;
-    const districtOption = bostaDistrictOptions.find((option) => String(option.id) === String(candidate.shipping_district_id));
+    console.info("[checkout:last-address-district-options-loaded]", {
+      token: latestAddressRestore.token,
+      loading: bostaLocations.loadingDistricts,
+      optionsCount: bostaDistrictOptions.length,
+    });
+    if (bostaLocations.loadingDistricts || !bostaDistrictOptions.length) return undefined;
+    const districtOption = matchBostaPickerOption(bostaDistrictOptions, districtSource);
     if (!districtOption) {
-      console.info("[checkout:last-address-restore-skipped]", { reason: "district_options_not_ready", token: latestAddressRestore.token });
-      setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "skipped", stage: "idle" } : prev));
+      console.info("[checkout:last-address-district-match-missing]", {
+        token: latestAddressRestore.token,
+        source: districtSource,
+        optionsCount: bostaDistrictOptions.length,
+      });
       return undefined;
     }
+    console.info("[checkout:last-address-district-match-found]", {
+      token: latestAddressRestore.token,
+      option: {
+        id: districtOption.id,
+        value: districtOption.value,
+        districtId: districtOption.districtId,
+        label: districtOption.label,
+        name: districtOption.name,
+        nameAr: districtOption.nameAr,
+        nameEn: districtOption.nameEn,
+      },
+    });
     console.info("[checkout:last-address-bosta-district-restored]", {
       token: latestAddressRestore.token,
       district_id: districtOption.id,
