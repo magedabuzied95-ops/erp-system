@@ -13,6 +13,7 @@ import {
   unsubscribeEmployeePortalPush,
   updateEmployeeWalletTaskStatus,
 } from "../services/employeePayrollPortalService.js";
+import { loadEmployeePortalProducts } from "../services/employeePortalProductsService.js";
 import { getEmployeeChat, sendEmployeeChatMessage } from "../services/employeeChatService.js";
 import {
   listDisplayRefillAlertsForEmployee,
@@ -207,6 +208,18 @@ router.get("/:token/chat", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] chat load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load chat" });
+  }
+});
+
+router.get("/:token/products", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const payload = await loadEmployeePortalProducts({ employee, query: req.query || {} });
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error("[employee-payroll-portal] product browser load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load employee products" });
   }
 });
 
