@@ -5451,6 +5451,48 @@ function ProductCardVariantSheet({
   );
 }
 
+function ProductDetailsVariantSheet({
+  product,
+  variant,
+  colors = [],
+  selectedColorKey,
+  selectedSize,
+  quantity = 1,
+  action = "cart",
+  onClose,
+  onColorSelect,
+  onSizeSelect,
+  onQuantityChange,
+  onSubmit,
+}) {
+  const colorGroups = Array.isArray(colors) ? colors : [];
+  const selectedVariantId = variant?.id || "";
+  const allVariants = colorGroups.flatMap((group) => (Array.isArray(group?.variants) ? group.variants : []));
+
+  return (
+    <ProductCardVariantSheet
+      product={product}
+      colorGroups={colorGroups}
+      selectedColorKey={selectedColorKey}
+      selectedVariantId={selectedVariantId}
+      quantity={quantity}
+      onColorChange={(nextColorKey) => onColorSelect?.(nextColorKey)}
+      onVariantChange={(variantId) => {
+        const candidate = allVariants.find((item) => String(item?.id) === String(variantId));
+        if (!candidate) return;
+        const nextColorKey = variantColorKey(candidate);
+        if (String(nextColorKey || "") !== String(selectedColorKey || "")) {
+          onColorSelect?.(nextColorKey);
+        }
+        onSizeSelect?.(candidate.size || "");
+      }}
+      onQuantityChange={onQuantityChange}
+      onClose={onClose}
+      onAdd={(candidate, qty) => onSubmit?.(candidate, qty, action)}
+    />
+  );
+}
+
 function RelatedProducts({ currentId, ...props }) {
   const { products } = useProducts({ limit: 8 });
   const filtered = useMemo(
