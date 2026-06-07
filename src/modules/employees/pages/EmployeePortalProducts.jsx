@@ -932,8 +932,17 @@ export default function EmployeePortalProducts() {
         </header>
 
         <section className="mt-3 rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.2)] backdrop-blur">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <label className="flex min-h-12 min-w-0 flex-[1_1_100%] items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3 sm:flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCameraScannerOpen(true)}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10"
+              aria-label="فتح ماسح الكاميرا"
+              title="فتح ماسح الكاميرا"
+            >
+              <Camera className="h-4 w-4" />
+            </button>
+            <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3">
               <Search className="h-4 w-4 shrink-0 text-zinc-500" />
               <input
                 ref={searchInputRef}
@@ -942,33 +951,28 @@ export default function EmployeePortalProducts() {
                 placeholder="ابحث بالاسم أو الموديل أو الباركود أو الكود"
                 className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
-              <button
-                type="button"
-                onClick={() => setCameraScannerOpen(true)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10"
-                aria-label="فتح ماسح الكاميرا"
-                title="فتح ماسح الكاميرا"
-              >
-                <Camera className="h-4 w-4" />
-              </button>
             </label>
             <button
               type="button"
               onClick={() => setFiltersOpen(true)}
               aria-expanded={filtersOpen}
-              className={`inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border px-3 text-xs font-black transition ${
+              className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition ${
                 filtersOpen || activeFilterCount > 0
                   ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]"
                   : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10"
               }`}
+              aria-label="الفلاتر"
+              title="الفلاتر"
             >
-              <Filter className="h-4 w-4 text-zinc-500" />
-              الفلاتر
-              {activeFilterCount > 0 ? (
-                <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] font-black text-emerald-100">
-                  {activeFilterCount}
-                </span>
-              ) : null}
+              <span className="relative inline-flex">
+                <Filter className="h-4 w-4" />
+                {activeFilterCount > 0 ? (
+                  <span className="absolute -right-2 -top-2 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-emerald-400 px-1 text-[10px] font-black text-zinc-950">
+                    {activeFilterCount > 99 ? "99+" : activeFilterCount}
+                  </span>
+                ) : null}
+              </span>
+              <span className="sr-only">الفلاتر</span>
             </button>
           </div>
         </section>
