@@ -20,6 +20,7 @@ const apiKey = () => String(process.env.EVOLUTION_API_KEY || "").trim();
 const instanceName = () => String(process.env.WHATSAPP_INSTANCE_NAME || process.env.EVOLUTION_INSTANCE_NAME || process.env.instanceName || "m1-store").trim();
 const webhookSecret = () => String(process.env.WHATSAPP_WEBHOOK_SECRET || "").trim();
 const sentImageDuplicateCache = new Map();
+const recentEvolutionWebhookEvents = [];
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const money = (value) => {
@@ -34,6 +35,33 @@ const config = () => ({
   instanceName: instanceName(),
   webhookSecretConfigured: Boolean(webhookSecret()),
 });
+
+const redactSensitive = (value, seen = new WeakSet()) => {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) return value.map((item) => redactSensitive(item, seen));
+  if (typeof value !== "object") return value;
+  if (seen.has(value)) return "[Circular]";
+  seen.add(value);
+  const output = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (/api[_-]?key|token|secret|password|authorization|apikey/i.test(key)) {
+      output[key] = child ? "[REDACTED]" : child;
+    } else {
+      output[key] = redactSensitive(child, seen);
+    }
+  }
+  return output;
+};
+
+const rememberEvolutionWebhookEvent = (entry = {}) => {
+  recentEvolutionWebhookEvents.unshift({
+    received_at: new Date().toISOString(),
+    ...entry,
+  });
+  recentEvolutionWebhookEvents.splice(20);
+};
+
+export const getRecentEvolutionWebhookEvents = () => recentEvolutionWebhookEvents;
 
 const gatewayError = (message, code = "WHATSAPP_GATEWAY_ERROR", status = 500, extra = {}) =>
   Object.assign(new Error(message), { code, status, ...extra });
@@ -427,6 +455,42 @@ const collectStrings = (value, output = [], seen = new WeakSet()) => {
   return output;
 };
 
+const collectStringsWithPaths = (value, path = "payload", output = [], seen = new WeakSet()) => {
+  if (output.length >= 500 || value === null || value === undefined) return output;
+  if (typeof value === "string" || typeof value === "number") {
+    const current = text(value);
+    if (current) output.push({ path, value: current });
+    return output;
+  }
+  if (typeof value !== "object" || seen.has(value)) return output;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    value.forEach((child, index) => collectStringsWithPaths(child, `${path}[${index}]`, output, seen));
+    return output;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    collectStringsWithPaths(child, `${path}.${key}`, output, seen);
+    if (output.length >= 500) break;
+  }
+  return output;
+};
+
+const getPathValue = (source, path = "") => {
+  const parts = String(path || "").replace(/\[(\d+)\]/g, ".$1").split(".").filter(Boolean);
+  let current = source;
+  for (const part of parts) {
+    if (current === null || current === undefined) return undefined;
+    current = current[part];
+  }
+  return current;
+};
+
+const primaryEvolutionData = (payload = {}) => {
+  const data = payload?.data ?? payload?.body?.data ?? payload;
+  if (Array.isArray(data)) return data[0] || {};
+  return data || {};
+};
+
 const isLidJid = (value = "") => /@lid$/i.test(text(value));
 const isWhatsappPhoneJid = (value = "") => /@(s\.whatsapp\.net|c\.us)$/i.test(text(value));
 const isGroupJid = (value = "") => /@g\.us$/i.test(text(value));
@@ -476,6 +540,7 @@ const ownerJidsFromPayload = ({ payload = {}, data = {}, fromMe = null } = {}) =
     process.env.WHATSAPP_INSTANCE_OWNER_NUMBER,
     process.env.EVOLUTION_INSTANCE_OWNER_NUMBER,
     process.env.WHATSAPP_OWNER_NUMBER,
+    process.env.WHATSAPP_NUMBER,
     data?.ownerJid,
     data?.owner_jid,
     data?.connectedOwnerJid,
@@ -500,9 +565,7 @@ const ownerJidsFromPayload = ({ payload = {}, data = {}, fromMe = null } = {}) =
     payload?.instance?.profile?.id,
     fromMe === true ? data?.sender : "",
     fromMe === true ? payload?.sender : "",
-    fromMe === false ? data?.sender : "",
-    fromMe === false ? payload?.sender : "",
-    process.env.NODE_ENV !== "test" ? "201024960585" : "",
+    "201000659301",
   ];
   const seen = new Set();
   const owners = [];
@@ -598,6 +661,7 @@ const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJ
     };
   }
   if (isLid) {
+    const nestedStrings = collectStringsWithPaths(payload);
     logLidResolutionAttempt({
       remoteJid: base.remoteJid,
       sender,
@@ -605,15 +669,29 @@ const resolveWhatsappReplyTarget = ({ payload = {}, data = {}, key = {}, remoteJ
       fromMe: base.fromMe,
       ownerJid: base.ownerJid,
       configuredBotNumber,
-      sources: ["key.participant", "data.participant", "data.sender", "contextInfo.participant", "embedded_jid_fields", "stored_conversation_mapping", "previous_resolved_customer"],
+      sources: ["key.participant", "data.participant", "data.sender", "contextInfo.participant", "data.key.remoteJid", "data.remoteJid", "embedded_jid_fields", "stored_conversation_mapping", "previous_resolved_customer"],
     });
     const lidCandidates = [
       { label: "key.participant", value: keyParticipant },
       { label: "data.participant", value: data?.participant },
       { label: "data.sender", value: data?.sender },
       { label: "contextInfo.participant", value: contextParticipant },
-      ...collectStrings(payload).filter(isWhatsappPhoneJid).map((value) => ({ label: "embedded_jid_fields", value })),
+      { label: "data.key.remoteJid", value: data?.key?.remoteJid },
+      { label: "data.remoteJid", value: data?.remoteJid },
+      ...nestedStrings
+        .filter((item) => isWhatsappPhoneJid(item.value))
+        .map((item) => ({ label: `embedded_jid_fields:${item.path}`, value: item.value })),
     ];
+    console.info("[evolution:lid-candidates]", {
+      remoteJid: base.remoteJid,
+      owner_numbers: ownerJids.map(numberFromWhatsappJid).filter(Boolean),
+      candidates: lidCandidates.map((candidate) => ({
+        label: candidate.label,
+        value: text(candidate.value),
+        normalized: replyTargetFromValue(candidate.value)?.number || "",
+        is_owner: targetEqualsOwner(replyTargetFromValue(candidate.value), ownerJids),
+      })).filter((candidate) => candidate.value),
+    });
     const seenLidCandidates = new Set();
     for (const candidate of lidCandidates) {
       const candidateValue = text(candidate.value);
@@ -943,7 +1021,8 @@ const outboundOwnerJidsForMessage = (message = {}) => {
     process.env.WHATSAPP_INSTANCE_OWNER_NUMBER,
     process.env.EVOLUTION_INSTANCE_OWNER_NUMBER,
     process.env.WHATSAPP_OWNER_NUMBER,
-    "201024960585",
+    process.env.WHATSAPP_NUMBER,
+    "201000659301",
   ];
   const seen = new Set();
   return candidates.map(normalizeOwnerJid).filter((jid) => {
@@ -1524,28 +1603,45 @@ const parseWhatsappTimestamp = (value) => {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : new Date().toISOString();
 };
 
-const extractMessageText = (data = {}) => {
-  const message = data?.message || data?.messages?.[0]?.message || {};
-  return text(
-    message?.conversation ||
-    message?.extendedTextMessage?.text ||
-    message?.imageMessage?.caption ||
-    message?.videoMessage?.caption ||
-    message?.documentMessage?.caption ||
-    message?.buttonsResponseMessage?.selectedDisplayText ||
-    message?.buttonsResponseMessage?.selectedButtonId ||
-    message?.listResponseMessage?.title ||
-    message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
-    data?.text ||
-    data?.body ||
-    data?.messageText ||
-    data?.caption ||
-    findFirstString(data, ["conversation", "text", "body", "messageText", "caption"])
-  );
+const extractMessageText = (data = {}, payload = {}) => {
+  const root = { data, payload };
+  const directPaths = [
+    "data.message.conversation",
+    "data.message.extendedTextMessage.text",
+    "data.message.imageMessage.caption",
+    "data.message.videoMessage.caption",
+    "data.body",
+    "data.text",
+    "data.messageText",
+    "data.content",
+    "data.messages[0].message.conversation",
+    "data.messages[0].message.extendedTextMessage.text",
+    "payload.data[0].message.conversation",
+    "payload.data[0].message.extendedTextMessage.text",
+    "payload.body.data.message.conversation",
+    "payload.body.data.message.extendedTextMessage.text",
+  ];
+  for (const path of directPaths) {
+    const value = text(getPathValue(root, path));
+    if (value) {
+      console.info("[evolution:recursive-text-found]", { path, textPreview: value.slice(0, 160), direct: true });
+      return value;
+    }
+  }
+  const recursiveKeys = new Set(["conversation", "text", "caption", "body", "messageText", "content"]);
+  const found = collectStringsWithPaths(root).find((item) => {
+    const key = item.path.split(".").pop()?.replace(/\[\d+\]$/g, "");
+    return recursiveKeys.has(key) && text(item.value);
+  });
+  if (found) {
+    console.info("[evolution:recursive-text-found]", { path: found.path, textPreview: found.value.slice(0, 160), direct: false });
+    return found.value;
+  }
+  return "";
 };
 
 const extractWhatsappWebhookEnvelope = (payload = {}) => {
-  const data = payload?.data || payload?.body?.data || payload;
+  const data = primaryEvolutionData(payload);
   const key = data?.key || payload?.key || {};
   const eventCandidates = [
     payload?.event,
@@ -1612,7 +1708,7 @@ const extractWhatsappWebhookEnvelope = (payload = {}) => {
 };
 
 const extractIncomingWhatsapp = async (payload = {}) => {
-  const data = payload?.data || payload?.body?.data || payload;
+  const data = primaryEvolutionData(payload);
   const key = data?.key || payload?.key || {};
   const eventCandidates = [
     payload?.event,
@@ -1653,7 +1749,7 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     });
     if (storedReplyTarget) replyTarget = storedReplyTarget;
   }
-  const phone = replyTarget.resolvedNumber || (isLidJid(remoteJid) ? remoteJid : normalizeEgyptPhone(jidNumber(remoteJid)));
+  const phone = replyTarget.resolvedNumber || (isLidJid(remoteJid) ? "" : normalizeEgyptPhone(jidNumber(remoteJid)));
   console.info("[whatsapp:reply-target-resolution]", {
     remoteJid,
     participant: replyTarget.participant,
@@ -1669,7 +1765,7 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     isGroup: replyTarget.isGroup,
     isLid: replyTarget.isLid,
   });
-  const messageId = text(
+  let messageId = text(
     key?.id ||
     data?.messageId ||
     data?.message_id ||
@@ -1691,11 +1787,15 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     data?.profileName ||
     data?.profile_name ||
     data?.senderName ||
-    data?.sender_name ||
-    payload?.pushName ||
-    payload?.profileName ||
-    findFirstString(data, ["pushName", "pushname", "profileName", "profile_name", "senderName", "sender_name"])
+      data?.sender_name ||
+      payload?.pushName ||
+      payload?.profileName ||
+      findFirstString(data, ["pushName", "pushname", "profileName", "profile_name", "senderName", "sender_name"])
   );
+  const messageText = extractMessageText(data, payload);
+  if (!messageId && messageText) {
+    messageId = `synthetic:${crypto.createHash("sha256").update([normalizedEvent || rawEvent, remoteJid, phone, messageText].map(text).join("|")).digest("hex").slice(0, 24)}`;
+  }
   return {
     event: normalizedEvent || rawEvent,
     rawEvent,
@@ -1713,7 +1813,7 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     configuredBotNumber: replyTarget.configuredBotNumber,
     isGroup: replyTarget.isGroup,
     isLid: replyTarget.isLid,
-    text: extractMessageText(data),
+    text: messageText,
     senderName,
     messageId,
     timestamp,
@@ -2219,6 +2319,16 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
     same_text_session_sample_count: duplicateDiagnostics.same_text_session_sample_count ?? null,
     outbound_same_provider_message_id_count: duplicateDiagnostics.outbound_same_provider_message_id_count ?? null,
   });
+  console.info("[ai-inbox:message-created]", {
+    tenantId,
+    channel,
+    sessionId,
+    messageId: externalMessageId,
+    aiSupportMessageId: inserted.rows[0]?.id || null,
+    phone: message.phone,
+    remoteJid,
+    instance,
+  });
   return {
     saved: true,
     duplicate: false,
@@ -2265,6 +2375,24 @@ export const handleIncomingWebhook = async (payload = {}) => {
     received_events: eventCandidates.map((value) => String(value)),
   });
   const envelope = extractWhatsappWebhookEnvelope(payload);
+  const sanitizedPayload = redactSensitive(payload);
+  const fullPayloadText = extractMessageText(envelope.data, payload);
+  const fullPayloadLog = {
+    event: envelope.event,
+    rawEvent: envelope.rawEvent || "",
+    instance: envelope.instance,
+    data: redactSensitive(envelope.data),
+    key: redactSensitive(envelope.key),
+    message: redactSensitive(envelope.data?.message || envelope.data?.messages?.[0]?.message || null),
+    body: redactSensitive(payload?.body || envelope.data?.body || null),
+    text: fullPayloadText,
+    sender: envelope.sender,
+    remoteJid: envelope.remoteJid,
+    pushName: text(envelope.data?.pushName || envelope.data?.pushname || envelope.data?.profileName || envelope.data?.senderName || ""),
+    payload: sanitizedPayload,
+  };
+  console.info("[evolution:webhook-full-payload]", fullPayloadLog);
+  rememberEvolutionWebhookEvent(fullPayloadLog);
   console.info("[evolution:webhook-event]", {
     event: envelope.event,
     rawEvent: envelope.rawEvent || "",
@@ -2329,6 +2457,20 @@ export const handleIncomingWebhook = async (payload = {}) => {
     phone: normalized.phone,
     messageId: normalized.messageId,
     textPreview: normalized.text.slice(0, 160),
+    fromMe: normalized.fromMe,
+  });
+  console.info("[evolution:inbound-normalized]", {
+    event: normalized.event,
+    rawEvent: normalized.rawEvent || "",
+    instance: normalized.instance,
+    remoteJid: normalized.remoteJid,
+    customerPhone: normalized.phone,
+    resolvedReplyJid: normalized.resolvedReplyJid,
+    resolvedPhone: normalized.resolvedPhone,
+    replyTargetReason: normalized.replyTargetReason,
+    messageId: normalized.messageId,
+    textPreview: normalized.text.slice(0, 160),
+    isOwnerTarget: normalizeEgyptPhone(normalized.phone) === normalizeEgyptPhone(process.env.WHATSAPP_NUMBER || "201000659301"),
     fromMe: normalized.fromMe,
   });
   const ignoreNonTextEvents = new Set(["contacts.update", "messages.edited"]);

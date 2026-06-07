@@ -2,6 +2,7 @@ import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import {
+  getRecentEvolutionWebhookEvents,
   getStatus,
   handleIncomingWebhook,
   loadOrderForWhatsapp,
@@ -42,6 +43,13 @@ router.get("/status", protect, permit("settings", "view"), async (req, res) => {
   } catch (error) {
     return sendError(res, error, "Failed to load WhatsApp gateway status");
   }
+});
+
+router.get("/webhook/debug-events", protect, permit("settings", "view"), async (req, res) => {
+  return res.json({
+    success: true,
+    events: getRecentEvolutionWebhookEvents(),
+  });
 });
 
 router.post("/send-test", protect, permit("settings", "edit"), async (req, res) => {
