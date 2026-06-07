@@ -1050,7 +1050,8 @@ export default function EmployeePayrollPortal() {
   const [requestDate, setRequestDate] = useState("");
   const [requestEndDate, setRequestEndDate] = useState("");
   const [requestMessage, setRequestMessage] = useState("");
-  const [requestSaving, setRequestSaving] = useState(false);
+    const [requestSaving, setRequestSaving] = useState(false);
+    const [showAllRequests, setShowAllRequests] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
   const [taskSavingId, setTaskSavingId] = useState("");
   const [portalNotice, setPortalNotice] = useState("");
@@ -1312,8 +1313,9 @@ export default function EmployeePayrollPortal() {
   const profilePhotoUrl = resolveEmployeeProfileImageUrl(rawProfilePhotoUrl);
   const attendance = portal?.attendance?.summary || portal?.recent_attendance_summary || {};
   const attendanceRows = safeArray(portal?.attendance?.timeline);
-  const employeeRequests = safeArray(portal?.employee_requests);
-  const employeeNotifications = safeArray(portal?.notifications);
+    const employeeRequests = safeArray(portal?.employee_requests);
+    const visibleRequests = showAllRequests ? employeeRequests : employeeRequests.slice(0, 1);
+    const employeeNotifications = safeArray(portal?.notifications);
   const displayRefillAlertRows = useMemo(() => {
     return safeArray(displayRefillAlerts)
       .slice()
@@ -3119,11 +3121,11 @@ export default function EmployeePayrollPortal() {
               </button>
               {portalNotice ? <div className="mt-3 rounded-2xl bg-slate-100 px-3 py-2 text-sm font-bold leading-6 text-slate-700" dir="auto">{portalNotice}</div> : null}
               <h4 className="mt-4 text-sm font-black text-slate-700">{text.requestHistory}</h4>
-              <div className="mt-3 grid gap-2">
-                {employeeRequests.length ? employeeRequests.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
-                    <div className="flex items-center justify-between gap-3">
-                      <span>{requestTypeLabel(item, text)}</span>
+                <div className="mt-3 grid gap-2">
+                  {visibleRequests.length ? visibleRequests.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{requestTypeLabel(item, text)}</span>
                       <span className={`rounded-full px-2.5 py-1 text-xs font-black ${requestStatusClass(item.status)}`}>
                         {text[item.status] || item.status}
                       </span>
@@ -3132,13 +3134,22 @@ export default function EmployeePayrollPortal() {
                       <div>{text.requestType}: <span>{requestTypeLabel(item, text)}</span></div>
                       <div>{text.requestDate}: <DateSafe>{formatEmployeePortalDate(item.request_date || item.created_at, language)}</DateSafe></div>
                     </div>
-                    {item.amount ? <div className="mt-1 text-xs font-black text-slate-600" dir="ltr">{money(item.amount)}</div> : null}
-                    {item.admin_note ? <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-slate-700" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
-                  </div>
-                )) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">{ui("noRequestsSubmitted")}</div>
-                )}
-              </div>
+                      {item.amount ? <div className="mt-1 text-xs font-black text-slate-600" dir="ltr">{money(item.amount)}</div> : null}
+                      {item.admin_note ? <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-slate-700" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
+                    </div>
+                  )) : (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">{ui("noRequestsSubmitted")}</div>
+                  )}
+                  {employeeRequests.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllRequests((current) => !current)}
+                      className="mx-auto mt-1 inline-flex min-h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 shadow-sm"
+                    >
+                      {showAllRequests ? "عرض أقل" : `عرض المزيد${employeeRequests.length > 1 ? ` (${employeeRequests.length - 1})` : ""}`}
+                    </button>
+                  ) : null}
+                </div>
             </form> : null}
 
             {activeTab === "wallet" ? <div className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
