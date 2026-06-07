@@ -52,6 +52,7 @@ import { api } from "../../../shared/api/api";
 import { getCurrentUser } from "../../../shared/auth/authStorage";
 import { normalizeSettingsCategory, settingsCategories, settingsByCategory } from "../../../../shared/settingsRegistry.js";
 import { defaultEgyptShippingLocations } from "../../../../shared/egyptShippingLocations.js";
+import { BARCODE_PRINT_DEFAULTS, BARCODE_PRINT_SETTING_KEYS, barcodePrintSettingsToValues } from "../../../../shared/barcodePrintSettings.js";
 
 const copy = {
   en: {
@@ -177,6 +178,7 @@ const sectionMap = {
     ["Timezone", ["general.timezone"]],
     ["Date & Number Formats", ["general.date_format", "general.time_format", "general.number_format"]],
     ["Preferences", ["general.default_branch_id", "general.default_warehouse_id", "general.default_pos_treasury_account_id", "general.business_working_days", "general.business_hours"]],
+    ["Barcode Printing", BARCODE_PRINT_SETTING_KEYS],
   ],
   storefront: [
     ["Store Identity", ["storefront.enabled", "storefront.store_name", "storefront.public_url", "storefront.store_logo_url", "storefront.favicon_url"]],
@@ -452,6 +454,11 @@ function SettingsCenterContent({ debugMode = false }) {
   };
 
   const updateValue = (key, value) => setValues((current) => ({ ...current, [key]: value }));
+  const resetBarcodePrintDefaults = () => {
+    const nextDefaults = barcodePrintSettingsToValues(BARCODE_PRINT_DEFAULTS);
+    setValues((current) => ({ ...current, ...nextDefaults }));
+    toast.success(language === "ar" ? "تمت إعادة إعدادات طباعة الباركود للوضع الافتراضي" : "Barcode print settings reset to defaults");
+  };
   const updateHero = (patch) => {
     const current = safeParseJson(values["storefront.homepage_hero"], {});
     updateValue("storefront.homepage_hero", { ...current, ...patch });
@@ -774,7 +781,19 @@ function SettingsCenterContent({ debugMode = false }) {
               <div className="grid gap-5">
                 {sections.map((section) => (
                   <section key={section.title} className={`rounded-[1.75rem] p-5 ${shellCard}`}>
-                    <h2 className={`text-lg font-black ${headingText}`}>{section.title}</h2>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h2 className={`text-lg font-black ${headingText}`}>{section.title}</h2>
+                      {activeCategory === "general" && section.settings.some((item) => BARCODE_PRINT_SETTING_KEYS.includes(item.key)) ? (
+                        <button
+                          type="button"
+                          onClick={resetBarcodePrintDefaults}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          {language === "ar" ? "إعادة الافتراضي" : "Reset defaults"}
+                        </button>
+                      ) : null}
+                    </div>
                     <div className="mt-4 grid gap-4 2xl:grid-cols-2">{section.settings.map((item) => renderField(item))}</div>
                   </section>
                 ))}

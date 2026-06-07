@@ -1,5 +1,6 @@
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { normalizeBarcodePrintSettings, paginateBarcodeLabels, resolveBarcodePrintPaper } from "../../../../shared/barcodePrintSettings.js";
 
 const EAN13_L = [
   "0001101",
@@ -442,6 +443,7 @@ export const getBarcodeSvg = (value, { width = 360, height = 92, displayText = "
 export const buildBarcodePrintHtml = ({
   labels = [],
   sheetMode = "a4",
+  printSettings = {},
   copy = {},
 } = {}) => {
   const printCopy = {
@@ -452,52 +454,73 @@ export const buildBarcodePrintHtml = ({
     price: "",
     ...copy,
   };
-  const isThermal = sheetMode === "thermal";
-  const sheetClass = isThermal ? "sheet thermal" : "sheet a4";
-  const labelClass = isThermal ? "label thermal" : "label a4";
-  const imageClass = isThermal ? "image image-thermal" : "image image-a4";
-  const barcodeWidth = isThermal ? 310 : 420;
-  const barcodeHeight = isThermal ? 76 : 88;
+  const normalizedSettings = normalizeBarcodePrintSettings({ ...printSettings, paperSize: sheetMode });
+  const paper = resolveBarcodePrintPaper(normalizedSettings);
+  const labelsPerRow = Math.max(1, Number(normalizedSettings.labelsPerRow || 1));
+  const pages = paginateBarcodeLabels(labels, normalizedSettings.labelsPerPage);
+  const contentWidthMm = Math.max(20, paper.paperWidthMm - normalizedSettings.marginLeftMm - normalizedSettings.marginRightMm);
+  const imageWidthMm = normalizedSettings.showProductImage ? Math.max(18, Math.min(normalizedSettings.labelWidthMm * 0.36, 42)) : 0;
+  const imageHeightMm = normalizedSettings.showProductImage ? Math.max(24, Math.min(normalizedSettings.labelHeightMm - 10, 54)) : 0;
+  const barcodeWidth = Math.round(420 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100));
+  const barcodeHeight = Number(normalizedSettings.barcodeHeight || 88);
 
-  const labelMarkup = labels
-    .map((item) => {
+  const buildLabelMarkup = (item) => {
       const safeImage = getSafeLabelImageUrl(item);
       const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
         width: barcodeWidth,
         height: barcodeHeight,
         displayText: item.barcode,
       });
+      const metaRows = [];
+      if (normalizedSettings.showSizeColor) {
+        metaRows.push(`
+          <div class="meta">
+            <span><strong>${printCopy.color}</strong> ${item.color}</span>
+            <span><strong>${printCopy.size}</strong> ${item.size}</span>
+          </div>
+        `);
+      }
+      if (normalizedSettings.showSkuArticle || normalizedSettings.showPrice) {
+        metaRows.push(`
+          <div class="meta">
+            ${normalizedSettings.showSkuArticle ? `<span><strong>${printCopy.sku}</strong> ${item.sku}</span>` : ""}
+            ${normalizedSettings.showPrice ? `<span><strong>${printCopy.price}</strong> $${Number(item.salePrice || 0).toFixed(2)}</span>` : ""}
+          </div>
+        `);
+      }
 
       return `
-        <article class="${labelClass}">
+        <article class="label">
           <div class="body">
-            <div class="${imageClass}">
-              <div class="image-fallback" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                  <path d="M3.27 6.96 12 12.01l8.73-5.05"/>
-                  <path d="M12 22.08V12"/>
-                </svg>
+            ${normalizedSettings.showProductImage ? `
+              <div class="image">
+                <div class="image-fallback" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <path d="M3.27 6.96 12 12.01l8.73-5.05"/>
+                    <path d="M12 22.08V12"/>
+                  </svg>
+                </div>
+                ${safeImage ? `<img src="${safeImage}" alt="${item.productName}" onerror="this.style.display='none'" />` : ""}
               </div>
-              ${safeImage ? `<img src="${safeImage}" alt="${item.productName}" onerror="this.style.display='none'" />` : ""}
-            </div>
+            ` : ""}
 
             <div class="content">
-              <h2>${item.productName}</h2>
-              <div class="meta">
-                <span><strong>${printCopy.color}</strong> ${item.color}</span>
-                <span><strong>${printCopy.size}</strong> ${item.size}</span>
-              </div>
-              <div class="meta">
-                <span><strong>${printCopy.sku}</strong> ${item.sku}</span>
-                <span><strong>${printCopy.price}</strong> $${Number(item.salePrice || 0).toFixed(2)}</span>
-              </div>
+              ${normalizedSettings.showProductName ? `<h2>${item.productName}</h2>` : ""}
+              ${metaRows.join("")}
               <div class="barcode">${barcodeSvg}</div>
             </div>
           </div>
         </article>
       `;
-    })
+    };
+
+  const pageMarkup = pages
+    .map((pageLabels) => `
+      <section class="sheet">
+        ${pageLabels.map((item) => buildLabelMarkup(item)).join("")}
+      </section>
+    `)
     .join("");
 
   return `
@@ -521,41 +544,38 @@ export const buildBarcodePrintHtml = ({
             padding: 16px;
             background: #0f172a;
             min-height: 100vh;
+            display: grid;
+            gap: 16px;
           }
           .sheet {
             background: #ffffff;
             margin: 0 auto;
             display: grid;
-            gap: 10px;
-          }
-          .sheet.a4 {
-            width: 190mm;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-          .sheet.thermal {
-            width: 80mm;
-            grid-template-columns: 1fr;
+            gap: ${normalizedSettings.gapMm}mm;
+            width: ${contentWidthMm}mm;
+            grid-template-columns: repeat(${labelsPerRow}, minmax(0, ${normalizedSettings.labelWidthMm}mm));
+            justify-content: start;
+            padding: ${normalizedSettings.marginTopMm}mm ${normalizedSettings.marginRightMm}mm ${normalizedSettings.marginBottomMm}mm ${normalizedSettings.marginLeftMm}mm;
+            min-height: ${paper.paperHeightMm}mm;
+            page-break-after: always;
+            break-after: page;
           }
           .label {
             background: #ffffff;
             border: 1px solid #e2e8f0;
-          border-radius: 18px;
-          padding: 12px;
-          overflow: hidden;
-          break-inside: avoid;
-          page-break-inside: avoid;
-          }
-          .label.a4 {
-            min-height: 92mm;
-          }
-          .label.thermal {
-            min-height: 62mm;
+            border-radius: 18px;
+            padding: 12px;
+            overflow: hidden;
+            break-inside: avoid;
+            page-break-inside: avoid;
+            width: ${normalizedSettings.labelWidthMm}mm;
+            min-height: ${normalizedSettings.labelHeightMm}mm;
           }
           .body {
             display: grid;
             gap: 12px;
             align-items: stretch;
-            grid-template-columns: ${isThermal ? "28mm minmax(0,1fr)" : "42mm minmax(0,1fr)"};
+            grid-template-columns: ${normalizedSettings.showProductImage ? `${imageWidthMm}mm minmax(0,1fr)` : "minmax(0,1fr)"};
           }
           .image {
             width: 100%;
@@ -567,7 +587,8 @@ export const buildBarcodePrintHtml = ({
             align-items: center;
             justify-content: center;
             position: relative;
-            min-height: ${isThermal ? "44mm" : "54mm"};
+            min-height: ${imageHeightMm}mm;
+            height: ${imageHeightMm}mm;
           }
           .image-fallback {
             position: absolute;
@@ -576,19 +597,13 @@ export const buildBarcodePrintHtml = ({
             align-items: center;
             justify-content: center;
           }
-          .image-a4 {
-            height: 54mm;
-          }
-          .image-thermal {
-            height: 44mm;
-          }
           .image img {
             width: 100%;
             height: 100%;
             object-fit: contain;
             object-position: center;
             display: block;
-            padding: ${isThermal ? "6px" : "8px"};
+            padding: 6px;
             position: relative;
             z-index: 1;
             background: #ffffff;
@@ -600,7 +615,7 @@ export const buildBarcodePrintHtml = ({
           }
           .content h2 {
             margin: 0;
-            font-size: ${isThermal ? "14px" : "20px"};
+            font-size: ${normalizedSettings.showProductImage ? "18px" : "20px"};
             line-height: 1.15;
             font-weight: 900;
             color: #111827;
@@ -611,7 +626,7 @@ export const buildBarcodePrintHtml = ({
             gap: 8px 10px;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             margin-top: 10px;
-            font-size: ${isThermal ? "9px" : "12px"};
+            font-size: 11px;
             color: #334155;
           }
           .meta span {
@@ -643,16 +658,14 @@ export const buildBarcodePrintHtml = ({
           @media print {
             body { background: #ffffff; }
             .page { padding: 0; background: #ffffff; }
-          .sheet {
-            gap: 6mm;
-            box-shadow: none;
-          }
-            .sheet.a4 {
-              width: 100%;
-              grid-template-columns: repeat(2, minmax(0, 1fr));
+            .sheet {
+              gap: ${normalizedSettings.gapMm}mm;
+              width: ${contentWidthMm}mm;
+              box-shadow: none;
             }
-            .sheet.thermal {
-              width: 100%;
+            .sheet:last-child {
+              page-break-after: auto;
+              break-after: auto;
             }
             .label {
               box-shadow: none;
@@ -661,17 +674,15 @@ export const buildBarcodePrintHtml = ({
               box-shadow: none;
             }
             @page {
-              size: ${isThermal ? "80mm auto" : "A4 portrait"};
-              margin: ${isThermal ? "4mm" : "10mm"};
+              size: ${paper.pageCss};
+              margin: 0;
             }
           }
         </style>
       </head>
       <body>
         <div class="page">
-          <section class="${sheetClass}">
-            ${labelMarkup}
-          </section>
+          ${pageMarkup}
         </div>
       </body>
     </html>
@@ -681,6 +692,7 @@ export const buildBarcodePrintHtml = ({
 export const openBarcodePrintWindow = ({
   labels = [],
   sheetMode = "a4",
+  printSettings = {},
   companyName = APP_NAME,
   companyLogo = "LOGO",
   copy = {},
@@ -695,6 +707,7 @@ export const openBarcodePrintWindow = ({
     buildBarcodePrintHtml({
       labels,
       sheetMode,
+      printSettings,
       companyName,
       companyLogo,
       copy,

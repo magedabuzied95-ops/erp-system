@@ -17,6 +17,7 @@ import {
 import toast from "react-hot-toast";
 
 import ProductsShell from "../components/ProductsShell";
+import { api } from "../../../shared/api/api";
 import { mergeProductRecord } from "../lib/catalog";
 import {
   buildSelectedLabelItems,
@@ -32,6 +33,7 @@ import {
 } from "../lib/barcodeLabels";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { BARCODE_PRINT_DEFAULTS, barcodePrintSettingsFromValues, normalizeBarcodePrintSettings, paginateBarcodeLabels, resolveBarcodePrintPaper } from "../../../../shared/barcodePrintSettings.js";
 import {
   getProducts,
   getProductsWithVariants,
@@ -132,9 +134,26 @@ const flattenVariantRows = (rows = []) =>
     return [];
   });
 
+const barcodeSheetModeFromPaperSize = (paperSize = "") => {
+  const value = String(paperSize || "").trim().toLowerCase();
+  return ["a4", "a5", "thermal", "custom"].includes(value) ? value : BARCODE_PRINT_DEFAULTS.paperSize;
+};
+
+const readBarcodePrintSettings = (settings = []) =>
+  normalizeBarcodePrintSettings(
+    barcodePrintSettingsFromValues(
+      Array.isArray(settings)
+        ? settings.reduce((acc, setting) => {
+            acc[setting.key] = setting.value;
+            return acc;
+          }, {})
+        : {}
+    )
+  );
+
 function BarcodeLabels() {
   const { t, i18n } = useTranslation();
-  void i18n;
+  const language = i18n.language?.startsWith("ar") ? "ar" : "en";
   const location = useLocation();
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const [catalog, setCatalog] = useState([]);
@@ -144,6 +163,7 @@ function BarcodeLabels() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [sheetMode, setSheetMode] = useState("a4");
+  const [barcodePrintSettings, setBarcodePrintSettings] = useState(() => normalizeBarcodePrintSettings(BARCODE_PRINT_DEFAULTS));
   const [selectedQuantities, setSelectedQuantities] = useState({});
   const [activeProduct, setActiveProduct] = useState(null);
   const [activeProductNotice, setActiveProductNotice] = useState("");
@@ -156,7 +176,9 @@ function BarcodeLabels() {
   const sheetModes = useMemo(
     () => [
       { value: "a4", label: t("products.barcodeLabels.a4Sheet") },
+      { value: "a5", label: "A5" },
       { value: "thermal", label: t("products.barcodeLabels.thermalSheet") },
+      { value: "custom", label: "مخصص" },
     ],
     [t]
   );
@@ -166,10 +188,16 @@ function BarcodeLabels() {
       setLoading(true);
       setError("");
 
-      const [baseProducts, variantRows] = await Promise.all([
+      const [baseProducts, variantRows, generalSettingsPayload] = await Promise.all([
         getProducts(),
         getProductsWithVariants(),
+        api.get("/settings/general").catch(() => null),
       ]);
+      const nextPrintSettings = generalSettingsPayload?.settings?.length
+        ? readBarcodePrintSettings(generalSettingsPayload.settings)
+        : normalizeBarcodePrintSettings(BARCODE_PRINT_DEFAULTS);
+      setBarcodePrintSettings(nextPrintSettings);
+      setSheetMode(barcodeSheetModeFromPaperSize(nextPrintSettings.paperSize));
       console.log("[barcode-labels] api products:", baseProducts?.map?.((item) => ({
         id: item?.id,
         name: item?.name,
@@ -322,6 +350,19 @@ function BarcodeLabels() {
   console.log("[barcode-shop] selectedProductVariants", selectedProductVariants);
 
   const expandedLabels = useMemo(() => expandLabelCopies(selectedItems), [selectedItems]);
+  const activePrintSettings = useMemo(
+    () => normalizeBarcodePrintSettings({ ...barcodePrintSettings, paperSize: sheetMode }),
+    [barcodePrintSettings, sheetMode]
+  );
+  const activePaper = useMemo(() => resolveBarcodePrintPaper(activePrintSettings), [activePrintSettings]);
+  const activeSheetLabel = useMemo(
+    () => sheetModes.find((item) => item.value === sheetMode)?.label || sheetMode.toUpperCase(),
+    [sheetMode, sheetModes]
+  );
+  const previewPages = useMemo(
+    () => paginateBarcodeLabels(expandedLabels, activePrintSettings.labelsPerPage),
+    [expandedLabels, activePrintSettings.labelsPerPage]
+  );
 
   useEffect(() => {
     if (!selectedItems.length) return;
@@ -390,6 +431,7 @@ function BarcodeLabels() {
     const popup = openBarcodePrintWindow({
       labels: expandedLabels,
       sheetMode,
+      printSettings: activePrintSettings,
       copy: {
         title: t("print.barcodeLabels.title"),
         color: t("print.barcodeLabels.color"),
@@ -519,6 +561,14 @@ function BarcodeLabels() {
 
   return (
     <>
+      <style>{`
+        @media print {
+          @page {
+            size: ${activePaper.pageCss};
+            margin: 0;
+          }
+        }
+      `}</style>
       <div className="print:hidden">
         <ProductsShell
           title={t("products.barcodeLabels.labelSheetTitle")}
@@ -557,13 +607,13 @@ function BarcodeLabels() {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-1">
+                <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/5 p-1">
                   {sheetModes.map((mode) => (
                     <button
                       key={mode.value}
                       type="button"
                       onClick={() => setSheetMode(mode.value)}
-                      className={`w-1/2 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                      className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
                         sheetMode === mode.value ? "bg-emerald-500 text-black" : "text-zinc-300 hover:bg-white/10"
                       }`}
                     >
@@ -647,7 +697,7 @@ function BarcodeLabels() {
                   <div>
                     <h2 className="text-xl font-black tracking-tight text-white">{t("products.barcodeLabels.previewBeforePrint")}</h2>
                     <p className="mt-1 text-sm text-zinc-400">
-                      {sheetMode === "thermal" ? t("products.barcodeLabels.thermalLayout") : t("products.barcodeLabels.a4Layout")} {t("products.barcodeLabels.printableLabelsSuffix")}
+                      {activeSheetLabel} · {activePaper.paperWidthMm}mm × {Math.round(activePaper.paperHeightMm)}mm
                     </p>
                   </div>
                   <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-300">
@@ -661,22 +711,36 @@ function BarcodeLabels() {
                       {t("products.barcodeLabels.selectLabelFirst")}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                      {expandedLabels.map((item, index) => {
-                        console.log("LABEL RENDER", {
-                          color: item.color,
-                          image: item.imageUrl || item.resolvedImage,
-                        });
-
-                        return (
-                          <LabelCard
-                            key={getLabelRenderKey(item, index)}
-                            item={item}
-                            sheetMode={sheetMode}
-                          />
-                        );
-                      })}
-                    </div>
+                    previewPages.map((pageLabels, pageIndex) => (
+                      <div key={`preview-page-${pageIndex}`} className="rounded-[28px] border border-white/10 bg-black/20 p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3 text-xs font-semibold text-zinc-400">
+                          <span>{language === "ar" ? `صفحة ${pageIndex + 1}` : `Page ${pageIndex + 1}`}</span>
+                          <span>{pageLabels.length} / {expandedLabels.length}</span>
+                        </div>
+                        <div
+                          className="mx-auto grid justify-start gap-3"
+                          style={{
+                            width: `${Math.max(20, activePaper.paperWidthMm - activePrintSettings.marginLeftMm - activePrintSettings.marginRightMm)}mm`,
+                            gridTemplateColumns: `repeat(${Math.max(1, activePrintSettings.labelsPerRow)}, minmax(0, ${activePrintSettings.labelWidthMm}mm))`,
+                            gap: `${activePrintSettings.gapMm}mm`,
+                            paddingTop: `${activePrintSettings.marginTopMm}mm`,
+                            paddingRight: `${activePrintSettings.marginRightMm}mm`,
+                            paddingBottom: `${activePrintSettings.marginBottomMm}mm`,
+                            paddingLeft: `${activePrintSettings.marginLeftMm}mm`,
+                            minHeight: `${activePaper.paperHeightMm}mm`,
+                            background: "#ffffff",
+                          }}
+                        >
+                          {pageLabels.map((item, index) => (
+                            <LabelCard
+                              key={getLabelRenderKey(item, index + pageIndex * Math.max(1, activePrintSettings.labelsPerPage || pageLabels.length))}
+                              item={item}
+                              printSettings={activePrintSettings}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
 
@@ -692,21 +756,32 @@ function BarcodeLabels() {
       <div className="hidden print:block">
         <div className="p-4">
               {expandedLabels.length > 0 ? (
-                <div
-                  className={
-                    sheetMode === "thermal"
-                      ? "mx-auto grid w-[80mm] grid-cols-1 gap-2"
-                      : "mx-auto grid w-[190mm] grid-cols-2 gap-3"
-              }
-            >
-              {expandedLabels.map((item, index) => (
-                <PrintLabel
-                  key={getLabelRenderKey(item, index, "print")}
-                  item={item}
-                  sheetMode={sheetMode}
-                />
-              ))}
-            </div>
+                previewPages.map((pageLabels, pageIndex) => (
+                  <div
+                    key={`print-page-${pageIndex}`}
+                    className="mx-auto mb-4 grid justify-start last:mb-0"
+                    style={{
+                      width: `${Math.max(20, activePaper.paperWidthMm - activePrintSettings.marginLeftMm - activePrintSettings.marginRightMm)}mm`,
+                      gridTemplateColumns: `repeat(${Math.max(1, activePrintSettings.labelsPerRow)}, minmax(0, ${activePrintSettings.labelWidthMm}mm))`,
+                      gap: `${activePrintSettings.gapMm}mm`,
+                      paddingTop: `${activePrintSettings.marginTopMm}mm`,
+                      paddingRight: `${activePrintSettings.marginRightMm}mm`,
+                      paddingBottom: `${activePrintSettings.marginBottomMm}mm`,
+                      paddingLeft: `${activePrintSettings.marginLeftMm}mm`,
+                      minHeight: `${activePaper.paperHeightMm}mm`,
+                      pageBreakAfter: pageIndex === previewPages.length - 1 ? "auto" : "always",
+                      breakAfter: pageIndex === previewPages.length - 1 ? "auto" : "page",
+                    }}
+                  >
+                    {pageLabels.map((item, index) => (
+                      <PrintLabel
+                        key={getLabelRenderKey(item, index + pageIndex * Math.max(1, activePrintSettings.labelsPerPage || pageLabels.length), "print")}
+                        item={item}
+                        printSettings={activePrintSettings}
+                      />
+                    ))}
+                  </div>
+                ))
           ) : (
             <div className="mx-auto max-w-md rounded-3xl border border-zinc-200 bg-white p-8 text-center text-zinc-600">
               {t("products.barcodeLabels.noLabelsSelected")}
@@ -834,49 +909,52 @@ function VariantRow({ product, variant, imageUrl, quantity, onQuantityChange, sh
               <Chip label={t("products.barcodeLabels.image")} value={variant?.image_url || variant?.variant_image_url || variant?.color_image_url ? t("products.barcodeLabels.variant") : product.image_url ? t("products.barcodeLabels.product") : t("products.barcodeLabels.placeholder")} />
         <Chip label={t("products.barcodeLabels.color")} value={safeText(variant?.color, t("products.barcodeLabels.default"))} />
         <Chip label={t("products.barcodeLabels.size")} value={safeText(variant?.size, t("products.barcodeLabels.oneSize"))} />
-        <Chip label={t("products.barcodeLabels.layout")} value={sheetMode === "thermal" ? t("products.barcodeLabels.thermal") : t("products.barcodeLabels.a4")} />
+        <Chip label={t("products.barcodeLabels.layout")} value={sheetMode === "thermal" ? t("products.barcodeLabels.thermal") : sheetMode === "a5" ? "A5" : sheetMode === "custom" ? "مخصص" : t("products.barcodeLabels.a4")} />
       </div>
     </div>
   );
 }
 
-function LabelCard({ item, sheetMode }) {
+function LabelCard({ item, printSettings }) {
   const { t } = useTranslation();
   const imageUrl = item.imageUrl || item.resolvedImage;
   const safeImage = getSafeLabelImage(imageUrl, item);
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
+  const metaItems = [
+    printSettings.showSizeColor ? { label: t("products.barcodeLabels.color"), value: item.color } : null,
+    printSettings.showSizeColor ? { label: t("products.barcodeLabels.size"), value: item.size } : null,
+    printSettings.showSkuArticle ? { label: t("products.barcodeLabels.sku"), value: item.sku } : null,
+    printSettings.showPrice ? { label: t("products.barcodeLabels.price"), value: formatCurrency(item.salePrice) } : null,
+  ].filter(Boolean);
   const barcodeSvg = useMemo(
     () =>
       getBarcodeSvg(item.barcodeValue, {
-        width: sheetMode === "thermal" ? 300 : 380,
-        height: sheetMode === "thermal" ? 78 : 90,
+        width: Math.round(420 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
+        height: Number(printSettings.barcodeHeight || 88),
         displayText: item.barcode,
       }),
-    [item.barcode, item.barcodeValue, sheetMode]
+    [item.barcode, item.barcodeValue, printSettings.barcodeHeight, printSettings.barcodeWidthScale]
   );
 
   return (
     <article
-      className={`min-h-[170px] h-full w-full rounded-[26px] border border-zinc-200 bg-white p-4 text-zinc-900 shadow-[0_16px_50px_rgba(15,23,42,0.08)] ${
-        sheetMode === "thermal" ? "flex gap-3" : "flex flex-col"
-      }`}
+      className="h-full rounded-[26px] border border-zinc-200 bg-white p-4 text-zinc-900 shadow-[0_16px_50px_rgba(15,23,42,0.08)]"
+      style={{ width: `${printSettings.labelWidthMm}mm`, minHeight: `${printSettings.labelHeightMm}mm` }}
     >
-      <div className="grid h-full gap-4 sm:grid-cols-[minmax(140px,180px)_minmax(0,1fr)] sm:items-start">
-        <div className="flex min-h-[170px] items-center justify-center overflow-hidden rounded-[24px] border border-zinc-200 bg-zinc-50 p-3">
-          <ImageWithFallback src={safeImage} alt={productName} iconClassName="text-zinc-400" />
-        </div>
+      <div
+        className="grid h-full gap-4"
+        style={{ gridTemplateColumns: printSettings.showProductImage ? `minmax(${Math.max(18, Math.min(printSettings.labelWidthMm * 0.3, 32))}mm, ${Math.max(18, Math.min(printSettings.labelWidthMm * 0.36, 42))}mm) minmax(0,1fr)` : "minmax(0,1fr)" }}
+      >
+        {printSettings.showProductImage ? (
+          <div className="flex items-center justify-center overflow-hidden rounded-[24px] border border-zinc-200 bg-zinc-50 p-3" style={{ minHeight: `${Math.max(24, Math.min(printSettings.labelHeightMm - 10, 54))}mm` }}>
+            <ImageWithFallback src={safeImage} alt={productName} iconClassName="text-zinc-400" />
+          </div>
+        ) : null}
 
         <div className="min-w-0">
-          <h3 className={`font-black leading-tight text-zinc-900 ${sheetMode === "thermal" ? "text-[15px]" : "text-[22px]"}`}>
-            {productName}
-          </h3>
+          {printSettings.showProductName ? <h3 className="font-black leading-tight text-zinc-900 text-[18px]">{productName}</h3> : null}
 
-          <div className="mt-3 grid grid-cols-2 gap-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
-            <Meta label={t("products.barcodeLabels.color")} value={item.color} />
-            <Meta label={t("products.barcodeLabels.size")} value={item.size} />
-            <Meta label={t("products.barcodeLabels.sku")} value={item.sku} />
-            <Meta label={t("products.barcodeLabels.price")} value={formatCurrency(item.salePrice)} />
-          </div>
+          {metaItems.length ? <div className="mt-3 grid grid-cols-2 gap-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">{metaItems.map((meta) => <Meta key={`${meta.label}-${meta.value}`} label={meta.label} value={meta.value} />)}</div> : null}
 
           <div className="mt-4 rounded-[20px] border border-zinc-200 bg-white p-2">
             <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
@@ -887,42 +965,41 @@ function LabelCard({ item, sheetMode }) {
   );
 }
 
-function PrintLabel({ item, sheetMode }) {
+function PrintLabel({ item, printSettings }) {
   const { t } = useTranslation();
   const imageUrl = item.imageUrl || item.resolvedImage;
   const safeImage = getSafeLabelImage(imageUrl, item);
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
+  const metaItems = [
+    printSettings.showSizeColor ? { label: t("products.barcodeLabels.color"), value: item.color } : null,
+    printSettings.showSizeColor ? { label: t("products.barcodeLabels.size"), value: item.size } : null,
+    printSettings.showSkuArticle ? { label: t("products.barcodeLabels.sku"), value: item.sku } : null,
+    printSettings.showPrice ? { label: t("products.barcodeLabels.price"), value: formatCurrency(item.salePrice) } : null,
+  ].filter(Boolean);
   const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
-    width: sheetMode === "thermal" ? 300 : 380,
-    height: sheetMode === "thermal" ? 78 : 90,
+    width: Math.round(420 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
+    height: Number(printSettings.barcodeHeight || 88),
     displayText: item.barcode,
   });
 
   return (
     <article
-      className={`overflow-hidden rounded-[20px] border border-zinc-200 bg-white p-3 text-zinc-900 shadow-[0_12px_30px_rgba(15,23,42,0.06)] ${
-        sheetMode === "thermal" ? "flex gap-3" : "flex flex-col"
-      }`}
+      className="overflow-hidden rounded-[20px] border border-zinc-200 bg-white p-3 text-zinc-900 shadow-[0_12px_30px_rgba(15,23,42,0.06)]"
+      style={{ width: `${printSettings.labelWidthMm}mm`, minHeight: `${printSettings.labelHeightMm}mm` }}
     >
-      <div className={sheetMode === "thermal" ? "grid min-w-0 flex-1 grid-cols-[28mm_minmax(0,1fr)] gap-3" : "grid gap-3 sm:grid-cols-[42mm_minmax(0,1fr)]"}>
-        <div
-          className={`overflow-hidden rounded-[18px] border border-zinc-200 bg-zinc-50 ${
-            sheetMode === "thermal" ? "h-[44mm] w-[28mm] shrink-0" : "h-[54mm] w-full"
-          }`}
-        >
-          <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-2" iconClassName="text-zinc-400" />
-        </div>
+      <div
+        className="grid min-w-0 flex-1 gap-3"
+        style={{ gridTemplateColumns: printSettings.showProductImage ? `${Math.max(18, Math.min(printSettings.labelWidthMm * 0.36, 42))}mm minmax(0,1fr)` : "minmax(0,1fr)" }}
+      >
+        {printSettings.showProductImage ? (
+          <div className="overflow-hidden rounded-[18px] border border-zinc-200 bg-zinc-50" style={{ height: `${Math.max(24, Math.min(printSettings.labelHeightMm - 10, 54))}mm` }}>
+            <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-2" iconClassName="text-zinc-400" />
+          </div>
+        ) : null}
 
         <div className="flex min-w-0 flex-col">
-          <h3 className={`font-black leading-tight text-zinc-900 ${sheetMode === "thermal" ? "text-[14px]" : "text-[20px]"}`}>
-            {productName}
-          </h3>
-          <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-            <Meta label={t("products.barcodeLabels.color")} value={item.color} />
-            <Meta label={t("products.barcodeLabels.size")} value={item.size} />
-            <Meta label={t("products.barcodeLabels.sku")} value={item.sku} />
-            <Meta label={t("products.barcodeLabels.price")} value={formatCurrency(item.salePrice)} />
-          </div>
+          {printSettings.showProductName ? <h3 className="font-black leading-tight text-zinc-900 text-[18px]">{productName}</h3> : null}
+          {metaItems.length ? <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{metaItems.map((meta) => <Meta key={`${meta.label}-${meta.value}`} label={meta.label} value={meta.value} />)}</div> : null}
           <div className="mt-auto rounded-[16px] border border-zinc-200 bg-white p-1">
             <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
           </div>
