@@ -46,8 +46,8 @@ const LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 = "premium_retail_50x100";
 const PREMIUM_RETAIL_LABEL_WIDTH_MM = 50;
 const PREMIUM_RETAIL_LABEL_HEIGHT_MM = 100;
 const PREMIUM_RETAIL_BARCODE_WIDTH = 680;
-const PREMIUM_RETAIL_BARCODE_HEIGHT = 360;
-const PREMIUM_RETAIL_GRID_ROWS = "33mm 12mm 11mm 11mm 26mm 7mm";
+const PREMIUM_RETAIL_BARCODE_HEIGHT = 288;
+const PREMIUM_RETAIL_GRID_ROWS = "33mm 12mm 11mm 11mm 20.8mm 7mm";
 
 const resolveTemplatePrintContext = (template, settings, sheetMode) => {
   const normalized = normalizeBarcodePrintSettings({ ...settings, paperSize: sheetMode });
@@ -1258,16 +1258,18 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
       const root = document.querySelector('[data-premium-label-root="true"]');
       if (!root) return;
       const pxToMm = (px) => Number(((Number(px) || 0) * 25.4 / 96).toFixed(2));
-      const rootRect = root.getBoundingClientRect();
       const getHeight = (selector) => {
         const node = root.querySelector(selector);
         return node ? pxToMm(node.getBoundingClientRect().height) : 0;
       };
-      const imageNode = root.querySelector('[data-premium-label-part="image"]');
-      const imageRect = imageNode?.getBoundingClientRect?.();
+      const rootRect = root.getBoundingClientRect();
       console.log("[premium-layout-heights]", {
         imageSectionHeight: getHeight('[data-premium-label-part="image"]'),
-        imageTopOffset: imageRect ? pxToMm(imageRect.top - rootRect.top) : 0,
+        titleHeight: getHeight('[data-premium-label-part="title"]'),
+        priceHeight: getHeight('[data-premium-label-part="price"]'),
+        sizeColorHeight: getHeight('[data-premium-label-part="size-color"]'),
+        barcodeHeight: getHeight('[data-premium-label-part="barcode"]'),
+        skuHeight: getHeight('[data-premium-label-part="sku"]'),
         totalLabelHeight: pxToMm(rootRect.height),
       });
     };
@@ -1314,10 +1316,10 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
             <div className="mt-[0.25mm] truncate text-[10px] font-black uppercase leading-none">{colorValue}</div>
           </div>
       </div>
-      <div className="flex min-h-0 flex-col items-center justify-center overflow-hidden border border-zinc-200 bg-white px-[0.35mm] pb-[0.1mm] pt-[0.35mm]" data-premium-label-part="barcode">
+      <div className="flex min-h-0 flex-col items-center justify-center overflow-hidden border border-zinc-200 bg-white px-[0.45mm] py-0" data-premium-label-part="barcode">
           <div className="w-[95%] max-w-full" dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
       </div>
-      <div className="min-h-0 overflow-hidden px-[0.5mm] pt-[0.3mm] text-center text-[8px] font-black leading-none text-zinc-800" data-premium-label-part="sku">
+      <div className="min-h-0 overflow-hidden px-[0.5mm] pt-0 text-center text-[8px] font-black leading-none text-zinc-800" data-premium-label-part="sku">
           {item.sku}
       </div>
     </article>

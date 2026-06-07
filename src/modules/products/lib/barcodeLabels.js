@@ -9,8 +9,8 @@ const LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 = "premium_retail_50x100";
 const PREMIUM_RETAIL_LABEL_WIDTH_MM = 50;
 const PREMIUM_RETAIL_LABEL_HEIGHT_MM = 100;
 const PREMIUM_RETAIL_BARCODE_WIDTH = 680;
-const PREMIUM_RETAIL_BARCODE_HEIGHT = 360;
-const PREMIUM_RETAIL_GRID_ROWS = "33mm 12mm 11mm 11mm 26mm 7mm";
+const PREMIUM_RETAIL_BARCODE_HEIGHT = 288;
+const PREMIUM_RETAIL_GRID_ROWS = "33mm 12mm 11mm 11mm 20.8mm 7mm";
 
 const EAN13_L = [
   "0001101",
@@ -944,7 +944,7 @@ export const buildBarcodePrintHtml = ({
             border: 1px solid #e2e8f0;
             border-radius: 0;
             background: #ffffff;
-            padding: 0.45mm 0.45mm 0.15mm;
+            padding: 0 0.45mm;
           }
           .premium-barcode-svg {
             width: 95%;
@@ -958,7 +958,7 @@ export const buildBarcodePrintHtml = ({
           }
           .premium-sku {
             text-align: center;
-            padding: 0.25mm 0.5mm 0;
+            padding: 0 0.5mm 0;
             font-size: 8px;
             line-height: 1;
             font-weight: 900;
@@ -1136,11 +1136,13 @@ export const buildBarcodePrintHtml = ({
                   const node = wrapper.querySelector(selector);
                   return node ? pxToMm(node.getBoundingClientRect().height) : 0;
                 };
-                const imageNode = wrapper.querySelector('[data-premium-label-part="image"]');
-                const imageRect = imageNode ? imageNode.getBoundingClientRect() : null;
                 console.log("[premium-layout-heights]", {
                   imageSectionHeight: getHeight('[data-premium-label-part="image"]'),
-                  imageTopOffset: imageRect ? pxToMm(imageRect.top - rootRect.top) : 0,
+                  titleHeight: getHeight('[data-premium-label-part="title"]'),
+                  priceHeight: getHeight('[data-premium-label-part="price"]'),
+                  sizeColorHeight: getHeight('[data-premium-label-part="size-color"]'),
+                  barcodeHeight: getHeight('[data-premium-label-part="barcode"]'),
+                  skuHeight: getHeight('[data-premium-label-part="sku"]'),
                   totalLabelHeight: pxToMm(rootRect.height),
                 });
               };
