@@ -69,7 +69,7 @@ const normalizeProduct = (product = {}) => {
     stock: totalStock,
     colors,
     sizes,
-    variants: availableVariants,
+    variants,
   };
 };
 
