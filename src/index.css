@@ -2213,6 +2213,11 @@ body.sf-mobile-search-scroll-lock {
     visibility: visible;
   }
 
+  .print-document,
+  .print-document * {
+    visibility: visible;
+  }
+
   .pos-receipt {
     position: absolute;
     inset: 0 auto auto 50%;
@@ -2220,6 +2225,13 @@ body.sf-mobile-search-scroll-lock {
     background: #fff !important;
     box-shadow: none !important;
     border-color: #bbf7d0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-document {
+    background: #fff !important;
+    box-shadow: none !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }

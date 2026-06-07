@@ -1063,18 +1063,27 @@ export const openBarcodePrintWindow = ({
   const popup = win.open("", "_blank", "width=1280,height=980");
   if (!popup) return false;
 
+  const html = buildBarcodePrintHtml({
+    labels,
+    sheetMode,
+    template,
+    printSettings,
+    companyName,
+    companyLogo,
+    copy,
+  });
+  console.info("[barcode-print:selected-template]", template);
+  console.info("[barcode-print:labels-count]", Array.isArray(labels) ? labels.length : 0);
+  console.info("[barcode-print:html-length]", html.length);
+
   popup.document.write(
-    buildBarcodePrintHtml({
-      labels,
-      sheetMode,
-      template,
-      printSettings,
-      companyName,
-      companyLogo,
-      copy,
-    })
+    html
   );
   popup.document.close();
+  popup.addEventListener?.("load", () => {
+    console.info("[barcode-print:print-window-ready]", true);
+  });
+  console.info("[barcode-print:print-window-ready]", popup.document.readyState === "complete" || popup.document.readyState === "interactive");
   popup.focus();
   return popup;
 };

@@ -135,6 +135,52 @@ const resolveTemplatePrintContext = (template, settings, sheetMode) => {
   };
 };
 
+const nextPaint = () =>
+  new Promise((resolve) => {
+    if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+      resolve();
+      return;
+    }
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+  });
+
+const waitForImages = async (root) => {
+  if (!root || typeof root.querySelectorAll !== "function") return;
+  const images = Array.from(root.querySelectorAll("img"));
+  await Promise.all(
+    images.map(
+      (img) =>
+        new Promise((resolve) => {
+          if (!img) {
+            resolve();
+            return;
+          }
+          if (img.complete) {
+            resolve();
+            return;
+          }
+          const done = () => resolve();
+          img.addEventListener("load", done, { once: true });
+          img.addEventListener("error", done, { once: true });
+        })
+    )
+  );
+};
+
+const waitForBarcodePrintReady = async (root = null) => {
+  if (typeof document === "undefined") return;
+  await nextPaint();
+  await waitForImages(root || document);
+  if (document.fonts?.ready) {
+    try {
+      await document.fonts.ready;
+    } catch {
+      // Ignore font readiness errors and proceed with print.
+    }
+  }
+  await nextPaint();
+};
+
 const safeText = (value, fallback = "") => {
   if (value === null || value === undefined) return fallback;
   if (typeof value === "string" || typeof value === "number") return String(value);
@@ -527,7 +573,16 @@ function BarcodeLabels() {
       toast.error(activeProductNotice || t("products.barcodeLabels.selectLabelFirst"));
       return;
     }
-    window.print();
+
+    console.info("[barcode-print:selected-template]", labelTemplate);
+    console.info("[barcode-print:labels-count]", expandedLabels.length);
+
+    void (async () => {
+      const root = document.querySelector('[data-barcode-print-root="page"]');
+      await waitForBarcodePrintReady(root);
+      console.info("[barcode-print:print-window-ready]", Boolean(root));
+      window.print();
+    })();
   };
 
   const handlePreviewFallback = () => {
@@ -902,13 +957,14 @@ function BarcodeLabels() {
         </ProductsShell>
       </div>
 
-      <div className="hidden print:block">
+      <div className="hidden print:block print-document" data-barcode-print-root="page">
         <div className="p-4">
               {expandedLabels.length > 0 ? (
                 previewPages.map((pageLabels, pageIndex) => (
                   <div
                     key={`print-page-${pageIndex}`}
                     className="mx-auto mb-4 grid justify-start last:mb-0"
+                    data-barcode-print-page
                     style={{
                       width: `${Math.max(20, activePaper.paperWidthMm - activePrintSettings.marginLeftMm - activePrintSettings.marginRightMm)}mm`,
                       gridTemplateColumns: `repeat(${Math.max(1, activePrintSettings.labelsPerRow)}, minmax(0, ${activePrintSettings.labelWidthMm}mm))`,
@@ -923,12 +979,12 @@ function BarcodeLabels() {
                     }}
                   >
                     {pageLabels.map((item, index) => (
-                      <PrintLabel
-                        key={getLabelRenderKey(item, index + pageIndex * Math.max(1, activePrintSettings.labelsPerPage || pageLabels.length), "print")}
-                        item={item}
-                        printSettings={activePrintSettings}
-                        template={labelTemplate}
-                      />
+                        <PrintLabel
+                          key={getLabelRenderKey(item, index + pageIndex * Math.max(1, activePrintSettings.labelsPerPage || pageLabels.length), "print")}
+                          item={item}
+                          printSettings={activePrintSettings}
+                          template={labelTemplate}
+                        />
                     ))}
                   </div>
                 ))
