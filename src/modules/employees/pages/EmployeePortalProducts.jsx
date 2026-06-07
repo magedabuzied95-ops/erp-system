@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Camera, Filter, Loader2, Minus, Package2, Plus, Search, Store, X } from "lucide-react";
+import { Camera, Filter, Loader2, Package2, Search, Store, X } from "lucide-react";
 import toast from "react-hot-toast";
 
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
@@ -37,17 +37,20 @@ const extractImageUrl = (value = {}) =>
     value?.thumbnail_url
   );
 
+const variantSizeValue = (variant = {}) => text(variant.size || variant.size_value || variant.sizeLabel || "");
+const variantStockValue = (variant = {}) => Math.max(0, Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? variant.quantity ?? 0));
+
 const normalizeVariant = (variant = {}) => ({
   id: variant.variant_id ?? variant.id ?? null,
   variant_id: variant.variant_id ?? variant.id ?? null,
   product_id: variant.product_id ?? null,
   color: text(variant.color || ""),
-  size: text(variant.size || ""),
+  size: variantSizeValue(variant),
   sku: text(variant.sku || ""),
   barcode: text(variant.barcode || ""),
   article_code: text(variant.article_code || variant.product_code || ""),
   manufacturer_name: text(variant.manufacturer_name || ""),
-  stock: Math.max(0, Number(variant.stock || 0)),
+  stock: variantStockValue(variant),
   price: Number(variant.price || 0),
   image_url: text(variant.image_url || variant.variant_image_url || ""),
 });
@@ -327,13 +330,11 @@ function ProductPickerSheet({
   product,
   selectedColor,
   selectedSize,
-  quantity,
   onBack,
   onHome,
   onClose,
   onSelectColor,
   onSelectSize,
-  onChangeQuantity,
   onSubmit,
   loadingSubmit,
 }) {
@@ -342,22 +343,17 @@ function ProductPickerSheet({
   const sizeOptions = sizeOptionsForProduct(product, selectedColor);
   const activeVariant = findVariant(product, null, selectedColor, selectedSize);
   const activeStock = Number(activeVariant?.stock || 0);
-  const canSubmit = Boolean(activeVariant && activeStock > 0 && quantity > 0);
+  const canSubmit = Boolean(activeVariant && activeStock > 0);
   const previewImageUrl = resolveProductPreviewImage(product, {
     color: selectedColor,
     size: selectedSize,
     variantId: activeVariant?.variant_id ?? activeVariant?.id ?? null,
   });
 
-  const handleQuantityDelta = (delta) => {
-    if (!activeStock) return;
-    onChangeQuantity(clamp(Number(quantity || 1) + delta, 1, activeStock));
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-2 py-2 sm:items-center sm:px-4 sm:py-6">
       <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-zinc-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)]">
-        <EmployeePortalNavControls onBack={onBack} onHome={onHome} tone="dark" className="mb-0 px-3 pt-3 sm:px-4" />
+        <EmployeePortalNavControls onBack={onBack} onHome={onHome} tone="dark" className="mb-0 px-3 pt-2 sm:px-4 sm:pt-3" />
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
           <div className="min-w-0">
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Variant selection</div>
@@ -376,14 +372,14 @@ function ProductPickerSheet({
           </button>
         </div>
 
-        <div className="grid flex-1 gap-4 overflow-y-auto px-4 py-4 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.03] p-3">
-            <div className="flex min-h-[16rem] items-center justify-center overflow-hidden rounded-[1rem] bg-black/25">
+        <div className="grid flex-1 gap-3 overflow-y-auto px-4 py-3 lg:grid-cols-[1.05fr_0.95fr] lg:gap-4 lg:py-4">
+          <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
+            <div className="flex min-h-[10rem] items-center justify-center overflow-hidden rounded-[1rem] bg-black/25 sm:min-h-[12rem]">
               {previewImageUrl ? (
                 <img
                   src={previewImageUrl}
                   alt={product.name}
-                  className="max-h-[20rem] w-full object-contain p-4"
+                  className="max-h-[11rem] w-full object-contain p-2 sm:max-h-[14rem] sm:p-3"
                   loading="eager"
                   onError={(event) => {
                     event.currentTarget.style.display = "none";
@@ -458,41 +454,15 @@ function ProductPickerSheet({
               </div>
             </div>
 
-            <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-black text-white">Quantity</div>
-                <div className="text-[11px] font-bold text-zinc-500">Max = selected size stock</div>
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/30 p-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuantityDelta(-1)}
-                  disabled={!activeStock || Number(quantity || 1) <= 1}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-                <div className="min-w-16 text-center text-2xl font-black text-white">{String(Math.max(1, Number(quantity || 1)))}</div>
-                <button
-                  type="button"
-                  onClick={() => handleQuantityDelta(1)}
-                  disabled={!activeStock || Number(quantity || 1) >= activeStock}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={onSubmit}
-                disabled={!canSubmit || loadingSubmit}
-                className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loadingSubmit ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
-                اطلب من المخزن
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={!canSubmit || loadingSubmit}
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loadingSubmit ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+              اطلب من المخزن
+            </button>
           </div>
         </div>
       </div>
@@ -589,6 +559,7 @@ export default function EmployeePortalProducts() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
+  const [selectedFilterSize, setSelectedFilterSize] = useState("all");
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
@@ -720,9 +691,9 @@ export default function EmployeePortalProducts() {
     () =>
       ["category", "type", "brand", "manufacturer", "gender"].reduce(
         (count, key) => count + (filters[key] !== "all" ? 1 : 0),
-        filters.inStockOnly ? 0 : 1
+        (filters.inStockOnly ? 0 : 1) + (selectedFilterSize !== "all" ? 1 : 0)
       ),
-    [filters]
+    [filters, selectedFilterSize]
   );
 
   const resetFilters = () => {
@@ -734,6 +705,7 @@ export default function EmployeePortalProducts() {
       gender: "all",
       inStockOnly: true,
     });
+    setSelectedFilterSize("all");
   };
 
   const updateFilter = (key, value) => {
@@ -745,18 +717,57 @@ export default function EmployeePortalProducts() {
     return findVariant(selectedProduct, null, selectedColor, selectedSize);
   }, [selectedProduct, selectedColor, selectedSize]);
 
+  const matchesEmployeeBaseFilters = useCallback((product) => {
+    const matchesCategory = filters.category === "all" || text(product.category) === text(filters.category);
+    const matchesType = filters.type === "all" || text(product.type) === text(filters.type);
+    const matchesBrand = filters.brand === "all" || text(product.brand) === text(filters.brand);
+    const matchesManufacturer = filters.manufacturer === "all" || text(product.manufacturer_name) === text(filters.manufacturer);
+    const matchesGender = filters.gender === "all" || text(product.gender) === text(filters.gender);
+    const matchesStock = !filters.inStockOnly || Number(product.total_stock || product.stock || 0) > 0;
+    return matchesCategory && matchesType && matchesBrand && matchesManufacturer && matchesGender && matchesStock;
+  }, [filters]);
+
+  const productsMatchingBaseFilters = useMemo(
+    () => normalizedProducts.filter(matchesEmployeeBaseFilters),
+    [matchesEmployeeBaseFilters, normalizedProducts]
+  );
+
+  const availableSizes = useMemo(() => {
+    const sizes = new Set();
+    for (const product of productsMatchingBaseFilters) {
+      for (const variant of Array.isArray(product.variants) ? product.variants : []) {
+        const size = variantSizeValue(variant);
+        if (!size || variantStockValue(variant) <= 0) continue;
+        sizes.add(size);
+      }
+    }
+    return sortSizes([...sizes]).map((size) => ({
+      id: size,
+      name: size,
+      count: productsMatchingBaseFilters.filter((product) =>
+        (Array.isArray(product.variants) ? product.variants : []).some((variant) =>
+          variantSizeValue(variant) === size && variantStockValue(variant) > 0
+        )
+      ).length,
+    }));
+  }, [productsMatchingBaseFilters]);
+
+  useEffect(() => {
+    if (selectedFilterSize === "all") return;
+    if (!availableSizes.some((option) => option.id === selectedFilterSize)) {
+      setSelectedFilterSize("all");
+    }
+  }, [availableSizes, selectedFilterSize]);
+
   const visibleProducts = useMemo(
     () =>
-      normalizedProducts.filter((product) => {
-        const matchesCategory = filters.category === "all" || text(product.category) === text(filters.category);
-        const matchesType = filters.type === "all" || text(product.type) === text(filters.type);
-        const matchesBrand = filters.brand === "all" || text(product.brand) === text(filters.brand);
-        const matchesManufacturer = filters.manufacturer === "all" || text(product.manufacturer_name) === text(filters.manufacturer);
-        const matchesGender = filters.gender === "all" || text(product.gender) === text(filters.gender);
-        const matchesStock = !filters.inStockOnly || Number(product.total_stock || product.stock || 0) > 0;
-        return matchesCategory && matchesType && matchesBrand && matchesManufacturer && matchesGender && matchesStock;
+      productsMatchingBaseFilters.filter((product) => {
+        if (selectedFilterSize === "all") return true;
+        return (Array.isArray(product.variants) ? product.variants : []).some((variant) =>
+          variantSizeValue(variant) === selectedFilterSize && variantStockValue(variant) > 0
+        );
       }),
-    [filters, normalizedProducts]
+    [productsMatchingBaseFilters, selectedFilterSize]
   );
 
   const openProduct = (product) => {
@@ -809,7 +820,7 @@ export default function EmployeePortalProducts() {
         variantId: activeVariant.variant_id ?? activeVariant.id ?? null,
         color: activeVariant.color || selectedColor || "",
         size: activeVariant.size || selectedSize || "",
-        quantity: clamp(Number(selectedQuantity || 1), 1, Math.max(1, Number(activeVariant.stock || 1))),
+        quantity: 1,
       });
       toast.success("تم إرسال الطلب للمخزن");
       setSheetOpen(false);
@@ -921,6 +932,7 @@ export default function EmployeePortalProducts() {
                 setSelectedProduct(null);
                 setSelectedColor("");
                 setSelectedSize("");
+                setSelectedFilterSize("all");
                 setSelectedQuantity(1);
                 setSheetOpen(false);
               }}
@@ -1034,6 +1046,9 @@ export default function EmployeePortalProducts() {
           manufacturerOptions={manufacturerOptions}
           selectedManufacturerId={filters.manufacturer}
           onManufacturerChange={(value) => updateFilter("manufacturer", value)}
+          sizeOptions={availableSizes}
+          selectedSize={selectedFilterSize}
+          onSizeChange={setSelectedFilterSize}
           activeSmartFilterCount={activeFilterCount}
           onReset={resetFilters}
           onClose={() => setFiltersOpen(false)}

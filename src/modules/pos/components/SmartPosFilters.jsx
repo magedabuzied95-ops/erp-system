@@ -76,6 +76,9 @@ export default function SmartPosFilters({
   manufacturerOptions,
   selectedManufacturerId,
   onManufacturerChange,
+  sizeOptions,
+  selectedSize = "all",
+  onSizeChange,
   activeSmartFilterCount = 0,
   onReset,
   onClose,
@@ -123,6 +126,7 @@ export default function SmartPosFilters({
               <SmartFilterRow label="الجنس" options={smartFilterOptions?.gender} value={selectedGender} onChange={onGenderChange} />
               <SmartFilterRow label="نوع المنتج" options={smartFilterOptions?.productType} value={selectedProductType} onChange={onProductTypeChange} />
               <SmartFilterRow label="الفئة" options={smartFilterOptions?.grade} value={selectedGrade} onChange={onGradeChange} />
+              {Array.isArray(sizeOptions) && sizeOptions.length ? <SmartFilterRow label="المقاس" options={sizeOptions} value={selectedSize} onChange={onSizeChange} /> : null}
             </div>
 
             <div className="grid gap-2.5">
