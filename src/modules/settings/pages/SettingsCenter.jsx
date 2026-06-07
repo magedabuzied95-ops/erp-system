@@ -519,7 +519,10 @@ function SettingsCenterContent({ debugMode = false }) {
 
   const save = async () => {
     if (activeCategory === "storefront") {
-      if (!instapayPaymentUrlSaveAllowed) {
+      const paymentUrlValue = String(values["storefront.payment_methods.instapay.payment_url"] || "").trim();
+      const legacyHandleValue = String(values["storefront.payment_methods.instapay_handle"] || "").trim();
+      const paymentUrlValid = paymentUrlValue ? isHttpOrHttpsUrl(paymentUrlValue) : Boolean(legacyHandleValue);
+      if (!paymentUrlValid) {
         toast.error("رابط InstaPay غير صحيح. يجب أن يبدأ بـ https:// أو http://");
         return;
       }
@@ -594,13 +597,6 @@ function SettingsCenterContent({ debugMode = false }) {
 
   const setting = (key) => recordMap.get(key) || definitionMap.get(key) || { key, label: { en: key }, type: "text" };
   const value = (key, fallback = "") => values[key] ?? fallback;
-  const instapayPaymentUrlValue = String(value("storefront.payment_methods.instapay.payment_url") || "").trim();
-  const instapayLegacyHandleValue = String(value("storefront.payment_methods.instapay_handle") || "").trim();
-  const instapayPaymentUrlValid = Boolean(instapayPaymentUrlValue) ? isHttpOrHttpsUrl(instapayPaymentUrlValue) : Boolean(instapayLegacyHandleValue);
-  const instapayPaymentUrlSaveAllowed = instapayPaymentUrlValid;
-  const instapayPaymentUrlHelperText = !instapayPaymentUrlValue && instapayLegacyHandleValue
-    ? "يستخدم الحساب القديم كبديل عند الحاجة."
-    : "اضغط على الزر للتحويل مباشرة، ثم ارفع إيصال التحويل لتأكيد الطلب.";
   const hero = safeParseJson(value("storefront.homepage_hero"), {});
   const featuredCollections = Array.isArray(value("storefront.featured_collections")) ? value("storefront.featured_collections") : [];
   const storeUrl = value("storefront.public_url") || "";
@@ -1010,10 +1006,11 @@ function StorefrontSettings(props) {
                 </div>
                 <button
                   type="button"
-                  disabled={!Boolean(instapayPaymentUrlValue) || !instapayPaymentUrlValid}
+                  disabled={!(String(value("storefront.payment_methods.instapay.payment_url") || "").trim()) || !isHttpOrHttpsUrl(String(value("storefront.payment_methods.instapay.payment_url") || "").trim())}
                   onClick={() => {
-                    if (!Boolean(instapayPaymentUrlValue) || !instapayPaymentUrlValid) return;
-                    window.open(instapayPaymentUrlValue, "_blank", "noopener,noreferrer");
+                    const paymentUrl = String(value("storefront.payment_methods.instapay.payment_url") || "").trim();
+                    if (!paymentUrl || !isHttpOrHttpsUrl(paymentUrl)) return;
+                    window.open(paymentUrl, "_blank", "noopener,noreferrer");
                   }}
                   className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-[#a78bfa]/18 bg-[#7c3aed] px-4 text-xs font-black text-white transition hover:-translate-y-0.5 hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:translate-y-0 disabled:border-slate-300/40 disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:border-white/10 dark:disabled:bg-white/10 dark:disabled:text-white/35"
                 >
@@ -1023,13 +1020,17 @@ function StorefrontSettings(props) {
               </div>
               <div className="mt-3">
                 <input
-                  value={instapayPaymentUrlValue}
+                  value={String(value("storefront.payment_methods.instapay.payment_url") || "").trim()}
                   onChange={(event) => updateValue("storefront.payment_methods.instapay.payment_url", event.target.value)}
                   placeholder="https://ipn.eg/S/yourname/instapay/xxxxx"
                   className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
                 />
-                <div className={`mt-2 text-xs font-medium ${instapayPaymentUrlValid ? bodyText : "text-rose-600 dark:text-rose-300"}`}>
-                  {instapayPaymentUrlValid ? instapayPaymentUrlHelperText : "رابط InstaPay غير صحيح. يجب أن يبدأ بـ https:// أو http://"}
+                <div className={`mt-2 text-xs font-medium ${isHttpOrHttpsUrl(String(value("storefront.payment_methods.instapay.payment_url") || "").trim()) || !String(value("storefront.payment_methods.instapay.payment_url") || "").trim() ? bodyText : "text-rose-600 dark:text-rose-300"}`}>
+                  {isHttpOrHttpsUrl(String(value("storefront.payment_methods.instapay.payment_url") || "").trim()) || !String(value("storefront.payment_methods.instapay.payment_url") || "").trim()
+                    ? (!String(value("storefront.payment_methods.instapay.payment_url") || "").trim() && String(value("storefront.payment_methods.instapay_handle") || "").trim()
+                      ? "يستخدم الحساب القديم كبديل عند الحاجة."
+                      : "اضغط على الزر للتحويل مباشرة، ثم ارفع إيصال التحويل لتأكيد الطلب.")
+                    : "رابط InstaPay غير صحيح. يجب أن يبدأ بـ https:// أو http://"}
                 </div>
               </div>
             </div>
@@ -1037,7 +1038,7 @@ function StorefrontSettings(props) {
               <summary className={`cursor-pointer select-none text-sm font-black ${headingText}`}>الحساب القديم (للتوافق)</summary>
               <p className={`mt-1 text-xs leading-5 ${bodyText}`}>يستخدم فقط كبديل قديم عند الحاجة.</p>
               <div className="mt-3">
-                <PremiumInput label="الحساب أو الهاتف" value={instapayLegacyHandleValue} onChange={(next) => updateValue("storefront.payment_methods.instapay_handle", next)} />
+                <PremiumInput label="الحساب أو الهاتف" value={String(value("storefront.payment_methods.instapay_handle") || "").trim()} onChange={(next) => updateValue("storefront.payment_methods.instapay_handle", next)} />
               </div>
             </details>
             <div className="mt-3 grid gap-3">
