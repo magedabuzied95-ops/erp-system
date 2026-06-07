@@ -15,6 +15,10 @@ const text = (value = "") => String(value || "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const uniqueValues = (values = []) => [...new Set(values.map((value) => text(value)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const isActiveSizeFilter = (value) => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return Boolean(normalized && normalized !== "all" && normalized !== "الكل");
+};
 const sizeSort = (a, b) => {
   const left = Number(a);
   const right = Number(b);
@@ -230,7 +234,7 @@ const getAvailableVariantsForEmployeeFilters = (product = {}, filters = {}) => {
   const variants = Array.isArray(product.variants) ? product.variants : [];
   return variants.filter((variant) => {
     if (variantStockValue(variant) <= 0) return false;
-    if (selectedSize && variantSizeValue(variant) !== selectedSize) return false;
+    if (isActiveSizeFilter(selectedSize) && variantSizeValue(variant) !== selectedSize) return false;
     if (selectedColor && text(variant.color) !== selectedColor) return false;
     return true;
   });
@@ -269,12 +273,19 @@ const buildEmployeeScopedProductCard = (product = {}, variants = [], { color = "
 };
 
 const expandEmployeeProductCardsByColorAndSize = (products = [], filters = {}) => {
-  const selectedSize = text(filters.selectedSize || "");
-  if (!selectedSize) return products;
+  if (!Array.isArray(products)) return [];
+
+  const sizeFilterValue = filters?.size || filters?.selectedSize || filters?.sizes;
+  const selectedSize = text(sizeFilterValue || "");
+  const hasActiveSizeFilter = isActiveSizeFilter(sizeFilterValue);
+  if (!hasActiveSizeFilter) return products;
 
   const cards = [];
   const seen = new Set();
   for (const product of products) {
+    const productVariants = Array.isArray(product?.variants) ? product.variants : [];
+    if (!productVariants.length) continue;
+
     const availableVariants = getAvailableVariantsForEmployeeFilters(product, { selectedSize });
     const colors = uniqueValues(availableVariants.map((variant) => variant.color));
     for (const color of colors) {
@@ -286,7 +297,7 @@ const expandEmployeeProductCardsByColorAndSize = (products = [], filters = {}) =
       cards.push(buildEmployeeScopedProductCard(product, scopedVariants, { color, size: selectedSize }));
     }
   }
-  return cards;
+  return cards.length ? cards : products;
 };
 
 const buildListParams = ({ search, filters }) => {
@@ -825,13 +836,16 @@ export default function EmployeePortalProducts() {
   }, [availableSizes, selectedFilterSize]);
 
   const visibleProducts = useMemo(() => {
+    const hasActiveSizeFilter = isActiveSizeFilter(selectedFilterSize);
     const matchedProducts = productsMatchingBaseFilters.filter((product) => {
-      if (selectedFilterSize === "all") return true;
+      if (!hasActiveSizeFilter) return true;
       return (Array.isArray(product.variants) ? product.variants : []).some((variant) =>
         variantSizeValue(variant) === selectedFilterSize && variantStockValue(variant) > 0
       );
     });
-    return expandEmployeeProductCardsByColorAndSize(matchedProducts, { selectedSize: selectedFilterSize });
+    const expandedProducts = expandEmployeeProductCardsByColorAndSize(matchedProducts, { selectedSize: selectedFilterSize });
+    if (!hasActiveSizeFilter) return Array.isArray(expandedProducts) && expandedProducts.length ? expandedProducts : matchedProducts;
+    return expandedProducts;
   }, [productsMatchingBaseFilters, selectedFilterSize]);
 
   const openProduct = (product) => {
