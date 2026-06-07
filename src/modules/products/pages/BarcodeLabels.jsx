@@ -42,6 +42,7 @@ import {
 const LABEL_TEMPLATE_STANDARD = "standard";
 const LABEL_TEMPLATE_THERMAL_PORTRAIT = "thermal_portrait";
 const LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100 = "thermal_landscape_50x100";
+const LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 = "premium_retail_50x100";
 
 const resolveTemplatePrintContext = (template, settings, sheetMode) => {
   const normalized = normalizeBarcodePrintSettings({ ...settings, paperSize: sheetMode });
@@ -92,6 +93,34 @@ const resolveTemplatePrintContext = (template, settings, sheetMode) => {
     return {
       template,
       printSettings: portraitSettings,
+      paper: {
+        paperWidthMm: 50,
+        paperHeightMm: 100,
+        pageCss: "50mm 100mm",
+      },
+    };
+  }
+  if (template === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100) {
+    const premiumSettings = normalizeBarcodePrintSettings({
+      ...normalized,
+      paperSize: "custom",
+      customPaperWidthMm: 50,
+      customPaperHeightMm: 100,
+      labelWidthMm: 50,
+      labelHeightMm: 100,
+      labelsPerRow: 1,
+      labelsPerPage: 1,
+      gapMm: 0,
+      marginTopMm: 1.2,
+      marginRightMm: 1.2,
+      marginBottomMm: 1.2,
+      marginLeftMm: 1.2,
+      barcodeWidthScale: 100,
+      barcodeHeight: Math.max(128, Number(normalized.barcodeHeight || 88)),
+    });
+    return {
+      template,
+      printSettings: premiumSettings,
       paper: {
         paperWidthMm: 50,
         paperHeightMm: 100,
@@ -255,6 +284,7 @@ function BarcodeLabels() {
       { value: LABEL_TEMPLATE_STANDARD, label: language === "ar" ? "قياسي" : "Standard" },
       { value: LABEL_TEMPLATE_THERMAL_PORTRAIT, label: language === "ar" ? "حراري طولي" : "Thermal Portrait" },
       { value: LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100, label: language === "ar" ? "حراري عرضي 50×100" : "Thermal Landscape 50x100" },
+      { value: LABEL_TEMPLATE_PREMIUM_RETAIL_50X100, label: language === "ar" ? "بريميوم 50×100" : "Premium Retail 50x100" },
     ],
     [language]
   );
@@ -1032,6 +1062,9 @@ function LabelCard({ item, printSettings, template = LABEL_TEMPLATE_STANDARD, pr
   if (template === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100) {
     return <ThermalLandscapeLabel item={item} printSettings={printSettings} preview={preview} />;
   }
+  if (template === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100) {
+    return <PremiumRetailLabel item={item} printSettings={printSettings} preview={preview} />;
+  }
   const { t } = useTranslation();
   const imageUrl = item.imageUrl || item.resolvedImage;
   const safeImage = getSafeLabelImage(imageUrl, item);
@@ -1075,6 +1108,59 @@ function LabelCard({ item, printSettings, template = LABEL_TEMPLATE_STANDARD, pr
           <div className="mt-4 rounded-[20px] border border-zinc-200 bg-white p-2">
             <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
           </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function PremiumRetailLabel({ item, printSettings, print = false, preview = false }) {
+  const { t } = useTranslation();
+  const imageUrl = item.imageUrl || item.resolvedImage;
+  const safeImage = getSafeLabelImage(imageUrl, item);
+  const productName = safeText(item.productName, t("products.barcodeLabels.product"));
+  const sizeValue = safeText(item.size, t("products.barcodeLabels.oneSize"));
+  const colorValue = safeText(item.color, t("products.barcodeLabels.default"));
+  const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
+    width: Math.round(430 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
+    height: Math.max(132, Number(printSettings.barcodeHeight || 88)),
+    displayText: item.barcode,
+  });
+  const width = preview && !print ? "min(100%, 260px)" : `${printSettings.labelWidthMm}mm`;
+
+  return (
+    <article
+      className={`overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "rounded-[14px] p-[1.2mm] shadow-none" : "rounded-[20px] p-[1.4mm] shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}
+      style={{ width, minHeight: `${printSettings.labelHeightMm}mm` }}
+    >
+      <div className="grid h-full grid-rows-[auto_1fr_auto] gap-[1.2mm]">
+        <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-50 px-[2mm] py-[1.4mm]">
+          <h3 className="truncate text-[12px] font-black leading-none text-zinc-950">{productName}</h3>
+        </div>
+
+        <div className="grid min-h-0 grid-rows-[1fr_auto] gap-[1.2mm]">
+          <div className="relative overflow-hidden rounded-[10px] border border-zinc-200 bg-zinc-50">
+            <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[2mm]" iconClassName="text-zinc-400" />
+          </div>
+          <div className="grid grid-cols-3 gap-[1mm]">
+            <div className="rounded-[9px] border border-zinc-200 bg-zinc-950 px-[1mm] py-[1.2mm] text-center text-white">
+              <div className="text-[7px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
+              <div className="mt-[0.7mm] truncate text-[13px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
+            </div>
+            <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[1.2mm] text-center text-zinc-950">
+              <div className="text-[7px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
+              <div className="mt-[0.7mm] truncate text-[12px] font-black leading-none">{sizeValue}</div>
+            </div>
+            <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[1.2mm] text-center text-zinc-950">
+              <div className="text-[7px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
+              <div className="mt-[0.7mm] truncate text-[10px] font-black leading-none">{colorValue}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-col items-center justify-center rounded-[10px] border border-zinc-200 bg-white px-[1mm] pb-[1.2mm] pt-[1.4mm]">
+          <div className="w-[95%] max-w-full" style={{ minHeight: "31mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+          <div className="mt-[0.8mm] text-center text-[8.5px] font-black leading-none text-zinc-800">{item.sku}</div>
         </div>
       </div>
     </article>
@@ -1139,6 +1225,9 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
 function PrintLabel({ item, printSettings, template = LABEL_TEMPLATE_STANDARD }) {
   if (template === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100) {
     return <ThermalLandscapeLabel item={item} printSettings={printSettings} print />;
+  }
+  if (template === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100) {
+    return <PremiumRetailLabel item={item} printSettings={printSettings} print />;
   }
   const { t } = useTranslation();
   const imageUrl = item.imageUrl || item.resolvedImage;

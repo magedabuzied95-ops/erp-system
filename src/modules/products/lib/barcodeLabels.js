@@ -5,6 +5,7 @@ import { normalizeBarcodePrintSettings, paginateBarcodeLabels, resolveBarcodePri
 const LABEL_TEMPLATE_STANDARD = "standard";
 const LABEL_TEMPLATE_THERMAL_PORTRAIT = "thermal_portrait";
 const LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100 = "thermal_landscape_50x100";
+const LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 = "premium_retail_50x100";
 
 const EAN13_L = [
   "0001101",
@@ -479,6 +480,24 @@ export const buildBarcodePrintHtml = ({
         barcodeWidthScale: 100,
         barcodeHeight: Math.max(100, Number(baseSettings.barcodeHeight || 88)),
       })
+    : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
+      ? normalizeBarcodePrintSettings({
+          ...baseSettings,
+          paperSize: "custom",
+          customPaperWidthMm: 50,
+          customPaperHeightMm: 100,
+          labelWidthMm: 50,
+          labelHeightMm: 100,
+          labelsPerRow: 1,
+          labelsPerPage: 1,
+          gapMm: 0,
+          marginTopMm: 1.2,
+          marginRightMm: 1.2,
+          marginBottomMm: 1.2,
+          marginLeftMm: 1.2,
+          barcodeWidthScale: 100,
+          barcodeHeight: Math.max(128, Number(baseSettings.barcodeHeight || 88)),
+        })
     : resolvedTemplate === LABEL_TEMPLATE_THERMAL_PORTRAIT
       ? normalizeBarcodePrintSettings({
           ...baseSettings,
@@ -498,6 +517,8 @@ export const buildBarcodePrintHtml = ({
       : baseSettings;
   const paper = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
     ? { paperWidthMm: 100, paperHeightMm: 50, pageCss: "100mm 50mm" }
+    : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
+      ? { paperWidthMm: 50, paperHeightMm: 100, pageCss: "50mm 100mm" }
     : resolvedTemplate === LABEL_TEMPLATE_THERMAL_PORTRAIT
       ? { paperWidthMm: 50, paperHeightMm: 100, pageCss: "50mm 100mm" }
       : resolveBarcodePrintPaper(normalizedSettings);
@@ -508,9 +529,13 @@ export const buildBarcodePrintHtml = ({
   const imageHeightMm = normalizedSettings.showProductImage ? Math.max(24, Math.min(normalizedSettings.labelHeightMm - 10, 54)) : 0;
   const barcodeWidth = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
     ? Math.round(640 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100))
+    : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
+      ? Math.round(430 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100))
     : Math.round(420 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100));
   const barcodeHeight = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
     ? Math.max(134, Number(normalizedSettings.barcodeHeight || 88))
+    : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
+      ? Math.max(132, Number(normalizedSettings.barcodeHeight || 88))
     : Number(normalizedSettings.barcodeHeight || 88);
 
   const buildLabelMarkup = (item) => {
@@ -546,6 +571,43 @@ export const buildBarcodePrintHtml = ({
             <div class="thermal-barcode">
               <div class="thermal-barcode-svg">${barcodeSvg}</div>
               <div class="thermal-sku-bottom">${item.sku}</div>
+            </div>
+          </article>
+        `;
+      }
+      if (resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100) {
+        return `
+          <article class="label premium-retail">
+            <div class="premium-header">${item.productName}</div>
+            <div class="premium-middle">
+              <div class="premium-image">
+                <div class="image-fallback" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <path d="M3.27 6.96 12 12.01l8.73-5.05"/>
+                    <path d="M12 22.08V12"/>
+                  </svg>
+                </div>
+                ${safeImage ? `<img src="${safeImage}" alt="${item.productName}" onerror="this.style.display='none'" />` : ""}
+              </div>
+              <div class="premium-meta">
+                <div class="premium-pill premium-price">
+                  <span>${printCopy.price}</span>
+                  <strong>$${Number(item.salePrice || 0).toFixed(2)}</strong>
+                </div>
+                <div class="premium-pill">
+                  <span>${printCopy.size}</span>
+                  <strong>${item.size}</strong>
+                </div>
+                <div class="premium-pill">
+                  <span>${printCopy.color}</span>
+                  <strong>${item.color}</strong>
+                </div>
+              </div>
+            </div>
+            <div class="premium-barcode">
+              <div class="premium-barcode-svg">${barcodeSvg}</div>
+              <div class="premium-sku">${item.sku}</div>
             </div>
           </article>
         `;
@@ -739,6 +801,124 @@ export const buildBarcodePrintHtml = ({
             width: 100%;
             height: auto;
             display: block;
+          }
+          .premium-retail {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 1.2mm;
+            padding: 1.2mm;
+            border-radius: 6px;
+          }
+          .premium-header {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: #f8fafc;
+            padding: 1.4mm 2mm;
+            font-size: 12px;
+            line-height: 1;
+            font-weight: 900;
+            color: #111827;
+          }
+          .premium-middle {
+            display: grid;
+            grid-template-rows: 1fr auto;
+            gap: 1.2mm;
+            min-height: 0;
+          }
+          .premium-image {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            background: #f8fafc;
+            min-height: 40mm;
+          }
+          .premium-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center;
+            display: block;
+            padding: 2mm;
+            position: relative;
+            z-index: 1;
+            background: #ffffff;
+          }
+          .premium-meta {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1mm;
+          }
+          .premium-pill {
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background: #f4f4f5;
+            padding: 1.2mm 1mm;
+            text-align: center;
+            color: #111827;
+          }
+          .premium-pill span {
+            display: block;
+            font-size: 7px;
+            line-height: 1;
+            font-weight: 900;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #64748b;
+          }
+          .premium-pill strong {
+            display: block;
+            margin-top: 0.7mm;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            font-size: 12px;
+            line-height: 1;
+            font-weight: 900;
+            color: #111827;
+          }
+          .premium-price {
+            background: #111827;
+            color: #ffffff;
+          }
+          .premium-price span {
+            color: #cbd5e1;
+          }
+          .premium-price strong {
+            font-size: 13px;
+            color: #ffffff;
+          }
+          .premium-barcode {
+            display: flex;
+            min-height: 0;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.8mm;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            background: #ffffff;
+            padding: 1.4mm 1mm 1.2mm;
+          }
+          .premium-barcode-svg {
+            width: 95%;
+            max-width: 95%;
+            min-height: 31mm;
+          }
+          .premium-barcode-svg svg {
+            width: 100%;
+            height: auto;
+            display: block;
+          }
+          .premium-sku {
+            text-align: center;
+            font-size: 8.5px;
+            line-height: 1;
+            font-weight: 900;
+            color: #111827;
           }
           .body {
             display: grid;
