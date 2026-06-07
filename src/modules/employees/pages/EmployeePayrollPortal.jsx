@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
   AlertTriangle,
@@ -1035,7 +1035,6 @@ function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) 
 
 export default function EmployeePayrollPortal() {
   const { token } = useParams();
-  const navigate = useNavigate();
   const language = "ar";
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2404,24 +2403,46 @@ export default function EmployeePayrollPortal() {
                 </div>
                 {profile.code ? <div className="mt-1 truncate text-[11px] font-bold text-slate-400">{profile.code}</div> : null}
               </div>
-              <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 self-center">
-                {[
-                  { key: "notifications", count: badgeCounts.unreadNotifications || 0, label: ui("notificationsShort"), Icon: Bell, tone: "emerald" },
-                  { key: "display-refill", count: badgeCounts.displayRefillAlerts || 0, label: ui("displayRefillShort"), Icon: AlertTriangle, tone: "amber" },
-                  { key: "tasks", count: badgeCounts.newTasks || 0, label: ui("tasksShort"), Icon: ClipboardList, tone: "sky" },
-                  { key: "requests", count: badgeCounts.pendingNotifications || 0, label: ui("requestsShort"), Icon: MessageCircle, tone: "orange" },
-                ].map(({ key, count, label, Icon, tone }) => (
-                  <HeaderBadgeButton key={key} count={count} label={label} Icon={Icon} tone={tone} onClick={() => setActiveTab(key)} />
-                ))}
+              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => window.location.assign(`/employee-portal/${encodeURIComponent(token)}/products`)}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-500"
+                >
+                  <Package2 className="h-4 w-4" />
+                  <span>طلب من المخزن</span>
+                </button>
+
+                <div className="flex flex-wrap gap-2 sm:justify-end">
+                  {[
+                    { key: "notifications", count: badgeCounts.unreadNotifications || 0, label: ui("notificationsShort"), Icon: Bell, tone: "emerald" },
+                    { key: "display-refill", count: badgeCounts.displayRefillAlerts || 0, label: ui("displayRefillShort"), Icon: AlertTriangle, tone: "amber" },
+                    { key: "tasks", count: badgeCounts.newTasks || 0, label: ui("tasksShort"), Icon: ClipboardList, tone: "sky" },
+                    { key: "requests", count: badgeCounts.pendingNotifications || 0, label: ui("requestsShort"), Icon: MessageCircle, tone: "orange" },
+                  ].map(({ key, count, label, Icon, tone }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setActiveTab(key)}
+                      className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-black shadow-sm transition ${
+                        tone === "emerald"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : tone === "amber"
+                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                            : tone === "sky"
+                              ? "border-sky-200 bg-sky-50 text-sky-700"
+                              : "border-orange-200 bg-orange-50 text-orange-700"
+                      }`}
+                    >
+                      <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-white/90 px-1.5 text-[10px] font-black text-slate-950">
+                        {count > 99 ? "99+" : count}
+                      </span>
+                      <Icon className="h-4 w-4" />
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => navigate(`/employee-portal/${encodeURIComponent(token)}/products`)}
-                className="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-[12px] font-black text-emerald-800 shadow-sm transition hover:bg-emerald-100 md:mt-0 md:ml-2"
-              >
-                <Package2 className="h-4 w-4" />
-                <span>طلب من المخزن</span>
-              </button>
             </div>
             <div className="h-6 shrink-0" aria-hidden="true" />
 
