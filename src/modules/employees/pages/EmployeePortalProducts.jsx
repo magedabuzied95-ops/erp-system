@@ -39,9 +39,10 @@ const normalizeVariant = (variant = {}) => ({
 
 const normalizeProduct = (product = {}) => {
   const variants = Array.isArray(product.variants) ? product.variants.map(normalizeVariant) : [];
-  const colors = uniqueValues(variants.map((variant) => variant.color));
-  const sizes = sortSizes(uniqueValues(variants.map((variant) => variant.size)));
-  const totalStock = variants.reduce((sum, variant) => sum + Math.max(0, Number(variant.stock || 0)), 0);
+  const availableVariants = variants.filter((variant) => Number(variant.stock || 0) > 0);
+  const colors = uniqueValues(availableVariants.map((variant) => variant.color));
+  const sizes = sortSizes(uniqueValues(availableVariants.map((variant) => variant.size)));
+  const totalStock = availableVariants.reduce((sum, variant) => sum + Math.max(0, Number(variant.stock || 0)), 0);
   const imageUrl =
     text(product.product_image_url) ||
     text(product.image_url) ||
@@ -56,7 +57,7 @@ const normalizeProduct = (product = {}) => {
     product_id: product.product_id ?? product.id ?? null,
     name: text(product.name || product.product_name || ""),
     product_name: text(product.product_name || product.name || ""),
-    article_code: text(product.article_code || ""),
+    article_code: text(product.article_code || product.product_code || product.barcode || ""),
     manufacturer_name: text(product.manufacturer_name || ""),
     category: text(product.category || ""),
     type: text(product.type || product.product_type || product.style || ""),
@@ -71,7 +72,7 @@ const normalizeProduct = (product = {}) => {
     stock: totalStock,
     colors,
     sizes,
-    variants,
+    variants: availableVariants,
   };
 };
 
@@ -126,7 +127,7 @@ const buildListParams = ({ search, filters }) => {
   if (filters.gender !== "all") params.gender = filters.gender;
   if (filters.color !== "all") params.color = filters.color;
   if (filters.size !== "all") params.size = filters.size;
-  if (filters.inStockOnly) params.inStockOnly = 1;
+  params.inStockOnly = filters.inStockOnly ? 1 : 0;
   return params;
 };
 
@@ -135,6 +136,7 @@ const buildLookupParams = (directLookup) => {
   if (directLookup.productId) params.productId = directLookup.productId;
   if (directLookup.barcode) params.barcode = directLookup.barcode;
   if (directLookup.article) params.article = directLookup.article;
+  params.inStockOnly = 1;
   return params;
 };
 
@@ -446,7 +448,7 @@ export default function EmployeePortalProducts() {
     gender: "all",
     color: "all",
     size: "all",
-    inStockOnly: false,
+    inStockOnly: true,
   });
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedColor, setSelectedColor] = useState("");
@@ -664,7 +666,7 @@ export default function EmployeePortalProducts() {
                   gender: "all",
                   color: "all",
                   size: "all",
-                  inStockOnly: false,
+                  inStockOnly: true,
                 });
                 setSelectedProduct(null);
                 setSelectedColor("");

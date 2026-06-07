@@ -234,6 +234,7 @@ router.post("/:token/warehouse-request", verifyEmployeePortalToken, async (req, 
   try {
     const employee = req.employeePortalEmployee;
     const productId = Number(req.body?.productId || req.body?.product_id || 0);
+    const variantId = Number(req.body?.variantId || req.body?.variant_id || 0);
     const color = clean(req.body?.color || req.body?.selectedColor || "");
     const size = clean(req.body?.size || req.body?.requested_size || req.body?.selectedSize || "");
     const quantity = Math.max(1, Number(req.body?.quantity || req.body?.requested_quantity || 1));
@@ -256,9 +257,9 @@ router.post("/:token/warehouse-request", verifyEmployeePortalToken, async (req, 
     }
 
     const variants = Array.isArray(product.variants) ? product.variants : [];
-    const selectedVariant = variants.find(
-      (variant) => clean(variant.color || "") === color && clean(variant.size || "") === size
-    );
+    const selectedVariant =
+      (variantId && variants.find((variant) => Number(variant.variant_id ?? variant.id ?? 0) === variantId)) ||
+      variants.find((variant) => clean(variant.color || "") === color && clean(variant.size || "") === size);
 
     if (!selectedVariant) {
       return res.status(422).json({ success: false, code: "variant_not_found", message: "Selected color/size was not found" });

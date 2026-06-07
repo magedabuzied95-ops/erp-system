@@ -1,9 +1,5 @@
 import db from "../database/db.js";
 
-console.info("[employee-portal-products:manufacturer-safe-query]", {
-  manufacturer_source: "empty_fallback",
-});
-
 const clean = (value = "") => String(value || "").trim();
 const lower = (value = "") => clean(value).toLowerCase();
 const truthy = (value) => ["1", "true", "yes", "on"].includes(lower(value));
@@ -12,15 +8,15 @@ const toPositiveInt = (value, fallback = 0) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const firstNonEmpty = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
+
 const addCondition = (conditions, values, sql, value) => {
   values.push(value);
   conditions.push(sql.replaceAll("{value}", `$${values.length}`));
 };
 
-const firstNonEmpty = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
-
 const normalizeVariant = (row = {}, product = {}) => {
-  const stock = Number(row.stock ?? row.stock_quantity ?? 0);
+  const stock = Math.max(0, Number(row.stock ?? row.stock_quantity ?? 0));
   const imageUrl = firstNonEmpty(
     row.variant_image_url,
     row.image_url,
@@ -41,7 +37,7 @@ const normalizeVariant = (row = {}, product = {}) => {
     size: clean(row.size || ""),
     sku: clean(row.sku || ""),
     barcode: clean(row.barcode || ""),
-    article_code: clean(row.article_code || product.article_code || ""),
+    article_code: clean(row.article_code || row.product_code || product.article_code || product.product_code || ""),
     manufacturer_name: clean(row.manufacturer_name || product.manufacturer_name || ""),
     stock,
     price: Number(row.price ?? row.sale_price ?? row.selling_price ?? product.sale_price ?? product.price ?? 0),
@@ -83,16 +79,18 @@ const normalizeProduct = (row = {}, variants = []) => {
   return {
     id: row.id ?? null,
     product_id: row.id ?? null,
-    name: clean(row.name || row.product_name || ""),
-    product_name: clean(row.product_name || row.name || ""),
+    name: clean(row.name || ""),
+    product_name: clean(row.name || ""),
     sku: clean(row.sku || ""),
     barcode: clean(row.barcode || ""),
-    article_code: clean(row.article_code || ""),
+    product_code: clean(row.product_code || ""),
+    article_code: clean(row.product_code || row.article_code || ""),
     manufacturer_name: clean(row.manufacturer_name || ""),
     category: clean(row.category || row.category_name || ""),
     brand: clean(row.brand || row.brand_name || ""),
     gender: clean(row.gender || ""),
-    style: clean(row.style || ""),
+    style: clean(row.style || row.product_type || ""),
+    product_type: clean(row.product_type || row.style || ""),
     price: Number(row.sale_price ?? row.price ?? row.selling_price ?? 0),
     image_url: productImage,
     product_image_url: productImage,
@@ -120,7 +118,7 @@ const buildLookupSelection = (products = [], query = {}) => {
       };
     }
 
-    if (barcode && clean(product.barcode) === barcode) {
+    if (barcode && (clean(product.barcode) === barcode || clean(product.product_code || product.article_code) === barcode)) {
       return {
         product_id: product.id,
         variant_id: null,
@@ -129,7 +127,7 @@ const buildLookupSelection = (products = [], query = {}) => {
       };
     }
 
-    if (article && clean(product.article_code) === article) {
+    if (article && (clean(product.product_code || product.article_code) === article || clean(product.article_code) === article)) {
       return {
         product_id: product.id,
         variant_id: null,
@@ -140,7 +138,8 @@ const buildLookupSelection = (products = [], query = {}) => {
 
     const matchedVariant = (Array.isArray(product.variants) ? product.variants : []).find(
       (variant) =>
-        (barcode && clean(variant.barcode) === barcode)
+        (barcode && (clean(variant.barcode) === barcode || clean(variant.article_code) === barcode)) ||
+        (article && clean(variant.article_code) === article)
     );
 
     if (matchedVariant) {
@@ -156,53 +155,93 @@ const buildLookupSelection = (products = [], query = {}) => {
   return null;
 };
 
-export const loadEmployeePortalProducts = async ({ employee = null, query = {} } = {}) => {
+const buildSearchClause = (values, search) => {
+  const rawSearch = clean(search);
+  if (!rawSearch) return "";
+
+  values.push(rawSearch);
+  const exactParam = `$${values.length}`;
+  values.push(`%${rawSearch}%`);
+  const partialParam = `$${values.length}`;
+
+  return `(
+    LOWER(TRIM(COALESCE(p.name, ''))) = LOWER(TRIM(${exactParam}))
+    OR COALESCE(p.name, '') ILIKE ${partialParam}
+    OR LOWER(TRIM(COALESCE(p.sku, ''))) = LOWER(TRIM(${exactParam}))
+    OR COALESCE(p.sku, '') ILIKE ${partialParam}
+    OR LOWER(TRIM(COALESCE(p.barcode, ''))) = LOWER(TRIM(${exactParam}))
+    OR COALESCE(p.barcode, '') ILIKE ${partialParam}
+    OR LOWER(TRIM(COALESCE(p.product_code, ''))) = LOWER(TRIM(${exactParam}))
+    OR COALESCE(p.product_code, '') ILIKE ${partialParam}
+    OR LOWER(TRIM(COALESCE(p.category, ''))) = LOWER(TRIM(${exactParam}))
+    OR COALESCE(p.category, '') ILIKE ${partialParam}
+    OR LOWER(TRIM(COALESCE(p.brand, ''))) = LOWER(TRIM(${exactParam}))
+    OR COALESCE(p.brand, '') ILIKE ${partialParam}
+    OR LOWER(TRIM(COALESCE(p.gender, ''))) = LOWER(TRIM(${exactParam}))
+    OR COALESCE(p.gender, '') ILIKE ${partialParam}
+    OR LOWER(TRIM(COALESCE(p.product_type, ''))) = LOWER(TRIM(${exactParam}))
+    OR COALESCE(p.product_type, '') ILIKE ${partialParam}
+    OR LOWER(TRIM(COALESCE(p.style, ''))) = LOWER(TRIM(${exactParam}))
+    OR COALESCE(p.style, '') ILIKE ${partialParam}
+    OR EXISTS (
+      SELECT 1
+      FROM product_variants pv
+      WHERE pv.product_id = p.id
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
+        AND (
+          LOWER(TRIM(COALESCE(pv.color, ''))) = LOWER(TRIM(${exactParam}))
+          OR COALESCE(pv.color, '') ILIKE ${partialParam}
+          OR LOWER(TRIM(COALESCE(pv.size, ''))) = LOWER(TRIM(${exactParam}))
+          OR COALESCE(pv.size, '') ILIKE ${partialParam}
+          OR LOWER(TRIM(COALESCE(pv.sku, ''))) = LOWER(TRIM(${exactParam}))
+          OR COALESCE(pv.sku, '') ILIKE ${partialParam}
+          OR LOWER(TRIM(COALESCE(pv.barcode, ''))) = LOWER(TRIM(${exactParam}))
+          OR COALESCE(pv.barcode, '') ILIKE ${partialParam}
+          OR LOWER(TRIM(COALESCE(pv.article_code, ''))) = LOWER(TRIM(${exactParam}))
+          OR COALESCE(pv.article_code, '') ILIKE ${partialParam}
+        )
+    )
+  )`;
+};
+
+const loadPortalCatalog = async ({ employee = null, query = {} } = {}) => {
   const tenantId = employee?.tenant_id ?? null;
   const values = [tenantId];
   const conditions = ["(p.tenant_id IS NULL OR p.tenant_id = $1::bigint)"];
 
-  values.push(true);
-  conditions.push("COALESCE(p.is_active, TRUE) = $2");
+  const activeProductsOnly = `COALESCE(p.is_active, TRUE) = TRUE AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')`;
+  conditions.push(activeProductsOnly);
 
   const search = clean(query.q ?? query.search ?? "");
   if (search) {
-    values.push(`%${search}%`);
-    const token = `$${values.length}`;
-    conditions.push(`(
-      COALESCE(p.name, '') ILIKE ${token}
-      OR COALESCE(p.product_name, '') ILIKE ${token}
-      OR COALESCE(p.sku, '') ILIKE ${token}
-      OR COALESCE(p.barcode, '') ILIKE ${token}
-      OR COALESCE(p.article_code, '') ILIKE ${token}
-      OR COALESCE(p.category, '') ILIKE ${token}
-      OR COALESCE(p.brand, '') ILIKE ${token}
-      OR COALESCE(p.gender, '') ILIKE ${token}
-      OR COALESCE(p.style, '') ILIKE ${token}
-      OR EXISTS (
-        SELECT 1
-        FROM product_variants pv
-        WHERE pv.product_id = p.id
-        AND (
-            COALESCE(pv.color, '') ILIKE ${token}
-            OR COALESCE(pv.size, '') ILIKE ${token}
-            OR COALESCE(pv.sku, '') ILIKE ${token}
-            OR COALESCE(pv.barcode, '') ILIKE ${token}
-          )
-      )
-    )`);
+    conditions.push(buildSearchClause(values, search));
   }
 
   const category = clean(query.category);
-  if (category && lower(category) !== "all") addCondition(conditions, values, "LOWER(COALESCE(p.category, '')) = LOWER({value})", category);
+  if (category && lower(category) !== "all") {
+    addCondition(conditions, values, "LOWER(COALESCE(p.category, '')) = LOWER({value})", category);
+  }
 
   const brand = clean(query.brand);
-  if (brand && lower(brand) !== "all") addCondition(conditions, values, "LOWER(COALESCE(p.brand, '')) = LOWER({value})", brand);
+  if (brand && lower(brand) !== "all") {
+    addCondition(conditions, values, "LOWER(COALESCE(p.brand, '')) = LOWER({value})", brand);
+  }
 
   const gender = clean(query.gender);
-  if (gender && lower(gender) !== "all") addCondition(conditions, values, "LOWER(COALESCE(p.gender, '')) = LOWER({value})", gender);
+  if (gender && lower(gender) !== "all") {
+    addCondition(conditions, values, "LOWER(COALESCE(p.gender, '')) = LOWER({value})", gender);
+  }
 
   const style = clean(query.style ?? query.type ?? "");
-  if (style && lower(style) !== "all") addCondition(conditions, values, "LOWER(COALESCE(p.style, '')) = LOWER({value})", style);
+  if (style && lower(style) !== "all") {
+    values.push(style);
+    const token = `$${values.length}`;
+    conditions.push(`(
+      LOWER(COALESCE(p.style, '')) = LOWER(${token})
+      OR LOWER(COALESCE(p.product_type, '')) = LOWER(${token})
+    )`);
+  }
 
   const color = clean(query.color);
   if (color && lower(color) !== "all") {
@@ -212,6 +251,8 @@ export const loadEmployeePortalProducts = async ({ employee = null, query = {} }
       SELECT 1
       FROM product_variants pv
       WHERE pv.product_id = p.id
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
         AND LOWER(COALESCE(pv.color, '')) = LOWER(${token})
     )`);
   }
@@ -224,33 +265,34 @@ export const loadEmployeePortalProducts = async ({ employee = null, query = {} }
       SELECT 1
       FROM product_variants pv
       WHERE pv.product_id = p.id
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
         AND LOWER(COALESCE(pv.size, '')) = LOWER(${token})
     )`);
   }
 
-  if (truthy(query.inStockOnly ?? query.in_stock_only)) {
-    conditions.push(`EXISTS (
-      SELECT 1
-      FROM product_variants pv
-      WHERE pv.product_id = p.id
-        AND COALESCE(pv.stock, 0) > 0
-    )`);
+  const requestedProductId = toPositiveInt(query.productId ?? query.product_id);
+  if (requestedProductId) {
+    addCondition(conditions, values, "p.id = {value}", requestedProductId);
   }
-
-  const directProductId = toPositiveInt(query.productId ?? query.product_id);
-  if (directProductId) addCondition(conditions, values, "p.id = {value}", directProductId);
 
   const barcode = clean(query.barcode);
   if (barcode) {
     values.push(barcode);
     const token = `$${values.length}`;
     conditions.push(`(
-      COALESCE(p.barcode, '') = ${token}
+      LOWER(TRIM(COALESCE(p.barcode, ''))) = LOWER(TRIM(${token}))
+      OR LOWER(TRIM(COALESCE(p.product_code, ''))) = LOWER(TRIM(${token}))
       OR EXISTS (
         SELECT 1
         FROM product_variants pv
         WHERE pv.product_id = p.id
-          AND COALESCE(pv.barcode, '') = ${token}
+          AND pv.is_active IS DISTINCT FROM FALSE
+          AND pv.deleted_at IS NULL
+          AND (
+            LOWER(TRIM(COALESCE(pv.barcode, ''))) = LOWER(TRIM(${token}))
+            OR LOWER(TRIM(COALESCE(pv.article_code, ''))) = LOWER(TRIM(${token}))
+          )
       )
     )`);
   }
@@ -260,52 +302,84 @@ export const loadEmployeePortalProducts = async ({ employee = null, query = {} }
     values.push(article);
     const token = `$${values.length}`;
     conditions.push(`(
-      COALESCE(p.article_code, '') = ${token}
+      LOWER(TRIM(COALESCE(p.product_code, ''))) = LOWER(TRIM(${token}))
+      OR EXISTS (
+        SELECT 1
+        FROM product_variants pv
+        WHERE pv.product_id = p.id
+          AND pv.is_active IS DISTINCT FROM FALSE
+          AND pv.deleted_at IS NULL
+          AND LOWER(TRIM(COALESCE(pv.article_code, ''))) = LOWER(TRIM(${token}))
+      )
     )`);
   }
 
-  const limit = Math.min(Math.max(toPositiveInt(query.limit ?? query.per_page ?? query.perPage, 80), 1), 120);
+  const inStockOnly = query.inStockOnly === undefined && query.in_stock_only === undefined
+    ? true
+    : truthy(query.inStockOnly ?? query.in_stock_only);
+  if (inStockOnly) {
+    conditions.push(`EXISTS (
+      SELECT 1
+      FROM product_variants pv
+      WHERE pv.product_id = p.id
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
+        AND COALESCE(pv.stock, 0) > 0
+    )`);
+  }
+
+  const limit = Math.min(Math.max(toPositiveInt(query.limit ?? query.per_page ?? query.perPage, 500), 1), 1000);
   values.push(limit);
 
-  const productsResult = await db.query(
-    `
+  const productSql = `
     SELECT
       p.*,
+      p.name AS product_name,
+      p.product_code AS article_code,
       c.name AS category_name,
       b.name AS brand_name,
-      '' AS manufacturer_name,
+      m.name AS manufacturer_name,
       COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url
     FROM products p
     LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN brands b ON b.id = p.brand_id
+    LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
     WHERE ${conditions.join(" AND ")}
     ORDER BY p.updated_at DESC NULLS LAST, p.id DESC
     LIMIT $${values.length}
-    `,
-    values
-  );
+  `;
 
+  const productsResult = await db.query(productSql, values);
   const baseProducts = Array.isArray(productsResult.rows) ? productsResult.rows : [];
   const productIds = baseProducts.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
 
   let variantRows = [];
   if (productIds.length) {
+    const variantValues = [productIds];
+    const variantConditions = [
+      "v.product_id = ANY($1::bigint[])",
+      "v.is_active IS DISTINCT FROM FALSE",
+      "v.deleted_at IS NULL",
+    ];
+    if (inStockOnly) {
+      variantConditions.push("COALESCE(v.stock, 0) > 0");
+    }
+
     const variantsResult = await db.query(
       `
       SELECT
         v.*,
         v.id AS variant_id,
         v.product_id,
-        '' AS manufacturer_name,
+        m.name AS manufacturer_name,
         COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS variant_image_url
       FROM product_variants v
       LEFT JOIN products p ON p.id = v.product_id
-      WHERE v.product_id = ANY($1::bigint[])
-        AND v.is_active IS DISTINCT FROM FALSE
-        AND v.deleted_at IS NULL
+      LEFT JOIN manufacturers m ON m.id = v.manufacturer_id
+      WHERE ${variantConditions.join(" AND ")}
       ORDER BY v.product_id DESC, v.id ASC
       `,
-      [productIds]
+      variantValues
     );
     variantRows = Array.isArray(variantsResult.rows) ? variantsResult.rows : [];
   }
@@ -338,3 +412,5 @@ export const loadEmployeePortalProducts = async ({ employee = null, query = {} }
     selection: buildLookupSelection(products, query),
   };
 };
+
+export const loadEmployeePortalProducts = async ({ employee = null, query = {} } = {}) => loadPortalCatalog({ employee, query });
