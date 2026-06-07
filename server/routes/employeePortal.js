@@ -23,6 +23,7 @@ import {
 } from "../services/displayRefillAlertService.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import { emitToRooms } from "../utils/socket.js";
 import { isPerfDebugEnabled, logPerfTiming } from "../utils/perfDebug.js";
 
 const router = express.Router();
@@ -70,6 +71,7 @@ const logPortalTokenDebug = ({ req, token, employee = null, reason = "" }) => {
 };
 
 const portalRoutePath = (req) => `${req.baseUrl || ""}${req.route?.path || req.path || ""}`;
+const clean = (value = "") => String(value || "").trim();
 
 const logInvalidTokenFailure = async ({ req, token, reason = "" }) => {
   const matched = token ? await inspectEmployeePortalTokenMatch(token).catch(() => null) : null;
@@ -220,6 +222,76 @@ router.get("/:token/products", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] product browser load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load employee products" });
+  }
+});
+
+router.post("/:token/warehouse-request", verifyEmployeePortalToken, async (req, res) => {
+  try {
+    const employee = req.employeePortalEmployee;
+    const productId = Number(req.body?.productId || req.body?.product_id || 0);
+    const color = clean(req.body?.color || req.body?.selectedColor || "");
+    const size = clean(req.body?.size || req.body?.requested_size || req.body?.selectedSize || "");
+    const quantity = Math.max(1, Number(req.body?.quantity || req.body?.requested_quantity || 1));
+
+    if (!productId) {
+      return res.status(422).json({ success: false, code: "invalid_product", message: "Product is required" });
+    }
+
+    const payload = await loadEmployeePortalProducts({
+      employee,
+      query: {
+        productId,
+        limit: 1,
+      },
+    });
+
+    const product = Array.isArray(payload.products) ? payload.products.find((item) => Number(item.id) === productId) : null;
+    if (!product) {
+      return res.status(404).json({ success: false, code: "product_not_found", message: "Product not found" });
+    }
+
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    const selectedVariant = variants.find(
+      (variant) => clean(variant.color || "") === color && clean(variant.size || "") === size
+    );
+
+    if (!selectedVariant) {
+      return res.status(422).json({ success: false, code: "variant_not_found", message: "Selected color/size was not found" });
+    }
+
+    const stock = Number(selectedVariant.stock || 0);
+    if (Number.isFinite(stock) && stock <= 0) {
+      return res.status(409).json({ success: false, code: "out_of_stock", message: "Selected size is out of stock" });
+    }
+
+    const alertPayload = {
+      productId: product.id ?? product.product_id ?? null,
+      productName: product.name || product.product_name || "Product",
+      productImage: product.image_url || product.product_image_url || "",
+      color: selectedVariant.color || color,
+      size: selectedVariant.size || size,
+      stock,
+      article_code: product.article_code || selectedVariant.article_code || "",
+      manufacturer_name: product.manufacturer_name || selectedVariant.manufacturer_name || "",
+      sellerName: employee.full_name || employee.name || "Employee",
+      employeeName: employee.full_name || employee.name || "Employee",
+      employeeId: employee.id ?? null,
+      branchId: employee.branch_id ?? null,
+      quantity,
+      requested_quantity: quantity,
+      requested_size: selectedVariant.size || size,
+      timestamp: new Date().toISOString(),
+    };
+
+    emitToRooms([], "warehouse-pick-alert", alertPayload);
+
+    return res.status(201).json({
+      success: true,
+      alert: alertPayload,
+    });
+  } catch (error) {
+    console.error("[employee-payroll-portal] warehouse request error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to send warehouse request" });
   }
 });
 

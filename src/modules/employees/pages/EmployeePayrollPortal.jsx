@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
   AlertTriangle,
@@ -20,6 +20,7 @@ import {
   Loader2,
   MessageCircle,
   Play,
+  Package2,
   QrCode,
   RefreshCw,
   ReceiptText,
@@ -1034,6 +1035,7 @@ function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) 
 
 export default function EmployeePayrollPortal() {
   const { token } = useParams();
+  const navigate = useNavigate();
   const language = "ar";
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2412,6 +2414,14 @@ export default function EmployeePayrollPortal() {
                   <HeaderBadgeButton key={key} count={count} label={label} Icon={Icon} tone={tone} onClick={() => setActiveTab(key)} />
                 ))}
               </div>
+              <button
+                type="button"
+                onClick={() => navigate(`/employee-portal/${encodeURIComponent(token)}/products`)}
+                className="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-[12px] font-black text-emerald-800 shadow-sm transition hover:bg-emerald-100 md:mt-0 md:ml-2"
+              >
+                <Package2 className="h-4 w-4" />
+                <span>طلب من المخزن</span>
+              </button>
             </div>
             <div className="h-6 shrink-0" aria-hidden="true" />
 
