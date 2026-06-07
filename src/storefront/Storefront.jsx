@@ -2884,7 +2884,9 @@ function AiSupportChatWidget() {
 }
 
 function Storefront() {
+  const STOREFRONT_BUILD_MARKER = "storefront-addtocart-final-v2";
   const pageStartedAtRef = useRef(performance.now());
+  console.log("[storefront-build-marker]", STOREFRONT_BUILD_MARKER);
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       logPagePerf("storefront", pageStartedAtRef.current, { page_mount_ms: Math.round(performance.now() - pageStartedAtRef.current) });
