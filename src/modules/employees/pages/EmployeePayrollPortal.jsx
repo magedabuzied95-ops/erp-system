@@ -2839,29 +2839,8 @@ export default function EmployeePayrollPortal() {
                   {portalNotice ? <div className="mt-2.5 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white md:mt-3" dir="auto">{portalNotice}</div> : null}
                 </section>
 
-                {employeeNotifications.length ? (
-                  <div className="rounded-3xl border border-emerald-100 bg-white p-3.5 shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-sm font-black text-slate-950">آخر التنبيهات</h3>
-                      <button type="button" onClick={() => setActiveTab("notifications")} className="text-[11px] font-black text-emerald-700">{ui("notificationsTab")}</button>
-                    </div>
-                    <div className="mt-3 grid gap-2">
-                      {employeeNotifications.slice(0, 3).map((item) => (
-                        <button
-                          key={item.id || `${item.type}-${item.order_id}`}
-                          type="button"
-                          onClick={() => item.type === "commission_earned" ? setActiveTab("salary") : setActiveTab("notifications")}
-                          className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-start"
-                        >
-                          <div className="truncate text-sm font-black text-slate-900" dir="auto">{item.title}</div>
-                          <div className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-slate-600" dir="auto">{item.body}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
+                </>
+              ) : null}
 
             <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md grid-cols-7 gap-0.5 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur">
               {mobileTabs.map(([key, label, Icon]) => (
