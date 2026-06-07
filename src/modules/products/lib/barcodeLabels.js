@@ -802,8 +802,8 @@ export const buildBarcodePrintHtml = ({
           }
           .premium-retail {
             display: grid;
-            grid-template-rows: 1.05fr 0.78fr 1.17fr;
-            gap: 1.2mm;
+            grid-template-rows: 35fr 22fr 43fr;
+            gap: 0.75mm;
             padding: 1.2mm;
             border-radius: 6px;
           }
@@ -811,9 +811,9 @@ export const buildBarcodePrintHtml = ({
             border: 1px solid #e2e8f0;
             border-radius: 4px;
             background: #f8fafc;
-            padding: 1.2mm 1.6mm;
-            font-size: clamp(10px, 2.2vw, 13px);
-            line-height: 1.05;
+            padding: 1mm 1.4mm;
+            font-size: clamp(10px, 1.55vw, 13px);
+            line-height: 1.04;
             font-weight: 900;
             color: #111827;
             display: -webkit-box;
@@ -824,7 +824,7 @@ export const buildBarcodePrintHtml = ({
           .premium-details {
             display: grid;
             grid-template-rows: auto auto auto auto;
-            gap: 1mm;
+            gap: 0.6mm;
             min-height: 0;
           }
           .premium-image {
@@ -833,7 +833,7 @@ export const buildBarcodePrintHtml = ({
             border: 1px solid #e2e8f0;
             border-radius: 5px;
             background: #f8fafc;
-            min-height: 40mm;
+            min-height: 35mm;
           }
           .premium-image img {
             width: 100%;
@@ -850,7 +850,7 @@ export const buildBarcodePrintHtml = ({
             border: 1px solid #e2e8f0;
             border-radius: 4px;
             background: #f4f4f5;
-            padding: 1.3mm 1.4mm;
+            padding: 1mm 1.2mm;
             text-align: left;
             color: #111827;
           }
@@ -865,7 +865,7 @@ export const buildBarcodePrintHtml = ({
           }
           .premium-pill strong {
             display: block;
-            margin-top: 0.7mm;
+            margin-top: 0.45mm;
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
@@ -882,14 +882,14 @@ export const buildBarcodePrintHtml = ({
             color: #cbd5e1;
           }
           .premium-price strong {
-            font-size: 22px;
+            font-size: 21px;
             color: #ffffff;
           }
           .premium-pill:nth-child(3) strong {
-            font-size: 31px;
+            font-size: 27px;
           }
           .premium-pill:nth-child(4) strong {
-            font-size: 12px;
+            font-size: 11.5px;
             text-transform: uppercase;
             font-weight: 900;
           }
@@ -898,17 +898,17 @@ export const buildBarcodePrintHtml = ({
             min-height: 0;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             gap: 0.8mm;
             border: 1px solid #e2e8f0;
             border-radius: 5px;
             background: #ffffff;
-            padding: 1.4mm 1mm 1.2mm;
+            padding: 0.8mm 1mm 1.1mm;
           }
           .premium-barcode-svg {
             width: 95%;
             max-width: 95%;
-            min-height: 38mm;
+            min-height: 37mm;
           }
           .premium-barcode-svg svg {
             width: 100%;
@@ -917,7 +917,7 @@ export const buildBarcodePrintHtml = ({
           }
           .premium-sku {
             text-align: center;
-            margin-top: 1.2mm;
+            margin-top: 0.9mm;
             font-size: 11.5px;
             line-height: 1;
             font-weight: 900;

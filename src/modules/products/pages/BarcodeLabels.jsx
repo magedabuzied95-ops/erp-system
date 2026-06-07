@@ -1196,34 +1196,34 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
       className={`overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "rounded-[14px] p-[1.2mm] shadow-none" : "rounded-[20px] p-[1.4mm] shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}
       style={{ width: `${printSettings.labelWidthMm}mm`, minHeight: `${printSettings.labelHeightMm}mm` }}
     >
-      <div className="grid h-full min-h-0 grid-rows-[1fr_0.85fr_1.05fr] gap-[1.2mm]">
+      <div className="grid h-full min-h-0 grid-rows-[35fr_22fr_43fr] gap-[0.75mm]">
         <div className="relative min-h-0 overflow-hidden rounded-[10px] border border-zinc-200 bg-zinc-50">
           <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[1.8mm]" iconClassName="text-zinc-400" />
         </div>
 
-        <div className="grid min-h-0 grid-rows-[auto_auto_auto] gap-[1mm] overflow-hidden">
-          <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-50 px-[1.6mm] py-[1.2mm]">
-            <h3 className="line-clamp-2 text-[clamp(11px,1.7vw,14px)] font-black leading-[1.08] text-zinc-950">{productName}</h3>
+        <div className="grid min-h-0 grid-rows-[auto_auto_auto] gap-[0.6mm] overflow-hidden">
+          <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-50 px-[1.4mm] py-[0.9mm]">
+            <h3 className="line-clamp-2 text-[clamp(10px,1.55vw,13px)] font-black leading-[1.04] text-zinc-950">{productName}</h3>
           </div>
-          <div className="rounded-[9px] border border-zinc-200 bg-zinc-950 px-[1.4mm] py-[1.4mm] text-white">
-            <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
-            <div className="mt-[0.7mm] truncate text-[22px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
+          <div className="rounded-[8px] border border-zinc-200 bg-zinc-950 px-[1.3mm] py-[1mm] text-white">
+            <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
+            <div className="mt-[0.45mm] truncate text-[21px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
           </div>
-          <div className="grid min-h-0 grid-cols-2 gap-[1mm]">
-            <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1.4mm] py-[1.3mm] text-zinc-950">
-              <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
-              <div className="mt-[0.7mm] truncate text-[31px] font-black leading-none">{sizeValue}</div>
+          <div className="grid min-h-0 grid-cols-2 gap-[0.75mm]">
+            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1.2mm] py-[1mm] text-zinc-950">
+              <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
+              <div className="mt-[0.45mm] truncate text-[27px] font-black leading-none">{sizeValue}</div>
             </div>
-            <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1.4mm] py-[1.3mm] text-zinc-950">
-              <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
-              <div className="mt-[0.7mm] truncate text-[12px] font-black uppercase leading-none">{colorValue}</div>
+            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1.2mm] py-[1mm] text-zinc-950">
+              <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
+              <div className="mt-[0.45mm] truncate text-[11.5px] font-black uppercase leading-none">{colorValue}</div>
             </div>
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col items-center justify-center rounded-[10px] border border-zinc-200 bg-white px-[1mm] pb-[1.2mm] pt-[1.4mm]">
-          <div className="w-[95%] max-w-full" style={{ minHeight: "38mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
-          <div className="mt-[1.6mm] text-center text-[11.5px] font-black leading-none text-zinc-800">{item.sku}</div>
+        <div className="flex min-h-0 flex-col items-center justify-start rounded-[10px] border border-zinc-200 bg-white px-[1mm] pb-[1.1mm] pt-[0.8mm]">
+          <div className="w-[95%] max-w-full" style={{ minHeight: "37mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+          <div className="mt-[0.9mm] text-center text-[11.5px] font-black leading-none text-zinc-800">{item.sku}</div>
         </div>
       </div>
     </article>
