@@ -14,7 +14,7 @@ const sizeSort = (a, b) => {
   if (Number.isFinite(left) && Number.isFinite(right)) return left - right;
   return String(a).localeCompare(String(b), "ar");
 };
-const stockLabel = (size = "", stock = 0) => `${Number(stock || 0)} أ— ${text(size) || "-"}`;
+const stockLabel = (size = "", stock = 0) => `${Number(stock || 0)} × ${text(size) || "-"}`;
 const formatTime = (value = new Date()) =>
   new Intl.DateTimeFormat("ar-EG", { hour: "2-digit", minute: "2-digit" }).format(value instanceof Date ? value : new Date(value));
 
@@ -148,16 +148,16 @@ function ProductCard({ product, active, onOpen }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="truncate text-sm font-black text-slate-950">{product.name || "ظ…ظ†طھط¬"}</h3>
+            <h3 className="truncate text-sm font-black text-slate-950">{product.name || "منتج"}</h3>
             <div className="mt-1 truncate text-[11px] font-semibold text-slate-500">
-              {product.article_code ? `ظƒظˆط¯ ط§ظ„ط£ط±طھظƒظ„: ${product.article_code}` : "ظƒظˆط¯ ط§ظ„ط£ط±طھظƒظ„: -"}
+              {product.article_code ? `كود الأرتكل: ${product.article_code}` : "كود الأرتكل: -"}
             </div>
             <div className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">
-              {product.manufacturer_name ? `ط§ط³ظ… ط§ظ„ظ…طµظ†ط¹: ${product.manufacturer_name}` : "ط§ط³ظ… ط§ظ„ظ…طµظ†ط¹: -"}
+              {product.manufacturer_name ? `اسم المصنع: ${product.manufacturer_name}` : "اسم المصنع: -"}
             </div>
           </div>
           <div className="rounded-2xl bg-emerald-50 px-2.5 py-1 text-center">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">ط§ظ„ظ…طھط§ط­</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">المتاح</div>
             <div className="text-base font-black text-emerald-700">{Number(product.total_stock || 0)}</div>
           </div>
         </div>
@@ -187,7 +187,7 @@ function ProductCard({ product, active, onOpen }) {
             );
           })}
           {!sizes.length ? (
-            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-400">ظ„ط§ طھظˆط¬ط¯ ظ…ظ‚ط§ط³ط§طھ</span>
+            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-400">لا توجد مقاسات</span>
           ) : null}
         </div>
       </div>
@@ -231,11 +231,11 @@ function ProductPickerSheet({
       <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">ط§ظ„ظ…ظ†طھط¬ط§طھ</div>
-            <h3 className="truncate text-base font-black text-slate-950">{product.name || "ظ…ظ†طھط¬"}</h3>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">المنتجات</div>
+            <h3 className="truncate text-base font-black text-slate-950">{product.name || "منتج"}</h3>
             <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
-              <span>ظƒظˆط¯ ط§ظ„ط£ط±طھظƒظ„: {product.article_code || "-"}</span>
-              <span>ط§ط³ظ… ط§ظ„ظ…طµظ†ط¹: {product.manufacturer_name || "-"}</span>
+              <span>كود الأرتكل: {product.article_code || "-"}</span>
+              <span>اسم المصنع: {product.manufacturer_name || "-"}</span>
             </div>
           </div>
           <button
@@ -266,16 +266,16 @@ function ProductPickerSheet({
             </div>
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <ProductBadge label="ط§ظ„ظ„ظˆظ†" value={selectedColor || "-"} />
-              <ProductBadge label="ط§ظ„ظ…ظ‚ط§ط³" value={selectedSize ? stockLabel(selectedSize, activeStock) : "-"} />
-              <ProductBadge label="ط§ظ„ط¨ط§ط¦ط¹" value={product.employeeName || "-"} />
-              <ProductBadge label="ط§ظ„ظ…طھط§ط­" value={String(activeStock || 0)} />
+              <ProductBadge label="اللون" value={selectedColor || "-"} />
+              <ProductBadge label="المقاس" value={selectedSize ? stockLabel(selectedSize, activeStock) : "-"} />
+              <ProductBadge label="البائع" value={product.employeeName || "-"} />
+              <ProductBadge label="المتاح" value={String(activeStock || 0)} />
             </div>
           </div>
 
           <div className="space-y-4">
             <div className="rounded-[1.25rem] border border-slate-200 bg-white p-3">
-              <div className="text-sm font-black text-slate-900">ط§ظ„ظ„ظˆظ†</div>
+              <div className="text-sm font-black text-slate-900">اللون</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {product.colors.length ? product.colors.map((color) => (
                   <button
@@ -291,13 +291,13 @@ function ProductPickerSheet({
                     {color}
                   </button>
                 )) : (
-                  <span className="text-sm font-semibold text-slate-500">ظ„ط§ طھظˆط¬ط¯ ط£ظ„ظˆط§ظ†</span>
+                  <span className="text-sm font-semibold text-slate-500">لا توجد ألوان</span>
                 )}
               </div>
             </div>
 
             <div className="rounded-[1.25rem] border border-slate-200 bg-white p-3">
-              <div className="text-sm font-black text-slate-900">ط§ظ„ظ…ظ‚ط§ط³</div>
+              <div className="text-sm font-black text-slate-900">المقاس</div>
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {sizeOptions.length ? sizeOptions.map(({ size, stock }) => {
                   const disabled = Number(stock || 0) <= 0;
@@ -317,11 +317,11 @@ function ProductPickerSheet({
                       }`}
                     >
                       <div className="text-2xl font-black leading-none">{size}</div>
-                      <div className="mt-1 text-[11px] font-semibold leading-none">ط§ظ„ظ…طھط§ط­: {Number(stock || 0)}</div>
+                      <div className="mt-1 text-[11px] font-semibold leading-none">المتاح: {Number(stock || 0)}</div>
                     </button>
                   );
                 }) : (
-                  <div className="text-sm font-semibold text-slate-500">ظ„ط§ طھظˆط¬ط¯ ظ…ظ‚ط§ط³ط§طھ</div>
+                  <div className="text-sm font-semibold text-slate-500">لا توجد مقاسات</div>
                 )}
               </div>
             </div>
@@ -329,15 +329,15 @@ function ProductPickerSheet({
             <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-3">
               <div className="grid gap-2 text-sm text-slate-700">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="font-black text-slate-500">ظƒظˆط¯ ط§ظ„ط£ط±طھظƒظ„</span>
+                  <span className="font-black text-slate-500">كود الأرتكل</span>
                   <span className="truncate font-black text-slate-900">{product.article_code || "-"}</span>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="font-black text-slate-500">ط§ط³ظ… ط§ظ„ظ…طµظ†ط¹</span>
+                  <span className="font-black text-slate-500">اسم المصنع</span>
                   <span className="truncate font-black text-slate-900">{product.manufacturer_name || "-"}</span>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="font-black text-slate-500">ط§ظ„ظ„ظˆظ†</span>
+                  <span className="font-black text-slate-500">اللون</span>
                   <span className="truncate font-bold text-slate-900">{selectedColor || "-"}</span>
                 </div>
               </div>
@@ -393,7 +393,44 @@ export default function EmployeePortalProducts() {
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedVariantId, setSelectedVariantId] = useState(null);
   const [loadingCall, setLoadingCall] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1024));
   const lookupDoneRef = useRef(false);
+  const isMobile = viewportWidth < 768;
+
+  useEffect(() => {
+    const updateViewportWidth = () => {
+      setViewportWidth(window.innerWidth || 1024);
+    };
+
+    updateViewportWidth();
+    window.addEventListener("resize", updateViewportWidth, { passive: true });
+
+    return () => {
+      window.removeEventListener("resize", updateViewportWidth);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+
+    const prevHtmlOverflowX = document.documentElement.style.overflowX;
+    const prevBodyOverflowX = document.body.style.overflowX;
+    document.documentElement.style.overflowX = "hidden";
+    document.body.style.overflowX = "hidden";
+
+    return () => {
+      document.documentElement.style.overflowX = prevHtmlOverflowX;
+      document.body.style.overflowX = prevBodyOverflowX;
+    };
+  }, []);
+
+  useEffect(() => {
+    console.info("[employee-portal-products:layout]", {
+      innerWidth: viewportWidth,
+      isMobile,
+      branch: isMobile ? "mobile" : "desktop",
+    });
+  }, [viewportWidth, isMobile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -407,7 +444,7 @@ export default function EmployeePortalProducts() {
         setEmployee(response?.employee || null);
       } catch (err) {
         if (cancelled) return;
-        setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || "طھط¹ط°ط± طھط­ظ…ظٹظ„ ط§ظ„ظ…ظ†طھط¬ط§طھ");
+        setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || "تعذر تحميل المنتجات");
         setProducts([]);
       } finally {
         if (!cancelled) setLoading(false);
@@ -494,13 +531,13 @@ export default function EmployeePortalProducts() {
         size: activeVariant.size || "",
         quantity: 1,
       });
-      toast.success("طھظ… ط¥ط±ط³ط§ظ„ ظ†ط¯ط§ط، ط§ظ„ظ…ط®ط²ظ†");
+      toast.success("تم إرسال نداء المخزن");
       setSelectedProduct(null);
       setSelectedVariantId(null);
       setSelectedColor("");
       setSelectedSize("");
     } catch (err) {
-      toast.error(err?.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ظ†ط¯ط§ط، ط§ظ„ظ…ط®ط²ظ†");
+      toast.error(err?.message || "تعذر إرسال نداء المخزن");
     } finally {
       setLoadingCall(false);
     }
@@ -520,7 +557,7 @@ export default function EmployeePortalProducts() {
         <section className="mx-auto max-w-xl rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 text-amber-600">
             <Store className="h-5 w-5" />
-            <h1 className="text-xl font-black">ط§ظ„ظ…ظ†طھط¬ط§طھ</h1>
+            <h1 className="text-xl font-black">المنتجات</h1>
           </div>
           <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">{error}</p>
         </section>
@@ -535,9 +572,9 @@ export default function EmployeePortalProducts() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-600">Employee Portal</div>
-              <h1 className="truncate text-lg font-black text-slate-950">ط§ظ„ظ…ظ†طھط¬ط§طھ</h1>
+              <h1 className="truncate text-lg font-black text-slate-950">المنتجات</h1>
               <div className="mt-0.5 text-xs font-semibold text-slate-500">
-                {employee?.full_name ? `ط§ظ„ظ…ظˆط¸ظپ: ${employee.full_name}` : "ط§ظ„ط¨ط­ط« ط§ظ„ط³ط±ظٹط¹ ط¹ظ† ط§ظ„ظ…ظ†طھط¬ط§طھ ظˆظ†ط¯ط§ط، ط§ظ„ظ…ط®ط²ظ†"}
+                {employee?.full_name ? `الموظف: ${employee.full_name}` : "البحث السريع عن المنتجات ونداء المخزن"}
               </div>
             </div>
             <button
@@ -556,7 +593,7 @@ export default function EmployeePortalProducts() {
               }}
               className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 self-start sm:self-auto"
             >
-              ط¥ط¹ط§ط¯ط© ط§ظ„ط¶ط¨ط·
+              إعادة الضبط
             </button>
           </div>
         </header>
@@ -574,37 +611,37 @@ export default function EmployeePortalProducts() {
             </label>
             <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
               <Filter className="h-4 w-4 text-slate-400" />
-              ط§ظ„ظپظ„ط§طھط±
+              الفلاتر
             </div>
           </div>
 
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <select value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">ط§ظ„ظپط¦ط©</option>
+              <option value="all">الفئة</option>
               {filterOptions.categories.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
             <select value={filters.brand} onChange={(event) => setFilters((current) => ({ ...current, brand: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">ط§ظ„ط¨ط±ط§ظ†ط¯</option>
+              <option value="all">البراند</option>
               {filterOptions.brands.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
             <select value={filters.gender} onChange={(event) => setFilters((current) => ({ ...current, gender: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">ط§ظ„ط¬ظ†ط³</option>
+              <option value="all">الجنس</option>
               {filterOptions.genders.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
             <select value={filters.style} onChange={(event) => setFilters((current) => ({ ...current, style: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">ط§ظ„ط³طھط§ظٹظ„</option>
+              <option value="all">الستايل</option>
               {filterOptions.styles.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
             <select value={filters.color} onChange={(event) => setFilters((current) => ({ ...current, color: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">ط§ظ„ظ„ظˆظ†</option>
+              <option value="all">اللون</option>
               {filterOptions.colors.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
             <select value={filters.size} onChange={(event) => setFilters((current) => ({ ...current, size: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">ط§ظ„ظ…ظ‚ط§ط³</option>
+              <option value="all">المقاس</option>
               {filterOptions.sizes.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
             <label className="inline-flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 md:col-span-2 xl:col-span-1">
-              <span>ط§ظ„ظ…طھط§ط­ ظپظ‚ط·</span>
+              <span>المتاح فقط</span>
               <input
                 type="checkbox"
                 checked={filters.inStockOnly}
@@ -615,7 +652,7 @@ export default function EmployeePortalProducts() {
           </div>
         </section>
 
-        <section className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.55fr]">
+        <section className={`mt-4 grid gap-4 ${isMobile ? "grid-cols-1" : "lg:grid-cols-[1fr_1.55fr]"}`}>
           <div className="order-1">
             <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className="text-sm font-black text-slate-500">آخر 20 منتج</h2>
@@ -633,7 +670,8 @@ export default function EmployeePortalProducts() {
             </div>
           </div>
 
-          <div className="hidden lg:block lg:order-2">
+          {!isMobile ? (
+            <div className="hidden lg:block lg:order-2">
             <div className="sticky top-3 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="text-sm font-black text-slate-500">المنتج الحالي</h2>
@@ -705,7 +743,8 @@ export default function EmployeePortalProducts() {
                 </div>
               )}
             </div>
-          </div>
+            </div>
+          ) : null}
         </section>
 
         {selectedProduct && activeVariant ? (
