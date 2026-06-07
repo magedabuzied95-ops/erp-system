@@ -81,6 +81,15 @@ export default function BarcodeScanner({
 
   useEffect(() => {
     if (!isCameraSupported()) {
+      console.log("[SCANNER_ENV]", {
+        isSecureContext: typeof window !== "undefined" ? window.isSecureContext : false,
+        mediaDevices: typeof navigator !== "undefined" ? !!navigator.mediaDevices : false,
+        getUserMedia: typeof navigator !== "undefined" ? !!navigator.mediaDevices?.getUserMedia : false,
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+      });
+      console.error("[SCANNER_UNSUPPORTED_BROWSER]", {
+        reason: "Camera APIs unavailable or insecure context",
+      });
       onUnsupported?.(CAMERA_UNSUPPORTED_MESSAGE);
       return undefined;
     }
@@ -89,38 +98,100 @@ export default function BarcodeScanner({
 
     const startScanner = async () => {
       try {
+        console.log("[SCANNER_ENV]", {
+          isSecureContext: window.isSecureContext,
+          mediaDevices: !!navigator.mediaDevices,
+          getUserMedia: !!navigator.mediaDevices?.getUserMedia,
+          userAgent: navigator.userAgent,
+        });
+        const container = typeof document !== "undefined" ? document.getElementById(scannerId) : null;
+        if (!container) {
+          console.error("[SCANNER_CONTAINER_NOT_FOUND]", { scannerId });
+          onError?.(CAMERA_START_FAILED_MESSAGE);
+          return;
+        }
+        console.log("[SCANNER_INIT_START]");
         const scanner = new Html5Qrcode(scannerId);
+        console.log("[SCANNER_INSTANCE_CREATED]");
         html5QrCodeRef.current = scanner;
 
-        await scanner.start(
-          { facingMode: { ideal: "environment" } },
-          {
-            fps: 10,
-            qrbox: { width: 240, height: 240 },
-            aspectRatio: 1,
-            disableFlip: false,
-          },
-          async (decodedText) => {
-            if (!active || handledRef.current) return;
-            handledRef.current = true;
-            try {
-              await safeStopScanner(scanner);
-            } catch {
-              // Ignore stop errors during teardown.
-            }
-            startedRef.current = false;
-            onScan?.(String(decodedText || "").trim());
-          },
-          () => {}
-        );
+        const cameras = await Html5Qrcode.getCameras();
+        console.log("[SCANNER_CAMERAS]", cameras);
+        if (!Array.isArray(cameras) || cameras.length === 0) {
+          console.error("[SCANNER_NO_CAMERAS_FOUND]", { cameras });
+          onError?.(CAMERA_START_FAILED_MESSAGE);
+          return;
+        }
+
+        const preferredCamera =
+          cameras.find((camera) => /back|rear|environment/i.test(String(camera?.label || ""))) ||
+          cameras[0] ||
+          null;
+        const cameraId = preferredCamera?.id || null;
+        const facingMode = { ideal: "environment" };
+        const fps = 10;
+        const qrbox = { width: 240, height: 240 };
+
+        console.log("[SCANNER_START_CONFIG]", {
+          cameraId,
+          facingMode,
+          fps,
+          qrbox,
+        });
+
+        try {
+          await scanner.start(
+            cameraId || { facingMode },
+            {
+              fps,
+              qrbox,
+              aspectRatio: 1,
+              disableFlip: false,
+            },
+            async (decodedText) => {
+              if (!active || handledRef.current) return;
+              handledRef.current = true;
+              try {
+                await safeStopScanner(scanner);
+              } catch {
+                // Ignore stop errors during teardown.
+              }
+              startedRef.current = false;
+              onScan?.(String(decodedText || "").trim());
+            },
+            () => {}
+          );
+        } catch (error) {
+          console.error("[SCANNER_START_ERROR]", {
+            error,
+            name: error?.name,
+            message: error?.message,
+            stack: error?.stack,
+          });
+          throw error;
+        }
 
         startedRef.current = true;
       } catch (error) {
         const classified = classifyCameraError(error);
         if (!active) return;
-        if (classified.type === "permission") onPermissionDenied?.(classified.message);
-        else if (classified.type === "unsupported") onUnsupported?.(classified.message);
-        else onError?.(classified.message);
+        if (classified.type === "permission") {
+          console.error("[SCANNER_PERMISSION_DENIED]", {
+            error,
+            name: error?.name,
+            message: error?.message,
+          });
+          onPermissionDenied?.(classified.message);
+        } else if (classified.type === "unsupported") {
+          console.error("[SCANNER_UNSUPPORTED_BROWSER]", {
+            error,
+            name: error?.name,
+            message: error?.message,
+          });
+          onUnsupported?.(classified.message);
+        } else {
+          onError?.(classified.message);
+        }
       }
     };
 
