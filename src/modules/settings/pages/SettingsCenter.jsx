@@ -761,7 +761,7 @@ function SettingsCenterContent({ debugMode = false }) {
               {shouldShowPreviewPanel ? (
                 <button type="button" onClick={() => setPreviewOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"><Eye className="h-4 w-4" />{ui.preview}</button>
               ) : null}
-              <button type="button" disabled={!isDirty || saving} onClick={save} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500 dark:text-white">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : ui.save}</button>
+              <button type="button" disabled={!isDirty || saving} onClick={save} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500 dark:text-white">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "حفظ إعدادات الدفع" : ui.save)}</button>
             </div>
           </div>
         </header>
@@ -887,7 +887,7 @@ function SettingsCenterContent({ debugMode = false }) {
             <div className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-white"><AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-300" />{dirtyKeys.length} {ui.unsaved}</div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
               <button type="button" onClick={discard} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"><Undo2 className="h-4 w-4" />{ui.discard}</button>
-              <button type="button" onClick={save} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : ui.save}</button>
+              <button type="button" onClick={save} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "حفظ إعدادات الدفع" : ui.save)}</button>
             </div>
           </div>
         </div>
@@ -969,34 +969,34 @@ function StorefrontSettings(props) {
         ) : null}
       </VisualSection>
 
-      <VisualSection icon={CreditCard} title="Payment Methods / ط·ط±ظ‚ ط§ظ„ط¯ظپط¹" description="ط¹ط¯ظ‘ظ„ ط£ط³ظ…ط§ط، ظˆط³ط§ط¦ظ„ ط§ظ„ط¯ظپط¹ ظˆط§ظ„ط£ط±ظ‚ط§ظ… ظˆط§ظ„ط´ط¹ط§ط±ط§طھ ظˆظ…ط¨ظ„ط؛ طھط£ظƒظٹط¯ ط§ظ„ط´ط­ظ† ط§ظ„ط¸ط§ظ‡ط± ظپظٹ طµظپط­ط© ط§ظ„ط¯ظپط¹.">
+      <VisualSection icon={CreditCard} title="إعدادات الدفع والتحويل" description="تحكم في طرق الدفع التي تظهر للعميل أثناء إكمال الطلب.">
         <div className="grid gap-4 xl:grid-cols-2">
           <article className={`rounded-2xl p-4 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`text-base font-black ${headingText}`}>Vodafone Cash / ظپظˆط¯ط§ظپظˆظ† ظƒط§ط´</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>طھط­ظƒظ… ظپظٹ ط§ظ„ط§ط³ظ… ط§ظ„ط¸ط§ظ‡ط±طŒ ط§ظ„ط±ظ‚ظ…طŒ ط§ظ„ط´ط¹ط§ط±طŒ ظˆط§ظ„ظ†طµ ط§ظ„ظ…ط³ط§ط¹ط¯ ط§ظ„ط°ظٹ ظٹط¸ظ‡ط± ظ„ظ„ط¹ظ…ظٹظ„.</p>
+                <h3 className={`text-base font-black ${headingText}`}>محفظة Vodafone Cash</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>تحكم في الاسم الظاهر، الرقم، الشعار، والنص المساعد الذي يظهر للعميل.</p>
               </div>
-              <TogglePill label="ظ…ظپط¹ظ‘ظ„" checked={Boolean(value("storefront.payment_methods.vodafone_cash_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.vodafone_cash_enabled", checked)} />
+              <TogglePill label="مفعل" checked={Boolean(value("storefront.payment_methods.vodafone_cash_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.vodafone_cash_enabled", checked)} />
             </div>
             <div className="mt-4 grid gap-3">
-              <PremiumInput label="ط§ط³ظ… ط§ظ„ط¹ط±ط¶" value={value("storefront.payment_methods.vodafone_cash_display_name")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_display_name", next)} />
-              <PremiumInput label="ط±ظ‚ظ… ط§ظ„ظ…ط­ظپط¸ط©" value={value("storefront.payment_methods.vodafone_cash_number")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_number", next)} />
+              <PremiumInput label="اسم طريقة الدفع" value={value("storefront.payment_methods.vodafone_cash_display_name")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_display_name", next)} />
+              <PremiumInput label="رقم المحفظة" value={value("storefront.payment_methods.vodafone_cash_number")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_number", next)} />
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-                <span className={`mb-2 block text-sm font-black ${headingText}`}>ظ†طµ ظ…ط³ط§ط¹ط¯</span>
-                <textarea rows={3} value={value("storefront.payment_methods.vodafone_cash_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.vodafone_cash_helper_text", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="ظ†طµ ط¥ط±ط´ط§ط¯ظٹ ظ‚طµظٹط±" />
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>نص مساعد</span>
+                <textarea rows={3} value={value("storefront.payment_methods.vodafone_cash_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.vodafone_cash_helper_text", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
               </label>
-              <VisualUpload title="Logo / ط§ظ„ط´ط¹ط§ط±" value={value("storefront.payment_methods.vodafone_cash_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
+              <VisualUpload title="رابط الشعار" value={value("storefront.payment_methods.vodafone_cash_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.vodafone_cash_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
             </div>
           </article>
 
                     <article className={`rounded-2xl p-4 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`text-base font-black ${headingText}`}>InstaPay / ط¥ظ†ط³طھط§ط¨ط§ظٹ</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>ط¹ط¯ظ‘ظ„ ط§ظ„ط§ط³ظ… ط§ظ„ط¸ط§ظ‡ط±طŒ ط§ظ„ط­ط³ط§ط¨ ط£ظˆ ط§ظ„ظ‡ط§طھظپطŒ ط§ظ„ط´ط¹ط§ط±طŒ ظˆط§ظ„ظ†طµ ط§ظ„ظ…ط³ط§ط¹ط¯.</p>
+                <h3 className={`text-base font-black ${headingText}`}>InstaPay</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>أدخل رابط الدفع المباشر وخصص الاسم الظاهر والنص المساعد والشعار.</p>
               </div>
-              <TogglePill label="ظ…ظپط¹ظ‘ظ„" checked={Boolean(value("storefront.payment_methods.instapay_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.instapay_enabled", checked)} />
+              <TogglePill label="مفعل" checked={Boolean(value("storefront.payment_methods.instapay_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.instapay_enabled", checked)} />
             </div>
             <div className={`mt-4 rounded-2xl border p-4 ${fieldSurface}`}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -1035,37 +1035,37 @@ function StorefrontSettings(props) {
               </div>
             </div>
             <details className="mt-3 rounded-2xl border border-dashed border-slate-200 p-4 dark:border-white/10">
-              <summary className={`cursor-pointer select-none text-sm font-black ${headingText}`}>الحساب القديم (للتوافق)</summary>
-              <p className={`mt-1 text-xs leading-5 ${bodyText}`}>يستخدم فقط كبديل قديم عند الحاجة.</p>
+              <summary className={`cursor-pointer select-none text-sm font-black ${headingText}`}>إعدادات التوافق القديمة</summary>
+              <p className={`mt-1 text-xs leading-5 ${bodyText}`}>يُستخدم فقط إذا لم يتم إدخال رابط دفع مباشر.</p>
               <div className="mt-3">
-                <PremiumInput label="الحساب أو الهاتف" value={String(value("storefront.payment_methods.instapay_handle") || "").trim()} onChange={(next) => updateValue("storefront.payment_methods.instapay_handle", next)} />
+                <PremiumInput label="اختصار InstaPay القديم" value={String(value("storefront.payment_methods.instapay_handle") || "").trim()} onChange={(next) => updateValue("storefront.payment_methods.instapay_handle", next)} />
               </div>
             </details>
             <div className="mt-3 grid gap-3">
-              <PremiumInput label="اسم العرض" value={value("storefront.payment_methods.instapay_display_name")} onChange={(next) => updateValue("storefront.payment_methods.instapay_display_name", next)} />
+              <PremiumInput label="اسم طريقة الدفع" value={value("storefront.payment_methods.instapay_display_name")} onChange={(next) => updateValue("storefront.payment_methods.instapay_display_name", next)} />
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
                 <span className={`mb-2 block text-sm font-black ${headingText}`}>نص مساعد</span>
                 <textarea rows={3} value={value("storefront.payment_methods.instapay_helper_text")} onChange={(event) => updateValue("storefront.payment_methods.instapay_helper_text", event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" placeholder="نص إرشادي قصير" />
               </label>
-              <VisualUpload title="Logo / ط§ظ„ط´ط¹ط§ط±" value={value("storefront.payment_methods.instapay_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.instapay_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
+              <VisualUpload title="رابط الشعار" value={value("storefront.payment_methods.instapay_logo_url")} onChange={(next) => updateValue("storefront.payment_methods.instapay_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
             </div>
           </article>
 
           <article className={`rounded-2xl p-4 xl:col-span-2 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className={`text-base font-black ${headingText}`}>Shipping confirmation / ط±ط³ظˆظ… طھط£ظƒظٹط¯ ط§ظ„ط´ط­ظ†</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>ط§ط¶ط¨ط· ط§ظ„ط¹ظ†ظˆط§ظ† ظˆط§ظ„ظ…ط¨ظ„ط؛ ط§ظ„ط¸ط§ظ‡ط±ظٹظ† ظپظٹ ط®ط·ظˆط© ط§ظ„ط¯ظپط¹ ط¯ط§ط®ظ„ طµظپط­ط© ط¥طھظ…ط§ظ… ط§ظ„ط·ظ„ط¨.</p>
+                <h3 className={`text-base font-black ${headingText}`}>رسوم تأكيد الشحن</h3>
+                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>اضبط الرسوم الظاهرة في خطوة الدفع داخل صفحة إتمام الطلب.</p>
               </div>
-              <TogglePill label="ظ…ظپط¹ظ‘ظ„" checked={Boolean(value("storefront.payment_methods.shipping_confirmation_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.shipping_confirmation_enabled", checked)} />
+              <TogglePill label="تفعيل رسوم تأكيد الشحن" checked={Boolean(value("storefront.payment_methods.shipping_confirmation_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.shipping_confirmation_enabled", checked)} />
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-                <span className={`mb-2 block text-sm font-black ${headingText}`}>ظ†طµ ط§ظ„ط¹ظ†ظˆط§ظ†</span>
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>نص الرسوم</span>
                 <input value={value("storefront.payment_methods.shipping_confirmation_label")} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_label", event.target.value)} className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
               </label>
               <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
-                <span className={`mb-2 block text-sm font-black ${headingText}`}>ط§ظ„ظ…ط¨ظ„ط؛</span>
+                <span className={`mb-2 block text-sm font-black ${headingText}`}>قيمة الرسوم</span>
                 <input type="number" min="0" value={Number(value("storefront.payment_methods.shipping_confirmation_amount") || 0)} onChange={(event) => updateValue("storefront.payment_methods.shipping_confirmation_amount", Number(event.target.value))} className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
               </label>
             </div>
