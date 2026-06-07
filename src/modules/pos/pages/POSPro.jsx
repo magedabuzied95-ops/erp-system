@@ -5281,7 +5281,7 @@ function POSPro() {
       ref={posShellRef}
       className="min-h-[100dvh] w-full min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white"
     >
-      <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-2 overflow-y-auto overflow-x-hidden p-2 pb-[calc(10rem+env(safe-area-inset-bottom))] sm:p-3 sm:pb-[calc(8rem+env(safe-area-inset-bottom))] lg:p-3 xl:pb-3">
+      <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-2 overflow-y-auto overflow-x-hidden p-2 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:p-3 sm:pb-[calc(8rem+env(safe-area-inset-bottom))] lg:p-3 xl:pb-3">
         {viewportIsMobile ? (
           <div className="sticky top-0 z-40 -mx-2 -mt-2 border-b border-white/10 bg-zinc-950/96 px-2 pt-[calc(env(safe-area-inset-top)+0.6rem)] pb-2 shadow-2xl shadow-black/20 backdrop-blur-xl lg:hidden">
             <div className="flex items-start gap-2">
@@ -5667,8 +5667,8 @@ function POSPro() {
           </div>
         ) : null}
 
-        <div className="grid min-w-0 flex-1 gap-3 xl:min-h-0 xl:grid-cols-[minmax(0,48%)_minmax(0,52%)] 2xl:grid-cols-[minmax(0,48%)_minmax(0,52%)]">
-          <section className="min-w-0 space-y-2 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-2 shadow-xl shadow-black/10 backdrop-blur">
+        <div className={`grid min-w-0 gap-3 ${viewportIsMobile ? "flex-none" : "flex-1"} xl:min-h-0 xl:grid-cols-[minmax(0,48%)_minmax(0,52%)] 2xl:grid-cols-[minmax(0,48%)_minmax(0,52%)]`}>
+          <section className="min-w-0 self-start space-y-2 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-2 shadow-xl shadow-black/10 backdrop-blur">
             <div className="sticky top-[calc(env(safe-area-inset-top)+4.9rem)] z-30 -mx-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl xl:static xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <div className="relative min-w-0 flex-[1_1_100%] sm:flex-1 2xl:max-w-md">

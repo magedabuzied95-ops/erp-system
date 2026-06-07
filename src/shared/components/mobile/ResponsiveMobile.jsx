@@ -4,12 +4,12 @@ export function MobileBottomSheet({ open, title, children, footer, onClose, clas
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100000] flex items-end justify-center bg-black/70 px-2 pb-2 pt-12 backdrop-blur-sm sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-[100000] flex items-end justify-center bg-black/70 px-2 pb-2 pt-2 backdrop-blur-sm sm:items-center sm:p-4">
       <section
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}
-        className={`flex max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-[1.5rem] border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60 sm:max-h-[88dvh] sm:rounded-[1.5rem] ${className}`}
+        className={`flex max-h-[calc(100dvh-0.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-[1.5rem] border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60 sm:max-h-[88dvh] sm:rounded-[1.5rem] ${className}`}
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 py-3">
           <div className={`min-w-0 truncate text-sm font-black text-white ${titleClassName}`}>{title}</div>
@@ -44,4 +44,3 @@ export function ResponsiveTabs({ children, className = "" }) {
     </div>
   );
 }
-
