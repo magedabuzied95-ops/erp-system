@@ -991,18 +991,25 @@ function BarcodeLabels() {
           previewPages.map((pageLabels, pageIndex) => {
             const isLastPage = pageIndex === previewPages.length - 1;
             if (isPremiumRetailTemplate) {
-              return (
-                <section
-                  key={`print-page-${pageIndex}`}
-                  className="relative mx-0 overflow-hidden bg-white"
-                  data-barcode-print-page
-                  style={{
-                    width: "50mm",
-                    height: "100mm",
-                    pageBreakAfter: isLastPage ? "auto" : "always",
-                    breakAfter: isLastPage ? "auto" : "page",
-                  }}
-                >
+                return (
+                  <section
+                    key={`print-page-${pageIndex}`}
+                    className="premium-page relative mx-0 overflow-hidden bg-white"
+                    data-barcode-print-page
+                    style={{
+                      width: "50mm",
+                      height: "100mm",
+                      display: "block",
+                      padding: 0,
+                      margin: 0,
+                      boxSizing: "border-box",
+                      overflow: "hidden",
+                      breakInside: "avoid",
+                      pageBreakInside: "avoid",
+                      pageBreakAfter: isLastPage ? "auto" : "always",
+                      breakAfter: isLastPage ? "auto" : "page",
+                    }}
+                  >
                   {pageLabels.map((item, index) => (
                     <PrintLabel
                       key={getLabelRenderKey(item, index + pageIndex * Math.max(1, activePrintSettings.labelsPerPage || pageLabels.length), "print")}
@@ -1286,26 +1293,26 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
           <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[0.8mm]" iconClassName="text-zinc-400" />
         </div>
         <div className="min-h-0 overflow-hidden border border-zinc-200 bg-zinc-50 px-[0.8mm] py-[0.55mm]" data-premium-label-part="title">
-          <h3 className="line-clamp-2 text-[clamp(9px,1.45vw,12px)] font-black leading-[1.04] text-zinc-950">{productName}</h3>
+          <h3 className="line-clamp-2 text-[11px] font-black leading-[1.04] text-zinc-950">{productName}</h3>
         </div>
         <div className="min-h-0 overflow-hidden border border-zinc-200 bg-zinc-950 px-[0.75mm] py-[0.5mm] text-white" data-premium-label-part="price">
-          <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
-          <div className="mt-[0.25mm] truncate text-[16px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
+          <div className="text-[5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
+          <div className="mt-[0.25mm] truncate text-[15px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
         </div>
         <div className="grid min-h-0 grid-cols-2 gap-0 overflow-hidden" data-premium-label-part="size-color">
           <div className="border border-zinc-200 bg-zinc-100 px-[0.75mm] py-[0.5mm] text-zinc-950">
-            <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
-            <div className="mt-[0.25mm] truncate text-[18px] font-black leading-none">{sizeValue}</div>
+            <div className="text-[5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
+            <div className="mt-[0.25mm] truncate text-[16px] font-black leading-none">{sizeValue}</div>
           </div>
           <div className="border border-zinc-200 bg-zinc-100 px-[0.75mm] py-[0.5mm] text-zinc-950">
-            <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
+            <div className="text-[5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
             <div className="mt-[0.25mm] truncate text-[10px] font-black uppercase leading-none">{colorValue}</div>
           </div>
         </div>
         <div className="flex min-h-0 flex-col items-center justify-center overflow-hidden border border-zinc-200 bg-white px-[0.35mm] pb-[0.1mm] pt-[0.35mm]" data-premium-label-part="barcode">
           <div className="w-[95%] max-w-full" dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
         </div>
-        <div className="min-h-0 overflow-hidden px-[0.5mm] pt-[0.3mm] text-center text-[9px] font-black leading-none text-zinc-800" data-premium-label-part="sku">
+        <div className="min-h-0 overflow-hidden px-[0.5mm] pt-[0.3mm] text-center text-[8px] font-black leading-none text-zinc-800" data-premium-label-part="sku">
           {item.sku}
         </div>
       </article>
