@@ -1,5 +1,9 @@
 import db from "../database/db.js";
 
+console.info("[employee-portal-products:manufacturer-safe-query]", {
+  manufacturer_source: "empty_fallback",
+});
+
 const clean = (value = "") => String(value || "").trim();
 const lower = (value = "") => clean(value).toLowerCase();
 const truthy = (value) => ["1", "true", "yes", "on"].includes(lower(value));
@@ -170,7 +174,6 @@ export const loadEmployeePortalProducts = async ({ employee = null, query = {} }
       OR COALESCE(p.sku, '') ILIKE ${token}
       OR COALESCE(p.barcode, '') ILIKE ${token}
       OR COALESCE(p.article_code, '') ILIKE ${token}
-      OR COALESCE(p.manufacturer_name, '') ILIKE ${token}
       OR COALESCE(p.category, '') ILIKE ${token}
       OR COALESCE(p.brand, '') ILIKE ${token}
       OR COALESCE(p.gender, '') ILIKE ${token}
@@ -270,12 +273,11 @@ export const loadEmployeePortalProducts = async ({ employee = null, query = {} }
       p.*,
       c.name AS category_name,
       b.name AS brand_name,
-      m.name AS manufacturer_name,
+      '' AS manufacturer_name,
       COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url
     FROM products p
     LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN brands b ON b.id = p.brand_id
-    LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
     WHERE ${conditions.join(" AND ")}
     ORDER BY p.updated_at DESC NULLS LAST, p.id DESC
     LIMIT $${values.length}
@@ -294,12 +296,10 @@ export const loadEmployeePortalProducts = async ({ employee = null, query = {} }
         v.*,
         v.id AS variant_id,
         v.product_id,
-        vm.name AS variant_manufacturer_name,
-        COALESCE(vm.name, p.manufacturer_name, '') AS manufacturer_name,
+        '' AS manufacturer_name,
         COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS variant_image_url
       FROM product_variants v
       LEFT JOIN products p ON p.id = v.product_id
-      LEFT JOIN manufacturers vm ON vm.id = v.manufacturer_id
       WHERE v.product_id = ANY($1::bigint[])
         AND v.is_active IS DISTINCT FROM FALSE
         AND v.deleted_at IS NULL
