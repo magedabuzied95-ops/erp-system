@@ -506,6 +506,7 @@ const { ensureStorefrontCustomerSessionSchema } = await import("./services/store
 const { ensureDefaultTenantAndBackfillUsers } = await import("./utils/tenantBootstrap.js");
 const { ensureBranchSchema } = await import("./utils/branchSchema.js");
 const { ensureSingleBranchModeOnce } = await import("./utils/singleBranchMode.js");
+const { repairOrdersShiftForeignKey } = await import("./utils/ordersShiftFkMigration.js");
 const { default: db } = await import("./database/db.js");
 const { startMetaTokenRefreshScheduler } = await import("./services/metaTokenAutoRefreshService.js");
 const { startMarketingAnalyticsSyncScheduler } = await import("./services/marketingAnalyticsService.js");
@@ -1170,6 +1171,7 @@ const bootstrapStartup = async () => {
     console.log("[server] variants inventory schema ensured");
     await ensureOrdersSchema(db, null);
     console.log("[server] orders schema ensured");
+    await repairOrdersShiftForeignKey(db, { source: "startup:after_orders_schema" });
     await repairOrdersSalesEmployeeForeignKey(db, { source: "startup:after_orders_schema" });
     await ensureProductClassificationSchema();
     console.log("[server] product classification schema ensured");
