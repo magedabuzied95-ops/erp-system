@@ -156,6 +156,88 @@ function FilterSelect({ value, onChange, label, options }) {
   );
 }
 
+function FilterPanel({ open, filters, filterOptions, onChange, onReset, onClose }) {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-xl sm:items-center sm:p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="الفلاتر"
+        className="flex max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_12px)] w-full max-w-4xl flex-col overflow-hidden rounded-t-[1.5rem] border border-white/10 bg-slate-950/95 shadow-2xl shadow-black/60 sm:max-h-[88dvh] sm:rounded-[1.5rem]"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-4">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">FILTERS</div>
+            <h2 className="mt-0.5 text-lg font-black text-white">الفلاتر</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            aria-label="Close filters"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-4 sm:py-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <FilterSelect value={filters.category} onChange={(value) => onChange("category", value)} label="الفئة" options={filterOptions.categories} />
+            <FilterSelect value={filters.type} onChange={(value) => onChange("type", value)} label="النوع" options={filterOptions.types} />
+            <FilterSelect value={filters.brand} onChange={(value) => onChange("brand", value)} label="البراند" options={filterOptions.brands} />
+            <FilterSelect value={filters.gender} onChange={(value) => onChange("gender", value)} label="الجنس" options={filterOptions.genders} />
+            <FilterSelect value={filters.color} onChange={(value) => onChange("color", value)} label="اللون" options={filterOptions.colors} />
+            <FilterSelect value={filters.size} onChange={(value) => onChange("size", value)} label="المقاس" options={filterOptions.sizes} />
+            <label className="inline-flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm font-bold text-white sm:col-span-2 xl:col-span-1">
+              <span>المتاح فقط</span>
+              <input
+                type="checkbox"
+                checked={filters.inStockOnly}
+                onChange={(event) => onChange("inStockOnly", event.target.checked)}
+                className="h-5 w-5 accent-emerald-400"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="shrink-0 border-t border-white/10 bg-slate-950/95 px-3 py-3 backdrop-blur-xl sm:px-4">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400"
+            >
+              تطبيق الفلاتر
+            </button>
+            <button
+              type="button"
+              onClick={onReset}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-400/40 bg-rose-500/15 px-4 text-sm font-black text-rose-100 transition hover:bg-rose-500/25"
+            >
+              إعادة الضبط
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-zinc-200 transition hover:bg-white/[0.08] hover:text-white"
+            >
+              إغلاق
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProductCard({ product, active, onOpen }) {
   const colors = product.colors.slice(0, 4);
   const sizes = product.sizes.slice(0, 4);
@@ -452,6 +534,7 @@ export default function EmployeePortalProducts() {
     size: "all",
     inStockOnly: true,
   });
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
@@ -551,6 +634,31 @@ export default function EmployeePortalProducts() {
     const sizes = sortSizes(uniqueValues(normalizedProducts.flatMap((product) => product.sizes || [])));
     return { categories, types, brands, genders, colors, sizes };
   }, [normalizedProducts]);
+
+  const activeFilterCount = useMemo(
+    () =>
+      ["category", "type", "brand", "gender", "color", "size"].reduce(
+        (count, key) => count + (filters[key] !== "all" ? 1 : 0),
+        filters.inStockOnly ? 0 : 1
+      ),
+    [filters]
+  );
+
+  const resetFilters = () => {
+    setFilters({
+      category: "all",
+      type: "all",
+      brand: "all",
+      gender: "all",
+      color: "all",
+      size: "all",
+      inStockOnly: true,
+    });
+  };
+
+  const updateFilter = (key, value) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+  };
 
   const activeVariant = useMemo(() => {
     if (!selectedProduct) return null;
@@ -664,8 +772,8 @@ export default function EmployeePortalProducts() {
         </header>
 
         <section className="mt-3 rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.2)] backdrop-blur">
-          <div className="flex flex-col gap-3">
-            <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <label className="flex min-h-12 min-w-0 flex-[1_1_100%] items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3 sm:flex-1">
               <Search className="h-4 w-4 text-zinc-500" />
               <input
                 value={search}
@@ -674,28 +782,24 @@ export default function EmployeePortalProducts() {
                 className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
             </label>
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-bold text-zinc-300">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(true)}
+              aria-expanded={filtersOpen}
+              className={`inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border px-3 text-xs font-black transition ${
+                filtersOpen || activeFilterCount > 0
+                  ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]"
+                  : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10"
+              }`}
+            >
               <Filter className="h-4 w-4 text-zinc-500" />
               الفلاتر
-            </div>
-          </div>
-
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <FilterSelect value={filters.category} onChange={(value) => setFilters((current) => ({ ...current, category: value }))} label="الفئة" options={filterOptions.categories} />
-            <FilterSelect value={filters.type} onChange={(value) => setFilters((current) => ({ ...current, type: value }))} label="النوع" options={filterOptions.types} />
-            <FilterSelect value={filters.brand} onChange={(value) => setFilters((current) => ({ ...current, brand: value }))} label="البراند" options={filterOptions.brands} />
-            <FilterSelect value={filters.gender} onChange={(value) => setFilters((current) => ({ ...current, gender: value }))} label="الجنس" options={filterOptions.genders} />
-            <FilterSelect value={filters.color} onChange={(value) => setFilters((current) => ({ ...current, color: value }))} label="اللون" options={filterOptions.colors} />
-            <FilterSelect value={filters.size} onChange={(value) => setFilters((current) => ({ ...current, size: value }))} label="المقاس" options={filterOptions.sizes} />
-            <label className="inline-flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm font-bold text-white md:col-span-2 xl:col-span-1">
-              <span>المتاح فقط</span>
-              <input
-                type="checkbox"
-                checked={filters.inStockOnly}
-                onChange={(event) => setFilters((current) => ({ ...current, inStockOnly: event.target.checked }))}
-                className="h-5 w-5 accent-emerald-400"
-              />
-            </label>
+              {activeFilterCount > 0 ? (
+                <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] font-black text-emerald-100">
+                  {activeFilterCount}
+                </span>
+              ) : null}
+            </button>
           </div>
         </section>
 
@@ -727,6 +831,15 @@ export default function EmployeePortalProducts() {
             loadingSubmit={loadingSubmit}
           />
         ) : null}
+
+        <FilterPanel
+          open={filtersOpen}
+          filters={filters}
+          filterOptions={filterOptions}
+          onChange={updateFilter}
+          onReset={resetFilters}
+          onClose={() => setFiltersOpen(false)}
+        />
       </div>
     </main>
   );
