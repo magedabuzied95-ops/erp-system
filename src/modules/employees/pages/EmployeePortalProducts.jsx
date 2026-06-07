@@ -224,6 +224,71 @@ const resolveProductPreviewImage = (product = {}, { color = "", size = "", varia
   );
 };
 
+const getAvailableVariantsForEmployeeFilters = (product = {}, filters = {}) => {
+  const selectedSize = text(filters.selectedSize || "");
+  const selectedColor = text(filters.selectedColor || "");
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  return variants.filter((variant) => {
+    if (variantStockValue(variant) <= 0) return false;
+    if (selectedSize && variantSizeValue(variant) !== selectedSize) return false;
+    if (selectedColor && text(variant.color) !== selectedColor) return false;
+    return true;
+  });
+};
+
+const buildEmployeeScopedProductCard = (product = {}, variants = [], { color = "", size = "" } = {}) => {
+  const scopedColor = text(color);
+  const scopedSize = text(size);
+  const scopedVariants = Array.isArray(variants) ? variants : [];
+  const scopedStock = scopedVariants.reduce((sum, variant) => sum + variantStockValue(variant), 0);
+  const previewVariant = scopedVariants.find((variant) => extractImageUrl(variant)) || scopedVariants[0] || null;
+  const previewImageUrl = resolveProductPreviewImage(product, {
+    color: scopedColor,
+    size: scopedSize,
+    variantId: previewVariant?.variant_id ?? previewVariant?.id ?? null,
+  });
+
+  return {
+    ...product,
+    id: `${product.id ?? product.product_id ?? "product"}:${scopedColor || "default"}:${scopedSize || "all"}`,
+    product_id: `${product.product_id ?? product.id ?? "product"}:${scopedColor || "default"}:${scopedSize || "all"}`,
+    employee_source_product_id: product.id ?? product.product_id ?? null,
+    employee_source_product: product,
+    employee_card_color: scopedColor,
+    employee_card_size: scopedSize,
+    employee_card_variant_id: previewVariant?.variant_id ?? previewVariant?.id ?? null,
+    image_url: previewImageUrl || product.image_url,
+    product_image_url: previewImageUrl || product.product_image_url || product.image_url,
+    variant_image_url: previewImageUrl || previewVariant?.image_url || "",
+    total_stock: scopedStock,
+    stock: scopedStock,
+    colors: scopedColor ? [scopedColor] : uniqueValues(scopedVariants.map((variant) => variant.color)),
+    sizes: sortSizes(uniqueValues(scopedVariants.map((variant) => variant.size))),
+    variants: scopedVariants,
+  };
+};
+
+const expandEmployeeProductCardsByColorAndSize = (products = [], filters = {}) => {
+  const selectedSize = text(filters.selectedSize || "");
+  if (!selectedSize) return products;
+
+  const cards = [];
+  const seen = new Set();
+  for (const product of products) {
+    const availableVariants = getAvailableVariantsForEmployeeFilters(product, { selectedSize });
+    const colors = uniqueValues(availableVariants.map((variant) => variant.color));
+    for (const color of colors) {
+      const scopedVariants = availableVariants.filter((variant) => text(variant.color) === color);
+      if (!scopedVariants.length) continue;
+      const key = `${product.id ?? product.product_id ?? "product"}:${color}:${selectedSize}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      cards.push(buildEmployeeScopedProductCard(product, scopedVariants, { color, size: selectedSize }));
+    }
+  }
+  return cards;
+};
+
 const buildListParams = ({ search, filters }) => {
   const params = { limit: 120, inStockOnly: 1 };
   const q = text(search);
@@ -759,22 +824,23 @@ export default function EmployeePortalProducts() {
     }
   }, [availableSizes, selectedFilterSize]);
 
-  const visibleProducts = useMemo(
-    () =>
-      productsMatchingBaseFilters.filter((product) => {
-        if (selectedFilterSize === "all") return true;
-        return (Array.isArray(product.variants) ? product.variants : []).some((variant) =>
-          variantSizeValue(variant) === selectedFilterSize && variantStockValue(variant) > 0
-        );
-      }),
-    [productsMatchingBaseFilters, selectedFilterSize]
-  );
+  const visibleProducts = useMemo(() => {
+    const matchedProducts = productsMatchingBaseFilters.filter((product) => {
+      if (selectedFilterSize === "all") return true;
+      return (Array.isArray(product.variants) ? product.variants : []).some((variant) =>
+        variantSizeValue(variant) === selectedFilterSize && variantStockValue(variant) > 0
+      );
+    });
+    return expandEmployeeProductCardsByColorAndSize(matchedProducts, { selectedSize: selectedFilterSize });
+  }, [productsMatchingBaseFilters, selectedFilterSize]);
 
   const openProduct = (product) => {
-    const nextColor = firstAvailableColor(product);
-    const nextSelection = resolveColorSelection(product, nextColor);
-    setSelectedProduct(product);
-    setSelectedColor(nextColor);
+    const sourceProduct = product.employee_source_product || product;
+    const preferredColor = text(product.employee_card_color) || firstAvailableColor(sourceProduct);
+    const preferredSize = text(product.employee_card_size);
+    const nextSelection = resolveColorSelection(sourceProduct, preferredColor, preferredSize);
+    setSelectedProduct(sourceProduct);
+    setSelectedColor(preferredColor);
     setSelectedSize(nextSelection.selectedSize);
     setSelectedQuantity(1);
     setSheetOpen(true);
