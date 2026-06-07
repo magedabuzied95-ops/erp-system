@@ -598,7 +598,6 @@ function SettingsCenterContent({ debugMode = false }) {
   const instapayLegacyHandleValue = String(value("storefront.payment_methods.instapay_handle") || "").trim();
   const instapayPaymentUrlValid = Boolean(instapayPaymentUrlValue) ? isHttpOrHttpsUrl(instapayPaymentUrlValue) : Boolean(instapayLegacyHandleValue);
   const instapayPaymentUrlSaveAllowed = instapayPaymentUrlValid;
-  const instapayPaymentUrlTestAllowed = Boolean(instapayPaymentUrlValue) && instapayPaymentUrlValid;
   const instapayPaymentUrlHelperText = !instapayPaymentUrlValue && instapayLegacyHandleValue
     ? "يستخدم الحساب القديم كبديل عند الحاجة."
     : "اضغط على الزر للتحويل مباشرة، ثم ارفع إيصال التحويل لتأكيد الطلب.";
@@ -1011,9 +1010,9 @@ function StorefrontSettings(props) {
                 </div>
                 <button
                   type="button"
-                  disabled={!instapayPaymentUrlTestAllowed}
+                  disabled={!Boolean(instapayPaymentUrlValue) || !instapayPaymentUrlValid}
                   onClick={() => {
-                    if (!instapayPaymentUrlTestAllowed) return;
+                    if (!Boolean(instapayPaymentUrlValue) || !instapayPaymentUrlValid) return;
                     window.open(instapayPaymentUrlValue, "_blank", "noopener,noreferrer");
                   }}
                   className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-[#a78bfa]/18 bg-[#7c3aed] px-4 text-xs font-black text-white transition hover:-translate-y-0.5 hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:translate-y-0 disabled:border-slate-300/40 disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:border-white/10 dark:disabled:bg-white/10 dark:disabled:text-white/35"
