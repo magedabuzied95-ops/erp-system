@@ -181,13 +181,6 @@ const waitForBarcodePrintReady = async (root = null) => {
   await nextPaint();
 };
 
-const getOrientationLabel = (widthMm, heightMm) => {
-  const width = Number(widthMm) || 0;
-  const height = Number(heightMm) || 0;
-  if (width === height) return "square";
-  return width > height ? "landscape" : "portrait";
-};
-
 const safeText = (value, fallback = "") => {
   if (value === null || value === undefined) return fallback;
   if (typeof value === "string" || typeof value === "number") return String(value);
@@ -537,8 +530,8 @@ function BarcodeLabels() {
     console.info("[barcode-print:paper-height]", activePaper.paperHeightMm);
     console.info("[barcode-print:label-width]", activePrintSettings.labelWidthMm);
     console.info("[barcode-print:label-height]", activePrintSettings.labelHeightMm);
-    console.info("[barcode-print:preview-orientation]", "outer:portrait-stock | inner:landscape-rotated");
-    console.info("[barcode-print:print-orientation]", "outer:portrait-stock | inner:landscape-rotated");
+    console.info("[barcode-print:preview-orientation]", "outer:portrait-stock | inner:portrait-label");
+    console.info("[barcode-print:print-orientation]", "outer:portrait-stock | inner:portrait-label");
   }, [
     activePaper.paperHeightMm,
     activePaper.paperWidthMm,
@@ -604,8 +597,8 @@ function BarcodeLabels() {
     console.info("[barcode-print:paper-height]", activePaper.paperHeightMm);
     console.info("[barcode-print:label-width]", activePrintSettings.labelWidthMm);
     console.info("[barcode-print:label-height]", activePrintSettings.labelHeightMm);
-    console.info("[barcode-print:preview-orientation]", "outer:portrait-stock | inner:landscape-rotated");
-    console.info("[barcode-print:print-orientation]", "outer:portrait-stock | inner:landscape-rotated");
+    console.info("[barcode-print:preview-orientation]", "outer:portrait-stock | inner:portrait-label");
+    console.info("[barcode-print:print-orientation]", "outer:portrait-stock | inner:portrait-label");
     console.info("[barcode-print:labels-count]", expandedLabels.length);
 
     void (async () => {
@@ -1236,7 +1229,7 @@ function LabelCard({ item, printSettings, template = LABEL_TEMPLATE_STANDARD, pr
   );
 }
 
-function PremiumRetailLabel({ item, printSettings, print = false, preview = false }) {
+function PremiumRetailLabel({ item, printSettings, print = false }) {
   const { t } = useTranslation();
   const imageUrl = item.imageUrl || item.resolvedImage;
   const safeImage = getSafeLabelImage(imageUrl, item);
@@ -1245,93 +1238,74 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
   const colorValue = safeText(item.color, t("products.barcodeLabels.default"));
   const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
     width: Math.round(680 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
-    height: Math.max(220, Number(printSettings.barcodeHeight || 88)),
+    height: 220,
     displayText: item.barcode,
   });
-  const previewScale = preview && !print ? 2.0 : 1;
+  useEffect(() => {
+    const measure = () => {
+      const root = document.querySelector('[data-premium-label-root="true"]');
+      if (!root) return;
+      const pxToMm = (px) => Number(((Number(px) || 0) * 25.4 / 96).toFixed(2));
+      const getHeight = (selector) => {
+        const node = root.querySelector(selector);
+        return node ? pxToMm(node.getBoundingClientRect().height) : 0;
+      };
+      console.log("[premium-label-height]", {
+        wrapperHeight: pxToMm(root.getBoundingClientRect().height),
+        imageHeight: getHeight('[data-premium-label-part="image"]'),
+        titleHeight: getHeight('[data-premium-label-part="title"]'),
+        priceHeight: getHeight('[data-premium-label-part="price"]'),
+        sizeColorHeight: getHeight('[data-premium-label-part="size-color"]'),
+        barcodeHeight: getHeight('[data-premium-label-part="barcode"]'),
+        skuHeight: getHeight('[data-premium-label-part="sku"]'),
+      });
+    };
+    const timer = window.setTimeout(measure, 0);
+    return () => window.clearTimeout(timer);
+  }, [item.barcodeValue, item.color, item.productName, item.salePrice, item.size, item.sku, printSettings.barcodeWidthScale, safeImage]);
 
-  const premiumLabelMarkup = (
-    <article
-      className={`overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "rounded-[14px] shadow-none" : "rounded-[20px] shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}
-      style={{
-        width: "100mm",
-        height: "50mm",
-        pageBreakInside: "avoid",
-        breakInside: "avoid",
-      }}
-    >
-      <div className="grid h-full min-h-0 grid-cols-[44%_56%] gap-[1mm] p-[1.2mm]">
-        <div className="relative min-h-0 overflow-hidden rounded-[10px] border border-zinc-200 bg-zinc-50">
-          <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[1.8mm]" iconClassName="text-zinc-400" />
-        </div>
-        <div className="grid min-h-0 grid-rows-[auto_auto_auto] gap-[0.55mm] overflow-hidden">
-          <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-50 px-[1.4mm] py-[0.8mm]">
-            <h3 className="line-clamp-2 text-[clamp(10px,1.35vw,12px)] font-black leading-[1.04] text-zinc-950">{productName}</h3>
-          </div>
-          <div className="rounded-[8px] border border-zinc-200 bg-zinc-950 px-[1.3mm] py-[0.9mm] text-white">
-            <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
-            <div className="mt-[0.45mm] truncate text-[21px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
-          </div>
-          <div className="grid min-h-0 grid-cols-2 gap-[0.75mm]">
-            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1.2mm] py-[0.9mm] text-zinc-950">
-              <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
-              <div className="mt-[0.45mm] truncate text-[27px] font-black leading-none">{sizeValue}</div>
-            </div>
-            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1.2mm] py-[0.9mm] text-zinc-950">
-              <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
-              <div className="mt-[0.45mm] truncate text-[11.5px] font-black uppercase leading-none">{colorValue}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="flex min-h-0 flex-col items-center justify-start rounded-[10px] border border-zinc-200 bg-white px-[1mm] pb-[1.1mm] pt-[0.8mm]">
-        <div className="w-[95%] max-w-full" style={{ minHeight: "18mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
-        <div className="mt-[0.9mm] text-center text-[11.5px] font-black leading-none text-zinc-800">{item.sku}</div>
-      </div>
-    </article>
-  );
-
-  const premiumPreview = (
-    <div
-      className="flex h-full w-full items-center justify-center"
-      style={{
-        width: `calc(50mm * ${previewScale})`,
-        minHeight: `calc(100mm * ${previewScale})`,
-      }}
-    >
-      <div
+  return (
+    <div className="flex h-full w-full items-start justify-center" style={{ width: "50mm", minHeight: "100mm" }}>
+      <article
+        className={`grid overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "shadow-none" : "shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}
+        data-premium-label-root="true"
         style={{
-          position: "relative",
           width: "50mm",
           height: "100mm",
-          overflow: "hidden",
-          contain: "layout paint",
+          gridTemplateRows: "30% auto 12% 10% 30% auto",
           pageBreakInside: "avoid",
           breakInside: "avoid",
         }}
       >
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            width: "100mm",
-            height: "50mm",
-            transformOrigin: "top left",
-            transform: "rotate(90deg) translateY(-50mm)",
-          }}
-        >
-          {premiumLabelMarkup}
+        <div className="relative min-h-0 overflow-hidden border border-zinc-200 bg-zinc-50" data-premium-label-part="image">
+          <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[0.8mm]" iconClassName="text-zinc-400" />
         </div>
-      </div>
+        <div className="min-h-0 overflow-hidden border border-zinc-200 bg-zinc-50 px-[0.8mm] py-[0.55mm]" data-premium-label-part="title">
+          <h3 className="line-clamp-2 text-[clamp(9px,1.45vw,12px)] font-black leading-[1.04] text-zinc-950">{productName}</h3>
+        </div>
+        <div className="min-h-0 overflow-hidden border border-zinc-200 bg-zinc-950 px-[0.75mm] py-[0.5mm] text-white" data-premium-label-part="price">
+          <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
+          <div className="mt-[0.25mm] truncate text-[16px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
+        </div>
+        <div className="grid min-h-0 grid-cols-2 gap-0 overflow-hidden" data-premium-label-part="size-color">
+          <div className="border border-zinc-200 bg-zinc-100 px-[0.75mm] py-[0.5mm] text-zinc-950">
+            <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
+            <div className="mt-[0.25mm] truncate text-[18px] font-black leading-none">{sizeValue}</div>
+          </div>
+          <div className="border border-zinc-200 bg-zinc-100 px-[0.75mm] py-[0.5mm] text-zinc-950">
+            <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
+            <div className="mt-[0.25mm] truncate text-[10px] font-black uppercase leading-none">{colorValue}</div>
+          </div>
+        </div>
+        <div className="flex min-h-0 flex-col items-center justify-center overflow-hidden border border-zinc-200 bg-white px-[0.35mm] pb-[0.1mm] pt-[0.35mm]" data-premium-label-part="barcode">
+          <div className="w-[95%] max-w-full" dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+        </div>
+        <div className="min-h-0 overflow-hidden px-[0.5mm] pt-[0.3mm] text-center text-[9px] font-black leading-none text-zinc-800" data-premium-label-part="sku">
+          {item.sku}
+        </div>
+      </article>
     </div>
   );
-
-  if (preview && !print) {
-    return premiumPreview;
-  }
-
-  return premiumPreview;
 }
 
 function ThermalLandscapeLabel({ item, printSettings, print = false, preview = false }) {
