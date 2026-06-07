@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, ClipboardList, Clock3, Loader2, Lock, Play, RefreshCw } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import { AlertTriangle, CheckCircle2, ClipboardList, Clock3, Loader2, Lock, Play, RefreshCw, Warehouse } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import { staffTasksApi } from "../services/staffTasksApi";
@@ -226,6 +226,7 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
 
 export default function EmployeePortal() {
   const { token } = useParams();
+  const navigate = useNavigate();
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingTaskId, setSavingTaskId] = useState(null);
@@ -523,6 +524,23 @@ export default function EmployeePortal() {
         ) : null}
 
         <NotificationCard state={notificationState} hint={notificationHint} onEnable={enableNotifications} />
+
+        <section className="mt-4">
+          <button
+            type="button"
+            onClick={() => navigate(`/employee/portal/${encodeURIComponent(token || "")}/products`)}
+            className="flex w-full items-center gap-3 rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 text-right shadow-sm transition hover:border-emerald-300 hover:shadow-md active:scale-[0.99]"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-white">
+              <Warehouse className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-black text-slate-950">المنتجات</div>
+              <div className="mt-1 text-xs font-semibold leading-5 text-slate-500">افتح شاشة المنتجات السريعة ونداء المخزن</div>
+            </div>
+            <div className="rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-black text-white">نداء المخزن</div>
+          </button>
+        </section>
 
         <section className="mt-5">
           <h2 className="text-sm font-black text-slate-500">المهام المطلوبة</h2>
