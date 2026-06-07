@@ -506,8 +506,12 @@ export const buildBarcodePrintHtml = ({
   const contentWidthMm = Math.max(20, paper.paperWidthMm - normalizedSettings.marginLeftMm - normalizedSettings.marginRightMm);
   const imageWidthMm = normalizedSettings.showProductImage ? Math.max(18, Math.min(normalizedSettings.labelWidthMm * 0.36, 42)) : 0;
   const imageHeightMm = normalizedSettings.showProductImage ? Math.max(24, Math.min(normalizedSettings.labelHeightMm - 10, 54)) : 0;
-  const barcodeWidth = Math.round(420 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100));
-  const barcodeHeight = Number(normalizedSettings.barcodeHeight || 88);
+  const barcodeWidth = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
+    ? Math.round(640 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100))
+    : Math.round(420 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100));
+  const barcodeHeight = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
+    ? Math.max(134, Number(normalizedSettings.barcodeHeight || 88))
+    : Number(normalizedSettings.barcodeHeight || 88);
 
   const buildLabelMarkup = (item) => {
       const safeImage = getSafeLabelImageUrl(item);
@@ -648,14 +652,14 @@ export const buildBarcodePrintHtml = ({
           }
           .thermal-landscape {
             display: grid;
-            grid-template-rows: 1fr auto;
+            grid-template-rows: 1.1fr 0.9fr;
             gap: 1.5mm;
             padding: 1.5mm;
             border-radius: 6px;
           }
           .thermal-top {
             display: grid;
-            grid-template-columns: 35% 65%;
+            grid-template-columns: 32% 68%;
             gap: 1.5mm;
             min-height: 0;
           }
@@ -685,33 +689,33 @@ export const buildBarcodePrintHtml = ({
             min-width: 0;
             flex-direction: column;
             justify-content: space-between;
-            gap: 0.5mm;
+            gap: 1mm;
           }
           .thermal-details h2 {
             margin: 0;
-            font-size: 13px;
+            font-size: 15px;
             line-height: 1.08;
             font-weight: 900;
             color: #111827;
             letter-spacing: 0;
           }
           .thermal-price {
-            font-size: 15px;
+            font-size: 18px;
             line-height: 1;
             font-weight: 900;
             color: #111827;
           }
           .thermal-size-color {
-            font-size: 10px;
-            line-height: 1.15;
-            font-weight: 800;
-            color: #1f2937;
+            font-size: 12px;
+            line-height: 1.2;
+            font-weight: 900;
+            color: #111827;
           }
           .thermal-sku-top,
           .thermal-sku-bottom {
-            font-size: 8px;
+            font-size: 10px;
             line-height: 1;
-            font-weight: 700;
+            font-weight: 800;
             color: #475569;
           }
           .thermal-barcode {
@@ -719,17 +723,17 @@ export const buildBarcodePrintHtml = ({
             min-height: 0;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-end;
-            gap: 0.6mm;
+            justify-content: center;
+            gap: 0.8mm;
             border: 1px solid #e2e8f0;
             border-radius: 4px;
-            padding: 1mm 2mm;
+            padding: 1.2mm 2.5mm;
             background: #ffffff;
           }
           .thermal-barcode-svg {
-            width: 90%;
-            max-width: 90%;
-            min-height: 21mm;
+            width: 94%;
+            max-width: 94%;
+            min-height: 22.5mm;
           }
           .thermal-barcode-svg svg {
             width: 100%;
