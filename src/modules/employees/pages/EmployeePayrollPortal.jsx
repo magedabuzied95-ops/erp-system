@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
   AlertTriangle,
@@ -42,6 +42,7 @@ import { logPagePerf } from "../../../shared/lib/perfDebug";
 import PortalChatComposer from "../../../shared/chat/PortalChatComposer";
 import PortalChatMessageList from "../../../shared/chat/PortalChatMessageList";
 import { allowedPortalChatAttachment } from "../../../shared/chat/portalChatUtils";
+import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 
 const labels = {
   ar: {
@@ -1035,6 +1036,8 @@ function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) 
 
 export default function EmployeePayrollPortal() {
   const { token } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const language = "ar";
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1056,6 +1059,7 @@ export default function EmployeePayrollPortal() {
   const [earlyCheckoutOpen, setEarlyCheckoutOpen] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
   const [standalone, setStandalone] = useState(() => isStandaloneApp());
+  const homePath = useMemo(() => buildEmployeePortalHomePath({ pathname: location.pathname, token }), [location.pathname, token]);
   const lastAppliedBadgeTotalRef = useRef(null);
   const [notificationState, setNotificationState] = useState(() => {
     if (!pushSupported()) return "unsupported";
@@ -1978,6 +1982,26 @@ export default function EmployeePayrollPortal() {
     }, 50);
   }, [resetAfterChatClose]);
 
+  const handlePortalHome = useCallback(() => {
+    if (chatOpen) closeEmployeeChat();
+    setActiveTab("home");
+    if (location.pathname !== homePath || location.search) {
+      navigate(homePath, { replace: true });
+    }
+  }, [chatOpen, closeEmployeeChat, homePath, location.pathname, location.search, navigate]);
+
+  const handlePortalBack = useCallback(() => {
+    if (chatOpen || activeTab !== "home" || new URLSearchParams(location.search).get("tab") === "chat") {
+      handlePortalHome();
+      return;
+    }
+    if (canNavigateEmployeePortalBack()) {
+      navigate(-1);
+      return;
+    }
+    navigate(homePath, { replace: true });
+  }, [activeTab, chatOpen, handlePortalHome, homePath, location.search, navigate]);
+
   const handleChatScroll = () => {
     const node = chatMessagesRef.current;
     if (!node) return;
@@ -2382,6 +2406,7 @@ export default function EmployeePayrollPortal() {
   return (
     <main dir={direction} className="employee-portal-min-screen overflow-x-hidden bg-slate-100 px-3 pt-3 pb-[calc(128px+env(safe-area-inset-bottom))] text-slate-950 md:pt-4">
       <div className="mx-auto w-full max-w-md md:max-w-3xl xl:max-w-5xl">
+        {!chatOpen ? <EmployeePortalNavControls onBack={handlePortalBack} onHome={handlePortalHome} /> : null}
         <header className="employee-portal-safe-top flex items-center justify-between gap-3 py-0.5">
           <div className="flex items-center gap-2 text-sm font-black text-slate-700">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
@@ -3189,6 +3214,7 @@ export default function EmployeePayrollPortal() {
         <div className="fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950/70 p-0">
           <section className="mx-auto flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:max-w-md" style={chatPanelStyle} dir={direction}>
             <div className="employee-portal-safe-top sticky top-0 z-30 flex-none bg-[#0b141a]">
+              <EmployeePortalNavControls onBack={handlePortalBack} onHome={handlePortalHome} tone="dark" className="mb-0 px-3 pt-3" />
               <header className="flex min-h-14 items-center justify-between gap-2 border-b border-white/10 bg-[#1f2c33] px-3 py-2">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
                   <UserRound className="h-4 w-4" />
