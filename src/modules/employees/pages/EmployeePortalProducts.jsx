@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 
 import { getEmployeePortalProducts, requestEmployeeWarehousePick } from "../services/employeePortalProductsApi";
 import ProductGrid from "../../pos/components/ProductGrid";
+import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
 
 const text = (value = "") => String(value || "").trim();
@@ -125,9 +126,8 @@ const buildListParams = ({ search, filters }) => {
   if (filters.category !== "all") params.category = filters.category;
   if (filters.type !== "all") params.type = filters.type;
   if (filters.brand !== "all") params.brand = filters.brand;
+  if (filters.manufacturer !== "all") params.manufacturer = filters.manufacturer;
   if (filters.gender !== "all") params.gender = filters.gender;
-  if (filters.color !== "all") params.color = filters.color;
-  if (filters.size !== "all") params.size = filters.size;
   return params;
 };
 
@@ -138,105 +138,6 @@ const buildLookupParams = (directLookup) => {
   if (directLookup.article) params.article = directLookup.article;
   return params;
 };
-
-function FilterSelect({ value, onChange, label, options }) {
-  return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="min-h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white outline-none"
-    >
-      <option value="all">{label}</option>
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function FilterPanel({ open, filters, filterOptions, onChange, onReset, onClose }) {
-  if (!open) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-xl sm:items-center sm:p-4"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="الفلاتر"
-        className="flex max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_12px)] w-full max-w-4xl flex-col overflow-hidden rounded-t-[1.5rem] border border-white/10 bg-slate-950/95 shadow-2xl shadow-black/60 sm:max-h-[88dvh] sm:rounded-[1.5rem]"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-4">
-          <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">FILTERS</div>
-            <h2 className="mt-0.5 text-lg font-black text-white">الفلاتر</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
-            aria-label="Close filters"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-4 sm:py-4">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            <FilterSelect value={filters.category} onChange={(value) => onChange("category", value)} label="الفئة" options={filterOptions.categories} />
-            <FilterSelect value={filters.type} onChange={(value) => onChange("type", value)} label="النوع" options={filterOptions.types} />
-            <FilterSelect value={filters.brand} onChange={(value) => onChange("brand", value)} label="البراند" options={filterOptions.brands} />
-            <FilterSelect value={filters.gender} onChange={(value) => onChange("gender", value)} label="الجنس" options={filterOptions.genders} />
-            <FilterSelect value={filters.color} onChange={(value) => onChange("color", value)} label="اللون" options={filterOptions.colors} />
-            <FilterSelect value={filters.size} onChange={(value) => onChange("size", value)} label="المقاس" options={filterOptions.sizes} />
-            <label className="inline-flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm font-bold text-white sm:col-span-2 xl:col-span-1">
-              <span>المتاح فقط</span>
-              <input
-                type="checkbox"
-                checked={filters.inStockOnly}
-                onChange={(event) => onChange("inStockOnly", event.target.checked)}
-                className="h-5 w-5 accent-emerald-400"
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="shrink-0 border-t border-white/10 bg-slate-950/95 px-3 py-3 backdrop-blur-xl sm:px-4">
-          <div className="grid gap-2 sm:grid-cols-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400"
-            >
-              تطبيق الفلاتر
-            </button>
-            <button
-              type="button"
-              onClick={onReset}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-400/40 bg-rose-500/15 px-4 text-sm font-black text-rose-100 transition hover:bg-rose-500/25"
-            >
-              إعادة الضبط
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-zinc-200 transition hover:bg-white/[0.08] hover:text-white"
-            >
-              إغلاق
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ProductCard({ product, active, onOpen }) {
   const colors = product.colors.slice(0, 4);
@@ -529,9 +430,8 @@ export default function EmployeePortalProducts() {
     category: "all",
     type: "all",
     brand: "all",
+    manufacturer: "all",
     gender: "all",
-    color: "all",
-    size: "all",
     inStockOnly: true,
   });
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -542,6 +442,7 @@ export default function EmployeePortalProducts() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
   const lookupDoneRef = useRef(false);
+  const filtersPanelRef = useRef(null);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
@@ -572,7 +473,7 @@ export default function EmployeePortalProducts() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [token, deferredSearch, filters.category, filters.type, filters.brand, filters.gender, filters.color, filters.size, filters.inStockOnly]);
+  }, [token, deferredSearch, filters.category, filters.type, filters.brand, filters.manufacturer, filters.gender, filters.inStockOnly]);
 
   useEffect(() => {
     lookupDoneRef.current = false;
@@ -629,15 +530,40 @@ export default function EmployeePortalProducts() {
     const categories = uniqueValues(normalizedProducts.map((product) => product.category));
     const types = uniqueValues(normalizedProducts.map((product) => product.type));
     const brands = uniqueValues(normalizedProducts.map((product) => product.brand));
+    const manufacturers = uniqueValues(normalizedProducts.map((product) => product.manufacturer_name));
     const genders = uniqueValues(normalizedProducts.map((product) => product.gender));
-    const colors = uniqueValues(normalizedProducts.flatMap((product) => product.colors || []));
-    const sizes = sortSizes(uniqueValues(normalizedProducts.flatMap((product) => product.sizes || [])));
-    return { categories, types, brands, genders, colors, sizes };
+    return { categories, types, brands, manufacturers, genders };
   }, [normalizedProducts]);
+
+  const optionWithCounts = (values, products, valueForProduct) =>
+    values.map((value) => ({
+      id: value,
+      name: value,
+      count: products.filter((product) => text(valueForProduct(product)) === text(value)).length,
+    }));
+
+  const smartFilterOptions = useMemo(
+    () => ({
+      gender: optionWithCounts(filterOptions.genders, normalizedProducts, (product) => product.gender),
+      productType: optionWithCounts(filterOptions.types, normalizedProducts, (product) => product.type),
+      grade: optionWithCounts(filterOptions.categories, normalizedProducts, (product) => product.category),
+    }),
+    [filterOptions, normalizedProducts]
+  );
+
+  const brandOptions = useMemo(
+    () => filterOptions.brands.map((brand) => ({ id: brand, name: brand })),
+    [filterOptions.brands]
+  );
+
+  const manufacturerOptions = useMemo(
+    () => filterOptions.manufacturers.map((manufacturer) => ({ id: manufacturer, name: manufacturer })),
+    [filterOptions.manufacturers]
+  );
 
   const activeFilterCount = useMemo(
     () =>
-      ["category", "type", "brand", "gender", "color", "size"].reduce(
+      ["category", "type", "brand", "manufacturer", "gender"].reduce(
         (count, key) => count + (filters[key] !== "all" ? 1 : 0),
         filters.inStockOnly ? 0 : 1
       ),
@@ -649,9 +575,8 @@ export default function EmployeePortalProducts() {
       category: "all",
       type: "all",
       brand: "all",
+      manufacturer: "all",
       gender: "all",
-      color: "all",
-      size: "all",
       inStockOnly: true,
     });
   };
@@ -664,6 +589,20 @@ export default function EmployeePortalProducts() {
     if (!selectedProduct) return null;
     return findVariant(selectedProduct, null, selectedColor, selectedSize);
   }, [selectedProduct, selectedColor, selectedSize]);
+
+  const visibleProducts = useMemo(
+    () =>
+      normalizedProducts.filter((product) => {
+        const matchesCategory = filters.category === "all" || text(product.category) === text(filters.category);
+        const matchesType = filters.type === "all" || text(product.type) === text(filters.type);
+        const matchesBrand = filters.brand === "all" || text(product.brand) === text(filters.brand);
+        const matchesManufacturer = filters.manufacturer === "all" || text(product.manufacturer_name) === text(filters.manufacturer);
+        const matchesGender = filters.gender === "all" || text(product.gender) === text(filters.gender);
+        const matchesStock = !filters.inStockOnly || Number(product.total_stock || product.stock || 0) > 0;
+        return matchesCategory && matchesType && matchesBrand && matchesManufacturer && matchesGender && matchesStock;
+      }),
+    [filters, normalizedProducts]
+  );
 
   const openProduct = (product) => {
     const nextColor = firstAvailableColor(product);
@@ -753,9 +692,8 @@ export default function EmployeePortalProducts() {
                   category: "all",
                   type: "all",
                   brand: "all",
+                  manufacturer: "all",
                   gender: "all",
-                  color: "all",
-                  size: "all",
                   inStockOnly: true,
                 });
                 setSelectedProduct(null);
@@ -806,12 +744,12 @@ export default function EmployeePortalProducts() {
         <section className="mt-4">
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 className="text-sm font-black text-zinc-300">النتائج</h2>
-            <div className="text-xs font-semibold text-zinc-500">{normalizedProducts.length.toLocaleString("ar-EG")} منتج</div>
+            <div className="text-xs font-semibold text-zinc-500">{visibleProducts.length.toLocaleString("ar-EG")} منتج</div>
           </div>
           <ProductGrid
-            loading={loading && !normalizedProducts.length}
+            loading={loading && !visibleProducts.length}
             error={error}
-            products={normalizedProducts}
+            products={visibleProducts}
             search={search}
             onSelectProduct={openProduct}
           />
@@ -832,11 +770,23 @@ export default function EmployeePortalProducts() {
           />
         ) : null}
 
-        <FilterPanel
+        <SmartPosFilters
           open={filtersOpen}
-          filters={filters}
-          filterOptions={filterOptions}
-          onChange={updateFilter}
+          panelRef={filtersPanelRef}
+          smartFilterOptions={smartFilterOptions}
+          selectedGender={filters.gender}
+          onGenderChange={(value) => updateFilter("gender", value)}
+          selectedProductType={filters.type}
+          onProductTypeChange={(value) => updateFilter("type", value)}
+          selectedGrade={filters.category}
+          onGradeChange={(value) => updateFilter("category", value)}
+          brandOptions={brandOptions}
+          selectedBrandId={filters.brand}
+          onBrandChange={(value) => updateFilter("brand", value)}
+          manufacturerOptions={manufacturerOptions}
+          selectedManufacturerId={filters.manufacturer}
+          onManufacturerChange={(value) => updateFilter("manufacturer", value)}
+          activeSmartFilterCount={activeFilterCount}
           onReset={resetFilters}
           onClose={() => setFiltersOpen(false)}
         />
