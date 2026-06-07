@@ -484,10 +484,10 @@ export const buildBarcodePrintHtml = ({
       ? normalizeBarcodePrintSettings({
           ...baseSettings,
           paperSize: "custom",
-          customPaperWidthMm: 50,
-          customPaperHeightMm: 100,
-          labelWidthMm: 50,
-          labelHeightMm: 100,
+          customPaperWidthMm: 100,
+          customPaperHeightMm: 50,
+          labelWidthMm: 100,
+          labelHeightMm: 50,
           labelsPerRow: 1,
           labelsPerPage: 1,
           gapMm: 0,
@@ -518,7 +518,7 @@ export const buildBarcodePrintHtml = ({
   const paper = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
     ? { paperWidthMm: 100, paperHeightMm: 50, pageCss: "100mm 50mm" }
     : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
-      ? { paperWidthMm: 50, paperHeightMm: 100, pageCss: "50mm 100mm" }
+      ? { paperWidthMm: 100, paperHeightMm: 50, pageCss: "100mm 50mm" }
     : resolvedTemplate === LABEL_TEMPLATE_THERMAL_PORTRAIT
       ? { paperWidthMm: 50, paperHeightMm: 100, pageCss: "50mm 100mm" }
       : resolveBarcodePrintPaper(normalizedSettings);
@@ -530,7 +530,7 @@ export const buildBarcodePrintHtml = ({
   const barcodeWidth = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
     ? Math.round(640 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100))
     : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
-      ? Math.round(430 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100))
+      ? Math.round(650 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100))
     : Math.round(420 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100));
   const barcodeHeight = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
     ? Math.max(134, Number(normalizedSettings.barcodeHeight || 88))
@@ -578,8 +578,7 @@ export const buildBarcodePrintHtml = ({
       if (resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100) {
         return `
           <article class="label premium-retail">
-            <div class="premium-header">${item.productName}</div>
-            <div class="premium-middle">
+            <div class="premium-top">
               <div class="premium-image">
                 <div class="image-fallback" aria-hidden="true">
                   <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -590,7 +589,8 @@ export const buildBarcodePrintHtml = ({
                 </div>
                 ${safeImage ? `<img src="${safeImage}" alt="${item.productName}" onerror="this.style.display='none'" />` : ""}
               </div>
-              <div class="premium-meta">
+              <div class="premium-details">
+                <div class="premium-header">${item.productName}</div>
                 <div class="premium-pill premium-price">
                   <span>${printCopy.price}</span>
                   <strong>$${Number(item.salePrice || 0).toFixed(2)}</strong>
@@ -804,10 +804,16 @@ export const buildBarcodePrintHtml = ({
           }
           .premium-retail {
             display: grid;
-            grid-template-rows: auto 1fr auto;
+            grid-template-rows: 1fr 0.72fr;
             gap: 1.2mm;
             padding: 1.2mm;
             border-radius: 6px;
+          }
+          .premium-top {
+            display: grid;
+            grid-template-columns: 44% 56%;
+            gap: 1.2mm;
+            min-height: 0;
           }
           .premium-header {
             overflow: hidden;
@@ -816,16 +822,16 @@ export const buildBarcodePrintHtml = ({
             border: 1px solid #e2e8f0;
             border-radius: 4px;
             background: #f8fafc;
-            padding: 1.4mm 2mm;
-            font-size: 12px;
+            padding: 1.2mm 1.6mm;
+            font-size: 11px;
             line-height: 1;
             font-weight: 900;
             color: #111827;
           }
-          .premium-middle {
+          .premium-details {
             display: grid;
-            grid-template-rows: 1fr auto;
-            gap: 1.2mm;
+            grid-template-rows: auto auto 1fr 1fr;
+            gap: 1mm;
             min-height: 0;
           }
           .premium-image {
@@ -834,7 +840,6 @@ export const buildBarcodePrintHtml = ({
             border: 1px solid #e2e8f0;
             border-radius: 5px;
             background: #f8fafc;
-            min-height: 40mm;
           }
           .premium-image img {
             width: 100%;
@@ -842,27 +847,22 @@ export const buildBarcodePrintHtml = ({
             object-fit: contain;
             object-position: center;
             display: block;
-            padding: 2mm;
+            padding: 1.8mm;
             position: relative;
             z-index: 1;
             background: #ffffff;
-          }
-          .premium-meta {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 1mm;
           }
           .premium-pill {
             border: 1px solid #e2e8f0;
             border-radius: 4px;
             background: #f4f4f5;
-            padding: 1.2mm 1mm;
-            text-align: center;
+            padding: 1.3mm 1.4mm;
+            text-align: left;
             color: #111827;
           }
           .premium-pill span {
             display: block;
-            font-size: 7px;
+            font-size: 6px;
             line-height: 1;
             font-weight: 900;
             letter-spacing: 0.18em;
@@ -888,7 +888,7 @@ export const buildBarcodePrintHtml = ({
             color: #cbd5e1;
           }
           .premium-price strong {
-            font-size: 13px;
+            font-size: 15px;
             color: #ffffff;
           }
           .premium-barcode {
@@ -906,7 +906,7 @@ export const buildBarcodePrintHtml = ({
           .premium-barcode-svg {
             width: 95%;
             max-width: 95%;
-            min-height: 31mm;
+            min-height: 18.5mm;
           }
           .premium-barcode-svg svg {
             width: 100%;
