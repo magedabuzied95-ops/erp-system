@@ -589,7 +589,7 @@ export const upsertChannelConversationMapping = async ({
       metadata = ai_channel_conversations.metadata || EXCLUDED.metadata,
       last_message_at = COALESCE(EXCLUDED.last_message_at, ai_channel_conversations.last_message_at),
       updated_at = NOW()
-    RETURNING *
+    RETURNING *, (xmax = 0) AS inserted
     `,
     [
       numberOrNull(tenantId),

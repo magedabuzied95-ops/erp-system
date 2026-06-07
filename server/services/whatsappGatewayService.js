@@ -157,9 +157,10 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
     });
   }
   const endpoint = `/message/sendText/${encodeURIComponent(current.instanceName)}`;
-  console.info("[whatsapp:send-text-request]", {
+  console.info("[evolution:send-request]", {
     provider: current.provider,
     instanceName: current.instanceName,
+    url: `${current.apiUrl}${endpoint}`,
     endpoint,
     number: normalizedPhone,
     payload_shape: { number: "string", text: "string" },
@@ -170,15 +171,28 @@ export const sendTextMessage = async ({ phone, message } = {}) => {
       method: "POST",
       body: requestBody,
     });
-    console.info("[whatsapp:send-text-success]", {
+    console.info("[evolution:send-response]", {
       provider: current.provider,
       instanceName: current.instanceName,
       endpoint,
+      status: "ok",
       number: normalizedPhone,
       result: data,
     });
     return { success: true, provider: current.provider, instanceName: current.instanceName, phone: normalizedPhone, result: data };
   } catch (error) {
+    console.error("[evolution:send-response]", {
+      provider: current.provider,
+      instanceName: current.instanceName,
+      endpoint,
+      status: "error",
+      number: normalizedPhone,
+      message: error?.message || String(error),
+      code: error?.code || "",
+      statusCode: error?.status || "",
+      response_body: error?.data || error?.responseBody || null,
+      response_raw: error?.responseRaw || "",
+    });
     console.error("[whatsapp:send-text-error]", {
       provider: current.provider,
       instanceName: current.instanceName,
@@ -1893,7 +1907,7 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
 
   await ensureAiSupportLogSchema();
   await logAiSupportMessageIndexes();
-  await upsertChannelConversationMapping({
+  const conversation = await upsertChannelConversationMapping({
     tenantId,
     channel: AI_AGENT_CHANNELS.WHATSAPP,
     externalConversationId: sessionId,
@@ -1924,6 +1938,17 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
     },
     lastMessageAt: receivedAt,
   });
+  if (conversation?.inserted) {
+    console.info("[ai-inbox:conversation-created]", {
+      tenantId,
+      channel,
+      sessionId,
+      externalCustomerId: message.phone,
+      remoteJid,
+      messageId: externalMessageId,
+      instance,
+    });
+  }
 
   const session = await db.query(
     `
@@ -2240,6 +2265,15 @@ export const handleIncomingWebhook = async (payload = {}) => {
     received_events: eventCandidates.map((value) => String(value)),
   });
   const envelope = extractWhatsappWebhookEnvelope(payload);
+  console.info("[evolution:webhook-event]", {
+    event: envelope.event,
+    rawEvent: envelope.rawEvent || "",
+    instance: envelope.instance,
+    remoteJid: envelope.remoteJid,
+    messageId: envelope.messageId,
+    fromMe: envelope.fromMe,
+    eventCandidates: envelope.eventCandidates,
+  });
   if (envelope.fromMe) {
     console.info("[whatsapp:skip-from-me-before-ai]", {
       event: envelope.event,
@@ -2287,6 +2321,32 @@ export const handleIncomingWebhook = async (payload = {}) => {
     };
   }
   const normalized = await extractIncomingWhatsapp(payload);
+  console.info("[evolution:message-extracted]", {
+    event: normalized.event,
+    rawEvent: normalized.rawEvent || "",
+    instance: normalized.instance,
+    remoteJid: normalized.remoteJid,
+    phone: normalized.phone,
+    messageId: normalized.messageId,
+    textPreview: normalized.text.slice(0, 160),
+    fromMe: normalized.fromMe,
+  });
+  const ignoreNonTextEvents = new Set(["contacts.update", "messages.edited"]);
+  if (ignoreNonTextEvents.has(String(normalized.event || "").toLowerCase()) && (!normalized.text || !normalized.messageId)) {
+    console.info("[whatsapp:inbox-skipped]", {
+      reason: "non_text_or_missing_message_id",
+      event: normalized.event,
+      message_id: normalized.messageId,
+      remoteJid: normalized.remoteJid,
+      phoneSuffix: normalized.phone ? normalized.phone.slice(-4) : "",
+    });
+    return {
+      ...normalized,
+      received_at: normalized.timestamp,
+      trace_id: null,
+      inbox: { saved: false, reason: "non_text_or_missing_message_id" },
+    };
+  }
   const traceTenantId = tenantIdForWhatsapp(normalized.raw || {});
   let trace = null;
   console.info("[whatsapp:inbox-received]", {
