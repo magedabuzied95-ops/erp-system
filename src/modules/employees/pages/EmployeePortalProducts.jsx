@@ -4,6 +4,8 @@ import { Filter, Loader2, Minus, Package2, Plus, Search, Store, X } from "lucide
 import toast from "react-hot-toast";
 
 import { getEmployeePortalProducts, requestEmployeeWarehousePick } from "../services/employeePortalProductsApi";
+import ProductGrid from "../../pos/components/ProductGrid";
+import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
 
 const text = (value = "") => String(value || "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -33,34 +35,34 @@ const normalizeVariant = (variant = {}) => ({
 });
 
 const normalizeProduct = (product = {}) => {
-  const variants = Array.isArray(product.variants) ? product.variants.map(normalizeVariant) : [];
-  const availableVariants = variants.filter((variant) => Number(variant.stock || 0) > 0);
-  const colors = uniqueValues(availableVariants.map((variant) => variant.color));
-  const sizes = sortSizes(uniqueValues(availableVariants.map((variant) => variant.size)));
-  const totalStock = availableVariants.reduce((sum, variant) => sum + Math.max(0, Number(variant.stock || 0)), 0);
+  const mappedProduct = normalizePosCatalogProduct(product);
+  const variants = Array.isArray(mappedProduct.variants) ? mappedProduct.variants.map(normalizeVariant) : [];
+  const colors = uniqueValues(variants.map((variant) => variant.color));
+  const sizes = sortSizes(uniqueValues(variants.map((variant) => variant.size)));
+  const totalStock = variants.reduce((sum, variant) => sum + Math.max(0, Number(variant.stock || 0)), 0);
   const imageUrl =
-    text(product.product_image_url) ||
-    text(product.image_url) ||
-    text(product.photo_url) ||
-    text(product.thumbnail_url) ||
-    text(product.image) ||
+    text(mappedProduct.product_image_url) ||
+    text(mappedProduct.image_url) ||
+    text(mappedProduct.photo_url) ||
+    text(mappedProduct.thumbnail_url) ||
+    text(mappedProduct.image) ||
     text(variants.find((variant) => variant.image_url)?.image_url || "");
 
   return {
-    ...product,
-    id: product.id ?? product.product_id ?? null,
-    product_id: product.product_id ?? product.id ?? null,
-    name: text(product.name || product.product_name || ""),
-    product_name: text(product.product_name || product.name || ""),
-    article_code: text(product.article_code || product.product_code || product.barcode || ""),
-    manufacturer_name: text(product.manufacturer_name || ""),
-    category: text(product.category || ""),
-    type: text(product.type || product.product_type || product.style || ""),
-    brand: text(product.brand || ""),
-    gender: text(product.gender || ""),
-    style: text(product.style || ""),
-    sku: text(product.sku || ""),
-    barcode: text(product.barcode || ""),
+    ...mappedProduct,
+    id: mappedProduct.id ?? mappedProduct.product_id ?? null,
+    product_id: mappedProduct.product_id ?? mappedProduct.id ?? null,
+    name: text(mappedProduct.name || mappedProduct.product_name || ""),
+    product_name: text(mappedProduct.product_name || mappedProduct.name || ""),
+    article_code: text(mappedProduct.article_code || mappedProduct.product_code || mappedProduct.barcode || ""),
+    manufacturer_name: text(mappedProduct.manufacturer_name || mappedProduct.manufacturer || ""),
+    category: text(mappedProduct.category || mappedProduct.category_name || ""),
+    type: text(mappedProduct.type || mappedProduct.product_type || mappedProduct.style || ""),
+    brand: text(mappedProduct.brand || mappedProduct.brand_name || ""),
+    gender: text(mappedProduct.gender || ""),
+    style: text(mappedProduct.style || ""),
+    sku: text(mappedProduct.sku || ""),
+    barcode: text(mappedProduct.barcode || ""),
     image_url: imageUrl,
     product_image_url: imageUrl,
     total_stock: totalStock,
@@ -70,6 +72,11 @@ const normalizeProduct = (product = {}) => {
     variants: availableVariants,
   };
 };
+
+const normalizeEmployeePosCatalog = (payload) =>
+  normalizePosSellableProducts(Array.isArray(payload) ? payload : [])
+    .map((product) => normalizePosCatalogProduct(product))
+    .map(normalizeProduct);
 
 const firstVariantForColor = (product = {}, color = "") =>
   (Array.isArray(product.variants) ? product.variants : []).find((variant) => text(variant.color) === text(color)) || null;
@@ -108,7 +115,6 @@ const sizeOptionsForProduct = (product = {}, color = "") => {
 
   return [...bySize.entries()]
     .map(([size, stock]) => ({ size, stock }))
-    .filter((item) => item.stock > 0)
     .sort((a, b) => sizeSort(a.size, b.size));
 };
 
@@ -355,8 +361,13 @@ function ProductPickerSheet({
                         key={size}
                         type="button"
                         onClick={() => onSelectSize(size)}
+                        disabled={Number(stock || 0) <= 0}
                         className={`min-h-16 rounded-2xl border px-3 py-2 text-right transition ${
-                          active ? "border-emerald-400/30 bg-emerald-500 text-zinc-950" : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]"
+                          active
+                            ? "border-emerald-400/30 bg-emerald-500 text-zinc-950"
+                            : Number(stock || 0) <= 0
+                              ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600"
+                              : "border-white/10 bg-black/30 text-white hover:bg-white/[0.08]"
                         }`}
                       >
                         <div className="text-2xl font-black leading-none">{size}</div>
@@ -463,7 +474,7 @@ export default function EmployeePortalProducts() {
         setError("");
         const response = await getEmployeePortalProducts(token, buildListParams({ search: deferredSearch, filters }));
         if (cancelled) return;
-        setProducts((Array.isArray(response?.products) ? response.products : []).map(normalizeProduct));
+        setProducts(normalizeEmployeePosCatalog(response?.products));
         setEmployee(response?.employee || null);
       } catch (err) {
         if (cancelled) return;
@@ -499,7 +510,7 @@ export default function EmployeePortalProducts() {
         const response = await getEmployeePortalProducts(token, buildLookupParams(directLookup));
         if (cancelled) return;
 
-        const lookupProducts = (Array.isArray(response?.products) ? response.products : []).map(normalizeProduct);
+        const lookupProducts = normalizeEmployeePosCatalog(response?.products);
         if (!lookupProducts.length) return;
 
         const selection = response?.selection || {};
@@ -693,16 +704,13 @@ export default function EmployeePortalProducts() {
             <h2 className="text-sm font-black text-zinc-300">النتائج</h2>
             <div className="text-xs font-semibold text-zinc-500">{normalizedProducts.length.toLocaleString("ar-EG")} منتج</div>
           </div>
-          <div className="grid grid-cols-1 gap-3">
-            {normalizedProducts.map((product) => (
-              <ProductCard key={product.id} product={product} active={selectedProduct && String(selectedProduct.id) === String(product.id)} onOpen={openProduct} />
-            ))}
-            {!loading && normalizedProducts.length === 0 ? (
-              <div className="rounded-[1.5rem] border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm font-semibold text-zinc-400">
-                لا توجد منتجات مطابقة
-              </div>
-            ) : null}
-          </div>
+          <ProductGrid
+            loading={loading && !normalizedProducts.length}
+            error={error}
+            products={normalizedProducts}
+            search={search}
+            onSelectProduct={openProduct}
+          />
         </section>
 
         {sheetOpen && selectedProduct ? (

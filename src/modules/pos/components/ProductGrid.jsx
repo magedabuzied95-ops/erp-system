@@ -69,10 +69,17 @@ function useProductGridColumns() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  if (width < 380) return 1;
-  if (width < 640) return 2;
-  if (width >= 1536) return Math.max(2, Math.floor(width / 170));
-  return Math.max(2, Math.floor(width / 156));
+  const isDesktop = width >= 1024;
+  const columns =
+    width < 380
+      ? 1
+      : width < 640
+        ? 2
+        : width >= 1536
+          ? Math.max(2, Math.floor(width / 170))
+          : Math.max(2, Math.floor(width / 156));
+
+  return { columns, isDesktop };
 }
 
 function ProductGrid({
@@ -83,7 +90,7 @@ function ProductGrid({
   onSelectProduct,
 }) {
   const { t } = useTranslation();
-  const columns = useProductGridColumns();
+  const { columns, isDesktop } = useProductGridColumns();
   if (loading) {
     return (
       <div className="flex h-[28rem] items-center justify-center rounded-3xl border border-[var(--border)] bg-[var(--surface)]">
@@ -134,13 +141,13 @@ function ProductGrid({
     />
   );
 
-  if (products.length > 36 && columns > 2) {
+  if (products.length > 36 && isDesktop) {
     return (
       <VirtualGrid
         items={products}
         columns={columns}
         estimateRowHeight={196}
-        className="max-h-[calc(100dvh-18rem)] overflow-auto pr-1 [-webkit-overflow-scrolling:touch]"
+        className="h-full min-h-0 overflow-auto pr-1 [-webkit-overflow-scrolling:touch]"
         gridClassName="grid grid-cols-1 gap-2 max-[380px]:grid-cols-1 min-[381px]:grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(136px,1fr))] sm:gap-2.5 2xl:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]"
         itemKey={(product) => String(product.product_id || product.id)}
         renderItem={renderProduct}

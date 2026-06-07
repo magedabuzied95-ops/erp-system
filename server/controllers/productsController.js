@@ -2110,6 +2110,40 @@ export const getProductsWithVariants = async (req, res) => {
   }
 };
 
+export const loadProductsWithVariantsPayload = async ({ query = {}, user = null, requestId = "employee-portal-products" } = {}) => {
+  let statusCode = 200;
+  let payload = null;
+
+  const mockReq = {
+    id: requestId,
+    method: "GET",
+    originalUrl: "/api/products/with-variants",
+    query,
+    user,
+  };
+  const mockRes = {
+    status(code) {
+      statusCode = Number(code || 500);
+      return this;
+    },
+    json(value) {
+      payload = value;
+      return value;
+    },
+  };
+
+  await getProductsWithVariants(mockReq, mockRes);
+
+  if (statusCode >= 400) {
+    const error = new Error(payload?.message || payload?.error || "Failed to fetch products with variants");
+    error.status = statusCode;
+    error.payload = payload;
+    throw error;
+  }
+
+  return payload;
+};
+
 export const getProductByQrToken = async (req, res) => {
   try {
     await ensureProductSchema();

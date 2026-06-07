@@ -370,6 +370,27 @@ export const normalizePosSellableProducts = (payload, saleModeSettings = {}) => 
   });
 };
 
+export const normalizePosCatalogProduct = (product = {}) => {
+  const variants = Array.isArray(product.variants)
+    ? product.variants.map((variant) => {
+        const stockQuantity = Math.max(0, Number(variant.stock_quantity ?? variant.stock ?? 0));
+        return {
+          ...variant,
+          stock: stockQuantity,
+          stock_quantity: stockQuantity,
+          available: stockQuantity > 0,
+        };
+      })
+    : [];
+  const stock = variants.reduce((sum, variant) => sum + Number(variant.stock_quantity ?? variant.stock ?? 0), 0);
+  return {
+    ...product,
+    variants,
+    total_stock: stock,
+    stock,
+  };
+};
+
 export const getPosSellableProducts = async () => {
-  return normalizePosSellableProducts(await getProductsWithVariants());
+  return normalizePosSellableProducts(await getProductsWithVariants()).map((product) => normalizePosCatalogProduct(product));
 };

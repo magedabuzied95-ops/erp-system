@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { loadProductsWithVariantsPayload } from "../controllers/productsController.js";
 
 const clean = (value = "") => String(value || "").trim();
 const lower = (value = "") => clean(value).toLowerCase();
@@ -413,4 +414,54 @@ const loadPortalCatalog = async ({ employee = null, query = {} } = {}) => {
   };
 };
 
-export const loadEmployeePortalProducts = async ({ employee = null, query = {} } = {}) => loadPortalCatalog({ employee, query });
+const buildPosCatalogQuery = (query = {}) => {
+  const directSearch = firstNonEmpty(
+    query.search,
+    query.q,
+    query.barcode,
+    query.article,
+    query.article_code,
+    query.articleCode
+  );
+  const productId = toPositiveInt(query.productId ?? query.product_id);
+  return {
+    ...(directSearch ? { search: directSearch } : {}),
+    ...(productId ? { productId } : {}),
+  };
+};
+
+const buildEmployeeProductUser = (employee = {}) => ({
+  id: employee?.user_id ?? employee?.id ?? null,
+  tenant_id: employee?.tenant_id ?? null,
+  company_id: employee?.company_id ?? employee?.companyId ?? null,
+  workspace_id: employee?.workspace_id ?? employee?.workspaceId ?? null,
+  role: "employee_portal",
+});
+
+export const loadEmployeePortalProducts = async ({ employee = null, query = {} } = {}) => {
+  const payload = await loadProductsWithVariantsPayload({
+    query: buildPosCatalogQuery(query),
+    user: buildEmployeeProductUser(employee),
+    requestId: "employee-portal-products",
+  });
+  const products = Array.isArray(payload?.products) ? payload.products : [];
+
+  return {
+    employee: employee
+      ? {
+          id: employee.id ?? null,
+          full_name: employee.full_name || employee.name || "",
+          employee_code: employee.employee_code || "",
+          branch_id: employee.branch_id ?? null,
+          branch_name: employee.branch_name || "",
+        }
+      : null,
+    products,
+    selection: buildLookupSelection(products, query),
+    source: {
+      employee_endpoint: "GET /api/employee-portal/:token/products",
+      pos_endpoint: "GET /api/products/with-variants",
+      mapping: "productsController.loadProductsWithVariantsPayload",
+    },
+  };
+};
