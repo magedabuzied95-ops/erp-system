@@ -3857,18 +3857,26 @@ export const latestShippingAddress = async (req, res) => {
     const orderResult = await db.query(
       `
       SELECT
-        o.governorate,
-        o.city_area,
-        o.customer_address AS detailed_address,
-        o.street_address,
-        o.building_number,
-        o.floor_number,
-        o.apartment_number,
-        o.landmark,
-        o.delivery_notes,
-        o.customer_name,
-        o.customer_phone,
-        o.created_at
+      o.governorate,
+      o.governorate_id,
+      o.city_area,
+      o.city_id,
+      o.area_id,
+      o.zone_id,
+      o.district_id,
+      o.customer_address AS detailed_address,
+      o.street_address,
+      o.building_number,
+      o.floor_number,
+      o.apartment_number,
+      o.landmark,
+      o.delivery_notes,
+      o.customer_name,
+      o.customer_phone,
+      o.shipping_city_id,
+      o.shipping_zone_id,
+      o.shipping_district_id,
+      o.created_at
       FROM orders o
       WHERE o.tenant_id = $1
         AND (
@@ -3893,9 +3901,14 @@ export const latestShippingAddress = async (req, res) => {
       address: {
         governorate: row.governorate || "",
         province: row.governorate || "",
+        governorate_id: row.governorate_id || "",
         city_area: row.city_area || "",
         city: row.city_area || "",
         area: row.city_area || "",
+        city_id: row.city_id || "",
+        area_id: row.area_id || "",
+        zone_id: row.zone_id || "",
+        district_id: row.district_id || "",
         detailed_address: row.detailed_address || "",
         address: row.detailed_address || "",
         street_address: row.street_address || "",
@@ -3906,6 +3919,9 @@ export const latestShippingAddress = async (req, res) => {
         delivery_notes: row.delivery_notes || "",
         customer_name: row.customer_name || "",
         phone: row.customer_phone || "",
+        shipping_city_id: row.shipping_city_id || "",
+        shipping_zone_id: row.shipping_zone_id || "",
+        shipping_district_id: row.shipping_district_id || "",
         created_at: row.created_at || null,
       },
     });

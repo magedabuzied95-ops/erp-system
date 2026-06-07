@@ -6092,19 +6092,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     const params = new URLSearchParams();
     if (validPhone) params.set("phone", cleanPhone);
     if (email) params.set("email", email);
-    const fieldsSnapshot = {
-      full_name: form.full_name,
-      primary_phone: form.primary_phone,
-      governorate: form.governorate,
-      city_area: form.city_area,
-      detailed_address: form.detailed_address,
-      street_address: form.street_address,
-      building_number: form.building_number,
-      floor_number: form.floor_number,
-      apartment_number: form.apartment_number,
-      landmark: form.landmark,
-      delivery_notes: form.delivery_notes,
-    };
 
     let cancelled = false;
     api
@@ -6112,63 +6099,226 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       .then((data) => {
         if (cancelled) return;
         const address = data.address || null;
-        if (!address) return;
-        const dirty = editedCheckoutFieldsRef.current;
-        const nextValues = {};
-        const applyIfUntouched = (key, value) => {
-          const text = String(value || "").trim();
-          if (!text || dirty.has(key) || String(fieldsSnapshot[key] || "").trim()) return;
-          nextValues[key] = text;
+        if (!address) {
+          console.info("[checkout:last-address-restore-skipped]", { reason: "no_address_found", lookupKey });
+          return;
+        }
+        console.info("[checkout:last-address-found]", {
+          lookupKey,
+          hasBosta: Boolean(address.shipping_city_id || address.shipping_zone_id || address.shipping_district_id),
+          hasTextAddress: Boolean(address.detailed_address || address.street_address),
+        });
+
+        if (CHECKOUT_ADDRESS_FIELDS.some((key) => editedCheckoutFieldsRef.current.has(key))) {
+          console.info("[checkout:last-address-restore-skipped]", { reason: "manual_edit_detected", lookupKey });
+          return;
+        }
+
+        const token = latestAddressRestoreTokenRef.current + 1;
+        latestAddressRestoreTokenRef.current = token;
+        setLatestAddressApplied(false);
+        setLatestAddressRestore({ token, candidate: address, status: "restoring", stage: "governorate" });
+        console.info("[checkout:last-address-restore-start]", { token, lookupKey });
+
+        const restoredValues = {
+          full_name: String(address.customer_name || "").trim(),
+          primary_phone: String(address.phone || "").trim(),
+          governorate: String(address.governorate || address.province || "").trim(),
+          city_area: String(address.city_area || address.city || address.area || "").trim(),
+          detailed_address: String(address.detailed_address || address.address || "").trim(),
+          street_address: String(address.street_address || address.detailed_address || address.address || "").trim(),
+          building_number: String(address.building_number || "").trim(),
+          floor_number: String(address.floor_number || "").trim(),
+          apartment_number: String(address.apartment_number || "").trim(),
+          landmark: String(address.landmark || "").trim(),
+          delivery_notes: String(address.delivery_notes || "").trim(),
+          governorate_id: String(address.governorate_id || "").trim(),
+          city_id: String(address.city_id || "").trim(),
+          area_id: String(address.area_id || "").trim(),
+          zone_id: String(address.zone_id || "").trim(),
+          district_id: String(address.district_id || "").trim(),
+          shipping_city_id: String(address.shipping_city_id || "").trim(),
+          shipping_zone_id: String(address.shipping_zone_id || "").trim(),
+          shipping_district_id: String(address.shipping_district_id || "").trim(),
         };
 
-        applyIfUntouched("full_name", address.customer_name);
-        applyIfUntouched("primary_phone", address.phone);
-        applyIfUntouched("governorate", address.governorate || address.province);
-        const effectiveGovernorate = nextValues.governorate || fieldsSnapshot.governorate;
-        applyIfUntouched("city_area", address.city_area || address.city || address.area);
-        applyIfUntouched("detailed_address", address.detailed_address || address.address);
-        applyIfUntouched("street_address", address.street_address || address.detailed_address || address.address);
-        applyIfUntouched("building_number", address.building_number);
-        applyIfUntouched("floor_number", address.floor_number);
-        applyIfUntouched("apartment_number", address.apartment_number);
-        applyIfUntouched("landmark", address.landmark);
-        applyIfUntouched("delivery_notes", address.delivery_notes);
-
-        if (!Object.keys(nextValues).length) return;
-        const nextCity = nextValues.city_area || fieldsSnapshot.city_area;
-        const knownCityOptions = governorateCityAreas[effectiveGovernorate] || [];
-        if (nextValues.city_area) setManualCityArea(Boolean(effectiveGovernorate && !knownCityOptions.includes(nextCity)));
-        setForm((prev) => ({ ...prev, ...nextValues }));
+        setForm((prev) => {
+          const next = { ...prev };
+          Object.entries(restoredValues).forEach(([key, value]) => {
+            if (String(value || "").trim()) {
+              next[key] = value;
+            }
+          });
+          return next;
+        });
         setErrors((prev) => {
           const next = { ...prev };
-          Object.keys(nextValues).forEach((key) => {
+          CHECKOUT_ADDRESS_FIELDS.forEach((key) => {
             delete next[key];
           });
           return next;
         });
-        setLatestAddressApplied(true);
+
+        if (!restoredValues.shipping_city_id) {
+          setLatestAddressApplied(true);
+          setLatestAddressRestore({ token, candidate: address, status: "done", stage: "done" });
+          console.info("[checkout:last-address-restore-success]", { token, mode: "text-only" });
+        }
       })
-      .catch(() => {});
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("[checkout:last-address-restore-failed]", { lookupKey, message: error?.message || error?.responseBody?.message || "Unknown error" });
+      });
 
     return () => {
       cancelled = true;
     };
-  }, [
-    checkoutStep,
-    form.city_area,
-    form.delivery_notes,
-    form.detailed_address,
-    form.street_address,
-    form.building_number,
-    form.floor_number,
-    form.apartment_number,
-    form.full_name,
-    form.governorate,
-    form.landmark,
-    form.primary_phone,
-    profile.email,
-    profile.customer_email,
-  ]);
+  }, [checkoutStep, form.primary_phone, profile.email, profile.customer_email]);
+
+  useEffect(() => {
+    const candidate = latestAddressRestore.candidate;
+    if (!candidate || latestAddressRestore.status !== "restoring" || latestAddressRestore.stage !== "governorate") return undefined;
+    if (checkoutStep !== 2) return undefined;
+    if (CHECKOUT_ADDRESS_FIELDS.some((key) => editedCheckoutFieldsRef.current.has(key))) {
+      console.info("[checkout:last-address-restore-skipped]", { reason: "manual_edit_detected", token: latestAddressRestore.token });
+      setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "skipped", stage: "idle" } : prev));
+      return undefined;
+    }
+    if (!candidate.shipping_city_id) return undefined;
+    if (bostaLocations.loadingCities) return undefined;
+    const cityOption = bostaCityOptions.find((option) => String(option.id) === String(candidate.shipping_city_id));
+    if (!cityOption) {
+      console.info("[checkout:last-address-restore-skipped]", { reason: "city_options_not_ready", token: latestAddressRestore.token });
+      setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "skipped", stage: "idle" } : prev));
+      return undefined;
+    }
+    console.info("[checkout:last-address-bosta-governorate-restored]", {
+      token: latestAddressRestore.token,
+      governorate_id: cityOption.id,
+      governorate: cityOption.label,
+    });
+    setBostaCity(cityOption.id, { markDirty: false });
+    setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, stage: "zone" } : prev));
+    return undefined;
+  }, [bostaCityOptions, bostaLocations.loadingCities, checkoutStep, latestAddressRestore, setBostaCity]);
+
+  useEffect(() => {
+    const candidate = latestAddressRestore.candidate;
+    if (!candidate || latestAddressRestore.status !== "restoring" || latestAddressRestore.stage !== "zone") return undefined;
+    if (checkoutStep !== 2) return undefined;
+    if (CHECKOUT_ADDRESS_FIELDS.some((key) => editedCheckoutFieldsRef.current.has(key))) {
+      console.info("[checkout:last-address-restore-skipped]", { reason: "manual_edit_detected", token: latestAddressRestore.token });
+      setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "skipped", stage: "idle" } : prev));
+      return undefined;
+    }
+    if (!candidate.shipping_zone_id) {
+      setLatestAddressApplied(true);
+      setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "done", stage: "done" } : prev));
+      console.info("[checkout:last-address-restore-success]", { token: latestAddressRestore.token, mode: "bosta-city-only" });
+      return undefined;
+    }
+    if (bostaLocations.loadingZones) return undefined;
+    const zoneOption = bostaZoneOptions.find((option) => String(option.id) === String(candidate.shipping_zone_id));
+    if (!zoneOption) {
+      console.info("[checkout:last-address-restore-skipped]", { reason: "zone_options_not_ready", token: latestAddressRestore.token });
+      setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "skipped", stage: "idle" } : prev));
+      return undefined;
+    }
+    console.info("[checkout:last-address-bosta-zone-restored]", {
+      token: latestAddressRestore.token,
+      zone_id: zoneOption.id,
+      zone: zoneOption.label,
+    });
+    setBostaZone(zoneOption.id, { markDirty: false });
+    setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, stage: "district" } : prev));
+    return undefined;
+  }, [bostaLocations.loadingZones, bostaZoneOptions, checkoutStep, latestAddressRestore, setBostaZone]);
+
+  useEffect(() => {
+    const candidate = latestAddressRestore.candidate;
+    if (!candidate || latestAddressRestore.status !== "restoring" || latestAddressRestore.stage !== "district") return undefined;
+    if (checkoutStep !== 2) return undefined;
+    if (CHECKOUT_ADDRESS_FIELDS.some((key) => editedCheckoutFieldsRef.current.has(key))) {
+      console.info("[checkout:last-address-restore-skipped]", { reason: "manual_edit_detected", token: latestAddressRestore.token });
+      setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "skipped", stage: "idle" } : prev));
+      return undefined;
+    }
+    if (!candidate.shipping_district_id) {
+      setLatestAddressApplied(true);
+      setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "done", stage: "done" } : prev));
+      console.info("[checkout:last-address-restore-success]", { token: latestAddressRestore.token, mode: "bosta-city-zone" });
+      return undefined;
+    }
+    if (bostaLocations.loadingDistricts) return undefined;
+    const districtOption = bostaDistrictOptions.find((option) => String(option.id) === String(candidate.shipping_district_id));
+    if (!districtOption) {
+      console.info("[checkout:last-address-restore-skipped]", { reason: "district_options_not_ready", token: latestAddressRestore.token });
+      setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "skipped", stage: "idle" } : prev));
+      return undefined;
+    }
+    console.info("[checkout:last-address-bosta-district-restored]", {
+      token: latestAddressRestore.token,
+      district_id: districtOption.id,
+      district: districtOption.label,
+    });
+    setBostaDistrict(districtOption.id, { markDirty: false });
+    setLatestAddressApplied(true);
+    setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "done", stage: "done" } : prev));
+    console.info("[checkout:last-address-restore-success]", { token: latestAddressRestore.token, mode: "bosta-city-zone-district" });
+    return undefined;
+  }, [bostaDistrictOptions, bostaLocations.loadingDistricts, checkoutStep, latestAddressRestore, setBostaDistrict]);
+
+  const useNewAddress = useCallback(() => {
+    console.info("[checkout:last-address-restore-skipped]", { reason: "user_requested_new_address" });
+    latestAddressRestoreTokenRef.current += 1;
+    latestAddressLookupsRef.current.clear();
+    editedCheckoutFieldsRef.current = new Set();
+    setLatestAddressApplied(false);
+    setLatestAddressRestore({ token: latestAddressRestoreTokenRef.current, candidate: null, status: "idle", stage: "idle" });
+    setManualCityArea(false);
+    setForm((prev) => ({
+      ...prev,
+      governorate_id: "",
+      governorate: "",
+      city_id: "",
+      city: "",
+      area_id: "",
+      area: "",
+      zone_id: "",
+      zone: "",
+      district_id: "",
+      district: "",
+      shipping_city_id: "",
+      shipping_zone_id: "",
+      shipping_district_id: "",
+      city_area: "",
+      detailed_address: "",
+      street_address: "",
+      building_number: "",
+      floor_number: "",
+      apartment_number: "",
+      landmark: "",
+      delivery_notes: "",
+    }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      [
+        "governorate",
+        "city_area",
+        "detailed_address",
+        "street_address",
+        "building_number",
+        "floor_number",
+        "apartment_number",
+        "landmark",
+        "delivery_notes",
+      ].forEach((key) => {
+        delete next[key];
+      });
+      return next;
+    });
+    setShippingQuote(normalizeShippingQuote());
+  }, []);
 
   useEffect(() => {
     if (normalizeCheckoutPaymentMethod(form.payment_method) === "cod" && !codAvailable) {
@@ -6478,9 +6628,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
           </CheckoutSection> : null}
           {checkoutStep === 2 ? <CheckoutSection number="2" title={sfText("storefront.checkout.sections.address", "Delivery address")} note={sfText("storefront.checkout.addressNote", "Write the full address so the courier can reach you quickly")}>
             {latestAddressApplied ? (
-              <p className="mb-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black leading-5 text-emerald-100">
-                {sfText("storefront.checkout.latestAddressApplied", "We used your latest saved shipping address. You can edit it.")}
-              </p>
+              <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black leading-5 text-emerald-100">
+                <span>{sfText("storefront.checkout.latestAddressApplied", "We used your latest saved shipping address. You can edit it.")}</span>
+                <button type="button" onClick={useNewAddress} className="shrink-0 rounded-full border border-emerald-200/20 bg-white/10 px-3 py-1 text-[10px] font-black text-white transition hover:bg-white/15">
+                  استخدم عنوان جديد
+                </button>
+              </div>
             ) : null}
             <div className="grid gap-2.5 md:grid-cols-2">
               {bostaMode ? (
