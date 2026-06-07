@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import {
   AlertTriangle,
+  Camera,
   X,
   LogOut,
   ChevronRight,
@@ -70,6 +71,7 @@ import { normalizePosCatalogProduct, normalizePosSellableProducts, resolvePosIma
 import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
+import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import ProductGrid from "../components/ProductGrid";
 import CartSidebar, { ReceiptPreview } from "../components/CartSidebar";
 import ProductAvailabilityModal from "../components/ProductAvailabilityModal";
@@ -1260,6 +1262,7 @@ function POSPro() {
   const lastSalespersonIdRef = useRef(readLastSalespersonId());
   const [cart, setCart] = useState(() => readPosCart());
   const [search, setSearch] = useState(() => persisted.search || defaultState.search);
+  const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const [selectedMainCategoryId, setSelectedMainCategoryId] = useState(
     () => persisted.selectedMainCategoryId || defaultState.selectedMainCategoryId
   );
@@ -2920,8 +2923,8 @@ function POSPro() {
     ),
   });
 
-  const handleBarcodeSubmit = async () => {
-    const rawValue = String(search || "").trim();
+  const handleBarcodeSubmit = async (inputValue = search) => {
+    const rawValue = String(inputValue || "").trim();
     const normalized = rawValue.toLowerCase();
     if (!normalized) return;
     if (lastBarcodeSubmitRef.current.value === normalized) return;
@@ -2974,6 +2977,29 @@ function POSPro() {
       });
     }
   };
+
+  const handleCameraScannerResult = async (decodedValue) => {
+    const scannedValue = String(decodedValue || "").trim();
+    if (!scannedValue) return;
+    setCameraScannerOpen(false);
+    setSearch(scannedValue);
+    await handleBarcodeSubmit(scannedValue);
+    window.setTimeout(() => searchRef.current?.focus(), 0);
+  };
+
+  const handleCameraScannerPermissionDenied = useCallback((message = barcodeScannerMessages.permissionDenied) => {
+    setCameraScannerOpen(false);
+    toast.error(message || t("pos.toasts.cameraPermissionDenied", barcodeScannerMessages.permissionDenied));
+  }, [t]);
+
+  const handleCameraScannerUnsupported = useCallback((message = barcodeScannerMessages.unsupported) => {
+    setCameraScannerOpen(false);
+    toast.error(message || t("pos.toasts.cameraUnsupported", barcodeScannerMessages.unsupported));
+  }, [t]);
+
+  const handleCameraScannerError = useCallback((message = barcodeScannerMessages.startFailed) => {
+    toast.error(message || t("pos.toasts.cameraStartFailed", barcodeScannerMessages.startFailed));
+  }, [t]);
 
   const addVariantToCart = useCallback((product, variant, options = {}) => {
     const requestedQuantity = Math.max(1, Math.trunc(Number(options.quantity || 1) || 1));
@@ -5618,6 +5644,15 @@ function POSPro() {
             onManualConfirm={handlePaymobManualConfirm}
           />
         ) : null}
+        {cameraScannerOpen ? (
+          <PosCameraScannerModal
+            onClose={() => setCameraScannerOpen(false)}
+            onScan={handleCameraScannerResult}
+            onPermissionDenied={handleCameraScannerPermissionDenied}
+            onUnsupported={handleCameraScannerUnsupported}
+            onError={handleCameraScannerError}
+          />
+        ) : null}
 
         {editingOrder ? (
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100 shadow-2xl shadow-black/10" dir={isRtl ? "rtl" : "ltr"}>
@@ -5637,21 +5672,32 @@ function POSPro() {
             <div className="min-w-0 space-y-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <div className="relative z-30 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl lg:sticky lg:top-[calc(env(safe-area-inset-top)+4.9rem)] xl:static xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <div className="relative min-w-0 flex-[1_1_100%] sm:flex-1 2xl:max-w-md">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
-                  <input
-                    ref={searchRef}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleBarcodeSubmit();
-                      }
-                    }}
-                    placeholder={t("pos.searchPlaceholder")}
-                    className="h-9 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 pl-10 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
-                  />
+                <div className="flex min-w-0 flex-[1_1_100%] items-center gap-2 sm:flex-1 2xl:max-w-md">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+                    <input
+                      ref={searchRef}
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleBarcodeSubmit();
+                        }
+                      }}
+                      placeholder={t("pos.searchPlaceholder")}
+                      className="h-9 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 pl-10 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCameraScannerOpen(true)}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 xl:hidden"
+                    aria-label="فتح ماسح الكاميرا"
+                    title="فتح ماسح الكاميرا"
+                  >
+                    <Camera className="h-4 w-4" />
+                  </button>
                 </div>
                 <button
                   ref={filtersButtonRef}
@@ -7182,6 +7228,59 @@ function ShiftReportModal({ report, onClose, onPrint }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function PosCameraScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onError }) {
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[2147483000] flex items-end justify-center bg-black/80 p-2 backdrop-blur-sm sm:items-center sm:p-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        className="flex w-full max-w-md min-w-0 flex-col overflow-hidden rounded-t-3xl border border-emerald-400/20 bg-slate-950 shadow-2xl shadow-black/70 sm:rounded-3xl"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pos-camera-scanner-title"
+        dir="rtl"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">POS SCANNER</div>
+            <h3 id="pos-camera-scanner-title" className="mt-1 text-lg font-black text-white">امسح الباركود أو QR بالكاميرا</h3>
+            <p className="mt-1 text-xs font-semibold text-zinc-500">وجّه الكاميرا نحو الكود وسيتم التنفيذ مباشرة.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08]"
+            aria-label="إغلاق ماسح الكاميرا"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-4">
+          <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/60 p-3">
+            <BarcodeScanner
+              onScan={onScan}
+              onPermissionDenied={onPermissionDenied}
+              onUnsupported={onUnsupported}
+              onError={onError}
+              className="overflow-hidden rounded-[1.35rem] bg-black"
+              scannerClassName="min-h-[320px]"
+            />
+          </div>
+          <div className="mt-3 text-center text-xs font-semibold text-zinc-500">
+            يدعم باركود المنتجات وQR الخاص بمنتجات الـ POS.
+          </div>
+        </div>
+      </section>
+    </div>,
+    document.body
   );
 }
 
