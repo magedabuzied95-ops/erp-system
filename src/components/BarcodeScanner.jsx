@@ -38,6 +38,34 @@ export const barcodeScannerMessages = {
   startFailed: CAMERA_START_FAILED_MESSAGE,
 };
 
+const safeStopScanner = (scanner) => {
+  try {
+    const stopResult = scanner?.stop?.();
+    if (stopResult && typeof stopResult.catch === "function") {
+      return stopResult.catch((error) => {
+        console.warn("[barcode-scanner:stop-failed]", error);
+      });
+    }
+    return stopResult;
+  } catch (error) {
+    console.warn("[barcode-scanner:stop-threw]", error);
+    return undefined;
+  }
+};
+
+const safeClearScanner = (scanner) => {
+  try {
+    const clearResult = scanner?.clear?.();
+    if (clearResult && typeof clearResult.catch === "function") {
+      clearResult.catch((error) => {
+        console.warn("[barcode-scanner:clear-failed]", error);
+      });
+    }
+  } catch (error) {
+    console.warn("[barcode-scanner:clear-threw]", error);
+  }
+};
+
 export default function BarcodeScanner({
   onScan,
   onPermissionDenied,
@@ -76,7 +104,7 @@ export default function BarcodeScanner({
             if (!active || handledRef.current) return;
             handledRef.current = true;
             try {
-              await scanner.stop();
+              await safeStopScanner(scanner);
             } catch {
               // Ignore stop errors during teardown.
             }
@@ -105,13 +133,11 @@ export default function BarcodeScanner({
       html5QrCodeRef.current = null;
       if (!scanner) return;
 
-      const cleanup = startedRef.current
-        ? scanner.stop().catch(() => {})
-        : Promise.resolve();
+      const cleanup = startedRef.current ? safeStopScanner(scanner) : undefined;
 
-      cleanup.finally(() => {
+      Promise.resolve(cleanup).finally(() => {
         startedRef.current = false;
-        scanner.clear().catch(() => {});
+        safeClearScanner(scanner);
       });
     };
   }, [onError, onPermissionDenied, onScan, onUnsupported, scannerId]);
