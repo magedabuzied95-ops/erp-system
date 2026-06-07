@@ -6711,123 +6711,108 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
           </CheckoutSection> : null}
           {checkoutStep === 3 ? (
             <CheckoutSection number="3" title={sfText("storefront.checkout.sections.payment", "Payment method")}>
-              <div className="mx-auto grid w-full max-w-[720px] gap-4">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {(["instapay", "vodafone_cash"]).map((method) => (
-                    <button
-                      key={method}
-                      type="button"
-                      onClick={() => setShippingTransferMethod(method)}
-                      className={`sf-checkout-payment-choice flex min-h-16 items-center justify-between gap-3 rounded-[1.2rem] border px-4 py-3 text-right transition duration-200 ${shippingTransferMethod === method ? "border-[#a78bfa]/70 bg-[#7c3aed]/18 shadow-[0_16px_40px_rgba(124,58,237,0.18)] ring-2 ring-[#7c3aed]/15" : "border-white/10 bg-white/[0.055] shadow-[0_10px_28px_rgba(0,0,0,0.14)] hover:border-[#a78bfa]/45 hover:bg-white/[0.075]"} disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.025] disabled:text-white/35 disabled:shadow-none`}
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <PaymentBrandLogo method={method} size="copy" active={shippingTransferMethod === method} />
-                        <span className="min-w-0">
-                          <span className="block text-base font-black text-white">{paymentBrandLabels[method]}</span>
-                          <span className={`mt-0.5 block text-xs font-semibold ${shippingTransferMethod === method ? "text-white/70" : "text-white/46"}`}>
-                            {method === "instapay"
-                              ? sfText("storefront.checkout.transfer.instantBankTransfer", "Instant bank transfer")
-                              : sfText("storefront.checkout.transfer.vodafoneWallet", "Vodafone wallet")}
-                          </span>
-                        </span>
-                      </span>
-                      <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${shippingTransferMethod === method ? "border-[#a78bfa] bg-[#7c3aed] text-white" : "border-white/16 bg-white/[0.04] text-transparent"}`}>
-                        <Check className="h-3.5 w-3.5" />
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
+              <div className="checkout-payment-clean mx-auto w-full max-w-[680px]">
                 {isShippingConfirmation ? (
-                  <div className="sf-checkout-payment-proof-grid grid gap-4">
-                    <div className="sf-checkout-payment-amount rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.18)]">
-                      <div className="text-xs font-black uppercase tracking-[0.16em] text-white/50">{sfText("storefront.checkout.transfer.amountDueNow", "Amount to transfer now")}</div>
-                      <div className="mt-2 text-4xl font-black tracking-tight text-white md:text-5xl">{money(deliveryFee)}</div>
-                      <p className="mt-2 text-sm font-semibold leading-6 text-white/64">{sfText("storefront.checkout.transfer.helper", "ادفع رسوم الشحن لتأكيد الطلب")}</p>
+                  <div className="grid gap-3">
+                    <div className="checkout-payment-amount">
+                      <div className="text-sm font-black text-white/66">{sfText("storefront.checkout.transfer.amountDueNowAr", "رسوم تأكيد الطلب")}</div>
+                      <div className="mt-2 flex items-end justify-between gap-3">
+                        <div className="text-3xl font-black tracking-tight text-white">{money(deliveryFee)}</div>
+                        <div className="text-xs font-semibold leading-5 text-white/54">{sfText("storefront.checkout.transfer.amountHelperAr", "ادفع رسوم الشحن فقط لتأكيد طلبك")}</div>
+                      </div>
                     </div>
 
-                    <div className="sf-checkout-payment-details rounded-[1.4rem] border border-white/10 bg-white/[0.04] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.16)]">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-xs font-black uppercase tracking-[0.14em] text-white/50">{sfText("storefront.checkout.transfer.paymentDetails", "Payment details")}</div>
-                          <div className="mt-1 flex items-center gap-2 text-sm font-black text-white">
-                            <PaymentBrandLogo method={shippingTransferMethod} size="copy" active />
-                            <span>{paymentBrandLabels[shippingTransferMethod]}</span>
-                          </div>
-                          <div className="mt-1 text-xs font-semibold text-white/54">{sfText("storefront.checkout.transfer.amount", "Amount")}: {money(deliveryFee)}</div>
+                    <div className="checkout-payment-methods">
+                      {(["instapay", "vodafone_cash"]).map((method) => {
+                        const active = shippingTransferMethod === method;
+                        return (
+                          <button
+                            key={method}
+                            type="button"
+                            onClick={() => setShippingTransferMethod(method)}
+                            className={`checkout-payment-method ${active ? "checkout-payment-method--active" : ""}`}
+                          >
+                            <span className="flex min-w-0 items-center gap-3">
+                              <PaymentBrandLogo method={method} size="copy" active={active} />
+                              <span className="min-w-0">
+                                <span className="block text-sm font-black text-white">{paymentBrandLabels[method]}</span>
+                                <span className={`block text-xs font-semibold ${active ? "text-white/72" : "text-white/46"}`}>
+                                  {method === "instapay"
+                                    ? sfText("storefront.checkout.transfer.instantBankTransferAr", "تحويل فوري")
+                                    : sfText("storefront.checkout.transfer.vodafoneWalletAr", "محفظة Vodafone Cash")}
+                                </span>
+                              </span>
+                            </span>
+                            <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${active ? "border-[#a78bfa] bg-[#7c3aed] text-white" : "border-white/18 bg-white/[0.04] text-transparent"}`}>
+                              <Check className="h-3 w-3" />
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="checkout-payment-details">
+                      <div className="text-sm font-black text-white/80">{sfText("storefront.checkout.transfer.paymentDetailsAr", "بيانات التحويل")}</div>
+                      <div className="checkout-payment-copy-row mt-3">
+                        <div className="min-w-0 flex-1 rounded-[1rem] border border-white/10 bg-black/14 px-3 py-2.5 font-mono text-base font-black tracking-wide text-white" dir="ltr">
+                          {activeTransferValue}
                         </div>
-                        <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-black text-emerald-100">{sfText("storefront.checkout.transfer.manualReview", "Transfer is reviewed manually")}</span>
-                      </div>
-                      <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-3 font-mono text-xl font-black tracking-wide text-white shadow-inner shadow-black/20" dir="ltr">
-                        {activeTransferValue}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await navigator.clipboard?.writeText(activeTransferValue);
-                          toast.success(sfText("storefront.toasts.copied", "Copied."));
-                        }}
-                        className="sf-checkout-payment-copy-button mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.96),rgba(17,24,39,0.98))] px-4 py-2.5 text-sm font-black text-white shadow-[0_14px_32px_rgba(124,58,237,0.26)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/40 hover:bg-[#6d28d9]"
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await navigator.clipboard?.writeText(activeTransferValue);
+                            toast.success(sfText("storefront.toasts.copied", "Copied."));
+                          }}
+                        className="checkout-payment-copy-button"
                       >
-                        <Copy className="h-4 w-4" />
-                        {sfText("storefront.checkout.transfer.copyPaymentDetails", "نسخ بيانات الدفع")}
+                        {sfText("storefront.checkout.transfer.copyShortAr", "نسخ")}
                       </button>
+                      </div>
                     </div>
 
                     <div
-                      className="sf-checkout-payment-upload"
                       onDragOver={(event) => {
                         event.preventDefault();
                         setPaymentProofDragActive(true);
                       }}
                       onDragLeave={() => setPaymentProofDragActive(false)}
                       onDrop={handlePaymentProofDrop}
-                      className={`rounded-[1.4rem] border border-dashed p-4 transition duration-200 ${
+                      className={`checkout-payment-upload ${shippingPaymentFile ? "checkout-payment-upload--has-file" : ""} ${
                         errors.shipping_payment_screenshot
-                          ? "border-rose-300/55 bg-rose-500/8"
+                          ? "checkout-payment-upload--error"
                           : paymentProofDragActive
-                            ? "border-[#c4b5fd]/80 bg-[#7c3aed]/14"
-                            : paymentProofUploaded
-                              ? "border-emerald-300/45 bg-emerald-400/10"
-                              : "border-white/14 bg-white/[0.04] hover:border-[#a78bfa]/45 hover:bg-white/[0.065]"
+                            ? "checkout-payment-upload--active"
+                            : ""
                       }`}
                     >
                       <label className="block cursor-pointer">
                         <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handlePaymentProofChange(event.target.files?.[0])} className="sr-only" />
-                        <span className="flex items-center gap-3 text-right">
-                          <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${paymentProofUploaded ? "bg-emerald-400/16 text-emerald-100 ring-1 ring-emerald-300/25" : "bg-[#7c3aed]/16 text-[#c4b5fd] ring-1 ring-[#a78bfa]/20"}`}>
-                            {paymentProofUploaded ? <Check className="h-6 w-6" /> : <Upload className="h-6 w-6" />}
+                        <div className="flex items-center gap-3">
+                          <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${paymentProofUploaded ? "bg-emerald-400/16 text-emerald-100" : "bg-[#7c3aed]/14 text-[#c4b5fd]"}`}>
+                            {paymentProofUploaded ? <Check className="h-5 w-5" /> : <Upload className="h-5 w-5" />}
                           </span>
                           <span className="min-w-0">
-                            <span className="block text-base font-black text-white">{shippingPaymentFile ? sfText("storefront.checkout.transfer.proofUploaded", "Receipt image uploaded") : sfText("storefront.checkout.transfer.uploadPromptSimple", "ارفع صورة التحويل")}</span>
-                            <span className="mt-1 block text-xs font-semibold leading-5 text-white/52">{sfText("storefront.checkout.transfer.acceptedFormats", "PNG, JPG, or WEBP")}</span>
+                            <span className="block text-sm font-black text-white">{shippingPaymentFile ? sfText("storefront.checkout.transfer.proofUploaded", "Receipt image uploaded") : sfText("storefront.checkout.transfer.uploadPromptSimple", "ارفع إيصال التحويل")}</span>
+                            <span className="block text-xs font-semibold text-white/52">{sfText("storefront.checkout.transfer.acceptedFormatsShort", "PNG أو JPG أو WEBP")}</span>
                           </span>
-                        </span>
+                        </div>
                       </label>
 
                       {shippingPaymentFile ? (
-                        <div className="mt-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-2.5">
-                          {shippingPaymentPreviewUrl ? (
-                            <img src={shippingPaymentPreviewUrl} alt={sfText("storefront.checkout.transfer.proofPreviewAlt", "Shipping payment proof preview")} className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" decoding="async" />
-                          ) : (
-                            <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-white/[0.06] text-white/50"><Loader2 className="h-5 w-5 animate-spin" /></span>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-black text-white">{shippingPaymentFile.name}</div>
-                            <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-100">
-                              <Check className="h-3.5 w-3.5" />
-                              {sfText("storefront.checkout.transfer.readyToSend", "Ready to send")}
-                            </div>
-                          </div>
-                          <button type="button" onClick={removePaymentProof} className="sf-checkout-remove-proof grid h-9 w-9 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-100 transition hover:bg-rose-500/18" aria-label={sfText("storefront.checkout.transfer.removeProof", "Remove payment proof")}>
-                            <X className="h-4 w-4" />
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                          <span className="inline-flex min-w-0 items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-black text-emerald-100">
+                            <Check className="h-3.5 w-3.5" />
+                            <span className="truncate">{shippingPaymentFile.name}</span>
+                          </span>
+                          <button type="button" onClick={removePaymentProof} className="text-xs font-black text-white/52 transition hover:text-white">
+                            {sfText("storefront.checkout.transfer.removeProofAr", "إزالة الإيصال")}
                           </button>
                         </div>
                       ) : null}
                     </div>
                     {errors.shipping_payment_screenshot ? <span className="text-xs font-bold text-rose-200">{errors.shipping_payment_screenshot}</span> : null}
 
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="checkout-payment-notes grid gap-2 sm:grid-cols-2">
                       <Field label={sfText("storefront.checkout.coupon", "Discount coupon")} placeholder={sfText("storefront.checkout.couponPlaceholder", "If you have a discount code")} value={form.coupon} onChange={(v) => setField("coupon", v)} />
                       <TextField label={sfText("storefront.checkout.orderNotes", "Order notes")} placeholder={sfText("storefront.checkout.orderNotesPlaceholder", "Alternative size or special note")} value={form.order_notes} onChange={(v) => setField("order_notes", v)} compact />
                     </div>
@@ -7300,7 +7285,7 @@ function SubmitButton({ submitting, compact = false, paymentMethod = "cod", disa
       form="storefront-checkout-form"
       type="submit"
       disabled={disabled}
-      className={`sf-checkout-submit-button ${isSuccess ? "sf-checkout-submit-button--success" : ""} sf-shimmer-button inline-flex items-center justify-center gap-2 rounded-full border font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.24)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_54px_rgba(109,40,217,0.34)] active:translate-y-0 active:scale-[0.985] disabled:translate-y-0 disabled:text-white/55 disabled:shadow-none ${isSuccess ? "border-emerald-300/25 bg-[linear-gradient(135deg,rgba(22,163,74,0.96),rgba(5,46,22,0.98))] hover:border-emerald-200/40 hover:bg-[linear-gradient(135deg,rgba(34,197,94,0.98),rgba(4,120,87,0.98))]" : "border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.96),rgba(17,24,39,0.98))] hover:border-[#c4b5fd]/40 hover:bg-[#6d28d9]"} ${compact ? "sf-checkout-submit-button--compact min-h-13 min-w-36 px-5 py-3 text-sm" : "min-h-14 w-full px-5 py-4"} ${disabled ? "border-white/10 bg-slate-700" : ""}`}
+      className={`sf-checkout-submit-button ${isSuccess ? "sf-checkout-submit-button--success checkout-payment-confirm" : ""} sf-shimmer-button inline-flex items-center justify-center gap-2 rounded-full border font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.24)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_54px_rgba(109,40,217,0.34)] active:translate-y-0 active:scale-[0.985] disabled:translate-y-0 disabled:text-white/55 disabled:shadow-none ${isSuccess ? "border-emerald-300/25 bg-[linear-gradient(135deg,rgba(22,163,74,0.96),rgba(5,46,22,0.98))] hover:border-emerald-200/40 hover:bg-[linear-gradient(135deg,rgba(34,197,94,0.98),rgba(4,120,87,0.98))]" : "border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.96),rgba(17,24,39,0.98))] hover:border-[#c4b5fd]/40 hover:bg-[#6d28d9]"} ${compact ? "sf-checkout-submit-button--compact min-h-13 min-w-36 px-5 py-3 text-sm" : "min-h-14 w-full px-5 py-4"} ${disabled ? "border-white/10 bg-slate-700" : ""}`}
     >
       {submitting ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : null}
       <span>{submitting ? sfText("storefront.checkout.actions.confirming", "Confirming your order...") : label || fallbackLabel}</span>
@@ -7353,7 +7338,7 @@ function TextField({ label, value, onChange, required, error, compact, placehold
   return (
     <label className="sf-checkout-field block md:col-span-2">
       <span className="mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input w-full resize-y rounded-2xl border bg-white/[0.055] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
+      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input ${compact ? "sf-checkout-notes-textarea max-h-[90px]" : ""} w-full resize-y rounded-2xl border bg-white/[0.055] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
