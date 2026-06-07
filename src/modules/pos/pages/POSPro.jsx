@@ -5767,8 +5767,8 @@ function POSPro() {
         ) : null}
 
         <div className="grid min-w-0 flex-none gap-3 lg:min-h-0 lg:flex-1 xl:grid-cols-[minmax(0,48%)_minmax(0,52%)] 2xl:grid-cols-[minmax(0,48%)_minmax(0,52%)]">
-          <section className="flex min-w-0 self-start overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-2 shadow-xl shadow-black/10 backdrop-blur lg:min-h-0 lg:self-stretch">
-            <div className="flex min-w-0 flex-1 flex-col space-y-2 lg:min-h-0">
+          <section className="min-w-0 self-start overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-2 shadow-xl shadow-black/10 backdrop-blur lg:flex lg:min-h-0 lg:self-stretch">
+            <div className="min-w-0 space-y-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <div className="sticky top-[calc(env(safe-area-inset-top)+4.9rem)] z-30 -mx-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl xl:static xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <div className="relative min-w-0 flex-[1_1_100%] sm:flex-1 2xl:max-w-md">
