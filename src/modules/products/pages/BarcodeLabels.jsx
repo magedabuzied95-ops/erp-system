@@ -104,10 +104,10 @@ const resolveTemplatePrintContext = (template, settings, sheetMode) => {
     const premiumSettings = normalizeBarcodePrintSettings({
       ...normalized,
       paperSize: "custom",
-      customPaperWidthMm: 100,
-      customPaperHeightMm: 50,
-      labelWidthMm: 100,
-      labelHeightMm: 50,
+      customPaperWidthMm: 50,
+      customPaperHeightMm: 100,
+      labelWidthMm: 50,
+      labelHeightMm: 100,
       labelsPerRow: 1,
       labelsPerPage: 1,
       gapMm: 0,
@@ -116,15 +116,15 @@ const resolveTemplatePrintContext = (template, settings, sheetMode) => {
       marginBottomMm: 1.2,
       marginLeftMm: 1.2,
       barcodeWidthScale: 100,
-      barcodeHeight: Math.max(128, Number(normalized.barcodeHeight || 88)),
+      barcodeHeight: Math.max(520, Number(normalized.barcodeHeight || 88) * 6),
     });
     return {
       template,
       printSettings: premiumSettings,
       paper: {
-        paperWidthMm: 100,
-        paperHeightMm: 50,
-        pageCss: "100mm 50mm",
+        paperWidthMm: 50,
+        paperHeightMm: 100,
+        pageCss: "50mm 100mm",
       },
     };
   }
@@ -1185,8 +1185,8 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
   const sizeValue = safeText(item.size, t("products.barcodeLabels.oneSize"));
   const colorValue = safeText(item.color, t("products.barcodeLabels.default"));
   const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
-    width: Math.round(650 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
-    height: Math.max(170, Number(printSettings.barcodeHeight || 88)),
+    width: Math.round(680 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
+    height: Math.max(520, Number(printSettings.barcodeHeight || 88)),
     displayText: item.barcode,
   });
   const previewScale = preview && !print ? 2.0 : 1;
@@ -1196,22 +1196,23 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
       className={`overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "rounded-[14px] p-[1.2mm] shadow-none" : "rounded-[20px] p-[1.4mm] shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}
       style={{ width: `${printSettings.labelWidthMm}mm`, minHeight: `${printSettings.labelHeightMm}mm` }}
     >
-      <div className="grid h-full grid-rows-[1fr_0.72fr] gap-[1.2mm]">
-        <div className="grid min-h-0 grid-cols-[44%_56%] gap-[1.2mm]">
-          <div className="relative min-h-0 overflow-hidden rounded-[10px] border border-zinc-200 bg-zinc-50">
-            <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[1.8mm]" iconClassName="text-zinc-400" />
+      <div className="grid h-full min-h-0 grid-rows-[1fr_0.85fr_1.05fr] gap-[1.2mm]">
+        <div className="relative min-h-0 overflow-hidden rounded-[10px] border border-zinc-200 bg-zinc-50">
+          <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[1.8mm]" iconClassName="text-zinc-400" />
+        </div>
+
+        <div className="grid min-h-0 grid-rows-[auto_auto_auto] gap-[1mm] overflow-hidden">
+          <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-50 px-[1.6mm] py-[1.2mm]">
+            <h3 className="line-clamp-2 text-[clamp(11px,1.7vw,14px)] font-black leading-[1.08] text-zinc-950">{productName}</h3>
           </div>
-          <div className="grid min-h-0 grid-rows-[auto_auto_1fr_1fr] gap-[1mm]">
-            <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-50 px-[1.6mm] py-[1.2mm]">
-              <h3 className="line-clamp-2 text-[clamp(10px,1.25vw,12px)] font-black leading-[1.05] text-zinc-950">{productName}</h3>
-            </div>
-            <div className="rounded-[9px] border border-zinc-200 bg-zinc-950 px-[1.4mm] py-[1.4mm] text-white">
-              <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
-              <div className="mt-[0.7mm] truncate text-[18px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
-            </div>
+          <div className="rounded-[9px] border border-zinc-200 bg-zinc-950 px-[1.4mm] py-[1.4mm] text-white">
+            <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
+            <div className="mt-[0.7mm] truncate text-[22px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
+          </div>
+          <div className="grid min-h-0 grid-cols-2 gap-[1mm]">
             <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1.4mm] py-[1.3mm] text-zinc-950">
               <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
-              <div className="mt-[0.7mm] truncate text-[25px] font-black leading-none">{sizeValue}</div>
+              <div className="mt-[0.7mm] truncate text-[31px] font-black leading-none">{sizeValue}</div>
             </div>
             <div className="rounded-[9px] border border-zinc-200 bg-zinc-100 px-[1.4mm] py-[1.3mm] text-zinc-950">
               <div className="text-[6px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
@@ -1221,8 +1222,8 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
         </div>
 
         <div className="flex min-h-0 flex-col items-center justify-center rounded-[10px] border border-zinc-200 bg-white px-[1mm] pb-[1.2mm] pt-[1.4mm]">
-          <div className="w-[95%] max-w-full" style={{ minHeight: "22.5mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
-          <div className="mt-[1.2mm] text-center text-[10.5px] font-black leading-none text-zinc-800">{item.sku}</div>
+          <div className="w-[95%] max-w-full" style={{ minHeight: "38mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+          <div className="mt-[1.6mm] text-center text-[11.5px] font-black leading-none text-zinc-800">{item.sku}</div>
         </div>
       </div>
     </article>
