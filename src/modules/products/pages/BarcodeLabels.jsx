@@ -1250,71 +1250,88 @@ function PremiumRetailLabel({ item, printSettings, print = false, preview = fals
   });
   const previewScale = preview && !print ? 2.0 : 1;
 
-  const labelMarkup = (
+  const premiumLabelMarkup = (
     <article
       className={`overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "rounded-[14px] shadow-none" : "rounded-[20px] shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}
       style={{
-        width: `${printSettings.labelWidthMm}mm`,
-        minHeight: `${printSettings.labelHeightMm}mm`,
+        width: "100mm",
+        height: "50mm",
         pageBreakInside: "avoid",
         breakInside: "avoid",
       }}
     >
-      <div className="grid h-full min-h-0 grid-rows-[35fr_20fr_45fr] gap-[0.7mm] p-[1.2mm]">
+      <div className="grid h-full min-h-0 grid-cols-[44%_56%] gap-[1mm] p-[1.2mm]">
         <div className="relative min-h-0 overflow-hidden rounded-[10px] border border-zinc-200 bg-zinc-50">
           <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[1.8mm]" iconClassName="text-zinc-400" />
         </div>
         <div className="grid min-h-0 grid-rows-[auto_auto_auto] gap-[0.55mm] overflow-hidden">
-          <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-50 px-[1.4mm] py-[0.9mm]">
-            <h3 className="line-clamp-2 text-[clamp(10px,1.55vw,13px)] font-black leading-[1.04] text-zinc-950">{productName}</h3>
+          <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-50 px-[1.4mm] py-[0.8mm]">
+            <h3 className="line-clamp-2 text-[clamp(10px,1.35vw,12px)] font-black leading-[1.04] text-zinc-950">{productName}</h3>
           </div>
-          <div className="rounded-[8px] border border-zinc-200 bg-zinc-950 px-[1.3mm] py-[1mm] text-white">
+          <div className="rounded-[8px] border border-zinc-200 bg-zinc-950 px-[1.3mm] py-[0.9mm] text-white">
             <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-300">{t("products.barcodeLabels.price")}</div>
             <div className="mt-[0.45mm] truncate text-[21px] font-black leading-none">{formatCurrency(item.salePrice)}</div>
           </div>
           <div className="grid min-h-0 grid-cols-2 gap-[0.75mm]">
-            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1.2mm] py-[1mm] text-zinc-950">
+            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1.2mm] py-[0.9mm] text-zinc-950">
               <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.size")}</div>
               <div className="mt-[0.45mm] truncate text-[27px] font-black leading-none">{sizeValue}</div>
             </div>
-            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1.2mm] py-[1mm] text-zinc-950">
+            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1.2mm] py-[0.9mm] text-zinc-950">
               <div className="text-[5.5px] font-black uppercase leading-none tracking-[0.18em] text-zinc-500">{t("products.barcodeLabels.color")}</div>
               <div className="mt-[0.45mm] truncate text-[11.5px] font-black uppercase leading-none">{colorValue}</div>
             </div>
           </div>
         </div>
-        <div className="flex min-h-0 flex-col items-center justify-start rounded-[10px] border border-zinc-200 bg-white px-[1mm] pb-[1.1mm] pt-[0.8mm]">
-          <div className="w-[95%] max-w-full" style={{ minHeight: "18mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
-          <div className="mt-[0.9mm] text-center text-[11.5px] font-black leading-none text-zinc-800">{item.sku}</div>
-        </div>
+      </div>
+      <div className="flex min-h-0 flex-col items-center justify-start rounded-[10px] border border-zinc-200 bg-white px-[1mm] pb-[1.1mm] pt-[0.8mm]">
+        <div className="w-[95%] max-w-full" style={{ minHeight: "18mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+        <div className="mt-[0.9mm] text-center text-[11.5px] font-black leading-none text-zinc-800">{item.sku}</div>
       </div>
     </article>
   );
 
-  if (preview && !print) {
-    return (
+  const premiumPreview = (
+    <div
+      className="flex h-full w-full items-center justify-center"
+      style={{
+        width: `calc(50mm * ${previewScale})`,
+        minHeight: `calc(100mm * ${previewScale})`,
+      }}
+    >
       <div
-        className="flex h-full w-full items-center justify-center"
         style={{
-          width: `calc(${printSettings.labelWidthMm}mm * ${previewScale})`,
-          minHeight: `calc(${printSettings.labelHeightMm}mm * ${previewScale})`,
+          position: "relative",
+          width: "50mm",
+          height: "100mm",
+          overflow: "hidden",
+          contain: "layout paint",
+          pageBreakInside: "avoid",
+          breakInside: "avoid",
         }}
       >
         <div
           style={{
-            width: `${printSettings.labelWidthMm}mm`,
-            minHeight: `${printSettings.labelHeightMm}mm`,
-            transform: `scale(${previewScale})`,
-            transformOrigin: "center center",
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: "100mm",
+            height: "50mm",
+            transformOrigin: "top left",
+            transform: "rotate(90deg) translateY(-50mm)",
           }}
         >
-          {labelMarkup}
+          {premiumLabelMarkup}
         </div>
       </div>
-    );
+    </div>
+  );
+
+  if (preview && !print) {
+    return premiumPreview;
   }
 
-  return labelMarkup;
+  return premiumPreview;
 }
 
 function ThermalLandscapeLabel({ item, printSettings, print = false, preview = false }) {
