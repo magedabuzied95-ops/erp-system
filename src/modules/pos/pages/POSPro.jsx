@@ -2469,7 +2469,7 @@ function POSPro() {
     addVariantToCart(activeProduct, activeVariant, { quantity });
     setSelectedProduct(null);
     setMobileProductQuantity(1);
-  }, [activeProduct, activeVariant, addVariantToCart, mobileProductQuantity, mobileProductStock]);
+  }, [activeProduct, activeVariant, mobileProductQuantity, mobileProductStock]);
 
   useEffect(() => {
     console.log("[pos-mobile-variant-modal-open]", {
