@@ -282,24 +282,6 @@ function ProductPickerSheet({
               )}
             </div>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-right">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Color</div>
-                <div className="mt-1 truncate text-sm font-bold text-white">{selectedColor || "-"}</div>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-right">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Size</div>
-                <div className="mt-1 truncate text-sm font-bold text-white">{selectedSize ? `${selectedSize} × ${activeStock}` : "-"}</div>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-right">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Stock</div>
-                <div className="mt-1 truncate text-sm font-bold text-white">{Number(activeStock || 0)}</div>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-right">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Quantity</div>
-                <div className="mt-1 truncate text-sm font-bold text-white">{String(Math.max(1, Number(quantity || 1)))}</div>
-              </div>
-            </div>
           </div>
 
           <div className="space-y-4">
