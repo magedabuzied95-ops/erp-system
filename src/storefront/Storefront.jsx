@@ -24,7 +24,6 @@ import {
   Home,
   ImagePlus,
   Loader2,
-  LockKeyhole,
   Menu,
   MessageCircle,
   Mic,
@@ -32,8 +31,6 @@ import {
   PackageCheck,
   PackageSearch,
   Phone,
-  QrCode,
-  ReceiptText,
   Search,
   ShoppingBag,
   ShoppingCart,
@@ -43,7 +40,6 @@ import {
   Send,
   ShieldCheck,
   Share2,
-  Smartphone,
   Tag,
   RefreshCcw,
   Moon,
@@ -332,6 +328,71 @@ const normalizeShippingQuote = (quote = {}) => ({
   original_price: Number.isFinite(Number(quote.original_price)) ? Number(quote.original_price) : 0,
   free_shipping_applied: Boolean(quote.free_shipping_applied),
 });
+
+const CHECKOUT_ADDRESS_FIELDS = [
+  "full_name",
+  "primary_phone",
+  "governorate",
+  "city_area",
+  "detailed_address",
+  "street_address",
+  "building_number",
+  "floor_number",
+  "apartment_number",
+  "landmark",
+  "delivery_notes",
+  "governorate_id",
+  "city_id",
+  "area_id",
+  "zone_id",
+  "district_id",
+  "shipping_city_id",
+  "shipping_zone_id",
+  "shipping_district_id",
+];
+
+const buildLatestCheckoutAddress = (customer = null, order = null) => {
+  if (!order) return null;
+  const text = (value) => String(value || "").trim();
+  const shippingCityId = text(order.shipping_city_id);
+  const shippingZoneId = text(order.shipping_zone_id);
+  const shippingDistrictId = text(order.shipping_district_id);
+  const governorate = text(order.governorate || order.shipping_city_name_ar || order.shipping_city_name_en);
+  const cityArea = text(order.city_area || order.shipping_district_name_ar || order.shipping_district_name_en || order.shipping_zone_name_ar || order.shipping_zone_name_en);
+  const detailedAddress = text(order.customer_address || order.shipping_address_line || "");
+  const streetAddress = text(order.street_address || order.shipping_address?.street_address || order.shipping_provider_address?.street_address || detailedAddress);
+  const buildingNumber = text(order.building_number || order.shipping_address?.building_number || order.shipping_provider_address?.building_number);
+  const floorNumber = text(order.floor_number || order.shipping_address?.floor_number || order.shipping_provider_address?.floor_number);
+  const apartmentNumber = text(order.apartment_number || order.shipping_address?.apartment_number || order.shipping_provider_address?.apartment_number);
+  const landmark = text(order.landmark || order.shipping_address?.landmark || order.shipping_provider_address?.landmark);
+  const deliveryNotes = text(order.delivery_notes || order.shipping_address?.delivery_notes || order.shipping_provider_address?.notes);
+  const fullName = text(order.customer_name || customer?.name);
+  const primaryPhone = text(order.customer_phone || customer?.phone);
+
+  const candidate = {
+    full_name: fullName,
+    primary_phone: primaryPhone,
+    governorate,
+    city_area: cityArea,
+    detailed_address: detailedAddress,
+    street_address: streetAddress,
+    building_number: buildingNumber,
+    floor_number: floorNumber,
+    apartment_number: apartmentNumber,
+    landmark,
+    delivery_notes: deliveryNotes,
+    governorate_id: text(order.governorate_id || order.shipping_city_id || ""),
+    city_id: text(order.city_id || order.shipping_city_id || ""),
+    area_id: text(order.area_id || order.shipping_district_id || order.district_id || ""),
+    zone_id: text(order.zone_id || order.shipping_zone_id || ""),
+    district_id: text(order.district_id || order.shipping_district_id || ""),
+    shipping_city_id: shippingCityId,
+    shipping_zone_id: shippingZoneId,
+    shipping_district_id: shippingDistrictId,
+  };
+
+  return Object.values(candidate).some(Boolean) ? candidate : null;
+};
 const paymentLogoPreloadUrls = Object.values(paymentBrandLogos).flatMap((logo) => [logo.webp, logo.png].filter(Boolean));
 const whatsappPhone = String(import.meta.env.VITE_WHATSAPP_PHONE || import.meta.env.VITE_STORE_WHATSAPP || "").replace(/\D/g, "");
 const getStatusLabels = () => {
@@ -5668,11 +5729,13 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const [paymentProofDragActive, setPaymentProofDragActive] = useState(false);
   const [paymentProofUploaded, setPaymentProofUploaded] = useState(false);
   const [latestAddressApplied, setLatestAddressApplied] = useState(false);
+  const [latestAddressRestore, setLatestAddressRestore] = useState({ token: 0, candidate: null, status: "idle", stage: "idle" });
   const [shippingQuote, setShippingQuote] = useState(normalizeShippingQuote());
   const [shippingLocations, setShippingLocations] = useState(() => normalizeCheckoutLocations());
   const [bostaLocations, setBostaLocations] = useState({ cities: [], zones: [], districts: [], loadingCities: false, loadingZones: false, loadingDistricts: false });
   const editedCheckoutFieldsRef = useRef(new Set());
   const latestAddressLookupsRef = useRef(new Set());
+  const latestAddressRestoreTokenRef = useRef(0);
   const pricedCart = useMemo(() => cart.map((item) => ({ ...item, price: displayCartItemPrice(item) })), [cart]);
   const subtotal = pricedCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const discount = 0;
@@ -5925,9 +5988,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     setField("city_area", value);
   };
 
-  const setBostaCity = useCallback((value) => {
-    editedCheckoutFieldsRef.current.add("governorate");
-    editedCheckoutFieldsRef.current.add("city_area");
+  const setBostaCity = useCallback((value, options = {}) => {
+    if (options.markDirty !== false) {
+      editedCheckoutFieldsRef.current.add("governorate");
+      editedCheckoutFieldsRef.current.add("city_area");
+    }
     const selected = bostaLocations.cities.find((city) => String(city.id) === String(value));
     setForm((prev) => ({
       ...prev,
@@ -5949,7 +6014,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     setErrors((prev) => ({ ...prev, governorate: "", city_area: "" }));
   }, [bostaLocations.cities]);
 
-  const setBostaZone = useCallback((value) => {
+  const setBostaZone = useCallback((value, options = {}) => {
+    if (options.markDirty !== false) {
+      editedCheckoutFieldsRef.current.add("city_area");
+    }
     const selected = bostaLocations.zones.find((zone) => String(zone.id) === String(value));
     setForm((prev) => ({
       ...prev,
@@ -5965,7 +6033,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     setErrors((prev) => ({ ...prev, city_area: "" }));
   }, [bostaLocations.zones]);
 
-  const setBostaDistrict = useCallback((value) => {
+  const setBostaDistrict = useCallback((value, options = {}) => {
+    if (options.markDirty !== false) {
+      editedCheckoutFieldsRef.current.add("city_area");
+    }
     const selected = bostaLocations.districts.find((district) => String(district.id) === String(value));
     setForm((prev) => ({
       ...prev,
@@ -6485,123 +6556,108 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               <TextField label={sfText("storefront.checkout.deliveryNotes", "Delivery notes")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder", "Preferred time or courier note")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} />
             </div>
           </CheckoutSection> : null}
-          {checkoutStep === 3 ? <CheckoutSection number="3" title={sfText("storefront.checkout.sections.payment", "Payment method")}>
-            <div className="grid gap-2.5 md:grid-cols-2">
-              {paymentMethods.map((method) => {
-                const methodEnabled = method.id !== "cod" || codAvailable;
-                return (
-                <button key={method.id} type="button" disabled={!methodEnabled} onClick={() => methodEnabled && setField("payment_method", method.id)} className={`group min-h-28 rounded-[1.35rem] border p-4 text-right text-white transition duration-200 active:scale-[0.985] ${normalizedFormPaymentMethod === method.id ? "border-[#a78bfa]/70 bg-[#7c3aed]/18 shadow-[0_18px_46px_rgba(124,58,237,0.24)] ring-4 ring-[#7c3aed]/15" : "border-white/10 bg-white/[0.055] shadow-[0_12px_34px_rgba(0,0,0,0.18)] hover:-translate-y-0.5 hover:border-[#a78bfa]/45 hover:bg-white/[0.075] hover:shadow-[0_18px_42px_rgba(124,58,237,0.14)]"} disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.025] disabled:text-white/35 disabled:shadow-none`}>
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-black">{method.title}</span>
-                    <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${normalizedFormPaymentMethod === method.id ? "border-[#a78bfa] bg-[#7c3aed] text-white" : "border-white/20 bg-white/[0.045] text-transparent"}`}><Check className="h-3.5 w-3.5" /></span>
-                  </span>
-                  <span className={`mt-2 block text-xs font-bold leading-5 ${normalizedFormPaymentMethod === method.id ? "text-white/78" : "text-white/54"}`}>{method.text}</span>
-                  {method.id === "cod" && !codAvailable ? (
-                    <span className="mt-2 block rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black leading-5 text-amber-100">{sfText("storefront.checkout.codEligibilityNote", "Cash on delivery is available only for returning customers and Damietta addresses.")}</span>
-                  ) : null}
-                </button>
-                );
-              })}
-            </div>
-            {errors.payment_method ? <p className="mt-2 text-xs font-black text-rose-200">{errors.payment_method}</p> : null}
-            {paymentCopy ? <p className="mt-2.5 rounded-2xl border border-white/10 bg-white/[0.055] p-3 text-sm font-bold text-white/64 shadow-inner shadow-white/[0.02]">{paymentCopy}</p> : null}
-            {isShippingConfirmation ? (
-              <div className="mt-4 overflow-hidden rounded-[1.8rem] border border-[#a78bfa]/18 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.34),transparent_32%),linear-gradient(145deg,rgba(11,12,26,0.98),rgba(6,7,18,0.96))] p-4 text-white shadow-[0_26px_80px_rgba(13,8,34,0.45),inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-white/10 md:p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="inline-flex items-center gap-2 rounded-full border border-[#a78bfa]/20 bg-[#7c3aed]/14 px-3 py-1.5 text-xs font-black text-[#ddd6fe]">
-                      <LockKeyhole className="h-3.5 w-3.5" />
-                      {sfText("storefront.checkout.transfer.safeBankPayment", "Secure bank payment")}
-                    </div>
-                    <div className="mt-3 text-xs font-semibold text-white/54">{sfText("storefront.checkout.transfer.amountDueNow", "Amount to transfer now")}</div>
-                    <div className="mt-1 text-4xl font-black tracking-tight text-white md:text-5xl">{money(deliveryFee)}</div>
-                    <p className="mt-2 max-w-lg text-sm font-semibold leading-6 text-white/62">{sfText("storefront.checkout.transfer.instructions", "Transfer only the shipping fee using InstaPay or Vodafone Cash, then upload the receipt so we can review your order before preparation.")}</p>
-                  </div>
-                  <span className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-black text-emerald-100 ring-1 ring-emerald-300/10">
-                    <ShieldCheck className="h-4 w-4 text-[#c4b5fd]" />
-                    {sfText("storefront.checkout.transfer.manualReview", "Transfer is reviewed manually")}
-                  </span>
+          {checkoutStep === 3 ? (
+            <CheckoutSection number="3" title={sfText("storefront.checkout.sections.payment", "Payment method")}>
+              <div className="mx-auto grid w-full max-w-[720px] gap-4">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(["instapay", "vodafone_cash"]).map((method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setShippingTransferMethod(method)}
+                      className={`sf-checkout-payment-choice flex min-h-16 items-center justify-between gap-3 rounded-[1.2rem] border px-4 py-3 text-right transition duration-200 ${shippingTransferMethod === method ? "border-[#a78bfa]/70 bg-[#7c3aed]/18 shadow-[0_16px_40px_rgba(124,58,237,0.18)] ring-2 ring-[#7c3aed]/15" : "border-white/10 bg-white/[0.055] shadow-[0_10px_28px_rgba(0,0,0,0.14)] hover:border-[#a78bfa]/45 hover:bg-white/[0.075]"} disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.025] disabled:text-white/35 disabled:shadow-none`}
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <PaymentBrandLogo method={method} size="copy" active={shippingTransferMethod === method} />
+                        <span className="min-w-0">
+                          <span className="block text-base font-black text-white">{paymentBrandLabels[method]}</span>
+                          <span className={`mt-0.5 block text-xs font-semibold ${shippingTransferMethod === method ? "text-white/70" : "text-white/46"}`}>
+                            {method === "instapay"
+                              ? sfText("storefront.checkout.transfer.instantBankTransfer", "Instant bank transfer")
+                              : sfText("storefront.checkout.transfer.vodafoneWallet", "Vodafone wallet")}
+                          </span>
+                        </span>
+                      </span>
+                      <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${shippingTransferMethod === method ? "border-[#a78bfa] bg-[#7c3aed] text-white" : "border-white/16 bg-white/[0.04] text-transparent"}`}>
+                        <Check className="h-3.5 w-3.5" />
+                      </span>
+                    </button>
+                  ))}
                 </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-2 rounded-[1.45rem] border border-white/10 bg-white/[0.045] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
-                  <PaymentMethodTab method="instapay" active={shippingTransferMethod === "instapay"} onClick={() => setShippingTransferMethod("instapay")} />
-                  <PaymentMethodTab method="vodafone_cash" active={shippingTransferMethod === "vodafone_cash"} onClick={() => setShippingTransferMethod("vodafone_cash")} />
-                </div>
-
-                <div className="mt-4 grid gap-3 lg:grid-cols-[0.78fr_1.22fr]">
-                  <div className="grid content-start gap-3">
-                    <div className="rounded-[1.45rem] border border-white/10 bg-white/[0.055] p-4 text-center shadow-[0_18px_42px_rgba(0,0,0,0.22)]">
-                      {activePaymentQrUrl ? (
-                        <>
-                          <img src={activePaymentQrUrl} alt={`${paymentBrandLabels[shippingTransferMethod]} QR`} className="mx-auto h-36 w-36 rounded-[1.2rem] bg-white object-contain p-2" decoding="async" />
-                          <div className="mt-3 text-sm font-black text-white">{sfText("storefront.checkout.transfer.scanQr", "Scan QR to pay")}</div>
-                          <p className="mt-1 text-xs font-semibold leading-5 text-white/52">{sfText("storefront.checkout.transfer.scanQrHint", "Open your payment app, scan the code, then upload the receipt.")}</p>
-                        </>
-                      ) : (
-                        <div className="flex items-center gap-3 text-right">
-                          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#a78bfa]/20 bg-[#7c3aed]/14 text-[#ddd6fe]">
-                            <QrCode className="h-6 w-6" strokeWidth={1.8} />
-                          </span>
-                          <span>
-                            <span className="block text-sm font-black text-white">{sfText("storefront.checkout.transfer.qrComingSoon", "QR coming soon")}</span>
-                            <span className="mt-1 block text-xs font-semibold leading-5 text-white/50">{sfText("storefront.checkout.transfer.useDirectDetails", "Use the direct transfer details without waiting.")}</span>
-                          </span>
-                        </div>
-                      )}
+                {isShippingConfirmation ? (
+                  <div className="sf-checkout-payment-proof-grid grid gap-4">
+                    <div className="sf-checkout-payment-amount rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.18)]">
+                      <div className="text-xs font-black uppercase tracking-[0.16em] text-white/50">{sfText("storefront.checkout.transfer.amountDueNow", "Amount to transfer now")}</div>
+                      <div className="mt-2 text-4xl font-black tracking-tight text-white md:text-5xl">{money(deliveryFee)}</div>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-white/64">{sfText("storefront.checkout.transfer.helper", "ادفع رسوم الشحن لتأكيد الطلب")}</p>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
-                      {[
-                        [sfText("storefront.checkout.transfer.steps.transfer", "Transfer the required amount"), <Smartphone className="h-4 w-4" />],
-                        [sfText("storefront.checkout.transfer.steps.upload", "Upload receipt image"), <ReceiptText className="h-4 w-4" />],
-                        [sfText("storefront.checkout.transfer.steps.review", "We review and confirm"), <ShieldCheck className="h-4 w-4" />],
-                      ].map(([label, icon], index) => (
-                        <div key={label} className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-black text-white/72">
-                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-xl bg-[#7c3aed]/16 text-[#ddd6fe]">{icon}</span>
-                          <span className="text-white/40">{index + 1}</span>
-                          <span>{label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  <div className="grid content-start gap-3">
-                    <PaymentCopyLine method={shippingTransferMethod} label={paymentBrandLabels[shippingTransferMethod]} value={activeTransferValue} amount={deliveryFee} deepLink={activePaymentDeepLink} />
+                    <div className="sf-checkout-payment-details rounded-[1.4rem] border border-white/10 bg-white/[0.04] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.16)]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-xs font-black uppercase tracking-[0.14em] text-white/50">{sfText("storefront.checkout.transfer.paymentDetails", "Payment details")}</div>
+                          <div className="mt-1 flex items-center gap-2 text-sm font-black text-white">
+                            <PaymentBrandLogo method={shippingTransferMethod} size="copy" active />
+                            <span>{paymentBrandLabels[shippingTransferMethod]}</span>
+                          </div>
+                          <div className="mt-1 text-xs font-semibold text-white/54">{sfText("storefront.checkout.transfer.amount", "Amount")}: {money(deliveryFee)}</div>
+                        </div>
+                        <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-black text-emerald-100">{sfText("storefront.checkout.transfer.manualReview", "Transfer is reviewed manually")}</span>
+                      </div>
+                      <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-3 font-mono text-xl font-black tracking-wide text-white shadow-inner shadow-black/20" dir="ltr">
+                        {activeTransferValue}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await navigator.clipboard?.writeText(activeTransferValue);
+                          toast.success(sfText("storefront.toasts.copied", "Copied."));
+                        }}
+                        className="sf-checkout-payment-copy-button mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.96),rgba(17,24,39,0.98))] px-4 py-2.5 text-sm font-black text-white shadow-[0_14px_32px_rgba(124,58,237,0.26)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/40 hover:bg-[#6d28d9]"
+                      >
+                        <Copy className="h-4 w-4" />
+                        {sfText("storefront.checkout.transfer.copyPaymentDetails", "نسخ بيانات الدفع")}
+                      </button>
+                    </div>
+
                     <div
+                      className="sf-checkout-payment-upload"
                       onDragOver={(event) => {
                         event.preventDefault();
                         setPaymentProofDragActive(true);
                       }}
                       onDragLeave={() => setPaymentProofDragActive(false)}
                       onDrop={handlePaymentProofDrop}
-                      className={`rounded-[1.55rem] border border-dashed p-3 transition duration-200 ${
+                      className={`rounded-[1.4rem] border border-dashed p-4 transition duration-200 ${
                         errors.shipping_payment_screenshot
                           ? "border-rose-300/55 bg-rose-500/8"
                           : paymentProofDragActive
-                            ? "border-[#c4b5fd]/80 bg-[#7c3aed]/18 shadow-[0_0_0_4px_rgba(167,139,250,0.12),0_24px_58px_rgba(124,58,237,0.22)]"
+                            ? "border-[#c4b5fd]/80 bg-[#7c3aed]/14"
                             : paymentProofUploaded
-                              ? "border-emerald-300/45 bg-emerald-400/10 shadow-[0_18px_48px_rgba(16,185,129,0.12)]"
-                              : "border-white/14 bg-white/[0.055] hover:border-[#a78bfa]/45 hover:bg-white/[0.075] hover:shadow-[0_22px_52px_rgba(124,58,237,0.14)]"
+                              ? "border-emerald-300/45 bg-emerald-400/10"
+                              : "border-white/14 bg-white/[0.04] hover:border-[#a78bfa]/45 hover:bg-white/[0.065]"
                       }`}
                     >
-                      <label className="group block cursor-pointer">
+                      <label className="block cursor-pointer">
                         <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handlePaymentProofChange(event.target.files?.[0])} className="sr-only" />
                         <span className="flex items-center gap-3 text-right">
-                          <span className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl transition group-hover:scale-[1.03] ${paymentProofUploaded ? "bg-emerald-400/16 text-emerald-100 ring-1 ring-emerald-300/25" : "bg-[#7c3aed]/16 text-[#c4b5fd] ring-1 ring-[#a78bfa]/20"}`}>
+                          <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${paymentProofUploaded ? "bg-emerald-400/16 text-emerald-100 ring-1 ring-emerald-300/25" : "bg-[#7c3aed]/16 text-[#c4b5fd] ring-1 ring-[#a78bfa]/20"}`}>
                             {paymentProofUploaded ? <Check className="h-6 w-6" /> : <Upload className="h-6 w-6" />}
                           </span>
                           <span className="min-w-0">
-                            <span className="block text-base font-black text-white">{shippingPaymentFile ? sfText("storefront.checkout.transfer.proofUploaded", "Receipt image uploaded") : sfText("storefront.checkout.transfer.uploadPrompt", "Drag the receipt here or click to upload")}</span>
-                            <span className="mt-1 block text-xs font-semibold leading-5 text-white/52">{sfText("storefront.checkout.transfer.acceptedFormats", "PNG, JPG, or WEBP from an InstaPay or Vodafone Cash receipt")}</span>
+                            <span className="block text-base font-black text-white">{shippingPaymentFile ? sfText("storefront.checkout.transfer.proofUploaded", "Receipt image uploaded") : sfText("storefront.checkout.transfer.uploadPromptSimple", "ارفع صورة التحويل")}</span>
+                            <span className="mt-1 block text-xs font-semibold leading-5 text-white/52">{sfText("storefront.checkout.transfer.acceptedFormats", "PNG, JPG, or WEBP")}</span>
                           </span>
                         </span>
                       </label>
 
                       {shippingPaymentFile ? (
-                        <div className="mt-4 flex items-center gap-3 rounded-[1.2rem] border border-white/10 bg-black/25 p-2.5">
+                        <div className="mt-3 flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-2.5">
                           {shippingPaymentPreviewUrl ? (
-                            <img src={shippingPaymentPreviewUrl} alt={sfText("storefront.checkout.transfer.proofPreviewAlt", "Shipping payment proof preview")} className="h-18 w-18 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" decoding="async" />
+                            <img src={shippingPaymentPreviewUrl} alt={sfText("storefront.checkout.transfer.proofPreviewAlt", "Shipping payment proof preview")} className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" decoding="async" />
                           ) : (
-                            <span className="grid h-18 w-18 shrink-0 place-items-center rounded-2xl bg-white/[0.06] text-white/50"><Loader2 className="h-5 w-5 animate-spin" /></span>
+                            <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-white/[0.06] text-white/50"><Loader2 className="h-5 w-5 animate-spin" /></span>
                           )}
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-black text-white">{shippingPaymentFile.name}</div>
@@ -6610,10 +6666,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                               {sfText("storefront.checkout.transfer.readyToSend", "Ready to send")}
                             </div>
                           </div>
-                          <label className="sf-checkout-replace-button shrink-0 cursor-pointer rounded-full border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-black text-white transition hover:bg-white/[0.09]">
-                            {sfText("storefront.checkout.transfer.replace", "Replace")}
-                            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handlePaymentProofChange(event.target.files?.[0])} className="sr-only" />
-                          </label>
                           <button type="button" onClick={removePaymentProof} className="sf-checkout-remove-proof grid h-9 w-9 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-100 transition hover:bg-rose-500/18" aria-label={sfText("storefront.checkout.transfer.removeProof", "Remove payment proof")}>
                             <X className="h-4 w-4" />
                           </button>
@@ -6621,19 +6673,18 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                       ) : null}
                     </div>
                     {errors.shipping_payment_screenshot ? <span className="text-xs font-bold text-rose-200">{errors.shipping_payment_screenshot}</span> : null}
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field label={sfText("storefront.checkout.coupon", "Discount coupon")} placeholder={sfText("storefront.checkout.couponPlaceholder", "If you have a discount code")} value={form.coupon} onChange={(v) => setField("coupon", v)} />
+                      <TextField label={sfText("storefront.checkout.orderNotes", "Order notes")} placeholder={sfText("storefront.checkout.orderNotesPlaceholder", "Alternative size or special note")} value={form.order_notes} onChange={(v) => setField("order_notes", v)} compact />
+                    </div>
+
+                    <SubmitButton submitting={isFinalCheckoutStep && submitting} paymentMethod={normalizedFormPaymentMethod} disabled={submitDisabled} label="تم الدفع وإرفاق الإيصال" variant="success" />
                   </div>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <p className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-semibold leading-5 text-white/62">{sfText("storefront.checkout.transfer.shippingDeducted", "The shipping fee is deducted from the order total.")}</p>
-                  <p className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold leading-5 text-emerald-100">{sfText("storefront.checkout.transfer.protectiveReview", "Transfers are manually reviewed to protect orders.")}</p>
-                </div>
+                ) : null}
               </div>
-            ) : null}
-            <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
-              <Field label={sfText("storefront.checkout.coupon", "Discount coupon")} placeholder={sfText("storefront.checkout.couponPlaceholder", "If you have a discount code")} value={form.coupon} onChange={(v) => setField("coupon", v)} />
-              <TextField label={sfText("storefront.checkout.orderNotes", "Order notes")} placeholder={sfText("storefront.checkout.orderNotesPlaceholder", "Alternative size or special note")} value={form.order_notes} onChange={(v) => setField("order_notes", v)} compact />
-            </div>
-          </CheckoutSection> : null}
+            </CheckoutSection>
+          ) : null}
         </div>
         <Suspense fallback={<div className="h-[22rem] rounded-[1.7rem] border border-white/10 bg-white/[0.045] shadow-[0_24px_70px_rgba(0,0,0,0.18)] lg:sticky lg:top-24" />}>
           <LazyStorefrontCheckoutSummary
@@ -7088,14 +7139,15 @@ function TrustPills({ compact = false }) {
   );
 }
 
-function SubmitButton({ submitting, compact = false, paymentMethod = "cod", disabled = submitting, label }) {
+function SubmitButton({ submitting, compact = false, paymentMethod = "cod", disabled = submitting, label, variant = "primary" }) {
   const fallbackLabel = paymentMethod === "cod" ? sfText("storefront.checkout.actions.confirmOrder", "Confirm order") : sfText("storefront.checkout.actions.uploadProofAndConfirm", "Upload transfer proof and confirm order");
+  const isSuccess = variant === "success";
   return (
     <button
       form="storefront-checkout-form"
       type="submit"
       disabled={disabled}
-      className={`sf-checkout-submit-button sf-shimmer-button inline-flex items-center justify-center gap-2 rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.96),rgba(17,24,39,0.98))] font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.24)] transition duration-200 hover:-translate-y-0.5 hover:border-[#c4b5fd]/40 hover:bg-[#6d28d9] hover:shadow-[0_22px_54px_rgba(109,40,217,0.34)] active:translate-y-0 active:scale-[0.985] disabled:translate-y-0 disabled:border-white/10 disabled:bg-slate-700 disabled:text-white/55 disabled:shadow-none ${compact ? "sf-checkout-submit-button--compact min-h-13 min-w-36 px-5 py-3 text-sm" : "min-h-14 w-full px-5 py-4"}`}
+      className={`sf-checkout-submit-button ${isSuccess ? "sf-checkout-submit-button--success" : ""} sf-shimmer-button inline-flex items-center justify-center gap-2 rounded-full border font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.24)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_54px_rgba(109,40,217,0.34)] active:translate-y-0 active:scale-[0.985] disabled:translate-y-0 disabled:text-white/55 disabled:shadow-none ${isSuccess ? "border-emerald-300/25 bg-[linear-gradient(135deg,rgba(22,163,74,0.96),rgba(5,46,22,0.98))] hover:border-emerald-200/40 hover:bg-[linear-gradient(135deg,rgba(34,197,94,0.98),rgba(4,120,87,0.98))]" : "border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.96),rgba(17,24,39,0.98))] hover:border-[#c4b5fd]/40 hover:bg-[#6d28d9]"} ${compact ? "sf-checkout-submit-button--compact min-h-13 min-w-36 px-5 py-3 text-sm" : "min-h-14 w-full px-5 py-4"} ${disabled ? "border-white/10 bg-slate-700" : ""}`}
     >
       {submitting ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : null}
       <span>{submitting ? sfText("storefront.checkout.actions.confirming", "Confirming your order...") : label || fallbackLabel}</span>
