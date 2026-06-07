@@ -2599,7 +2599,15 @@ function AiSupportChatWidget() {
         selected_color_key: variantColorKey(resolvedVariant),
         last_action: key,
       });
-      const result = addToCart(resolvedProduct, resolvedVariant, 1);
+      const result =
+        typeof addToCart === "function"
+          ? addToCart(resolvedProduct, resolvedVariant, 1)
+          : null;
+      console.error("[ADD_TO_CART_RUNTIME_DIAGNOSTIC]", {
+        typeofAddToCart: typeof addToCart,
+        resolvedProduct,
+        resolvedVariant,
+      });
       if (result === "capture_required") {
         logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "customer_capture_required" });
         await submitQuestion("لازم أولًا أراجع بياناتك قبل ما أكمل الإضافة للسلة.", {
@@ -2884,7 +2892,7 @@ function AiSupportChatWidget() {
 }
 
 function Storefront() {
-  const STOREFRONT_BUILD_MARKER = "storefront-addtocart-final-v2";
+  const STOREFRONT_BUILD_MARKER = "storefront-addtocart-final-v3";
   const pageStartedAtRef = useRef(performance.now());
   console.log("[storefront-build-marker]", STOREFRONT_BUILD_MARKER);
   useEffect(() => {
