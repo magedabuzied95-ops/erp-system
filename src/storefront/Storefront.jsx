@@ -27,7 +27,6 @@ import {
   LockKeyhole,
   Menu,
   MessageCircle,
-  MessageCircleMore,
   Mic,
   Minus,
   PackageCheck,
@@ -64,7 +63,7 @@ import { isMirrorProduct, mirrorProductTitle } from "../shared/lib/mirrorProduct
 import { applyProductSocialMeta, productToSocialMeta } from "../shared/lib/socialMeta";
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
-import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
+import { VirtualGrid } from "../shared/components/VirtualList";
 import instaPayLogo from "../assets/payments/instapay.png";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import vodafoneCashLogo from "../assets/payments/vodafone-cash.png";
@@ -75,6 +74,15 @@ const Select = lazy(() => import("react-select"));
 const LazyFiltersDrawer = lazy(() => Promise.resolve({ default: MobileFilterDrawer }));
 const LazyProductCardVariantSheet = lazy(() => Promise.resolve({ default: ProductCardVariantSheet }));
 const LazyProductDetailsVariantSheet = lazy(() => Promise.resolve({ default: ProductDetailsVariantSheet }));
+const LazyStorefrontAiSupportWidget = lazy(() => import("./components/StorefrontAiSupportWidget"));
+const LazyStorefrontCheckoutSummary = lazy(() => import("./components/StorefrontCheckoutSummary"));
+const LazyStorefrontVisualSearchResults = lazy(() => import("./components/StorefrontVisualSearchResults"));
+const LazyStorefrontProductGallery = lazy(() => import("./components/StorefrontProductGallery"));
+const LazyStorefrontCartPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.CartPageRoute })));
+const LazyStorefrontTrackOrderPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.TrackOrderPage })));
+const LazyStorefrontAccountPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.AccountPageRoute })));
+const LazyStorefrontWishlistPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.WishlistPageRoute })));
+const LazyStorefrontRecentPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.RecentPageRoute })));
 
 const CART_KEY = "storefront.cart";
 const LEGACY_CART_KEYS = [
@@ -112,9 +120,20 @@ const homeSellingBadges = [
 const storefrontApi = {
   getProductDetails(identifier, options = {}) {
     const routeValue = String(identifier || "");
+    const { ttlMs: ttlMsInput, allowCache = true, ...requestOptions } = options || {};
+    const ttlMs = Number(ttlMsInput || STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS);
+    const cached = allowCache ? getCachedProductDetails(routeValue, { ttlMs }) : null;
+    if (cached) return Promise.resolve(cached);
+    if (allowCache && storefrontProductDetailsInFlight.has(routeValue)) {
+      storefrontDebugLog("[storefront-cache-hit]", {
+        url: `/storefront/products/resolve/${encodeURIComponent(routeValue)}`,
+        ttlMs,
+        strategy: "product-details-in-flight",
+      });
+      return storefrontProductDetailsInFlight.get(routeValue);
+    }
     const endpoint = `/storefront/products/resolve/${encodeURIComponent(routeValue)}`;
-    const cacheBust = Date.now();
-    const apiUrl = `${API_BASE_URL}${endpoint}${endpoint.includes("?") ? "&" : "?"}_qr_ts=${cacheBust}`;
+    const apiUrl = `${API_BASE_URL}${endpoint}`;
     if (storefrontDebugEnabled()) console.log("[storefront-product] resolver request", {
       identifier: routeValue,
       routeIdentifier: routeValue,
@@ -123,18 +142,37 @@ const storefrontApi = {
       apiUrl,
       apiBaseUrl: API_BASE_URL,
     });
-    return api.get(endpoint, {
-      ...options,
-      params: { ...(options.params || {}), _qr_ts: cacheBust },
-      cache: "no-store",
-      headers: {
-        ...(options.headers || {}),
-        "Cache-Control": "no-store",
-        Pragma: "no-cache",
-      },
-      debugLabel: "storefront-product-details",
+    storefrontDebugLog("[storefront-cache-miss]", {
+      url: endpoint,
+      ttlMs,
+      strategy: allowCache ? "product-details-network" : "product-details-no-store",
     });
+    const request = api.get(endpoint, {
+      ...requestOptions,
+      debugLabel: "storefront-product-details",
+    }).then((data) => {
+      if (allowCache) setCachedProductDetails(routeValue, data);
+      return data;
+    }).finally(() => {
+      storefrontProductDetailsInFlight.delete(routeValue);
+    });
+    if (allowCache) storefrontProductDetailsInFlight.set(routeValue, request);
+    return request;
   },
+};
+const prefetchStorefrontProductDetails = (identifier) => {
+  const key = String(identifier || "").trim();
+  if (!key) return;
+  if (storefrontPrefetchedDetails.has(key)) return;
+  if (storefrontPrefetchedDetails.size >= STOREFRONT_PREFETCH_LIMIT) return;
+  storefrontPrefetchedDetails.add(key);
+  storefrontDebugLog("[storefront-prefetch-count]", {
+    count: storefrontPrefetchedDetails.size,
+    identifier: key,
+  });
+  void storefrontApi.getProductDetails(key, { ttlMs: STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS }).catch(() => {
+    storefrontPrefetchedDetails.delete(key);
+  });
 };
 const productFromDetailsResponse = (data = {}) => data?.product || data?.data?.product || (data?.id ? data : null);
 const MANUAL_CITY_AREA = "منطقة أخرى / اكتب يدويًا";
@@ -1691,20 +1729,38 @@ const heroSizesForProduct = (product = {}, limit = 5) => {
 const storefrontGetCache = new Map();
 const storefrontGetInFlight = new Map();
 const STOREFRONT_GET_CACHE_TTL_MS = 60 * 1000;
+const STOREFRONT_PRODUCTS_CACHE_TTL_MS = 30 * 1000;
+const STOREFRONT_HOME_CACHE_TTL_MS = 60 * 1000;
+const STOREFRONT_GENDER_CACHE_TTL_MS = 10 * 60 * 1000;
+const STOREFRONT_LAST_PIECE_CACHE_TTL_MS = 20 * 1000;
+const STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS = 60 * 1000;
+const STOREFRONT_PREFETCH_LIMIT = 12;
+const storefrontProductDetailsCache = new Map();
+const storefrontProductDetailsInFlight = new Map();
+const storefrontPrefetchedDetails = new Set();
+
+const storefrontDebugLog = (label, payload = {}) => {
+  if (!import.meta.env.DEV) return;
+  console.log(label, payload);
+};
 
 const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) => {
   if (ttlMs <= 0) {
+    storefrontDebugLog("[storefront-cache-miss]", { url, ttlMs, strategy: "no-store" });
     return api.get(url, { cache: "no-store", headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } });
   }
   const now = Date.now();
   const cached = storefrontGetCache.get(url);
   if (cached && now - cached.at < ttlMs) {
+    storefrontDebugLog("[storefront-cache-hit]", { url, ttlMs, ageMs: now - cached.at });
     return Promise.resolve(cached.data);
   }
   if (storefrontGetInFlight.has(url)) {
+    storefrontDebugLog("[storefront-cache-hit]", { url, ttlMs, strategy: "in-flight" });
     return storefrontGetInFlight.get(url);
   }
 
+  storefrontDebugLog("[storefront-cache-miss]", { url, ttlMs, strategy: "network" });
   const request = api.get(url)
     .then((data) => {
       storefrontGetCache.set(url, { at: Date.now(), data });
@@ -1715,6 +1771,26 @@ const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) 
     });
   storefrontGetInFlight.set(url, request);
   return request;
+};
+
+const getCachedProductDetails = (identifier, { ttlMs = STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS } = {}) => {
+  const key = String(identifier || "").trim();
+  if (!key) return null;
+  const cached = storefrontProductDetailsCache.get(key);
+  if (!cached) return null;
+  const ageMs = Date.now() - cached.at;
+  if (ageMs >= ttlMs) {
+    storefrontProductDetailsCache.delete(key);
+    return null;
+  }
+  storefrontDebugLog("[storefront-cache-hit]", { url: `/storefront/products/resolve/${encodeURIComponent(key)}`, ttlMs, ageMs, strategy: "product-details-memory" });
+  return cached.data;
+};
+
+const setCachedProductDetails = (identifier, data) => {
+  const key = String(identifier || "").trim();
+  if (!key || !data) return;
+  storefrontProductDetailsCache.set(key, { at: Date.now(), data });
 };
 
 const useProducts = (params = {}) => {
@@ -1753,7 +1829,7 @@ const useProducts = (params = {}) => {
         url: `/storefront/products${queryString ? `?${queryString}` : ""}`,
       });
     }
-    cachedStorefrontGet(`/storefront/products${queryString ? `?${queryString}` : ""}`, { ttlMs: 0 })
+    cachedStorefrontGet(`/storefront/products${queryString ? `?${queryString}` : ""}`, { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS })
       .then((data) => {
         const products = Array.isArray(data.products) ? data.products : [];
         if (import.meta.env.DEV) {
@@ -1856,37 +1932,9 @@ const useStorefrontHome = () => {
 
   useEffect(() => {
     let cancelled = false;
-    const loadHome = async () => {
-      const res = await fetch(homeRequestUrl, {
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-      });
-      const contentType = res.headers.get("content-type") || "";
-      const rawText = await res.text();
-      let json = null;
-      let parseError = "";
-      try {
-        json = rawText ? JSON.parse(rawText) : null;
-      } catch (error) {
-        parseError = error?.message || "Failed to parse JSON";
-      }
-      if (!res.ok) {
-        const error = new Error(json?.message || json?.error || `Storefront home request failed (${res.status})`);
-        error.status = res.status;
-        error.responseBody = json;
-        throw error;
-      }
-      if (parseError) {
-        const error = new Error(parseError);
-        error.status = res.status;
-        error.responseBody = null;
-        throw error;
-      }
-      return { json };
-    };
 
-    loadHome()
-      .then(({ json }) => {
+    cachedStorefrontGet(homeEndpoint, { ttlMs: STOREFRONT_HOME_CACHE_TTL_MS })
+      .then((json) => {
         const home = getStorefrontHomeFromResponse(json);
         const hero = home.hero ? normalizeHomeProduct(home.hero) : null;
         const collections = (Array.isArray(home.featured_collections) ? home.featured_collections : [])
@@ -1911,7 +1959,7 @@ const useStorefrontGenderClassifications = () => {
 
   useEffect(() => {
     let cancelled = false;
-    cachedStorefrontGet("/storefront/classifications/gender", { ttlMs: 0 })
+    cachedStorefrontGet("/storefront/classifications/gender", { ttlMs: STOREFRONT_GENDER_CACHE_TTL_MS })
       .then((data) => {
         if (!cancelled) setState({ loading: false, error: "", options: uniqueClassificationOptions(data?.options || []) });
       })
@@ -1947,7 +1995,7 @@ const useLastPiece = (params = {}, options = {}) => {
     deferReactState(() => {
       if (!cancelled) setState((prev) => ({ ...prev, loading: true, error: "" }));
     });
-    cachedStorefrontGet(`/storefront/last-piece${queryString ? `?${queryString}` : ""}`, { ttlMs: 0 })
+    cachedStorefrontGet(`/storefront/last-piece${queryString ? `?${queryString}` : ""}`, { ttlMs: STOREFRONT_LAST_PIECE_CACHE_TTL_MS })
       .then((data) => {
         if (!cancelled) {
           setState({
@@ -1972,949 +2020,6 @@ const useLastPiece = (params = {}, options = {}) => {
 
   return state;
 };
-
-function AiVisualAttachments({ attachments = [], onOpenProduct }) {
-  const visualAttachments = Array.isArray(attachments) ? attachments.filter(Boolean) : [];
-  if (!visualAttachments.length) return null;
-
-  return (
-    <div className="mt-3 space-y-2.5">
-      {visualAttachments.map((attachment, sectionIndex) => {
-        if (attachment.type === "size_guide") {
-          const sizes = Array.isArray(attachment.sizes) ? attachment.sizes.filter(Boolean) : [];
-          if (!sizes.length) return null;
-          return (
-            <div key={`${attachment.type}-${sectionIndex}`} className="rounded-2xl border border-stone-200 bg-white/75 p-3 dark:border-white/10 dark:bg-white/10">
-              <div className="text-xs font-black text-stone-700 dark:text-stone-100">{attachment.title || "دليل المقاسات"}</div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {sizes.slice(0, 14).map((size) => (
-                  <span key={size} className="rounded-full bg-stone-950 px-2.5 py-1 text-[11px] font-black text-white dark:bg-white dark:text-stone-950">{size}</span>
-                ))}
-              </div>
-              {attachment.note ? <p className="mt-2 text-[11px] font-bold leading-5 text-stone-500 dark:text-stone-300">{attachment.note}</p> : null}
-            </div>
-          );
-        }
-
-        if (attachment.url) {
-          return (
-            <button
-              key={`${attachment.type || "image"}-${sectionIndex}`}
-              type="button"
-              onClick={() => onOpenProduct?.({ id: attachment.product_id, product_url: attachment.product_url, name: attachment.title })}
-              className="w-full rounded-2xl border border-stone-200 bg-white/75 p-2 text-right shadow-sm transition hover:-translate-y-0.5 active:scale-[0.99] dark:border-white/10 dark:bg-white/10"
-            >
-              <img src={imageFor(attachment.url)} onError={fallbackProductImage} alt={attachment.title || "صورة المنتج"} className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" />
-              <span className="mt-2 block truncate text-[11px] font-black text-stone-950 dark:text-white">{attachment.title || "صورة المنتج"}</span>
-              {attachment.subtitle ? <span className="mt-0.5 block truncate text-[10px] font-bold text-stone-500 dark:text-stone-300">{attachment.subtitle}</span> : null}
-            </button>
-          );
-        }
-
-        const items = Array.isArray(attachment.items) ? attachment.items.filter((item) => item?.image_url) : [];
-        if (!items.length) return null;
-        return (
-          <div key={`${attachment.type}-${sectionIndex}`} className="rounded-2xl border border-stone-200 bg-white/75 p-2.5 dark:border-white/10 dark:bg-white/10">
-            <div className="mb-2 px-1 text-xs font-black text-stone-700 dark:text-stone-100">{attachment.title || "صور مقترحة"}</div>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {items.slice(0, 8).map((item, index) => (
-                <button
-                  key={`${item.id || item.product_id || index}`}
-                  type="button"
-                  onClick={() => onOpenProduct?.({ id: item.product_id || item.id, product_url: item.product_url, name: item.title })}
-                  className="min-w-[8.5rem] max-w-[8.5rem] rounded-2xl border border-stone-200 bg-white p-2 text-right shadow-sm transition hover:-translate-y-0.5 active:scale-[0.99] dark:border-white/10 dark:bg-[#080d1a]"
-                >
-                  <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt={item.title || "صورة المنتج"} className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" />
-                  <span className="mt-2 block truncate text-[11px] font-black text-stone-950 dark:text-white">{item.title || "منتج"}</span>
-                  {item.subtitle ? <span className="mt-0.5 block truncate text-[10px] font-bold text-stone-500 dark:text-stone-300">{item.subtitle}</span> : null}
-                  <span className="mt-1 flex items-center justify-between gap-1 text-[10px] font-black text-stone-600 dark:text-stone-300">
-                    <span>{Number(item.price || 0) > 0 ? money(item.price) : "السعر غير محدد"}</span>
-                    <ChevronLeft className="h-3.5 w-3.5 shrink-0" />
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function AiSupportChatWidget({ onAddToCart }) {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState(() => []);
-  const [loading, setLoading] = useState(false);
-  const [imageLoading, setImageLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [lastQuestion, setLastQuestion] = useState("");
-  const [dragActive, setDragActive] = useState(false);
-  const [showAssistantHint, setShowAssistantHint] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return localStorage.getItem(AI_SUPPORT_HINT_DISMISSED_KEY) !== "1";
-    } catch {
-      return false;
-    }
-  });
-  const [hasUnreadResponse, setHasUnreadResponse] = useState(false);
-  const cameraInputRef = useRef(null);
-  const galleryInputRef = useRef(null);
-  const imagePreviewUrlsRef = useRef([]);
-  const openRef = useRef(open);
-  const sessionId = useMemo(() => getAiSupportSessionId(), []);
-  const tenantId = useMemo(() => resolveStorefrontTenantId(), []);
-  const [aiSupportContext, setAiSupportContext] = useState(() => loadAiSupportContext(sessionId));
-
-  useEffect(() => {
-    openRef.current = open;
-  }, [open]);
-
-  const dismissAssistantHint = useCallback(() => {
-    setShowAssistantHint(false);
-    try {
-      localStorage.setItem(AI_SUPPORT_HINT_DISMISSED_KEY, "1");
-    } catch {
-      // Local storage can be unavailable in private browsing; the hint can still dismiss for this render.
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!showAssistantHint) return undefined;
-    const timeout = window.setTimeout(dismissAssistantHint, 4500);
-    return () => window.clearTimeout(timeout);
-  }, [dismissAssistantHint, showAssistantHint]);
-
-  useEffect(() => () => {
-    imagePreviewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-    imagePreviewUrlsRef.current = [];
-  }, []);
-
-  useEffect(() => {
-    setAiSupportContext(loadAiSupportContext(sessionId));
-  }, [sessionId]);
-
-  useEffect(() => {
-    saveAiSupportContext(sessionId, aiSupportContext);
-  }, [aiSupportContext, sessionId]);
-
-  const supportHref = useMemo(() => {
-    const text = encodeURIComponent(`محتاج مساعدة من الدعم بخصوص محادثة رقم ${sessionId}`);
-    return whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${text}` : "/shop/contact";
-  }, [sessionId]);
-
-  const pushAiSupportContext = useCallback((patch = {}) => {
-    setAiSupportContext((current) => mergeAiSupportContext(current, patch));
-  }, []);
-
-  const submitQuestion = useCallback(async (questionText, options = {}) => {
-    if (aiSupportContext.handoff && !options.force) {
-      setError(sfText("storefront.aiSupport.handoffActive", "A human is now handling this chat."));
-      return;
-    }
-    const text = cleanDisplayText(questionText || input);
-    if (!text || loading || imageLoading) return;
-    setInput("");
-    setError("");
-    setLastQuestion(text);
-    setMessages((items) => [...items, { id: `u_${Date.now()}`, role: "user", answer: text }]);
-    setLoading(true);
-    try {
-      const contextualPayload = mergeAiSupportContext(aiSupportContext, options.context || {});
-      const response = await api.post(
-        "/ai-support/chat",
-        {
-          message: text,
-          customer_message: text,
-          session_id: sessionId,
-          tenant_id: tenantId,
-          metadata: {
-            channel: "storefront_chat",
-            surface: "shop",
-            selected_product_context: contextualPayload.selected_product_context || null,
-            selected_product_id: contextualPayload.selected_product_id || "",
-            selected_variant_id: contextualPayload.selected_variant_id || "",
-            selected_size: contextualPayload.selected_size || "",
-            selected_color: contextualPayload.selected_color || "",
-            selected_color_key: contextualPayload.selected_color_key || "",
-            rejected_product_context: contextualPayload.rejected_product_context || null,
-            last_action: contextualPayload.last_action || "",
-            handoff: contextualPayload.handoff === true,
-            selected_product_cards: contextualPayload.last_shown_product_cards || [],
-            selected_image_cards: contextualPayload.last_shown_image_cards || [],
-            ...(options.metadata || {}),
-          },
-        },
-        { timeoutMs: 30000, headers: { "x-tenant-id": tenantId } }
-      );
-      if (isAiSupportDebugEnabled()) {
-        console.debug("[storefront-ai] chat response suggested_products", {
-          answer: response?.answer,
-          detected_intent: response?.detected_intent,
-          fallback_reason: response?.fallback_reason,
-          suggested_products: response?.suggested_products,
-        });
-      }
-      const unifiedReply = getUnifiedAiReply(response);
-      const productCards = unifiedReplyProductCards(response);
-      const imageCards = unifiedReplyImageCards(response);
-      const quickReplies = unifiedReplyQuickReplies(response);
-      const actions = unifiedReplyActions(response);
-      pushAiSupportContext({
-        last_shown_product_cards: productCards,
-        last_shown_image_cards: imageCards,
-        last_action: options.metadata?.last_action || contextualPayload.last_action || "",
-        handoff: Boolean(unifiedReply?.handoff?.needs_human_support || response?.needs_human_support || contextualPayload.handoff),
-      });
-      if (isAiSupportDebugEnabled()) {
-        console.debug("[storefront-ai] unified reply render payload", {
-          channel: response?.channel || "storefront_chat",
-          conversation_id: response?.session_id || sessionId,
-          inbound_text: text,
-          intent: unifiedReply?.intent || response?.detected_intent || "",
-          products_count: Array.isArray(unifiedReply?.products) ? unifiedReply.products.length : 0,
-          product_cards_count: Array.isArray(productCards) ? productCards.length : 0,
-          image_cards_count: Array.isArray(imageCards) ? imageCards.length : 0,
-          quick_replies_count: Array.isArray(quickReplies) ? quickReplies.length : 0,
-          actions_count: Array.isArray(actions) ? actions.length : 0,
-        });
-      }
-      const isGreetingOnly = isAiGreetingOnlyResponse(response);
-      setMessages((items) => {
-        const clearedCount = isGreetingOnly ? countAiProductUiCards(items) : 0;
-        if (isGreetingOnly) {
-          console.debug("[storefront-ai] greeting_only_ui_reset", {
-            cleared_product_cards_count: clearedCount,
-            detected_intent: response?.detected_intent,
-          });
-          console.debug("[storefront-ai] cleared_product_cards_count", clearedCount);
-        }
-        const baseItems = isGreetingOnly ? clearAiProductUiState(items) : items;
-        return [
-          ...baseItems,
-          {
-            id: `a_${Date.now()}`,
-            role: "assistant",
-            answer: unifiedReply?.text || response?.answer || "مش قادر أأكد الإجابة من بيانات المتجر حاليا. تواصل مع الدعم لو سمحت.",
-            reply_text: unifiedReply?.text || response?.answer || "",
-            confidence: Number(response?.confidence || 0),
-            needs_human_support: Boolean(response?.needs_human_support),
-            detected_intent: response?.detected_intent || "",
-            greeting_only_mode: Boolean(response?.greeting_only_mode),
-            suggested_products: isGreetingOnly ? [] : productCards,
-            visual_attachments: isGreetingOnly ? [] : imageCards,
-            unified_reply: isGreetingOnly ? null : unifiedReply,
-            product_cards: isGreetingOnly ? [] : productCards,
-            image_cards: isGreetingOnly ? [] : imageCards,
-            quick_replies: isGreetingOnly ? [] : quickReplies,
-            actions: isGreetingOnly ? [] : actions,
-            handoff: unifiedReply?.handoff || response?.handoff || null,
-            draft_order: unifiedReply?.draft_order || response?.draft_order || null,
-          },
-        ];
-      });
-      if (!openRef.current) setHasUnreadResponse(true);
-    } catch {
-      setError(sfText("storefront.toasts.aiReplyFailed", "There was a problem with the reply. Try again or contact support."));
-    } finally {
-      setLoading(false);
-    }
-  }, [aiSupportContext, imageLoading, input, loading, pushAiSupportContext, sessionId, tenantId]);
-
-  const submitImage = useCallback(async (file) => {
-    if (!file || loading || imageLoading) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setError(sfText("storefront.toasts.unsupportedImageType", "Unsupported image type. Use JPG, PNG, or WEBP."));
-      toast.error(sfText("storefront.toasts.unsupportedImageType", "Unsupported image type. Use JPG, PNG, or WEBP."));
-      return;
-    }
-    if (file.size <= 0) {
-      setError(sfText("storefront.toasts.emptyImage", "The image is empty. Choose a clear image."));
-      toast.error(sfText("storefront.toasts.emptyImage", "The image is empty. Choose a clear image."));
-      return;
-    }
-    if (file.size > 8 * 1024 * 1024) {
-      setError(sfText("storefront.toasts.imageTooLarge", "The image is too large. Upload a smaller image."));
-      toast.error(sfText("storefront.toasts.imageTooLarge", "The image is too large. Upload a smaller image."));
-      return;
-    }
-
-    const previewUrl = URL.createObjectURL(file);
-    imagePreviewUrlsRef.current.push(previewUrl);
-    setError("");
-    setLastQuestion("");
-    setMessages((items) => [
-      ...items,
-      {
-        id: `u_img_${Date.now()}`,
-        role: "user",
-        answer: "دي الصورة اللي بدور على شبهها",
-        image_preview: previewUrl,
-      },
-    ]);
-    setImageLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("image", file);
-      formData.append("tenant_id", tenantId);
-      formData.append("session_id", sessionId);
-      formData.append("metadata", JSON.stringify({ channel: "storefront_chat_image", surface: "shop" }));
-      const response = await api.post(
-        "/ai-support/image-search",
-        formData,
-        { timeoutMs: 45000, headers: { "x-tenant-id": tenantId } }
-      );
-      console.debug("[storefront-ai] image-search raw api response before render", response);
-      logImageSearchSuggestedProductRanking(response);
-      const renderedAnswer = resolveRenderedAiImageAnswer(response);
-      console.debug("[storefront-ai] image-search render sync", {
-        backend_answer: response?.answer,
-        rendered_answer: renderedAnswer,
-        exact_match_found: response?.exact_match_found,
-        exact_match_variant_id: response?.exact_match_variant_id ?? response?.response_debug?.exact_match_variant_id ?? null,
-        final_response_synced_with_variant: response?.final_response_synced_with_variant ?? response?.response_debug?.final_response_synced_with_variant ?? false,
-      });
-      if (isAiSupportDebugEnabled()) {
-        console.debug("[storefront-ai] image-search response", {
-          answer: response?.answer,
-          fallback_reason: response?.fallback_reason,
-          openai_error: response?.openai_error,
-          openai_errors: response?.openai_errors,
-          exact_match_found: response?.exact_match_found,
-          exact_match_reason: response?.exact_match_reason,
-          image_ranking_debug: response?.image_ranking_debug,
-          response_debug: response?.response_debug,
-          suggested_products: response?.suggested_products,
-        });
-      }
-      const unifiedReply = getUnifiedAiReply(response);
-      const productCards = unifiedReplyProductCards(response);
-      const imageCards = unifiedReplyImageCards(response);
-      const quickReplies = unifiedReplyQuickReplies(response);
-      const actions = unifiedReplyActions(response);
-      pushAiSupportContext({
-        last_shown_product_cards: productCards,
-        last_shown_image_cards: imageCards,
-        last_action: "image_search",
-        handoff: Boolean(unifiedReply?.handoff?.needs_human_support || response?.needs_human_support),
-      });
-      setMessages((items) => [
-        ...items,
-        {
-          id: `a_img_${Date.now()}`,
-          role: "assistant",
-          answer: unifiedReply?.text || renderedAnswer,
-          reply_text: unifiedReply?.text || renderedAnswer,
-          confidence: Number(response?.confidence || 0),
-          needs_human_support: Boolean(response?.needs_human_support),
-          suggested_products: productCards,
-          visual_attachments: imageCards,
-          unified_reply: unifiedReply,
-          product_cards: productCards,
-          image_cards: imageCards,
-          quick_replies: quickReplies,
-          actions,
-          handoff: unifiedReply?.handoff || response?.handoff || null,
-          draft_order: unifiedReply?.draft_order || response?.draft_order || null,
-          detected_style_model: response?.detected_style_model || "",
-          image_ranking_debug: response?.image_ranking_debug || null,
-          response_debug: response?.response_debug || null,
-          exact_match_found: Boolean(response?.exact_match_found),
-          exact_match_reason: response?.exact_match_reason || "",
-        },
-      ]);
-      if (!openRef.current) setHasUnreadResponse(true);
-    } catch (requestError) {
-      console.error("[storefront-ai] image-search request failed", {
-        status: requestError?.status,
-        message: requestError?.message,
-        responseBody: requestError?.responseBody,
-        openai_error: requestError?.responseBody?.openai_error,
-        openai_errors: requestError?.responseBody?.openai_errors,
-      });
-      const message =
-        requestError?.responseBody?.answer ||
-        requestError?.responseBody?.message ||
-        (requestError?.message && requestError.message !== "Request Failed" ? requestError.message : "") ||
-        "حصلت مشكلة أثناء تحليل الصورة، حاول مرة تانية.";
-      setError(message);
-      toast.error(message);
-    } finally {
-      setImageLoading(false);
-      if (cameraInputRef.current) cameraInputRef.current.value = "";
-      if (galleryInputRef.current) galleryInputRef.current.value = "";
-    }
-  }, [imageLoading, loading, sessionId, tenantId]);
-
-  const logWebsiteChatEvent = useCallback((eventName, extra = {}) => {
-    if (import.meta.env.DEV) {
-      console.debug(eventName, {
-        channel: "website_chat",
-        conversation_id: sessionId,
-        provider_message_id: extra.provider_message_id || "",
-        tenant_id: tenantId,
-        intent: extra.intent || "",
-        products_count: Number.isFinite(Number(extra.products_count)) ? Number(extra.products_count) : Number(aiSupportContext.last_shown_product_cards?.length || 0),
-        product_cards_count: Number.isFinite(Number(extra.product_cards_count)) ? Number(extra.product_cards_count) : 0,
-        image_cards_count: Number.isFinite(Number(extra.image_cards_count)) ? Number(extra.image_cards_count) : 0,
-        actions_count: Number.isFinite(Number(extra.actions_count)) ? Number(extra.actions_count) : 0,
-        early_return_reason: extra.early_return_reason || "",
-        ...extra,
-      });
-    }
-  }, [aiSupportContext.last_shown_product_cards, sessionId, tenantId]);
-
-  const resolveAiSupportProductDetails = useCallback(async (candidateProduct = null) => {
-    const normalized = normalizeAiSupportCardContext(candidateProduct);
-    if (!normalized) return null;
-    if (Array.isArray(normalized.variants) && normalized.variants.length) return normalized;
-    const identifier = textOrEmpty(normalized.slug || normalized.id || normalized.product_id || normalized.productId || normalized.product_url || normalized.url);
-    if (!identifier) return normalized;
-    try {
-      const response = await storefrontApi.getProductDetails(identifier, { headers: { "x-tenant-id": tenantId } });
-      const product = productFromDetailsResponse(response);
-      return product || normalized;
-    } catch {
-      return normalized;
-    }
-  }, [tenantId]);
-
-  const resolveAiSupportVariantSelection = useCallback(async (candidateProduct = null, selection = {}) => {
-    const product = await resolveAiSupportProductDetails(candidateProduct);
-    if (!product) {
-      return { product: null, variant: null, reason: "missing_product" };
-    }
-    const variants = Array.isArray(product.variants) ? product.variants : [];
-    if (!variants.length) {
-      return { product, variant: null, reason: "missing_variants" };
-    }
-    const selectedSize = textOrEmpty(selection.selected_size || aiSupportContext.selected_size || product.selected_size || product.size || "");
-    const selectedColor = textOrEmpty(selection.selected_color || aiSupportContext.selected_color || product.selected_color || product.color || product.color_name || "");
-    const selectedColorKey = textOrEmpty(selection.selected_color_key || aiSupportContext.selected_color_key || product.selected_color_key || product.color_key || "").toLowerCase();
-    const requestedVariantId = textOrEmpty(selection.selected_variant_id || aiSupportContext.selected_variant_id || product.selected_variant_id || product.variant_id || product.matched_variant_id || "");
-    const availableSizes = [...new Set(variants.filter(variantHasStock).map((variant) => String(variant.size || "").trim()).filter(Boolean))];
-    const colorGroups = getProductColorGroups(product);
-    if (availableSizes.length > 1 && !selectedSize) {
-      return { product, variant: null, reason: "missing_size", availableSizes, colorGroups };
-    }
-    if (colorGroups.length > 1 && !selectedColor && !selectedColorKey) {
-      return { product, variant: null, reason: "missing_color", availableSizes, colorGroups };
-    }
-    const colorMatchKey = selectedColorKey || selectedColor.toLowerCase();
-    const matchedVariant = variants.find((variant) =>
-      requestedVariantId && (
-        String(variant.id) === String(requestedVariantId) ||
-        String(variant.variant_id || "") === String(requestedVariantId) ||
-        String(variant.selected_variant_id || "") === String(requestedVariantId) ||
-        String(variant.edition_slug || "") === String(requestedVariantId)
-      ) && variantHasStock(variant)
-    ) || variants.find((variant) =>
-      selectedSize &&
-      String(variant.size || "").trim() === String(selectedSize).trim() &&
-      (selectedColorKey ? variantColorKey(variant) === selectedColorKey : !selectedColor || variantColorName(variant).toLowerCase() === selectedColor.toLowerCase()) &&
-      variantHasStock(variant)
-    ) || variants.find((variant) =>
-      selectedSize &&
-      String(variant.size || "").trim() === String(selectedSize).trim() &&
-      (!selectedColorKey && !selectedColor)
-    ) || variants.find((variant) =>
-      colorMatchKey && (variantColorKey(variant) === colorMatchKey || variantColorName(variant).toLowerCase() === colorMatchKey) && variantHasStock(variant)
-    ) || firstDisplayVariant(variants);
-    return {
-      product,
-      variant: matchedVariant || null,
-      reason: matchedVariant ? "resolved" : "no_variant",
-      availableSizes,
-      colorGroups,
-    };
-  }, [aiSupportContext.selected_color, aiSupportContext.selected_color_key, aiSupportContext.selected_size, aiSupportContext.selected_variant_id, resolveAiSupportProductDetails]);
-
-  const openProduct = useCallback((product) => {
-    const normalizedProduct = normalizeAiSupportCardContext(product);
-    trackAiSupportClick({ tenantId, sessionId, productId: normalizedProduct?.id || normalizedProduct?.product_id });
-    pushAiSupportContext({
-      selected_product_context: normalizedProduct,
-      selected_product_id: normalizedProduct?.product_id || normalizedProduct?.id || "",
-      selected_variant_id: normalizedProduct?.selected_variant_id || normalizedProduct?.variant_id || "",
-      selected_size: normalizedProduct?.selected_size || aiSupportContext.selected_size || "",
-      selected_color: normalizedProduct?.selected_color || aiSupportContext.selected_color || "",
-      selected_color_key: normalizedProduct?.selected_color_key || aiSupportContext.selected_color_key || "",
-      handoff: false,
-      last_action: "open_product",
-    });
-    navigate(aiSuggestedProductUrl(normalizedProduct));
-    setOpen(false);
-  }, [aiSupportContext.selected_color, aiSupportContext.selected_color_key, aiSupportContext.selected_size, navigate, pushAiSupportContext, sessionId, tenantId]);
-
-  const handleUnifiedActionClick = useCallback(async (action, context = {}) => {
-    const raw = typeof action === "string"
-      ? action
-      : String(action?.action || action?.type || action?.id || action?.value || action?.label || action?.text || "").trim();
-    const key = raw.toLowerCase();
-    if (!key) return;
-
-    const product = normalizeAiSupportCardContext(context.product || context.productCard || context.selectedProduct || context.card || null);
-    const sizeFromAction = textOrEmpty(action?.size || action?.size_value || action?.value || action?.label || action?.text || context.size || context.selected_size || "").replace(/\s+/g, " ");
-    const colorFromAction = textOrEmpty(action?.color || action?.color_value || action?.value || action?.label || action?.text || context.color || context.selected_color || "");
-    const explicitSizeValue = /^\d{1,2}(?:\.\d)?$/.test(sizeFromAction || raw);
-    const knownColorValues = ["black", "white", "gray", "grey", "red", "blue", "green", "beige", "brown", "pink", "yellow", "orange", "purple", "اسود", "أبيض", "ابيض", "رمادي", "احمر", "أحمر", "ازرق", "أزرق", "اخضر", "أخضر", "بيج", "بني", "وردي", "اصفر", "أصفر", "برتقالي", "بنفسجي"];
-    const explicitColorValue = knownColorValues.some((value) => {
-      const candidate = colorFromAction.toLowerCase();
-      const target = String(value || "").toLowerCase();
-      return candidate === target || candidate.includes(target) || target.includes(candidate);
-    });
-    const isSizeAction = ["choose_size", "select_size", "ask_size"].includes(key) || explicitSizeValue;
-    const isColorAction = ["choose_color", "select_color", "ask_color"].includes(key) || explicitColorValue;
-    const messageContext = {
-      selected_product_context: product || aiSupportContext.selected_product_context || null,
-      selected_product_id: product?.product_id || product?.id || aiSupportContext.selected_product_id || "",
-      selected_variant_id: product?.selected_variant_id || product?.variant_id || aiSupportContext.selected_variant_id || "",
-      selected_size: sizeFromAction || aiSupportContext.selected_size || "",
-      selected_color: colorFromAction || aiSupportContext.selected_color || "",
-      selected_color_key: textOrEmpty(action?.color_key || action?.selected_color_key || context.color_key || aiSupportContext.selected_color_key || "").toLowerCase(),
-      rejected_product_context: aiSupportContext.rejected_product_context || null,
-      last_action: key,
-      handoff: aiSupportContext.handoff === true,
-      last_shown_product_cards: aiSupportContext.last_shown_product_cards || [],
-      last_shown_image_cards: aiSupportContext.last_shown_image_cards || [],
-    };
-
-    logWebsiteChatEvent("WEBSITE_CHAT_ACTION_CLICKED", {
-      intent: key,
-      products_count: Array.isArray(aiSupportContext.last_shown_product_cards) ? aiSupportContext.last_shown_product_cards.length : 0,
-      product_cards_count: Array.isArray(aiSupportContext.last_shown_product_cards) ? aiSupportContext.last_shown_product_cards.length : 0,
-      image_cards_count: Array.isArray(aiSupportContext.last_shown_image_cards) ? aiSupportContext.last_shown_image_cards.length : 0,
-      actions_count: Array.isArray(action?.actions) ? action.actions.length : 0,
-      selected_product_id: messageContext.selected_product_id,
-      selected_variant_id: messageContext.selected_variant_id,
-      selected_size: messageContext.selected_size,
-      selected_color: messageContext.selected_color,
-    });
-
-    if (["choose_size", "select_size", "ask_size"].includes(key) || isSizeAction) {
-      const selectedSize = explicitSizeValue ? (sizeFromAction || raw) : (context.size || context.selected_size || aiSupportContext.selected_size || "");
-      pushAiSupportContext({ ...messageContext, selected_size: selectedSize, last_action: "choose_size" });
-      await submitQuestion(selectedSize || "عايز مقاس", {
-        metadata: {
-          last_action: "choose_size",
-          selected_size: selectedSize,
-          selected_product_context: messageContext.selected_product_context,
-          selected_product_id: messageContext.selected_product_id,
-          selected_color: messageContext.selected_color,
-        },
-        context: { ...messageContext, selected_size: selectedSize },
-      });
-      return;
-    }
-    if (["choose_color", "select_color", "ask_color"].includes(key) || isColorAction) {
-      const selectedColor = explicitColorValue ? (colorFromAction || raw) : (context.color || context.selected_color || aiSupportContext.selected_color || "");
-      pushAiSupportContext({ ...messageContext, selected_color: selectedColor, last_action: "choose_color" });
-      await submitQuestion(selectedColor || "الألوان المتاحة؟", {
-        metadata: {
-          last_action: "choose_color",
-          selected_color: selectedColor,
-          selected_product_context: messageContext.selected_product_context,
-          selected_product_id: messageContext.selected_product_id,
-          selected_size: messageContext.selected_size,
-        },
-        context: { ...messageContext, selected_color: selectedColor },
-      });
-      return;
-    }
-    if (["ask_for_more_images", "show_more_images", "more_images"].includes(key)) {
-      pushAiSupportContext({ ...messageContext, last_action: "more_images" });
-      await submitQuestion("صور أكتر", {
-        metadata: {
-          last_action: "more_images",
-          selected_product_context: messageContext.selected_product_context,
-          selected_product_id: messageContext.selected_product_id,
-          selected_size: messageContext.selected_size,
-          selected_color: messageContext.selected_color,
-        },
-        context: messageContext,
-      });
-      return;
-    }
-    if (["show_alternatives", "alternatives", "similar_products"].includes(key)) {
-      pushAiSupportContext({ ...messageContext, rejected_product_context: messageContext.selected_product_context || messageContext.rejected_product_context || null, last_action: "show_alternatives" });
-      await submitQuestion("مش عاجبني، وريني بدائل", {
-        metadata: {
-          last_action: "show_alternatives",
-          selected_product_context: messageContext.selected_product_context,
-          rejected_product_context: messageContext.selected_product_context || messageContext.rejected_product_context || null,
-          selected_size: messageContext.selected_size,
-          selected_color: messageContext.selected_color,
-        },
-        context: messageContext,
-      });
-      return;
-    }
-    if (["escalate_to_human", "human_handoff", "handoff", "contact_support"].includes(key)) {
-      logWebsiteChatEvent("WEBSITE_CHAT_HANDOFF_TRIGGERED", {
-        intent: "human_handoff",
-        early_return_reason: "website_handoff_requested",
-      });
-      pushAiSupportContext({ ...messageContext, handoff: true, last_action: "escalate_to_human" });
-      await submitQuestion("كلم بني آدم", {
-        force: true,
-        metadata: {
-          last_action: "escalate_to_human",
-          conversation_status: "human_takeover",
-          handoff_requested: true,
-          selected_product_context: messageContext.selected_product_context,
-          selected_product_id: messageContext.selected_product_id,
-        },
-        context: { ...messageContext, handoff: true },
-      });
-      window.open(supportHref, "_blank", "noreferrer");
-      return;
-    }
-    if (["add_to_cart", "buy_now", "buy_now_action", "checkout", "order_now"].includes(key)) {
-      const selection = await resolveAiSupportVariantSelection(product || messageContext.selected_product_context, messageContext);
-      if (!selection.product) {
-        logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "missing_product_context" });
-        await submitQuestion("عايز أشتري", { metadata: { last_action: key, ...messageContext }, context: messageContext });
-        return;
-      }
-      if (selection.reason === "missing_size") {
-        logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "missing_size" });
-        await submitQuestion("عايز مقاس كام؟", {
-          metadata: {
-            last_action: key,
-            selected_product_context: selection.product,
-            selected_product_id: selection.product?.id || selection.product?.product_id || "",
-            selected_color: messageContext.selected_color,
-            selected_color_key: messageContext.selected_color_key,
-          },
-          context: { ...messageContext, selected_product_context: selection.product },
-        });
-        return;
-      }
-      if (selection.reason === "missing_color") {
-        logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "missing_color" });
-        await submitQuestion("أي لون تفضل؟", {
-          metadata: {
-            last_action: key,
-            selected_product_context: selection.product,
-            selected_product_id: selection.product?.id || selection.product?.product_id || "",
-            selected_size: messageContext.selected_size,
-          },
-          context: { ...messageContext, selected_product_context: selection.product },
-        });
-        return;
-      }
-      const resolvedProduct = selection.product;
-      const resolvedVariant = selection.variant;
-      if (!resolvedVariant) {
-        logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: selection.reason || "variant_resolution_failed" });
-        await submitQuestion("مش قادر أحدد النسخة المناسبة دلوقتي، جرب مرة تانية أو ابعت صورة أوضح.", {
-          metadata: { last_action: key, selected_product_context: resolvedProduct },
-          context: { ...messageContext, selected_product_context: resolvedProduct },
-        });
-        return;
-      }
-      logWebsiteChatEvent("WEBSITE_CHAT_VARIANT_RESOLVED", {
-        intent: key,
-        selected_product_id: resolvedProduct?.id || resolvedProduct?.product_id || "",
-        selected_variant_id: resolvedVariant?.id || resolvedVariant?.variant_id || "",
-        selected_size: resolvedVariant?.size || messageContext.selected_size || "",
-        selected_color: resolvedVariant?.color || resolvedVariant?.color_name || messageContext.selected_color || "",
-      });
-      pushAiSupportContext({
-        selected_product_context: resolvedProduct,
-        selected_product_id: resolvedProduct?.id || resolvedProduct?.product_id || "",
-        selected_variant_id: resolvedVariant?.id || resolvedVariant?.variant_id || "",
-        selected_size: resolvedVariant?.size || messageContext.selected_size || "",
-        selected_color: resolvedVariant?.color || resolvedVariant?.color_name || messageContext.selected_color || "",
-        selected_color_key: variantColorKey(resolvedVariant),
-        last_action: key,
-      });
-      const result = onAddToCart(resolvedProduct, resolvedVariant, 1);
-      if (result === "capture_required") {
-        logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "customer_capture_required" });
-        await submitQuestion("لازم أولًا أراجع بياناتك قبل ما أكمل الإضافة للسلة.", {
-          force: true,
-          metadata: {
-            last_action: key,
-            selected_product_context: resolvedProduct,
-            selected_variant_id: resolvedVariant?.id || resolvedVariant?.variant_id || "",
-          },
-          context: { ...messageContext, selected_product_context: resolvedProduct, selected_variant_id: resolvedVariant?.id || resolvedVariant?.variant_id || "" },
-        });
-        return;
-      }
-      if (result === "added") {
-        trackAiSupportCartOutcome({ tenantId, sessionId, productId: resolvedProduct?.id || resolvedProduct?.product_id || "" });
-        logWebsiteChatEvent("WEBSITE_CHAT_ADD_TO_CART_SUCCESS", {
-          intent: key,
-          selected_product_id: resolvedProduct?.id || resolvedProduct?.product_id || "",
-          selected_variant_id: resolvedVariant?.id || resolvedVariant?.variant_id || "",
-          selected_size: resolvedVariant?.size || messageContext.selected_size || "",
-          selected_color: resolvedVariant?.color || resolvedVariant?.color_name || messageContext.selected_color || "",
-        });
-        setMessages((items) => [
-          ...items,
-          {
-            id: `a_cart_${Date.now()}`,
-            role: "assistant",
-            answer: `تمام، ضفت ${cleanDisplayText(mirrorProductTitle(resolvedProduct, resolvedVariant) || resolvedProduct.name || "المنتج")} ${resolvedVariant?.size ? `مقاس ${resolvedVariant.size}` : ""}${resolvedVariant?.color ? ` - ${resolvedVariant.color}` : ""} للسلة.`,
-            reply_text: `تمام، ضفت ${cleanDisplayText(mirrorProductTitle(resolvedProduct, resolvedVariant) || resolvedProduct.name || "المنتج")} ${resolvedVariant?.size ? `مقاس ${resolvedVariant.size}` : ""}${resolvedVariant?.color ? ` - ${resolvedVariant.color}` : ""} للسلة.`,
-            confidence: 1,
-            needs_human_support: false,
-            detected_intent: "cart_confirmation",
-            handoff: null,
-            draft_order: null,
-          },
-        ]);
-      }
-      if (["buy_now", "buy_now_action", "checkout", "order_now"].includes(key)) {
-        navigate("/shop/checkout");
-      }
-      return;
-    }
-
-    if (raw.length && raw.length <= 64) {
-      await submitQuestion(raw, { context: messageContext, metadata: { last_action: key } });
-    }
-  }, [aiSupportContext, navigate, onAddToCart, pushAiSupportContext, resolveAiSupportVariantSelection, sessionId, submitQuestion, supportHref, tenantId, logWebsiteChatEvent]);
-
-  const handleImageInputChange = useCallback((event) => {
-    const file = event.target.files?.[0];
-    if (file) submitImage(file);
-  }, [submitImage]);
-
-  const handleDrop = useCallback((event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setDragActive(false);
-    const file = Array.from(event.dataTransfer?.files || []).find((item) => item.type?.startsWith("image/"));
-    if (file) submitImage(file);
-  }, [submitImage]);
-
-  const openAssistant = useCallback(() => {
-    dismissAssistantHint();
-    setHasUnreadResponse(false);
-    setOpen(true);
-  }, [dismissAssistantHint]);
-
-  return (
-    <section
-      dir="rtl"
-      className={`sf-ai-chat ${open ? "sf-ai-chat--open" : "sf-ai-chat--collapsed"}`}
-      aria-label={t("storefront.aiSupport.aria", "Smart store assistant")}
-    >
-      {open ? (
-        <div
-          className={`sf-ai-chat-panel flex flex-col overflow-hidden rounded-[1.55rem] border bg-white/96 text-stone-950 shadow-[0_24px_70px_rgba(39,20,75,0.24)] backdrop-blur-2xl dark:bg-[#080d1a]/96 dark:text-stone-100 ${dragActive ? "border-[#7c3aed] ring-4 ring-[#7c3aed]/20" : "border-white/70 dark:border-white/10"}`}
-          onDragEnter={(event) => {
-            event.preventDefault();
-            setDragActive(true);
-          }}
-          onDragOver={(event) => {
-            event.preventDefault();
-            setDragActive(true);
-          }}
-          onDragLeave={(event) => {
-            event.preventDefault();
-            if (event.currentTarget === event.target) setDragActive(false);
-          }}
-          onDrop={handleDrop}
-        >
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200/70 bg-gradient-to-l from-stone-950 via-[#3b1d78] to-[#7c3aed] px-3.5 py-3 text-white dark:border-white/10">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/15 shadow-inner">
-                <Sparkles className="h-[18px] w-[18px]" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-black">{t("storefront.aiSupport.title", "Store assistant")}</p>
-                <p className="truncate text-[11px] font-bold text-white/70">{t("storefront.aiSupport.subtitle", "Answers from store data only")}</p>
-              </div>
-            </div>
-            <button type="button" onClick={() => setOpen(false)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 active:scale-95" aria-label={t("storefront.aiSupport.closeChat", "Close chat")}>
-              <X className="h-[18px] w-[18px]" />
-            </button>
-          </div>
-
-          <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto bg-[#f7f4ee] px-3 py-3.5 dark:bg-[#070b16]">
-            {messages.map((message) => (
-              <div key={message.id} className={`sf-ai-chat-message-row flex ${message.role === "user" ? "sf-ai-chat-message-row--user justify-end" : "sf-ai-chat-message-row--assistant justify-start"}`}>
-                <div className={`sf-ai-chat-bubble max-w-[82%] rounded-[1.35rem] px-3.5 py-2.5 text-[13px] font-bold leading-6 shadow-sm sm:max-w-[86%] ${message.role === "user" ? "sf-ai-chat-bubble--user rounded-tl-md" : "sf-ai-chat-bubble--assistant rounded-tr-md"}`}>
-                  <p className="whitespace-pre-wrap break-words">{message.unified_reply?.text || message.reply_text || message.answer}</p>
-                  {message.role === "assistant" && message.unified_reply ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-stone-500 dark:text-stone-300">
-                      {message.unified_reply.intent ? <span className="rounded-full bg-white/70 px-2 py-1 dark:bg-white/10">Intent: {message.unified_reply.intent}</span> : null}
-                      {Number.isFinite(Number(message.unified_reply.confidence)) ? <span className="rounded-full bg-white/70 px-2 py-1 dark:bg-white/10">Confidence: {Math.round(Number(message.unified_reply.confidence) * 100)}%</span> : null}
-                    </div>
-                  ) : null}
-                  {message.image_preview ? (
-                    <img src={message.image_preview} alt={t("storefront.aiSupport.uploadedImageAlt", "Uploaded image")} className="mt-2 max-h-44 w-full rounded-2xl object-cover ring-1 ring-white/30" />
-                  ) : null}
-                  {message.role === "assistant" && message.detected_style_model ? (
-                    <p className="mt-2 rounded-2xl bg-white/60 px-3 py-2 text-[11px] font-black text-stone-600 dark:bg-white/10 dark:text-stone-200">
-                      {message.detected_style_model}
-                    </p>
-                  ) : null}
-                  {message.role === "assistant" && Array.isArray(message.suggested_products) && message.suggested_products.length > 0 && !Array.isArray(message.product_cards) && (
-                    <div className="mt-3 grid gap-2">
-                      {message.suggested_products.slice(0, 3).map((product, index) => (
-                        <button key={`${product.id || product.sku || index}`} type="button" onClick={() => openProduct(product)} className="sf-ai-product-card flex min-w-0 items-center gap-2.5 rounded-2xl border p-2 text-right transition hover:-translate-y-0.5 active:scale-[0.99]">
-                          <img src={aiSuggestedProductImage(product)} onError={fallbackProductImage} alt={product.name || t("storefront.aiSupport.suggestedProduct", "Suggested product")} className="h-12 w-12 shrink-0 rounded-xl object-cover" loading="lazy" />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-xs font-black">{product.name || t("storefront.aiSupport.suggestedProduct", "Suggested product")}</span>
-                            <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-stone-500 dark:text-stone-300">
-                              <span>{aiSuggestedProductPriceText(product)}</span>
-                              <span className={product.stock_status === "in_stock" || Number(product.total_stock || product.stock || 0) > 0 ? "text-emerald-600 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300"}>{aiAvailabilityText(product)}</span>
-                            </span>
-                          </span>
-                          <ChevronLeft className="h-4 w-4 text-stone-400" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {message.role === "assistant" && (
-                    <div className="mt-3 space-y-3">
-                      {Array.isArray(message.product_cards) && message.product_cards.length > 0 ? (
-                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                          {message.product_cards.slice(0, 3).map((product, index) => (
-                            <button key={`product-card-${product.id || product.product_id || index}`} type="button" onClick={() => openProduct(product)} className="sf-ai-product-card flex min-w-0 gap-3 rounded-3xl border border-stone-200 bg-white/80 p-2.5 text-right transition hover:-translate-y-0.5 active:scale-[0.99] dark:border-white/10 dark:bg-white/5">
-                              <img src={aiSuggestedProductImage(product)} onError={fallbackProductImage} alt={product.name || t("storefront.aiSupport.suggestedProduct", "Suggested product")} className="h-20 w-20 shrink-0 rounded-2xl object-cover" loading="lazy" />
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-xs font-black">{product.name || t("storefront.aiSupport.suggestedProduct", "Suggested product")}</span>
-                                <span className="mt-1 block text-[11px] font-bold text-stone-500 dark:text-stone-300">{product.reason || product.match_reason || product.top_rank_reason || product.subtitle || ""}</span>
-                                <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-stone-500 dark:text-stone-300">
-                                  <span>{aiSuggestedProductPriceText(product)}</span>
-                                  <span className={product.stock_status === "in_stock" || Number(product.total_stock || product.stock || 0) > 0 ? "text-emerald-600 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300"}>{aiAvailabilityText(product)}</span>
-                                </span>
-                              </span>
-                              <ChevronLeft className="h-4 w-4 shrink-0 text-stone-400" />
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                      {Array.isArray(message.image_cards) && message.image_cards.length > 0 ? (
-                        <AiVisualAttachments attachments={message.image_cards} onOpenProduct={openProduct} />
-                      ) : Array.isArray(message.visual_attachments) && message.visual_attachments.length > 0 ? (
-                        <AiVisualAttachments attachments={message.visual_attachments} onOpenProduct={openProduct} />
-                      ) : null}
-                      {Array.isArray(message.quick_replies) && message.quick_replies.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {message.quick_replies.slice(0, 6).map((item, index) => {
-                            const label = String(item?.label || item?.text || item?.title || item || "").trim();
-                            if (!label) return null;
-                            return (
-                              <button
-                                key={`quick-reply-${label}-${index}`}
-                                type="button"
-                                onClick={() => handleUnifiedActionClick(item, { product: message.product_cards?.[0] || message.suggested_products?.[0] || aiSupportContext.selected_product_context || null })}
-                                className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
-                              >
-                                {label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                      {Array.isArray(message.actions) && message.actions.length > 0 ? (
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {message.actions.slice(0, 6).map((item, index) => {
-                            const value = typeof item === "string" ? item : item?.label || item?.text || item?.title || item?.action || item?.type || "";
-                            const key = String(value || "").trim();
-                            if (!key) return null;
-                            return (
-                              <button
-                                key={`action-${key}-${index}`}
-                                type="button"
-                                onClick={() => handleUnifiedActionClick(item, { product: message.product_cards?.[0] || message.suggested_products?.[0] || aiSupportContext.selected_product_context || null })}
-                                className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-right text-[11px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:bg-[#f5f3ff] hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
-                              >
-                                {key}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
-                  {message.role === "assistant" && message.needs_human_support && (
-                    <a href={supportHref} target={whatsappPhone ? "_blank" : undefined} rel={whatsappPhone ? "noreferrer" : undefined} className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-lg shadow-emerald-900/20 transition hover:-translate-y-0.5">
-                      <MessageCircle className="h-4 w-4" />
-                      {t("storefront.aiSupport.contactSupport", "Contact support")}
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))}
-            {(loading || imageLoading) && (
-              <div className="flex justify-end">
-                <div className="inline-flex max-w-[82%] items-center gap-2 rounded-[1.35rem] border border-stone-200 bg-white px-3.5 py-2.5 text-[13px] font-bold text-stone-600 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-                  <RefreshCcw className="h-4 w-4 animate-spin" />
-                  {imageLoading ? t("storefront.aiSupport.analyzingImage", "Analyzing image...") : t("storefront.aiSupport.checkingStore", "Checking store data...")}
-                </div>
-              </div>
-            )}
-            {error && (
-              <div className="rounded-3xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700 dark:border-rose-400/20 dark:bg-rose-950/30 dark:text-rose-200">
-                <p>{error}</p>
-                <button type="button" onClick={() => submitQuestion(lastQuestion)} className="mt-2 inline-flex items-center gap-2 rounded-full bg-rose-600 px-3 py-1.5 text-xs font-black text-white">
-                  <RefreshCcw className="h-3.5 w-3.5" />
-                  {t("common.retry", "Retry")}
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="sf-ai-chat-composer shrink-0 border-t border-stone-200 bg-white px-3 pb-[calc(0.8rem+env(safe-area-inset-bottom))] pt-3 dark:border-white/10 dark:bg-[#080d1a]">
-            <form className="sf-ai-chat-composer-row grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-1.5" onSubmit={(event) => { event.preventDefault(); submitQuestion(input); }}>
-              <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={loading || imageLoading} className="sf-ai-chat-attach-button inline-grid place-items-center rounded-full transition active:scale-95 disabled:cursor-not-allowed" aria-label={t("storefront.aiSupport.openCamera", "Open camera")}>
-                <Camera className="h-4 w-4" />
-                <span className="hidden md:inline">{t("storefront.aiSupport.camera", "Camera")}</span>
-              </button>
-              <button type="button" onClick={() => galleryInputRef.current?.click()} disabled={loading || imageLoading} className="sf-ai-chat-attach-button inline-grid place-items-center rounded-full transition active:scale-95 disabled:cursor-not-allowed" aria-label={t("storefront.aiSupport.chooseGalleryImage", "Choose image from gallery")}>
-                <ImagePlus className="h-4 w-4" />
-                <span className="hidden md:inline">{t("storefront.aiSupport.gallery", "Gallery")}</span>
-              </button>
-              <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={handleImageInputChange} />
-              <input ref={galleryInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImageInputChange} />
-              <input
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder={t("storefront.aiSupport.inputPlaceholder", "Type your question here...")}
-                disabled={imageLoading}
-                className="sf-ai-chat-input h-12 min-w-0 rounded-full border px-4 text-sm font-bold outline-none transition"
-              />
-              <button type="submit" disabled={loading || imageLoading || !cleanDisplayText(input)} className="sf-ai-chat-send grid h-12 w-12 shrink-0 place-items-center rounded-full shadow-lg transition hover:-translate-y-0.5 active:scale-95 disabled:cursor-not-allowed" aria-label={t("common.send", "Send")}>
-                <Send className="h-[18px] w-[18px]" />
-              </button>
-            </form>
-          </div>
-        </div>
-      ) : (
-        <>
-          {showAssistantHint ? (
-            <button type="button" onClick={openAssistant} className="sf-ai-chat-hint" aria-label={t("storefront.aiSupport.openAssistant", "Open AI shopping assistant")}>
-              {t("storefront.aiSupport.hint", "Ask about size or model")} ✨
-            </button>
-          ) : null}
-          <button type="button" onClick={openAssistant} className="sf-ai-chat-launcher group" aria-label={t("storefront.aiSupport.openAssistant", "Open AI shopping assistant")}>
-            <span className="sf-ai-chat-launcher__halo" aria-hidden="true" />
-            <span className="sf-ai-chat-launcher__icon">
-              <Sparkles className="sf-ai-chat-launcher__sparkle" aria-hidden="true" />
-              <MessageCircleMore className="sf-ai-chat-launcher__message" aria-hidden="true" />
-            </span>
-            <span className="hidden text-right md:block">
-              <span className="block text-sm font-black">{t("storefront.aiSupport.askAssistant", "Ask assistant")}</span>
-              <span className="block text-[11px] font-bold opacity-70">{t("storefront.aiSupport.launcherSubtitle", "Prices, sizes, and policies")}</span>
-            </span>
-            {hasUnreadResponse ? <span className="sf-ai-chat-unread" aria-hidden="true" /> : null}
-          </button>
-        </>
-      )}
-    </section>
-  );
-}
 
 function Storefront() {
   const pageStartedAtRef = useRef(performance.now());
@@ -3275,6 +2380,74 @@ function Storefront() {
   const isProductDetailsRoute = /^\/shop\/product\/[^/]+/.test(location.pathname);
   const cartCount = cart.length;
   const wishlistCount = wishlist.length;
+  const asyncRouteHelpers = useMemo(() => ({
+    deferReactState,
+    displayCartItemComparePrice,
+    displayCartItemPrice,
+    displayOrderNumber,
+    fallbackProductImage,
+    formatDate,
+    getStatusLabels,
+    imageFor,
+    money,
+    paymentCopy,
+    sfText,
+    shippingProviderCopy,
+    statusCopy,
+    supportHref,
+  }), []);
+  const asyncRouteComponents = useMemo(() => ({
+    EmptyState,
+    Field,
+    InfoBox,
+    OrderNumberBadge,
+    OrderTimeline,
+    Panel,
+    SmallProductGrid,
+    SmallProductList,
+    SummaryRow,
+  }), []);
+  const aiSupportHelpers = useMemo(() => ({
+    AI_SUPPORT_HINT_DISMISSED_KEY,
+    aiAvailabilityText,
+    aiSuggestedProductImage,
+    aiSuggestedProductPriceText,
+    aiSuggestedProductUrl,
+    cleanDisplayText,
+    clearAiProductUiState,
+    countAiProductUiCards,
+    fallbackProductImage,
+    firstDisplayVariant,
+    getAiSupportSessionId,
+    getProductColorGroups,
+    getUnifiedAiReply,
+    imageFor,
+    isAiGreetingOnlyResponse,
+    isAiSupportDebugEnabled,
+    loadAiSupportContext,
+    logImageSearchSuggestedProductRanking,
+    mergeAiSupportContext,
+    mirrorProductTitle,
+    money,
+    normalizeAiSupportCardContext,
+    productFromDetailsResponse,
+    resolveRenderedAiImageAnswer,
+    resolveStorefrontTenantId,
+    saveAiSupportContext,
+    sfText,
+    storefrontApi,
+    textOrEmpty,
+    trackAiSupportCartOutcome,
+    trackAiSupportClick,
+    unifiedReplyActions,
+    unifiedReplyImageCards,
+    unifiedReplyProductCards,
+    unifiedReplyQuickReplies,
+    variantColorKey,
+    variantColorName,
+    variantHasStock,
+    whatsappPhone,
+  }), []);
   const homePageElement = useMemo(
     () => <HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />,
     [handleStorefrontAddToCart, toggleWishlist, wishlist]
@@ -3292,8 +2465,18 @@ function Storefront() {
     [handleStorefrontAddToCart, profile, recent, rememberProduct, toggleWishlist, wishlist]
   );
   const cartPageElement = useMemo(
-    () => <CartPage cart={cart} updateCart={updateCart} removeFromCart={removeFromCart} />,
-    [cart, removeFromCart, updateCart]
+    () => (
+      <Suspense fallback={<StorefrontPageFallback />}>
+        <LazyStorefrontCartPage
+          cart={cart}
+          updateCart={updateCart}
+          removeFromCart={removeFromCart}
+          helpers={asyncRouteHelpers}
+          components={asyncRouteComponents}
+        />
+      </Suspense>
+    ),
+    [asyncRouteComponents, asyncRouteHelpers, cart, removeFromCart, updateCart]
   );
   const checkoutPageElement = useMemo(
     () => <CheckoutPage cart={cart} clearCart={clearCart} profile={profile} setProfile={setProfile} />,
@@ -3301,14 +2484,51 @@ function Storefront() {
   );
   const successPageElement = useMemo(() => <OrderSuccess profile={profile} />, [profile]);
   const accountPageElement = useMemo(
-    () => <AccountPage profile={profile} setProfile={setProfile} wishlist={wishlist} recent={recent} onAddToCart={handleStorefrontAddToCart} />,
-    [handleStorefrontAddToCart, profile, recent, wishlist]
+    () => (
+      <Suspense fallback={<StorefrontPageFallback />}>
+        <LazyStorefrontAccountPage
+          profile={profile}
+          setProfile={setProfile}
+          wishlist={wishlist}
+          recent={recent}
+          onAddToCart={handleStorefrontAddToCart}
+          helpers={asyncRouteHelpers}
+          components={asyncRouteComponents}
+        />
+      </Suspense>
+    ),
+    [asyncRouteComponents, asyncRouteHelpers, handleStorefrontAddToCart, profile, recent, setProfile, wishlist]
   );
   const wishlistPageElement = useMemo(
-    () => <WishlistPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />,
-    [handleStorefrontAddToCart, toggleWishlist, wishlist]
+    () => (
+      <Suspense fallback={<StorefrontPageFallback />}>
+        <LazyStorefrontWishlistPage
+          wishlist={wishlist}
+          toggleWishlist={toggleWishlist}
+          onAddToCart={handleStorefrontAddToCart}
+          helpers={asyncRouteHelpers}
+          components={asyncRouteComponents}
+        />
+      </Suspense>
+    ),
+    [asyncRouteComponents, asyncRouteHelpers, handleStorefrontAddToCart, toggleWishlist, wishlist]
   );
-  const recentPageElement = useMemo(() => <RecentPage recent={recent} />, [recent]);
+  const recentPageElement = useMemo(
+    () => (
+      <Suspense fallback={<StorefrontPageFallback />}>
+        <LazyStorefrontRecentPage recent={recent} helpers={asyncRouteHelpers} components={asyncRouteComponents} />
+      </Suspense>
+    ),
+    [asyncRouteComponents, asyncRouteHelpers, recent]
+  );
+  const trackOrderElement = useMemo(
+    () => (
+      <Suspense fallback={<StorefrontPageFallback />}>
+        <LazyStorefrontTrackOrderPage helpers={asyncRouteHelpers} components={asyncRouteComponents} />
+      </Suspense>
+    ),
+    [asyncRouteComponents, asyncRouteHelpers]
+  );
 
   return (
     <div dir={dir} data-language={language} data-theme={effectiveTheme} className={`storefront-shell min-h-dvh ${location.pathname === "/shop/checkout" ? "storefront-shell--checkout" : ""} ${isProductDetailsRoute ? "storefront-shell--product-detail" : ""} ${effectiveTheme === "dark" ? "dark storefront-dark bg-[#070b16] text-stone-100" : "bg-[#f7f4ee] text-stone-950"}`}>
@@ -3322,7 +2542,7 @@ function Storefront() {
           <Route path="cart" element={cartPageElement} />
           <Route path="checkout" element={checkoutPageElement} />
           <Route path="success/:orderNumber" element={successPageElement} />
-          <Route path="track" element={<TrackOrder />} />
+          <Route path="track" element={trackOrderElement} />
           <Route path="account" element={accountPageElement} />
           <Route path="wishlist" element={wishlistPageElement} />
           <Route path="recently-viewed" element={recentPageElement} />
@@ -3332,7 +2552,11 @@ function Storefront() {
           <Route path="returns" element={<ReturnsPolicy />} />
         </Routes>
       </main>
-      {chatReady ? <AiSupportChatWidget onAddToCart={handleStorefrontAddToCart} /> : null}
+      {chatReady ? (
+        <Suspense fallback={null}>
+          <LazyStorefrontAiSupportWidget onAddToCart={handleStorefrontAddToCart} helpers={aiSupportHelpers} />
+        </Suspense>
+      ) : null}
       <Footer />
       <MobileBottomNav count={cartCount} />
       <CustomerCaptureSheet
@@ -4087,14 +3311,29 @@ function SearchQuickSections({ value, loading, suggestions, visualSearch, chips,
       {query ? (
         <div>
           {isVisualSearch ? (
-            <VisualSearchResults
-              products={suggestions}
-              loading={loading}
-              visualSearch={visualSearch}
-              onPickTerm={onPickTerm}
-              onPickProduct={onPickProduct}
-              onQuickAdd={onQuickAdd}
-            />
+            <Suspense fallback={<VisualSearchResultsFallback />}>
+              <LazyStorefrontVisualSearchResults
+                products={suggestions}
+                loading={loading}
+                visualSearch={visualSearch}
+                onPickTerm={onPickTerm}
+                onPickProduct={onPickProduct}
+                onQuickAdd={onQuickAdd}
+                helpers={{
+                  displayComparePrice,
+                  displayImageForProduct,
+                  displaySellingPrice,
+                  fallbackProductImage,
+                  firstDisplayVariant,
+                  imageFor,
+                  money,
+                  productTotalStock,
+                  safeStockNumber,
+                  sfText,
+                  variantHasStock,
+                }}
+              />
+            </Suspense>
           ) : (
             <>
               <div className="mb-2 flex items-center justify-between px-1">
@@ -4139,206 +3378,6 @@ function SearchQuickSections({ value, loading, suggestions, visualSearch, chips,
           </div>
         </>
       ) : null}
-    </div>
-  );
-}
-
-function VisualSearchResults({ products = [], loading, visualSearch, onPickTerm, onPickProduct, onQuickAdd }) {
-  const { t } = useTranslation();
-  const keywords = Array.isArray(visualSearch?.keywords) ? visualSearch.keywords.filter(Boolean).slice(0, 8) : [];
-  const countLabel = loading ? "..." : products.length;
-  return (
-    <section className="sf-visual-results grid gap-3" aria-live="polite">
-      {visualSearch?.previewUrl ? (
-        <div className="sf-visual-preview">
-          <img src={visualSearch.previewUrl} alt="" className="sf-visual-preview-image" decoding="async" />
-          {visualSearch?.fileName ? <div className="sf-visual-preview-name" title={visualSearch.fileName}>{visualSearch.fileName}</div> : null}
-        </div>
-      ) : null}
-
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div className="min-w-0">
-          <h3 className="text-sm font-black text-stone-950 dark:text-white">{t("storefront.visualSearch.similarProducts", "Similar products")}</h3>
-          <p className="mt-0.5 truncate text-[11px] font-bold text-stone-500 dark:text-stone-400">
-            {loading ? t("storefront.visualSearch.analyzing", "Analyzing the image and finding closest products...") : visualSearch?.error || visualSearch?.message || t("storefront.visualSearch.resultsFromImage", "Results based on the uploaded image")}
-          </p>
-        </div>
-        <span className="shrink-0 rounded-full border border-stone-200 bg-stone-950 px-3 py-1 text-[11px] font-black text-white shadow-sm dark:border-white/10 dark:bg-white dark:text-stone-950">
-          {t("storefront.search.resultCount", "{{count}} result", { count: countLabel })}
-        </span>
-      </div>
-
-      {loading ? <VisualSearchSkeleton /> : products.length ? (
-        <div className="sf-visual-card-list">
-          {products.map((product, index) => (
-            <VisualSearchCardBoundary key={product?.id || `visual-product-${index}`}>
-              <VisualSearchProductCard
-                product={product}
-                index={index}
-                onPickProduct={onPickProduct}
-                onQuickAdd={onQuickAdd}
-              />
-            </VisualSearchCardBoundary>
-          ))}
-        </div>
-      ) : (
-        <VisualSearchEmpty
-          message={visualSearch?.error || visualSearch?.message || t("storefront.visualSearch.noSimilarProduct", "No similar product found")}
-          keywords={keywords}
-          onPickTerm={onPickTerm}
-        />
-      )}
-    </section>
-  );
-}
-
-class VisualSearchCardBoundary extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error) {
-    console.warn("[visual-search] skipped broken product card", error);
-  }
-
-  render() {
-    if (this.state.hasError) return null;
-    return this.props.children;
-  }
-}
-
-function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd }) {
-  const { t } = useTranslation();
-  const safeProduct = product && typeof product === "object" ? product : {};
-  const variants = Array.isArray(safeProduct?.variants) ? safeProduct.variants : [];
-  const [selectedVariantId, setSelectedVariantId] = useState("");
-  const [showSizes, setShowSizes] = useState(false);
-  const variant = variants.find((item) => String(item.id) === String(selectedVariantId)) || firstDisplayVariant(variants);
-  if (!safeProduct?.id && !safeProduct?.name) return null;
-  const stock = productTotalStock(safeProduct);
-  const variantStock = safeStockNumber(variant?.stock ?? variant?.quantity ?? variant?.inventory_stock ?? variant?.available_stock);
-  const isAvailable = stock > 0 && (!variant || variantStock > 0);
-  const activePrice = displaySellingPrice(safeProduct, variant);
-  const comparePrice = displayComparePrice(safeProduct, variant);
-  const meta = [safeProduct?.brand, safeProduct?.category, safeProduct?.gender, safeProduct?.grade].filter(Boolean).join(" / ") || t("storefront.products.storeProduct", "Store product");
-
-  const viewProduct = (event) => {
-    event.stopPropagation();
-    if (safeProduct?.id && onPickProduct) onPickProduct({ ...safeProduct, selected_variant_id: variant?.id || safeProduct.selected_variant_id });
-  };
-
-  const quickAdd = (event) => {
-    event.stopPropagation();
-    if (!onQuickAdd || !variant || variantStock <= 0) {
-      toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
-      return;
-    }
-    onQuickAdd(safeProduct, variant, 1);
-  };
-  const toggleSizes = (event) => {
-    event.stopPropagation();
-    setShowSizes((value) => !value);
-  };
-
-  return (
-    <article className="sf-visual-card" style={{ animationDelay: `${index * 45}ms` }}>
-      <button type="button" onClick={viewProduct} className="sf-visual-card-main">
-        <span className="sf-visual-card-image-wrap">
-          <img src={imageFor(displayImageForProduct(safeProduct, variant))} onError={fallbackProductImage} alt={safeProduct?.name || ""} className="sf-visual-card-image" loading="lazy" decoding="async" />
-        </span>
-        <span className="min-w-0 flex-1 text-right">
-          <span className="sf-visual-card-name">{safeProduct?.name}</span>
-          <span className="sf-visual-card-meta">{meta}</span>
-          <span className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-sm font-black text-stone-950 dark:text-white">{money(activePrice)}</span>
-            {comparePrice ? <span className="text-[11px] font-bold text-stone-400 line-through">{money(comparePrice)}</span> : null}
-          </span>
-          <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${isAvailable ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200" : "bg-rose-50 text-rose-700 dark:bg-rose-400/10 dark:text-rose-200"}`}>
-            {isAvailable ? t("storefront.products.availableNow", "Available now") : t("storefront.products.unavailable", "Unavailable")}
-          </span>
-        </span>
-      </button>
-      <div className="sf-visual-actions">
-        <button type="button" onClick={viewProduct} className="sf-visual-action-primary">{t("storefront.products.viewProduct", "View product")}</button>
-        <button type="button" onClick={quickAdd} disabled={!isAvailable} className="sf-visual-action-soft">{t("storefront.cart.addToCart", "Add to cart")}</button>
-        <button type="button" onClick={toggleSizes} className="sf-visual-action-soft">{t("storefront.products.sizes", "Sizes")}</button>
-      </div>
-      {showSizes ? (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {(variants.length ? variants : [variant]).filter(Boolean).map((item) => {
-            const selected = String(item.id) === String(variant?.id);
-            const size = item.size || item.size_label || t("storefront.products.oneSize", "One size");
-            const hasStock = variantHasStock(item);
-            return (
-              <button
-                key={item.id || size}
-                type="button"
-                disabled={!hasStock}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setSelectedVariantId(item.id || "");
-                }}
-                className={`rounded-full border px-2.5 py-1 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "border-[#7c3aed] bg-[#7c3aed] text-white" : "border-stone-200 bg-white text-stone-700 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/8 dark:text-stone-200"}`}
-              >
-                {size}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function VisualSearchSkeleton() {
-  return (
-    <div className="sf-visual-card-list">
-      {[0, 1].map((item) => (
-        <div key={item} className="sf-visual-card animate-pulse">
-          <div className="sf-visual-card-main">
-            <div className="h-24 w-24 shrink-0 rounded-2xl bg-stone-200/80 dark:bg-white/10" />
-            <div className="min-w-0 flex-1">
-              <div className="h-4 w-4/5 rounded-full bg-stone-200 dark:bg-white/10" />
-              <div className="mt-3 h-3 w-3/5 rounded-full bg-stone-200 dark:bg-white/10" />
-              <div className="mt-4 h-4 w-24 rounded-full bg-stone-200 dark:bg-white/10" />
-            </div>
-          </div>
-          <div className="sf-visual-actions">
-            <div className="h-9 rounded-full bg-stone-200 dark:bg-white/10" />
-            <div className="h-9 rounded-full bg-stone-200 dark:bg-white/10" />
-            <div className="h-9 rounded-full bg-stone-200 dark:bg-white/10" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function VisualSearchEmpty({ message, keywords, onPickTerm }) {
-  const { t } = useTranslation();
-  return (
-    <div className="sf-visual-empty">
-      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-[#8b5cf6]/20 bg-[#7c3aed]/14 text-[#c4b5fd] shadow-[0_14px_34px_rgba(124,58,237,0.16)]">
-        <PackageSearch className="h-6 w-6" />
-      </div>
-      <div className="min-w-0">
-        <div className="text-sm font-black text-stone-50">{t("storefront.visualSearch.noSimilarProduct", "No similar product found")}</div>
-        <div className="mt-1 text-xs font-bold leading-5 text-stone-400">{message || t("storefront.visualSearch.emptyHint", "Try a clearer image or use the suggested keywords.")}</div>
-        {keywords.length ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {keywords.map((keyword) => (
-              <button key={keyword} type="button" onClick={() => onPickTerm(keyword)} className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1.5 text-xs font-black text-stone-200 transition hover:border-[#a78bfa]/40 hover:bg-[#7c3aed]/18 hover:text-white active:scale-95">
-                {keyword}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
     </div>
   );
 }
@@ -5509,6 +4548,7 @@ function useStorefrontProductGridColumns() {
 
 const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart }) {
   const columns = useStorefrontProductGridColumns();
+  const shouldVirtualize = columns >= 4 && products.length > 40;
   const renderProduct = useCallback((product, index, key) => (
     <ProductCard
       key={key}
@@ -5522,13 +4562,13 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
 
   if (loading) return <ProductSkeleton count={8} />;
 
-  if (products.length > 32) {
+  if (shouldVirtualize) {
     return (
       <VirtualGrid
         items={products}
         columns={columns}
         estimateRowHeight={380}
-        className="max-h-[calc(100vh-12rem)] min-h-[36rem] overflow-auto pr-1"
+        className="max-h-[calc(100vh-10rem)] min-h-[36rem] overflow-y-auto overflow-x-hidden pr-1"
         gridClassName="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-5"
         itemKey={(product, index) => productCardKey(product, index)}
         renderItem={renderProduct}
@@ -6293,6 +5333,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const { t } = useTranslation();
   const navigate = useNavigate();
   const product = groupedProduct || rawProduct || {};
+  const cardRef = useRef(null);
   const variants = useMemo(() => {
     const allVariants = Array.isArray(product.variants) ? product.variants : [];
     const colorKey = String(product.color_key || product.display_color_key || "").trim().toLowerCase();
@@ -6403,6 +5444,11 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     () => productUrl({ ...product, selected_variant_id: availableVariant?.id || product.selected_variant_id, color_key: selectedColorKey || product.color_key }),
     [availableVariant?.id, product, selectedColorKey]
   );
+  const productIdentifier = useMemo(() => productRouteIdentifier(product), [product]);
+  const requestDetailPrefetch = useCallback(() => {
+    if (!productIdentifier) return;
+    prefetchStorefrontProductDetails(productIdentifier);
+  }, [productIdentifier]);
   const chooseColor = useCallback((event, group) => {
     event.preventDefault();
     event.stopPropagation();
@@ -6410,6 +5456,20 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     setSelectedColorKeyState(group?.key || "");
     setSelectedVariantId(next?.id || "");
   }, []);
+  useEffect(() => {
+    const node = cardRef.current;
+    if (!node || !productIdentifier || typeof window === "undefined" || !("IntersectionObserver" in window)) return undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        requestDetailPrefetch();
+        observer.disconnect();
+      },
+      { threshold: 0.35, rootMargin: "120px 0px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [productIdentifier, requestDetailPrefetch]);
   const cardDensityClasses = {
     hero: {
       image: "aspect-[1.02/1] p-1.5",
@@ -6445,7 +5505,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const densityClasses = cardDensityClasses[density] || cardDensityClasses.standard;
 
   return (
-    <article style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onClick={openDetails} className={`group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(250,248,244,0.94)_48%,rgba(245,241,234,0.84))] shadow-[0_10px_26px_rgba(39,20,75,0.07),inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-stone-200/55 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#a78bfa]/38 hover:ring-[#7c3aed]/22 hover:shadow-[0_18px_44px_rgba(39,20,75,0.12),0_0_0_1px_rgba(124,58,237,0.08)_inset] md:rounded-[1.55rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.95),rgba(11,16,32,0.93)_52%,rgba(8,13,25,0.98))] dark:ring-white/[0.05] dark:shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] dark:hover:border-[#a78bfa]/24 dark:hover:shadow-[0_20px_54px_rgba(0,0,0,0.32),0_0_24px_rgba(124,58,237,0.10)] ${featured ? "md:shadow-[0_18px_52px_rgba(109,40,217,0.12)]" : ""}`}>
+    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onClick={openDetails} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(250,248,244,0.94)_48%,rgba(245,241,234,0.84))] shadow-[0_10px_26px_rgba(39,20,75,0.07),inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-stone-200/55 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#a78bfa]/38 hover:ring-[#7c3aed]/22 hover:shadow-[0_18px_44px_rgba(39,20,75,0.12),0_0_0_1px_rgba(124,58,237,0.08)_inset] md:rounded-[1.55rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.95),rgba(11,16,32,0.93)_52%,rgba(8,13,25,0.98))] dark:ring-white/[0.05] dark:shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] dark:hover:border-[#a78bfa]/24 dark:hover:shadow-[0_20px_54px_rgba(0,0,0,0.32),0_0_24px_rgba(124,58,237,0.10)] ${featured ? "md:shadow-[0_18px_52px_rgba(109,40,217,0.12)]" : ""}`}>
       <div className="pointer-events-none absolute inset-x-8 top-8 h-14 rounded-full bg-[#a78bfa]/0 blur-xl transition duration-300 group-hover/product:bg-[#a78bfa]/10" />
       <div className={`relative overflow-visible bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.12),transparent_28%),linear-gradient(180deg,#fbfaf7_0%,#eee7dc_100%)] md:p-3 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.10),transparent_28%),linear-gradient(180deg,#101426_0%,#0b1020_100%)] ${densityClasses.image}`}>
         <div className="absolute inset-x-8 top-[18%] h-24 rounded-full bg-white/40 blur-lg dark:bg-white/[0.07]" />
@@ -7016,30 +6076,17 @@ function ProductDetails({ onAddToCart, toggleWishlist, wishlist, rememberProduct
 
   return (
     <section dir="rtl" className="sf-product-details-page mx-auto grid max-w-7xl gap-2 px-3 pb-28 pt-1 md:gap-5 md:px-4 md:pb-36 md:pt-5 lg:grid-cols-[minmax(0,55fr)_minmax(360px,45fr)] lg:items-start lg:pb-8">
-      <div className="min-w-0">
-        <div className="sf-product-gallery-frame relative mx-auto h-[clamp(250px,42vh,340px)] w-full max-w-[92vw] overflow-hidden rounded-[24px] border border-stone-200 bg-[linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] p-2 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-[clamp(420px,58vh,540px)] md:max-w-none md:rounded-[1.75rem] md:p-5 md:shadow-[0_20px_55px_rgba(39,20,75,0.10)]">
-          <div className="absolute inset-x-10 bottom-5 h-12 rounded-full bg-white/80 blur-2xl md:inset-x-16 md:bottom-8 md:h-16" />
-          <img src={imageFor(mainImage)} onError={fallbackProductImage} alt={displayTitle} className="sf-product-main-image relative z-10 mx-auto h-full w-full object-contain drop-shadow-[0_14px_18px_rgba(39,20,75,0.14)] md:max-h-full md:drop-shadow-[0_22px_26px_rgba(39,20,75,0.18)]" loading="eager" decoding="async" fetchPriority="high" width="900" height="675" />
-        </div>
-        {galleryItems.length > 1 ? (
-          <div className="sf-product-thumbnails sf-scroll mt-1.5 flex snap-x snap-mandatory gap-1.5 overflow-x-auto pb-1 md:mt-3 md:gap-2">
-            {galleryItems.map((item, imageIndex) => {
-              const image = item.image;
-              const active = mainImage === image || selected.image === image;
-              return (
-                <button
-                  key={`${image}-${imageIndex}`}
-                  type="button"
-                  onClick={() => selectGalleryImage(item)}
-                  className={`sf-product-thumb h-12 w-12 shrink-0 snap-start overflow-hidden rounded-xl border bg-white p-1 transition hover:-translate-y-0.5 hover:border-stone-900 md:h-20 md:w-20 md:rounded-2xl md:p-1.5 ${active ? "border-stone-950 shadow-[0_12px_28px_rgba(39,20,75,0.14)]" : "border-stone-200"}`}
-                >
-                  <img src={imageFor(image)} onError={fallbackProductImage} alt="" className="h-full w-full object-contain" loading="lazy" decoding="async" width="80" height="80" />
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
-      </div>
+      <Suspense fallback={<ProductGalleryFallback />}>
+        <LazyStorefrontProductGallery
+          mainImage={mainImage}
+          displayTitle={displayTitle}
+          galleryItems={galleryItems}
+          selectedImage={selected.image}
+          onSelectImage={selectGalleryImage}
+          imageFor={imageFor}
+          fallbackProductImage={fallbackProductImage}
+        />
+      </Suspense>
       <div className="sf-product-info-sticky min-w-0 lg:sticky lg:self-start">
         <div className="overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[linear-gradient(180deg,#07111f_0%,#050b16_100%)] p-3.5 text-white shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:rounded-[1.45rem] md:p-6">
           <div className="mb-2 flex items-start justify-between gap-3 md:mb-4">
@@ -7342,59 +6389,6 @@ function RecentProductsSection({ currentId, recent = [] }) {
   );
 }
 
-function CartPage({ cart, updateCart, removeFromCart }) {
-  return (
-    <section className="mx-auto max-w-5xl px-4 py-6">
-      <h1 className="text-3xl font-black">{sfText("storefront.cart.title", "Cart")}</h1>
-      <CartContent cart={cart} updateCart={updateCart} removeFromCart={removeFromCart} />
-    </section>
-  );
-}
-
-function CartContent({ cart, updateCart, removeFromCart }) {
-  const subtotal = cart.reduce((sum, item) => sum + displayCartItemPrice(item) * item.quantity, 0);
-  if (!cart.length) return <EmptyState title={sfText("storefront.cart.emptyTitle", "Your cart is waiting")} text={sfText("storefront.cart.emptyText", "Start from products and check the latest drops")} />;
-  return (
-    <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
-      <div className="space-y-3">
-        {cart.map((item) => (
-          <div key={item.lineId} className="flex gap-3 rounded-3xl border border-stone-200 bg-white p-3">
-            <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-24 w-24 rounded-2xl object-cover" loading="lazy" decoding="async" width="96" height="96" />
-            <div className="min-w-0 flex-1">
-              <div className="font-black">{item.name}</div>
-              <div className="mt-1 text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "Color")} / {item.size || sfText("storefront.products.size", "Size")}</div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 font-black">
-                {displayCartItemComparePrice(item) ? <span className="text-sm text-stone-400 line-through">{money(displayCartItemComparePrice(item))}</span> : null}
-                <span>{money(displayCartItemPrice(item))}</span>
-              </div>
-              <div className="mt-3 flex items-center gap-2">
-                <button onClick={() => updateCart(item.lineId, item.quantity - 1)} className="rounded-full border border-stone-200 p-2"><Minus className="h-4 w-4" /></button>
-                <span className="w-7 text-center font-black">{item.quantity}</span>
-                <button onClick={() => updateCart(item.lineId, item.quantity + 1)} className="rounded-full border border-stone-200 px-3 py-1.5">+</button>
-                <button onClick={() => removeFromCart(item.lineId)} className="ms-auto rounded-full p-2 text-rose-600" aria-label={sfText("storefront.cart.removeItem", "Remove item")}><Trash2 className="h-5 w-5" /></button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <OrderSummary subtotal={subtotal} />
-    </div>
-  );
-}
-
-function OrderSummary({ subtotal, delivery = 0 }) {
-  return (
-    <aside className="h-max rounded-3xl border border-stone-200 bg-white p-5">
-      <h2 className="text-xl font-black">{sfText("storefront.checkout.orderSummary", "Order summary")}</h2>
-      <SummaryRow label={sfText("storefront.checkout.products", "Products")} value={money(subtotal)} />
-      <SummaryRow label={sfText("storefront.checkout.estimatedShipping", "Estimated shipping")} value={money(delivery)} />
-      <SummaryRow label={sfText("storefront.checkout.total", "Total")} value={money(subtotal + delivery)} strong />
-      <Link to="/shop/checkout" className="mt-5 block rounded-full bg-stone-950 px-5 py-4 text-center font-black text-white">{sfText("storefront.checkout.actions.completePurchase", "Complete purchase")}</Link>
-      <p className="mt-3 text-xs font-bold text-stone-500">{sfText("storefront.checkout.finalCostNote", "The final cost appears on the checkout page based on governorate.")}</p>
-    </aside>
-  );
-}
-
 function CheckoutPage({ cart, clearCart, profile, setProfile }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -7482,6 +6476,17 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
   const activeTransferValue = shippingTransferMethod === "instapay" ? INSTA_PAY_HANDLE : VODAFONE_CASH_NUMBER;
   const activePaymentDeepLink = shippingTransferMethod === "instapay" ? "instapay://" : "tel:*9%23";
   const activePaymentQrUrl = shippingTransferMethod === "instapay" ? INSTA_PAY_QR_URL : VODAFONE_CASH_QR_URL;
+  const checkoutSummaryHelpers = useMemo(() => ({
+    displayCartItemComparePrice,
+    fallbackProductImage,
+    imageFor,
+    money,
+  }), []);
+  const checkoutSummaryComponents = useMemo(() => ({
+    SummaryRow,
+    SubmitButton,
+    TrustPills,
+  }), []);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
@@ -8348,7 +7353,26 @@ function CheckoutPage({ cart, clearCart, profile, setProfile }) {
             </div>
           </CheckoutSection> : null}
         </div>
-        <CheckoutSummary cart={pricedCart} subtotal={subtotal} discount={discount} deliveryFee={deliveryFee} total={total} codAmount={codAmount} governorate={form.governorate} paymentMethod={normalizedFormPaymentMethod} shippingQuote={shippingQuote} open={summaryOpen} setOpen={setSummaryOpen} submitting={isFinalCheckoutStep && submitting} submitDisabled={submitDisabled} actionLabel={checkoutActionLabel} />
+        <Suspense fallback={<div className="h-[22rem] rounded-[1.7rem] border border-white/10 bg-white/[0.045] shadow-[0_24px_70px_rgba(0,0,0,0.18)] lg:sticky lg:top-24" />}>
+          <LazyStorefrontCheckoutSummary
+            cart={pricedCart}
+            subtotal={subtotal}
+            discount={discount}
+            deliveryFee={deliveryFee}
+            total={total}
+            codAmount={codAmount}
+            governorate={form.governorate}
+            paymentMethod={normalizedFormPaymentMethod}
+            shippingQuote={shippingQuote}
+            open={summaryOpen}
+            setOpen={setSummaryOpen}
+            submitting={isFinalCheckoutStep && submitting}
+            submitDisabled={submitDisabled}
+            actionLabel={checkoutActionLabel}
+            helpers={checkoutSummaryHelpers}
+            components={checkoutSummaryComponents}
+          />
+        </Suspense>
       </form>
       <div className="sf-checkout-sticky-actions fixed left-0 right-0 p-3 md:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-3">
@@ -8511,428 +7535,6 @@ function OrderTimeline({ timeline = [] }) {
         </div>
       ))}
     </div>
-  );
-}
-
-function OrderItemsSummary({ items = [] }) {
-  if (!items.length) return <p className="sf-muted-empty mt-4 rounded-2xl bg-stone-50 p-4 font-bold text-stone-500">{sfText("storefront.orders.itemsLoading", "Product summary will appear here after loading order details.")}</p>;
-  return (
-    <div className="sf-order-items mt-5 space-y-3">
-      <h3 className="sf-section-heading text-lg font-black">{sfText("storefront.orders.itemsSummary", "Product summary")}</h3>
-      {items.map((item) => (
-        <div key={item.id || `${item.product_id}-${item.variant_id}`} className="sf-order-item-row flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
-          <img src={imageFor(item.product_image || item.image_url)} onError={fallbackProductImage} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
-          <div className="min-w-0 flex-1">
-            <div className="sf-order-item-name truncate font-black">{item.product_name || item.name}</div>
-            <div className="sf-order-item-meta text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "Color")} / {item.size || sfText("storefront.products.size", "Size")} - {item.quantity}</div>
-          </div>
-          <div className="sf-order-item-price shrink-0 font-black">{money(item.total_amount || Number(item.price || item.sale_price || 0) * Number(item.quantity || 1))}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function TrackOrder() {
-  const [params] = useSearchParams();
-  const [form, setForm] = useState({ order_number: displayOrderNumber(params.get("order_number") || params.get("order") || ""), phone: params.get("phone") || "" });
-  const [state, setState] = useState({ loading: false, data: null, error: "" });
-  const hasOrderFromQuery = Boolean(params.get("order") || params.get("order_number"));
-
-  const submit = useCallback(async (event) => {
-    event?.preventDefault();
-    if (!form.order_number.trim()) {
-      setState({ loading: false, data: null, error: sfText("storefront.tracking.validation.orderNumberRequired", "Enter the order number first") });
-      return;
-    }
-    setState({ loading: true, data: null, error: "" });
-    try {
-      const data = await api.get(`/storefront/track?order_number=${encodeURIComponent(form.order_number)}&phone=${encodeURIComponent(form.phone)}`);
-      setState({ loading: false, data, error: "" });
-    } catch (error) {
-      setState({ loading: false, data: null, error: error.message });
-    }
-  }, [form.order_number, form.phone]);
-
-  useEffect(() => {
-    if (!form.order_number || (!form.phone && !hasOrderFromQuery)) return undefined;
-    let cancelled = false;
-    deferReactState(() => {
-      if (!cancelled) submit();
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [form.order_number, form.phone, hasOrderFromQuery, submit]);
-
-  return (
-    <section className="mx-auto max-w-6xl px-4 py-5 md:py-8">
-      <div className="rounded-[2rem] bg-stone-950 p-5 text-white shadow-[0_24px_70px_rgba(39,20,75,0.18)] md:p-8">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-black text-emerald-200">{sfText("storefront.tracking.eyebrow", "Your order is on the way")}</p>
-            <h1 className="mt-2 text-3xl font-black md:text-5xl">{sfText("storefront.tracking.title", "Track order")}</h1>
-            <p className="mt-2 max-w-2xl text-sm font-bold leading-7 text-stone-300">{sfText("storefront.tracking.subtitle", "Enter your order number and mobile number, or open the direct tracking link from your confirmation message.")}</p>
-          </div>
-          <a href={supportHref(form.order_number)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-black text-white">
-            <MessageCircle className="h-5 w-5" />
-            {sfText("storefront.support.needHelpWhatsapp", "Need help? Contact us on WhatsApp")}
-          </a>
-        </div>
-      </div>
-      <form onSubmit={submit} className="sf-storefront-card sf-track-search-form mt-5 grid gap-3 rounded-[1.7rem] border border-stone-200 bg-white p-4 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:grid-cols-[1fr_1fr_auto] md:p-5">
-        <Field label={sfText("storefront.orders.orderNumber", "Order number")} value={form.order_number} onChange={(v) => setForm((prev) => ({ ...prev, order_number: v }))} required />
-        <Field label={sfText("storefront.form.mobileNumber", "Mobile number")} value={form.phone} onChange={(v) => setForm((prev) => ({ ...prev, phone: v }))} inputMode="tel" />
-        <button disabled={state.loading} className="min-h-13 self-end rounded-full bg-stone-950 px-7 py-4 font-black text-white transition hover:bg-[#6d28d9] disabled:bg-stone-300">{sfText("storefront.orders.trackOrder", "Track order")}</button>
-      </form>
-      {state.loading ? <div className="sf-storefront-card mt-5 h-32 animate-pulse rounded-3xl bg-white" /> : null}
-      {!state.loading && !state.data && !state.error ? <EmptyState title={sfText("storefront.tracking.readyTitle", "Ready to check")} text={sfText("storefront.tracking.readyText", "Order number and shipping status will appear here after searching.")} /> : null}
-      {state.error ? <EmptyState title={sfText("storefront.tracking.notFoundTitle", "We could not find the order")} text={state.error || sfText("storefront.tracking.notFoundText", "Check the order number and mobile number, or contact us on WhatsApp.")} /> : null}
-      {state.data ? <TrackingResult data={state.data} /> : null}
-    </section>
-  );
-}
-
-function TrackingResult({ data }) {
-  const order = data.order || {};
-  const items = data.items || [];
-  const timeline = data.timeline || getStatusLabels().map((label, index) => ({ label, done: index === 0 }));
-  const total = order.total_amount || order.total || order.total_price || 0;
-  const address = [order.governorate, order.city_area, order.customer_address, order.landmark].filter(Boolean).join(" - ");
-  const publicNumber = displayOrderNumber(order);
-  return (
-    <div className="sf-storefront-card sf-tracking-result mt-5 overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-[0_18px_50px_rgba(39,20,75,0.07)]">
-      <div className="sf-card-section border-b border-stone-100 p-5 md:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="sf-muted-text text-sm font-bold text-stone-500">{sfText("storefront.orders.orderNumber", "Order number")}</div>
-            <OrderNumberBadge value={publicNumber} className="mt-2 border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />
-          </div>
-          <span className="rounded-full bg-stone-950 px-4 py-2 text-sm font-black text-white">{statusCopy(order.status || order.shipping_status || "pending")}</span>
-        </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <InfoBox label={sfText("storefront.customer.customer", "Customer")} value={order.customer_name || sfText("storefront.customer.dearCustomer", "Dear customer")} />
-          <InfoBox label={sfText("storefront.orders.orderDate", "Order date")} value={formatDate(order.created_at)} />
-          <InfoBox label={sfText("storefront.checkout.total", "Total")} value={money(total)} />
-          <InfoBox label={sfText("storefront.checkout.paymentMethod", "Payment")} value={`${paymentCopy(order.payment_method)} - ${statusCopy(order.payment_status || "pending")}`} />
-          <InfoBox label={sfText("storefront.shipping.provider", "Shipping provider")} value={shippingProviderCopy(order.shipping_provider)} />
-          <InfoBox label={sfText("storefront.shipping.trackingNumber", "Tracking number")} value={order.tracking_number || sfText("storefront.common.soon", "Soon")} />
-          <InfoBox label={sfText("storefront.shipping.status", "Shipping status")} value={statusCopy(order.shipping_status || "pending")} />
-          <InfoBox label={sfText("storefront.checkout.deliveryAddress", "Address")} value={address || sfText("storefront.orders.addressSaved", "Address saved with order")} />
-        </div>
-      </div>
-      <div className="p-5 md:p-6">
-        <h2 className="sf-section-heading text-xl font-black">{sfText("storefront.orders.tracking", "Order tracking")}</h2>
-        <OrderTimeline timeline={timeline} />
-        <OrderItemsSummary items={items} />
-        <a href={supportHref(publicNumber)} className="mt-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-emerald-600 px-5 py-3 font-black text-white">
-          <MessageCircle className="h-5 w-5" />
-          {sfText("storefront.support.needHelpWhatsapp", "Need help? Contact us on WhatsApp")}
-        </a>
-      </div>
-    </div>
-  );
-}
-
-function AnimatedPoints({ value }) {
-  const [display, setDisplay] = useState(Number(value || 0));
-  const displayRef = useRef(Number(value || 0));
-
-  useEffect(() => {
-    const start = Number(displayRef.current || 0);
-    const end = Number(value || 0);
-    if (start === end) return undefined;
-    const startedAt = performance.now();
-    const duration = 700;
-    let frame = 0;
-    const tick = (now) => {
-      const progress = Math.min(1, (now - startedAt) / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const nextDisplay = Math.round(start + (end - start) * eased);
-      displayRef.current = nextDisplay;
-      setDisplay(nextDisplay);
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [value]);
-
-  return Number(display || 0).toLocaleString(i18n.language || "en");
-}
-
-function LoyaltyWidget({ loyalty, loading }) {
-  if (loading && !loyalty) {
-    return (
-      <div className="sf-loyalty-card mt-4 overflow-hidden rounded-[1.35rem] border border-stone-200 bg-stone-50 p-4">
-        <div className="sf-skeleton h-4 w-24 animate-pulse rounded-full bg-stone-200" />
-        <div className="sf-skeleton mt-4 h-10 w-36 animate-pulse rounded-xl bg-stone-200" />
-        <div className="sf-skeleton mt-4 h-2 w-full animate-pulse rounded-full bg-stone-200" />
-      </div>
-    );
-  }
-
-  const points = Number(loyalty?.points ?? loyalty?.available_points ?? 0);
-  const tier = loyalty?.tier || "Bronze";
-  const nextTier = loyalty?.next_tier || "Platinum";
-  const remaining = Number(loyalty?.points_to_next_tier || 0);
-  const progress = Math.max(0, Math.min(100, Number(loyalty?.progress || 0)));
-
-  return (
-    <div className="sf-loyalty-card mt-4 overflow-hidden rounded-[1.35rem] border border-[#7c3aed]/20 bg-[#faf7ff] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="sf-loyalty-icon grid h-10 w-10 place-items-center rounded-full bg-white text-[#6d28d9] shadow-sm">
-            <Gem className="h-5 w-5" />
-          </span>
-          <div>
-            <div className="sf-muted-text text-xs font-black text-stone-500">{sfText("storefront.account.loyaltyBalance", "Loyalty balance")}</div>
-            <div className="sf-primary-text text-2xl font-black text-stone-950">
-              <AnimatedPoints value={points} /> {sfText("storefront.account.points", "points")}
-            </div>
-          </div>
-        </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-stone-950 px-3 py-1.5 text-xs font-black text-white">
-          <Crown className="h-3.5 w-3.5 text-amber-300" />
-          {tier}
-        </span>
-      </div>
-      <div className="sf-loyalty-progress mt-4 h-2 overflow-hidden rounded-full bg-white">
-        <div className="h-full rounded-full bg-[#7c3aed] transition-all duration-700" style={{ width: `${progress}%` }} />
-      </div>
-      <div className="sf-secondary-text mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-black text-stone-600">
-        <span>
-          {remaining > 0
-            ? sfText("storefront.account.pointsToNextTier", "{{count}} points to reach {{tier}}", {
-                count: remaining.toLocaleString(i18n.language || "en"),
-                tier: nextTier,
-              })
-            : sfText("storefront.account.topTierReached", "You reached the top tier")}
-        </span>
-        <span>{Math.round(progress)}%</span>
-      </div>
-    </div>
-  );
-}
-
-const AccountOrderRow = memo(function AccountOrderRow({ order, phone, onOpen, onReorder }) {
-  const open = useCallback(() => onOpen(order), [onOpen, order]);
-  const reorderOrder = useCallback(() => onReorder(order), [onReorder, order]);
-  const publicNumber = displayOrderNumber(order);
-  return (
-    <div className="sf-account-order-row rounded-2xl bg-stone-50 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <OrderNumberBadge value={order} className="border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />
-          <div className="sf-muted-text mt-1 text-xs font-bold text-stone-500">{formatDate(order.created_at)} - {statusCopy(order.status)}</div>
-        </div>
-        <div className="sf-primary-text font-black">{money(order.total_amount || order.total || order.total_price)}</div>
-      </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <button onClick={open} className="sf-soft-pill min-h-11 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-black">{sfText("storefront.orders.orderDetails", "Order details")}</button>
-        <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-11 rounded-full bg-stone-950 px-4 py-2 text-center text-sm font-black text-white">{sfText("storefront.orders.trackOrder", "Track order")}</Link>
-        <button onClick={reorderOrder} className="min-h-11 rounded-full border border-[#7c3aed]/30 bg-[#f5f3ff] px-4 py-2 text-sm font-black text-[#6d28d9]">{sfText("storefront.orders.reorder", "Reorder")}</button>
-      </div>
-    </div>
-  );
-});
-
-function AccountPage({ profile, setProfile, wishlist, recent, onAddToCart }) {
-  const [phone, setPhone] = useState(profile.primary_phone || "");
-  const [account, setAccount] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-
-  const load = async () => {
-    if (!phone) return;
-    setLoading(true);
-    try {
-      const data = await api.get(`/storefront/account?phone=${encodeURIComponent(phone)}`);
-      setAccount(data);
-      setProfile((prev) => ({ ...prev, primary_phone: phone, full_name: data.customer?.name || prev.full_name || "" }));
-    } catch (error) {
-      toast.error(error.message || sfText("storefront.toasts.accountUnavailable", "We cannot open the account right now."));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!account || !phone) return undefined;
-    const id = window.setInterval(() => {
-      api.get(`/storefront/account?phone=${encodeURIComponent(phone)}`)
-        .then((data) => setAccount(data))
-        .catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(id);
-  }, [account, phone]);
-
-  const openOrder = async (order) => {
-    setSelectedOrder({ loading: true, order, items: [], timeline: [] });
-    try {
-      const data = await api.get(`/storefront/track?order_number=${encodeURIComponent(displayOrderNumber(order))}&phone=${encodeURIComponent(phone)}`);
-      setSelectedOrder(data);
-    } catch {
-      setSelectedOrder({ order, items: [], timeline: [] });
-    }
-  };
-
-  const reorder = async (order) => {
-    const sourceItems = order.items || selectedOrder?.items || [];
-    let items = sourceItems;
-    if (!items.length) {
-      const data = await api.get(`/storefront/track?order_number=${encodeURIComponent(displayOrderNumber(order))}&phone=${encodeURIComponent(phone)}`);
-      items = data.items || [];
-    }
-    let added = 0;
-    let skipped = 0;
-    for (const item of items) {
-      try {
-        const productData = await api.get(`/storefront/products/${item.product_id}`);
-        const product = productData.product;
-        const variant = (product?.variants || []).find((candidate) => String(candidate.id) === String(item.variant_id) && Number(candidate.stock || 0) > 0);
-        if (!product || !variant) {
-          skipped += 1;
-          continue;
-        }
-        onAddToCart(product, variant, Math.min(Number(item.quantity || 1), Number(variant.stock || 1)));
-        added += 1;
-      } catch {
-        skipped += 1;
-      }
-    }
-    if (added) toast.success(skipped ? sfText("storefront.toasts.reorderPartial", "Available items were added to cart. Some choices are currently unavailable.") : sfText("storefront.toasts.reorderAdded", "The order was added to cart again."));
-    else toast.error(sfText("storefront.toasts.reorderUnavailable", "These products are currently unavailable. Try different choices."));
-  };
-
-  const orders = account?.orders || [];
-  const addresses = account?.addresses || [];
-  const backendWishlist = account?.wishlist_products || [];
-  const backendRecent = account?.recent_products || [];
-
-  return (
-    <section className="mx-auto max-w-7xl px-4 py-5 md:py-8">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-black text-[#6d28d9]">{sfText("storefront.account.eyebrow", "Light account by mobile")}</p>
-          <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.title", "My account")}</h1>
-        </div>
-        <Link to="/shop/track" className="sf-soft-pill inline-flex min-h-12 items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 font-black">{sfText("storefront.orders.trackOrder", "Track order")}</Link>
-      </div>
-      <div className="mt-5 grid gap-5 lg:grid-cols-[340px_1fr]">
-        <div className="sf-storefront-card h-max rounded-[1.7rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] lg:sticky lg:top-24">
-          <Field label={sfText("storefront.form.mobileNumber", "Mobile number")} value={phone} onChange={setPhone} inputMode="tel" />
-          <button onClick={load} disabled={loading} className="mt-3 min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300">{loading ? sfText("storefront.common.loading", "Loading...") : sfText("storefront.account.showMyData", "Show my details")}</button>
-          <InfoBox label={sfText("storefront.account.myData", "My details")} value={account?.customer?.name || profile.full_name || sfText("storefront.account.enterPhoneHint", "Enter your phone to view the account")} />
-          <LoyaltyWidget loyalty={account?.loyalty} loading={loading} />
-        </div>
-        <div className="space-y-5">
-          <Panel title={sfText("storefront.account.myOrders", "My orders")}>
-            {orders.length ? (
-              <VirtualList
-                items={orders}
-                estimateSize={152}
-                className="max-h-[28rem] overflow-auto pr-1"
-                itemKey={(order) => order.id || displayOrderNumber(order)}
-                renderItem={(order) => <AccountOrderRow order={order} phone={phone} onOpen={openOrder} onReorder={reorder} />}
-              />
-            ) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.noOrders", "No orders yet")}</p>}
-          </Panel>
-          {selectedOrder ? <CustomerOrderDetails data={selectedOrder} phone={phone} onReorder={reorder} /> : null}
-          <Panel title={sfText("storefront.account.myAddresses", "My addresses")}>
-            {addresses.length ? addresses.map((address) => <div key={address} className="sf-account-address-row rounded-2xl bg-stone-50 p-3 font-bold text-stone-700">{address}</div>) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.addressesEmpty", "Addresses used in orders will appear here")}</p>}
-          </Panel>
-          <Panel title={sfText("storefront.header.wishlist", "Wishlist")}>
-            <SmallProductList items={backendWishlist.length ? backendWishlist : wishlist} empty={sfText("storefront.account.wishlistEmpty", "Save products you like here")} />
-          </Panel>
-          <Panel title={sfText("storefront.account.recentlyViewed", "Recently viewed")}>
-            <SmallProductList items={backendRecent.length ? backendRecent : recent} empty={sfText("storefront.account.recentEmpty", "Recently viewed products will appear here")} />
-          </Panel>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function CustomerOrderDetails({ data, phone, onReorder }) {
-  const order = data.order || {};
-  const publicNumber = displayOrderNumber(order);
-  if (data.loading) return <div className="sf-storefront-card h-40 animate-pulse rounded-3xl bg-white" />;
-  return (
-    <Panel title={sfText("storefront.orders.orderDetails", "Order details")}>
-      <OrderNumberBadge value={publicNumber} className="mb-1 border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />
-      <div className="grid gap-3 md:grid-cols-3">
-        <InfoBox label={sfText("storefront.orders.orderStatus", "Order status")} value={statusCopy(order.status)} />
-        <InfoBox label={sfText("storefront.checkout.paymentMethod", "Payment")} value={`${paymentCopy(order.payment_method)} - ${statusCopy(order.payment_status)}`} />
-        <InfoBox label={sfText("storefront.checkout.shipping", "Shipping")} value={`${shippingProviderCopy(order.shipping_provider)} - ${statusCopy(order.shipping_status)}`} />
-      </div>
-      <OrderTimeline timeline={data.timeline || []} />
-      <OrderItemsSummary items={data.items || []} />
-      <div className="grid gap-2 sm:grid-cols-3">
-        <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-12 rounded-full bg-stone-950 px-5 py-3 text-center font-black text-white">{sfText("storefront.orders.trackOrder", "Track order")}</Link>
-        <button onClick={() => onReorder({ ...order, items: data.items || [] })} className="min-h-12 rounded-full border border-[#7c3aed]/30 bg-[#f5f3ff] px-5 py-3 font-black text-[#6d28d9]">{sfText("storefront.orders.reorder", "Reorder")}</button>
-        <a href={supportHref(publicNumber)} className="min-h-12 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-center font-black text-emerald-700">{sfText("storefront.support.whatsapp", "WhatsApp")}</a>
-      </div>
-    </Panel>
-  );
-}
-
-function WishlistPage({ wishlist, toggleWishlist, onAddToCart }) {
-  const wishlistCount = Array.isArray(wishlist) ? wishlist.length : 0;
-  return (
-    <section className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4 md:px-6 md:py-10">
-      <div className="rounded-[2rem] border border-white/[0.08] bg-[linear-gradient(145deg,rgba(15,23,42,0.82),rgba(3,7,18,0.94))] p-4 shadow-[0_28px_90px_rgba(0,0,0,0.34)] backdrop-blur-xl md:p-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-black text-[#a78bfa]">{sfText("storefront.wishlist.subtitle", "Your favorite picks are saved here")}</p>
-            <h1 className="mt-1 text-3xl font-black text-white md:text-5xl">{sfText("storefront.header.wishlist", "Wishlist")}</h1>
-          </div>
-          <div className="w-fit rounded-full border border-white/[0.1] bg-white/[0.07] px-4 py-2 text-sm font-black text-white/80 shadow-[0_12px_32px_rgba(0,0,0,0.2)]">
-            {sfText("storefront.products.productCount", "{{count}} product", { count: wishlistCount })}
-          </div>
-        </div>
-
-        {wishlistCount ? (
-          <>
-          <SmallProductGrid items={wishlist} action={toggleWishlist} onAddToCart={onAddToCart} />
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <div className="flex items-start gap-4 rounded-[1.5rem] border border-white/[0.08] bg-white/[0.055] p-5 text-start shadow-[0_18px_50px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.025] backdrop-blur-xl">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[#a78bfa]/20 bg-[#7c3aed]/15 text-[#c4b5fd]">
-                <Bell className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <div className="font-black text-white">{sfText("storefront.wishlist.priceDropAlert", "Price drop alert")}</div>
-                <p className="mt-1 text-sm font-bold leading-6 text-white/60">{sfText("storefront.wishlist.priceDropSoon", "Soon we will notify you when a wishlist product price drops.")}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4 rounded-[1.5rem] border border-white/[0.08] bg-white/[0.055] p-5 text-start shadow-[0_18px_50px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.025] backdrop-blur-xl">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-emerald-300/20 bg-emerald-400/10 text-emerald-200">
-                <PackageSearch className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <div className="font-black text-white">{sfText("storefront.wishlist.backInStockAlert", "Back in stock alert")}</div>
-                <p className="mt-1 text-sm font-bold leading-6 text-white/60">{sfText("storefront.wishlist.backInStockSoon", "Soon we will notify you when your size returns.")}</p>
-              </div>
-            </div>
-          </div>
-          </>
-        ) : <EmptyState title={sfText("storefront.wishlist.emptyTitle", "Your wishlist is empty")} text={sfText("storefront.wishlist.emptyText", "Save products you like here")} />}
-      </div>
-    </section>
-  );
-}
-
-function RecentPage({ recent }) {
-  return (
-    <section className="mx-auto max-w-7xl px-4 py-5 md:py-8">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-black text-[#6d28d9]">{sfText("storefront.recent.lastTwenty", "Last 20 products")}</p>
-          <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.recentlyViewed", "Recently viewed")}</h1>
-        </div>
-        <Link to="/shop/products" className="inline-flex min-h-12 items-center justify-center rounded-full bg-stone-950 px-5 py-3 font-black text-white">{sfText("storefront.common.continueShopping", "Continue shopping")}</Link>
-      </div>
-      {recent.length ? <SmallProductGrid items={recent.slice(0, 20)} /> : <EmptyState title={sfText("storefront.recent.emptyTitle", "No products here yet")} text={sfText("storefront.account.recentEmpty", "Recently viewed products will appear here")} />}
-    </section>
   );
 }
 
@@ -9234,66 +7836,6 @@ function CheckoutSection({ number, title, note, children }) {
   );
 }
 
-function CheckoutSummary({ cart, subtotal, discount, deliveryFee, total, codAmount, governorate, paymentMethod, shippingQuote = {}, open, setOpen, submitting, submitDisabled, actionLabel }) {
-  const { t } = useTranslation();
-  const shippingText = governorate
-    ? shippingQuote.loading
-      ? t("common.loading", "Loading...")
-      : money(deliveryFee)
-    : t("storefront.checkout.chooseGovernorate", "Choose governorate");
-  const deliveryText = shippingQuote.estimated_delivery_text || t("storefront.checkout.expectedDeliveryNotice", "Expected delivery is 2 to 5 business days depending on governorate.");
-  return (
-    <aside className="h-max rounded-[1.7rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035)_42%,rgba(7,10,20,0.9))] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.06)] ring-1 ring-white/[0.04] backdrop-blur-2xl lg:sticky lg:top-24 md:p-5">
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex min-h-10 w-full items-center justify-between md:pointer-events-none">
-        <span className="text-xl font-black text-white">{t("storefront.checkout.orderSummary", "Order summary")}</span>
-        <span className="rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-xs font-black text-white/70 md:hidden">{open ? t("common.hide", "Hide") : t("common.show", "Show")}</span>
-      </button>
-      <div className={`${open ? "block" : "hidden"} mt-3 space-y-2.5 md:block`}>
-        {cart.map((item) => {
-          const comparePrice = displayCartItemComparePrice(item);
-          return (
-            <div key={item.lineId} className="sf-reveal flex min-w-0 items-center gap-3 rounded-2xl bg-white/[0.045] p-2.5 ring-1 ring-white/10">
-              <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-18 w-18 shrink-0 rounded-2xl object-cover shadow-sm" loading="lazy" decoding="async" width="72" height="72" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-black leading-5 text-white">{item.name}</div>
-                <div className="mt-1 inline-flex rounded-full bg-white/[0.055] px-2 py-1 text-[11px] font-black text-white/60 ring-1 ring-white/10">{item.color || t("storefront.products.color", "Color")} / {item.size || t("storefront.products.size", "Size")} × {item.quantity}</div>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-white/42">
-                  <span>{t("storefront.checkout.unitPrice", "Unit price")} {money(item.price)}</span>
-                  {comparePrice ? <span className="line-through">{money(comparePrice)}</span> : null}
-                </div>
-              </div>
-              <div className="shrink-0 text-sm font-black text-white">{money(item.price * item.quantity)}</div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4 shadow-inner shadow-black/30">
-        <SummaryRow dark label={t("storefront.checkout.products", "Products")} value={money(subtotal)} />
-        <SummaryRow dark label={t("storefront.checkout.discount", "Discount")} value={discount ? `-${money(discount)}` : money(0)} />
-        <SummaryRow dark label={t("storefront.checkout.shipping", "Shipping")} value={shippingText} />
-        <SummaryRow dark label={t("storefront.checkout.total", "Total")} value={money(total)} strong />
-        {codAmount ? <SummaryRow dark label={paymentMethod === "cod" ? t("storefront.checkout.codOnDelivery", "COD on delivery") : t("storefront.checkout.remainingOnDelivery", "Remaining on delivery")} value={money(codAmount)} /> : null}
-      </div>
-      <div className="mt-3 grid gap-2 text-xs font-bold text-white/58">
-        {import.meta.env.DEV && governorate ? (
-          <span className="rounded-2xl border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-sky-100">
-            Shipping dev: {shippingQuote.match_level || "default"} {shippingQuote.zone?.governorate ? `- ${[shippingQuote.zone.governorate, shippingQuote.zone.city, shippingQuote.zone.area].filter(Boolean).join(" / ")}` : ""}
-          </span>
-        ) : null}
-        <span className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">{deliveryText}</span>
-        {governorate && shippingQuote.cod_allowed === false ? <span className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-amber-100">{t("storefront.checkout.codUnavailableForAddress", "Cash on delivery is not available for this address.")}</span> : null}
-        <span className="rounded-2xl border border-[#a78bfa]/20 bg-[#7c3aed]/12 px-3 py-2 text-[#ddd6fe]">{t("storefront.checkout.shippingProvidersReady", "Shipping data is ready for Bosta / Mylerz / ShipBlu / In Store Delivery when the provider is enabled.")}</span>
-      </div>
-      <div className="mt-4 hidden md:block">
-        <SubmitButton submitting={submitting} paymentMethod={paymentMethod} disabled={submitDisabled} label={actionLabel} />
-        <div className="mt-3">
-          <TrustPills />
-        </div>
-      </div>
-    </aside>
-  );
-}
-
 function SuccessTimeline() {
   const steps = getStatusLabels();
   return (
@@ -9443,6 +7985,47 @@ function SelectField({ label, value, onChange, options, labels = {}, required, e
 
 function ProductSkeleton({ count }) {
   return Array.from({ length: count }).map((_, index) => <div key={index} className="h-72 animate-pulse rounded-[1.75rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)]" />);
+}
+
+function StorefrontPageFallback() {
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-6">
+      <div className="grid gap-4">
+        <div className="h-28 animate-pulse rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-white/5" />
+        <div className="h-64 animate-pulse rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-white/5" />
+      </div>
+    </section>
+  );
+}
+
+function VisualSearchResultsFallback() {
+  return (
+    <div className="sf-visual-card-list">
+      {[0, 1].map((item) => (
+        <div key={item} className="sf-visual-card animate-pulse">
+          <div className="sf-visual-card-main">
+            <div className="h-24 w-24 shrink-0 rounded-2xl bg-stone-200/80 dark:bg-white/10" />
+            <div className="min-w-0 flex-1">
+              <div className="h-4 w-4/5 rounded-full bg-stone-200 dark:bg-white/10" />
+              <div className="mt-3 h-3 w-3/5 rounded-full bg-stone-200 dark:bg-white/10" />
+              <div className="mt-4 h-4 w-24 rounded-full bg-stone-200 dark:bg-white/10" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProductGalleryFallback() {
+  return (
+    <div className="min-w-0">
+      <div className="mx-auto h-[clamp(250px,42vh,340px)] w-full max-w-[92vw] animate-pulse rounded-[24px] bg-white/80 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-[clamp(420px,58vh,540px)] md:max-w-none md:rounded-[1.75rem] dark:bg-white/5" />
+      <div className="mt-3 flex gap-2">
+        {[0, 1, 2, 3].map((item) => <div key={item} className="h-12 w-12 animate-pulse rounded-xl bg-white/80 dark:bg-white/5 md:h-20 md:w-20 md:rounded-2xl" />)}
+      </div>
+    </div>
+  );
 }
 
 function EmptyState({ title, text, actionTo = "/shop/products", actionLabel }) {
