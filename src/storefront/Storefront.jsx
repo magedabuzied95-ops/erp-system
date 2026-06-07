@@ -342,7 +342,28 @@ const matchBostaPickerOption = (options = [], source = {}) => {
     return savedNames.some((savedName) => optionNames.some((optionName) => optionName === savedName));
   }) || null;
 };
-const getPaymentMethods = () => [
+const DEFAULT_STOREFRONT_PAYMENT_SETTINGS = {
+  instapay: {
+    enabled: true,
+    displayName: "InstaPay",
+    handle: "01000000000@instapay",
+    logoUrl: "",
+    helperText: "",
+  },
+  vodafoneCash: {
+    enabled: true,
+    displayName: "Vodafone Cash",
+    number: "01000000000",
+    logoUrl: "",
+    helperText: "",
+  },
+  shippingConfirmation: {
+    enabled: true,
+    amount: 75,
+    label: "رسوم تأكيد الطلب",
+  },
+};
+const getPaymentMethods = (paymentSettings = DEFAULT_STOREFRONT_PAYMENT_SETTINGS) => [
   {
     id: "cod",
     title: sfText("storefront.checkout.payment.cod.title", "Cash on delivery"),
@@ -350,13 +371,11 @@ const getPaymentMethods = () => [
   },
   {
     id: "shipping_confirmation",
-    title: sfText("storefront.checkout.payment.shippingConfirmation.title", "Shipping confirmation"),
+    title: paymentSettings.shippingConfirmation?.label || sfText("storefront.checkout.payment.shippingConfirmation.title", "Shipping confirmation"),
     text: sfText("storefront.checkout.payment.shippingConfirmation.text", "Pay the shipping fee now to confirm the order, and the rest on delivery."),
   },
 ];
 const SHIPPING_CONFIRMATION_METHODS = new Set(["shipping_confirmation", "instapay", "vodafone_cash"]);
-const INSTA_PAY_HANDLE = import.meta.env.VITE_INSTAPAY_HANDLE || "01000000000@instapay";
-const VODAFONE_CASH_NUMBER = import.meta.env.VITE_VODAFONE_CASH_NUMBER || "01000000000";
 const INSTA_PAY_QR_URL = import.meta.env.VITE_INSTAPAY_QR_URL || "";
 const VODAFONE_CASH_QR_URL = import.meta.env.VITE_VODAFONE_CASH_QR_URL || "";
 const storefrontDebugEnabled = () => ["1", "true", "yes", "on"].includes(String(import.meta.env?.VITE_ERP_PERF_DEBUG || import.meta.env?.VITE_STOREFRONT_DEBUG || "").toLowerCase());
@@ -364,9 +383,38 @@ const paymentBrandLogos = {
   instapay: { webp: instaPayLogoWebp, png: instaPayLogo },
   vodafone_cash: { webp: vodafoneCashLogoWebp, png: vodafoneCashLogo },
 };
-const paymentBrandLabels = {
-  instapay: "InstaPay",
-  vodafone_cash: "Vodafone Cash",
+const normalizeStorefrontPaymentSettings = (settings = {}) => {
+  const text = (value, fallback = "") => String(value ?? fallback ?? "").trim();
+  const number = (value, fallback = 0) => {
+    const next = Number(value);
+    return Number.isFinite(next) ? next : Number(fallback || 0);
+  };
+  const bool = (value, fallback = true) => {
+    if (value === undefined || value === null || value === "") return Boolean(fallback);
+    if (typeof value === "string") return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+    return Boolean(value);
+  };
+  return {
+    instapay: {
+      enabled: bool(settings["storefront.payment_methods.instapay_enabled"], settings["payments.instapay_enabled"] ?? true),
+      displayName: text(settings["storefront.payment_methods.instapay_display_name"], settings["payments.instapay_display_name"] || "InstaPay"),
+      handle: text(settings["storefront.payment_methods.instapay_handle"], settings["payments.instapay_handle"] || import.meta.env.VITE_INSTAPAY_HANDLE || "01000000000@instapay"),
+      logoUrl: text(settings["storefront.payment_methods.instapay_logo_url"], settings["payments.instapay_logo_url"] || ""),
+      helperText: text(settings["storefront.payment_methods.instapay_helper_text"], settings["payments.instapay_helper_text"] || ""),
+    },
+    vodafoneCash: {
+      enabled: bool(settings["storefront.payment_methods.vodafone_cash_enabled"], settings["payments.vodafone_cash_enabled"] ?? true),
+      displayName: text(settings["storefront.payment_methods.vodafone_cash_display_name"], settings["payments.vodafone_cash_display_name"] || "Vodafone Cash"),
+      number: text(settings["storefront.payment_methods.vodafone_cash_number"], settings["payments.vodafone_cash_number"] || import.meta.env.VITE_VODAFONE_CASH_NUMBER || "01000000000"),
+      logoUrl: text(settings["storefront.payment_methods.vodafone_cash_logo_url"], settings["payments.vodafone_cash_logo_url"] || ""),
+      helperText: text(settings["storefront.payment_methods.vodafone_cash_helper_text"], settings["payments.vodafone_cash_helper_text"] || ""),
+    },
+    shippingConfirmation: {
+      enabled: bool(settings["storefront.payment_methods.shipping_confirmation_enabled"], true),
+      amount: number(settings["storefront.payment_methods.shipping_confirmation_amount"], 75),
+      label: text(settings["storefront.payment_methods.shipping_confirmation_label"], "رسوم تأكيد الطلب"),
+    },
+  };
 };
 const rawOptionValue = (value, fallback = "") => {
   if (value && typeof value === "object") {
@@ -5802,6 +5850,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const [latestAddressRestore, setLatestAddressRestore] = useState({ token: 0, candidate: null, status: "idle", stage: "idle" });
   const [shippingQuote, setShippingQuote] = useState(normalizeShippingQuote());
   const [shippingLocations, setShippingLocations] = useState(() => normalizeCheckoutLocations());
+  const [publicStoreSettings, setPublicStoreSettings] = useState({});
   const [bostaLocations, setBostaLocations] = useState({ cities: [], zones: [], districts: [], loadingCities: false, loadingZones: false, loadingDistricts: false });
   const editedCheckoutFieldsRef = useRef(new Set());
   const latestAddressLookupsRef = useRef(new Set());
@@ -5834,7 +5883,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
           ? t("storefront.checkout.actions.uploadProofAndConfirm", "Upload transfer proof and confirm order")
           : t("storefront.checkout.actions.confirmOrder", "Confirm order");
   const codAmount = normalizedFormPaymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
-  const paymentMethods = getPaymentMethods();
+  const storefrontPaymentSettings = useMemo(() => normalizeStorefrontPaymentSettings(publicStoreSettings), [publicStoreSettings]);
+  const paymentMethods = useMemo(() => getPaymentMethods(storefrontPaymentSettings), [storefrontPaymentSettings]);
   const paymentCopy = paymentMethods.find((method) => method.id === normalizedFormPaymentMethod)?.text || "";
   const locationGovernorates = useMemo(() => uniqueCheckoutLocations(shippingLocations, "governorate_id"), [shippingLocations]);
   const locationCities = useMemo(() => uniqueCheckoutLocations(shippingLocations, "city_id", (item) => !form.governorate_id || item.governorate_id === form.governorate_id), [shippingLocations, form.governorate_id]);
@@ -5844,9 +5894,33 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const bostaZoneOptions = useMemo(() => buildBostaPickerOptions(bostaLocations.zones, "zone", checkoutLanguage), [bostaLocations.zones, checkoutLanguage]);
   const bostaDistrictOptions = useMemo(() => buildBostaPickerOptions(bostaLocations.districts, "district", checkoutLanguage), [bostaLocations.districts, checkoutLanguage]);
   const cityAreaOptions = governorateCityAreas[form.governorate] || [];
-  const activeTransferValue = shippingTransferMethod === "instapay" ? INSTA_PAY_HANDLE : VODAFONE_CASH_NUMBER;
-  const activePaymentDeepLink = shippingTransferMethod === "instapay" ? "instapay://" : "tel:*9%23";
-  const activePaymentQrUrl = shippingTransferMethod === "instapay" ? INSTA_PAY_QR_URL : VODAFONE_CASH_QR_URL;
+  const paymentTransferMethods = useMemo(() => ([
+    {
+      id: "instapay",
+      enabled: storefrontPaymentSettings.instapay.enabled,
+      label: storefrontPaymentSettings.instapay.displayName || "InstaPay",
+      helperText: storefrontPaymentSettings.instapay.helperText,
+      value: storefrontPaymentSettings.instapay.handle,
+      logoUrl: storefrontPaymentSettings.instapay.logoUrl,
+      qrUrl: INSTA_PAY_QR_URL,
+      deepLink: "instapay://",
+    },
+    {
+      id: "vodafone_cash",
+      enabled: storefrontPaymentSettings.vodafoneCash.enabled,
+      label: storefrontPaymentSettings.vodafoneCash.displayName || "Vodafone Cash",
+      helperText: storefrontPaymentSettings.vodafoneCash.helperText,
+      value: storefrontPaymentSettings.vodafoneCash.number,
+      logoUrl: storefrontPaymentSettings.vodafoneCash.logoUrl,
+      qrUrl: VODAFONE_CASH_QR_URL,
+      deepLink: "tel:*9%23",
+    },
+  ]), [storefrontPaymentSettings]);
+  const visibleTransferMethods = paymentTransferMethods.filter((method) => method.enabled);
+  const activeTransferMethod = visibleTransferMethods.find((method) => method.id === shippingTransferMethod) || visibleTransferMethods[0] || paymentTransferMethods[0];
+  const activeTransferValue = activeTransferMethod?.value || "";
+  const activePaymentDeepLink = activeTransferMethod?.deepLink || "tel:*9%23";
+  const activePaymentQrUrl = activeTransferMethod?.qrUrl || "";
   const checkoutSummaryHelpers = useMemo(() => ({
     displayCartItemComparePrice,
     fallbackProductImage,
@@ -5871,13 +5945,36 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     let cancelled = false;
     api.get("/settings/public", { suppressErrorStatuses: [404, 500] })
       .then((data) => {
-        if (!cancelled) setShippingLocations(normalizeCheckoutLocations(data?.settings?.["storefront.shipping_locations"]));
+        if (cancelled) return;
+        const settings = data?.settings || {};
+        setShippingLocations(normalizeCheckoutLocations(settings["storefront.shipping_locations"]));
+        setPublicStoreSettings(settings);
+        console.debug("[payment-settings:loaded]", {
+          instapay_enabled: Boolean(settings["storefront.payment_methods.instapay_enabled"] ?? settings["payments.instapay_enabled"]),
+          vodafone_cash_enabled: Boolean(settings["storefront.payment_methods.vodafone_cash_enabled"] ?? settings["payments.vodafone_cash_enabled"]),
+          shipping_confirmation_enabled: Boolean(settings["storefront.payment_methods.shipping_confirmation_enabled"] ?? true),
+        });
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    console.debug("[checkout:payment-settings-applied]", {
+      instapay_enabled: storefrontPaymentSettings.instapay.enabled,
+      vodafone_cash_enabled: storefrontPaymentSettings.vodafoneCash.enabled,
+      shipping_confirmation_enabled: storefrontPaymentSettings.shippingConfirmation.enabled,
+      shipping_confirmation_amount: storefrontPaymentSettings.shippingConfirmation.amount,
+    });
+  }, [storefrontPaymentSettings]);
+
+  useEffect(() => {
+    if (!visibleTransferMethods.length) return;
+    if (visibleTransferMethods.some((method) => method.id === shippingTransferMethod)) return;
+    setShippingTransferMethod(visibleTransferMethods[0].id);
+  }, [shippingTransferMethod, visibleTransferMethods]);
 
   useEffect(() => {
     let cancelled = false;
@@ -6752,7 +6849,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     required
                     error={errors.governorate}
                     placeholder={sfText("storefront.checkout.chooseGovernorate", "Choose city / governorate")}
-                    searchPlaceholder={sfText("storefront.checkout.searchGovernorate", "Search governorate")}
+                    searchPlaceholder="ابحث عن محافظة"
                     loadingText={sfText("storefront.checkout.loadingGovernorates", "Loading governorates...")}
                   />
                   <CheckoutLocationPicker
@@ -6766,7 +6863,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     disabled={!form.shipping_city_id}
                     error={!form.shipping_zone_id && errors.city_area ? errors.city_area : ""}
                     placeholder={form.shipping_city_id ? sfText("storefront.checkout.chooseZone", "Choose zone") : sfText("storefront.checkout.chooseGovernorateFirst", "Choose governorate first")}
-                    searchPlaceholder={sfText("storefront.checkout.searchZone", "Search zone")}
+                    searchPlaceholder="ابحث عن منطقة"
                     loadingText={sfText("storefront.checkout.loadingZones", "Loading zones...")}
                     helperText={form.shipping_city_id ? sfText("storefront.checkout.zoneSearchHint", "Search zones inside the selected governorate.") : ""}
                     emptyText="لا توجد نتائج"
@@ -6782,7 +6879,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     disabled={!form.shipping_zone_id}
                     error={!form.shipping_district_id ? errors.city_area : ""}
                     placeholder={form.shipping_zone_id ? sfText("storefront.checkout.chooseDistrict", "Choose district") : sfText("storefront.checkout.chooseZoneFirst", "Choose zone first")}
-                    searchPlaceholder={sfText("storefront.checkout.searchDistrict", "Search district")}
+                    searchPlaceholder="ابحث عن حي / منطقة"
                     loadingText={sfText("storefront.checkout.loadingDistricts", "Loading districts...")}
                     helperText={form.shipping_zone_id ? sfText("storefront.checkout.districtSearchHint", "Search districts inside the selected zone.") : ""}
                     emptyText="لا توجد نتائج"
@@ -6818,32 +6915,34 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               <div className="checkout-payment-clean mx-auto w-full max-w-[680px]">
                 {isShippingConfirmation ? (
                   <div className="grid gap-3">
-                    <div className="checkout-payment-amount">
-                      <div className="text-sm font-black text-white/66">{sfText("storefront.checkout.transfer.amountDueNowAr", "رسوم تأكيد الطلب")}</div>
-                      <div className="mt-2 flex items-end justify-between gap-3">
-                        <div className="text-3xl font-black tracking-tight text-white">{money(deliveryFee)}</div>
-                        <div className="text-xs font-semibold leading-5 text-white/54">{sfText("storefront.checkout.transfer.amountHelperAr", "ادفع رسوم الشحن فقط لتأكيد طلبك")}</div>
+                    {storefrontPaymentSettings.shippingConfirmation.enabled ? (
+                      <div className="checkout-payment-amount">
+                        <div className="text-sm font-black text-white/66">{storefrontPaymentSettings.shippingConfirmation.label || sfText("storefront.checkout.transfer.amountDueNowAr", "رسوم تأكيد الطلب")}</div>
+                        <div className="mt-2 flex items-end justify-between gap-3">
+                          <div className="text-3xl font-black tracking-tight text-white">{money(storefrontPaymentSettings.shippingConfirmation.amount || deliveryFee)}</div>
+                          <div className="text-xs font-semibold leading-5 text-white/54">{sfText("storefront.checkout.transfer.amountHelperAr", "ادفع رسوم الشحن فقط لتأكيد طلبك")}</div>
+                        </div>
                       </div>
-                    </div>
+                    ) : null}
 
                     <div className="checkout-payment-methods">
-                      {(["instapay", "vodafone_cash"]).map((method) => {
-                        const active = shippingTransferMethod === method;
+                      {visibleTransferMethods.map((method) => {
+                        const active = shippingTransferMethod === method.id;
                         return (
                           <button
-                            key={method}
+                            key={method.id}
                             type="button"
-                            onClick={() => setShippingTransferMethod(method)}
+                            onClick={() => setShippingTransferMethod(method.id)}
                             className={`checkout-payment-method ${active ? "checkout-payment-method--active" : ""}`}
                           >
                             <span className="flex min-w-0 items-center gap-3">
-                              <PaymentBrandLogo method={method} size="copy" active={active} />
+                              <PaymentBrandLogo method={method.id} size="copy" active={active} label={method.label} logoUrl={method.logoUrl} />
                               <span className="min-w-0">
-                                <span className="block text-sm font-black text-white">{paymentBrandLabels[method]}</span>
+                                <span className="block text-sm font-black text-white">{method.label}</span>
                                 <span className={`block text-xs font-semibold ${active ? "text-white/72" : "text-white/46"}`}>
-                                  {method === "instapay"
+                                  {method.helperText || (method.id === "instapay"
                                     ? sfText("storefront.checkout.transfer.instantBankTransferAr", "تحويل فوري")
-                                    : sfText("storefront.checkout.transfer.vodafoneWalletAr", "محفظة Vodafone Cash")}
+                                    : sfText("storefront.checkout.transfer.vodafoneWalletAr", "محفظة Vodafone Cash"))}
                                 </span>
                               </span>
                             </span>
@@ -7660,20 +7759,20 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
   const searchHint = searchPlaceholder || sfText("storefront.checkout.searchLocations", "Search");
 
   const panelBody = (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.045] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-        <label className="flex items-center gap-2 rounded-[1rem] border border-white/10 bg-[#050816] px-3 py-3 text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] focus-within:border-[#a78bfa] focus-within:ring-4 focus-within:ring-[#7c3aed]/18">
-          <Search className="h-4 w-4 shrink-0 text-white/45" />
+    <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+      <div className="checkout-picker-search-wrap">
+        <label className="checkout-picker-search flex items-center gap-2">
+          <Search className="h-4 w-4 shrink-0 text-white/42" />
           <input
             ref={inputRef}
             dir="auto"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={searchHint}
-            className="min-w-0 flex-1 bg-transparent text-[15px] font-bold text-white outline-none placeholder:text-white/34"
+            className="min-w-0 flex-1 bg-transparent text-sm font-bold text-white outline-none placeholder:text-white/34"
           />
           {query ? (
-            <button type="button" onClick={() => setQuery("")} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.05] text-white/55 transition hover:bg-white/[0.09] hover:text-white" aria-label={sfText("storefront.common.clear", "Clear")}>
+            <button type="button" onClick={() => setQuery("")} className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/52 transition hover:bg-white/[0.08] hover:text-white" aria-label={sfText("storefront.common.clear", "Clear")}>
               <X className="h-4 w-4" />
             </button>
           ) : null}
@@ -7681,15 +7780,15 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
       </div>
 
       {loading ? (
-        <div className="flex min-h-36 items-center justify-center rounded-[1.25rem] border border-white/10 bg-white/[0.035] px-4 text-sm font-bold text-white/62">
+        <div className="flex min-h-24 items-center justify-center rounded-[1rem] border border-white/10 bg-white/[0.03] px-4 py-4 text-sm font-bold text-white/62">
           <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#c4b5fd]" />
           {loadingText}
         </div>
       ) : filteredOptions.length ? (
         <VirtualList
           items={filteredOptions}
-          estimateSize={72}
-          className="max-h-[min(28rem,calc(100dvh-18rem))] min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"
+          estimateSize={56}
+          className="checkout-picker-list max-h-[260px] min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"
           itemKey={(option) => option.id}
           renderItem={(option) => {
             const selected = String(option.id) === String(value);
@@ -7697,25 +7796,25 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
               <button
                 type="button"
                 onClick={() => chooseOption(option)}
-                className={`group mb-2 flex w-full items-start gap-3 rounded-[1.2rem] border px-4 py-3.5 text-right transition duration-200 ${
+                className={`group mb-1.5 flex w-full items-center gap-2.5 rounded-[14px] border px-3 py-2.5 text-right transition duration-150 ${
                   selected
-                    ? "border-[#a78bfa]/45 bg-[#7c3aed]/18 shadow-[0_14px_34px_rgba(124,58,237,0.16)]"
-                    : "border-white/10 bg-white/[0.03] hover:border-[#a78bfa]/35 hover:bg-white/[0.06]"
+                    ? "border-[#a78bfa]/30 bg-[#7c3aed]/10"
+                    : "border-white/10 bg-white/[0.025] hover:border-[#a78bfa]/22 hover:bg-white/[0.045]"
                 }`}
               >
-                <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border transition ${selected ? "border-[#c4b5fd] bg-[#7c3aed] text-white" : "border-white/14 bg-white/[0.04] text-transparent group-hover:border-[#a78bfa]/55"}`}>
+                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${selected ? "border-[#c4b5fd] bg-[#7c3aed]/90 text-white" : "border-white/14 bg-white/[0.03] text-transparent group-hover:border-[#a78bfa]/45"}`}>
                   <Check className="h-3.5 w-3.5" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-black text-white">{option.label}</span>
-                  {option.secondary ? <span className="mt-0.5 block truncate text-xs font-semibold leading-5 text-white/50">{option.secondary}</span> : null}
+                  {option.secondary ? <span className="mt-0.5 block truncate text-[11px] font-semibold leading-4 text-white/42">{option.secondary}</span> : null}
                 </span>
               </button>
             );
           }}
         />
       ) : (
-        <div className="flex min-h-36 items-center justify-center rounded-[1.25rem] border border-white/10 bg-white/[0.035] px-4 text-sm font-black text-white/62">
+        <div className="flex min-h-24 items-center justify-center rounded-[1rem] border border-white/10 bg-white/[0.03] px-4 py-4 text-sm font-black text-white/62">
           {emptyText}
         </div>
       )}
@@ -7729,7 +7828,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
         type="button"
         onClick={() => !isBlocked && setOpen((current) => !current)}
         disabled={isBlocked}
-        className={`flex min-h-14 w-full items-center gap-3 rounded-2xl border bg-white/[0.055] px-4 text-right text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] disabled:cursor-not-allowed disabled:opacity-65 ${error ? "border-rose-300/70 focus:border-rose-300" : "border-white/12"}`}
+        className={`flex min-h-[48px] w-full items-center gap-3 rounded-[16px] border bg-white/[0.045] px-3.5 text-right text-sm font-bold text-white shadow-[0_10px_22px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.03)] outline-none backdrop-blur transition duration-150 focus:border-[#a78bfa] focus:bg-white/[0.065] focus:shadow-[0_0_0_3px_rgba(167,139,250,0.12),0_12px_28px_rgba(124,58,237,0.10)] disabled:cursor-not-allowed disabled:opacity-65 ${error ? "border-rose-300/70 focus:border-rose-300" : "border-white/10"}`}
         aria-haspopup="dialog"
         aria-expanded={open}
       >
@@ -7741,14 +7840,12 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
 
       {open ? (
         isMobile ? (
-          <MobileBottomSheet open={open} title={panelTitle} onClose={close} className="bg-[#050816] text-white">
+          <MobileBottomSheet open={open} title={panelTitle} onClose={close} className="checkout-picker-sheet bg-[#050816] text-white" titleClassName="text-sm">
             {panelBody}
           </MobileBottomSheet>
         ) : (
-          <div className="absolute left-0 right-0 top-full z-40 mt-2">
-            <div className="rounded-[1.45rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.98))] p-3 text-white shadow-[0_30px_90px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
-              {panelBody}
-            </div>
+          <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-[16px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.98))] p-2.5 text-white shadow-[0_18px_46px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+            {panelBody}
           </div>
         )
       ) : null}

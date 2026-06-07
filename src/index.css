@@ -1658,6 +1658,31 @@
     max-height: 90px;
   }
 
+  .storefront-shell:not(.storefront-dark) .checkout-picker-search-wrap,
+  .storefront-shell:not(.storefront-dark) .checkout-picker-search,
+  .storefront-shell:not(.storefront-dark) .checkout-picker-list {
+    color: var(--sf-light-text) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .checkout-picker-search-wrap {
+    border-color: var(--sf-light-border) !important;
+    background: rgba(255, 255, 255, 0.94) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .checkout-picker-search {
+    background: rgba(255, 255, 255, 0.98) !important;
+    border-color: var(--sf-light-border) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .checkout-picker-search input::placeholder {
+    color: rgba(100, 116, 139, 0.72) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .checkout-payment-method {
+    background: rgba(248, 250, 252, 0.96) !important;
+  }
+
   .storefront-shell:not(.storefront-dark) .sf-checkout-payment-choice,
   .storefront-shell:not(.storefront-dark) .sf-checkout-payment-amount,
   .storefront-shell:not(.storefront-dark) .sf-checkout-payment-details,
@@ -1743,11 +1768,11 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    min-height: 82px;
+    min-height: 54px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 1.25rem;
     background: rgba(255, 255, 255, 0.05);
-    padding: 0.9rem 1rem;
+    padding: 0.75rem 0.9rem;
     color: #fff;
     transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
   }
@@ -1762,7 +1787,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 1.35rem;
     background: rgba(255, 255, 255, 0.04);
-    padding: 0.95rem 1rem;
+    padding: 0.85rem 0.95rem;
   }
 
   .checkout-payment-copy-row {
@@ -1773,14 +1798,14 @@
 
   .checkout-payment-copy-button {
     display: inline-flex;
-    min-height: 2.5rem;
+    min-height: 2.35rem;
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     background: rgba(255, 255, 255, 0.07);
-    padding: 0.55rem 0.85rem;
-    font-size: 0.875rem;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 900;
     color: #fff;
     white-space: nowrap;
@@ -1795,8 +1820,8 @@
     border: 1px dashed rgba(255, 255, 255, 0.16);
     border-radius: 1.25rem;
     background: rgba(255, 255, 255, 0.04);
-    padding: 0.9rem 1rem;
-    min-height: 92px;
+    padding: 0.8rem 0.95rem;
+    min-height: 86px;
   }
 
   .checkout-payment-upload--has-file {
@@ -1816,6 +1841,61 @@
 
   .checkout-payment-confirm {
     width: 100%;
+  }
+
+  .checkout-picker-search-wrap {
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.035);
+    padding: 0.35rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .checkout-picker-search {
+    height: 42px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: rgba(5, 8, 22, 0.96);
+    padding: 0 0.8rem;
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .checkout-picker-search input::placeholder {
+    color: rgba(255, 255, 255, 0.34);
+  }
+
+  .checkout-picker-list {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(167, 139, 250, 0.38) transparent;
+  }
+
+  .checkout-picker-list::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .checkout-picker-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .checkout-picker-list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(167, 139, 250, 0.34);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  .checkout-picker-sheet header {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .checkout-picker-sheet .checkout-picker-search-wrap {
+    border-radius: 12px;
+  }
+
+  .checkout-picker-sheet .checkout-picker-list {
+    max-height: 220px;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-checkout-copy-link,
