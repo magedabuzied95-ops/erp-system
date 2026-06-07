@@ -3112,7 +3112,7 @@ function Storefront() {
     setCustomerCaptureOpen(false);
   }, [commitCartItem, customerCaptureReason, pendingCartItem]);
 
-  const addToCart = useCallback((product, variant, quantity = 1) => {
+  function addToCart(product, variant, quantity = 1) {
     if (!variant || Number(variant.stock || 0) <= 0) {
       toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
       return "unavailable";
@@ -3128,7 +3128,9 @@ function Storefront() {
     }
     commitCartItem(cartItem);
     return "added";
-  }, [buildCartItem, commitCartItem, openCustomerCapture]);
+  }
+
+  console.log("[storefront:addToCart-runtime-ready]", typeof addToCart);
 
   useEffect(() => {
     if (location.pathname !== "/shop/checkout") {
