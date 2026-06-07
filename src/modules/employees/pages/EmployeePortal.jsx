@@ -211,6 +211,7 @@ export default function EmployeePortal() {
   const tasks = normalizeTasks(portal?.tasks);
   const cacheKey = `${portalCachePrefix}${token || ""}`;
   const queueKey = `${portalQueuePrefix}${token || ""}`;
+  const employeePortalSwVersion = "20260607";
   const summary = useMemo(() => taskCounts(tasks), [tasks]);
   const queuedActions = readJson(queueKey, []);
   const queuedTaskIds = useMemo(() => new Set(queuedActions.map((item) => String(item.taskId))), [queuedActions]);
@@ -264,6 +265,10 @@ export default function EmployeePortal() {
   }, [loadPortal]);
 
   useEffect(() => {
+    console.log("[employee-portal-home-rendered]", import.meta.env.MODE, new Date().toISOString());
+  }, []);
+
+  useEffect(() => {
     if (!isBrowser()) return undefined;
 
     const handleOnline = () => setIsOnline(true);
@@ -279,7 +284,7 @@ export default function EmployeePortal() {
   useEffect(() => {
     if (!isBrowser() || !("serviceWorker" in navigator)) return undefined;
     const scope = "/employee/portal/";
-    const scriptUrl = "/employee-portal-sw.js";
+    const scriptUrl = `/employee-portal-sw.js?v=${employeePortalSwVersion}`;
     const cleanupOldRegistrations = async () => {
       const registrations = await navigator.serviceWorker.getRegistrations();
       await Promise.all(registrations.map(async (registration) => {
