@@ -1,6 +1,6 @@
-﻿import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Filter, Loader2, Package2, Search, Store, X } from "lucide-react";
+import { ChevronLeft, Filter, Loader2, Minus, Package2, Plus, Search, Store, X } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { getEmployeePortalProducts, requestEmployeeWarehousePick } from "../services/employeePortalProductsApi";
@@ -8,15 +8,19 @@ import { getEmployeePortalProducts, requestEmployeeWarehousePick } from "../serv
 const text = (value = "") => String(value || "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const uniqueValues = (values = []) => [...new Set(values.map((value) => text(value)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
+
 const sizeSort = (a, b) => {
   const left = Number(a);
   const right = Number(b);
   if (Number.isFinite(left) && Number.isFinite(right)) return left - right;
   return String(a).localeCompare(String(b), "ar");
 };
-const stockLabel = (size = "", stock = 0) => `${Number(stock || 0)} × ${text(size) || "-"}`;
-const formatTime = (value = new Date()) =>
-  new Intl.DateTimeFormat("ar-EG", { hour: "2-digit", minute: "2-digit" }).format(value instanceof Date ? value : new Date(value));
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const sortSizes = (sizes = []) => [...sizes].sort(sizeSort);
+
+const formatQuantity = (quantity = 1) => String(Math.max(1, Number(quantity || 1)));
 
 const normalizeVariant = (variant = {}) => ({
   id: variant.variant_id ?? variant.id ?? null,
@@ -36,7 +40,7 @@ const normalizeVariant = (variant = {}) => ({
 const normalizeProduct = (product = {}) => {
   const variants = Array.isArray(product.variants) ? product.variants.map(normalizeVariant) : [];
   const colors = uniqueValues(variants.map((variant) => variant.color));
-  const sizes = uniqueValues(variants.map((variant) => variant.size)).sort(sizeSort);
+  const sizes = sortSizes(uniqueValues(variants.map((variant) => variant.size)));
   const totalStock = variants.reduce((sum, variant) => sum + Math.max(0, Number(variant.stock || 0)), 0);
   const imageUrl =
     text(product.product_image_url) ||
@@ -55,6 +59,7 @@ const normalizeProduct = (product = {}) => {
     article_code: text(product.article_code || ""),
     manufacturer_name: text(product.manufacturer_name || ""),
     category: text(product.category || ""),
+    type: text(product.type || product.product_type || product.style || ""),
     brand: text(product.brand || ""),
     gender: text(product.gender || ""),
     style: text(product.style || ""),
@@ -86,14 +91,39 @@ const findVariant = (product = {}, variantId = null, color = "", size = "") => {
   return variants.find((variant) => Number(variant.stock || 0) > 0) || variants[0] || null;
 };
 
+const stockByColor = (product = {}, color = "") =>
+  (Array.isArray(product.variants) ? product.variants : [])
+    .filter((variant) => !color || text(variant.color) === text(color))
+    .reduce((sum, variant) => sum + Math.max(0, Number(variant.stock || 0)), 0);
+
+const firstAvailableColor = (product = {}) => product.colors.find((color) => stockByColor(product, color) > 0) || product.colors[0] || "";
+
+const sizeOptionsForProduct = (product = {}, color = "") => {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const filtered = color ? variants.filter((variant) => text(variant.color) === text(color)) : variants;
+  const bySize = new Map();
+
+  for (const variant of filtered) {
+    const size = text(variant.size);
+    if (!size) continue;
+    const stock = Math.max(0, Number(variant.stock || 0));
+    bySize.set(size, (bySize.get(size) || 0) + stock);
+  }
+
+  return [...bySize.entries()]
+    .map(([size, stock]) => ({ size, stock }))
+    .filter((item) => item.stock > 0)
+    .sort((a, b) => sizeSort(a.size, b.size));
+};
+
 const buildListParams = ({ search, filters }) => {
   const params = { limit: 120 };
   const q = text(search);
   if (q) params.q = q;
   if (filters.category !== "all") params.category = filters.category;
+  if (filters.type !== "all") params.type = filters.type;
   if (filters.brand !== "all") params.brand = filters.brand;
   if (filters.gender !== "all") params.gender = filters.gender;
-  if (filters.style !== "all") params.style = filters.style;
   if (filters.color !== "all") params.color = filters.color;
   if (filters.size !== "all") params.size = filters.size;
   if (filters.inStockOnly) params.inStockOnly = 1;
@@ -108,12 +138,20 @@ const buildLookupParams = (directLookup) => {
   return params;
 };
 
-function ProductBadge({ label, value }) {
+function FilterSelect({ value, onChange, label, options }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
-      <div className="mt-1 truncate text-sm font-bold text-slate-800">{value || "-"}</div>
-    </div>
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none"
+    >
+      <option value="all">{label}</option>
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -182,7 +220,7 @@ function ProductCard({ product, active, onOpen }) {
               .reduce((sum, variant) => sum + Math.max(0, Number(variant.stock || 0)), 0);
             return (
               <span key={size} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-700">
-                {stockLabel(size, stock)}
+                {Number(stock || 0)} × {size}
               </span>
             );
           })}
@@ -199,39 +237,32 @@ function ProductPickerSheet({
   product,
   selectedColor,
   selectedSize,
+  quantity,
+  onClose,
   onSelectColor,
   onSelectSize,
-  onClose,
-  onCallWarehouse,
-  loadingCall,
+  onChangeQuantity,
+  onSubmit,
+  loadingSubmit,
 }) {
   if (!product) return null;
 
-  const colorVariants = product.colors.length ? product.variants.filter((variant) => text(variant.color) === text(selectedColor)) : product.variants;
-  const sizeOptions = (colorVariants.length ? colorVariants : product.variants)
-    .reduce((acc, variant) => {
-      const key = text(variant.size);
-      if (!key) return acc;
-      const existing = acc.find((item) => text(item.size) === key);
-      if (existing) {
-        existing.stock += Math.max(0, Number(variant.stock || 0));
-        return acc;
-      }
-      acc.push({ size: key, stock: Math.max(0, Number(variant.stock || 0)) });
-      return acc;
-    }, [])
-    .sort((a, b) => sizeSort(a.size, b.size));
-
-  const activeVariant = findVariant(product, product.selectedVariantId, selectedColor, selectedSize);
+  const sizeOptions = sizeOptionsForProduct(product, selectedColor);
+  const activeVariant = findVariant(product, null, selectedColor, selectedSize);
   const activeStock = Number(activeVariant?.stock || 0);
-  const canCall = Boolean(activeVariant && activeStock > 0);
+  const canSubmit = Boolean(activeVariant && activeStock > 0 && quantity > 0);
+
+  const handleQuantityDelta = (delta) => {
+    if (!activeStock) return;
+    onChangeQuantity(clamp(Number(quantity || 1) + delta, 1, activeStock));
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-2 py-2 sm:items-center sm:px-4 sm:py-6">
       <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">المنتجات</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">اختيار المنتج</div>
             <h3 className="truncate text-base font-black text-slate-950">{product.name || "منتج"}</h3>
             <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
               <span>كود الأرتكل: {product.article_code || "-"}</span>
@@ -266,10 +297,24 @@ function ProductPickerSheet({
             </div>
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <ProductBadge label="اللون" value={selectedColor || "-"} />
-              <ProductBadge label="المقاس" value={selectedSize ? stockLabel(selectedSize, activeStock) : "-"} />
-              <ProductBadge label="البائع" value={product.employeeName || "-"} />
-              <ProductBadge label="المتاح" value={String(activeStock || 0)} />
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">اللون</div>
+                <div className="mt-1 truncate text-sm font-bold text-slate-800">{selectedColor || "-"}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">المقاس</div>
+                <div className="mt-1 truncate text-sm font-bold text-slate-800">
+                  {selectedSize ? `${selectedSize} × ${activeStock}` : "-"}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">المتاح</div>
+                <div className="mt-1 truncate text-sm font-bold text-slate-800">{Number(activeStock || 0)}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">الكمية</div>
+                <div className="mt-1 truncate text-sm font-bold text-slate-800">{formatQuantity(quantity)}</div>
+              </div>
             </div>
           </div>
 
@@ -277,78 +322,93 @@ function ProductPickerSheet({
             <div className="rounded-[1.25rem] border border-slate-200 bg-white p-3">
               <div className="text-sm font-black text-slate-900">اللون</div>
               <div className="mt-3 flex flex-wrap gap-2">
-                {product.colors.length ? product.colors.map((color) => (
-                  <button
-                    key={color || "default"}
-                    type="button"
-                    onClick={() => onSelectColor(color)}
-                    className={`min-h-11 rounded-full border px-4 py-2 text-sm font-black transition ${
-                      text(selectedColor) === text(color)
-                        ? "border-emerald-400 bg-emerald-500 text-white"
-                        : "border-slate-200 bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    {color}
-                  </button>
-                )) : (
+                {product.colors.length ? (
+                  product.colors.map((color) => {
+                    const colorStock = stockByColor(product, color);
+                    const active = text(selectedColor) === text(color);
+                    return (
+                      <button
+                        key={color || "default"}
+                        type="button"
+                        onClick={() => onSelectColor(color)}
+                        className={`min-h-11 rounded-full border px-4 py-2 text-sm font-black transition ${
+                          active ? "border-emerald-400 bg-emerald-500 text-white" : "border-slate-200 bg-slate-50 text-slate-700"
+                        }`}
+                      >
+                        {color}
+                        <span className={`mr-2 text-[11px] font-bold ${active ? "text-emerald-50" : "text-slate-500"}`}>({colorStock})</span>
+                      </button>
+                    );
+                  })
+                ) : (
                   <span className="text-sm font-semibold text-slate-500">لا توجد ألوان</span>
                 )}
               </div>
             </div>
 
             <div className="rounded-[1.25rem] border border-slate-200 bg-white p-3">
-              <div className="text-sm font-black text-slate-900">المقاس</div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-black text-slate-900">المقاس</div>
+                <div className="text-[11px] font-bold text-slate-400">المتاح فقط يظهر بالأسفل</div>
+              </div>
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {sizeOptions.length ? sizeOptions.map(({ size, stock }) => {
-                  const disabled = Number(stock || 0) <= 0;
-                  const active = text(selectedSize) === text(size);
-                  return (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => onSelectSize(size)}
-                      disabled={disabled}
-                      className={`min-h-16 rounded-2xl border px-3 py-2 text-right transition ${
-                        active
-                          ? "border-emerald-400 bg-emerald-50 text-emerald-700"
-                          : disabled
-                            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300"
+                {sizeOptions.length ? (
+                  sizeOptions.map(({ size, stock }) => {
+                    const active = text(selectedSize) === text(size);
+                    return (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => onSelectSize(size)}
+                        className={`min-h-16 rounded-2xl border px-3 py-2 text-right transition ${
+                          active
+                            ? "border-emerald-400 bg-emerald-50 text-emerald-700"
                             : "border-slate-200 bg-white text-slate-800"
-                      }`}
-                    >
-                      <div className="text-2xl font-black leading-none">{size}</div>
-                      <div className="mt-1 text-[11px] font-semibold leading-none">المتاح: {Number(stock || 0)}</div>
-                    </button>
-                  );
-                }) : (
-                  <div className="text-sm font-semibold text-slate-500">لا توجد مقاسات</div>
+                        }`}
+                      >
+                        <div className="text-2xl font-black leading-none">{size}</div>
+                        <div className="mt-1 text-[11px] font-semibold leading-none">المتاح: {Number(stock || 0)}</div>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-full text-sm font-semibold text-slate-500">لا توجد مقاسات متاحة لهذا اللون</div>
                 )}
               </div>
             </div>
 
             <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-3">
-              <div className="grid gap-2 text-sm text-slate-700">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="font-black text-slate-500">كود الأرتكل</span>
-                  <span className="truncate font-black text-slate-900">{product.article_code || "-"}</span>
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="font-black text-slate-500">اسم المصنع</span>
-                  <span className="truncate font-black text-slate-900">{product.manufacturer_name || "-"}</span>
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="font-black text-slate-500">اللون</span>
-                  <span className="truncate font-bold text-slate-900">{selectedColor || "-"}</span>
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-black text-slate-900">الكمية</div>
+                <div className="text-[11px] font-bold text-slate-500">الحد الأعلى = المتاح في المقاس</div>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuantityDelta(-1)}
+                  disabled={!activeStock || Number(quantity || 1) <= 1}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <div className="min-w-16 text-center text-2xl font-black text-slate-950">{formatQuantity(quantity)}</div>
+                <button
+                  type="button"
+                  onClick={() => handleQuantityDelta(1)}
+                  disabled={!activeStock || Number(quantity || 1) >= activeStock}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
               </div>
 
               <button
                 type="button"
-                onClick={onCallWarehouse}
-                disabled={!canCall || loadingCall}
+                onClick={onSubmit}
+                disabled={!canSubmit || loadingSubmit}
                 className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loadingCall ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+                {loadingSubmit ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
                 اطلب من المخزن
               </button>
             </div>
@@ -381,9 +441,9 @@ export default function EmployeePortalProducts() {
   const deferredSearch = useDeferredValue(search);
   const [filters, setFilters] = useState({
     category: "all",
+    type: "all",
     brand: "all",
     gender: "all",
-    style: "all",
     color: "all",
     size: "all",
     inStockOnly: false,
@@ -391,23 +451,15 @@ export default function EmployeePortalProducts() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
-  const [selectedVariantId, setSelectedVariantId] = useState(null);
-  const [loadingCall, setLoadingCall] = useState(false);
-  const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1024));
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [loadingSubmit, setLoadingSubmit] = useState(false);
   const lookupDoneRef = useRef(false);
-  const isMobile = viewportWidth < 768;
 
   useEffect(() => {
-    const updateViewportWidth = () => {
-      setViewportWidth(window.innerWidth || 1024);
-    };
-
-    updateViewportWidth();
-    window.addEventListener("resize", updateViewportWidth, { passive: true });
-
-    return () => {
-      window.removeEventListener("resize", updateViewportWidth);
-    };
+    if (typeof document === "undefined") return undefined;
+    document.title = "طلب مقاس من المخزن";
+    return undefined;
   }, []);
 
   useEffect(() => {
@@ -423,14 +475,6 @@ export default function EmployeePortalProducts() {
       document.body.style.overflowX = prevBodyOverflowX;
     };
   }, []);
-
-  useEffect(() => {
-    console.info("[employee-portal-products:layout]", {
-      innerWidth: viewportWidth,
-      isMobile,
-      branch: isMobile ? "mobile" : "desktop",
-    });
-  }, [viewportWidth, isMobile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -455,14 +499,15 @@ export default function EmployeePortalProducts() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [token, deferredSearch, filters.category, filters.brand, filters.gender, filters.style, filters.color, filters.size, filters.inStockOnly]);
+  }, [token, deferredSearch, filters.category, filters.type, filters.brand, filters.gender, filters.color, filters.size, filters.inStockOnly]);
 
   useEffect(() => {
     lookupDoneRef.current = false;
     setSelectedProduct(null);
-    setSelectedVariantId(null);
     setSelectedColor("");
     setSelectedSize("");
+    setSelectedQuantity(1);
+    setSheetOpen(false);
   }, [token, queryKey]);
 
   useEffect(() => {
@@ -470,11 +515,15 @@ export default function EmployeePortalProducts() {
     if (!directLookup.productId && !directLookup.barcode && !directLookup.article) return;
 
     let cancelled = false;
+
     (async () => {
       try {
         const response = await getEmployeePortalProducts(token, buildLookupParams(directLookup));
         if (cancelled) return;
+
         const lookupProducts = (Array.isArray(response?.products) ? response.products : []).map(normalizeProduct);
+        if (!lookupProducts.length) return;
+
         const selection = response?.selection || {};
         const matched =
           lookupProducts.find((product) => String(product.id) === String(selection.product_id || "")) ||
@@ -483,10 +532,14 @@ export default function EmployeePortalProducts() {
 
         if (matched) {
           const variant = findVariant(matched, selection.variant_id, selection.color, selection.size);
-          setSelectedProduct({ ...matched, employeeName: employee?.full_name || employee?.name || "" });
-          setSelectedVariantId(variant?.variant_id ?? variant?.id ?? null);
-          setSelectedColor(variant?.color || matched.colors[0] || "");
-          setSelectedSize(variant?.size || matched.sizes[0] || "");
+          const nextColor = variant?.color || matched.colors[0] || "";
+          const nextSize = variant?.size || matched.sizes[0] || "";
+          setProducts(lookupProducts);
+          setSelectedProduct(matched);
+          setSelectedColor(nextColor);
+          setSelectedSize(nextSize);
+          setSelectedQuantity(1);
+          setSheetOpen(true);
         }
       } finally {
         lookupDoneRef.current = true;
@@ -496,50 +549,73 @@ export default function EmployeePortalProducts() {
     return () => {
       cancelled = true;
     };
-  }, [token, directLookup.productId, directLookup.barcode, directLookup.article, employee?.full_name, employee?.name]);
+  }, [token, directLookup.productId, directLookup.barcode, directLookup.article]);
 
   const normalizedProducts = useMemo(() => (Array.isArray(products) ? products : []).map(normalizeProduct), [products]);
+
   const filterOptions = useMemo(() => {
     const categories = uniqueValues(normalizedProducts.map((product) => product.category));
+    const types = uniqueValues(normalizedProducts.map((product) => product.type));
     const brands = uniqueValues(normalizedProducts.map((product) => product.brand));
     const genders = uniqueValues(normalizedProducts.map((product) => product.gender));
-    const styles = uniqueValues(normalizedProducts.map((product) => product.style));
     const colors = uniqueValues(normalizedProducts.flatMap((product) => product.colors || []));
-    const sizes = uniqueValues(normalizedProducts.flatMap((product) => product.sizes || [])).sort(sizeSort);
-    return { categories, brands, genders, styles, colors, sizes };
+    const sizes = sortSizes(uniqueValues(normalizedProducts.flatMap((product) => product.sizes || [])));
+    return { categories, types, brands, genders, colors, sizes };
   }, [normalizedProducts]);
 
   const activeVariant = useMemo(() => {
     if (!selectedProduct) return null;
-    return findVariant(selectedProduct, selectedVariantId, selectedColor, selectedSize);
-  }, [selectedProduct, selectedVariantId, selectedColor, selectedSize]);
+    return findVariant(selectedProduct, null, selectedColor, selectedSize);
+  }, [selectedProduct, selectedColor, selectedSize]);
 
   const openProduct = (product, variant = null) => {
-    setSelectedProduct({ ...product, employeeName: employee?.full_name || employee?.name || "" });
-    setSelectedVariantId(variant?.variant_id ?? variant?.id ?? null);
-    setSelectedColor(variant?.color || product.colors[0] || "");
-    setSelectedSize(variant?.size || product.sizes[0] || "");
+    const nextColor = variant?.color || firstAvailableColor(product);
+    const nextSize = variant?.size || (nextColor ? sizeOptionsForProduct(product, nextColor)[0]?.size || "" : product.sizes[0] || "");
+    setSelectedProduct(product);
+    setSelectedColor(nextColor);
+    setSelectedSize(nextSize);
+    setSelectedQuantity(1);
+    setSheetOpen(true);
   };
 
-  const handleCallWarehouse = async () => {
+  const handleSelectColor = (color) => {
+    const nextVariant = firstVariantForColor(selectedProduct, color);
+    const nextSize = sizeOptionsForProduct(selectedProduct, color)[0]?.size || nextVariant?.size || "";
+    setSelectedColor(color);
+    setSelectedSize(nextSize);
+    setSelectedQuantity(1);
+  };
+
+  const handleSelectSize = (size) => {
+    const nextVariant = findVariant(selectedProduct, null, selectedColor, size);
+    setSelectedSize(size);
+    if (nextVariant?.color) setSelectedColor(nextVariant.color);
+    setSelectedQuantity((current) => clamp(Number(current || 1), 1, Number(nextVariant?.stock || 1)));
+  };
+
+  const closeSheet = () => {
+    setSheetOpen(false);
+  };
+
+  const handleSubmit = async () => {
     if (!selectedProduct || !activeVariant || Number(activeVariant.stock || 0) <= 0) return;
-    setLoadingCall(true);
+    setLoadingSubmit(true);
     try {
       await requestEmployeeWarehousePick(token, {
         productId: selectedProduct.id ?? selectedProduct.product_id ?? null,
-        color: activeVariant.color || "",
-        size: activeVariant.size || "",
-        quantity: 1,
+        variantId: activeVariant.variant_id ?? activeVariant.id ?? null,
+        color: activeVariant.color || selectedColor || "",
+        size: activeVariant.size || selectedSize || "",
+        quantity: clamp(Number(selectedQuantity || 1), 1, Math.max(1, Number(activeVariant.stock || 1))),
       });
-      toast.success("تم إرسال نداء المخزن");
-      setSelectedProduct(null);
-      setSelectedVariantId(null);
-      setSelectedColor("");
-      setSelectedSize("");
+
+      toast.success("تم إرسال الطلب إلى المخزن");
+      setSheetOpen(false);
+      setSelectedQuantity(1);
     } catch (err) {
-      toast.error(err?.message || "تعذر إرسال نداء المخزن");
+      toast.error(err?.message || "تعذر إرسال الطلب إلى المخزن");
     } finally {
-      setLoadingCall(false);
+      setLoadingSubmit(false);
     }
   };
 
@@ -557,7 +633,7 @@ export default function EmployeePortalProducts() {
         <section className="mx-auto max-w-xl rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 text-amber-600">
             <Store className="h-5 w-5" />
-            <h1 className="text-xl font-black">المنتجات</h1>
+            <h1 className="text-xl font-black">طلب مقاس من المخزن</h1>
           </div>
           <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">{error}</p>
         </section>
@@ -572,9 +648,9 @@ export default function EmployeePortalProducts() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-600">Employee Portal</div>
-              <h1 className="truncate text-lg font-black text-slate-950">المنتجات</h1>
+              <h1 className="truncate text-lg font-black text-slate-950">طلب مقاس من المخزن</h1>
               <div className="mt-0.5 text-xs font-semibold text-slate-500">
-                {employee?.full_name ? `الموظف: ${employee.full_name}` : "البحث السريع عن المنتجات ونداء المخزن"}
+                {employee?.full_name ? `الموظف: ${employee.full_name}` : "ابحث عن المنتج ثم اختر اللون والمقاس لإرسال الطلب للمخزن"}
               </div>
             </div>
             <button
@@ -583,13 +659,18 @@ export default function EmployeePortalProducts() {
                 setSearch("");
                 setFilters({
                   category: "all",
+                  type: "all",
                   brand: "all",
                   gender: "all",
-                  style: "all",
                   color: "all",
                   size: "all",
                   inStockOnly: false,
                 });
+                setSelectedProduct(null);
+                setSelectedColor("");
+                setSelectedSize("");
+                setSelectedQuantity(1);
+                setSheetOpen(false);
               }}
               className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 self-start sm:self-auto"
             >
@@ -605,7 +686,7 @@ export default function EmployeePortalProducts() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="بحث عن موديل أو كود"
+                placeholder="ابحث بالموديل أو الاسم أو الباركود أو الكود"
                 className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-slate-400"
               />
             </label>
@@ -616,30 +697,12 @@ export default function EmployeePortalProducts() {
           </div>
 
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <select value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">الفئة</option>
-              {filterOptions.categories.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-            <select value={filters.brand} onChange={(event) => setFilters((current) => ({ ...current, brand: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">البراند</option>
-              {filterOptions.brands.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-            <select value={filters.gender} onChange={(event) => setFilters((current) => ({ ...current, gender: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">الجنس</option>
-              {filterOptions.genders.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-            <select value={filters.style} onChange={(event) => setFilters((current) => ({ ...current, style: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">الستايل</option>
-              {filterOptions.styles.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-            <select value={filters.color} onChange={(event) => setFilters((current) => ({ ...current, color: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">اللون</option>
-              {filterOptions.colors.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-            <select value={filters.size} onChange={(event) => setFilters((current) => ({ ...current, size: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
-              <option value="all">المقاس</option>
-              {filterOptions.sizes.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
+            <FilterSelect value={filters.category} onChange={(value) => setFilters((current) => ({ ...current, category: value }))} label="الفئة" options={filterOptions.categories} />
+            <FilterSelect value={filters.type} onChange={(value) => setFilters((current) => ({ ...current, type: value }))} label="النوع" options={filterOptions.types} />
+            <FilterSelect value={filters.brand} onChange={(value) => setFilters((current) => ({ ...current, brand: value }))} label="البراند" options={filterOptions.brands} />
+            <FilterSelect value={filters.gender} onChange={(value) => setFilters((current) => ({ ...current, gender: value }))} label="الجنس" options={filterOptions.genders} />
+            <FilterSelect value={filters.color} onChange={(value) => setFilters((current) => ({ ...current, color: value }))} label="اللون" options={filterOptions.colors} />
+            <FilterSelect value={filters.size} onChange={(value) => setFilters((current) => ({ ...current, size: value }))} label="المقاس" options={filterOptions.sizes} />
             <label className="inline-flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 md:col-span-2 xl:col-span-1">
               <span>المتاح فقط</span>
               <input
@@ -652,14 +715,14 @@ export default function EmployeePortalProducts() {
           </div>
         </section>
 
-        <section className={`mt-4 grid gap-4 ${isMobile ? "grid-cols-1" : "lg:grid-cols-[1fr_1.55fr]"}`}>
-          <div className="order-1">
+        <section className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.95fr]">
+          <div>
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-black text-slate-500">آخر 20 منتج</h2>
+              <h2 className="text-sm font-black text-slate-500">النتائج</h2>
               <div className="text-xs font-semibold text-slate-400">{normalizedProducts.length.toLocaleString("ar-EG")} منتج</div>
             </div>
-            <div className="grid gap-3">
-              {normalizedProducts.slice(0, 20).map((product) => (
+            <div className="grid grid-cols-1 gap-3">
+              {normalizedProducts.map((product) => (
                 <ProductCard key={product.id} product={product} active={selectedProduct && String(selectedProduct.id) === String(product.id)} onOpen={openProduct} />
               ))}
               {!loading && normalizedProducts.length === 0 ? (
@@ -670,21 +733,16 @@ export default function EmployeePortalProducts() {
             </div>
           </div>
 
-          {!isMobile ? (
-            <div className="hidden lg:block lg:order-2">
-            <div className="sticky top-3 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="hidden lg:block">
+            <div className="sticky top-4 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-black text-slate-500">المنتج الحالي</h2>
+                <h2 className="text-sm font-black text-slate-500">المنتج المحدد</h2>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-600" /> : null}
               </div>
 
               {selectedProduct ? (
-                <button
-                  type="button"
-                  onClick={() => openProduct(selectedProduct, activeVariant)}
-                  className="group block w-full rounded-[1.5rem] border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-amber-50 p-4 text-right shadow-[0_16px_42px_rgba(16,185,129,0.12)] transition hover:shadow-[0_18px_48px_rgba(16,185,129,0.18)]"
-                >
-                  <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                <div className="rounded-[1.5rem] border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-amber-50 p-4 text-right shadow-[0_16px_42px_rgba(16,185,129,0.12)]">
+                  <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
                     <div className="rounded-[1.25rem] border border-slate-200 bg-white p-3">
                       <div className="flex min-h-[18rem] items-center justify-center overflow-hidden rounded-[1rem] bg-slate-50">
                         {selectedProduct.image_url ? (
@@ -706,20 +764,32 @@ export default function EmployeePortalProducts() {
                     <div className="space-y-3">
                       <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
                         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">اللون</div>
-                        <div className="mt-1 text-lg font-black text-slate-950">{activeVariant?.color || selectedColor || "-"}</div>
+                        <div className="mt-1 text-lg font-black text-slate-950">{selectedColor || "-"}</div>
                       </div>
                       <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
                         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">المقاس</div>
                         <div className="mt-1 flex items-end gap-2">
-                          <div className="text-5xl font-black leading-none text-slate-950">{activeVariant?.size || selectedSize || "-"}</div>
+                          <div className="text-5xl font-black leading-none text-slate-950">{selectedSize || "-"}</div>
                           <div className="pb-1 text-sm font-bold text-slate-500">× {Number(activeVariant?.stock || 0)}</div>
                         </div>
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
-                        <ProductBadge label="كود الأرتكل" value={selectedProduct.article_code || "-"} />
-                        <ProductBadge label="اسم المصنع" value={selectedProduct.manufacturer_name || "-"} />
-                        <ProductBadge label="البائع" value={selectedProduct.employeeName || employee?.full_name || "-"} />
-                        <ProductBadge label="الوقت" value={formatTime()} />
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">كود الأرتكل</div>
+                          <div className="mt-1 truncate text-sm font-bold text-slate-800">{selectedProduct.article_code || "-"}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">اسم المصنع</div>
+                          <div className="mt-1 truncate text-sm font-bold text-slate-800">{selectedProduct.manufacturer_name || "-"}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">الكمية</div>
+                          <div className="mt-1 truncate text-sm font-bold text-slate-800">{formatQuantity(selectedQuantity)}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">المتاح</div>
+                          <div className="mt-1 truncate text-sm font-bold text-slate-800">{Number(activeVariant?.stock || 0)}</div>
+                        </div>
                       </div>
                       <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
                         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">المنتج</div>
@@ -732,82 +802,49 @@ export default function EmployeePortalProducts() {
                           ))}
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setSheetOpen(true)}
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-600 px-4 text-sm font-black text-white"
+                      >
+                        افتح الاختيار
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
-                </button>
+                </div>
               ) : (
                 <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
                   <Package2 className="mx-auto h-16 w-16 text-slate-300" />
-                  <div className="mt-4 text-lg font-black text-slate-900">اختر منتجًا للمعاينة</div>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">اضغط على أي بطاقة لفتح الألوان والمقاسات ثم اطلب من المخزن.</p>
+                  <div className="mt-4 text-lg font-black text-slate-900">اختار منتج ثم اللون والمقاس لإرسال طلب للمخزن</div>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">اضغط على أي بطاقة لفتح منتقي المقاسات والألوان.</p>
                 </div>
               )}
             </div>
-            </div>
-          ) : null}
+          </div>
         </section>
 
-        {selectedProduct && activeVariant ? (
-          <div className="sticky bottom-2 z-30 mt-4 rounded-[1.5rem] border border-emerald-200 bg-white/95 p-3 shadow-[0_16px_40px_rgba(16,185,129,0.16)] backdrop-blur lg:hidden">
-            <div className="flex items-center gap-3">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-                {selectedProduct.image_url ? (
-                  <img src={selectedProduct.image_url} alt={selectedProduct.name} className="h-full w-full object-contain p-1.5" />
-                ) : (
-                  <Package2 className="h-7 w-7 text-slate-300" />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-black text-slate-950">{selectedProduct.name || "-"}</div>
-                <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">
-                  {selectedColor || "-"} • {selectedSize || "-"}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleCallWarehouse}
-                disabled={loadingCall || Number(activeVariant?.stock || 0) <= 0}
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-50"
-              >
-                {loadingCall ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
-                اطلب من المخزن
-              </button>
-            </div>
+        {!selectedProduct ? (
+          <div className="mt-4 rounded-[1.5rem] border border-dashed border-slate-300 bg-white p-6 text-center text-sm font-semibold text-slate-500 lg:hidden">
+            اختار منتج ثم اللون والمقاس لإرسال طلب للمخزن
           </div>
         ) : null}
 
-        {selectedProduct ? (
+        {sheetOpen && selectedProduct ? (
           <ProductPickerSheet
-            product={{ ...selectedProduct, selectedVariantId, employeeName: employee?.full_name || employee?.name || "" }}
+            product={selectedProduct}
             selectedColor={selectedColor}
             selectedSize={selectedSize}
-            onSelectColor={(color) => {
-              const nextVariant = firstVariantForColor(selectedProduct, color);
-              setSelectedColor(color);
-              setSelectedVariantId(nextVariant?.variant_id ?? nextVariant?.id ?? null);
-              setSelectedSize(nextVariant?.size || "");
-            }}
-            onSelectSize={(size) => {
-              const nextVariant = findVariant(selectedProduct, null, selectedColor, size);
-              setSelectedSize(size);
-              setSelectedVariantId(nextVariant?.variant_id ?? nextVariant?.id ?? null);
-              if (nextVariant?.color) setSelectedColor(nextVariant.color);
-            }}
-            onClose={() => {
-              setSelectedProduct(null);
-              setSelectedVariantId(null);
-              setSelectedColor("");
-              setSelectedSize("");
-            }}
-            onCallWarehouse={handleCallWarehouse}
-            loadingCall={loadingCall}
+            quantity={selectedQuantity}
+            onSelectColor={handleSelectColor}
+            onSelectSize={handleSelectSize}
+            onChangeQuantity={setSelectedQuantity}
+            onClose={closeSheet}
+            onSubmit={handleSubmit}
+            loadingSubmit={loadingSubmit}
           />
         ) : null}
       </div>
     </main>
   );
 }
-
-
-
-
