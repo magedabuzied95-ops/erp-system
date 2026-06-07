@@ -1,5 +1,6 @@
 ﻿import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { memo, useCallback } from "react";
+import { useDeferredValue } from "react";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
@@ -662,6 +663,53 @@ const imageFor = (value) => {
 const money = (value) => formatCurrency(Number(value || 0));
 const sfText = (key, fallback, options = {}) => i18n.t(String(key || ""), { defaultValue: fallback, ...options });
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
+const BODY_SCROLL_LOCK_ATTR = "data-storefront-scroll-lock-count";
+const BODY_SCROLL_LOCK_Y_ATTR = "data-storefront-scroll-lock-y";
+const lockBodyScroll = () => {
+  if (typeof document === "undefined" || typeof window === "undefined") return () => undefined;
+  const root = document.documentElement;
+  const body = document.body;
+  const currentCount = Number(body.getAttribute(BODY_SCROLL_LOCK_ATTR) || "0");
+  if (!currentCount) {
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    const scrollbarCompensation = Math.max(0, window.innerWidth - root.clientWidth);
+    body.setAttribute(BODY_SCROLL_LOCK_Y_ATTR, String(scrollY));
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    if (scrollbarCompensation > 0) {
+      body.style.paddingRight = `${scrollbarCompensation}px`;
+    }
+  }
+  body.setAttribute(BODY_SCROLL_LOCK_ATTR, String(currentCount + 1));
+  return () => {
+    const nextCount = Math.max(0, Number(body.getAttribute(BODY_SCROLL_LOCK_ATTR) || "0") - 1);
+    if (nextCount > 0) {
+      body.setAttribute(BODY_SCROLL_LOCK_ATTR, String(nextCount));
+      return;
+    }
+    const lockedScrollY = Number(body.getAttribute(BODY_SCROLL_LOCK_Y_ATTR) || "0");
+    body.removeAttribute(BODY_SCROLL_LOCK_ATTR);
+    body.removeAttribute(BODY_SCROLL_LOCK_Y_ATTR);
+    body.style.position = "";
+    body.style.top = "";
+    body.style.left = "";
+    body.style.right = "";
+    body.style.width = "";
+    body.style.overflow = "";
+    body.style.paddingRight = "";
+    window.scrollTo({ top: lockedScrollY, left: 0, behavior: "instant" });
+  };
+};
+const useBodyScrollLock = (locked) => {
+  useEffect(() => {
+    if (!locked) return undefined;
+    return lockBodyScroll();
+  }, [locked]);
+};
 const storefrontSaleModeOn = (product = {}, variant = {}) =>
   truthyFlag(variant?.global_sale_enabled) ||
   truthyFlag(variant?.sale_prices_enabled) ||
@@ -1290,6 +1338,7 @@ const resolveRenderedAiImageAnswer = (response = {}) => {
   return unavailable ? REQUESTED_VARIANT_UNAVAILABLE_ANSWER : EXACT_VARIANT_RENDERED_ANSWER;
 };
 const logImageSearchSuggestedProductRanking = (response = {}) => {
+  if (!import.meta.env.DEV) return;
   const products = Array.isArray(response?.suggested_products) ? response.suggested_products : [];
   const rankingDebug = response?.image_ranking_debug || {};
   const responseDebug = response?.response_debug || {};
@@ -2301,19 +2350,21 @@ function AiSupportChatWidget({ onAddToCart }) {
   }, [imageLoading, loading, sessionId, tenantId]);
 
   const logWebsiteChatEvent = useCallback((eventName, extra = {}) => {
-    console.log(eventName, {
-      channel: "website_chat",
-      conversation_id: sessionId,
-      provider_message_id: extra.provider_message_id || "",
-      tenant_id: tenantId,
-      intent: extra.intent || "",
-      products_count: Number.isFinite(Number(extra.products_count)) ? Number(extra.products_count) : Number(aiSupportContext.last_shown_product_cards?.length || 0),
-      product_cards_count: Number.isFinite(Number(extra.product_cards_count)) ? Number(extra.product_cards_count) : 0,
-      image_cards_count: Number.isFinite(Number(extra.image_cards_count)) ? Number(extra.image_cards_count) : 0,
-      actions_count: Number.isFinite(Number(extra.actions_count)) ? Number(extra.actions_count) : 0,
-      early_return_reason: extra.early_return_reason || "",
-      ...extra,
-    });
+    if (import.meta.env.DEV) {
+      console.debug(eventName, {
+        channel: "website_chat",
+        conversation_id: sessionId,
+        provider_message_id: extra.provider_message_id || "",
+        tenant_id: tenantId,
+        intent: extra.intent || "",
+        products_count: Number.isFinite(Number(extra.products_count)) ? Number(extra.products_count) : Number(aiSupportContext.last_shown_product_cards?.length || 0),
+        product_cards_count: Number.isFinite(Number(extra.product_cards_count)) ? Number(extra.product_cards_count) : 0,
+        image_cards_count: Number.isFinite(Number(extra.image_cards_count)) ? Number(extra.image_cards_count) : 0,
+        actions_count: Number.isFinite(Number(extra.actions_count)) ? Number(extra.actions_count) : 0,
+        early_return_reason: extra.early_return_reason || "",
+        ...extra,
+      });
+    }
   }, [aiSupportContext.last_shown_product_cards, sessionId, tenantId]);
 
   const resolveAiSupportProductDetails = useCallback(async (candidateProduct = null) => {
@@ -2866,10 +2917,8 @@ function AiSupportChatWidget({ onAddToCart }) {
 }
 
 function Storefront() {
-  const STOREFRONT_BUILD_MARKER = "storefront-addtocart-final-v3";
   const pageStartedAtRef = useRef(performance.now());
-  console.log("[storefront-build-marker]", STOREFRONT_BUILD_MARKER);
-  function handleStorefrontAddToCart(product, variant, quantity = 1) {
+  const handleStorefrontAddToCart = useCallback((product, variant, quantity = 1) => {
     if (!variant || Number(variant.stock || 0) <= 0) {
       toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
       return "unavailable";
@@ -2885,7 +2934,7 @@ function Storefront() {
     }
     commitCartItem(cartItem);
     return "added";
-  }
+  }, []);
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       logPagePerf("storefront", pageStartedAtRef.current, { page_mount_ms: Math.round(performance.now() - pageStartedAtRef.current) });
@@ -2904,6 +2953,7 @@ function Storefront() {
   const [customerCaptureOpen, setCustomerCaptureOpen] = useState(false);
   const [customerCaptureReason, setCustomerCaptureReason] = useState("add_to_cart");
   const [pendingCartItem, setPendingCartItem] = useState(null);
+  const [chatReady, setChatReady] = useState(false);
   const location = useLocation();
   const effectiveTheme = themeMode === "auto" ? systemTheme : themeMode;
   const dir = typeof i18n.dir === "function" ? i18n.dir(i18n.resolvedLanguage || i18n.language) : "ltr";
@@ -2948,6 +2998,26 @@ function Storefront() {
       const image = new Image();
       image.src = logoUrl;
     });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    let cancelled = false;
+    const enableChat = () => {
+      if (!cancelled) setChatReady(true);
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(enableChat, { timeout: 1500 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(idleId);
+      };
+    }
+    const timer = window.setTimeout(enableChat, 800);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -3203,32 +3273,68 @@ function Storefront() {
     }, ...items.filter((item) => String(item.id) !== String(product.id))].slice(0, 20));
   }, []);
   const isProductDetailsRoute = /^\/shop\/product\/[^/]+/.test(location.pathname);
+  const cartCount = cart.length;
+  const wishlistCount = wishlist.length;
+  const homePageElement = useMemo(
+    () => <HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />,
+    [handleStorefrontAddToCart, toggleWishlist, wishlist]
+  );
+  const productsPageElement = useMemo(
+    () => <ProductsPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />,
+    [handleStorefrontAddToCart, toggleWishlist, wishlist]
+  );
+  const salePageElement = useMemo(
+    () => <ProductsPage sale wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />,
+    [handleStorefrontAddToCart, toggleWishlist, wishlist]
+  );
+  const productDetailsElement = useMemo(
+    () => <ProductDetails onAddToCart={handleStorefrontAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} rememberProduct={rememberProduct} recent={recent} profile={profile} />,
+    [handleStorefrontAddToCart, profile, recent, rememberProduct, toggleWishlist, wishlist]
+  );
+  const cartPageElement = useMemo(
+    () => <CartPage cart={cart} updateCart={updateCart} removeFromCart={removeFromCart} />,
+    [cart, removeFromCart, updateCart]
+  );
+  const checkoutPageElement = useMemo(
+    () => <CheckoutPage cart={cart} clearCart={clearCart} profile={profile} setProfile={setProfile} />,
+    [cart, clearCart, profile]
+  );
+  const successPageElement = useMemo(() => <OrderSuccess profile={profile} />, [profile]);
+  const accountPageElement = useMemo(
+    () => <AccountPage profile={profile} setProfile={setProfile} wishlist={wishlist} recent={recent} onAddToCart={handleStorefrontAddToCart} />,
+    [handleStorefrontAddToCart, profile, recent, wishlist]
+  );
+  const wishlistPageElement = useMemo(
+    () => <WishlistPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />,
+    [handleStorefrontAddToCart, toggleWishlist, wishlist]
+  );
+  const recentPageElement = useMemo(() => <RecentPage recent={recent} />, [recent]);
 
   return (
     <div dir={dir} data-language={language} data-theme={effectiveTheme} className={`storefront-shell min-h-dvh ${location.pathname === "/shop/checkout" ? "storefront-shell--checkout" : ""} ${isProductDetailsRoute ? "storefront-shell--product-detail" : ""} ${effectiveTheme === "dark" ? "dark storefront-dark bg-[#070b16] text-stone-100" : "bg-[#f7f4ee] text-stone-950"}`}>
-      <Header cart={cart} wishlist={wishlist} onCart={openCart} onAddToCart={handleStorefrontAddToCart} />
+      <Header cartCount={cartCount} wishlistCount={wishlistCount} onCart={openCart} onAddToCart={handleStorefrontAddToCart} />
       <main className="sf-storefront-main">
         <Routes>
-          <Route index element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />} />
-          <Route path="products" element={<ProductsPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />} />
-          <Route path="sale" element={<ProductsPage sale wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />} />
-          <Route path="product/:identifier" element={<ProductDetails onAddToCart={handleStorefrontAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} rememberProduct={rememberProduct} recent={recent} profile={profile} />} />
-          <Route path="cart" element={<CartPage cart={cart} updateCart={updateCart} removeFromCart={removeFromCart} />} />
-          <Route path="checkout" element={<CheckoutPage cart={cart} clearCart={clearCart} profile={profile} setProfile={setProfile} />} />
-          <Route path="success/:orderNumber" element={<OrderSuccess profile={profile} />} />
+          <Route index element={homePageElement} />
+          <Route path="products" element={productsPageElement} />
+          <Route path="sale" element={salePageElement} />
+          <Route path="product/:identifier" element={productDetailsElement} />
+          <Route path="cart" element={cartPageElement} />
+          <Route path="checkout" element={checkoutPageElement} />
+          <Route path="success/:orderNumber" element={successPageElement} />
           <Route path="track" element={<TrackOrder />} />
-          <Route path="account" element={<AccountPage profile={profile} setProfile={setProfile} wishlist={wishlist} recent={recent} onAddToCart={handleStorefrontAddToCart} />} />
-          <Route path="wishlist" element={<WishlistPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={handleStorefrontAddToCart} />} />
-          <Route path="recently-viewed" element={<RecentPage recent={recent} />} />
+          <Route path="account" element={accountPageElement} />
+          <Route path="wishlist" element={wishlistPageElement} />
+          <Route path="recently-viewed" element={recentPageElement} />
           <Route path="faq" element={<FaqPage />} />
           <Route path="contact" element={<ContactPage />} />
           <Route path="size-guide" element={<SizeGuide />} />
           <Route path="returns" element={<ReturnsPolicy />} />
         </Routes>
       </main>
-      <AiSupportChatWidget onAddToCart={handleStorefrontAddToCart} />
+      {chatReady ? <AiSupportChatWidget onAddToCart={handleStorefrontAddToCart} /> : null}
       <Footer />
-      <MobileBottomNav count={cart.length} />
+      <MobileBottomNav count={cartCount} />
       <CustomerCaptureSheet
         open={customerCaptureOpen}
         reason={customerCaptureReason}
@@ -3249,6 +3355,7 @@ function CustomerCaptureSheet({ open, reason = "add_to_cart", initialName = "", 
   const [phone, setPhone] = useState(initialPhone || "");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return;
@@ -3263,15 +3370,6 @@ function CustomerCaptureSheet({ open, reason = "add_to_cart", initialName = "", 
       cancelled = true;
     };
   }, [initialName, initialPhone, open]);
-
-  useEffect(() => {
-    if (!open || typeof document === "undefined") return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -3353,7 +3451,7 @@ function CustomerCaptureSheet({ open, reason = "add_to_cart", initialName = "", 
   );
 }
 
-function Header({ cart, wishlist, onCart, onAddToCart }) {
+const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToCart }) {
   const { i18n: storefrontI18n, t } = useTranslation();
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -3372,6 +3470,7 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
   const selectedVisualImageRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const deferredSearch = useDeferredValue(search);
   const compactDisabled = /^\/shop\/product\/[^/]+/.test(location.pathname);
   const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
   const nextLanguage = currentLanguage === "ar" ? "en" : "ar";
@@ -3401,12 +3500,27 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
     [t("storefront.nav.women", "Women"), "/shop/products?q=حريمي"],
     [t("storefront.nav.kids", "Kids"), "/shop/products?q=أطفال"],
   ];
-
   useEffect(() => {
-    const updateCompact = () => setIsCompact(!compactDisabled && window.scrollY > 72);
+    if (typeof window === "undefined") return undefined;
+    let frameId = 0;
+    let lastCompactState = null;
+    const updateCompact = () => {
+      frameId = 0;
+      const nextCompact = !compactDisabled && window.scrollY > 72;
+      if (lastCompactState === nextCompact) return;
+      lastCompactState = nextCompact;
+      setIsCompact((current) => (current === nextCompact ? current : nextCompact));
+    };
+    const onScroll = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(updateCompact);
+    };
     updateCompact();
-    window.addEventListener("scroll", updateCompact, { passive: true });
-    return () => window.removeEventListener("scroll", updateCompact);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, [compactDisabled]);
 
   useEffect(() => {
@@ -3442,7 +3556,8 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
     if (visualSearch.active) {
       return;
     }
-    if (search.trim().length < 2) {
+    const normalizedSearch = deferredSearch.trim();
+    if (normalizedSearch.length < 2) {
       let cancelled = false;
       deferReactState(() => {
         if (cancelled) return;
@@ -3459,7 +3574,7 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
       if (!cancelled) setSearchLoading(true);
     });
     const timer = setTimeout(() => {
-      api.get(`/storefront/products/search?q=${encodeURIComponent(search)}&limit=8`, { signal: controller.signal })
+      api.get(`/storefront/products/search?q=${encodeURIComponent(normalizedSearch)}&limit=8`, { signal: controller.signal })
         .then((data) => {
           if (!cancelled) setSuggestions(data.products || []);
         })
@@ -3475,16 +3590,16 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [search, visualSearch.active]);
+  }, [deferredSearch, visualSearch.active]);
 
-  const handleSearchChange = (value) => {
+  const handleSearchChange = useCallback((value) => {
     setSearch(value);
     if (visualSearch.active) {
       clearVisualSearch();
     }
-  };
+  }, [clearVisualSearch, visualSearch.active]);
 
-  const rememberSearch = (value) => {
+  const rememberSearch = useCallback((value) => {
     const term = String(value || "").trim();
     if (!term) return;
     setRecentSearches((current) => {
@@ -3492,15 +3607,19 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
       writeJson(SEARCH_RECENT_KEY, next);
       return next;
     });
-  };
+  }, []);
 
-  const closeSearch = () => {
+  const closeSearch = useCallback(() => {
     setSearchOpen(false);
     setMobileSearchOpen(false);
     setActiveSearchIndex(-1);
     setSearchLoading(false);
     clearVisualSearch();
-  };
+  }, [clearVisualSearch]);
+  const handleQuickSearchAdd = useCallback((...args) => {
+    closeSearch();
+    onAddToCart(...args);
+  }, [closeSearch, onAddToCart]);
 
   const submit = (event) => {
     event.preventDefault();
@@ -3578,23 +3697,9 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
       const tenantId = resolveStorefrontTenantId();
       formData.append("tenant_id", tenantId);
       const endpoint = "/storefront/products/visual-search";
-      console.debug("[visual-search] request", {
-        endpoint,
-        tenant_id: tenantId,
-        file_name: selectedVisualImageRef.current?.name || "",
-        file_type: selectedVisualImageRef.current?.type || "",
-        file_size: selectedVisualImageRef.current?.size || 0,
-      });
       try {
         const data = await api.post(endpoint, formData, { timeoutMs: 45000, headers: { "x-tenant-id": tenantId } });
         const products = Array.isArray(data.products) ? data.products : [];
-        console.debug("[visual-search] response", {
-          endpoint,
-          status: 200,
-          result_count: products.length,
-          source: data.source || "",
-          keywords: Array.isArray(data.keywords) ? data.keywords : [],
-        });
         setSuggestions(products);
         setVisualSearch({
           active: true,
@@ -3605,12 +3710,6 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
           fileName: file.name,
         });
       } catch (error) {
-        console.error("[visual-search] failed", {
-          endpoint,
-          status: error?.status || 0,
-          response_body: error?.responseBody || null,
-          message: error?.message || "",
-        });
         const message =
           error?.responseBody?.message ||
           error?.responseBody?.error ||
@@ -3725,16 +3824,13 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
           setActiveIndex={setActiveSearchIndex}
           onPickTerm={pickSearchTerm}
           onPickProduct={pickProduct}
-          onQuickAdd={(...args) => {
-            closeSearch();
-            onAddToCart(...args);
-          }}
+          onQuickAdd={handleQuickSearchAdd}
           onVoice={handleVoiceSearch}
           onImage={handleImageSearch}
           className="hidden md:block"
         />
         <div className="flex items-center justify-end gap-2">
-          <HeaderAction to="/shop/wishlist" label={t("storefront.header.wishlist", "Wishlist")} count={wishlist.length} icon={<Heart className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
+          <HeaderAction to="/shop/wishlist" label={t("storefront.header.wishlist", "Wishlist")} count={wishlistCount} icon={<Heart className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
           <HeaderAction to="/shop/account" label={t("storefront.header.account", "Account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
           <div className="sf-secondary-action relative hidden md:block">
             <button onClick={toggleNotifications} className="sf-header-action" aria-label={t("storefront.header.notifications", "Notifications")}>
@@ -3754,7 +3850,7 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
           </div>
           <button onClick={onCart} className="sf-header-action sf-cart-action" aria-label={t("storefront.cart.title", "Cart")}>
             <ShoppingCart className="h-5 w-5" />
-            {cart.length ? <span className="sf-action-badge">{cart.length}</span> : null}
+            {cartCount ? <span className="sf-action-badge">{cartCount}</span> : null}
           </button>
         </div>
       </div>
@@ -3789,10 +3885,7 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
         setActiveIndex={setActiveSearchIndex}
         onPickTerm={pickSearchTerm}
         onPickProduct={pickProduct}
-          onQuickAdd={(...args) => {
-            closeSearch();
-            onAddToCart(...args);
-          }}
+        onQuickAdd={handleQuickSearchAdd}
         onVoice={handleVoiceSearch}
         onImage={handleImageSearch}
         mobileOnly
@@ -3808,7 +3901,7 @@ function Header({ cart, wishlist, onCart, onAddToCart }) {
       ) : null}
     </header>
   );
-}
+});
 
 function HeaderAction({ to, icon, count, label, className = "" }) {
   return (
@@ -3845,6 +3938,7 @@ function PremiumSearch({
   const { t } = useTranslation();
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  useBodyScrollLock(Boolean(mobileOnly && mobileOpen));
   const chips = value.trim() ? [] : [...recentSearches, ...getTrendingSearches()].filter(Boolean);
   const keyboardItems = [
     ...suggestions.map((item) => ({ type: "product", item })),
@@ -3858,16 +3952,6 @@ function PremiumSearch({
     }
     return undefined;
   }, [mobileOpen]);
-
-  useEffect(() => {
-    if (!mobileOnly || !mobileOpen) return undefined;
-    document.documentElement.classList.add("sf-mobile-search-scroll-lock");
-    document.body.classList.add("sf-mobile-search-scroll-lock");
-    return () => {
-      document.documentElement.classList.remove("sf-mobile-search-scroll-lock");
-      document.body.classList.remove("sf-mobile-search-scroll-lock");
-    };
-  }, [mobileOnly, mobileOpen]);
 
   useEffect(() => {
     if (!open && !mobileOpen) return undefined;
@@ -4025,7 +4109,7 @@ function SearchQuickSections({ value, loading, suggestions, visualSearch, chips,
                     onClick={() => onPickProduct(product)}
                     className={`flex items-center gap-3 rounded-2xl p-2 text-right transition hover:bg-[#f7f4ee] active:scale-[0.99] dark:hover:bg-white/5 ${activeIndex === index ? "bg-[#f5f3ff] dark:bg-white/8" : ""}`}
                   >
-                    <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" decoding="async" width="56" height="56" />
+                    <img src={imageFor(product.image_url)} onError={fallbackProductImage} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" decoding="async" width="56" height="56" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-black">{product.name}</div>
                       <div className="truncate text-xs font-bold text-stone-500 dark:text-stone-400">
@@ -4067,7 +4151,7 @@ function VisualSearchResults({ products = [], loading, visualSearch, onPickTerm,
     <section className="sf-visual-results grid gap-3" aria-live="polite">
       {visualSearch?.previewUrl ? (
         <div className="sf-visual-preview">
-          <img src={visualSearch.previewUrl} alt="" className="sf-visual-preview-image" />
+          <img src={visualSearch.previewUrl} alt="" className="sf-visual-preview-image" decoding="async" />
           {visualSearch?.fileName ? <div className="sf-visual-preview-name" title={visualSearch.fileName}>{visualSearch.fileName}</div> : null}
         </div>
       ) : null}
@@ -4165,7 +4249,7 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd }) 
     <article className="sf-visual-card" style={{ animationDelay: `${index * 45}ms` }}>
       <button type="button" onClick={viewProduct} className="sf-visual-card-main">
         <span className="sf-visual-card-image-wrap">
-          <img src={imageFor(displayImageForProduct(safeProduct, variant))} alt={safeProduct?.name || ""} className="sf-visual-card-image" loading="lazy" decoding="async" />
+          <img src={imageFor(displayImageForProduct(safeProduct, variant))} onError={fallbackProductImage} alt={safeProduct?.name || ""} className="sf-visual-card-image" loading="lazy" decoding="async" />
         </span>
         <span className="min-w-0 flex-1 text-right">
           <span className="sf-visual-card-name">{safeProduct?.name}</span>
@@ -4303,7 +4387,7 @@ const featuredCategoryDefinitions = [
     href: "/shop/products?gender=men",
     examples: ["Jordan 4", "Nike Shox", "Air Force", "Adidas Campus"],
     test: (product, text) => productAudienceValues(product).includes("men") || /\bmen\b|mens|male|رجالي|رجال/.test(text),
-  },
+},
   {
     id: "women",
     labelEn: "Women",
@@ -5091,10 +5175,10 @@ function SectionIntro({ eyebrow, title, subtitle, compact = false }) {
 
 function LastPieceFinder({ open, onClose }) {
   const navigate = useNavigate();
-  const previousBodyOverflow = useRef("");
   const [isNavigating, setIsNavigating] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
+  useBodyScrollLock(open);
   const { loading, error, categories, sizes, products } = useLastPiece({
     category: selectedCategory,
     limit: 80,
@@ -5172,50 +5256,6 @@ function LastPieceFinder({ open, onClose }) {
   const title = step === "categories" ? "اختار القسم" : step === "sizes" ? "اختار المقاس" : `${selectedCategory} / ${selectedSize}`;
 
   useEffect(() => {
-    if (!open) return;
-    const rawCategories = Array.isArray(categories) ? categories : [];
-    const debugCategories = step === "categories" ? displayedCategories : [{ label: selectedCategory, count: criticalProducts.length }];
-    debugCategories.forEach((category) => {
-      console.log("[last-piece-debug]", {
-        rawCategories,
-        categoryName: category.label,
-        displayedCount: category.count,
-        productsCount: criticalProducts.filter((product) => !category.label || product.category === category.label).length,
-        products: criticalProducts
-          .filter((product) => !category.label || product.category === category.label)
-          .map((product) => ({
-            id: product.id,
-            name: product.name,
-            totalProductStock: product.totalProductStock || product.total_stock || product.metadata?.totalProductStock,
-            variants: product.variants?.map((variant) => ({
-              size: variant.size,
-              color: variant.color,
-              qty: Number(variant.qty ?? variant.stock ?? variant.stock_quantity ?? 0),
-            })),
-          })),
-      });
-    });
-  }, [categories, criticalProducts, displayedCategories, open, selectedCategory, step]);
-
-  useEffect(() => {
-    if (!open || !selectedCategory || step !== "sizes") return;
-    console.log("[last-piece-size-step-debug]", {
-      selectedCategory,
-      eligibleProductCount: eligibleLastPieceProducts.length,
-      sizeOptions,
-      eligibleProducts: eligibleLastPieceProducts.map((product) => ({
-        id: product.id,
-        name: product.name,
-        totalProductStock: product.totalProductStock || product.total_stock || product.metadata?.totalProductStock,
-        sizes: (product.variants || []).map((variant) => ({
-          size: variant.size,
-          qty: Number(variant.qty ?? variant.stock ?? variant.stock_quantity ?? variant.quantity ?? 0),
-        })),
-      })),
-    });
-  }, [eligibleLastPieceProducts, open, selectedCategory, sizeOptions, step]);
-
-  useEffect(() => {
     if (!open) {
       let cancelled = false;
       deferReactState(() => {
@@ -5236,11 +5276,8 @@ function LastPieceFinder({ open, onClose }) {
     const onKeyDown = (event) => {
       if (event.key === "Escape") onClose();
     };
-    previousBodyOverflow.current = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      document.body.style.overflow = previousBodyOverflow.current || "";
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [open, onClose]);
@@ -5347,60 +5384,15 @@ function LastPieceFinder({ open, onClose }) {
                 (() => {
                   const remainingStock = productTotalStock(product);
                   const variant = lastPieceMatchingVariant(product, selectedSize);
-                  const normalResolvedPrice = displaySellingPrice(product, variant);
-                  const purchaseInvoiceSalePrice = Number(
-                    variant?.last_piece_sale_price ||
-                      variant?.purchase_invoice_sale_price ||
-                      variant?.purchase_sale_price ||
-                      0
-                  );
                   const sellingPrice = displayLastPieceSellingPrice(product, variant);
                   const rawComparePrice = displayComparePrice(product, variant);
                   const comparePrice = rawComparePrice > sellingPrice ? rawComparePrice : 0;
                   const discountPercent = comparePrice > sellingPrice ? Math.max(1, Math.round(((comparePrice - sellingPrice) / comparePrice) * 100)) : 0;
-                  console.log("[last-piece-price-compare-debug]", {
-                    productId: product.id,
-                    productName: product.name,
-                    selectedLastPieceSize: selectedSize,
-                    matchingVariant: variant,
-                    normalStorefrontResolvedPrice: normalResolvedPrice,
-                    purchaseInvoiceSalePrice,
-                    lastPieceResolvedPrice: sellingPrice,
-                    resolvedComparePrice: comparePrice,
-                    productKeys: Object.keys(product || {}),
-                    variantKeys: Object.keys(variant || {}),
-                    productPriceFields: {
-                      price: product.price,
-                      regular_price: product.regular_price,
-                      selling_price: product.selling_price,
-                      sale_price: product.sale_price,
-                      storefront_price: product.storefront_price,
-                      storefront_adjusted_price: product.storefront_adjusted_price,
-                      adjusted_price: product.adjusted_price,
-                      final_price: product.final_price,
-                      min_price: product.min_price,
-                      max_price: product.max_price,
-                    },
-                    variantPriceFields: variant ? {
-                      price: variant.price,
-                      regular_price: variant.regular_price,
-                      selling_price: variant.selling_price,
-                      sale_price: variant.sale_price,
-                      purchase_sale_price: variant.purchase_sale_price,
-                      purchase_invoice_sale_price: variant.purchase_invoice_sale_price,
-                      purchase_invoice_selling_price: variant.purchase_invoice_selling_price,
-                      last_piece_sale_price: variant.last_piece_sale_price,
-                      storefront_price: variant.storefront_price,
-                      storefront_adjusted_price: variant.storefront_adjusted_price,
-                      adjusted_price: variant.adjusted_price,
-                      final_price: variant.final_price,
-                    } : null,
-                  });
                   return (
                     <article key={productCardKey(product, index)} className={`overflow-hidden rounded-[1.45rem] border backdrop-blur ${lowStockUrgencyClass(remainingStock)}`}>
                       <button onClick={() => openProduct(product, variant)} className="grid w-full grid-cols-[8.5rem_1fr] gap-3 p-3 text-right sm:grid-cols-[11rem_1fr]">
                         <span className="relative aspect-[4/5] overflow-hidden rounded-[1.15rem] bg-white/8">
-                          <img src={imageFor(variant?.image_url || product.image_url)} alt={product.name} className="h-full w-full object-contain p-2" loading="lazy" decoding="async" width="176" height="220" />
+                          <img src={imageFor(variant?.image_url || product.image_url)} onError={fallbackProductImage} alt={product.name} className="h-full w-full object-contain p-2" loading="lazy" decoding="async" width="176" height="220" />
                           <span className={`absolute right-2 top-2 rounded-full px-2.5 py-1 text-[10px] font-black ${lowStockPillClass(remainingStock)}`}>{lowStockLabel(remainingStock)}</span>
                         </span>
                         <span className="flex min-w-0 flex-col py-1">
@@ -5576,6 +5568,7 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, onAddToCart }) {
   const productTypeStepRef = useRef(null);
   const gridStepRef = useRef(null);
   const [draftFilters, setDraftFilters] = useState({ gender, product_type: productType, grade });
+  useBodyScrollLock(filtersOpen);
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const { options: storefrontGenderOptions } = useStorefrontGenderClassifications();
   const classificationOptions = useMemo(
@@ -5635,15 +5628,6 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, onAddToCart }) {
       cancelled = true;
     };
   }, [gender, isGuidedCategoryFlow, productType, size]);
-
-  useEffect(() => {
-    if (!filtersOpen) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [filtersOpen]);
 
   const buildFilterUrl = (field, value) => {
     const next = new URLSearchParams(params);
@@ -5760,39 +5744,6 @@ function ProductsPage({ sale = false, wishlist, toggleWishlist, onAddToCart }) {
     () => orderedProducts.filter((product) => productHasAvailableSize(product, size) && (!lastSizes || isLastPieceProduct(product))),
     [lastSizes, orderedProducts, size]
   );
-  const activeFilters = useMemo(
-    () => ({ q, category, gender, size, inStock, quality, productType, grade, sort, sale: saleView ? 1 : "", lastSizes }),
-    [category, gender, grade, inStock, lastSizes, productType, q, quality, saleView, size, sort]
-  );
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia?.("(max-width: 767px)")?.matches) return;
-    console.info("[storefront-mobile-debug]", {
-      route: "products",
-      productsLength: products.length,
-      visibleSections: isGuidedCategoryFlow ? ["guidedGender", "guidedProductType", "guidedGrid"] : ["filters", "productGrid"],
-      activeFilters,
-      loading,
-      error: error || "",
-      displayedProductsLength: displayedProducts.length,
-      gridProductsLength: gridProducts.length,
-      orderedFilteredProductsLength: orderedFilteredProducts.length,
-      gridProductsLoading,
-      gridProductsError: gridProductsError || "",
-    });
-  }, [
-    activeFilters,
-    displayedProducts.length,
-    error,
-    gridProducts.length,
-    gridProductsError,
-    gridProductsLoading,
-    isGuidedCategoryFlow,
-    loading,
-    orderedFilteredProducts.length,
-    products.length,
-  ]);
-
   if (isGuidedCategoryFlow) {
     const selectedGenderOption = genderOptions.find((option) => String(option.value) === String(selectedGender));
     const selectedProductTypeOption = productTypeOptions.find((option) => String(option.value) === String(selectedProductType));
@@ -6494,22 +6445,22 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const densityClasses = cardDensityClasses[density] || cardDensityClasses.standard;
 
   return (
-    <article style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onClick={openDetails} className={`group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(250,248,244,0.94)_48%,rgba(245,241,234,0.82))] shadow-[0_14px_34px_rgba(39,20,75,0.08),inset_0_1px_0_rgba(255,255,255,0.86)] ring-1 ring-stone-200/60 transition-[transform,box-shadow,border-color,background-color] duration-300 ease-out hover:-translate-y-2 hover:border-[#a78bfa]/45 hover:ring-[#7c3aed]/35 hover:shadow-[0_24px_66px_rgba(39,20,75,0.18),0_0_0_1px_rgba(124,58,237,0.10)_inset] md:rounded-[1.55rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.95),rgba(11,16,32,0.93)_52%,rgba(8,13,25,0.98))] dark:ring-white/[0.05] dark:shadow-[0_18px_50px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.055)] dark:hover:border-[#a78bfa]/35 dark:hover:shadow-[0_28px_72px_rgba(0,0,0,0.38),0_0_38px_rgba(124,58,237,0.14)] ${featured ? "md:shadow-[0_24px_70px_rgba(109,40,217,0.17)]" : ""}`}>
-      <div className="pointer-events-none absolute inset-x-7 top-7 h-16 rounded-full bg-[#a78bfa]/0 blur-2xl transition duration-500 group-hover/product:bg-[#a78bfa]/16" />
-      <div className={`relative overflow-visible bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.18),transparent_31%),linear-gradient(180deg,#fbfaf7_0%,#eee7dc_100%)] md:p-3 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.14),transparent_31%),linear-gradient(180deg,#101426_0%,#0b1020_100%)] ${densityClasses.image}`}>
-        <div className="absolute inset-x-7 top-[18%] h-28 rounded-full bg-white/50 blur-xl dark:bg-white/[0.09]" />
+    <article style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onClick={openDetails} className={`group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(250,248,244,0.94)_48%,rgba(245,241,234,0.84))] shadow-[0_10px_26px_rgba(39,20,75,0.07),inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-stone-200/55 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#a78bfa]/38 hover:ring-[#7c3aed]/22 hover:shadow-[0_18px_44px_rgba(39,20,75,0.12),0_0_0_1px_rgba(124,58,237,0.08)_inset] md:rounded-[1.55rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.95),rgba(11,16,32,0.93)_52%,rgba(8,13,25,0.98))] dark:ring-white/[0.05] dark:shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] dark:hover:border-[#a78bfa]/24 dark:hover:shadow-[0_20px_54px_rgba(0,0,0,0.32),0_0_24px_rgba(124,58,237,0.10)] ${featured ? "md:shadow-[0_18px_52px_rgba(109,40,217,0.12)]" : ""}`}>
+      <div className="pointer-events-none absolute inset-x-8 top-8 h-14 rounded-full bg-[#a78bfa]/0 blur-xl transition duration-300 group-hover/product:bg-[#a78bfa]/10" />
+      <div className={`relative overflow-visible bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.12),transparent_28%),linear-gradient(180deg,#fbfaf7_0%,#eee7dc_100%)] md:p-3 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.10),transparent_28%),linear-gradient(180deg,#101426_0%,#0b1020_100%)] ${densityClasses.image}`}>
+        <div className="absolute inset-x-8 top-[18%] h-24 rounded-full bg-white/40 blur-lg dark:bg-white/[0.07]" />
         <Link to={detailsUrl} className="relative z-10 block h-full">
           {displayImage ? (
             <img
               src={imageFor(displayImage)}
               alt={product.name}
-              className={`h-full w-full transform-gpu rounded-[0.85rem] object-contain object-center p-0 transition-[opacity,transform] duration-500 ease-out will-change-transform group-hover/product:-translate-y-1 group-hover/product:scale-[1.075] md:rounded-[1.15rem] md:scale-[1.03] md:group-hover/product:scale-[1.11] ${eagerImage ? "opacity-100" : "opacity-0"}`}
+              onError={fallbackProductImage}
+              className="h-full w-full transform-gpu rounded-[0.85rem] object-contain object-center p-0 transition-transform duration-300 ease-out will-change-transform group-hover/product:-translate-y-0.5 group-hover/product:scale-[1.035] md:rounded-[1.15rem] md:scale-[1.01] md:group-hover/product:scale-[1.05]"
               loading={eagerImage ? "eager" : "lazy"}
-              decoding={eagerImage ? "sync" : "async"}
+              decoding="async"
               fetchPriority={eagerImagePriority ? "high" : undefined}
               width="360"
               height="432"
-              onLoad={eagerImage ? undefined : (event) => event.currentTarget.classList.remove("opacity-0")}
             />
           ) : (
             <div className="grid h-full w-full place-items-center rounded-[1rem] bg-white/70 text-center text-xs font-black text-stone-400 dark:bg-white/5 dark:text-stone-500 md:rounded-[1.15rem]">
@@ -6521,14 +6472,14 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex h-6 items-center rounded-full bg-stone-950/92 px-2.5 text-[9px] font-black leading-none text-white shadow-[0_10px_22px_rgba(0,0,0,0.20)] backdrop-blur md:h-7 md:px-3 md:text-[10px] dark:bg-white dark:text-stone-950">TOP {rank}</span> : null}
           {discountPercent ? <span className="inline-flex h-6 items-center rounded-full border border-[#7c3aed]/15 bg-white/95 px-2.5 text-[9px] font-black leading-none text-[#6d28d9] shadow-[0_10px_22px_rgba(39,20,75,0.10)] backdrop-blur md:h-7 md:px-3 md:text-[10px] dark:border-white/10 dark:bg-[#0b1020] dark:text-[#d8b4fe]">-{discountPercent}%</span> : null}
         </div>
-        <button onClick={(event) => { event.stopPropagation(); handleWishlist(); }} className="absolute left-2 top-2 z-20 rounded-full bg-white/95 p-1.5 shadow-sm ring-1 ring-stone-200/70 transition duration-200 hover:scale-110 hover:text-rose-500 active:scale-95 md:left-2.5 md:top-2.5 md:p-1.5 dark:bg-white/5 dark:text-stone-100 dark:ring-white/10" aria-label={t("storefront.header.wishlist", "Wishlist")}>
+        <button onClick={(event) => { event.stopPropagation(); handleWishlist(); }} className="absolute left-2 top-2 z-20 rounded-full bg-white/95 p-1.5 shadow-sm ring-1 ring-stone-200/70 transition duration-200 hover:text-rose-500 active:scale-95 md:left-2.5 md:top-2.5 md:p-1.5 dark:bg-white/5 dark:text-stone-100 dark:ring-white/10" aria-label={t("storefront.header.wishlist", "Wishlist")}>
           <Heart className={`h-3.5 w-3.5 transition md:h-5 md:w-5 ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-stone-700 dark:text-stone-200"}`} />
         </button>
         <button
           type="button"
           onClick={handleMobileCart}
           disabled={!sellableVariants.length && !canQuickAdd}
-          className="absolute bottom-2 left-2 z-30 grid h-8 w-8 place-items-center rounded-full border border-white/25 bg-stone-950/88 text-white shadow-[0_10px_24px_rgba(0,0,0,0.24)] backdrop-blur transition active:scale-95 disabled:opacity-45 md:hidden"
+          className="absolute bottom-2 left-2 z-30 grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-stone-950/88 text-white shadow-[0_8px_18px_rgba(0,0,0,0.20)] backdrop-blur transition active:scale-95 disabled:opacity-45 md:hidden"
           aria-label={directAddVariant ? t("storefront.cart.addToCart", "Add to cart") : t("storefront.products.chooseSize", "Choose size")}
         >
           <ShoppingCart className="h-3.5 w-3.5" />
@@ -6537,7 +6488,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           <button
             onClick={handleQuickAdd}
             disabled={!canQuickAdd}
-            className="sf-shimmer-button hidden min-h-10 min-w-[8.75rem] transform-gpu items-center justify-center gap-1.5 rounded-full border border-white/20 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 px-4 py-2.5 text-[11px] font-black text-white shadow-[0_10px_28px_rgba(124,58,237,0.38)] backdrop-blur transition-[transform,box-shadow,filter] duration-300 ease-out hover:scale-[1.045] hover:brightness-110 hover:shadow-[0_16px_42px_rgba(124,58,237,0.58)] active:scale-[0.96] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:inline-flex md:min-h-11 md:min-w-[9.25rem] md:px-4"
+            className="sf-shimmer-button hidden min-h-10 min-w-[8.75rem] transform-gpu items-center justify-center gap-1.5 rounded-full border border-white/20 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 px-4 py-2.5 text-[11px] font-black text-white shadow-[0_10px_22px_rgba(124,58,237,0.26)] backdrop-blur transition-[transform,box-shadow,filter] duration-200 ease-out hover:brightness-105 hover:shadow-[0_14px_32px_rgba(124,58,237,0.36)] active:scale-[0.96] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:inline-flex md:min-h-11 md:min-w-[9.25rem] md:px-4"
           >
             <ShoppingCart className="h-4 w-4" />
             {canQuickAdd ? t("storefront.cart.quickAdd", "Quick add") : t("storefront.products.unavailable", "Unavailable")}
@@ -6641,7 +6592,9 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     prev.rank === next.rank &&
     prev.featured === next.featured &&
     prev.density === next.density &&
-    prev.sizeLimit === next.sizeLimit
+    prev.sizeLimit === next.sizeLimit &&
+    prev.eagerImage === next.eagerImage &&
+    prev.eagerImagePriority === next.eagerImagePriority
   );
 });
 
@@ -6912,7 +6865,7 @@ function ProductDetails({ onAddToCart, toggleWishlist, wishlist, rememberProduct
       .sort((a, b) => Number(variantHasStock(b)) - Number(variantHasStock(a)))
       .map((item) => [`${variantImage(item)}:${item.color || ""}`, item])
   ).values()];
-  const fallbackProductImage = !thumbnailVariants.length && product?.image_url ? [product.image_url] : [];
+  const fallbackGalleryImages = !thumbnailVariants.length && product?.image_url ? [product.image_url] : [];
   const mainImage = selected.image || variantImage(variant) || selectedColorGroup?.primaryImage?.image_url || selectedColorGroup?.primaryImage?.preview || firstVariantImage(variants) || product?.image_url || "";
   const galleryItems = [
     ...colorGalleryImages.map((image) => ({
@@ -6920,7 +6873,7 @@ function ProductDetails({ onAddToCart, toggleWishlist, wishlist, rememberProduct
       variant: selectedColorGroup?.variants?.find((item) => variantImages(item).includes(compactImageValue(image?.image_url || image?.preview || ""))) || null,
     })),
     ...thumbnailVariants.flatMap((item) => variantImages(item).map((image) => ({ image, variant: item }))),
-    ...fallbackProductImage.map((image) => ({ image, variant: null })),
+    ...fallbackGalleryImages.map((image) => ({ image, variant: null })),
   ].filter((item) => item.image).reduce((acc, item) => (acc.some((entry) => entry.image === item.image) ? acc : [...acc, item]), []);
   const mirrorProduct = product ? isMirrorProduct(product) : false;
   const displayTitle = cleanDisplayText(product ? mirrorProductTitle(product, variant) || product.name : "");
@@ -7066,7 +7019,7 @@ function ProductDetails({ onAddToCart, toggleWishlist, wishlist, rememberProduct
       <div className="min-w-0">
         <div className="sf-product-gallery-frame relative mx-auto h-[clamp(250px,42vh,340px)] w-full max-w-[92vw] overflow-hidden rounded-[24px] border border-stone-200 bg-[linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] p-2 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-[clamp(420px,58vh,540px)] md:max-w-none md:rounded-[1.75rem] md:p-5 md:shadow-[0_20px_55px_rgba(39,20,75,0.10)]">
           <div className="absolute inset-x-10 bottom-5 h-12 rounded-full bg-white/80 blur-2xl md:inset-x-16 md:bottom-8 md:h-16" />
-          <img src={imageFor(mainImage)} alt={displayTitle} className="sf-product-main-image relative z-10 mx-auto h-full w-full object-contain drop-shadow-[0_14px_18px_rgba(39,20,75,0.14)] md:max-h-full md:drop-shadow-[0_22px_26px_rgba(39,20,75,0.18)]" loading="eager" decoding="async" fetchPriority="high" width="900" height="675" />
+          <img src={imageFor(mainImage)} onError={fallbackProductImage} alt={displayTitle} className="sf-product-main-image relative z-10 mx-auto h-full w-full object-contain drop-shadow-[0_14px_18px_rgba(39,20,75,0.14)] md:max-h-full md:drop-shadow-[0_22px_26px_rgba(39,20,75,0.18)]" loading="eager" decoding="async" fetchPriority="high" width="900" height="675" />
         </div>
         {galleryItems.length > 1 ? (
           <div className="sf-product-thumbnails sf-scroll mt-1.5 flex snap-x snap-mandatory gap-1.5 overflow-x-auto pb-1 md:mt-3 md:gap-2">
@@ -7080,7 +7033,7 @@ function ProductDetails({ onAddToCart, toggleWishlist, wishlist, rememberProduct
                   onClick={() => selectGalleryImage(item)}
                   className={`sf-product-thumb h-12 w-12 shrink-0 snap-start overflow-hidden rounded-xl border bg-white p-1 transition hover:-translate-y-0.5 hover:border-stone-900 md:h-20 md:w-20 md:rounded-2xl md:p-1.5 ${active ? "border-stone-950 shadow-[0_12px_28px_rgba(39,20,75,0.14)]" : "border-stone-200"}`}
                 >
-                  <img src={imageFor(image)} alt="" className="h-full w-full object-contain" loading="lazy" decoding="async" width="80" height="80" />
+                  <img src={imageFor(image)} onError={fallbackProductImage} alt="" className="h-full w-full object-contain" loading="lazy" decoding="async" width="80" height="80" />
                 </button>
               );
             })}
@@ -7250,7 +7203,7 @@ function ProductDetailsVariantSheet({
       <section className="absolute inset-x-0 bottom-0 rounded-t-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]">
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/20" />
         <div className="flex items-start gap-3">
-          <img src={imageFor(displayImageForProduct(product, activeVariant))} alt="" className="h-16 w-16 shrink-0 rounded-2xl bg-white/8 object-contain p-1.5" loading="lazy" decoding="async" width="64" height="64" />
+          <img src={imageFor(displayImageForProduct(product, activeVariant))} onError={fallbackProductImage} alt="" className="h-16 w-16 shrink-0 rounded-2xl bg-white/8 object-contain p-1.5" loading="lazy" decoding="async" width="64" height="64" />
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#d8b4fe]">{sfText("storefront.products.selectOptions", "Select options")}</p>
             <h3 className="mt-1 line-clamp-2 text-base font-black leading-5">{cleanDisplayText(product?.name)}</h3>
@@ -7376,7 +7329,7 @@ function RecentProductsSection({ currentId, recent = [] }) {
       <div className="grid grid-cols-2 gap-3">
         {items.map((item) => (
           <Link key={item.id} to={`/shop/product/${item.slug || item.id}`} className="min-w-0 rounded-2xl bg-stone-50 p-2 transition hover:-translate-y-0.5 dark:bg-white/[0.055]">
-            <img src={imageFor(item.image_url)} alt="" className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" width="240" height="240" />
+            <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" width="240" height="240" />
             <div className="mt-2 truncate text-sm font-black text-stone-950 dark:text-white">{item.name}</div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-white/55">
               {displayCartItemComparePrice(item) ? <span className="line-through">{money(displayCartItemComparePrice(item))}</span> : null}
@@ -7406,7 +7359,7 @@ function CartContent({ cart, updateCart, removeFromCart }) {
       <div className="space-y-3">
         {cart.map((item) => (
           <div key={item.lineId} className="flex gap-3 rounded-3xl border border-stone-200 bg-white p-3">
-            <img src={imageFor(item.image_url)} alt="" className="h-24 w-24 rounded-2xl object-cover" loading="lazy" decoding="async" width="96" height="96" />
+            <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-24 w-24 rounded-2xl object-cover" loading="lazy" decoding="async" width="96" height="96" />
             <div className="min-w-0 flex-1">
               <div className="font-black">{item.name}</div>
               <div className="mt-1 text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "Color")} / {item.size || sfText("storefront.products.size", "Size")}</div>
@@ -8568,7 +8521,7 @@ function OrderItemsSummary({ items = [] }) {
       <h3 className="sf-section-heading text-lg font-black">{sfText("storefront.orders.itemsSummary", "Product summary")}</h3>
       {items.map((item) => (
         <div key={item.id || `${item.product_id}-${item.variant_id}`} className="sf-order-item-row flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
-          <img src={imageFor(item.product_image || item.image_url)} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
+          <img src={imageFor(item.product_image || item.image_url)} onError={fallbackProductImage} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
           <div className="min-w-0 flex-1">
             <div className="sf-order-item-name truncate font-black">{item.product_name || item.name}</div>
             <div className="sf-order-item-meta text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "Color")} / {item.size || sfText("storefront.products.size", "Size")} - {item.quantity}</div>
@@ -9300,7 +9253,7 @@ function CheckoutSummary({ cart, subtotal, discount, deliveryFee, total, codAmou
           const comparePrice = displayCartItemComparePrice(item);
           return (
             <div key={item.lineId} className="sf-reveal flex min-w-0 items-center gap-3 rounded-2xl bg-white/[0.045] p-2.5 ring-1 ring-white/10">
-              <img src={imageFor(item.image_url)} alt="" className="h-18 w-18 shrink-0 rounded-2xl object-cover shadow-sm" loading="lazy" decoding="async" width="72" height="72" />
+              <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-18 w-18 shrink-0 rounded-2xl object-cover shadow-sm" loading="lazy" decoding="async" width="72" height="72" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-black leading-5 text-white">{item.name}</div>
                 <div className="mt-1 inline-flex rounded-full bg-white/[0.055] px-2 py-1 text-[11px] font-black text-white/60 ring-1 ring-white/10">{item.color || t("storefront.products.color", "Color")} / {item.size || t("storefront.products.size", "Size")} × {item.quantity}</div>
@@ -9508,6 +9461,7 @@ function EmptyState({ title, text, actionTo = "/shop/products", actionLabel }) {
 }
 
 function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
+  useBodyScrollLock(open);
   if (!open) return null;
   const subtotal = cart.reduce((sum, item) => sum + displayCartItemPrice(item) * item.quantity, 0);
   const total = subtotal;
@@ -9557,7 +9511,7 @@ function MobileCartRow({ item, updateCart, removeFromCart }) {
     <article className="w-full min-w-0 rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-3 text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
       <div className="flex min-w-0 items-start gap-3">
         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-white/[0.065] ring-1 ring-white/10">
-          <img src={imageFor(item.image_url)} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" width="80" height="80" />
+          <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" width="80" height="80" />
         </div>
         <div className="min-w-0 flex-1 self-stretch">
           <h3 className="line-clamp-2 break-words text-sm font-black leading-5 text-white">{item.name}</h3>
@@ -9820,7 +9774,7 @@ function SmallProductList({ items, empty = "لا توجد منتجات." }) {
     const product = normalizeWishlistProduct(item);
     return (
       <Link key={product.id || product.slug} to={`/shop/product/${product.slug || product.id}`} className="sf-small-product-row flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
-        <img src={imageFor(product.image_url)} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" loading="lazy" decoding="async" width="48" height="48" />
+        <img src={imageFor(product.image_url)} onError={fallbackProductImage} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" loading="lazy" decoding="async" width="48" height="48" />
         <span className="sf-small-product-name truncate font-black">{product.name || sfText("storefront.products.savedProduct", "Saved product")}</span>
       </Link>
     );
@@ -9860,7 +9814,7 @@ function SmallProductGrid({ items, action, onAddToCart }) {
           ) : (
             <Link to={`/shop/product/${item.slug || item.id}`} className="flex min-h-0 flex-1 flex-col">
               <div className="aspect-[4/5] w-full overflow-hidden rounded-xl border border-white/70 bg-gradient-to-br from-stone-50 via-white to-stone-100 p-3 shadow-inner shadow-stone-200/70">
-                <img src={imageFor(item.image_url)} alt={item.name || ""} className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.035]" loading="lazy" decoding="async" width="320" height="400" />
+                <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt={item.name || ""} className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.035]" loading="lazy" decoding="async" width="320" height="400" />
               </div>
               <div className="mt-4 line-clamp-2 min-h-12 break-words text-start text-base font-black leading-6 text-white">{item.name || sfText("storefront.products.savedProduct", "Saved product")}</div>
               <div className="mt-2 flex min-h-7 flex-wrap items-center gap-2 text-start text-sm font-black text-white">
