@@ -1022,7 +1022,7 @@ function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) 
       onClick={onClick}
       title={`${label}: ${count}`}
       aria-label={`${label}: ${count}`}
-      className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm md:h-10 md:w-10 ${toneClassName}`}
+      className={`relative inline-flex h-11 w-11 items-center justify-center rounded-full border shadow-sm md:h-10 md:w-10 ${toneClassName}`}
     >
       <Icon className="h-4 w-4" />
       <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-slate-950 px-1 text-[10px] font-black leading-4 text-white">
@@ -2408,7 +2408,7 @@ export default function EmployeePayrollPortal() {
                   { key: "display-refill", count: badgeCounts.displayRefillAlerts || 0, label: ui("displayRefillShort"), Icon: AlertTriangle, tone: "amber" },
                   { key: "tasks", count: badgeCounts.newTasks || 0, label: ui("tasksShort"), Icon: ClipboardList, tone: "sky" },
                   { key: "requests", count: badgeCounts.pendingNotifications || 0, label: ui("requestsShort"), Icon: MessageCircle, tone: "orange" },
-                ].filter((item) => Number(item.count || 0) > 0).map(({ key, count, label, Icon, tone }) => (
+                ].map(({ key, count, label, Icon, tone }) => (
                   <HeaderBadgeButton key={key} count={count} label={label} Icon={Icon} tone={tone} onClick={() => setActiveTab(key)} />
                 ))}
               </div>
