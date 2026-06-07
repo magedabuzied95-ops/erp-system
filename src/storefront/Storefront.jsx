@@ -1992,7 +1992,7 @@ function AiVisualAttachments({ attachments = [], onOpenProduct }) {
   );
 }
 
-function AiSupportChatWidget() {
+function AiSupportChatWidget({ onAddToCart }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -2398,24 +2398,6 @@ function AiSupportChatWidget() {
     setOpen(false);
   }, [aiSupportContext.selected_color, aiSupportContext.selected_color_key, aiSupportContext.selected_size, navigate, pushAiSupportContext, sessionId, tenantId]);
 
-  function handleStorefrontAddToCart(product, variant, quantity = 1) {
-    if (!variant || Number(variant.stock || 0) <= 0) {
-      toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
-      return "unavailable";
-    }
-    if (!(displaySellingPrice(product, variant) > 0)) {
-      toast.error(sfText("storefront.toasts.priceUnavailable", "The price is currently unavailable."));
-      return "unavailable";
-    }
-    const cartItem = buildCartItem(product, variant, quantity);
-    if (!customerSessionRef.current && !captureSkipActive()) {
-      openCustomerCapture(cartItem, "add_to_cart");
-      return "capture_required";
-    }
-    commitCartItem(cartItem);
-    return "added";
-  }
-
   const handleUnifiedActionClick = useCallback(async (action, context = {}) => {
     const raw = typeof action === "string"
       ? action
@@ -2599,7 +2581,7 @@ function AiSupportChatWidget() {
         selected_color_key: variantColorKey(resolvedVariant),
         last_action: key,
       });
-      const result = handleStorefrontAddToCart(resolvedProduct, resolvedVariant, 1);
+      const result = onAddToCart(resolvedProduct, resolvedVariant, 1);
       if (result === "capture_required") {
         logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "customer_capture_required" });
         await submitQuestion("لازم أولًا أراجع بياناتك قبل ما أكمل الإضافة للسلة.", {
@@ -2646,7 +2628,7 @@ function AiSupportChatWidget() {
     if (raw.length && raw.length <= 64) {
       await submitQuestion(raw, { context: messageContext, metadata: { last_action: key } });
     }
-  }, [aiSupportContext, navigate, pushAiSupportContext, resolveAiSupportVariantSelection, sessionId, submitQuestion, supportHref, tenantId, logWebsiteChatEvent]);
+  }, [aiSupportContext, navigate, onAddToCart, pushAiSupportContext, resolveAiSupportVariantSelection, sessionId, submitQuestion, supportHref, tenantId, logWebsiteChatEvent]);
 
   const handleImageInputChange = useCallback((event) => {
     const file = event.target.files?.[0];
@@ -2887,6 +2869,23 @@ function Storefront() {
   const STOREFRONT_BUILD_MARKER = "storefront-addtocart-final-v3";
   const pageStartedAtRef = useRef(performance.now());
   console.log("[storefront-build-marker]", STOREFRONT_BUILD_MARKER);
+  function handleStorefrontAddToCart(product, variant, quantity = 1) {
+    if (!variant || Number(variant.stock || 0) <= 0) {
+      toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
+      return "unavailable";
+    }
+    if (!(displaySellingPrice(product, variant) > 0)) {
+      toast.error(sfText("storefront.toasts.priceUnavailable", "The price is currently unavailable."));
+      return "unavailable";
+    }
+    const cartItem = buildCartItem(product, variant, quantity);
+    if (!customerSessionRef.current && !captureSkipActive()) {
+      openCustomerCapture(cartItem, "add_to_cart");
+      return "capture_required";
+    }
+    commitCartItem(cartItem);
+    return "added";
+  }
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       logPagePerf("storefront", pageStartedAtRef.current, { page_mount_ms: Math.round(performance.now() - pageStartedAtRef.current) });
@@ -3227,7 +3226,7 @@ function Storefront() {
           <Route path="returns" element={<ReturnsPolicy />} />
         </Routes>
       </main>
-      <AiSupportChatWidget />
+      <AiSupportChatWidget onAddToCart={handleStorefrontAddToCart} />
       <Footer />
       <MobileBottomNav count={cart.length} />
       <CustomerCaptureSheet
