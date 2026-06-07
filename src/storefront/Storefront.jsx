@@ -6386,7 +6386,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   if (!cart.length) return <EmptyState title={sfText("storefront.checkout.emptyCartTitle", "Your cart is empty")} text={sfText("storefront.checkout.emptyCartText", "Choose a product first, then continue checkout")} />;
 
   return (
-    <section className="sf-checkout-page mx-auto max-w-7xl overflow-x-hidden px-4 pt-4 md:pt-7" data-theme={themeMode}>
+    <section className="sf-checkout-shell sf-checkout-page mx-auto max-w-7xl overflow-x-hidden px-4 pt-4 md:pt-7" data-theme={themeMode}>
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="sf-checkout-eyebrow text-sm font-black text-[#c4b5fd]">{sfText("storefront.checkout.eyebrow", "Checkout")}</p>
@@ -7148,7 +7148,7 @@ function TextField({ label, value, onChange, required, error, compact, placehold
   return (
     <label className="sf-checkout-field block md:col-span-2">
       <span className="mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input w-full rounded-2xl border bg-white/[0.055] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
+      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input w-full resize-y rounded-2xl border bg-white/[0.055] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
@@ -7342,7 +7342,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
   }, [open]);
 
   useEffect(() => {
-    if (!open || !inputRef.current) return;
+    if (!open || !inputRef.current || !isMobile) return;
     window.requestAnimationFrame(() => {
       inputRef.current?.focus({ preventScroll: true });
     });

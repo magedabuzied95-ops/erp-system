@@ -38,7 +38,7 @@ export default function StorefrontCheckoutSummary({
   const deliveryText = shippingQuote.estimated_delivery_text || t("storefront.checkout.expectedDeliveryNotice", "Expected delivery is 2 to 5 business days depending on governorate.");
 
   return (
-    <aside className="sf-checkout-summary h-max rounded-[1.7rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035)_42%,rgba(7,10,20,0.9))] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.06)] ring-1 ring-white/[0.04] backdrop-blur-2xl lg:sticky lg:top-24 md:p-5">
+    <aside className="sf-checkout-summary h-max rounded-[1.7rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035)_42%,rgba(7,10,20,0.9))] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.06)] ring-1 ring-white/[0.04] backdrop-blur-2xl lg:sticky lg:top-[calc(env(safe-area-inset-top)+1rem)] lg:self-start md:p-5">
       <button type="button" onClick={() => setOpen((value) => !value)} className="flex min-h-10 w-full items-center justify-between md:pointer-events-none">
         <span className="text-xl font-black text-white">{t("storefront.checkout.orderSummary", "Order summary")}</span>
         <span className="rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-xs font-black text-white/70 md:hidden">{open ? t("common.hide", "Hide") : t("common.show", "Show")}</span>

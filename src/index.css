@@ -24,6 +24,7 @@
   #root {
     min-height: 100%;
     overflow-x: hidden;
+    scrollbar-gutter: stable;
     background: var(--bg);
   }
 
@@ -41,6 +42,7 @@
     margin: 0;
     max-width: 100vw;
     overflow-x: hidden;
+    scrollbar-gutter: stable;
     color: var(--text);
     background: var(--bg);
     font-family: var(--app-font, "Inter", "Segoe UI", sans-serif);
@@ -778,6 +780,65 @@
       var(--safe-bottom) +
       2rem
     );
+  }
+
+  .sf-checkout-shell {
+    min-height: 100dvh;
+    position: relative;
+    overflow-anchor: none;
+    scrollbar-gutter: stable;
+  }
+
+  .storefront-shell--checkout {
+    overflow-anchor: none;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page {
+    min-height: 100dvh;
+    overflow-anchor: none;
+  }
+
+  .storefront-shell--checkout .sf-checkout-summary {
+    align-self: start;
+    overflow-anchor: none;
+  }
+
+  .storefront-shell--checkout .sf-reveal,
+  .storefront-shell--checkout .sf-checkout-section,
+  .storefront-shell--checkout .sf-checkout-summary,
+  .storefront-shell--checkout .sf-checkout-summary-item,
+  .storefront-shell--checkout .sf-checkout-summary-totals,
+  .storefront-shell--checkout .sf-checkout-info-line,
+  .storefront-shell--checkout .sf-checkout-info-box,
+  .storefront-shell--checkout .sf-checkout-panel,
+  .storefront-shell--checkout .sf-checkout-payment-copy,
+  .storefront-shell--checkout .sf-checkout-trust-pill,
+  .storefront-shell--checkout .sf-checkout-step-badge,
+  .storefront-shell--checkout .sf-checkout-progress-step,
+  .storefront-shell--checkout .sf-checkout-submit-button,
+  .storefront-shell--checkout .sf-checkout-sticky-actions .sf-checkout-submit-button--compact,
+  .storefront-shell--checkout .sf-ai-chat-launcher {
+    animation: none !important;
+    will-change: auto;
+  }
+
+  .storefront-shell--checkout .sf-checkout-progress-step,
+  .storefront-shell--checkout .sf-checkout-step-badge,
+  .storefront-shell--checkout .sf-checkout-submit-button,
+  .storefront-shell--checkout .sf-checkout-sticky-actions .sf-checkout-submit-button--compact,
+  .storefront-shell--checkout .sf-ai-chat-launcher {
+    transform: none !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-submit-button:hover:not(:disabled),
+  .storefront-shell--checkout .sf-checkout-sticky-actions .sf-checkout-submit-button--compact:hover:not(:disabled),
+  .storefront-shell--checkout .sf-ai-chat-launcher:hover,
+  .storefront-shell--checkout .sf-ai-chat-launcher:active {
+    transform: none !important;
+  }
+
+  .storefront-shell--checkout .sf-shimmer-button::after {
+    content: none !important;
   }
 
   .sf-checkout-sticky-actions {
