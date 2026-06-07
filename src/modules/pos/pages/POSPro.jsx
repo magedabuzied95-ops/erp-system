@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import toast from "react-hot-toast";
@@ -114,6 +114,12 @@ const isStandaloneDisplayMode = () =>
   isBrowser() && (window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator?.standalone === true);
 
 const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
+const POS_MANIFEST_HREF = "/pos-manifest.webmanifest";
+const POS_APP_TITLE = "M One POS";
+const POS_APP_SHORT_TITLE = "POS";
+const POS_THEME_COLOR = "#07111f";
+const POS_STATUS_BAR_STYLE = "black-translucent";
+const POS_TOUCH_ICON_HREF = "/icons/pos-180.png";
 const POS_CHECKOUT_DEBUG = Boolean(
   import.meta.env?.DEV ||
   String(import.meta.env?.VITE_POS_CHECKOUT_DEBUG || "").trim().toLowerCase() === "true" ||
@@ -147,6 +153,35 @@ const writeLastSalespersonId = (salespersonId) => {
     else window.localStorage.removeItem(POS_LAST_SALESPERSON_KEY);
   } catch {
     // This is a cashier convenience only; checkout must continue.
+  }
+};
+
+const getHeadMetaContent = (name) => {
+  if (typeof document === "undefined") return "";
+  return document.querySelector(`meta[name="${name}"]`)?.getAttribute("content") || "";
+};
+
+const setHeadMetaContent = (name, content) => {
+  if (typeof document === "undefined") return null;
+  let meta = document.querySelector(`meta[name="${name}"]`);
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.setAttribute("name", name);
+    document.head.appendChild(meta);
+  }
+  meta.setAttribute("content", content);
+  return meta;
+};
+
+const restoreHeadMetaContent = (name, content, hadExistingMeta) => {
+  if (typeof document === "undefined") return;
+  const meta = document.querySelector(`meta[name="${name}"]`);
+  if (!hadExistingMeta && !content) {
+    meta?.remove();
+    return;
+  }
+  if (content || hadExistingMeta) {
+    setHeadMetaContent(name, content);
   }
 };
 
@@ -1187,6 +1222,7 @@ function POSPro() {
   const pageStartedAtRef = useRef(performance.now());
   const firstDataLoggedRef = useRef(false);
   const renderLoggedRef = useRef(false);
+  const location = useLocation();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -1365,6 +1401,69 @@ function POSPro() {
     if (!currentUserId) return true;
     return !salesEmployees.some((employee) => String(employee.user_id || "") === currentUserId);
   }, [canOverrideSeller, currentUser?.id, salesEmployees]);
+
+  useEffect(() => {
+    if (!isBrowser() || !location.pathname.startsWith("/pos")) return undefined;
+
+    const previousManifests = Array.from(document.querySelectorAll('link[rel="manifest"]')).map((item) => item.getAttribute("href") || "").filter(Boolean);
+    const hadAppleCapable = Boolean(document.querySelector('meta[name="apple-mobile-web-app-capable"]'));
+    const hadAppleTitle = Boolean(document.querySelector('meta[name="apple-mobile-web-app-title"]'));
+    const hadStatusBarStyle = Boolean(document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]'));
+    const hadThemeColor = Boolean(document.querySelector('meta[name="theme-color"]'));
+    const appleTouchLink = document.querySelector('link[rel="apple-touch-icon"]');
+    const hadAppleTouchIcon = Boolean(appleTouchLink);
+    const previousAppleCapable = getHeadMetaContent("apple-mobile-web-app-capable");
+    const previousAppleTitle = getHeadMetaContent("apple-mobile-web-app-title");
+    const previousStatusBarStyle = getHeadMetaContent("apple-mobile-web-app-status-bar-style");
+    const previousThemeColor = getHeadMetaContent("theme-color");
+    const previousAppleTouchIcon = appleTouchLink?.getAttribute("href") || "";
+    const previousTitle = document.title;
+
+    document.querySelectorAll('link[rel="manifest"]').forEach((item) => item.remove());
+    const manifest = document.createElement("link");
+    manifest.setAttribute("rel", "manifest");
+    manifest.setAttribute("href", POS_MANIFEST_HREF);
+    manifest.setAttribute("data-pos-manifest", "true");
+    document.head.appendChild(manifest);
+
+    setHeadMetaContent("apple-mobile-web-app-capable", "yes");
+    setHeadMetaContent("apple-mobile-web-app-title", POS_APP_SHORT_TITLE);
+    setHeadMetaContent("apple-mobile-web-app-status-bar-style", POS_STATUS_BAR_STYLE);
+    setHeadMetaContent("theme-color", POS_THEME_COLOR);
+    if (appleTouchLink) {
+      appleTouchLink.setAttribute("href", POS_TOUCH_ICON_HREF);
+    } else {
+      const touchIcon = document.createElement("link");
+      touchIcon.setAttribute("rel", "apple-touch-icon");
+      touchIcon.setAttribute("href", POS_TOUCH_ICON_HREF);
+      document.head.appendChild(touchIcon);
+    }
+    document.title = POS_APP_TITLE;
+
+    return () => {
+      manifest.remove();
+      if (!window.location.pathname.startsWith("/pos")) {
+        previousManifests.forEach((href) => {
+          if (!href) return;
+          const restored = document.createElement("link");
+          restored.setAttribute("rel", "manifest");
+          restored.setAttribute("href", href);
+          document.head.appendChild(restored);
+        });
+      }
+      restoreHeadMetaContent("apple-mobile-web-app-capable", previousAppleCapable, hadAppleCapable);
+      restoreHeadMetaContent("apple-mobile-web-app-title", previousAppleTitle, hadAppleTitle);
+      restoreHeadMetaContent("apple-mobile-web-app-status-bar-style", previousStatusBarStyle, hadStatusBarStyle);
+      restoreHeadMetaContent("theme-color", previousThemeColor, hadThemeColor);
+      if (hadAppleTouchIcon) {
+        const restoredTouchIcon = document.querySelector('link[rel="apple-touch-icon"]');
+        if (restoredTouchIcon) restoredTouchIcon.setAttribute("href", previousAppleTouchIcon);
+      } else {
+        document.querySelector('link[rel="apple-touch-icon"]')?.remove();
+      }
+      document.title = previousTitle || POS_APP_TITLE;
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
     writePosCart(cart);
