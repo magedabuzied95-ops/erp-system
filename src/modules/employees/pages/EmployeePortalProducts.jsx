@@ -328,15 +328,15 @@ function ProductPickerSheet({
 
             <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-3">
               <div className="grid gap-2 text-sm text-slate-700">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <span className="font-black text-slate-500">ظƒظˆط¯ ط§ظ„ط£ط±طھظƒظ„</span>
                   <span className="truncate font-black text-slate-900">{product.article_code || "-"}</span>
                 </div>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <span className="font-black text-slate-500">ط§ط³ظ… ط§ظ„ظ…طµظ†ط¹</span>
                   <span className="truncate font-black text-slate-900">{product.manufacturer_name || "-"}</span>
                 </div>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <span className="font-black text-slate-500">ط§ظ„ظ„ظˆظ†</span>
                   <span className="truncate font-bold text-slate-900">{selectedColor || "-"}</span>
                 </div>
@@ -529,10 +529,10 @@ export default function EmployeePortalProducts() {
   }
 
   return (
-    <main dir="rtl" className="min-h-[100dvh] bg-slate-100 px-3 py-3 text-right text-slate-950 sm:px-4 sm:py-4">
+    <main dir="rtl" className="min-h-[100dvh] overflow-x-hidden bg-slate-100 px-3 py-3 text-right text-slate-950 sm:px-4 sm:py-4">
       <div className="mx-auto max-w-7xl">
         <header className="rounded-3xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-600">Employee Portal</div>
               <h1 className="truncate text-lg font-black text-slate-950">ط§ظ„ظ…ظ†طھط¬ط§طھ</h1>
@@ -554,7 +554,7 @@ export default function EmployeePortalProducts() {
                   inStockOnly: false,
                 });
               }}
-              className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700"
+              className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 self-start sm:self-auto"
             >
               ط¥ط¹ط§ط¯ط© ط§ظ„ط¶ط¨ط·
             </button>
@@ -562,13 +562,13 @@ export default function EmployeePortalProducts() {
         </header>
 
         <section className="mt-3 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="flex flex-col gap-3">
             <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3">
               <Search className="h-4 w-4 text-slate-400" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="ط¨ط­ط« ط¹ظ† ظ…ظˆط¯ظٹظ„ ط£ظˆ ظƒظˆط¯"
+                placeholder="بحث عن موديل أو كود"
                 className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-slate-400"
               />
             </label>
@@ -578,7 +578,7 @@ export default function EmployeePortalProducts() {
             </div>
           </div>
 
-          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <select value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))} className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold outline-none">
               <option value="all">ط§ظ„ظپط¦ط©</option>
               {filterOptions.categories.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -616,10 +616,10 @@ export default function EmployeePortalProducts() {
         </section>
 
         <section className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.55fr]">
-          <div className="order-2 lg:order-1">
+          <div className="order-1">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-black text-slate-500">ط¢ط®ط± 20 ظ…ظ†طھط¬</h2>
-              <div className="text-xs font-semibold text-slate-400">{normalizedProducts.length.toLocaleString("ar-EG")} ظ…ظ†طھط¬</div>
+              <h2 className="text-sm font-black text-slate-500">آخر 20 منتج</h2>
+              <div className="text-xs font-semibold text-slate-400">{normalizedProducts.length.toLocaleString("ar-EG")} منتج</div>
             </div>
             <div className="grid gap-3">
               {normalizedProducts.slice(0, 20).map((product) => (
@@ -627,16 +627,16 @@ export default function EmployeePortalProducts() {
               ))}
               {!loading && normalizedProducts.length === 0 ? (
                 <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm font-semibold text-slate-500">
-                  ظ„ط§ طھظˆط¬ط¯ ظ…ظ†طھط¬ط§طھ ظ…ط·ط§ط¨ظ‚ط©
+                  لا توجد منتجات مطابقة
                 </div>
               ) : null}
             </div>
           </div>
 
-          <div className="order-1 lg:order-2">
+          <div className="hidden lg:block lg:order-2">
             <div className="sticky top-3 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-black text-slate-500">ط§ظ„ظ…ظ†طھط¬ ط§ظ„ط­ط§ظ„ظٹ</h2>
+                <h2 className="text-sm font-black text-slate-500">المنتج الحالي</h2>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-600" /> : null}
               </div>
 
@@ -667,24 +667,24 @@ export default function EmployeePortalProducts() {
 
                     <div className="space-y-3">
                       <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
-                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">ط§ظ„ظ„ظˆظ†</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">اللون</div>
                         <div className="mt-1 text-lg font-black text-slate-950">{activeVariant?.color || selectedColor || "-"}</div>
                       </div>
                       <div className="rounded-[1.25rem] border border-slate-200 bg-white p-4">
-                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">ط§ظ„ظ…ظ‚ط§ط³</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">المقاس</div>
                         <div className="mt-1 flex items-end gap-2">
                           <div className="text-5xl font-black leading-none text-slate-950">{activeVariant?.size || selectedSize || "-"}</div>
-                          <div className="pb-1 text-sm font-bold text-slate-500">أ— {Number(activeVariant?.stock || 0)}</div>
+                          <div className="pb-1 text-sm font-bold text-slate-500">× {Number(activeVariant?.stock || 0)}</div>
                         </div>
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
-                        <ProductBadge label="ظƒظˆط¯ ط§ظ„ط£ط±طھظƒظ„" value={selectedProduct.article_code || "-"} />
-                        <ProductBadge label="ط§ط³ظ… ط§ظ„ظ…طµظ†ط¹" value={selectedProduct.manufacturer_name || "-"} />
-                        <ProductBadge label="ط§ظ„ط¨ط§ط¦ط¹" value={selectedProduct.employeeName || employee?.full_name || "-"} />
-                        <ProductBadge label="ط§ظ„ظˆظ‚طھ" value={formatTime()} />
+                        <ProductBadge label="كود الأرتكل" value={selectedProduct.article_code || "-"} />
+                        <ProductBadge label="اسم المصنع" value={selectedProduct.manufacturer_name || "-"} />
+                        <ProductBadge label="البائع" value={selectedProduct.employeeName || employee?.full_name || "-"} />
+                        <ProductBadge label="الوقت" value={formatTime()} />
                       </div>
                       <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
-                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">ط§ظ„ظ…ظ†طھط¬</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">المنتج</div>
                         <div className="mt-1 text-sm font-bold text-slate-500">{selectedProduct.name || "-"}</div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {selectedProduct.colors.slice(0, 4).map((color) => (
@@ -700,44 +700,75 @@ export default function EmployeePortalProducts() {
               ) : (
                 <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
                   <Package2 className="mx-auto h-16 w-16 text-slate-300" />
-                  <div className="mt-4 text-lg font-black text-slate-900">ط§ط®طھط± ظ…ظ†طھط¬ظ‹ط§ ظ„ظ„ظ…ط¹ط§ظٹظ†ط©</div>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">ط§ط¶ط؛ط· ط¹ظ„ظ‰ ط£ظٹ ط¨ط·ط§ظ‚ط© ظ„ظپطھط­ ط§ظ„ط£ظ„ظˆط§ظ† ظˆط§ظ„ظ…ظ‚ط§ط³ط§طھ ط«ظ… ظ†ط¯ط§ط، ط§ظ„ظ…ط®ط²ظ†.</p>
+                  <div className="mt-4 text-lg font-black text-slate-900">اختر منتجًا للمعاينة</div>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">اضغط على أي بطاقة لفتح الألوان والمقاسات ثم اطلب من المخزن.</p>
                 </div>
               )}
             </div>
           </div>
         </section>
-      </div>
 
-      {selectedProduct ? (
-        <ProductPickerSheet
-          product={{ ...selectedProduct, selectedVariantId, employeeName: employee?.full_name || employee?.name || "" }}
-          selectedColor={selectedColor}
-          selectedSize={selectedSize}
-          onSelectColor={(color) => {
-            const nextVariant = firstVariantForColor(selectedProduct, color);
-            setSelectedColor(color);
-            setSelectedVariantId(nextVariant?.variant_id ?? nextVariant?.id ?? null);
-            setSelectedSize(nextVariant?.size || "");
-          }}
-          onSelectSize={(size) => {
-            const nextVariant = findVariant(selectedProduct, null, selectedColor, size);
-            setSelectedSize(size);
-            setSelectedVariantId(nextVariant?.variant_id ?? nextVariant?.id ?? null);
-            if (nextVariant?.color) setSelectedColor(nextVariant.color);
-          }}
-          onClose={() => {
-            setSelectedProduct(null);
-            setSelectedVariantId(null);
-            setSelectedColor("");
-            setSelectedSize("");
-          }}
-          onCallWarehouse={handleCallWarehouse}
-          loadingCall={loadingCall}
-        />
-      ) : null}
+        {selectedProduct && activeVariant ? (
+          <div className="sticky bottom-2 z-30 mt-4 rounded-[1.5rem] border border-emerald-200 bg-white/95 p-3 shadow-[0_16px_40px_rgba(16,185,129,0.16)] backdrop-blur lg:hidden">
+            <div className="flex items-center gap-3">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                {selectedProduct.image_url ? (
+                  <img src={selectedProduct.image_url} alt={selectedProduct.name} className="h-full w-full object-contain p-1.5" />
+                ) : (
+                  <Package2 className="h-7 w-7 text-slate-300" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-black text-slate-950">{selectedProduct.name || "-"}</div>
+                <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">
+                  {selectedColor || "-"} • {selectedSize || "-"}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCallWarehouse}
+                disabled={loadingCall || Number(activeVariant?.stock || 0) <= 0}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-50"
+              >
+                {loadingCall ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+                اطلب من المخزن
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {selectedProduct ? (
+          <ProductPickerSheet
+            product={{ ...selectedProduct, selectedVariantId, employeeName: employee?.full_name || employee?.name || "" }}
+            selectedColor={selectedColor}
+            selectedSize={selectedSize}
+            onSelectColor={(color) => {
+              const nextVariant = firstVariantForColor(selectedProduct, color);
+              setSelectedColor(color);
+              setSelectedVariantId(nextVariant?.variant_id ?? nextVariant?.id ?? null);
+              setSelectedSize(nextVariant?.size || "");
+            }}
+            onSelectSize={(size) => {
+              const nextVariant = findVariant(selectedProduct, null, selectedColor, size);
+              setSelectedSize(size);
+              setSelectedVariantId(nextVariant?.variant_id ?? nextVariant?.id ?? null);
+              if (nextVariant?.color) setSelectedColor(nextVariant.color);
+            }}
+            onClose={() => {
+              setSelectedProduct(null);
+              setSelectedVariantId(null);
+              setSelectedColor("");
+              setSelectedSize("");
+            }}
+            onCallWarehouse={handleCallWarehouse}
+            loadingCall={loadingCall}
+          />
+        ) : null}
+      </div>
     </main>
   );
 }
+
+
 
 
