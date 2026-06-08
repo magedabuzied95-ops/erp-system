@@ -1079,6 +1079,15 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const memoryActiveProductId = activeProductFromMemory(memory);
   const explicitModel = detectExplicitModel(message);
   const intent = classifyIntent({ message, attachments: normalizedInbound.attachments, explicitModel });
+  const activeSize = text(memory?.activeSize || memory?.selectedSize || memory?.preferences?.activeSize || memory?.preferences?.selectedSize || "");
+  const activeColor = text(memory?.activeColor || memory?.selectedColor || memory?.preferences?.activeColor || memory?.preferences?.selectedColor || "");
+  console.info("AI_V2_FSM_ENTRY", {
+    intent,
+    message,
+    activeProductId: memoryActiveProductId || "",
+    activeSize,
+    activeColor,
+  });
   const postProductFsmDecision = buildPostProductFsmDecision({ message, memory, intent });
   if (postProductFsmDecision) {
     console.info("AI_BRAIN_V2_DECISION", {

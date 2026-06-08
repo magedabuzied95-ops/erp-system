@@ -90,6 +90,10 @@ const META_WEBHOOK_MINIMAL_FIELDS = [
 ];
 const META_WEBHOOK_REQUIRED_FIELDS = META_WEBHOOK_MINIMAL_FIELDS;
 const META_FULLY_CONNECTED_STATUS = "fully_connected";
+const protectedV2ProductIntent = (detectedIntent = "") => /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE|color_selected|COLOR_SELECTED|post_product_size_selected|POST_PRODUCT_SIZE_SELECTED|post_product_color_list|POST_PRODUCT_COLOR_LIST|post_product_color_selected|POST_PRODUCT_COLOR_SELECTED|post_product_order_confirmation|POST_PRODUCT_ORDER_CONFIRMATION)$/i.test(text(detectedIntent));
+if (typeof protectedV2ProductIntent !== "function") {
+  throw new Error("protectedV2ProductIntent helper is not defined");
+}
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -9344,8 +9348,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   }
   const guardedVisualIntroText = visualCards ? closestVisualIntroText({ guard: topConfirmationGuard, replyType: metadata.final_reply_type }) : "";
   const baseIntroText = visualCards ? guardedVisualIntroText : (gate.introText || introText);
-  const protectedV2ProductIntent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE|color_selected|COLOR_SELECTED|post_product_size_selected|POST_PRODUCT_SIZE_SELECTED|post_product_color_list|POST_PRODUCT_COLOR_LIST|post_product_color_selected|POST_PRODUCT_COLOR_SELECTED|post_product_order_confirmation|POST_PRODUCT_ORDER_CONFIRMATION)$/i.test(text(detectedIntent));
-  const finalIntroText = protectedV2ProductIntent ? "" : baseIntroText;
+  const finalIntroText = protectedV2ProductIntent(detectedIntent) ? "" : baseIntroText;
   const productCardsPipelineId = finalReplyPipelineId({
     message,
     owner: "response_orchestrator",
@@ -17046,7 +17049,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           replyType: productCards.length ? "ai_product_response" : "ai_text_response",
         },
       });
-      const finalReplyText = protectedV2ProductIntent ? text(replyText) : finalOutbound.text;
+      const finalReplyText = protectedV2ProductIntent(aiPayload.detected_intent || latestDebugClassification?.intent || "") ? text(replyText) : finalOutbound.text;
       const finalOutboundMetadata = finalOutbound.metadata;
       const outboundPreview = productCards.length ? productCards.map(productCardReplyText).join("\n\n").slice(0, 500) : finalReplyText;
       if (productCards.length) {
@@ -17075,10 +17078,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
           message,
           text: finalReplyText,
           detectedIntent: "model_color_limit_intro",
-          metadata: { ...finalOutboundMetadata, model_color_limit_applied: true, product_card_count: productCards.length, force_reply_text_passthrough: protectedV2ProductIntent },
+          metadata: { ...finalOutboundMetadata, model_color_limit_applied: true, product_card_count: productCards.length, force_reply_text_passthrough: protectedV2ProductIntent(aiPayload.detected_intent || latestDebugClassification?.intent || "") },
         });
       }
-      const replyTextForSend = protectedV2ProductIntent ? text(replyText) : finalOutbound.text;
+      const replyTextForSend = protectedV2ProductIntent(aiPayload.detected_intent || latestDebugClassification?.intent || "") ? text(replyText) : finalOutbound.text;
       const sendResult = await sendMetaInboxOutboundMessage({
         tenantId: config.tenant_id,
         channel: message.channel,
